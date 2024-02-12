@@ -63,7 +63,7 @@ export default function DeleteDrawing({ drawingId, revalidatePath }: Props) {
             <Button variant="secondary">Cancel</Button>
           </DialogClose>
           <DialogClose asChild>
-            <Button type="button" onClick={handleDelete} disabled={isLoading}>
+            <Button variant="outline" type="button" onClick={handleDelete} disabled={isLoading}>
               Delete
             </Button>
           </DialogClose>
