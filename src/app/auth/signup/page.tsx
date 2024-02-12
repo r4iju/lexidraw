@@ -15,7 +15,7 @@ export default async function SignInPage() {
     <div className="flex min-h-[90vh] flex-col items-center justify-center ">
       <div className="w-full rounded  border p-6 shadow-lg md:max-w-lg">
         <h2 className="mb-4 text-center text-2xl font-bold text-gray-900 dark:text-white">
-          Register
+          Sign up
         </h2>
         <Suspense fallback={<FormSkeleton />}>
           <SignUpForm />
@@ -23,7 +23,7 @@ export default async function SignInPage() {
       </div>
       <div className="mt-4 w-full text-center underline">
         <Link href="/auth/signin">
-          Do you already have an account? Sign in here
+          Already registered? Sign in here
         </Link>
       </div>
     </div>

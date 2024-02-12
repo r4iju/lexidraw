@@ -15,7 +15,7 @@ export default async function SignInPage() {
     <div className=" flex min-h-[90vh] flex-col items-center justify-center ">
       <div className="w-full rounded  border p-6 shadow-lg md:max-w-lg">
         <h2 className="mb-4 text-center text-2xl font-bold text-gray-900 dark:text-white">
-          Logga in
+          Sign in
         </h2>
         <Suspense fallback={<FormSkeleton />}>
           <SignInForm />
