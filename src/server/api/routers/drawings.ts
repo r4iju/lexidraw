@@ -58,7 +58,8 @@ export const drawingRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       return await ctx.db.drawing.findMany({
         where: { userId: ctx.session?.user.id, deletedAt: null },
-        include: { user: true, sharedWith: true }
+        include: { user: true, sharedWith: true },
+        orderBy: { updatedAt: 'desc' },
       })
     }),
   delete: protectedProcedure

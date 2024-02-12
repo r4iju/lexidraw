@@ -24,7 +24,7 @@ export default async function DrawingBoard(props: Props) {
   } = Params.parse(props);
 
   if (searchParams.new) {
-    await api.drawings.create.mutate({ id: drawingId, title: "" });
+    await api.drawings.create.mutate({ id: drawingId, title: "New drawing" });
     return redirect(`/dashboard/${drawingId}`);
   }
 
