@@ -6,7 +6,6 @@ export const metadata = {
   title: "An excalidraw demo",
   description:
     "This is a demo of the excalidraw tool. It is a collaborative online drawing and diagramming tool.",
-  image: "/trollmo-arkitekter.jpg",
 };
 
 export default function LandingPage() {

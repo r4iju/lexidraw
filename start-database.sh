@@ -9,7 +9,7 @@
 
 # On Lunux and macOS you can run this script directly - `./start-database.sh`
 
-DB_CONTAINER_NAME="trollmo-arkitekter-postgres"
+DB_CONTAINER_NAME="excalidraw"
 
 if ! [ -x "$(command -v docker)" ]; then
   echo "Docker is not installed. Please install docker and try again.\nDocker install guide: https://docs.docker.com/engine/install/"
@@ -39,6 +39,6 @@ if [ "$DB_PASSWORD" = "password" ]; then
   sed -i -e "s/:password@/:$DB_PASSWORD@/" .env
 fi
 
-docker run --name $DB_CONTAINER_NAME -e POSTGRES_PASSWORD=$DB_PASSWORD -e POSTGRES_DB=trollmo-arkitekter -d -p 5432:5432 docker.io/postgres
+docker run --name $DB_CONTAINER_NAME -e POSTGRES_PASSWORD=$DB_PASSWORD -e POSTGRES_DB=excalidraw -d -p 5432:5432 docker.io/postgres
 
 echo "Database container was succesfuly created"
