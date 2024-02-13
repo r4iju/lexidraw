@@ -13,7 +13,7 @@ export type CreateDrawing = z.infer<typeof CreateDrawing>
 
 export const Element = z.object({
   id: z.string(),
-  type: z.string(),
+  type: z.enum(["text", "selection", "rectangle", "diamond", "ellipse", "line", "arrow", "freedraw", "image", "frame", "embeddable"]),
   x: z.number(),
   y: z.number(),
   width: z.number(),

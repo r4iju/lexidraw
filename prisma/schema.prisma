@@ -118,9 +118,23 @@ enum AccessLevel {
   EDIT
 }
 
+enum ElementType {
+  text
+  selection
+  rectangle
+  diamond
+  ellipse
+  line
+  arrow
+  freedraw
+  image
+  frame
+  embeddable
+}
+
 model Element {
   id         String   @id
-  type       String
+  type       ElementType
   x          Float
   y          Float
   width      Float

@@ -5,8 +5,8 @@ import { api } from "~/trpc/server";
 import { Card } from "~/components/ui/card";
 import { revalidatePath } from "next/cache";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
-import DeleteDrawing from "./_actions/delete-drawing";
 import DrawingTitle from "./_actions/rename-drawing";
+import { MoreActions } from "./_actions/more-actions";
 
 export const metadata = {
   title: "An Excalidraw App | My drawings",
@@ -43,20 +43,22 @@ export default async function LandingPage() {
                 key={drawing.id}
                 className="relative flex flex-col gap-2 rounded-lg p-4 shadow-md"
               >
-                <div className="text-right text-sm text-gray-500 dark:text-gray-400">
-                  {formatDistanceToNow(new Date(drawing.updatedAt), {
-                    addSuffix: true,
-                  })}
+                <div className="right flex justify-end gap-4">
+                  <div className="text-right text-sm text-gray-500 dark:text-gray-300">
+                    {formatDistanceToNow(new Date(drawing.updatedAt), {
+                      addSuffix: true,
+                    })}
+                  </div>
+                  <MoreActions
+                    drawingId={drawing.id}
+                    revalidatePath={refetch}
+                  />
                 </div>
-                <div className="right-2 top-2 flex justify-between gap-4">
+                <div className="flex w-full justify-between gap-4">
                   <DrawingTitle
                     drawingId={drawing.id}
                     title={drawing.title}
                     onTitleChange={refetch}
-                  />
-                  <DeleteDrawing
-                    drawingId={drawing.id}
-                    revalidatePath={refetch}
                   />
                 </div>
                 <Link href={`/dashboard/${drawing.id}`} passHref>
