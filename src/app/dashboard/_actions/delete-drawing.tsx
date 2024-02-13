@@ -1,6 +1,5 @@
 "use client";
 
-import { TrashIcon } from "@radix-ui/react-icons";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -10,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "~/components/ui/dialog";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
@@ -18,9 +16,16 @@ import { api } from "~/trpc/react";
 type Props = {
   drawingId: string;
   revalidatePath: VoidFunction;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
 };
 
-export default function DeleteDrawing({ drawingId, revalidatePath }: Props) {
+export default function DeleteDrawing({
+  drawingId,
+  revalidatePath,
+  isOpen,
+  onOpenChange,
+}: Props) {
   const { mutate: remove, isLoading } = api.drawings.delete.useMutation();
   const { toast } = useToast();
 
@@ -44,12 +49,7 @@ export default function DeleteDrawing({ drawingId, revalidatePath }: Props) {
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" disabled={isLoading}>
-          <TrashIcon />
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Confirm Deletion</DialogTitle>
@@ -60,10 +60,15 @@ export default function DeleteDrawing({ drawingId, revalidatePath }: Props) {
         </DialogHeader>
         <DialogFooter className="flex justify-end space-x-4">
           <DialogClose asChild>
-            <Button variant="secondary">Cancel</Button>
+            <Button variant="outline">Cancel</Button>
           </DialogClose>
           <DialogClose asChild>
-            <Button variant="outline" type="button" onClick={handleDelete} disabled={isLoading}>
+            <Button
+              variant="default"
+              type="button"
+              onClick={handleDelete}
+              disabled={isLoading}
+            >
               Delete
             </Button>
           </DialogClose>

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { BuildingIcon } from "~/components/icons/building";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
+import { auth } from "~/server/auth";
 
-export default function Header() {
+export default async function Header() {
+  const session = await auth();
   return (
     <header className="sticky top-0 z-50 flex h-14 items-center justify-between bg-background px-4 shadow-md lg:px-6">
       <Link href="/" className="flex items-center justify-center">
@@ -12,12 +14,22 @@ export default function Header() {
       <nav>
         <ul className="flex items-center gap-4 sm:gap-6">
           <li>
-            <Link
-              className="text-sm font-medium underline-offset-4 hover:underline"
-              href="/dashboard"
-            >
-              My drawings
-            </Link>
+            {session && (
+              <Link
+                className="text-sm font-medium underline-offset-4 hover:underline"
+                href="/dashboard"
+              >
+                My drawings
+              </Link>
+            )}
+            {!session && (
+              <Link
+                className="text-sm font-medium underline-offset-4 hover:underline"
+                href="/auth/signup"
+              >
+                Sign up
+              </Link>
+            )}
           </li>
           <li className="flex items-center">
             <ModeToggle />

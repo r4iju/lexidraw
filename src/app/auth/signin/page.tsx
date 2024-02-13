@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { redirect } from "next/navigation";
 import FormSkeleton from "./skeleton";
 import Link from "next/link";
+import { Button } from "~/components/ui/button";
 
 export default async function SignInPage() {
   const session = await auth();
@@ -21,9 +22,9 @@ export default async function SignInPage() {
           <SignInForm />
         </Suspense>
       </div>
-      <div className="mt-4 w-full text-center underline">
-        <Link href="/auth/signup">No account? Sign up here</Link>
-      </div>
+      <Link href="/auth/signup">
+        <Button variant="link">No account? Sign up here</Button>
+      </Link>
     </div>
   );
 }

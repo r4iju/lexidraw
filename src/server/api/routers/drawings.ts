@@ -26,7 +26,7 @@ export const drawingRouter = createTRPCRouter({
         where: { id: input.id },
         data: {
           id: input.id,
-          title: '',
+          title: input.title,
           appState: {
             upsert: {
               where: {
@@ -45,7 +45,6 @@ export const drawingRouter = createTRPCRouter({
         }
       })
     }),
-
   load: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -77,5 +76,5 @@ export const drawingRouter = createTRPCRouter({
         where: { id: input.id },
         data: { title: input.title },
       })
-    })
+    }),
 })
