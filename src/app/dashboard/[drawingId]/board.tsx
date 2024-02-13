@@ -80,6 +80,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const { mutate: createElement } = api.elements.create.useMutation();
   const { mutate: updateElement } = api.elements.update.useMutation();
   const { mutate: deleteElement } = api.elements.delete.useMutation();
+  const { mutate: saveAppState } = api.appState.upsert.useMutation();
   const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
     new Map(elements?.map((e) => [e.id, e])),
   );
@@ -177,6 +178,18 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [],
   );
 
+  // implement this please
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleAppStateChange = useCallback(
+    debounce((newAppState: UIAppState) => {
+      saveAppState({
+        drawingId: drawingId,
+        appState: JSON.stringify(newAppState),
+      });
+    }, 2000),
+    [],
+  );
+
   const options = {
     excalidrawAPI: (api) => setExcalidrawAPI(api),
     initialData: {
@@ -214,7 +227,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         (el) => !el.isDeleted,
       ) as NonDeletedExcalidrawElement[];
       handleElementsChange(nonDeletedElements);
-      // handle state change if needed
+      handleAppStateChange(state);
     },
     // isCollaborating: true,
   } satisfies ExcalidrawProps;
