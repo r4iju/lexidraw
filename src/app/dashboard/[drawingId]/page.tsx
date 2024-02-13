@@ -9,6 +9,8 @@ import { v4 as uuidv4 } from "uuid";
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 const Params = z.object({
   params: z.object({
     drawingId: z.string(),
