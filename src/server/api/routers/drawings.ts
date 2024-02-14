@@ -48,10 +48,24 @@ export const drawingRouter = createTRPCRouter({
   load: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
-      return await ctx.db.drawing.findFirstOrThrow({
+      const drawing = await ctx.db.drawing.findFirstOrThrow({
         where: { id: input.id },
         include: { elements: true, appState: true, user: true, sharedWith: true }
-      })
+      });
+
+      if (drawing.elementsOrder && drawing.elementsOrder.length > 0) {
+        const orderIndex: Record<string, number> = drawing.elementsOrder.reduce((acc, id, index) => {
+          acc[id] = index;
+          return acc;
+        }, {} as Record<string, number>);
+        drawing.elements.sort((a, b) => {
+          return (orderIndex[a.id] ?? Number.MAX_VALUE) - (orderIndex[b.id] ?? Number.MAX_VALUE);
+        });
+      }
+
+      return drawing;
+
+
     }),
   list: protectedProcedure
     .query(async ({ ctx }) => {
@@ -75,6 +89,16 @@ export const drawingRouter = createTRPCRouter({
       await ctx.db.drawing.update({
         where: { id: input.id },
         data: { title: input.title },
+      })
+    }),
+  setElementsOrder: protectedProcedure
+    .input(z.object({ drawingId: z.string(), elementsOrder: z.array(z.string()) }))
+    .mutation(async ({ input, ctx }) => {
+      await ctx.db.drawing.update({
+        where: { id: input.drawingId },
+        data: {
+          elementsOrder: input.elementsOrder,
+        }
       })
     }),
 })

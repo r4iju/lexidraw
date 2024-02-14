@@ -78,9 +78,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const { mutate: save } = api.drawings.save.useMutation();
   // please use these to create, update and delete elements
   const { mutate: createElement } = api.elements.create.useMutation();
-  const { mutate: updateElement } = api.elements.update.useMutation();
+  const { mutate: upsertElement } = api.elements.upsert.useMutation();
   const { mutate: deleteElement } = api.elements.delete.useMutation();
   const { mutate: saveAppState } = api.appState.upsert.useMutation();
+  const { mutate: setElementsOrder } =
+    api.drawings.setElementsOrder.useMutation();
   const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
     new Map(elements?.map((e) => [e.id, e])),
   );
@@ -161,7 +163,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       });
 
       updated.map((element) => {
-        updateElement({
+        upsertElement({
           drawingId: drawingId,
           element: convertElementToAPIFormat(element),
         });
@@ -172,6 +174,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           id: id,
         });
       });
+
+      if (added.length || updated.length || deleted.length) {
+        setElementsOrder({
+          drawingId: drawingId,
+          elementsOrder: elements.map((el) => el.id),
+        });
+      }
 
       updateElementsRef(elements); // Update the reference after processing changes
     }, 500),
@@ -186,7 +195,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         drawingId: drawingId,
         appState: JSON.stringify(newAppState),
       });
-    }, 2000),
+    }, 10000),
     [],
   );
 

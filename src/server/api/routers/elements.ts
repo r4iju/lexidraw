@@ -6,6 +6,22 @@ export const elementRouter = createTRPCRouter({
   create: protectedProcedure
     .input(z.object({ drawingId: z.string(), element: Element }))
     .mutation(async ({ input, ctx }) => {
+      await ctx.db.element.create({
+        data: {
+          id: input.element.id,
+          drawingId: input.drawingId,
+          type: input.element.type,
+          x: input.element.x,
+          y: input.element.y,
+          width: input.element.width,
+          height: input.element.height,
+          properties: input.element.properties,
+        },
+      })
+    }),
+  upsert: protectedProcedure
+    .input(z.object({ drawingId: z.string(), element: Element }))
+    .mutation(async ({ input, ctx }) => {
       await ctx.db.element.upsert({
         where: {
           id: input.element.id,

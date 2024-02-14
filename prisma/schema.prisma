@@ -84,17 +84,18 @@ model CityCoordinates {
 }
 
 model Drawing {
-  id           String          @id @default(cuid())
-  title        String
-  elements     Element[]
-  appState     AppState?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  deletedAt    DateTime?
-  userId       String
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sharedWith   SharedDrawing[]
-  publicAccess PublicAccess    @default(PRIVATE)
+  id            String          @id @default(cuid())
+  title         String
+  elements      Element[]
+  elementsOrder String[]
+  appState      AppState?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedWith    SharedDrawing[]
+  publicAccess  PublicAccess    @default(PRIVATE)
 }
 
 enum PublicAccess {
