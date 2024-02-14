@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateDrawing, SaveDrawing } from "./drawings-schema";
+import { Prisma, PublicAccess } from "@prisma/client";
 
 export const drawingRouter = createTRPCRouter({
   create: protectedProcedure
@@ -45,11 +46,21 @@ export const drawingRouter = createTRPCRouter({
         }
       })
     }),
-  load: protectedProcedure
+  load: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
+
+
+      if (!ctx.session?.user) {
+
+      }
       const drawing = await ctx.db.drawing.findFirstOrThrow({
-        where: { id: input.id },
+        where: {
+          id: input.id,
+          publicAccess: {
+            in: !ctx.session?.user ? [PublicAccess.READ, PublicAccess.EDIT] : [PublicAccess.EDIT, PublicAccess.READ, PublicAccess.PRIVATE]
+          },
+        },
         include: { elements: true, appState: true, user: true, sharedWith: true }
       });
 
@@ -84,11 +95,14 @@ export const drawingRouter = createTRPCRouter({
       })
     }),
   update: protectedProcedure
-    .input(z.object({ id: z.string(), title: z.string() }))
+    .input(z.object({ id: z.string(), title: z.string().optional(), publicAccess: z.enum([PublicAccess.READ, PublicAccess.EDIT, PublicAccess.PRIVATE]).optional() }))
     .mutation(async ({ input, ctx }) => {
       await ctx.db.drawing.update({
         where: { id: input.id },
-        data: { title: input.title },
+        data: {
+          title: input.title,
+          publicAccess: input.publicAccess,
+        },
       })
     }),
   setElementsOrder: protectedProcedure

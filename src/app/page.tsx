@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import Image from "next/image";
+import { auth } from "~/server/auth";
 
 export const metadata = {
   title: "An excalidraw demo",
@@ -8,7 +9,8 @@ export const metadata = {
     "This is a demo of the excalidraw tool. It is a collaborative online drawing and diagramming tool.",
 };
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const session = await auth();
   return (
     <div className="flex min-h-screen flex-col">
       <main className="flex-1">
@@ -20,18 +22,27 @@ export default function LandingPage() {
                   Excalidraw demo
                 </h1>
                 <p className="mx-auto max-w-[700px] text-gray-500 dark:text-gray-400 md:text-xl">
-                  Collaborative online drawing and diagramming tool.
+                  Collaborative online drawing and diagramming tool. Create
+                  wireframes, flowcharts, user interfaces, and more. All saved
+                  automatically and shareable with a link.
                 </p>
-                <Link href="/auth/signup">
-                  <Button>Sign up</Button>
-                </Link>
+                {!session?.user && (
+                  <Link href="/auth/signup">
+                    <Button>Sign up</Button>
+                  </Link>
+                )}
+                {session?.user && (
+                  <Link href="/dashboard">
+                    <Button>My drawings</Button>
+                  </Link>
+                )}
               </div>
 
               <div>
                 <Image
                   alt="A web application for drawing and diagramming"
                   className="mx-auto aspect-[1/1] overflow-hidden rounded-xl object-cover"
-                  src="/images/homepage-banner.webp"
+                  src="/images/homepage-banner.png"
                   height="500"
                   width="500"
                 />
@@ -53,9 +64,9 @@ export default function LandingPage() {
                   width="350"
                   src="/images/projects/project-1.png"
                 />
-                <h3 className="text-lg font-bold">Project 1</h3>
+                <h3 className="text-lg font-bold">Quick sketches</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  A brief description of Project 1.
+                  Quick sketches
                 </p>
               </div>
               <div className="grid gap-1">
@@ -66,7 +77,7 @@ export default function LandingPage() {
                   width="350"
                   src="/images/projects/project-2.png"
                 />
-                <h3 className="text-lg font-bold">Project 2</h3>
+                <h3 className="text-lg font-bold">Make wiregrams</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   A brief description of Project 2.
                 </p>
@@ -79,7 +90,7 @@ export default function LandingPage() {
                   width="350"
                   src="/images/projects/project-3.png"
                 />
-                <h3 className="text-lg font-bold">Project 3</h3>
+                <h3 className="text-lg font-bold">Make a product pitch</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   A brief description of Project 3.
                 </p>

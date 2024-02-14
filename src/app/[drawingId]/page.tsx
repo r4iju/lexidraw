@@ -1,13 +1,15 @@
 import { Suspense } from "react";
-import Board from "./board";
+import Board from "./board-edit";
+import ViewBoard from "./board-view";
 import { z } from "zod";
 import { api } from "~/trpc/server";
 import { redirect } from "next/navigation";
 import { type UIAppState } from "@excalidraw/excalidraw/types/types";
 import { type NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
-import { v4 as uuidv4 } from "uuid";
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
+import { auth } from "~/server/auth";
+import { PublicAccess } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +33,23 @@ export default async function DrawingBoard(props: Props) {
   if (searchParams.new) {
     try {
       await api.drawings.create.mutate({ id: drawingId, title: "New drawing" });
-      return redirect(`/dashboard/${drawingId}`);
+      return redirect(`/${drawingId}`);
     } catch (error) {
       console.error("Error creating a new drawing:", error);
-      return redirect(`/dashboard/${drawingId}`);
+      return redirect(`/${drawingId}`);
     }
   }
 
   try {
-    const { appState, elements } = await api.drawings.load.query({
-      id: drawingId,
-    }, {});
+    const session = await auth();
+    const { appState, elements, publicAccess, user } =
+      await api.drawings.load.query({
+        id: drawingId,
+      });
+
+    const isOwner = session?.user?.id === user?.id;
+    const hasReadAccess = publicAccess === PublicAccess.READ;
+    const shouldRenderViewMode = !isOwner && hasReadAccess;
 
     const parsedAppState = appState?.appState
       ? (JSON.parse(appState.appState) as UIAppState)
@@ -61,21 +69,32 @@ export default async function DrawingBoard(props: Props) {
         <Suspense
           fallback={<div style={{ width: "100vw", height: "90vh" }}></div>}
         >
-          <Board
-            drawingId={drawingId}
-            elements={parsedElements}
-            appState={parsedAppState}
-          />
+          {!shouldRenderViewMode && (
+            <Board
+              drawingId={drawingId}
+              elements={parsedElements}
+              appState={parsedAppState}
+            />
+          )}
+          {shouldRenderViewMode && (
+            <ViewBoard
+              drawingId={drawingId}
+              elements={parsedElements}
+              appState={parsedAppState}
+            />
+          )}
         </Suspense>
       </div>
     );
   } catch (error) {
     console.error("Error loading drawing:", error);
-    <div className="flex w-full items-center justify-center">
-      <p>Something went wrong</p>
-      <Link href={`/dashboard/${uuidv4()}?new=true`}>
-        <Button>Try again</Button>
-      </Link>
-    </div>;
+    return (
+      <div className="flex h-[90vh] w-full flex-col items-center justify-center gap-4">
+        <p>Something went wrong</p>
+        <Link href={`/dashboard`}>
+          <Button>Go to dashboard</Button>
+        </Link>
+      </div>
+    );
   }
 }
