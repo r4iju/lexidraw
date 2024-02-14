@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import Image from "next/image";
+import Image from "~/components/image/image";
 import { auth } from "~/server/auth";
 
 export const metadata = {
@@ -41,7 +41,7 @@ export default async function LandingPage() {
               <div>
                 <Image
                   alt="A web application for drawing and diagramming"
-                  className="mx-auto aspect-[1/1] overflow-hidden rounded-xl object-cover"
+                  className="mx-auto aspect-[4/3] overflow-hidden rounded-2xl object-cover"
                   src="/images/homepage-banner.png"
                   height="500"
                   width="500"
@@ -59,10 +59,10 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 1"
-                  className="mx-auto aspect-[1/1] overflow-hidden rounded-xl object-cover"
+                  className="mx-auto aspect-[7/6] overflow-hidden rounded-2xl object-cover"
                   height="350"
                   width="350"
-                  src="/images/projects/project-1.png"
+                  src="/images/projects/project.png"
                 />
                 <h3 className="text-lg font-bold">Quick sketches</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -72,10 +72,10 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 2"
-                  className="mx-auto aspect-[1/1] overflow-hidden rounded-xl object-cover"
+                  className="mx-auto aspect-[7/6] overflow-hidden rounded-2xl object-cover"
                   height="350"
                   width="350"
-                  src="/images/projects/project-2.png"
+                  src="/images/projects/project.png"
                 />
                 <h3 className="text-lg font-bold">Make wiregrams</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -85,10 +85,10 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 3"
-                  className="mx-auto aspect-[1/1] overflow-hidden rounded-xl object-cover"
+                  className="mx-auto aspect-[7/6] overflow-hidden rounded-2xl object-cover"
                   height="350"
                   width="350"
-                  src="/images/projects/project-3.png"
+                  src="/images/projects/project.png"
                 />
                 <h3 className="text-lg font-bold">Make a product pitch</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
