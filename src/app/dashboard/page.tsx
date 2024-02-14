@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function LandingPage() {
   const drawings = await api.drawings.list.query();
   const newDrawingUrl = () => {
-    return `/dashboard/${uuidv4()}?new=true`;
+    return `/${uuidv4()}?new=true`;
   };
 
   const refetch = async () => {
@@ -51,6 +51,7 @@ export default async function LandingPage() {
                   </div>
                   <MoreActions
                     drawingId={drawing.id}
+                    currentAccess={drawing.publicAccess}
                     revalidatePath={refetch}
                   />
                 </div>
@@ -61,7 +62,7 @@ export default async function LandingPage() {
                     onTitleChange={refetch}
                   />
                 </div>
-                <Link href={`/dashboard/${drawing.id}`} passHref>
+                <Link href={`/${drawing.id}`} passHref>
                   <Button className="mt-2 w-full">Open</Button>
                 </Link>
               </Card>
