@@ -41,7 +41,7 @@ export default async function DrawingBoard(props: Props) {
   try {
     const { appState, elements } = await api.drawings.load.query({
       id: drawingId,
-    });
+    }, {});
 
     const parsedAppState = appState?.appState
       ? (JSON.parse(appState.appState) as UIAppState)
