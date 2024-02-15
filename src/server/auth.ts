@@ -48,15 +48,17 @@ export const {
     jwt: ({ token }) => {
       return token;
     },
-    signIn: ({ user }) => {
-      const isEmailVerified = z
-        .date()
-        .nullable()
-        .refine((val) => val !== null, { message: 'Email is not verified' })
-        .parse((user as AdapterUser).emailVerified);
-      if (!isEmailVerified) {
-        return false;
-      }
+    signIn: ({
+      // user 
+    }) => {
+      // const isEmailVerified = z
+      //   .date()
+      //   .nullable()
+      //   .refine((val) => val !== null, { message: 'Email is not verified' })
+      //   .parse((user as AdapterUser).emailVerified);
+      // if (!isEmailVerified) {
+      //   return false;
+      // }
       return true;
     },
     redirect: ({ baseUrl }) => {

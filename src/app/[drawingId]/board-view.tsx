@@ -16,11 +16,7 @@ type Props = {
   elements?: NonDeletedExcalidrawElement[];
 };
 
-const ExcalidrawViewWrapper: React.FC<Props> = ({
-  drawingId,
-  appState,
-  elements,
-}) => {
+const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements }) => {
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const isDarkTheme = useIsDarkTheme();
