@@ -34,7 +34,7 @@ export default function SignUpForm() {
           console.log("success");
           toast({
             title: "Account created.",
-            description: "Contact admin to enable your account.",
+            description: "You may now login.",
           });
           router.push("/auth/signin");
         },
