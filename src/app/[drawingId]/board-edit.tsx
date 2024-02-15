@@ -215,7 +215,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
     // convert it to string
     const svgString = new XMLSerializer().serializeToString(svg);
-    // console.log('save svg: ', svgString)
     saveSvg({
       drawingId: drawingId,
       svg: svgString,
@@ -254,7 +253,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         toggleTheme: false,
       },
     },
-    onChange: (elements, state, files) => {
+    onChange: (elements, state, _) => {
       const nonDeletedElements = elements.filter(
         (el) => !el.isDeleted,
       ) as NonDeletedExcalidrawElement[];
