@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateDrawing, SaveDrawing } from "./drawings-schema";
-import { Prisma, PublicAccess } from "@prisma/client";
+import { AccessLevel, PublicAccess } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
 export const drawingRouter = createTRPCRouter({
   create: protectedProcedure
@@ -82,7 +83,11 @@ export const drawingRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       return await ctx.db.drawing.findMany({
         where: { userId: ctx.session?.user.id, deletedAt: null },
-        include: { user: true, sharedWith: true },
+        include: {
+          user: true, sharedWith: {
+            include: { user: true }
+          }
+        },
         orderBy: { updatedAt: 'desc' },
       })
     }),
@@ -114,5 +119,106 @@ export const drawingRouter = createTRPCRouter({
           elementsOrder: input.elementsOrder,
         }
       })
+    }),
+  share: protectedProcedure
+    .input(z.object({ drawingId: z.string(), userEmail: z.string(), accessLevel: z.enum([AccessLevel.READ, AccessLevel.EDIT]) }))
+    .mutation(async ({ input, ctx }) => {
+      // Ensure the current user is the owner of the drawing or has EDIT rights
+      const drawing = await ctx.db.drawing.findFirst({
+        where: {
+          id: input.drawingId,
+          OR: [
+            { sharedWith: { some: { userId: ctx.session.user.id, accessLevel: AccessLevel.EDIT } } },
+            { userId: ctx.session.user.id }
+          ] // Shared EDIT rights check
+        }
+      });
+
+      if (!drawing) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to share this drawing' });
+      }
+
+      // Find the user by email
+      const userToShareWith = await ctx.db.user.findUnique({
+        where: { email: input.userEmail },
+      });
+
+      if (!userToShareWith) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'User to share with not found' });
+      }
+
+      // Create or update the SharedDrawing entry
+      await ctx.db.sharedDrawing.upsert({
+        where: {
+          uniqueDrawingUserShare: {
+            drawingId: input.drawingId,
+            userId: userToShareWith.id,
+          }
+        },
+        update: {
+          accessLevel: input.accessLevel,
+        },
+        create: {
+          drawingId: input.drawingId,
+          userId: userToShareWith.id,
+          accessLevel: input.accessLevel,
+        },
+      });
+
+      return { success: true, message: 'Drawing shared successfully' };
+    }),
+  changeAccessLevel: protectedProcedure
+    .input(z.object({ drawingId: z.string(), userId: z.string(), accessLevel: z.enum([AccessLevel.READ, AccessLevel.EDIT]) }))
+    .mutation(async ({ input, ctx }) => {
+      // Ensure the current user is the owner of the drawing or has EDIT rights
+      const drawing = await ctx.db.drawing.findFirst({
+        where: {
+          id: input.drawingId,
+          OR: [
+            { sharedWith: { some: { userId: ctx.session.user.id, accessLevel: AccessLevel.EDIT } } },
+            { userId: ctx.session.user.id }
+          ]
+        }
+      });
+
+      if (!drawing) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to change access level for this drawing' });
+      }
+
+      // Update the SharedDrawing entry
+      await ctx.db.sharedDrawing.upsert({
+        where: {
+          uniqueDrawingUserShare: {
+            drawingId: input.drawingId,
+            userId: input.userId,
+          }
+        },
+        create: {
+          accessLevel: input.accessLevel,
+          userId: input.userId,
+          drawingId: input.drawingId,
+        },
+        update: {
+          accessLevel: input.accessLevel,
+          userId: input.userId,
+          drawingId: input.drawingId,
+        }
+      });
+
+      return { success: true, message: 'Access level changed successfully' };
+    }),
+  unShare: protectedProcedure
+    .input(z.object({ drawingId: z.string(), userId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      await ctx.db.sharedDrawing.delete({
+        where: {
+          uniqueDrawingUserShare: {
+            drawingId: input.drawingId,
+            userId: input.userId,
+          }
+        }
+      });
+
+      return { success: true, message: 'Drawing unshared successfully' };
     }),
 })

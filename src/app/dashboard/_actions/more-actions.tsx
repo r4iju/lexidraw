@@ -13,25 +13,22 @@ import DeleteDrawing from "./delete-drawing";
 import { useState } from "react";
 import { useToast } from "~/components/ui/use-toast";
 import ShareDrawing from "./share-drawing";
-import { $Enums, PublicAccess } from "@prisma/client";
+import { type $Enums, PublicAccess } from "@prisma/client";
+import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {
-  drawingId: string;
+  drawing: RouterOutputs["drawings"]["list"][number];
   currentAccess: $Enums.PublicAccess;
   revalidatePath: VoidFunction;
 };
 
-export function MoreActions({
-  drawingId,
-  currentAccess,
-  revalidatePath,
-}: Props) {
+export function MoreActions({ drawing, currentAccess, revalidatePath }: Props) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const copyPublicLink = async () => {
-    const url = `${window.location.origin}/${drawingId}`;
+    const url = `${window.location.origin}/${drawing.id}`;
     try {
       await navigator.clipboard.writeText(url);
       toast({
@@ -72,14 +69,14 @@ export function MoreActions({
         </DropdownMenuContent>
       </DropdownMenu>
       <ShareDrawing
-        drawingId={drawingId}
+        drawing={drawing}
         currentAccess={currentAccess}
         revalidatePath={revalidatePath}
         isOpen={isShareDialogOpen}
         onOpenChange={setIsShareDialogOpen}
       />
       <DeleteDrawing
-        drawingId={drawingId}
+        drawingId={drawing.id}
         revalidatePath={revalidatePath}
         isOpen={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
