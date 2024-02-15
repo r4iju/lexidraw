@@ -3,6 +3,7 @@
 import deepEqual from "fast-deep-equal/es6/react";
 import {
   Excalidraw,
+  exportToSvg,
   LiveCollaborationTrigger,
   THEME,
   // exportToCanvas,
@@ -37,12 +38,6 @@ function debounce<F extends (...args: any[]) => void>(
     timer = setTimeout(() => fn(...args), delay);
   };
 }
-
-type ElementChanges = {
-  added: ExcalidrawElement[];
-  updated: ExcalidrawElement[];
-  deleted: string[];
-};
 
 type Props = {
   drawingId: string;
@@ -81,6 +76,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const { mutate: upsertElement } = api.elements.upsert.useMutation();
   const { mutate: deleteElement } = api.elements.delete.useMutation();
   const { mutate: saveAppState } = api.appState.upsert.useMutation();
+  const { mutate: saveSvg } = api.snapshot.create.useMutation();
   const { mutate: setElementsOrder } =
     api.drawings.setElementsOrder.useMutation();
   const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
@@ -98,7 +94,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [],
   );
 
-  const saveToBackend = ({
+  const saveToBackend = async ({
     exportedElements,
     appState,
   }: {
@@ -106,6 +102,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     appState: UIAppState;
   }) => {
     console.log({ exportedElements, appState });
+    await exportDrawingAsSvg({ elements: exportedElements, appState });
     save(
       {
         id: drawingId,
@@ -187,7 +184,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [],
   );
 
-  // implement this please
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleAppStateChange = useCallback(
     debounce((newAppState: UIAppState) => {
@@ -198,6 +194,33 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     }, 10000),
     [],
   );
+
+  type ExportAsSvgProps = {
+    elements: readonly ExcalidrawElement[];
+    appState: UIAppState;
+  };
+
+  const exportDrawingAsSvg = async ({
+    elements,
+    appState,
+  }: ExportAsSvgProps) => {
+    const svg = await exportToSvg({
+      elements,
+      appState,
+      files: null,
+      exportPadding: 10,
+      renderEmbeddables: true,
+      exportingFrame: null,
+    });
+
+    // convert it to string
+    const svgString = new XMLSerializer().serializeToString(svg);
+    // console.log('save svg: ', svgString)
+    saveSvg({
+      drawingId: drawingId,
+      svg: svgString,
+    });
+  };
 
   const options = {
     excalidrawAPI: (api) => setExcalidrawAPI(api),
@@ -211,9 +234,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         : ({
             theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
             viewBackgroundColor: "#ffffff",
-            exportWithDarkMode: true, // Indicates whether to export with dark mode
-            exportBackground: true, // Indicates whether background should be exported
-            exportEmbedScene: true, // Indicates whether scene data should be embedded in svg/png. This will increase the image size.
+            exportWithDarkMode: false, // Indicates whether to export with dark mode
+            // exportBackground: true, // Indicates whether background should be exported
+            // exportEmbedScene: true, // Indicates whether scene data should be embedded in svg/png. This will increase the image size.
             // collaborators: new Map(),
           } satisfies Partial<UIAppState>),
       elements: elements ?? [],
@@ -222,7 +245,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       canvasActions: {
         export: {
           onExportToBackend(exportedElements, appState) {
-            saveToBackend({
+            void saveToBackend({
               exportedElements: [...exportedElements],
               appState,
             });

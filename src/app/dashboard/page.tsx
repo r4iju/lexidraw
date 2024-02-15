@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 import DrawingTitle from "./_actions/rename-drawing";
 import { MoreActions } from "./_actions/more-actions";
+import { Thumbnail } from "./thumbnail";
 
 export const metadata = {
   title: "An Excalidraw App | My drawings",
@@ -50,7 +51,7 @@ export default async function LandingPage() {
                     })}
                   </div>
                   <MoreActions
-                    drawingId={drawing.id}
+                    drawing={drawing}
                     currentAccess={drawing.publicAccess}
                     revalidatePath={refetch}
                   />
@@ -62,6 +63,7 @@ export default async function LandingPage() {
                     onTitleChange={refetch}
                   />
                 </div>
+                <Thumbnail drawingId={drawing.id} />
                 <Link href={`/${drawing.id}`} passHref>
                   <Button className="mt-2 w-full">Open</Button>
                 </Link>
