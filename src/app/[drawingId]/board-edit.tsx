@@ -24,6 +24,9 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
 import { type RouterInputs } from "~/trpc/shared";
+import { Button } from "~/components/ui/button";
+import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
+import { PublicAccess } from "@prisma/client";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<F extends (...args: any[]) => void>(
@@ -70,8 +73,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const [isCollaborating, setIsCollaborating] = useState(false);
   const isDarkTheme = useIsDarkTheme();
   const { toast } = useToast();
-  const { mutate: save } = api.drawings.save.useMutation();
+  const { mutate: save, isLoading: isSaving } = api.drawings.save.useMutation();
   // please use these to create, update and delete elements
+  const { mutate: updateDrawing } = api.drawings.update.useMutation();
   const { mutate: createElement } = api.elements.create.useMutation();
   const { mutate: upsertElement } = api.elements.upsert.useMutation();
   const { mutate: deleteElement } = api.elements.delete.useMutation();
@@ -94,23 +98,20 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [],
   );
 
-  const saveToBackend = async ({
-    exportedElements,
-    appState,
-  }: {
-    exportedElements: NonDeletedExcalidrawElement[];
-    appState: UIAppState;
-  }) => {
-    console.log({ exportedElements, appState });
-    await exportDrawingAsSvg({ elements: exportedElements, appState });
+  const saveToBackend = async () => {
+    if (!excalidrawApi) return;
+    const elements = excalidrawApi.getSceneElements();
+    const appState: UIAppState = excalidrawApi?.getAppState();
+    await exportDrawingAsSvg({ elements: elements, appState });
     save(
       {
         id: drawingId,
         appState: JSON.stringify({
           ...appState,
           openDialog: null,
+          theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
         } satisfies UIAppState),
-        elements: exportedElements.map(convertElementToAPIFormat),
+        elements: elements.map(convertElementToAPIFormat),
       },
       {
         onSuccess: () => {
@@ -195,6 +196,45 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [],
   );
 
+  const handleToggleLiveCollaboration = async () => {
+    const wasCollaborating = isCollaborating.valueOf();
+    const newAccessLevel = wasCollaborating
+      ? PublicAccess.EDIT
+      : PublicAccess.READ;
+    updateDrawing(
+      { id: drawingId, publicAccess: newAccessLevel },
+      {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        onSuccess: async () => {
+          await navigator.clipboard.writeText(
+            wasCollaborating ? "" : window.location.origin + "/" + drawingId,
+          );
+          toast(
+            wasCollaborating
+              ? {
+                  title: "Live collaboration disabled!",
+                  variant: "destructive",
+                }
+              : {
+                  title: "Live collaboration enabled!",
+                  description: "Link copied to clipboard",
+                  variant: "default",
+                },
+          );
+          setIsCollaborating(!wasCollaborating);
+        },
+        onError: (error) => {
+          toast({
+            title: "Something went wrong!",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        },
+      },
+    );
+  };
+
   type ExportAsSvgProps = {
     elements: readonly ExcalidrawElement[];
     appState: UIAppState;
@@ -204,21 +244,53 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     elements,
     appState,
   }: ExportAsSvgProps) => {
-    const svg = await exportToSvg({
-      elements,
-      appState,
-      files: null,
-      exportPadding: 10,
-      renderEmbeddables: true,
-      exportingFrame: null,
-    });
+    await Promise.all(
+      [THEME.DARK, THEME.LIGHT].map(async (theme) => {
+        const svg = await exportToSvg({
+          elements,
+          appState: {
+            ...appState,
+            theme: theme,
+            exportWithDarkMode: theme === THEME.DARK ? true : false,
+          },
+          files: null,
+          exportPadding: 10,
+          renderEmbeddables: true,
+          exportingFrame: null,
+        });
 
-    // convert it to string
-    const svgString = new XMLSerializer().serializeToString(svg);
-    saveSvg({
-      drawingId: drawingId,
-      svg: svgString,
-    });
+        // convert it to string
+        const svgString = new XMLSerializer().serializeToString(svg);
+        saveSvg({
+          drawingId: drawingId,
+          svg: svgString,
+          theme: theme,
+        });
+      }),
+    );
+
+    // for (const theme of [THEME.DARK, THEME.LIGHT]) {
+    //   const svg = await exportToSvg({
+    //     elements,
+    //     appState: {
+    //       ...appState,
+    //       theme: theme,
+    //       exportWithDarkMode: theme === THEME.DARK ? true : false,
+    //     },
+    //     files: null,
+    //     exportPadding: 10,
+    //     renderEmbeddables: true,
+    //     exportingFrame: null,
+    //   });
+
+    //   // convert it to string
+    //   const svgString = new XMLSerializer().serializeToString(svg);
+    //   saveSvg({
+    //     drawingId: drawingId,
+    //     svg: svgString,
+    //     theme: theme,
+    //   });
+    // }
   };
 
   const options = {
@@ -227,29 +299,29 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       appState: appState
         ? ({
             ...appState,
+            theme: isDarkTheme ? THEME.DARK : THEME.LIGHT, // Ensure the theme matches the site's theme
+            exportWithDarkMode: false,
+            exportBackground: false,
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             collaborators: new Map(Object.entries(appState.collaborators)),
           } satisfies UIAppState)
         : ({
             theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
-            viewBackgroundColor: "#ffffff",
-            exportWithDarkMode: false, // Indicates whether to export with dark mode
-            // exportBackground: true, // Indicates whether background should be exported
-            // exportEmbedScene: true, // Indicates whether scene data should be embedded in svg/png. This will increase the image size.
-            // collaborators: new Map(),
+            exportWithDarkMode: false,
+            exportBackground: false,
           } satisfies Partial<UIAppState>),
       elements: elements ?? [],
     },
     UIOptions: {
       canvasActions: {
-        export: {
-          onExportToBackend(exportedElements, appState) {
-            void saveToBackend({
-              exportedElements: [...exportedElements],
-              appState,
-            });
-          },
-        },
+        // export: {
+        //   onExportToBackend(exportedElements, appState) {
+        //     void saveToBackend({
+        //       exportedElements: [...exportedElements],
+        //       appState,
+        //     });
+        //   },
+        // },
         toggleTheme: false,
       },
     },
@@ -267,23 +339,25 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     excalidrawApi?.updateScene({
       appState: { theme: isDarkTheme ? THEME.DARK : THEME.LIGHT },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDarkTheme]);
+  }, [isDarkTheme, excalidrawApi]);
 
   return (
     <div style={{ width: "100vw", height: "90vh" }}>
       <Excalidraw
         {...options}
         renderTopRightUI={() => (
-          <LiveCollaborationTrigger
-            isCollaborating={isCollaborating}
-            onSelect={() => {
-              console.log("You clicked on collab button");
-              setIsCollaborating(true);
-            }}
-          />
+          <>
+            <LiveCollaborationTrigger
+              isCollaborating={isCollaborating}
+              onSelect={handleToggleLiveCollaboration}
+            />
+            <Button onClick={saveToBackend} disabled={isSaving}>
+              {!isSaving && <CommitIcon className=" h-4 w-4 " />}
+              {isSaving && <ReloadIcon className=" h-4 w-4 animate-spin" />}
+            </Button>
+          </>
         )}
-      ></Excalidraw>
+      />
     </div>
   );
 };
