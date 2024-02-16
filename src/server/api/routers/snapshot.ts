@@ -7,6 +7,10 @@ import { TRPCError } from "@trpc/server";
 import { PublicAccess } from "@prisma/client";
 import { JSDOM } from 'jsdom';
 import createDOMPurify from 'dompurify';
+const THEME = {
+  DARK: 'dark',
+  LIGHT: 'light',
+} as const;
 
 // Initialize DOMPurify
 const window = new JSDOM('').window;
@@ -22,7 +26,7 @@ async function blobToString(blob: Blob) {
 
 export const snapshotRouter = createTRPCRouter({
   create: publicProcedure
-    .input(z.object({ drawingId: z.string(), svg: z.string() }))
+    .input(z.object({ drawingId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .mutation(async ({ input, ctx }) => {
       const drawing = await ctx.db.drawing.findFirstOrThrow({
         where: { id: input.drawingId },
@@ -32,9 +36,9 @@ export const snapshotRouter = createTRPCRouter({
       if (!isOwner && !anyOneCanEdit) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to save this drawing' })
       }
-      const { drawingId, svg } = input;
+      const { drawingId, theme, svg } = input;
       const svgBuffer = Buffer.from(svg);
-      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${drawingId}.svg`, svgBuffer, {
+      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${drawingId}-${theme}.svg`, svgBuffer, {
         contentType: 'image/svg+xml',
         upsert: true,
       });
@@ -43,7 +47,7 @@ export const snapshotRouter = createTRPCRouter({
 
     }),
   update: publicProcedure
-    .input(z.object({ drawingId: z.string(), svg: z.string() }))
+    .input(z.object({ drawingId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .mutation(async ({ input, ctx }) => {
       const drawing = await ctx.db.drawing.findFirstOrThrow({
         where: { id: input.drawingId },
@@ -53,16 +57,16 @@ export const snapshotRouter = createTRPCRouter({
       if (!isOwner && !anyOneCanEdit) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to save this drawing' })
       }
-      const { drawingId, svg } = input;
+      const { drawingId, svg, theme } = input;
       const svgBuffer = Buffer.from(svg);
-      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${drawingId}.svg`, svgBuffer, {
+      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${drawingId}-${theme}.svg`, svgBuffer, {
         contentType: 'image/svg+xml',
       });
 
       if (uploadError) throw new Error(uploadError.message);
     }),
   get: publicProcedure
-    .input(z.object({ drawingId: z.string() }))
+    .input(z.object({ drawingId: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .query(async ({ input, ctx }) => {
       const drawing = await ctx.db.drawing.findFirstOrThrow({
         where: { id: input.drawingId },
@@ -72,8 +76,8 @@ export const snapshotRouter = createTRPCRouter({
       if (!isOwner && !anyOneCanEditOrView) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to view this drawing' })
       }
-      const { drawingId } = input;
-      const { data: snapshotStream, error } = await supabase.storage.from('excalidraw').download(`${drawingId}.svg`);
+      const { drawingId, theme } = input;
+      const { data: snapshotStream, error } = await supabase.storage.from('excalidraw').download(`${drawingId}-${theme}.svg`);
       if (error ?? !snapshotStream) return genericSvgContent;
       const svgString = await blobToString(snapshotStream);
       const cleanSvgContent = DOMPurify.sanitize(svgString);

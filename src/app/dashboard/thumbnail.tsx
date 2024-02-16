@@ -1,12 +1,22 @@
+"use client";
+
+import { THEME } from "@excalidraw/excalidraw";
 import Image from "next/image";
-import { api } from "~/trpc/server";
+import { useIsDarkTheme } from "~/components/theme/theme-provider";
+import { api } from "~/trpc/react";
 
 type Props = {
   drawingId: string;
 };
 
-export async function Thumbnail({ drawingId }: Props) {
-  const svg = await api.snapshot.get.query({ drawingId });
+export function Thumbnail({ drawingId }: Props) {
+  // return
+  const isDarkTheme = useIsDarkTheme();
+  const { data: svg } = api.snapshot.get.useQuery({
+    drawingId,
+    theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
+  });
+  if (!svg) return;
   const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   return (
     <>

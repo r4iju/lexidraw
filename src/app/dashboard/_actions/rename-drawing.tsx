@@ -35,13 +35,16 @@ const DrawingTitle = ({ title, drawingId, onTitleChange }: Props) => {
   return (
     <div className="flex w-full gap-4">
       <div className="flex flex-1  items-center gap-2">
-        <Input
-          value={newTitle}
-          readOnly={!isEditing}
-          checked
-          onChange={(e) => setNewTitle(e.target.value)}
-          className="flex-1 text-lg"
-        />
+        {!isEditing && (
+          <span className="flex-1 text-lg font-bold">{title}</span>
+        )}
+        {isEditing && (
+          <Input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="flex-1 text-lg"
+          />
+        )}
         {isEditing && (
           <>
             <Button variant="outline" onClick={handleSave}>
