@@ -11,6 +11,8 @@ import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { useToast } from "~/components/ui/use-toast";
 import { getDefaults } from "~/lib/get-zod-defaults";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { signIn } from "next-auth/react";
 
 export default function SignUpForm() {
   const { toast } = useToast();
@@ -22,6 +24,7 @@ export default function SignUpForm() {
   const { handleSubmit } = methods;
   const { mutate } = api.auth.signUp.useMutation();
   const router = useRouter();
+
   const onSubmit: SubmitHandler<SignUpSchema> = (data) => {
     mutate(
       {
@@ -45,16 +48,29 @@ export default function SignUpForm() {
     );
   };
 
+  const handleGitHubSignup = async () => {
+    await signIn("github", {
+      callbackUrl: "/dashboard",
+      redirect: true,
+    });
+  };
+
   return (
-    <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
-      <div className="space-y-4 py-4">
-        <RHFTextField name="name" label="Name" autoComplete="name" />
-        <RHFTextField name="email" label="Email" type="email" />
-        <RHFTextField name="password" label="Password" type="password" />
-      </div>
-      <Button type="submit" className="w-full">
-        Create account
+    <div>
+      <Button onClick={handleGitHubSignup} className="w-full">
+        <GitHubLogoIcon className="mr-4" />
+        Sign in with GitHub
       </Button>
-    </FormProvider>
+      <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
+        <div className="space-y-4 py-4">
+          <RHFTextField name="name" label="Name" autoComplete="name" />
+          <RHFTextField name="email" label="Email" type="email" />
+          <RHFTextField name="password" label="Password" type="password" />
+        </div>
+        <Button type="submit" className="w-full">
+          Create account
+        </Button>
+      </FormProvider>
+    </div>
   );
 }

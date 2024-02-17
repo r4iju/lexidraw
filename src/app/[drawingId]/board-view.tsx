@@ -57,7 +57,7 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements }) => {
   }, [isDarkTheme]);
 
   return (
-    <div style={{ width: "100vw", height: "90vh" }}>
+    <div style={{ width: "100vw", height: "100vh" }}>
       <Excalidraw {...options}></Excalidraw>
     </div>
   );

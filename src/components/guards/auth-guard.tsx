@@ -18,7 +18,9 @@ export default function AuthGuard({ children }: Props) {
     <>
       {status === "loading" ? (
         <div className="min-h-[90vh]">
-          <div className="flex h-full items-center justify-center">Loading...</div>
+          <div className="flex h-full items-center justify-center">
+            Loading...
+          </div>
         </div>
       ) : (
         <Container session={data} status={status}>
@@ -43,6 +45,10 @@ function Container({ status, session, children }: ContainerProps) {
   const check = useCallback(() => {
     if (status !== "authenticated" || !session) {
       redirect("/auth/signin");
+    }
+    if (!session.user.email || !session.user.name) {
+      console.log("session dataa: ", session.user);
+      redirect("/profile");
     }
     setChecked(true);
   }, [status, session]);

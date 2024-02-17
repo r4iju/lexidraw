@@ -9,6 +9,7 @@ import DrawingTitle from "./_actions/rename-drawing";
 import { MoreActions } from "./_actions/more-actions";
 import { Thumbnail } from "./thumbnail";
 import { Suspense } from "react";
+import { FilePlusIcon } from "@radix-ui/react-icons";
 
 export const metadata = {
   title: "An Excalidraw App | My drawings",
@@ -30,12 +31,15 @@ export default async function LandingPage() {
   };
 
   return (
-    <Suspense fallback={<div className="flex min-h-[91vh] flex-col"></div>}>
-      <div className="flex min-h-[91vh] flex-col ">
+    <Suspense fallback={<div className="flex min-h-[90vh] flex-col"></div>}>
+      <div className="flex min-h-[90vh] flex-col ">
         <header className="flex items-center justify-between p-4 lg:p-6">
           <h1 className="text-xl font-bold">My Drawings</h1>
           <Link href={newDrawingUrl()} passHref>
-            <Button>New drawing</Button>
+            <Button>
+              <FilePlusIcon className="mr-4" />
+              New drawing
+            </Button>
           </Link>
         </header>
         <main className="flex-1 md:container">

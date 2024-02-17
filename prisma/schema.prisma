@@ -12,19 +12,20 @@ datasource db {
 
 // Necessary for Next auth
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? // @db.Text
-  access_token      String? // @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? // @db.Text
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String? // @db.Text
+  access_token             String? // @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? // @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -40,8 +41,8 @@ model Session {
 model User {
   id             String          @id @default(cuid())
   name           String
-  email          String         @unique
-  password       String
+  email          String?         @unique
+  password       String?
   emailVerified  DateTime?
   image          String?
   accounts       Account[]
@@ -96,7 +97,7 @@ model Drawing {
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   sharedWith    SharedDrawing[]
   publicAccess  PublicAccess    @default(PRIVATE)
-  
+
   @@index([userId])
 }
 
@@ -140,7 +141,7 @@ enum ElementType {
 }
 
 model Element {
-  id         String   @id
+  id         String      @id
   type       ElementType
   x          Float
   y          Float
@@ -148,10 +149,10 @@ model Element {
   height     Float
   drawingId  String
   properties Json
-  drawing    Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
+  drawing    Drawing     @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
   @@index([drawingId])
 }
 

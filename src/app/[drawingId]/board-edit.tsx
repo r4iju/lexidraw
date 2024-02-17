@@ -342,7 +342,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   }, [isDarkTheme, excalidrawApi]);
 
   return (
-    <div style={{ width: "100vw", height: "90vh" }}>
+    <div style={{ width: "100vw", height: "100vh" }}>
       <Excalidraw
         {...options}
         renderTopRightUI={() => (

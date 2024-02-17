@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcrypt';
 import { SignUpSchema } from '~/app/auth/signup/schema';
-import { createTRPCRouter, publicProcedure } from '~/server/api/trpc';
+import { ProfileSchema } from '~/app/profile/schema';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '~/server/api/trpc';
 import { db } from '~/server/db';
 
 export const authRouter = createTRPCRouter({
@@ -26,4 +27,22 @@ export const authRouter = createTRPCRouter({
       });
     }
   }),
+  getProfile: protectedProcedure.query(async ({ ctx }) => {
+    return await ctx.db.user.findUnique({
+      where: { id: ctx.session.user.id },
+      select: { id: true, email: true, name: true },
+    });
+  }),
+  updateProfile: protectedProcedure
+    .input(ProfileSchema)
+    .mutation(async ({ ctx, input }) => {
+      await db.user.update({
+        where: { id: ctx.session.user.id },
+        data: {
+          name: input.name,
+          email: input.email,
+        },
+      });
+      return;
+    })
 });
