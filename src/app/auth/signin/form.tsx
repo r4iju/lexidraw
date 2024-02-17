@@ -9,6 +9,7 @@ import FormProvider from "~/components/hook-form/FormProvider";
 import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { getDefaults } from "~/lib/get-zod-defaults";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
 
 export default function SignInForm() {
   const methods = useForm<SignInSchema>({
@@ -27,8 +28,19 @@ export default function SignInForm() {
     });
   };
 
+  const handleGitHubSignin = async () => {
+    await signIn("github", {
+      callbackUrl: "/dashboard",
+      redirect: true,
+    });
+  };
+
   return (
     <div>
+      <Button onClick={handleGitHubSignin} className="w-full">
+        <GitHubLogoIcon className="mr-4" />
+        Sign in with GitHub
+      </Button>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
         <div className="space-y-4 py-4">
           <RHFTextField

@@ -1,7 +1,6 @@
-"use client";
-
-import { SessionProvider } from "next-auth/react";
 import AuthGuard from "~/components/guards/auth-guard";
+import Footer from "~/sections/footer";
+import Header from "~/sections/header";
 
 // ----------------------------------------------------------------------
 
@@ -11,8 +10,10 @@ type Props = {
 
 export default function Layout({ children }: Props) {
   return (
-    <SessionProvider>
+    <>
+      <Header />
       <AuthGuard>{children}</AuthGuard>
-    </SessionProvider>
+      <Footer />
+    </>
   );
 }

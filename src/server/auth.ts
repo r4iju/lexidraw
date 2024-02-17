@@ -1,13 +1,13 @@
 import NextAuth, { type DefaultSession } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 // import GoogleProvider from 'next-auth/providers/google';
+import GitHubProvider from 'next-auth/providers/github'
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import type { AdapterUser } from '@auth/core/adapters';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcrypt';
-import { z } from 'zod';
 import { db } from '~/server/db';
 import { SignInSchema } from '~/app/auth/signin/schema';
+import { env } from '~/env';
 
 declare module 'next-auth' {
   interface Session extends DefaultSession {
@@ -25,10 +25,11 @@ export const {
   pages: {
     signIn: '/auth/signin',
     newUser: '/auth/signup',
+    signOut: '/auth/signout',
     error: '/auth/error',
   },
   callbacks: {
-    session: (params) => {
+    session: async (params) => {
       const id: string | undefined = (() => {
         if ('user' in params) {
           return params.user.id;
@@ -37,28 +38,19 @@ export const {
         }
       })();
       if (!id) throw new Error('No user id');
+      const user = await db.user.findFirstOrThrow({
+        where: { id },
+        select: { id: true, email: true, name: true },
+      })
       return {
         ...params.session,
-        user: {
-          ...params.session.user,
-          id,
-        },
+        user,
       };
     },
     jwt: ({ token }) => {
       return token;
     },
-    signIn: ({
-      // user 
-    }) => {
-      // const isEmailVerified = z
-      //   .date()
-      //   .nullable()
-      //   .refine((val) => val !== null, { message: 'Email is not verified' })
-      //   .parse((user as AdapterUser).emailVerified);
-      // if (!isEmailVerified) {
-      //   return false;
-      // }
+    signIn: () => {
       return true;
     },
     redirect: ({ baseUrl }) => {
@@ -66,19 +58,13 @@ export const {
     },
   },
   providers: [
-    // GoogleProvider({
-    //   clientId: env.GOOGLE_CLIENT_ID,
-    //   clientSecret: env.GOOGLE_CLIENT_SECRET,
-    //   authorization: {
-    //     params: {
-    //       scope:
-    //         'openid email profile',
-    //       access_type: 'offline',
-    //       prompt: 'consent',
-    //       response_type: 'code',
-    //     },
-    //   },
-    // }),
+    GitHubProvider({
+      clientId: env.GITHUB_CLIENT_ID,
+      clientSecret: env.GITHUB_CLIENT_SECRET,
+      authorization: {
+        params: { scope: "read:user user:email" },
+      }
+    }),
     Credentials({
       credentials: {
         name: { label: 'Name', type: 'text' },

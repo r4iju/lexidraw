@@ -1,6 +1,15 @@
+import { UserIcon } from "lucide-react";
 import Link from "next/link";
 import { BuildingIcon } from "~/components/icons/building";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
+import { Button } from "~/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { auth } from "~/server/auth";
 
 export default async function Header() {
@@ -14,22 +23,42 @@ export default async function Header() {
       <nav>
         <ul className="flex items-center gap-4 sm:gap-6">
           <li>
-            {session && (
-              <Link
-                className="text-sm font-medium underline-offset-4 hover:underline"
-                href="/dashboard"
-              >
-                My drawings
-              </Link>
-            )}
-            {!session && (
-              <Link
-                className="text-sm font-medium underline-offset-4 hover:underline"
-                href="/auth/signup"
-              >
-                Sign up
-              </Link>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <Button variant="outline" size="icon">
+                  <UserIcon className="h-[1.2rem] w-[1.2rem]" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {session && (
+                  <>
+                    <Link className="cursor-default" href="/dashboard">
+                      <DropdownMenuItem>My drawings</DropdownMenuItem>
+                    </Link>
+                    <DropdownMenuSeparator />
+                    <Link className="cursor-default" href="/profile">
+                      <DropdownMenuItem>Profile</DropdownMenuItem>
+                    </Link>
+                    <Link
+                      className="cursor-default"
+                      href="/api/auth/signout?callbackUrl=/api/auth/session"
+                    >
+                      <DropdownMenuItem>Sign out</DropdownMenuItem>
+                    </Link>
+                  </>
+                )}
+                {!session && (
+                  <>
+                    <Link className="cursor-default" href="/auth/signin">
+                      <DropdownMenuItem>Sign in</DropdownMenuItem>
+                    </Link>
+                    <Link className="cursor-default" href="/auth/signup">
+                      <DropdownMenuItem>Create account</DropdownMenuItem>
+                    </Link>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </li>
           <li className="flex items-center">
             <ModeToggle />

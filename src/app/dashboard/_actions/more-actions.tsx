@@ -8,7 +8,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { DotsHorizontalIcon } from "@radix-ui/react-icons";
+import {
+  DotsHorizontalIcon,
+  Link1Icon,
+  Share1Icon,
+  TrashIcon,
+} from "@radix-ui/react-icons";
 import DeleteDrawing from "./delete-drawing";
 import { useState } from "react";
 import { useToast } from "~/components/ui/use-toast";
@@ -53,17 +58,27 @@ export function MoreActions({ drawing, currentAccess, revalidatePath }: Props) {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={() => setIsDeleteDialogOpen(true)}>
+            <DropdownMenuItem
+              onSelect={() => setIsDeleteDialogOpen(true)}
+              className="justify-between"
+            >
               Delete
+              <TrashIcon />
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setIsShareDialogOpen(true)}>
+            <DropdownMenuItem
+              onSelect={() => setIsShareDialogOpen(true)}
+              className="justify-between"
+            >
               Share drawing
+              <Share1Icon />
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={copyPublicLink}
               disabled={currentAccess === PublicAccess.PRIVATE}
+              className="justify-between"
             >
-              Copy shareable link
+              Copy link
+              <Link1Icon />
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>

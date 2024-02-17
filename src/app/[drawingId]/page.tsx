@@ -67,7 +67,7 @@ export default async function DrawingBoard(props: Props) {
     return (
       <div className="flex w-full items-center justify-center">
         <Suspense
-          fallback={<div style={{ width: "100vw", height: "90vh" }}></div>}
+          fallback={<div style={{ width: "100vw", height: "100vh" }}></div>}
         >
           {!shouldRenderViewMode && (
             <Board

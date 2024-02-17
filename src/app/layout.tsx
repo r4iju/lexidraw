@@ -4,9 +4,8 @@ import { Inter as FontSans } from "next/font/google";
 import { Toaster } from "~/components/ui/toaster";
 import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
-import Header from "~/sections/header";
-import Footer from "~/sections/footer";
 import { ThemeProvider } from "~/components/theme/theme-provider";
+import { SessionProvider } from "next-auth/react";
 
 export const fontSans = FontSans({
   subsets: ["latin"],
@@ -18,11 +17,11 @@ export const metadata = {
   description: "An Excalidraw demo app",
 };
 
-export default function RootLayout({
-  children,
-}: {
+type Props = {
   children: React.ReactNode;
-}) {
+};
+
+export default function RootLayout({ children }: Props) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -31,19 +30,19 @@ export default function RootLayout({
           fontSans.variable,
         )}
       >
-        <TRPCReactProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <Header />
-            {children}
-            <Footer />
-            <Toaster />
-          </ThemeProvider>
-        </TRPCReactProvider>
+        <SessionProvider>
+          <TRPCReactProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+              <Toaster />
+            </ThemeProvider>
+          </TRPCReactProvider>
+        </SessionProvider>
       </body>
     </html>
   );
