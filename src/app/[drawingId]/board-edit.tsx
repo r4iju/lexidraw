@@ -6,9 +6,7 @@ import {
   exportToSvg,
   LiveCollaborationTrigger,
   THEME,
-  // exportToCanvas,
-  // restore,
-  // restoreAppState,
+  restore,
 } from "@excalidraw/excalidraw";
 import {
   type ExcalidrawElement,
@@ -23,10 +21,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
-import { type RouterInputs } from "~/trpc/shared";
+import { RouterOutputs, type RouterInputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { PublicAccess } from "@prisma/client";
+import { useUserIdOrGuestId } from "~/hooks/useUserIdOrGuestId";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<F extends (...args: any[]) => void>(
@@ -41,6 +40,14 @@ function debounce<F extends (...args: any[]) => void>(
     timer = setTimeout(() => fn(...args), delay);
   };
 }
+
+type MessageStructure = {
+  type: "update";
+  payload: {
+    elements: ExcalidrawElement[];
+    appState: UIAppState;
+  };
+};
 
 type Props = {
   drawingId: string;
@@ -68,24 +75,218 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   appState,
   elements,
 }) => {
+  // hooks
+  const isDarkTheme = useIsDarkTheme();
+  const userId = useUserIdOrGuestId();
+  const { toast } = useToast();
+  // excalidraw api
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
-  const [isCollaborating, setIsCollaborating] = useState(false);
-  const isDarkTheme = useIsDarkTheme();
-  const { toast } = useToast();
+  // server state
   const { mutate: save, isLoading: isSaving } = api.drawings.save.useMutation();
-  // please use these to create, update and delete elements
   const { mutate: updateDrawing } = api.drawings.update.useMutation();
   const { mutate: createElement } = api.elements.create.useMutation();
   const { mutate: upsertElement } = api.elements.upsert.useMutation();
   const { mutate: deleteElement } = api.elements.delete.useMutation();
   const { mutate: saveAppState } = api.appState.upsert.useMutation();
-  const { mutate: saveSvg } = api.snapshot.create.useMutation();
   const { mutate: setElementsOrder } =
     api.drawings.setElementsOrder.useMutation();
+  // local state
+  const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
     new Map(elements?.map((e) => [e.id, e])),
   );
+  // thumbnails
+  const { mutate: saveSvg } = api.snapshot.create.useMutation();
+  // web-RTC
+  const [shouldCreateOffer, setShouldCreateOffer] = useState(false);
+  const [shouldCreateAnswer, setShouldCreateAnswer] = useState(true);
+  const [shouldFetchOffer, setShouldFetchOffer] = useState(true);
+  const [shouldFetchAnswer, setShouldFetchAnswer] = useState(false);
+  const [localConnection, setLocalConnection] =
+    useState<RTCPeerConnection | null>(null);
+  // const [remoteConnection, setRemoteConnection] =
+  //   useState<RTCPeerConnection | null>(null);
+  const [channel, setChannel] = useState<RTCDataChannel | null>(null);
+  const { mutate: upsertOfferMutate } = api.webRtc.upsertOffer.useMutation();
+  const { mutate: upsertAnswerMutate } = api.webRtc.upsertAnswer.useMutation();
+  const { data: offers } = api.webRtc.getOffers.useQuery(
+    { drawingId, userId: userId ?? "" },
+    {
+      refetchInterval: 5000,
+      enabled: shouldFetchOffer,
+      onSuccess: async (offers) => {
+        setShouldFetchOffer(false);
+        if (offers.at(-1)) {
+          console.log("found offer from signaling server");
+          await handleRemoteOffer(offers.at(-1)!.offer);
+        } else {
+          console.log("no offer from signaling server");
+          createOffer();
+          setShouldFetchAnswer(true);
+        }
+      },
+    },
+  );
+  const { data: answers } = api.webRtc.getAnswers.useQuery(
+    { drawingId, userId: userId ?? "" },
+    {
+      refetchInterval: 5000,
+      enabled: shouldFetchAnswer,
+      onSuccess: (answers) => {
+        if (answers.at(-1)) {
+          console.log("found answer from signaling server");
+          handleRemoteAnswer(answers.at(-1)!.answer);
+          setShouldFetchAnswer(false);
+        } else if (localConnection) {
+          upsertOfferMutate({
+            offerId: `${drawingId}-${userId}`,
+            drawingId,
+            userId,
+            offer: JSON.stringify(localConnection.localDescription),
+          });
+        }
+      },
+    },
+  );
+
+  // Initialize local peer connection
+  useEffect(() => {
+    const iceServers = [
+      // {
+      //   urls: "turn:my-turn-server.mycompany.com:19403",
+      //   username: "optional-username",
+      //   credentials: "auth-token",
+      // },
+      {
+        urls: "stun:stun1.l.google.com:19302",
+      },
+    ];
+    const localConn = new RTCPeerConnection({ iceServers });
+
+    // ICE candidate handler
+    localConn.onicecandidate = (e) => {
+      console.log("NEW ice candidate!! on localConnection reprinting SDP");
+      if (e.candidate && localConn.localDescription?.type === "offer") {
+        console.log(JSON.stringify(localConn.localDescription));
+        upsertOfferMutate({
+          offerId: `${drawingId}-${userId}`,
+          drawingId,
+          userId,
+          offer: JSON.stringify(localConn.localDescription),
+        });
+      }
+    };
+
+    // Creating data channel
+    const channel = localConn.createDataChannel("channel");
+    channel.onmessage = (e) => handleMessage(e.data);
+    channel.onopen = () => console.log("Channel opened!");
+    channel.onclose = () => console.log("Channel closed!");
+
+    setLocalConnection(localConn);
+    setChannel(channel);
+
+    // Cleanup
+    return () => {
+      channel.close();
+      localConn.close();
+    };
+  }, []);
+
+  // Listen for remote data channel
+  useEffect(() => {
+    if (!localConnection) return;
+
+    localConnection.ondatachannel = (event) => {
+      const channel = event.channel;
+      channel.onmessage = (e) => handleMessage(e.data);
+      channel.onopen = () => console.log("Channel opened!");
+      channel.onclose = () => console.log("Channel closed!");
+      setChannel(channel);
+    };
+  }, [localConnection]);
+
+  const handleMessage = (data: string) => {
+    const message = JSON.parse(data) as MessageStructure;
+    switch (message.type) {
+      case "update":
+        applyUpdate(message.payload);
+        break;
+    }
+  };
+
+  type SendUpdateProps = {
+    elements: ExcalidrawElement[];
+    appState: UIAppState;
+  };
+
+  const sendUpdate = ({ elements, appState }: SendUpdateProps) => {
+    const message = JSON.stringify({
+      payload: {
+        elements,
+        appState,
+      },
+      type: "update",
+    } satisfies MessageStructure);
+    if (channel?.readyState === "open") {
+      channel.send(message);
+    } else {
+      console.log("Channel not available");
+    }
+  };
+
+  // Function to create offer
+  const createOffer = async () => {
+    if (!localConnection) return;
+
+    try {
+      const offer = await localConnection.createOffer();
+      await localConnection.setLocalDescription(offer);
+      console.log("Offer created and set as local description");
+    } catch (error) {
+      console.error("Failed to create offer:", error);
+    }
+  };
+
+  // Function to handle remote offer and create answer
+  // This would typically be triggered by receiving an offer from the remote peer
+  const handleRemoteOffer = async (offer: string) => {
+    if (!localConnection) return;
+
+    try {
+      await localConnection.setRemoteDescription(
+        new RTCSessionDescription(JSON.parse(offer)),
+      );
+      const answer = await localConnection.createAnswer();
+      await localConnection.setLocalDescription(answer);
+      console.log("Answer created and set as local description");
+      upsertAnswerMutate({
+        answerId: `${drawingId}-${userId}`,
+        drawingId,
+        userId,
+        answer: JSON.stringify(answer),
+      });
+      setShouldFetchAnswer(false);
+      setShouldCreateAnswer(false);
+    } catch (error) {
+      console.error("Failed to create answer:", error);
+      setShouldCreateOffer(true);
+    }
+  };
+
+  const handleRemoteAnswer = async (offer: string) => {
+    if (!localConnection) return;
+
+    try {
+      await localConnection.setRemoteDescription(
+        new RTCSessionDescription(JSON.parse(offer)),
+      );
+    } catch (error) {
+      console.error("Failed to handle answer:", error);
+    }
+  };
+
   const updateElementsRef = useCallback(
     (currentElements: readonly ExcalidrawElement[]) => {
       const newMap = new Map();
@@ -268,33 +469,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         });
       }),
     );
-
-    // for (const theme of [THEME.DARK, THEME.LIGHT]) {
-    //   const svg = await exportToSvg({
-    //     elements,
-    //     appState: {
-    //       ...appState,
-    //       theme: theme,
-    //       exportWithDarkMode: theme === THEME.DARK ? true : false,
-    //     },
-    //     files: null,
-    //     exportPadding: 10,
-    //     renderEmbeddables: true,
-    //     exportingFrame: null,
-    //   });
-
-    //   // convert it to string
-    //   const svgString = new XMLSerializer().serializeToString(svg);
-    //   saveSvg({
-    //     drawingId: drawingId,
-    //     svg: svgString,
-    //     theme: theme,
-    //   });
-    // }
   };
 
   const options = {
-    excalidrawAPI: (api) => setExcalidrawAPI(api),
+    // excalidrawAPI: (api) => setExcalidrawAPI(api),
     initialData: {
       appState: appState
         ? ({
@@ -329,22 +507,74 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       const nonDeletedElements = elements.filter(
         (el) => !el.isDeleted,
       ) as NonDeletedExcalidrawElement[];
-      handleElementsChange(nonDeletedElements);
-      handleAppStateChange(state);
+      sendUpdate({
+        elements: nonDeletedElements,
+        appState: state,
+      });
     },
     // isCollaborating: true,
   } satisfies ExcalidrawProps;
 
+  type ApplyUpdateProps = {
+    elements: ExcalidrawElement[];
+    appState: UIAppState;
+  };
+
+  const applyUpdate = ({ elements, appState }: ApplyUpdateProps) => {
+    console.log(
+      "apply update for ",
+      elements.length,
+      "elements.",
+      Object.keys(appState).length,
+      "appState keys",
+      "on excalidrawApi? : ",
+      !!excalidrawApi,
+    );
+
+    console.log(
+      "typeof excalidrawApi",
+      typeof excalidrawApi,
+      "excalidrawApi is null? ",
+      excalidrawApi === null,
+    );
+
+    excalidrawApi?.updateScene({
+      elements,
+      appState,
+    });
+    // restore(
+    //   {
+    //     appState,
+    //     elements,
+    //   },
+    //   excalidrawApi?.getAppState(),
+    //   excalidrawApi?.getSceneElements(),
+    // );
+  };
+
+  // switching dark-light mode
   useEffect(() => {
     excalidrawApi?.updateScene({
       appState: { theme: isDarkTheme ? THEME.DARK : THEME.LIGHT },
     });
   }, [isDarkTheme, excalidrawApi]);
 
+  useEffect(() => {
+    if (excalidrawApi) {
+      console.log("excalidraw is not null");
+    } else {
+      console.log("excalidraw is null");
+    }
+  }, [excalidrawApi]);
+
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <Excalidraw
         {...options}
+        excalidrawAPI={(api) => {
+          setExcalidrawAPI(api);
+          console.log("excalidraw api set");
+        }}
         renderTopRightUI={() => (
           <>
             <LiveCollaborationTrigger

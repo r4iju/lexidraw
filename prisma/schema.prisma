@@ -85,18 +85,21 @@ model CityCoordinates {
 }
 
 model Drawing {
-  id            String          @id @default(cuid())
-  title         String
-  elements      Element[]
-  elementsOrder String[]
-  appState      AppState?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  deletedAt     DateTime?
-  userId        String
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sharedWith    SharedDrawing[]
-  publicAccess  PublicAccess    @default(PRIVATE)
+  id                 String               @id @default(cuid())
+  title              String
+  elements           Element[]
+  elementsOrder      String[]
+  appState           AppState?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  deletedAt          DateTime?
+  userId             String
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedWith         SharedDrawing[]
+  publicAccess       PublicAccess         @default(PRIVATE)
+  webRTCOffer        WebRTCOffer[]
+  webRTCAnswer       WebRTCAnswer[]
+  webRTCIceCandidate WebRTCIceCandidate[]
 
   @@index([userId])
 }
@@ -165,4 +168,43 @@ model AppState {
   drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
 
   @@index([drawingId])
+}
+
+model WebRTCOffer {
+  id        String   @id @default(cuid())
+  offer     String   @db.Text
+  drawingId String
+  drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([drawingId])
+  @@index([createdBy])
+}
+
+model WebRTCAnswer {
+  id        String   @id @default(cuid())
+  answer    String   @db.Text
+  drawingId String
+  drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([drawingId])
+  @@index([createdBy])
+}
+
+model WebRTCIceCandidate {
+  id        String   @id @default(cuid())
+  candidate String   @db.Text // Consider storing as JSON if more structure is needed
+  drawingId String
+  drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([drawingId])
+  @@index([createdBy])
 }

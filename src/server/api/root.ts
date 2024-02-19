@@ -4,6 +4,7 @@ import { drawingRouter } from "./routers/drawings";
 import { elementRouter } from "./routers/elements";
 import { appStateRouter } from "./routers/appstate";
 import { snapshotRouter } from "./routers/snapshot";
+import { webRtcRouter } from "./routers/web-rtc";
 
 
 export const appRouter = createTRPCRouter({
@@ -12,6 +13,7 @@ export const appRouter = createTRPCRouter({
   elements: elementRouter,
   appState: appStateRouter,
   snapshot: snapshotRouter,
+  webRtc: webRtcRouter,
 });
 
 // export type definition of API
