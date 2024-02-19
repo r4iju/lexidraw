@@ -16,6 +16,7 @@ import {
   type UIAppState,
   type ExcalidrawImperativeAPI,
   type ExcalidrawProps,
+  BinaryFiles,
 } from "@excalidraw/excalidraw/types/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
@@ -79,9 +80,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
   const { toast } = useToast();
+  const isRemoteUpdate = useRef(false);
   // excalidraw api
-  const [excalidrawApi, setExcalidrawAPI] =
-    useState<ExcalidrawImperativeAPI | null>(null);
+  const excalidrawApi = useRef<ExcalidrawImperativeAPI | null>(null);
   // server state
   const { mutate: save, isLoading: isSaving } = api.drawings.save.useMutation();
   const { mutate: updateDrawing } = api.drawings.update.useMutation();
@@ -99,8 +100,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // thumbnails
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
   // web-RTC
-  const [shouldCreateOffer, setShouldCreateOffer] = useState(false);
-  const [shouldCreateAnswer, setShouldCreateAnswer] = useState(true);
   const [shouldFetchOffer, setShouldFetchOffer] = useState(true);
   const [shouldFetchAnswer, setShouldFetchAnswer] = useState(false);
   const [localConnection, setLocalConnection] =
@@ -115,6 +114,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     {
       refetchInterval: 5000,
       enabled: shouldFetchOffer,
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       onSuccess: async (offers) => {
         setShouldFetchOffer(false);
         if (offers.at(-1)) {
@@ -122,7 +122,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           await handleRemoteOffer(offers.at(-1)!.offer);
         } else {
           console.log("no offer from signaling server");
-          createOffer();
+          await createOffer();
           setShouldFetchAnswer(true);
         }
       },
@@ -133,10 +133,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     {
       refetchInterval: 5000,
       enabled: shouldFetchAnswer,
-      onSuccess: (answers) => {
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      onSuccess: async (answers) => {
         if (answers.at(-1)) {
           console.log("found answer from signaling server");
-          handleRemoteAnswer(answers.at(-1)!.answer);
+          await handleRemoteAnswer(answers.at(-1)!.answer);
           setShouldFetchAnswer(false);
         } else if (localConnection) {
           upsertOfferMutate({
@@ -180,7 +181,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
     // Creating data channel
     const channel = localConn.createDataChannel("channel");
-    channel.onmessage = (e) => handleMessage(e.data);
+    channel.onmessage = (e) => handleMessage(e.data as string);
     channel.onopen = () => console.log("Channel opened!");
     channel.onclose = () => console.log("Channel closed!");
 
@@ -200,7 +201,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
     localConnection.ondatachannel = (event) => {
       const channel = event.channel;
-      channel.onmessage = (e) => handleMessage(e.data);
+      channel.onmessage = (e) => handleMessage(e.data as string);
       channel.onopen = () => console.log("Channel opened!");
       channel.onclose = () => console.log("Channel closed!");
       setChannel(channel);
@@ -221,20 +222,34 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     appState: UIAppState;
   };
 
-  const sendUpdate = ({ elements, appState }: SendUpdateProps) => {
-    const message = JSON.stringify({
-      payload: {
-        elements,
-        appState,
-      },
-      type: "update",
-    } satisfies MessageStructure);
-    if (channel?.readyState === "open") {
-      channel.send(message);
-    } else {
-      console.log("Channel not available");
-    }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSendUpdate = useCallback(
+    debounce(({ elements, appState }: SendUpdateProps) => {
+      if (isRemoteUpdate.current) {
+        // If it is, do not send the update back to avoid feedback loop
+        return;
+      }
+
+      if (deepEqual(elements, prevElementsRef.current)) {
+        return;
+      } else {
+        updateElementsRef(elements);
+      }
+      const message = JSON.stringify({
+        payload: {
+          elements,
+          appState,
+        },
+        type: "update",
+      } satisfies MessageStructure);
+      if (channel?.readyState === "open") {
+        channel.send(message);
+      } else {
+        console.log("Channel not available");
+      }
+    }, 200),
+    [channel],
+  );
 
   // Function to create offer
   const createOffer = async () => {
@@ -256,6 +271,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
     try {
       await localConnection.setRemoteDescription(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         new RTCSessionDescription(JSON.parse(offer)),
       );
       const answer = await localConnection.createAnswer();
@@ -268,10 +284,8 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         answer: JSON.stringify(answer),
       });
       setShouldFetchAnswer(false);
-      setShouldCreateAnswer(false);
     } catch (error) {
       console.error("Failed to create answer:", error);
-      setShouldCreateOffer(true);
     }
   };
 
@@ -280,6 +294,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
     try {
       await localConnection.setRemoteDescription(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         new RTCSessionDescription(JSON.parse(offer)),
       );
     } catch (error) {
@@ -300,9 +315,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
 
   const saveToBackend = async () => {
-    if (!excalidrawApi) return;
-    const elements = excalidrawApi.getSceneElements();
-    const appState: UIAppState = excalidrawApi?.getAppState();
+    if (!excalidrawApi.current) return;
+    const elements = excalidrawApi.current.getSceneElements();
+    const appState: UIAppState = excalidrawApi.current.getAppState();
     await exportDrawingAsSvg({ elements: elements, appState });
     save(
       {
@@ -471,6 +486,20 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     );
   };
 
+  const onChange = useCallback(
+    (
+      elements: readonly ExcalidrawElement[],
+      state: UIAppState,
+      _: BinaryFiles,
+    ) => {
+      const nonDeletedElements = elements.filter(
+        (el) => !el.isDeleted,
+      ) as NonDeletedExcalidrawElement[];
+      debouncedSendUpdate({ elements: nonDeletedElements, appState: state });
+    },
+    [debouncedSendUpdate],
+  );
+
   const options = {
     // excalidrawAPI: (api) => setExcalidrawAPI(api),
     initialData: {
@@ -503,15 +532,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         toggleTheme: false,
       },
     },
-    onChange: (elements, state, _) => {
-      const nonDeletedElements = elements.filter(
-        (el) => !el.isDeleted,
-      ) as NonDeletedExcalidrawElement[];
-      sendUpdate({
-        elements: nonDeletedElements,
-        appState: state,
-      });
-    },
+    onChange: onChange,
     // isCollaborating: true,
   } satisfies ExcalidrawProps;
 
@@ -521,58 +542,30 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const applyUpdate = ({ elements, appState }: ApplyUpdateProps) => {
-    console.log(
-      "apply update for ",
-      elements.length,
-      "elements.",
-      Object.keys(appState).length,
-      "appState keys",
-      "on excalidrawApi? : ",
-      !!excalidrawApi,
-    );
-
-    console.log(
-      "typeof excalidrawApi",
-      typeof excalidrawApi,
-      "excalidrawApi is null? ",
-      excalidrawApi === null,
-    );
-
-    excalidrawApi?.updateScene({
+    isRemoteUpdate.current = true;
+    excalidrawApi.current?.updateScene({
       elements,
-      appState,
+      // appState: {
+      //   ...appState,
+      //   collaborators: new Map(Object.entries(appState.collaborators)),
+      // },
     });
-    // restore(
-    //   {
-    //     appState,
-    //     elements,
-    //   },
-    //   excalidrawApi?.getAppState(),
-    //   excalidrawApi?.getSceneElements(),
-    // );
+    setTimeout(() => (isRemoteUpdate.current = false), 0);
   };
 
   // switching dark-light mode
   useEffect(() => {
-    excalidrawApi?.updateScene({
+    excalidrawApi.current?.updateScene({
       appState: { theme: isDarkTheme ? THEME.DARK : THEME.LIGHT },
     });
-  }, [isDarkTheme, excalidrawApi]);
-
-  useEffect(() => {
-    if (excalidrawApi) {
-      console.log("excalidraw is not null");
-    } else {
-      console.log("excalidraw is null");
-    }
-  }, [excalidrawApi]);
+  }, [isDarkTheme, excalidrawApi.current]);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <Excalidraw
         {...options}
         excalidrawAPI={(api) => {
-          setExcalidrawAPI(api);
+          excalidrawApi.current = api;
           console.log("excalidraw api set");
         }}
         renderTopRightUI={() => (
