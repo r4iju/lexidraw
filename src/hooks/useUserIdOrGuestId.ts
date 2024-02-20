@@ -1,5 +1,4 @@
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
 import { generateGuestId } from '~/lib/generate-guest-id';
 
 export function useUserIdOrGuestId() {
