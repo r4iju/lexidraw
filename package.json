@@ -10,7 +10,7 @@
     "dev": "next dev --port 3100",
     "postinstall": "prisma generate",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start --port 3100"
   },
   "dependencies": {
     "@auth/core": "^0.26.3",
