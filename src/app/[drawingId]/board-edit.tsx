@@ -190,29 +190,33 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
 
   const initializeConnection = () => {
-    const iceServers = [
+    const iceServers: RTCIceServer[] = [
       // {
       //   urls: "turn:my-turn-server.mycompany.com:19403",
       //   username: "optional-username",
-      //   credentials: "auth-token",
+      //   credential: "auth-token",
       // },
       {
         urls: "stun:stun1.l.google.com:19302",
       },
       {
         urls: "TURN:freeturn.net:3478",
+        username: "freeturn.net",
+        credential: "freeturn.net",
       },
       {
         urls: "TURNS:freeturn.net:5349",
+        username: "freeturn.net",
+        credential: "freeturn.net",
       },
     ];
     const localConn = new RTCPeerConnection({ iceServers });
 
     // ICE candidate handler
     localConn.onicecandidate = (e) => {
-      console.log("NEW ice candidate!! on localConnection reprinting SDP");
+      console.log("localConn.onicecandidate");
       if (e.candidate && localConn.localDescription?.type === "offer") {
-        console.log(JSON.stringify(localConn.localDescription));
+        // console.log(JSON.stringify(localConn.localDescription));
         upsertOfferMutate({
           offerId: `${drawingId}-${userId}`,
           drawingId,
