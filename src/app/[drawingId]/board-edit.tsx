@@ -199,6 +199,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       {
         urls: "stun:stun1.l.google.com:19302",
       },
+      {
+        urls: "TURN:freeturn.net:3478",
+      },
+      {
+        urls: "TURNS:freeturn.net:5349",
+      },
     ];
     const localConn = new RTCPeerConnection({ iceServers });
 
@@ -314,8 +320,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       if (changesDetected) {
         console.log("Sending updates for changed elements");
         sendUpdate({ elements: elements });
-      } else {
-        console.log("No changes detected in elements");
       }
       updateElementsRef(newElementsMap);
     },
