@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
-import { TRPCError } from "@trpc/server";
 
 export const webRtcRouter = createTRPCRouter({
   createOffer: publicProcedure

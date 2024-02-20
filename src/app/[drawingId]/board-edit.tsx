@@ -1,12 +1,10 @@
 "use client";
 
-import deepEqual from "fast-deep-equal/es6/react";
 import {
   Excalidraw,
   exportToSvg,
   LiveCollaborationTrigger,
   THEME,
-  restore,
 } from "@excalidraw/excalidraw";
 import {
   type ExcalidrawElement,
@@ -16,17 +14,17 @@ import {
   type UIAppState,
   type ExcalidrawImperativeAPI,
   type ExcalidrawProps,
-  BinaryFiles,
+  type BinaryFiles,
 } from "@excalidraw/excalidraw/types/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
-import { RouterOutputs, type RouterInputs } from "~/trpc/shared";
+import { type RouterInputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
-import { PublicAccess } from "@prisma/client";
 import { useUserIdOrGuestId } from "~/hooks/useUserIdOrGuestId";
+import ModeToggle from "~/components/theme/dark-mode-toggle";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<F extends (...args: any[]) => void>(
@@ -80,39 +78,38 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
   const { toast } = useToast();
-  const isRemoteUpdate = useRef(false);
   // excalidraw api
   const excalidrawApi = useRef<ExcalidrawImperativeAPI | null>(null);
   // server state
   const { mutate: save, isLoading: isSaving } = api.drawings.save.useMutation();
-  const { mutate: updateDrawing } = api.drawings.update.useMutation();
-  const { mutate: createElement } = api.elements.create.useMutation();
-  const { mutate: upsertElement } = api.elements.upsert.useMutation();
-  const { mutate: deleteElement } = api.elements.delete.useMutation();
-  const { mutate: saveAppState } = api.appState.upsert.useMutation();
-  const { mutate: setElementsOrder } =
-    api.drawings.setElementsOrder.useMutation();
+  // const { mutate: updateDrawing } = api.drawings.update.useMutation();
+  // const { mutate: createElement } = api.elements.create.useMutation();
+  // const { mutate: upsertElement } = api.elements.upsert.useMutation();
+  // const { mutate: deleteElement } = api.elements.delete.useMutation();
+  // const { mutate: saveAppState } = api.appState.upsert.useMutation();
+  // const { mutate: setElementsOrder } = api.drawings.setElementsOrder.useMutation();
   // local state
   const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
     new Map(elements?.map((e) => [e.id, e])),
   );
+  const prevPositionsRef = useRef<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
   // thumbnails
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
   // web-RTC
-  const [shouldFetchOffer, setShouldFetchOffer] = useState(true);
+  const [shouldFetchOffer, setShouldFetchOffer] = useState(false);
   const [shouldFetchAnswer, setShouldFetchAnswer] = useState(false);
   const [localConnection, setLocalConnection] =
     useState<RTCPeerConnection | null>(null);
-  // const [remoteConnection, setRemoteConnection] =
-  //   useState<RTCPeerConnection | null>(null);
   const [channel, setChannel] = useState<RTCDataChannel | null>(null);
   const { mutate: upsertOfferMutate } = api.webRtc.upsertOffer.useMutation();
   const { mutate: upsertAnswerMutate } = api.webRtc.upsertAnswer.useMutation();
-  const { data: offers } = api.webRtc.getOffers.useQuery(
+  api.webRtc.getOffers.useQuery(
     { drawingId, userId: userId ?? "" },
     {
-      refetchInterval: 5000,
+      refetchInterval: 2000,
       enabled: shouldFetchOffer,
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
       onSuccess: async (offers) => {
@@ -128,10 +125,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       },
     },
   );
-  const { data: answers } = api.webRtc.getAnswers.useQuery(
+  api.webRtc.getAnswers.useQuery(
     { drawingId, userId: userId ?? "" },
     {
-      refetchInterval: 5000,
+      refetchInterval: 1500,
       enabled: shouldFetchAnswer,
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
       onSuccess: async (answers) => {
@@ -151,8 +148,48 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
   );
 
-  // Initialize local peer connection
-  useEffect(() => {
+  const handleChannelOpened = useCallback(() => {
+    toast({
+      title: "Channel opened!",
+    });
+  }, [toast]);
+
+  const handleChannelClosed = () => {
+    console.log("Channel closed!");
+    setLocalConnection(null);
+    setChannel(null);
+    setShouldFetchOffer(true);
+  };
+
+  type ApplyUpdateProps = {
+    elements: ExcalidrawElement[];
+    appState: UIAppState;
+  };
+
+  const applyUpdate = useCallback(({ elements }: ApplyUpdateProps) => {
+    excalidrawApi.current?.updateScene({
+      elements,
+      // appState: {
+      //   ...appState,
+      //   collaborators: new Map(Object.entries(appState.collaborators)),
+      // },
+    });
+  }, []);
+
+  const handleMessage = useCallback(
+    (e: MessageEvent) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const message = JSON.parse(e.data) as MessageStructure;
+      switch (message.type) {
+        case "update":
+          applyUpdate(message.payload);
+          break;
+      }
+    },
+    [applyUpdate],
+  );
+
+  const initializeConnection = () => {
     const iceServers = [
       // {
       //   urls: "turn:my-turn-server.mycompany.com:19403",
@@ -181,19 +218,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
     // Creating data channel
     const channel = localConn.createDataChannel("channel");
-    channel.onmessage = (e) => handleMessage(e.data as string);
-    channel.onopen = () => console.log("Channel opened!");
-    channel.onclose = () => console.log("Channel closed!");
+    channel.onmessage = handleMessage;
+    channel.onopen = handleChannelOpened;
+    channel.onclose = handleChannelClosed;
 
     setLocalConnection(localConn);
     setChannel(channel);
-
-    // Cleanup
-    return () => {
-      channel.close();
-      localConn.close();
-    };
-  }, []);
+  };
 
   // Listen for remote data channel
   useEffect(() => {
@@ -201,54 +232,94 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
     localConnection.ondatachannel = (event) => {
       const channel = event.channel;
-      channel.onmessage = (e) => handleMessage(e.data as string);
-      channel.onopen = () => console.log("Channel opened!");
-      channel.onclose = () => console.log("Channel closed!");
+      channel.onmessage = handleMessage;
+      channel.onopen = handleChannelOpened;
+      channel.onclose = handleChannelClosed;
       setChannel(channel);
     };
-  }, [localConnection]);
+  }, [handleChannelOpened, handleMessage, localConnection]);
 
-  const handleMessage = (data: string) => {
-    const message = JSON.parse(data) as MessageStructure;
-    switch (message.type) {
-      case "update":
-        applyUpdate(message.payload);
-        break;
-    }
-  };
+  const sendUpdate = useCallback(
+    ({ elements }: { elements: ExcalidrawElement[] }) => {
+      if (channel?.readyState === "open") {
+        const message = JSON.stringify({
+          type: "update",
+          payload: {
+            elements,
+            appState: excalidrawApi.current?.getAppState(),
+          },
+        });
+        channel.send(message);
+      }
+    },
+    [channel],
+  );
 
   type SendUpdateProps = {
     elements: ExcalidrawElement[];
     appState: UIAppState;
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedSendUpdate = useCallback(
-    debounce(({ elements, appState }: SendUpdateProps) => {
-      if (isRemoteUpdate.current) {
-        // If it is, do not send the update back to avoid feedback loop
-        return;
-      }
+  const sendPositionUpdates = useCallback(
+    debounce(() => {
+      const currentElements = excalidrawApi.current?.getSceneElements() ?? [];
+      let isPositionChanged = false;
+      currentElements.forEach((element) => {
+        const prevPosition = prevPositionsRef.current.get(element.id);
+        if (
+          !prevPosition ||
+          prevPosition.x !== element.x ||
+          prevPosition.y !== element.y
+        ) {
+          isPositionChanged = true;
+          prevPositionsRef.current.set(element.id, {
+            x: element.x,
+            y: element.y,
+          });
+        }
+      });
 
-      if (deepEqual(elements, prevElementsRef.current)) {
-        return;
-      } else {
-        updateElementsRef(elements);
+      if (isPositionChanged) {
+        sendUpdate({ elements: Array.from(currentElements) });
       }
-      const message = JSON.stringify({
-        payload: {
-          elements,
-          appState,
-        },
-        type: "update",
-      } satisfies MessageStructure);
-      if (channel?.readyState === "open") {
-        channel.send(message);
+    }, 150),
+    [sendUpdate],
+  );
+
+  const updateElementsRef = useCallback(
+    (currentElements: Map<string, ExcalidrawElement>) => {
+      prevElementsRef.current = currentElements;
+    },
+    [],
+  );
+
+  const sendUpdateIfNeeded = useCallback(
+    ({ elements }: SendUpdateProps) => {
+      let changesDetected = false;
+      const elementsToUpdate: ExcalidrawElement[] = [];
+      const newElementsMap = new Map<string, ExcalidrawElement>();
+
+      elements.forEach((element) => {
+        const prevElement = prevElementsRef.current.get(element.id);
+        if (!prevElement || prevElement.version !== element.version) {
+          // console.log(
+          //   `Change detected for element ${element.id}: Version ${prevElement?.version} -> ${element.version}, Position ${prevElement?.x},${prevElement?.y} -> ${element.x},${element.y}`,
+          // );
+          changesDetected = true;
+          elementsToUpdate.push(element);
+        }
+        newElementsMap.set(element.id, element);
+      });
+
+      if (changesDetected) {
+        console.log("Sending updates for changed elements");
+        sendUpdate({ elements: elements });
       } else {
-        console.log("Channel not available");
+        console.log("No changes detected in elements");
       }
-    }, 200),
-    [channel],
+      updateElementsRef(newElementsMap);
+    },
+    [sendUpdate, updateElementsRef],
   );
 
   // Function to create offer
@@ -302,18 +373,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     }
   };
 
-  const updateElementsRef = useCallback(
-    (currentElements: readonly ExcalidrawElement[]) => {
-      const newMap = new Map();
-      currentElements.forEach((element) => {
-        newMap.set(element.id, element);
-      });
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      prevElementsRef.current = newMap;
-    },
-    [],
-  );
-
   const saveToBackend = async () => {
     if (!excalidrawApi.current) return;
     const elements = excalidrawApi.current.getSceneElements();
@@ -346,109 +405,23 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     );
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleElementsChange = useCallback(
-    debounce((elements: readonly ExcalidrawElement[]) => {
-      const prevElementsMap = prevElementsRef.current;
-      const added: ExcalidrawElement[] = [];
-      const updated: ExcalidrawElement[] = [];
-      const deleted: string[] = [];
-
-      elements.forEach((element) => {
-        const prevElement = prevElementsMap.get(element.id);
-        if (!prevElement) {
-          added.push(element);
-        } else if (!deepEqual(element, prevElement)) {
-          updated.push(element);
-        }
-      });
-
-      prevElementsMap.forEach((_, id) => {
-        if (!elements.find((el) => el.id === id)) {
-          deleted.push(id);
-        }
-      });
-
-      added.map((element) => {
-        createElement({
-          drawingId: drawingId,
-          element: convertElementToAPIFormat(element),
-        });
-      });
-
-      updated.map((element) => {
-        upsertElement({
-          drawingId: drawingId,
-          element: convertElementToAPIFormat(element),
-        });
-      });
-
-      deleted.map((id) => {
-        deleteElement({
-          id: id,
-        });
-      });
-
-      if (added.length || updated.length || deleted.length) {
-        setElementsOrder({
-          drawingId: drawingId,
-          elementsOrder: elements.map((el) => el.id),
-        });
-      }
-
-      updateElementsRef(elements); // Update the reference after processing changes
-    }, 500),
-    [],
-  );
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleAppStateChange = useCallback(
-    debounce((newAppState: UIAppState) => {
-      saveAppState({
-        drawingId: drawingId,
-        appState: JSON.stringify(newAppState),
-      });
-    }, 10000),
-    [],
-  );
-
   const handleToggleLiveCollaboration = async () => {
     const wasCollaborating = isCollaborating.valueOf();
-    const newAccessLevel = wasCollaborating
-      ? PublicAccess.EDIT
-      : PublicAccess.READ;
-    updateDrawing(
-      { id: drawingId, publicAccess: newAccessLevel },
-      {
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        onSuccess: async () => {
-          await navigator.clipboard.writeText(
-            wasCollaborating ? "" : window.location.origin + "/" + drawingId,
-          );
-          toast(
-            wasCollaborating
-              ? {
-                  title: "Live collaboration disabled!",
-                  variant: "destructive",
-                }
-              : {
-                  title: "Live collaboration enabled!",
-                  description: "Link copied to clipboard",
-                  variant: "default",
-                },
-          );
-          setIsCollaborating(!wasCollaborating);
-        },
-        onError: (error) => {
-          toast({
-            title: "Something went wrong!",
-            description: error.message,
-            variant: "destructive",
-          });
-          return;
-        },
-      },
-    );
+    setIsCollaborating(!wasCollaborating);
+    if (wasCollaborating) {
+      setShouldFetchOffer(false);
+      setShouldFetchAnswer(false);
+      if (localConnection) {
+        localConnection.close();
+      }
+      if (channel) {
+        channel.close();
+      }
+    }
+    if (!wasCollaborating) {
+      initializeConnection();
+      setShouldFetchOffer(true);
+    }
   };
 
   type ExportAsSvgProps = {
@@ -486,19 +459,17 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     );
   };
 
-  const onChange = useCallback(
-    (
-      elements: readonly ExcalidrawElement[],
-      state: UIAppState,
-      _: BinaryFiles,
-    ) => {
-      const nonDeletedElements = elements.filter(
-        (el) => !el.isDeleted,
-      ) as NonDeletedExcalidrawElement[];
-      debouncedSendUpdate({ elements: nonDeletedElements, appState: state });
-    },
-    [debouncedSendUpdate],
-  );
+  const onChange = (
+    elements: readonly ExcalidrawElement[],
+    state: UIAppState,
+    _: BinaryFiles,
+  ) => {
+    const nonDeletedElements = elements.filter(
+      (el) => !el.isDeleted,
+    ) as NonDeletedExcalidrawElement[];
+    sendUpdateIfNeeded({ elements: nonDeletedElements, appState: state });
+    sendPositionUpdates();
+  };
 
   const options = {
     // excalidrawAPI: (api) => setExcalidrawAPI(api),
@@ -536,29 +507,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     // isCollaborating: true,
   } satisfies ExcalidrawProps;
 
-  type ApplyUpdateProps = {
-    elements: ExcalidrawElement[];
-    appState: UIAppState;
-  };
-
-  const applyUpdate = ({ elements, appState }: ApplyUpdateProps) => {
-    isRemoteUpdate.current = true;
-    excalidrawApi.current?.updateScene({
-      elements,
-      // appState: {
-      //   ...appState,
-      //   collaborators: new Map(Object.entries(appState.collaborators)),
-      // },
-    });
-    setTimeout(() => (isRemoteUpdate.current = false), 0);
-  };
-
   // switching dark-light mode
   useEffect(() => {
     excalidrawApi.current?.updateScene({
       appState: { theme: isDarkTheme ? THEME.DARK : THEME.LIGHT },
     });
-  }, [isDarkTheme, excalidrawApi.current]);
+  }, [isDarkTheme]);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
@@ -578,6 +532,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
               {!isSaving && <CommitIcon className=" h-4 w-4 " />}
               {isSaving && <ReloadIcon className=" h-4 w-4 animate-spin" />}
             </Button>
+            <ModeToggle />
           </>
         )}
       />
