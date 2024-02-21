@@ -23,11 +23,33 @@ export const env = createEnv({
     SUPABASE_KEY: z.string().min(1),
     GITHUB_CLIENT_ID: z.string().min(1),
     GITHUB_CLIENT_SECRET: z.string().min(1),
+    ICE_SERVER_CONFIG: z.preprocess(
+      (val) => {
+        if (typeof val === "string") {
+          return JSON.parse(val);
+        } else {
+          throw new Error("ICE_SERVER_CONFIG must be a JSON string");
+        }
+      },
+      z.array(
+        z.union([
+          z.object({
+            urls: z.string().url(),
+            username: z.string(),
+            credential: z.string(),
+          }),
+          z.object({
+            urls: z.string().url(),
+          }),
+        ]),
+      ),
+    ),
   },
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
   },
   runtimeEnv: {
+    ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
