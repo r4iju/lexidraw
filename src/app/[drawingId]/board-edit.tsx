@@ -25,20 +25,7 @@ import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function debounce<F extends (...args: any[]) => void>(
-  fn: F,
-  delay: number,
-): (this: ThisParameterType<F>, ...args: Parameters<F>) => void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  return function (...args: Parameters<F>) {
-    if (timer !== null) {
-      clearTimeout(timer);
-    }
-    timer = setTimeout(() => fn(...args), delay);
-  };
-}
+import { debounce } from "~/lib/debounce";
 
 type MessageStructure = {
   type: "update";
