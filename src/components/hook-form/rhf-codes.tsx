@@ -4,7 +4,7 @@
 import { useRef, type ChangeEvent, type FC } from "react";
 // hooks
 import { useFormContext, Controller } from "react-hook-form";
-import useEventListener from "~/hooks/useEventListener";
+import useEventListener from "~/hooks/use-event-listener";
 
 type Props = {
   keyName: string;
