@@ -23,9 +23,8 @@ import { api } from "~/trpc/react";
 import { type RouterInputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
-import { useUserIdOrGuestId } from "~/hooks/useUserIdOrGuestId";
+import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
-import { env } from "~/env";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<F extends (...args: any[]) => void>(

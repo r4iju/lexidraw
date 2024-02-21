@@ -5,7 +5,7 @@ import React from "react";
 import { type FieldValues, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SignInSchema } from "./schema";
-import FormProvider from "~/components/hook-form/FormProvider";
+import FormProvider from "~/components/hook-form";
 import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { getDefaults } from "~/lib/get-zod-defaults";

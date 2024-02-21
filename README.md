@@ -1,6 +1,7 @@
 # An Excalidraw Demo App
 
-This is a wrapper around Excalidraw, providing persistance and sharing.
+This is a wrapper around Excalidraw, providing persistance and sharing capabilities.
+The Web-RTC based collaboration feature is currently not reliable.
 
 ## Getting started
 

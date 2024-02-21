@@ -6,7 +6,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { SignUpSchema } from "./schema";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
-import FormProvider from "~/components/hook-form/FormProvider";
+import FormProvider from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { useToast } from "~/components/ui/use-toast";
