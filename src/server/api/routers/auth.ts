@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcrypt';
 import { SignUpSchema } from '~/app/auth/signup/schema';
 import { ProfileSchema } from '~/app/profile/schema';
+import { env } from '~/env';
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '~/server/api/trpc';
 import { db } from '~/server/db';
 
@@ -44,5 +45,8 @@ export const authRouter = createTRPCRouter({
         },
       });
       return;
-    })
+    }),
+  iceServers: publicProcedure.query(() => {
+    return env.ICE_SERVER_CONFIG satisfies RTCIceServer[];
+  }),
 });

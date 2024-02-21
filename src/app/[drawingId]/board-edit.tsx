@@ -25,6 +25,7 @@ import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/useUserIdOrGuestId";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
+import { env } from "~/env";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<F extends (...args: any[]) => void>(
@@ -49,6 +50,7 @@ type MessageStructure = {
 };
 
 type Props = {
+  iceServers: RTCIceServer[];
   drawingId: string;
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
@@ -73,6 +75,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   drawingId,
   appState,
   elements,
+  iceServers,
 }) => {
   // hooks
   const isDarkTheme = useIsDarkTheme();
@@ -190,27 +193,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
 
   const initializeConnection = () => {
-    const iceServers: RTCIceServer[] = [
-      // {
-      //   urls: "turn:my-turn-server.mycompany.com:19403",
-      //   username: "optional-username",
-      //   credential: "auth-token",
-      // },
-      {
-        urls: "stun:stun1.l.google.com:19302",
-      },
-      {
-        urls: "TURN:freeturn.net:3478",
-        username: "freeturn.net",
-        credential: "freeturn.net",
-      },
-      {
-        urls: "TURNS:freeturn.net:5349",
-        username: "freeturn.net",
-        credential: "freeturn.net",
-      },
-    ];
-    const localConn = new RTCPeerConnection({ iceServers });
+    const localConn = new RTCPeerConnection({ iceServers: iceServers });
 
     // ICE candidate handler
     localConn.onicecandidate = (e) => {

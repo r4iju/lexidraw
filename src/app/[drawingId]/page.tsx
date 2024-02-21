@@ -46,7 +46,7 @@ export default async function DrawingBoard(props: Props) {
       await api.drawings.load.query({
         id: drawingId,
       });
-
+    const iceServers = await api.auth.iceServers.query();
     const isOwner = session?.user?.id === user?.id;
     const hasReadAccess = publicAccess === PublicAccess.READ;
     const shouldRenderViewMode = !isOwner && hasReadAccess;
@@ -71,6 +71,7 @@ export default async function DrawingBoard(props: Props) {
         >
           {!shouldRenderViewMode && (
             <Board
+              iceServers={iceServers}
               drawingId={drawingId}
               elements={parsedElements}
               appState={parsedAppState}
