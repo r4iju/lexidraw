@@ -144,7 +144,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   }, [toast]);
 
   const handleChannelClosed = () => {
-    console.log("Channel closed!");
+    toast({
+      title: "Channel closed!",
+    });
     setLocalConnection(null);
     setChannel(null);
     setShouldFetchOffer(true);
