@@ -26,6 +26,7 @@ import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "~/lib/debounce";
+import { useWebRtcService } from "~/hooks/use-web-rtc";
 
 type MessageStructure = {
   type: "update";
@@ -36,7 +37,6 @@ type MessageStructure = {
 };
 
 type Props = {
-  iceServers: RTCIceServer[];
   drawingId: string;
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
@@ -61,7 +61,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   drawingId,
   appState,
   elements,
-  iceServers,
 }) => {
   // hooks
   const isDarkTheme = useIsDarkTheme();
@@ -87,76 +86,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
   // thumbnails
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
-  // web-RTC
-  const [shouldFetchOffer, setShouldFetchOffer] = useState(false);
-  const [shouldFetchAnswer, setShouldFetchAnswer] = useState(false);
-  const [localConnection, setLocalConnection] =
-    useState<RTCPeerConnection | null>(null);
-  const [channel, setChannel] = useState<RTCDataChannel | null>(null);
-  const { mutate: upsertOfferMutate } = api.webRtc.upsertOffer.useMutation();
-  const { mutate: upsertAnswerMutate } = api.webRtc.upsertAnswer.useMutation();
-
-  api.webRtc.getOffers.useQuery(
-    { drawingId, userId: userId ?? "" },
-    {
-      refetchInterval: 2000,
-      enabled: shouldFetchOffer,
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      onSuccess: async (offers) => {
-        setShouldFetchOffer(false);
-        if (offers.at(-1)) {
-          console.log("found offer from signaling server");
-          await handleRemoteOffer(offers.at(-1)!.offer);
-        } else {
-          console.log("no offer from signaling server");
-          await createOffer();
-          setShouldFetchAnswer(true);
-        }
-      },
-    },
-  );
-  api.webRtc.getAnswers.useQuery(
-    { drawingId, userId: userId ?? "" },
-    {
-      refetchInterval: 1500,
-      enabled: shouldFetchAnswer,
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      onSuccess: async (answers) => {
-        if (answers.at(-1)) {
-          console.log("found answer from signaling server");
-          await handleRemoteAnswer(answers.at(-1)!.answer);
-          setShouldFetchAnswer(false);
-        } else if (localConnection) {
-          upsertOfferMutate({
-            offerId: `${drawingId}-${userId}`,
-            drawingId,
-            userId,
-            offer: JSON.stringify(localConnection.localDescription),
-          });
-        }
-      },
-    },
-  );
-
-  const handleChannelOpened = useCallback(() => {
-    toast({
-      title: "Channel opened!",
-    });
-  }, [toast]);
-
-  const handleChannelClosed = () => {
-    toast({
-      title: "Channel closed!",
-    });
-    setLocalConnection(null);
-    setChannel(null);
-    setShouldFetchOffer(true);
-  };
-
-  type ApplyUpdateProps = {
-    elements: ExcalidrawElement[];
-    appState: UIAppState;
-  };
 
   const applyUpdate = useCallback(({ elements }: ApplyUpdateProps) => {
     excalidrawApi.current?.updateScene({
@@ -169,9 +98,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   }, []);
 
   const handleMessage = useCallback(
-    (e: MessageEvent) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      const message = JSON.parse(e.data) as MessageStructure;
+    (message: MessageStructure) => {
       switch (message.type) {
         case "update":
           applyUpdate(message.payload);
@@ -180,66 +107,39 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
     [applyUpdate],
   );
+  const { sendMessage, initializeConnection, closeConnection } =
+    useWebRtcService(
+      {
+        drawingId,
+        userId,
+      },
+      {
+        onMessage: handleMessage,
+      },
+    );
 
-  const initializeConnection = () => {
-    const localConn = new RTCPeerConnection({ iceServers: iceServers });
-
-    // ICE candidate handler
-    localConn.onicecandidate = (e) => {
-      console.log("localConn.onicecandidate");
-      if (e.candidate && localConn.localDescription?.type === "offer") {
-        // console.log(JSON.stringify(localConn.localDescription));
-        upsertOfferMutate({
-          offerId: `${drawingId}-${userId}`,
-          drawingId,
-          userId,
-          offer: JSON.stringify(localConn.localDescription),
-        });
-      }
-    };
-
-    // Creating data channel
-    const channel = localConn.createDataChannel("channel");
-    channel.onmessage = handleMessage;
-    channel.onopen = handleChannelOpened;
-    channel.onclose = handleChannelClosed;
-
-    setLocalConnection(localConn);
-    setChannel(channel);
+  type ApplyUpdateProps = {
+    elements: ExcalidrawElement[];
+    appState: UIAppState;
   };
 
-  // Listen for remote data channel
-  useEffect(() => {
-    if (!localConnection) return;
-
-    localConnection.ondatachannel = (event) => {
-      const channel = event.channel;
-      channel.onmessage = handleMessage;
-      channel.onopen = handleChannelOpened;
-      channel.onclose = handleChannelClosed;
-      setChannel(channel);
-    };
-  }, [
-    handleChannelClosed,
-    handleChannelOpened,
-    handleMessage,
-    localConnection,
-  ]);
-
   const sendUpdate = useCallback(
-    ({ elements }: { elements: ExcalidrawElement[] }) => {
-      if (channel?.readyState === "open") {
-        const message = JSON.stringify({
-          type: "update",
-          payload: {
-            elements,
-            appState: excalidrawApi.current?.getAppState(),
-          },
-        });
-        channel.send(message);
-      }
+    ({
+      elements,
+      appState,
+    }: {
+      elements: ExcalidrawElement[];
+      appState: UIAppState;
+    }) => {
+      sendMessage({
+        type: "update",
+        payload: {
+          elements,
+          appState,
+        },
+      } satisfies MessageStructure);
     },
-    [channel],
+    [sendMessage],
   );
 
   type SendUpdateProps = {
@@ -266,11 +166,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         }
       });
 
-      if (isPositionChanged) {
-        sendUpdate({ elements: Array.from(currentElements) });
+      const appState = excalidrawApi.current?.getAppState();
+
+      if (isPositionChanged && appState) {
+        sendUpdate({ elements: Array.from(currentElements), appState });
       }
     }, 150),
-    [sendUpdate],
+    [],
   );
 
   const updateElementsRef = useCallback(
@@ -281,7 +183,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
 
   const sendUpdateIfNeeded = useCallback(
-    ({ elements }: SendUpdateProps) => {
+    ({ elements, appState }: SendUpdateProps) => {
       let changesDetected = false;
       const elementsToUpdate: ExcalidrawElement[] = [];
       const newElementsMap = new Map<string, ExcalidrawElement>();
@@ -300,63 +202,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
       if (changesDetected) {
         console.log("Sending updates for changed elements");
-        sendUpdate({ elements: elements });
+        sendUpdate({ elements, appState });
       }
       updateElementsRef(newElementsMap);
     },
     [sendUpdate, updateElementsRef],
   );
-
-  // Function to create offer
-  const createOffer = async () => {
-    if (!localConnection) return;
-
-    try {
-      const offer = await localConnection.createOffer();
-      await localConnection.setLocalDescription(offer);
-      console.log("Offer created and set as local description");
-    } catch (error) {
-      console.error("Failed to create offer:", error);
-    }
-  };
-
-  // Function to handle remote offer and create answer
-  // This would typically be triggered by receiving an offer from the remote peer
-  const handleRemoteOffer = async (offer: string) => {
-    if (!localConnection) return;
-
-    try {
-      await localConnection.setRemoteDescription(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        new RTCSessionDescription(JSON.parse(offer)),
-      );
-      const answer = await localConnection.createAnswer();
-      await localConnection.setLocalDescription(answer);
-      console.log("Answer created and set as local description");
-      upsertAnswerMutate({
-        answerId: `${drawingId}-${userId}`,
-        drawingId,
-        userId,
-        answer: JSON.stringify(answer),
-      });
-      setShouldFetchAnswer(false);
-    } catch (error) {
-      console.error("Failed to create answer:", error);
-    }
-  };
-
-  const handleRemoteAnswer = async (offer: string) => {
-    if (!localConnection) return;
-
-    try {
-      await localConnection.setRemoteDescription(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        new RTCSessionDescription(JSON.parse(offer)),
-      );
-    } catch (error) {
-      console.error("Failed to handle answer:", error);
-    }
-  };
 
   const saveToBackend = async () => {
     if (!excalidrawApi.current) return;
@@ -391,22 +242,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const handleToggleLiveCollaboration = async () => {
-    const wasCollaborating = isCollaborating.valueOf();
-    setIsCollaborating(!wasCollaborating);
-    if (wasCollaborating) {
-      setShouldFetchOffer(false);
-      setShouldFetchAnswer(false);
-      if (localConnection) {
-        localConnection.close();
-      }
-      if (channel) {
-        channel.close();
-      }
-    }
-    if (!wasCollaborating) {
+    if (isCollaborating) {
+      closeConnection();
+    } else {
       initializeConnection();
-      setShouldFetchOffer(true);
     }
+    setIsCollaborating((prev) => !prev);
   };
 
   type ExportAsSvgProps = {
