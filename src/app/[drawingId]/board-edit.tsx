@@ -95,6 +95,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const [channel, setChannel] = useState<RTCDataChannel | null>(null);
   const { mutate: upsertOfferMutate } = api.webRtc.upsertOffer.useMutation();
   const { mutate: upsertAnswerMutate } = api.webRtc.upsertAnswer.useMutation();
+
   api.webRtc.getOffers.useQuery(
     { drawingId, userId: userId ?? "" },
     {
@@ -218,7 +219,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       channel.onclose = handleChannelClosed;
       setChannel(channel);
     };
-  }, [handleChannelOpened, handleMessage, localConnection]);
+  }, [
+    handleChannelClosed,
+    handleChannelOpened,
+    handleMessage,
+    localConnection,
+  ]);
 
   const sendUpdate = useCallback(
     ({ elements }: { elements: ExcalidrawElement[] }) => {
