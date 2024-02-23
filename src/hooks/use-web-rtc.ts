@@ -1,24 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
-import { type MessageStructure } from './communication-service';
+import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType, type MessageStructure } from './communication-service';
 import { useToast } from '~/components/ui/use-toast';
 import { api } from '~/trpc/react';
 
-type Props = {
-  iceServers: RTCIceServer[];
-  drawingId: string;
-  userId: string;
-};
-
-type Options = {
-  onMessage: (message: MessageStructure) => void;
-}
-
 export function useWebRtcService(
-  { iceServers, drawingId, userId }: Props,
-  { onMessage }: Options) {
+  { drawingId, userId }: ICommunicationProps,
+  { onMessage }: ICommunicationOptions): ICommunicationReturnType {
   const { toast } = useToast();
+  const { data: iceServers } = api.auth.iceServers.useQuery();
   const [shouldFetchOffer, setShouldFetchOffer] = useState(false);
   const [shouldFetchAnswer, setShouldFetchAnswer] = useState(false);
   const [localConnection, setLocalConnection] = useState<RTCPeerConnection | null>(null);
@@ -97,6 +88,17 @@ export function useWebRtcService(
     }
   };
 
+  const closeConnection = () => {
+    setShouldFetchAnswer(false);
+    setShouldFetchOffer(false);
+    if (localConnection) {
+      localConnection.close();
+    }
+    if (dataChannel) {
+      dataChannel.close();
+    }
+  }
+
   // Function to handle remote offer and create answer
   // This would typically be triggered by receiving an offer from the remote peer
   const handleRemoteOffer = async (offer: string) => {
@@ -136,7 +138,15 @@ export function useWebRtcService(
   };
 
   const initializeConnection = useCallback(() => {
-    const localConn = new RTCPeerConnection({ iceServers: iceServers });
+    if (!iceServers) {
+      toast({
+        title: "No ICE servers available",
+        description: "Please login or try again later.",
+        variant: "destructive",
+      })
+      return
+    }
+    const localConn = new RTCPeerConnection({ iceServers });
 
     // ICE candidate handler
     localConn.onicecandidate = (e) => {
@@ -160,7 +170,8 @@ export function useWebRtcService(
 
     setLocalConnection(localConn);
     setDataChannel(channel);
-  }, [drawingId, handleChannelClosed, handleChannelOpened, iceServers, onMessage, upsertOfferMutate, userId]);
+    setShouldFetchOffer(true);
+  }, [drawingId, handleChannelClosed, handleChannelOpened, iceServers, onMessage, toast, upsertOfferMutate, userId]);
 
   // Listen for remote data channel
   useEffect(() => {
@@ -181,11 +192,5 @@ export function useWebRtcService(
     }
   }, [dataChannel]);
 
-  const openConnection = useCallback(() => {
-    if (localConnection) {
-      initializeConnection();
-    }
-  }, [initializeConnection, localConnection]);
-
-  return { sendMessage, openConnection };
+  return { closeConnection, sendMessage, initializeConnection };
 }

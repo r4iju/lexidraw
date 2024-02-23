@@ -1,13 +1,13 @@
 import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { type UIAppState } from "@excalidraw/excalidraw/types/types";
 
-export interface ICommunicationService {
-  initialize(): void;
-  sendMessage(message: MessageStructure): void;
-  onMessage(callback: (message: MessageStructure) => void): void;
-  onClose(callback: () => void): void;
-  onError(callback: (error: Error) => void): void;
-  close(): void;
+export type ICommunicationProps = {
+  drawingId: string;
+  userId: string;
+};
+
+export type ICommunicationOptions = {
+  onMessage: (message: MessageStructure) => void;
 }
 
 export type MessageStructure = {
@@ -17,3 +17,11 @@ export type MessageStructure = {
     appState: UIAppState;
   };
 };
+
+export type ICommunicationReturnType = {
+  closeConnection: () => void;
+  sendMessage: (message: MessageStructure) => void;
+  initializeConnection: () => void;
+};
+
+export type ICommunicationHook = (props: ICommunicationProps, options: ICommunicationProps) => ICommunicationReturnType;
