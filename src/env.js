@@ -46,7 +46,12 @@ export const env = createEnv({
     ),
   },
   client: {
-    // NEXT_PUBLIC_CLIENTVAR: z.string(),
+    NEXT_PUBLIC_FIRESTORE_API_KEY: z.string().min(1),
+    NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN: z.string().min(1),
+    NEXT_PUBLIC_FIRESTORE_PROJECT_ID: z.string().min(1),
+    NEXT_PUBLIC_FIRESTORE_STORAGE_BUCKET: z.string().min(1),
+    NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID: z.string().min(1),
+    NEXT_PUBLIC_FIRESTORE_APP_ID: z.string().min(1),
   },
   runtimeEnv: {
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
@@ -59,6 +64,16 @@ export const env = createEnv({
     SUPABASE_KEY: process.env.SUPABASE_KEY,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+    NEXT_PUBLIC_FIRESTORE_API_KEY: process.env.NEXT_PUBLIC_FIRESTORE_API_KEY,
+    NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN:
+      process.env.NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN,
+    NEXT_PUBLIC_FIRESTORE_PROJECT_ID:
+      process.env.NEXT_PUBLIC_FIRESTORE_PROJECT_ID,
+    NEXT_PUBLIC_FIRESTORE_STORAGE_BUCKET:
+      process.env.NEXT_PUBLIC_FIRESTORE_STORAGE_BUCKET,
+    NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID:
+      process.env.NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID,
+    NEXT_PUBLIC_FIRESTORE_APP_ID: process.env.NEXT_PUBLIC_FIRESTORE_APP_ID,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
