@@ -42,19 +42,16 @@ export default async function DrawingBoard(props: Props) {
 
   try {
     const session = await auth();
-    const { appState, elements, publicAccess, user } =
-      await api.drawings.load.query({
-        id: drawingId,
-      });
-    const isOwner = session?.user?.id === user?.id;
-    const hasReadAccess = publicAccess === PublicAccess.READ;
+    const drawing = await api.drawings.load.query({ id: drawingId });
+    const isOwner = session?.user?.id === drawing?.user?.id;
+    const hasReadAccess = drawing.publicAccess === PublicAccess.READ;
     const shouldRenderViewMode = !isOwner && hasReadAccess;
 
-    const parsedAppState = appState?.appState
-      ? (JSON.parse(appState.appState) as UIAppState)
+    const parsedAppState = drawing.appState?.appState
+      ? (JSON.parse(drawing.appState.appState) as UIAppState)
       : undefined;
 
-    const parsedElements = elements.map((element) => {
+    const parsedElements = drawing.elements.map((element) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const properties =
         typeof element.properties === "string"
@@ -70,14 +67,14 @@ export default async function DrawingBoard(props: Props) {
         >
           {!shouldRenderViewMode && (
             <Board
-              drawingId={drawingId}
+              drawing={drawing}
               elements={parsedElements}
               appState={parsedAppState}
             />
           )}
           {shouldRenderViewMode && (
             <ViewBoard
-              drawingId={drawingId}
+              drawing={drawing}
               elements={parsedElements}
               appState={parsedAppState}
             />

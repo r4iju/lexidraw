@@ -20,13 +20,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
-import { type RouterInputs } from "~/trpc/shared";
+import type { RouterOutputs, RouterInputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "~/lib/debounce";
-import { useWebRtcService } from "~/hooks/use-web-rtc";
+// import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
+import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
 
 type MessageStructure = {
   type: "update";
@@ -37,7 +38,7 @@ type MessageStructure = {
 };
 
 type Props = {
-  drawingId: string;
+  drawing: RouterOutputs["drawings"]["load"];
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
 };
@@ -58,7 +59,7 @@ function convertElementToAPIFormat(
 }
 
 const ExcalidrawWrapper: React.FC<Props> = ({
-  drawingId,
+  drawing,
   appState,
   elements,
 }) => {
@@ -108,9 +109,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [applyUpdate],
   );
   const { sendMessage, initializeConnection, closeConnection } =
-    useWebRtcService(
+    // useWebRtcService(
+    useFirestoreService(
       {
-        drawingId,
+        drawingId: drawing.id,
         userId,
       },
       {
@@ -216,7 +218,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     await exportDrawingAsSvg({ elements: elements, appState });
     save(
       {
-        id: drawingId,
+        id: drawing.id,
         appState: JSON.stringify({
           ...appState,
           openDialog: null,
@@ -242,6 +244,14 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const handleToggleLiveCollaboration = async () => {
+    if (drawing.publicAccess === "PRIVATE" || drawing.sharedWith.length === 0) {
+      toast({
+        title: "This drawing is private",
+        description: "You can't collaborate on private drawings",
+        variant: "destructive",
+      });
+      return;
+    }
     if (isCollaborating) {
       closeConnection();
     } else {
@@ -277,7 +287,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         // convert it to string
         const svgString = new XMLSerializer().serializeToString(svg);
         saveSvg({
-          drawingId: drawingId,
+          drawingId: drawing.id,
           svg: svgString,
           theme: theme,
         });
@@ -293,8 +303,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     const nonDeletedElements = elements.filter(
       (el) => !el.isDeleted,
     ) as NonDeletedExcalidrawElement[];
-    sendUpdateIfNeeded({ elements: nonDeletedElements, appState: state });
-    sendPositionUpdates();
+    if (isCollaborating) {
+      sendUpdateIfNeeded({ elements: nonDeletedElements, appState: state });
+      sendPositionUpdates();
+    }
   };
 
   const options = {

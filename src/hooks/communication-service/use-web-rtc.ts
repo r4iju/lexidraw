@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
-import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType, type MessageStructure } from './communication-service';
+import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType, type MessageStructure } from './interface';
 import { useToast } from '~/components/ui/use-toast';
 import { api } from '~/trpc/react';
 

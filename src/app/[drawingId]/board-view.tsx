@@ -9,9 +9,10 @@ import {
 } from "@excalidraw/excalidraw/types/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
+import { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
-  drawingId: string;
+  drawing: RouterOutputs["drawings"]["load"];
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
 };
