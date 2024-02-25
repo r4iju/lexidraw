@@ -100,14 +100,14 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const sendUpdate = useCallback(
-    async ({
+    ({
       elements,
       appState,
     }: {
       elements: ExcalidrawElement[];
       appState: UIAppState;
     }) => {
-      await sendMessage({
+      void sendMessage({
         type: "update",
         userId: userId,
         payload: {
@@ -125,8 +125,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const sendPositionUpdates = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    debounce(async () => {
+    debounce(() => {
       const currentElements = excalidrawApi.current?.getSceneElements() ?? [];
       let isPositionChanged = false;
       currentElements.forEach((element) => {
@@ -147,7 +146,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       const appState = excalidrawApi.current?.getAppState();
 
       if (isPositionChanged && appState) {
-        await sendUpdate({ elements: Array.from(currentElements), appState });
+        void sendUpdate({
+          elements: Array.from(currentElements),
+          appState,
+        });
       }
     }, 150),
     [],
@@ -180,9 +182,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
       if (changesDetected) {
         console.log("Sending updates for changed elements");
-        sendUpdate({ elements, appState }).catch((err) => {
-          console.error("Error sending updates", err);
-        });
+        sendUpdate({ elements, appState });
       }
       updateElementsRef(newElementsMap);
     },

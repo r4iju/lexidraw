@@ -68,6 +68,7 @@ export const useFirestoreService = (
     return () => {
       closeConnection()
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { closeConnection, sendMessage, initializeConnection };
