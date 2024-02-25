@@ -5,11 +5,10 @@ import { z } from "zod";
 import { api } from "~/trpc/server";
 import { redirect } from "next/navigation";
 import { type UIAppState } from "@excalidraw/excalidraw/types/types";
-import { type NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
-import { auth } from "~/server/auth";
-import { PublicAccess } from "@prisma/client";
+import { AccessLevel } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -41,38 +40,33 @@ export default async function DrawingBoard(props: Props) {
   }
 
   try {
-    const session = await auth();
     const drawing = await api.drawings.load.query({ id: drawingId });
-    const isOwner = session?.user?.id === drawing?.user?.id;
-    const hasReadAccess = drawing.publicAccess === PublicAccess.READ;
-    const shouldRenderViewMode = !isOwner && hasReadAccess;
 
-    const parsedAppState = drawing.appState?.appState
-      ? (JSON.parse(drawing.appState.appState) as UIAppState)
+    console.log("typeof appstate: ", typeof drawing.appState);
+    console.log("appstate: ", drawing.appState);
+    const parsedAppState = drawing.appState
+      ? (drawing.appState as unknown as UIAppState)
       : undefined;
 
-    const parsedElements = drawing.elements.map((element) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const properties =
-        typeof element.properties === "string"
-          ? JSON.parse(element.properties)
-          : element.properties;
-      return { ...element, ...properties } as NonDeletedExcalidrawElement;
-    });
+    console.log("typeof elements: ", typeof drawing.elements);
+    console.log("elements: ", drawing.elements);
+    const parsedElements = drawing.elements
+      ? (drawing.elements as unknown as ExcalidrawElement[])
+      : undefined;
 
     return (
       <div className="flex w-full items-center justify-center">
         <Suspense
           fallback={<div style={{ width: "100vw", height: "100vh" }}></div>}
         >
-          {!shouldRenderViewMode && (
+          {drawing.accessLevel === AccessLevel.EDIT && (
             <Board
               drawing={drawing}
               elements={parsedElements}
               appState={parsedAppState}
             />
           )}
-          {shouldRenderViewMode && (
+          {drawing.accessLevel === AccessLevel.READ && (
             <ViewBoard
               drawing={drawing}
               elements={parsedElements}
@@ -83,10 +77,13 @@ export default async function DrawingBoard(props: Props) {
       </div>
     );
   } catch (error) {
-    console.error("Error loading drawing:", error);
+    const errorMessage =
+      error instanceof Error ? error?.message : "Something went wrong";
+    console.error("Error loading drawing:", errorMessage);
     return (
       <div className="flex h-[90vh] w-full flex-col items-center justify-center gap-4">
-        <p>Something went wrong</p>
+        <p className="text-lg">Something went wrong</p>
+        <p>{errorMessage}</p>
         <Link href={`/dashboard`}>
           <Button>Go to dashboard</Button>
         </Link>

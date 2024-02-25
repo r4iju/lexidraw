@@ -14,6 +14,7 @@ export type ICommunicationOptions = {
 export type MessageStructure = {
   type: "update";
   timestamp?: object | number | null;
+  userId: string;
   payload: {
     elements: ExcalidrawElement[];
     appState: UIAppState;
@@ -23,6 +24,7 @@ export type MessageStructure = {
 export const MessageStructure = z.object({
   type: z.literal("update"),
   timestamp: z.object({}).optional().nullable(),
+  userId: z.string(),
   payload: z.object({
     elements: z.array(z.object({
       type: z.string(),
@@ -41,7 +43,7 @@ export const MessageStructure = z.object({
 
 export type ICommunicationReturnType = {
   closeConnection: () => void;
-  sendMessage: (message: MessageStructure) => void;
+  sendMessage: (message: MessageStructure) => void | Promise<void>;
   initializeConnection: () => void;
 };
 
