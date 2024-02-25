@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db } from '~/server/db';
+import { db } from '@packages/db';
 import { validateAuthToken } from '~/lib/validate-auth-token';
 import { generateVisitorId } from '~/lib/generate-visitor-id';
 

@@ -18,7 +18,7 @@ import DeleteDrawing from "./delete-drawing";
 import { useState } from "react";
 import { useToast } from "~/components/ui/use-toast";
 import ShareDrawing from "./share-drawing";
-import { type $Enums, PublicAccess } from "@prisma/client";
+import { type $Enums, PublicAccess } from "@packages/db";
 import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {

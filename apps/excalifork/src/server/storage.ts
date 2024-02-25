@@ -1,7 +1,7 @@
 // server/supabaseClient.js or similar server-side designated path
 
 import { createClient } from '@supabase/supabase-js';
-import { env } from '~/env.js';
+import env from '@packages/env';
 
 // This global augmentation is used to ensure a single instance of the Supabase client
 // is reused across the server-side application. DO NOT import this file on the client side.

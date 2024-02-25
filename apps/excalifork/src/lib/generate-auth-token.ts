@@ -1,4 +1,4 @@
-import { env } from '~/env.js';
+import env from '@packages/env';
 
 export async function generateAuthToken() {
   const encoder = new TextEncoder();

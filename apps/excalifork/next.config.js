@@ -1,4 +1,4 @@
-await import("./src/env.js");
+await import("@packages/env");
 const nextBundleAnalyzer = await import("@next/bundle-analyzer");
 const withBundleAnalyzer = nextBundleAnalyzer.default({
   // could be changed to process.env.ANALYZE === 'true' to enable analysis

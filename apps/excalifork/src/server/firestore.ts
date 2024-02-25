@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { initializeFirestore } from "firebase/firestore";
-import { env } from "~/env";
+import env from '@packages/env';
 
 const firebaseConfig = {
   apiKey: env.NEXT_PUBLIC_FIRESTORE_API_KEY,

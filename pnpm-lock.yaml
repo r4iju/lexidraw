@@ -35,9 +35,12 @@ importers:
       '@next/bundle-analyzer':
         specifier: ^14.1.0
         version: 14.1.0
-      '@prisma/client':
-        specifier: ^5.6.0
-        version: 5.10.2(prisma@5.10.2)
+      '@packages/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@packages/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       '@radix-ui/react-avatar':
         specifier: ^1.0.4
         version: 1.0.4(@types/react-dom@18.2.19)(@types/react@18.2.58)(react-dom@18.2.0)(react@18.2.0)
@@ -83,9 +86,6 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.39.6
         version: 2.39.7
-      '@t3-oss/env-nextjs':
-        specifier: ^0.7.1
-        version: 0.7.3(typescript@5.3.3)(zod@3.22.4)
       '@tanstack/react-query':
         specifier: ^4.36.1
         version: 4.36.1(react-dom@18.2.0)(react@18.2.0)
@@ -225,15 +225,53 @@ importers:
       prettier-plugin-tailwindcss:
         specifier: ^0.5.7
         version: 0.5.11(prettier@3.2.5)
-      prisma:
-        specifier: ^5.6.0
-        version: 5.10.2
       tailwindcss:
         specifier: ^3.3.5
         version: 3.4.1
       typescript:
         specifier: ^5.1.6
         version: 5.3.3
+
+  packages/db:
+    dependencies:
+      '@packages/env':
+        specifier: workspace:*
+        version: link:../env
+      '@prisma/client':
+        specifier: ^5.6.0
+        version: 5.10.2(prisma@5.10.2)
+    devDependencies:
+      '@types/node':
+        specifier: ^18.17.0
+        version: 18.19.18
+      eslint:
+        specifier: ^8.11.0
+        version: 8.57.0
+      prisma:
+        specifier: ^5.6.0
+        version: 5.10.2
+      typescript:
+        specifier: ^4.5.5
+        version: 4.9.5
+
+  packages/env:
+    dependencies:
+      '@t3-oss/env-nextjs':
+        specifier: ^0.7.1
+        version: 0.7.3(typescript@4.9.5)(zod@3.22.4)
+      zod:
+        specifier: ^3.22.4
+        version: 3.22.4
+    devDependencies:
+      '@types/node':
+        specifier: ^18.17.0
+        version: 18.19.18
+      eslint:
+        specifier: ^8.11.0
+        version: 8.57.0
+      typescript:
+        specifier: ^4.5.5
+        version: 4.9.5
 
 packages:
 
@@ -2264,7 +2302,7 @@ packages:
       tslib: 2.6.2
     dev: false
 
-  /@t3-oss/env-core@0.7.3(typescript@5.3.3)(zod@3.22.4):
+  /@t3-oss/env-core@0.7.3(typescript@4.9.5)(zod@3.22.4):
     resolution: {integrity: sha512-hhtj59TKC6TKVdwJ0CcbKsvkr9R8Pc/SNKd4IgGUIC9T9X6moB8EZZ3FTJdABA/h9UABCK4J+KsF8gzmvMvHPg==}
     peerDependencies:
       typescript: '>=4.7.2'
@@ -2273,11 +2311,11 @@ packages:
       typescript:
         optional: true
     dependencies:
-      typescript: 5.3.3
+      typescript: 4.9.5
       zod: 3.22.4
     dev: false
 
-  /@t3-oss/env-nextjs@0.7.3(typescript@5.3.3)(zod@3.22.4):
+  /@t3-oss/env-nextjs@0.7.3(typescript@4.9.5)(zod@3.22.4):
     resolution: {integrity: sha512-90TNffS17vjkQwfYyMUb4Zw9yqHwFV40f78qFug4JiQa5+N6DydTdlLOpzOcj8Cna/qpAVDwMSypofF/TVQDuA==}
     peerDependencies:
       typescript: '>=4.7.2'
@@ -2286,8 +2324,8 @@ packages:
       typescript:
         optional: true
     dependencies:
-      '@t3-oss/env-core': 0.7.3(typescript@5.3.3)(zod@3.22.4)
-      typescript: 5.3.3
+      '@t3-oss/env-core': 0.7.3(typescript@4.9.5)(zod@3.22.4)
+      typescript: 4.9.5
       zod: 3.22.4
     dev: false
 
@@ -5978,10 +6016,16 @@ packages:
       possible-typed-array-names: 1.0.0
     dev: true
 
+  /typescript@4.9.5:
+    resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
+    engines: {node: '>=4.2.0'}
+    hasBin: true
+
   /typescript@5.3.3:
     resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
     engines: {node: '>=14.17'}
     hasBin: true
+    dev: true
 
   /unbox-primitive@1.0.2:
     resolution: {integrity: sha512-61pPlCD9h51VoreyJ0BReideM3MDKMKnh6+V9L08331ipq6Q8OFXZYiqP6n/tbHx4s5I9uRhcye6BrbkizkBDw==}

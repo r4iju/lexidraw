@@ -1,4 +1,4 @@
-import { env } from '~/env.js';
+import env from '@packages/env';
 
 export async function validateAuthToken(authHeader: string | null) {
   if (!authHeader) {

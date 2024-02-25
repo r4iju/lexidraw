@@ -5,9 +5,9 @@ import GitHubProvider from 'next-auth/providers/github'
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcrypt';
-import { db } from '~/server/db';
+import { db } from '@packages/db';
 import { SignInSchema } from '~/app/auth/signin/schema';
-import { env } from '~/env';
+import env from '@packages/env';
 
 declare module 'next-auth' {
   interface Session extends DefaultSession {
