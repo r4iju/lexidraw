@@ -1,4 +1,8 @@
 await import("@packages/env");
+
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
+const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
+
 const nextBundleAnalyzer = await import("@next/bundle-analyzer");
 const withBundleAnalyzer = nextBundleAnalyzer.default({
   // could be changed to process.env.ANALYZE === 'true' to enable analysis
@@ -10,6 +14,14 @@ const withBundleAnalyzer = nextBundleAnalyzer.default({
 const config = {
   experimental: {
     serverComponentsExternalPackages: ["bcrypt"],
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      config.plugins = [...config.plugins, new PrismaPlugin()];
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return config;
   },
 };
 
