@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
-import type { RouterOutputs, RouterInputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
@@ -28,35 +28,13 @@ import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "~/lib/debounce";
 // import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
-
-type MessageStructure = {
-  type: "update";
-  payload: {
-    elements: ExcalidrawElement[];
-    appState: UIAppState;
-  };
-};
+import { type MessageStructure } from "~/hooks/communication-service/interface";
 
 type Props = {
   drawing: RouterOutputs["drawings"]["load"];
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
 };
-
-function convertElementToAPIFormat(
-  element: NonDeletedExcalidrawElement,
-): RouterInputs["elements"]["create"]["element"] {
-  const { id, type, x, y, width, height, ...properties } = element;
-  return {
-    id,
-    type,
-    x,
-    y,
-    width,
-    height,
-    properties: JSON.stringify(properties),
-  };
-}
 
 const ExcalidrawWrapper: React.FC<Props> = ({
   drawing,
@@ -72,11 +50,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // server state
   const { mutate: save, isLoading: isSaving } = api.drawings.save.useMutation();
   // const { mutate: updateDrawing } = api.drawings.update.useMutation();
-  // const { mutate: createElement } = api.elements.create.useMutation();
-  // const { mutate: upsertElement } = api.elements.upsert.useMutation();
-  // const { mutate: deleteElement } = api.elements.delete.useMutation();
   // const { mutate: saveAppState } = api.appState.upsert.useMutation();
-  // const { mutate: setElementsOrder } = api.drawings.setElementsOrder.useMutation();
   // local state
   const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
@@ -126,22 +100,23 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const sendUpdate = useCallback(
-    ({
+    async ({
       elements,
       appState,
     }: {
       elements: ExcalidrawElement[];
       appState: UIAppState;
     }) => {
-      sendMessage({
+      await sendMessage({
         type: "update",
+        userId: userId,
         payload: {
           elements,
           appState,
         },
       } satisfies MessageStructure);
     },
-    [sendMessage],
+    [sendMessage, userId],
   );
 
   type SendUpdateProps = {
@@ -150,7 +125,8 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const sendPositionUpdates = useCallback(
-    debounce(() => {
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    debounce(async () => {
       const currentElements = excalidrawApi.current?.getSceneElements() ?? [];
       let isPositionChanged = false;
       currentElements.forEach((element) => {
@@ -171,7 +147,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       const appState = excalidrawApi.current?.getAppState();
 
       if (isPositionChanged && appState) {
-        sendUpdate({ elements: Array.from(currentElements), appState });
+        await sendUpdate({ elements: Array.from(currentElements), appState });
       }
     }, 150),
     [],
@@ -204,7 +180,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
       if (changesDetected) {
         console.log("Sending updates for changed elements");
-        sendUpdate({ elements, appState });
+        sendUpdate({ elements, appState }).catch((err) => {
+          console.error("Error sending updates", err);
+        });
       }
       updateElementsRef(newElementsMap);
     },
@@ -213,9 +191,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   const saveToBackend = async () => {
     if (!excalidrawApi.current) return;
-    const elements = excalidrawApi.current.getSceneElements();
+    const elements =
+      excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
     const appState: UIAppState = excalidrawApi.current.getAppState();
     await exportDrawingAsSvg({ elements: elements, appState });
+    console.log("elements: ", JSON.stringify(elements, null, 2));
     save(
       {
         id: drawing.id,
@@ -224,7 +204,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           openDialog: null,
           theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
         } satisfies UIAppState),
-        elements: elements.map(convertElementToAPIFormat),
+        elements: elements,
       },
       {
         onSuccess: () => {
@@ -244,7 +224,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const handleToggleLiveCollaboration = async () => {
-    if (drawing.publicAccess === "PRIVATE" || drawing.sharedWith.length === 0) {
+    if (drawing.publicAccess === "PRIVATE" && drawing.sharedWith.length === 0) {
       toast({
         title: "This drawing is private",
         description: "You can't collaborate on private drawings",
@@ -304,7 +284,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       (el) => !el.isDeleted,
     ) as NonDeletedExcalidrawElement[];
     if (isCollaborating) {
-      sendUpdateIfNeeded({ elements: nonDeletedElements, appState: state });
+      sendUpdateIfNeeded({
+        elements: nonDeletedElements,
+        appState: state,
+      });
       sendPositionUpdates();
     }
   };
@@ -319,7 +302,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             exportWithDarkMode: false,
             exportBackground: false,
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            collaborators: new Map(Object.entries(appState.collaborators)),
+            collaborators: appState.collaborators
+              ? new Map(Object.entries(appState.collaborators))
+              : new Map(),
           } satisfies UIAppState)
         : ({
             theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,

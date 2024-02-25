@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateDrawing, SaveDrawing } from "./drawings-schema";
-import { AccessLevel, PublicAccess } from "@prisma/client";
+import { AccessLevel, type Prisma, PublicAccess } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
 export const drawingRouter = createTRPCRouter({
@@ -13,69 +13,70 @@ export const drawingRouter = createTRPCRouter({
           id: input.id,
           title: input.title,
           userId: ctx.session?.user.id,
+          elements: [],
+          appState: {},
         },
       })
     }),
-  save: protectedProcedure
+  save: publicProcedure
     .input(SaveDrawing)
     .mutation(async ({ input, ctx }) => {
 
-      await ctx.db.element.deleteMany({
-        where: { drawingId: input.id }
-      })
+      const drawing = await ctx.db.drawing.count({
+        where: {
+          id: input.id,
+          deletedAt: null,
+          OR: [
+            { userId: ctx.session?.user?.id },
+            { sharedWith: { some: { userId: ctx.session?.user?.id, accessLevel: AccessLevel.EDIT } } },
+            { publicAccess: PublicAccess.EDIT },
+          ],
+        },
+      });
+      if (!drawing) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to save this drawing' });
+      }
 
       await ctx.db.drawing.update({
         where: { id: input.id },
         data: {
           id: input.id,
           title: input.title,
-          appState: {
-            upsert: {
-              where: {
-                drawingId: input.id,
-              },
-              update: { appState: { set: input.appState } },
-              create: { appState: input.appState }
-            }
-          },
-          elements: {
-            createMany: {
-              data: input.elements,
-              skipDuplicates: true,
-            }
-          }
+          appState: input.appState,
+          elements: input.elements,
         }
       })
     }),
   load: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
-
-
-      if (!ctx.session?.user) {
-
-      }
       const drawing = await ctx.db.drawing.findFirstOrThrow({
         where: {
           id: input.id,
-          publicAccess: {
-            in: !ctx.session?.user ? [PublicAccess.READ, PublicAccess.EDIT] : [PublicAccess.EDIT, PublicAccess.READ, PublicAccess.PRIVATE]
-          },
+          deletedAt: null,
+          OR: [
+            { userId: ctx.session?.user?.id },
+            { sharedWith: { some: { userId: ctx.session?.user?.id } } },
+            { publicAccess: { not: PublicAccess.PRIVATE } },
+          ],
         },
-        include: { elements: true, appState: true, user: true, sharedWith: true }
+        include: { user: true, sharedWith: true }
       });
 
-      if (drawing.elementsOrder && drawing.elementsOrder.length > 0) {
-        const orderIndex: Record<string, number> = drawing.elementsOrder.reduce((acc, id, index) => {
-          acc[id] = index;
-          return acc;
-        }, {} as Record<string, number>);
-        drawing.elements.sort((a, b) => {
-          return (orderIndex[a.id] ?? Number.MAX_VALUE) - (orderIndex[b.id] ?? Number.MAX_VALUE);
-        });
-      }
+      // should be based on 1. is owner, 2. sharedWith edit permission, 3. publicAccess has edit permission
+      const hasEditAccess = drawing.userId === ctx.session?.user?.id ||
+        drawing.sharedWith.some(s => s.userId === ctx.session?.user?.id && s.accessLevel === AccessLevel.EDIT) ||
+        drawing.publicAccess === PublicAccess.EDIT;
+      const accessLevel = hasEditAccess ? AccessLevel.EDIT : AccessLevel.READ;
 
-      return drawing;
+      return {
+        id: drawing.id,
+        appState: drawing.appState as Prisma.JsonObject,
+        elements: drawing.elements as Prisma.JsonArray,
+        publicAccess: drawing.publicAccess,
+        sharedWith: drawing.sharedWith.map((user) => ({ userId: user.id, accessLevel: user.accessLevel })),
+        accessLevel
+      };
 
 
     }),
@@ -87,7 +88,7 @@ export const drawingRouter = createTRPCRouter({
             { userId: ctx.session?.user.id },
             { sharedWith: { some: { userId: ctx.session?.user.id } } }
           ],
-          AND: { deletedAt: null }
+          deletedAt: null
         },
         include: {
           user: true, sharedWith: {
@@ -105,25 +106,29 @@ export const drawingRouter = createTRPCRouter({
         data: { deletedAt: new Date() }
       })
     }),
-  update: protectedProcedure
+  update: publicProcedure
     .input(z.object({ id: z.string(), title: z.string().optional(), publicAccess: z.enum([PublicAccess.READ, PublicAccess.EDIT, PublicAccess.PRIVATE]).optional() }))
     .mutation(async ({ input, ctx }) => {
+      const drawing = await ctx.db.drawing.count({
+        where: {
+          id: input.id,
+          deletedAt: null,
+          OR: [
+            { userId: ctx.session?.user?.id },
+            { sharedWith: { some: { userId: ctx.session?.user?.id, accessLevel: AccessLevel.EDIT } } },
+            { publicAccess: PublicAccess.EDIT },
+          ],
+        },
+      });
+      if (!drawing) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to update this drawing' });
+      }
       await ctx.db.drawing.update({
         where: { id: input.id },
         data: {
           title: input.title,
           publicAccess: input.publicAccess,
         },
-      })
-    }),
-  setElementsOrder: protectedProcedure
-    .input(z.object({ drawingId: z.string(), elementsOrder: z.array(z.string()) }))
-    .mutation(async ({ input, ctx }) => {
-      await ctx.db.drawing.update({
-        where: { id: input.drawingId },
-        data: {
-          elementsOrder: input.elementsOrder,
-        }
       })
     }),
   share: protectedProcedure

@@ -87,9 +87,8 @@ model CityCoordinates {
 model Drawing {
   id                 String               @id @default(cuid())
   title              String
-  elements           Element[]
-  elementsOrder      String[]
-  appState           AppState?
+  elements           Json
+  appState           Json?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   deletedAt          DateTime?
@@ -99,7 +98,6 @@ model Drawing {
   publicAccess       PublicAccess         @default(PRIVATE)
   webRTCOffer        WebRTCOffer[]
   webRTCAnswer       WebRTCAnswer[]
-  webRTCIceCandidate WebRTCIceCandidate[]
 
   @@index([userId])
 }
@@ -129,47 +127,6 @@ enum AccessLevel {
   EDIT
 }
 
-enum ElementType {
-  text
-  selection
-  rectangle
-  diamond
-  ellipse
-  line
-  arrow
-  freedraw
-  image
-  frame
-  embeddable
-}
-
-model Element {
-  id         String      @id
-  type       ElementType
-  x          Float
-  y          Float
-  width      Float
-  height     Float
-  drawingId  String
-  properties Json
-  drawing    Drawing     @relation(fields: [drawingId], references: [id], onDelete: Cascade)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-
-  @@index([drawingId])
-}
-
-model AppState {
-  id        Int      @id @default(autoincrement())
-  appState  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  drawingId String   @unique
-  drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
-
-  @@index([drawingId])
-}
-
 model WebRTCOffer {
   id        String   @id @default(cuid())
   offer     String   @db.Text
@@ -186,19 +143,6 @@ model WebRTCOffer {
 model WebRTCAnswer {
   id        String   @id @default(cuid())
   answer    String   @db.Text
-  drawingId String
-  drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
-  createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([drawingId])
-  @@index([createdBy])
-}
-
-model WebRTCIceCandidate {
-  id        String   @id @default(cuid())
-  candidate String   @db.Text // Consider storing as JSON if more structure is needed
   drawingId String
   drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   createdBy String

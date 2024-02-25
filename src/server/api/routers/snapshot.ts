@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { PublicAccess } from "@prisma/client";
 import { JSDOM } from 'jsdom';
 import createDOMPurify from 'dompurify';
+
 const THEME = {
   DARK: 'dark',
   LIGHT: 'light',

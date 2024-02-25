@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { env } from "~/env";
 
 const firebaseConfig = {
@@ -13,5 +13,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
-const firestore = getFirestore(app);
+const firestore = initializeFirestore(app, {
+  ignoreUndefinedProperties: true
+})
 export default firestore;
