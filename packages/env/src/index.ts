@@ -46,6 +46,7 @@ const env = createEnv({
     ),
   },
   client: {
+    NEXT_PUBLIC_WS_SERVER: z.string().min(1),
     NEXT_PUBLIC_FIRESTORE_API_KEY: z.string().min(1),
     NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN: z.string().min(1),
     NEXT_PUBLIC_FIRESTORE_PROJECT_ID: z.string().min(1),
@@ -54,6 +55,7 @@ const env = createEnv({
     NEXT_PUBLIC_FIRESTORE_APP_ID: z.string().min(1),
   },
   runtimeEnv: {
+    NEXT_PUBLIC_WS_SERVER: process.env.NEXT_PUBLIC_WS_SERVER,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,
     DATABASE_URL: process.env.DATABASE_URL,
