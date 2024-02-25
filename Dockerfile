@@ -20,6 +20,10 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN cd apps/collaborator && pnpm build
 
+# Install jq
+RUN apk add --no-cache jq
+RUN jq 'del(.devDependencies)' apps/collaborator/package.json > apps/collaborator/package.clean.json && mv apps/collaborator/package.clean.json apps/collaborator/package.json
+
 # Runtime Stage
 FROM node:20-alpine
 
@@ -32,7 +36,7 @@ COPY --from=builder /usr/src/app/apps/collaborator/dist /usr/src/app/dist
 # If your application has runtime dependencies, install them
 # Assuming your collaborator project has a separate package.json for runtime dependencies
 COPY --from=builder /usr/src/app/apps/collaborator/package.json /usr/src/app/package.json
-RUN npm install --only=production
+RUN npm install --omit=dev
 
 # Set the environment to production
 ENV NODE_ENV=production
