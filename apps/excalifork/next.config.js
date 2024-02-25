@@ -8,9 +8,7 @@ const { PrismaPlugin } = await import(
 
 const nextBundleAnalyzer = await import("@next/bundle-analyzer");
 const withBundleAnalyzer = nextBundleAnalyzer.default({
-  // could be changed to process.env.ANALYZE === 'true' to enable analysis
   enabled: process.env.ANALYZE === "true",
-  // enabled: true,
 });
 
 /** @type {import("next").NextConfig} */

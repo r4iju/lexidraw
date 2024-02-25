@@ -26,7 +26,8 @@ import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "~/lib/debounce";
 // import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
-import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
+// import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
+import { useWebSocketService } from "~/hooks/communication-service/use-web-socket";
 import { type MessageStructure } from "~/hooks/communication-service/interface";
 import dynamic from "next/dynamic";
 
@@ -91,7 +92,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
   const { sendMessage, initializeConnection, closeConnection } =
     // useWebRtcService(
-    useFirestoreService(
+    useWebSocketService(
       {
         drawingId: drawing.id,
         userId,
