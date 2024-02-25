@@ -28,7 +28,7 @@ import { debounce } from "~/lib/debounce";
 // import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 // import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
 import { useWebSocketService } from "~/hooks/communication-service/use-web-socket";
-import { type MessageStructure } from "~/hooks/communication-service/interface";
+import { type MessageStructure } from "@packages/types";
 import dynamic from "next/dynamic";
 
 const Excalidraw = dynamic(
@@ -118,6 +118,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       void sendMessage({
         type: "update",
         userId: userId,
+        drawingId: drawing.id,
         payload: {
           elements,
           appState,
@@ -132,37 +133,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     appState: UIAppState;
   };
 
-  const sendPositionUpdates = useCallback(
-    debounce(() => {
-      const currentElements = excalidrawApi.current?.getSceneElements() ?? [];
-      let isPositionChanged = false;
-      currentElements.forEach((element) => {
-        const prevPosition = prevPositionsRef.current.get(element.id);
-        if (
-          !prevPosition ||
-          prevPosition.x !== element.x ||
-          prevPosition.y !== element.y
-        ) {
-          isPositionChanged = true;
-          prevPositionsRef.current.set(element.id, {
-            x: element.x,
-            y: element.y,
-          });
-        }
-      });
-
-      const appState = excalidrawApi.current?.getAppState();
-
-      if (isPositionChanged && appState) {
-        void sendUpdate({
-          elements: Array.from(currentElements),
-          appState,
-        });
-      }
-    }, 150),
-    [],
-  );
-
   const updateElementsRef = useCallback(
     (currentElements: Map<string, ExcalidrawElement>) => {
       prevElementsRef.current = currentElements;
@@ -170,31 +140,50 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [],
   );
 
+  const debouncedSendUpdate = useCallback(
+    debounce(({ elements, appState }: SendUpdateProps) => {
+      sendUpdate({ elements, appState });
+      // updateElementsRef(updateData.newElementsMap);
+    }, 100),
+    [sendUpdate, updateElementsRef],
+  );
+
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
       let changesDetected = false;
-      const elementsToUpdate: ExcalidrawElement[] = [];
       const newElementsMap = new Map<string, ExcalidrawElement>();
 
       elements.forEach((element) => {
         const prevElement = prevElementsRef.current.get(element.id);
         if (!prevElement || prevElement.version !== element.version) {
-          // console.log(
-          //   `Change detected for element ${element.id}: Version ${prevElement?.version} -> ${element.version}, Position ${prevElement?.x},${prevElement?.y} -> ${element.x},${element.y}`,
-          // );
           changesDetected = true;
-          elementsToUpdate.push(element);
+        }
+        const prevPosition = prevPositionsRef.current.get(element.id);
+        if (
+          !prevPosition ||
+          prevPosition.x !== element.x ||
+          prevPosition.y !== element.y
+        ) {
+          changesDetected = true;
+          prevPositionsRef.current.set(element.id, {
+            x: element.x,
+            y: element.y,
+          });
         }
         newElementsMap.set(element.id, element);
       });
 
       if (changesDetected) {
-        console.log("Sending updates for changed elements");
-        sendUpdate({ elements, appState });
+        console.log("Changes detected");
+        debouncedSendUpdate({
+          elements: Array.from(newElementsMap.values()),
+          appState,
+        });
       }
       updateElementsRef(newElementsMap);
     },
-    [sendUpdate, updateElementsRef],
+    // This dependency array should include everything the callback uses that could change
+    [debouncedSendUpdate, updateElementsRef],
   );
 
   const saveToBackend = async () => {
@@ -296,7 +285,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         elements: nonDeletedElements,
         appState: state,
       });
-      sendPositionUpdates();
     }
   };
 

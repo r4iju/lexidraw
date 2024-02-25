@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType, type MessageStructure } from './interface';
+import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType } from './interface';
 import { useToast } from '~/components/ui/use-toast';
 import env from '@packages/env';
+import { MessageStructure } from '@packages/types';
 
 export const useWebSocketService = (
   { drawingId, userId }: ICommunicationProps,
@@ -25,7 +26,7 @@ export const useWebSocketService = (
     };
     ws.onmessage = async (event: MessageEvent<Blob>) => {
       const parsedMessage = await event.data.text()
-      console.log('received: ', parsedMessage);
+      console.log('received message');
       const message = JSON.parse(parsedMessage) as MessageStructure;
       if (message.userId === userId) return;
       onMessage(message);
