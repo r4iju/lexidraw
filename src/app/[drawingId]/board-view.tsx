@@ -9,7 +9,7 @@ import {
 } from "@excalidraw/excalidraw/types/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { RouterOutputs } from "~/trpc/shared";
+import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {
   drawing: RouterOutputs["drawings"]["load"];
