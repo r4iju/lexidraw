@@ -1,7 +1,6 @@
 {
   "name": "collaborator",
   "version": "1.0.0",
-  "type": "module",
   "main": "index.js",
   "scripts": {
     "dev": "tsx src/index.ts",

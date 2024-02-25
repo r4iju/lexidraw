@@ -1,24 +1,44 @@
-# Use the official Node.js 14 image.
-# https://hub.docker.com/_/node
-FROM node:20-alpine
+# Build Stage
+FROM node:20-alpine as builder
 
-# Create and change to the app directory.
+# Set working directory
 WORKDIR /usr/src/app
 
-COPY package*.json ./
+# Copy package.json files and other root-level config necessary for installation
+COPY package.json ./
 COPY pnpm-lock.yaml ./
-COPY pnmp-workspace.yaml ./
-COPY tsconfig.json ./
-COPY tune.json ./
+COPY pnpm-workspace.yaml ./
+COPY turbo.json ./
 
-# Install production dependencies.
-RUN pnpm install --only=production
+# Install pnpm
+RUN npm install -g pnpm
 
-# Copy local code to the container image.
+# Copy the entire monorepo
 COPY . .
+
+# Install dependencies and build the specific project
+RUN pnpm install --frozen-lockfile
+RUN cd apps/collaborator && pnpm build
+
+# Runtime Stage
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /usr/src/app
+
+# Copy only the built code and necessary runtime files or folders from the builder stage
+COPY --from=builder /usr/src/app/apps/collaborator/dist /usr/src/app/dist
+
+# If your application has runtime dependencies, install them
+# Assuming your collaborator project has a separate package.json for runtime dependencies
+COPY --from=builder /usr/src/app/apps/collaborator/package.json /usr/src/app/package.json
+RUN npm install --only=production
 
 # Set the environment to production
 ENV NODE_ENV=production
 
-# Run the web service on container startup.
-CMD [ "cd", "apps/collaborator", "&&", "node", "dist/index.js" ]
+# Expose the port the app runs on
+EXPOSE 8080
+
+# Command to run the application
+CMD ["node", "dist/index.js"]

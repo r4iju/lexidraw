@@ -1,8 +1,8 @@
-# Node modules and package lock files
+# Node modules
 **/node_modules
-**/package-lock.json
-**/yarn.lock
-**/pnpm-lock.yaml
+
+# Turbo
+**/.turbo
 
 # Build directories
 **/dist
