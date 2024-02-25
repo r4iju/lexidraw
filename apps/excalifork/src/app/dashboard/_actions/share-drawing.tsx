@@ -1,6 +1,6 @@
 "use client";
 
-import { type $Enums, PublicAccess, AccessLevel } from "@prisma/client";
+import { type $Enums, PublicAccess, AccessLevel } from "@packages/db";
 import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";

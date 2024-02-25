@@ -1,7 +1,7 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
-export const env = createEnv({
+const env = createEnv({
   server: {
     NODE_ENV: z
       .enum(["development", "test", "production"])
@@ -11,13 +11,13 @@ export const env = createEnv({
       .url()
       .refine(
         (str) => !str.includes("YOUR_MYSQL_URL_HERE"),
-        "You forgot to change the default URL",
+        "You forgot to change the default URL"
       ),
     SHARED_KEY: z.string(),
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.preprocess(
       (str) => process.env.VERCEL_URL ?? str,
-      process.env.VERCEL ? z.string() : z.string().url(),
+      process.env.VERCEL ? z.string() : z.string().url()
     ),
     SUPABASE_URL: z.string().url(),
     SUPABASE_KEY: z.string().min(1),
@@ -41,8 +41,8 @@ export const env = createEnv({
           z.object({
             urls: z.string().url(),
           }),
-        ]),
-      ),
+        ])
+      )
     ),
   },
   client: {
@@ -78,3 +78,5 @@ export const env = createEnv({
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
 });
+
+export default env;

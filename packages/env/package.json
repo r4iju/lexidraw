@@ -1,0 +1,51 @@
+{
+  "name": "@packages/env",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
+    "clean": "rm -rf ./dist && rm -rf .turbo"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./*": [
+      "./dist/*.js",
+      "./dist/*/index.js"
+    ]
+  },
+  "dependencies": {
+    "@t3-oss/env-nextjs": "^0.7.1",
+    "zod": "^3.22.4"
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*",
+        "src/*/index"
+      ]
+    }
+  },
+  "publishConfig": {
+    "typesVersions": {
+      "*": {
+        "*": [
+          "dist/*.d.ts",
+          "dist/*/index.d.ts"
+        ]
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "^18.17.0",
+    "eslint": "^8.11.0",
+    "typescript": "^4.5.5"
+  }
+}

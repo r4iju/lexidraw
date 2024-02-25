@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import { supabase } from "~/server/storage";
 import { TRPCError } from "@trpc/server";
-import { PublicAccess } from "@prisma/client";
+import { PublicAccess } from "@packages/db";
 import { JSDOM } from 'jsdom';
 import createDOMPurify from 'dompurify';
 

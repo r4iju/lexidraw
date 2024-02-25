@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateDrawing, SaveDrawing } from "./drawings-schema";
-import { AccessLevel, type Prisma, PublicAccess } from "@prisma/client";
+import { AccessLevel, type Prisma, PublicAccess } from "@packages/db";
 import { TRPCError } from "@trpc/server";
 
 export const drawingRouter = createTRPCRouter({

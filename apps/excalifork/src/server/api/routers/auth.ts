@@ -2,9 +2,9 @@ import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcrypt';
 import { SignUpSchema } from '~/app/auth/signup/schema';
 import { ProfileSchema } from '~/app/profile/schema';
-import { env } from '~/env';
+import env from '@packages/env';
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '~/server/api/trpc';
-import { db } from '~/server/db';
+import { db } from '@packages/db';
 
 export const authRouter = createTRPCRouter({
   signUp: publicProcedure.input(SignUpSchema).mutation(async ({ input }) => {

@@ -7,7 +7,7 @@ import { type UIAppState } from "@excalidraw/excalidraw/types/types";
 import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
-import { AccessLevel } from "@prisma/client";
+import { AccessLevel } from "@packages/db";
 
 export const dynamic = "force-dynamic";
 
