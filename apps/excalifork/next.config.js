@@ -1,7 +1,10 @@
 await import("@packages/env");
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
-const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+const { PrismaPlugin } = await import(
+  // @ts-expect-error ignore
+  "@prisma/nextjs-monorepo-workaround-plugin"
+);
 
 const nextBundleAnalyzer = await import("@next/bundle-analyzer");
 const withBundleAnalyzer = nextBundleAnalyzer.default({
