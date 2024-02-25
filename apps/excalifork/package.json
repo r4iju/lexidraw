@@ -16,6 +16,7 @@
     "@hookform/resolvers": "^3.3.4",
     "@next/bundle-analyzer": "^14.1.0",
     "@packages/db": "workspace:*",
+    "@packages/types": "workspace:*",
     "@packages/env": "workspace:*",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-dialog": "^1.0.5",

@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
-import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType, type MessageStructure } from './interface';
+import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType } from './interface';
 import { useToast } from '~/components/ui/use-toast';
 import { api } from '~/trpc/react';
+import { MessageStructure } from '@packages/types';
 
 export function useWebRtcService(
   { drawingId, userId }: ICommunicationProps,

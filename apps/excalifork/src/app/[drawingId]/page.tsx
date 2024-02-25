@@ -47,8 +47,6 @@ export default async function DrawingBoard(props: Props) {
       ? (drawing.appState as unknown as UIAppState)
       : undefined;
 
-    console.log("typeof elements: ", typeof drawing.elements);
-    console.log("elements: ", drawing.elements);
     const parsedElements = drawing.elements
       ? (drawing.elements as unknown as ExcalidrawElement[])
       : undefined;
