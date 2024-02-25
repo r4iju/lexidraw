@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Excalidraw,
   exportToSvg,
   LiveCollaborationTrigger,
   THEME,
@@ -29,6 +28,14 @@ import { debounce } from "~/lib/debounce";
 // import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
 import { type MessageStructure } from "~/hooks/communication-service/interface";
+import dynamic from "next/dynamic";
+
+const Excalidraw = dynamic(
+  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+  {
+    ssr: false,
+  },
+);
 
 type Props = {
   drawing: RouterOutputs["drawings"]["load"];

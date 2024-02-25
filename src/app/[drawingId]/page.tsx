@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import Board from "./board-edit";
 import ViewBoard from "./board-view";
 import { z } from "zod";
@@ -56,24 +55,20 @@ export default async function DrawingBoard(props: Props) {
 
     return (
       <div className="flex w-full items-center justify-center">
-        <Suspense
-          fallback={<div style={{ width: "100vw", height: "100vh" }}></div>}
-        >
-          {drawing.accessLevel === AccessLevel.EDIT && (
-            <Board
-              drawing={drawing}
-              elements={parsedElements}
-              appState={parsedAppState}
-            />
-          )}
-          {drawing.accessLevel === AccessLevel.READ && (
-            <ViewBoard
-              drawing={drawing}
-              elements={parsedElements}
-              appState={parsedAppState}
-            />
-          )}
-        </Suspense>
+        {drawing.accessLevel === AccessLevel.EDIT && (
+          <Board
+            drawing={drawing}
+            elements={parsedElements}
+            appState={parsedAppState}
+          />
+        )}
+        {drawing.accessLevel === AccessLevel.READ && (
+          <ViewBoard
+            drawing={drawing}
+            elements={parsedElements}
+            appState={parsedAppState}
+          />
+        )}
       </div>
     );
   } catch (error) {
