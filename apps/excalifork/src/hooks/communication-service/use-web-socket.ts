@@ -6,11 +6,12 @@ import { MessageStructure } from '@packages/types';
 
 export const useWebSocketService = (
   { drawingId, userId }: ICommunicationProps,
-  { onMessage }: ICommunicationOptions
+  { onMessage, onConnectionClose, onConnectionOpen }: ICommunicationOptions
 ): ICommunicationReturnType => {
   const { toast } = useToast();
   const [socket, setSocket] = useState<WebSocket | null>(null);
-
+  const [shouldReconnect, setShouldReconnect] = useState(true);
+  const [reconnectionAttempts, setReconnectionAttempts] = useState(0);
 
   const sendMessage = useCallback((message: MessageStructure) => {
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -20,10 +21,14 @@ export const useWebSocketService = (
 
   const initializeConnection = useCallback(() => {
     const ws = new WebSocket(env.NEXT_PUBLIC_WS_SERVER);
+
     ws.onopen = () => {
+      onConnectionOpen()
       console.log('WebSocket connection established');
       toast({ title: 'Connected', description: 'WebSocket connection established' })
+      setReconnectionAttempts(0);
     };
+
     ws.onmessage = async (event: MessageEvent<Blob>) => {
       const parsedMessage = await event.data.text()
       console.log('received message');
@@ -31,20 +36,35 @@ export const useWebSocketService = (
       if (message.userId === userId) return;
       onMessage(message);
     };
-    ws.onclose = () => toast({ title: 'Connection closed', description: 'WebSocket connection closed' });
+
+    ws.onclose = () => {
+      toast({ title: 'Connection closed', description: 'WebSocket connection closed' })
+      onConnectionClose();
+      if (shouldReconnect) {
+        const delay = Math.min(10000, (reconnectionAttempts + 1) * 1000);
+        setTimeout(() => {
+          setReconnectionAttempts((attempts) => attempts + 1);
+          initializeConnection();
+        }, delay);
+      }
+    };
+
     setSocket(ws)
   }, [onMessage, toast, userId]);
 
   const closeConnection = useCallback(() => {
     if (socket) {
       console.log('Closing connection.');
+      setShouldReconnect(false);
       socket.close();
       setSocket(null);
+      onConnectionClose();
     }
   }, [socket]);
 
   useEffect(() => {
     return () => {
+      setShouldReconnect(false);
       closeConnection()
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

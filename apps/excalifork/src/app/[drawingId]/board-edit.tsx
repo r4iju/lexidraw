@@ -60,6 +60,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // const { mutate: updateDrawing } = api.drawings.update.useMutation();
   // const { mutate: saveAppState } = api.appState.upsert.useMutation();
   // local state
+  const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
     new Map(elements?.map((e) => [e.id, e])),
@@ -70,15 +71,23 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // thumbnails
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
-  const applyUpdate = useCallback(({ elements }: ApplyUpdateProps) => {
-    excalidrawApi.current?.updateScene({
-      elements,
-      // appState: {
-      //   ...appState,
-      //   collaborators: new Map(Object.entries(appState.collaborators)),
-      // },
-    });
-  }, []);
+  const applyUpdate = useCallback(
+    ({ elements, appState }: ApplyUpdateProps) => {
+      excalidrawApi.current?.updateScene({
+        elements,
+        // appState: {
+        //   ...appState,
+        //   collaborators: new Map(Object.entries(appState.collaborators)),
+        // },
+      });
+      setIsRemoteUpdate(true);
+      if (excalidrawApi.current) {
+        const currentElements = excalidrawApi.current.getSceneElements();
+        updateElementsRef(new Map(currentElements.map((e) => [e.id, e])));
+      }
+    },
+    [],
+  );
 
   const handleMessage = useCallback(
     (message: MessageStructure) => {
@@ -91,7 +100,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [applyUpdate],
   );
   const { sendMessage, initializeConnection, closeConnection } =
-    // useWebRtcService(
     useWebSocketService(
       {
         drawingId: drawing.id,
@@ -99,6 +107,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       },
       {
         onMessage: handleMessage,
+        onConnectionClose: () => {
+          setIsCollaborating(false);
+        },
+        onConnectionOpen: () => {
+          setIsCollaborating(true);
+        },
       },
     );
 
@@ -140,50 +154,43 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [],
   );
 
-  const debouncedSendUpdate = useCallback(
+  const debouncedSendUpdateRef = useRef(
     debounce(({ elements, appState }: SendUpdateProps) => {
       sendUpdate({ elements, appState });
-      // updateElementsRef(updateData.newElementsMap);
-    }, 100),
-    [sendUpdate, updateElementsRef],
+    }, 250),
   );
+
+  useEffect(() => {
+    debouncedSendUpdateRef.current = debounce(
+      ({ elements, appState }: SendUpdateProps) => {
+        sendUpdate({ elements, appState });
+      },
+      250,
+    );
+  }, [sendUpdate]);
 
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
       let changesDetected = false;
-      const newElementsMap = new Map<string, ExcalidrawElement>();
-
       elements.forEach((element) => {
         const prevElement = prevElementsRef.current.get(element.id);
-        if (!prevElement || prevElement.version !== element.version) {
+        if (!prevElement || prevElement.version < element.version) {
           changesDetected = true;
         }
-        const prevPosition = prevPositionsRef.current.get(element.id);
-        if (
-          !prevPosition ||
-          prevPosition.x !== element.x ||
-          prevPosition.y !== element.y
-        ) {
-          changesDetected = true;
-          prevPositionsRef.current.set(element.id, {
-            x: element.x,
-            y: element.y,
-          });
+        if (prevElement && prevElement.version > element.version) {
+          elements.push(prevElement);
         }
-        newElementsMap.set(element.id, element);
+        console.log("element: ", element);
       });
-
-      if (changesDetected) {
-        console.log("Changes detected");
-        debouncedSendUpdate({
-          elements: Array.from(newElementsMap.values()),
-          appState,
-        });
+      if (appState.isResizing || appState.draggingElement) {
+        changesDetected = true;
       }
-      updateElementsRef(newElementsMap);
+      if (changesDetected) {
+        debouncedSendUpdateRef.current({ elements, appState });
+      }
+      updateElementsRef(new Map(elements.map((e) => [e.id, e])));
     },
-    // This dependency array should include everything the callback uses that could change
-    [debouncedSendUpdate, updateElementsRef],
+    [updateElementsRef],
   );
 
   const saveToBackend = async () => {
@@ -234,7 +241,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     } else {
       initializeConnection();
     }
-    setIsCollaborating((prev) => !prev);
   };
 
   type ExportAsSvgProps = {
@@ -277,6 +283,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     state: UIAppState,
     _: BinaryFiles,
   ) => {
+    if (isRemoteUpdate) {
+      setIsRemoteUpdate(false);
+      return;
+    }
     const nonDeletedElements = elements.filter(
       (el) => !el.isDeleted,
     ) as NonDeletedExcalidrawElement[];
