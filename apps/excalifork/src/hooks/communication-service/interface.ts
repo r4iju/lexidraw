@@ -10,6 +10,8 @@ export type ICommunicationProps = {
 
 export type ICommunicationOptions = {
   onMessage: (message: MessageStructure) => void;
+  onConnectionClose: () => void;
+  onConnectionOpen: () => void;
 }
 
 export type ICommunicationReturnType = {
