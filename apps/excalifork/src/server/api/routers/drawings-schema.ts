@@ -139,7 +139,7 @@ export const AppStateSchema = z.object({
   pendingImageElementId: z.string().nullable(),
   showHyperlinkPopup: z.enum(["info", "editor"]).or(z.literal(false)),
   selectedLinearElement: z.any().nullable(),
-  snapLines: z.array(z.any()).readonly(),
+  snapLines: z.any(),
   originSnapOffset: z.object({
     x: z.number(),
     y: z.number(),
@@ -168,7 +168,8 @@ export const SaveDrawing = z.object({
   id: z.string(),
   title: z.string().optional(),
   elements: z.array(ElementSchema),
-  appState: z.string(),
+  appState: AppStateSchema,
+  // appState: z.string(),
 })
 
 export type SaveDrawing = z.infer<typeof SaveDrawing>

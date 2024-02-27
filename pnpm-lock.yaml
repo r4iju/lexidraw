@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      dotenv-cli:
+        specifier: latest
+        version: 7.3.0
       eslint:
         specifier: ^8.28.0
         version: 8.57.0
@@ -20,6 +23,12 @@ importers:
 
   apps/collaborator:
     dependencies:
+      '@packages/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@packages/lib':
+        specifier: workspace:*
+        version: link:../../packages/lib
       ws:
         specifier: ^8.16.0
         version: 8.16.0
@@ -30,6 +39,9 @@ importers:
       '@types/ws':
         specifier: ^8.5.10
         version: 8.5.10
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       eslint:
         specifier: ^8.57.0
         version: 8.57.0
@@ -63,6 +75,9 @@ importers:
       '@packages/env':
         specifier: workspace:*
         version: link:../../packages/env
+      '@packages/lib':
+        specifier: workspace:*
+        version: link:../../packages/lib
       '@packages/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -287,6 +302,22 @@ importers:
       '@t3-oss/env-nextjs':
         specifier: ^0.7.1
         version: 0.7.3(typescript@4.9.5)(zod@3.22.4)
+      zod:
+        specifier: ^3.22.4
+        version: 3.22.4
+    devDependencies:
+      '@types/node':
+        specifier: ^18.17.0
+        version: 18.19.18
+      eslint:
+        specifier: ^8.11.0
+        version: 8.57.0
+      typescript:
+        specifier: ^4.5.5
+        version: 4.9.5
+
+  packages/lib:
+    dependencies:
       zod:
         specifier: ^3.22.4
         version: 3.22.4
@@ -3510,8 +3541,28 @@ packages:
     resolution: {integrity: sha512-uyb4NDIvQ3hRn6NiC+SIFaP4mJ/MdXlvtunaqK9Bn6dD3RuB/1S/gasEjDHD8eiaqdSael2vBv+hOs7Y+jhYOQ==}
     dev: false
 
+  /dotenv-cli@7.3.0:
+    resolution: {integrity: sha512-314CA4TyK34YEJ6ntBf80eUY+t1XaFLyem1k9P0sX1gn30qThZ5qZr/ZwE318gEnzyYP9yj9HJk6SqwE0upkfw==}
+    hasBin: true
+    dependencies:
+      cross-spawn: 7.0.3
+      dotenv: 16.4.5
+      dotenv-expand: 10.0.0
+      minimist: 1.2.8
+    dev: true
+
+  /dotenv-expand@10.0.0:
+    resolution: {integrity: sha512-GopVGCpVS1UKH75VKHGuQFqS1Gusej0z4FyQkPdwjil2gNIv+LNsqBlboOzpJFZKVT95GkCyWJbBSdFEFUWI2A==}
+    engines: {node: '>=12'}
+    dev: true
+
   /dotenv@16.0.3:
     resolution: {integrity: sha512-7GO6HghkA5fYG9TYnNxi14/7K9f5occMlp3zXAuSxn7CKCxt9xbNWG7yF8hTCSUchlfWSe3uLmlPfigevRItzQ==}
+    engines: {node: '>=12'}
+    dev: true
+
+  /dotenv@16.4.5:
+    resolution: {integrity: sha512-ZmdL2rui+eB2YwhsWzjInR8LldtZHGDoQ1ugH85ppHKwpUHL7j7rN0Ti9NCnGiQbhaZ11FpR+7ao1dNsmduNUg==}
     engines: {node: '>=12'}
     dev: true
 

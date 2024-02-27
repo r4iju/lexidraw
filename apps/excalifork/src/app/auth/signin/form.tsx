@@ -8,7 +8,7 @@ import { SignInSchema } from "./schema";
 import FormProvider from "~/components/hook-form";
 import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
-import { getDefaults } from "~/lib/get-zod-defaults";
+import { getDefaults } from "@packages/lib";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 
 export default function SignInForm() {

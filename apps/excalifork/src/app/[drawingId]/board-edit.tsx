@@ -5,26 +5,26 @@ import {
   LiveCollaborationTrigger,
   THEME,
 } from "@excalidraw/excalidraw";
-import {
-  type ExcalidrawElement,
-  type NonDeletedExcalidrawElement,
+import type {
+  ExcalidrawElement,
+  NonDeletedExcalidrawElement,
 } from "@excalidraw/excalidraw/types/element/types";
-import {
-  type UIAppState,
-  type ExcalidrawImperativeAPI,
-  type ExcalidrawProps,
-  type BinaryFiles,
+import type {
+  AppState,
+  ExcalidrawImperativeAPI,
+  ExcalidrawProps,
+  BinaryFiles,
 } from "@excalidraw/excalidraw/types/types";
+import type { RouterOutputs } from "~/trpc/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
-import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
-import { debounce } from "~/lib/debounce";
+import { debounce } from "@packages/lib";
 // import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 // import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
 import { useWebSocketService } from "~/hooks/communication-service/use-web-socket";
@@ -40,7 +40,7 @@ const Excalidraw = dynamic(
 
 type Props = {
   drawing: RouterOutputs["drawings"]["load"];
-  appState?: UIAppState;
+  appState?: AppState;
   elements?: NonDeletedExcalidrawElement[];
 };
 
@@ -62,14 +62,19 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // local state
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
-  const prevElementsRef = useRef<Map<string, ExcalidrawElement>>(
-    new Map(elements?.map((e) => [e.id, e])),
+  const prevElementsRef = useRef(
+    new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
-  const prevPositionsRef = useRef<Map<string, { x: number; y: number }>>(
-    new Map(),
-  );
+  const prevPositionsRef = useRef(new Map<string, { x: number; y: number }>());
   // thumbnails
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
+
+  const updateElementsRef = useCallback(
+    (currentElements: Map<string, ExcalidrawElement>) => {
+      prevElementsRef.current = currentElements;
+    },
+    [],
+  );
 
   const applyUpdate = useCallback(
     ({ elements, appState }: ApplyUpdateProps) => {
@@ -86,7 +91,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         updateElementsRef(new Map(currentElements.map((e) => [e.id, e])));
       }
     },
-    [],
+    [updateElementsRef],
   );
 
   const handleMessage = useCallback(
@@ -118,7 +123,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   type ApplyUpdateProps = {
     elements: ExcalidrawElement[];
-    appState: UIAppState;
+    appState: AppState;
   };
 
   const sendUpdate = useCallback(
@@ -127,7 +132,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       appState,
     }: {
       elements: ExcalidrawElement[];
-      appState: UIAppState;
+      appState: AppState;
     }) => {
       void sendMessage({
         type: "update",
@@ -139,20 +144,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         },
       } satisfies MessageStructure);
     },
-    [sendMessage, userId],
+    [drawing.id, sendMessage, userId],
   );
 
   type SendUpdateProps = {
     elements: ExcalidrawElement[];
-    appState: UIAppState;
+    appState: AppState;
   };
-
-  const updateElementsRef = useCallback(
-    (currentElements: Map<string, ExcalidrawElement>) => {
-      prevElementsRef.current = currentElements;
-    },
-    [],
-  );
 
   const debouncedSendUpdateRef = useRef(
     debounce(({ elements, appState }: SendUpdateProps) => {
@@ -197,17 +195,17 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     if (!excalidrawApi.current) return;
     const elements =
       excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
-    const appState: UIAppState = excalidrawApi.current.getAppState();
+    const appState: AppState = excalidrawApi.current.getAppState();
     await exportDrawingAsSvg({ elements: elements, appState });
     console.log("elements: ", JSON.stringify(elements, null, 2));
     save(
       {
         id: drawing.id,
-        appState: JSON.stringify({
+        appState: {
           ...appState,
           openDialog: null,
           theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
-        } satisfies UIAppState),
+        } satisfies AppState,
         elements: elements,
       },
       {
@@ -245,7 +243,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   type ExportAsSvgProps = {
     elements: readonly ExcalidrawElement[];
-    appState: UIAppState;
+    appState: AppState;
   };
 
   const exportDrawingAsSvg = async ({
@@ -280,7 +278,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   const onChange = (
     elements: readonly ExcalidrawElement[],
-    state: UIAppState,
+    state: AppState,
     _: BinaryFiles,
   ) => {
     if (isRemoteUpdate) {
@@ -311,12 +309,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             collaborators: appState.collaborators
               ? new Map(Object.entries(appState.collaborators))
               : new Map(),
-          } satisfies UIAppState)
+          } satisfies AppState)
         : ({
             theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
             exportWithDarkMode: false,
             exportBackground: false,
-          } satisfies Partial<UIAppState>),
+          } satisfies Partial<AppState>),
       elements: elements ?? [],
     },
     UIOptions: {
