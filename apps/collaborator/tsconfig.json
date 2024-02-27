@@ -6,9 +6,13 @@
     "baseUrl": "src",
     "lib": ["dom", "dom.iterable", "esnext"],
     "declaration": true,
-    "allowJs": true,
-    "skipLibCheck": true,
+    // strictness
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "checkJs": true,
+    "noImplicitAny": true,
+
+    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "moduleResolution": "node",

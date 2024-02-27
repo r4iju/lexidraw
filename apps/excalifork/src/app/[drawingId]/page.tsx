@@ -3,7 +3,7 @@ import ViewBoard from "./board-view";
 import { z } from "zod";
 import { api } from "~/trpc/server";
 import { redirect } from "next/navigation";
-import { type UIAppState } from "@excalidraw/excalidraw/types/types";
+import { AppState, type UIAppState } from "@excalidraw/excalidraw/types/types";
 import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
@@ -44,7 +44,7 @@ export default async function DrawingBoard(props: Props) {
     console.log("typeof appstate: ", typeof drawing.appState);
     console.log("appstate: ", drawing.appState);
     const parsedAppState = drawing.appState
-      ? (drawing.appState as unknown as UIAppState)
+      ? (drawing.appState as unknown as AppState)
       : undefined;
 
     const parsedElements = drawing.elements

@@ -17,6 +17,6 @@
     "incremental": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "index.ts"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }

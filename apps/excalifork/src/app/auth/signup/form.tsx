@@ -10,7 +10,7 @@ import FormProvider from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { useToast } from "~/components/ui/use-toast";
-import { getDefaults } from "~/lib/get-zod-defaults";
+import { getDefaults } from "@packages/lib";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { signIn } from "next-auth/react";
 

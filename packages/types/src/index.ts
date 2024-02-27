@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
-import { UIAppState } from "@excalidraw/excalidraw/types/types";
+import { AppState } from "@excalidraw/excalidraw/types/types";
+export * from "./helpers";
 
 export type MessageStructure = {
   type: "update";
@@ -9,7 +10,7 @@ export type MessageStructure = {
   drawingId: string;
   payload: {
     elements: ExcalidrawElement[];
-    appState: UIAppState;
+    appState: AppState;
   };
 };
 
