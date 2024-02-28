@@ -2,7 +2,7 @@
 FROM node:20-alpine as builder
 
 # Set working directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # Copy package.json files and other root-level config necessary for installation
 COPY package.json ./
@@ -11,38 +11,44 @@ COPY pnpm-workspace.yaml ./
 COPY turbo.json ./
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN corepack enable pnpm
 
 # Copy the entire monorepo
 COPY . .
+# --filter "./apps/collaborator"
+RUN pnpm install --frozen-lockfile --filter "@apps/collaborator"
 
-# Install dependencies and build the specific project
-RUN pnpm install --frozen-lockfile
-RUN cd apps/collaborator && pnpm build
+ENV SKIP_ENV_VALIDATION=1
 
-# Install jq
-RUN apk add --no-cache jq
-RUN jq 'del(.devDependencies)' apps/collaborator/package.json > apps/collaborator/package.clean.json && mv apps/collaborator/package.clean.json apps/collaborator/package.json
+RUN pnpm build --filter "@apps/collaborator"
 
 # Runtime Stage
 FROM node:20-alpine
-
-# Set working directory
-WORKDIR /usr/src/app
-
-# Copy only the built code and necessary runtime files or folders from the builder stage
-COPY --from=builder /usr/src/app/apps/collaborator/dist /usr/src/app/dist
-
-# If your application has runtime dependencies, install them
-# Assuming your collaborator project has a separate package.json for runtime dependencies
-COPY --from=builder /usr/src/app/apps/collaborator/package.json /usr/src/app/package.json
-RUN npm install --omit=dev
-
-# Set the environment to production
+RUN corepack enable pnpm
 ENV NODE_ENV=production
+ENV SKIP_ENV_VALIDATION=1
 
-# Expose the port the app runs on
+WORKDIR /app
+
+COPY --from=builder /app/apps/collaborator/dist /app/apps/collaborator/dist
+COPY --from=builder /app/apps/collaborator/package.json /app/apps/collaborator/package.json
+COPY --from=builder /app/packages/db/dist /app/packages/db/dist
+COPY --from=builder /app/packages/db/prisma /app/packages/db/prisma
+COPY --from=builder /app/packages/db/src /app/packages/db/src
+COPY --from=builder /app/packages/db/package.json /app/packages/db/package.json
+COPY --from=builder /app/packages/lib/dist /app/packages/lib/dist
+COPY --from=builder /app/packages/lib/package.json /app/packages/lib/package.json
+COPY --from=builder /app/packages/env/dist /app/packages/env/dist
+COPY --from=builder /app/packages/env/package.json /app/packages/env/package.json
+COPY --from=builder /app/apps/collaborator/package.json /app/apps/collaborator/package.json
+COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
+COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
+COPY --from=builder /app/turbo.json /app/turbo.json
+
+RUN npm i -g prisma && \
+    pnpm install --filter "@apps/collaborator" --frozen-lockfile --prod
+
 EXPOSE 8080
 
-# Command to run the application
-CMD ["node", "dist/index.js"]
+CMD ["pnpm", "--filter", "@apps/collaborator", "start"]

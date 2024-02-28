@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "CommonJS",
+    "target": "ES2020",
+    "module": "ESNext",
     "outDir": "dist",
     "baseUrl": "src",
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -20,6 +20,6 @@
     "isolatedModules": true,
     "incremental": true
   },
-  "include": ["src"],
+  "include": ["src", "eslintrc.cjs"],
   "exclude": ["node_modules", "dist"]
 }
