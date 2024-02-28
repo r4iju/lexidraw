@@ -42,7 +42,10 @@ export const drawingRouter = createTRPCRouter({
         data: {
           id: input.id,
           title: input.title,
-          appState: input.appState,
+          appState: {
+            ...input.appState,
+            collaborators: input.appState.collaborators ? Object.fromEntries(input.appState.collaborators.entries()) : undefined
+          },
           elements: input.elements,
         }
       })

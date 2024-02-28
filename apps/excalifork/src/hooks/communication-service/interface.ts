@@ -1,7 +1,4 @@
-import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
-import { type UIAppState } from "@excalidraw/excalidraw/types/types";
-import { MessageStructure } from "@packages/types";
-import { z } from "zod";
+import { type MessageStructure } from "@packages/types";
 
 export type ICommunicationProps = {
   drawingId: string;
