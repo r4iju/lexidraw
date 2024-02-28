@@ -39,9 +39,6 @@ importers:
       '@types/ws':
         specifier: ^8.5.10
         version: 8.5.10
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.4.5
       eslint:
         specifier: ^8.57.0
         version: 8.57.0
