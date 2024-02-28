@@ -53,7 +53,7 @@ export type ElementSchema = z.infer<typeof ElementSchema>
 export const AppStateSchema = z.object({
   showWelcomeScreen: z.boolean(),
   theme: z.enum(["light", "dark"]),
-  collaborators: z.object({}),
+  collaborators: z.map(z.string(), z.string()).optional(),
   currentChartType: z.enum(["bar", "line"]),
   currentItemBackgroundColor: z.string(),
   currentItemEndArrowhead: z.any().nullable(),
