@@ -50,7 +50,7 @@ export const useWebSocketService = (
     };
 
     setSocket(ws)
-  }, [onMessage, toast, userId]);
+  }, [onConnectionClose, onConnectionOpen, onMessage, reconnectionAttempts, shouldReconnect, toast, userId]);
 
   const closeConnection = useCallback(() => {
     if (socket) {
@@ -60,7 +60,7 @@ export const useWebSocketService = (
       setSocket(null);
       onConnectionClose();
     }
-  }, [socket]);
+  }, [onConnectionClose, socket]);
 
   useEffect(() => {
     return () => {

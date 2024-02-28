@@ -7,7 +7,7 @@ import { type MessageStructure } from '@packages/types';
 
 export const useFirestoreService = (
   { drawingId, userId }: ICommunicationProps,
-  { onMessage, onConnectionClose, onConnectionOpen }: ICommunicationOptions
+  { onMessage }: ICommunicationOptions
 ): ICommunicationReturnType => {
   const { toast } = useToast();
   const [unsubscribe, setUnsubscribe] = useState<Unsubscribe | null>(null);

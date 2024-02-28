@@ -65,7 +65,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
-  const prevPositionsRef = useRef(new Map<string, { x: number; y: number }>());
   // thumbnails
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
@@ -77,7 +76,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
 
   const applyUpdate = useCallback(
-    ({ elements, appState }: ApplyUpdateProps) => {
+    ({ elements }: ApplyUpdateProps) => {
       excalidrawApi.current?.updateScene({
         elements,
         // appState: {
