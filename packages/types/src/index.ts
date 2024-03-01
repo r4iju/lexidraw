@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
-import { AppState } from "@excalidraw/excalidraw/types/types";
+import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+import { type AppState } from "@excalidraw/excalidraw/types/types";
 export * from "./helpers";
 
 export type MessageStructure = {
@@ -34,3 +34,38 @@ export const MessageStructure = z.object({
     }),
   }),
 });
+
+export type WebRtcMessage =
+  | {
+    action: 'join' | 'leave';
+    room: string;
+    userId: string;
+    type: 'connection';
+  }
+  | {
+    action: 'send';
+    room: string;
+    userId: string;
+    type: 'offer';
+    offer: string;
+  }
+  | {
+    action: 'send';
+    room: string;
+    userId: string;
+    type: 'answer';
+    answer: string;
+  }
+  | {
+    action: 'send';
+    room: string;
+    userId: string;
+    type: 'iceCandidate';
+    candidate: string;
+  }
+  | {
+    action: 'send',
+    room: string;
+    userId: string;
+    type: 'initiateOffer';
+  };

@@ -14,7 +14,7 @@ export type ICommunicationOptions = {
 export type ICommunicationReturnType = {
   closeConnection: () => void;
   sendMessage: (message: MessageStructure) => void | Promise<void>;
-  initializeConnection: () => void;
+  initializeConnection: () => Promise<void>;
 };
 
 export type ICommunicationHook = (props: ICommunicationProps, options: ICommunicationProps) => ICommunicationReturnType;

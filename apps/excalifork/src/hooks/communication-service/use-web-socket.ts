@@ -19,7 +19,7 @@ export const useWebSocketService = (
     }
   }, [drawingId, socket]);
 
-  const initializeConnection = useCallback(() => {
+  const initializeConnection = useCallback(async () => {
     const ws = new WebSocket(env.NEXT_PUBLIC_WS_SERVER);
 
     ws.onopen = () => {
@@ -44,7 +44,9 @@ export const useWebSocketService = (
         const delay = Math.min(10000, (reconnectionAttempts + 1) * 1000);
         setTimeout(() => {
           setReconnectionAttempts((attempts) => attempts + 1);
-          initializeConnection();
+          initializeConnection()
+            .then(() => console.log('Reconnecting...'))
+            .catch(console.error);
         }, delay);
       }
     };
