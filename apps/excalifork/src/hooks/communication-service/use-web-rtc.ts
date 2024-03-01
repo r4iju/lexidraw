@@ -192,8 +192,6 @@ export function useWebRtcService(
 
 
   const sendMessage = useCallback((message: MessageStructure) => {
-    console.log('sending message', message);
-    console.log('dataChannel: ', dataChannel.current?.readyState);
     if (dataChannel && dataChannel.current?.readyState === 'open') {
       dataChannel.current?.send(JSON.stringify(message));
     }
