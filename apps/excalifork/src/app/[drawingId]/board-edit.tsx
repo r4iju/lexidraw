@@ -158,17 +158,8 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const debouncedSendUpdateRef = useRef(
     debounce(({ elements, appState }: SendUpdateProps) => {
       sendUpdate({ elements, appState });
-    }, 250),
+    }, 30),
   );
-
-  useEffect(() => {
-    debouncedSendUpdateRef.current = debounce(
-      ({ elements, appState }: SendUpdateProps) => {
-        sendUpdate({ elements, appState });
-      },
-      250,
-    );
-  }, [sendUpdate]);
 
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
@@ -181,7 +172,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         if (prevElement && prevElement.version > element.version) {
           elements.push(prevElement);
         }
-        console.log('element: ', element);
       });
       if (appState.isResizing || appState.draggingElement) {
         changesDetected = true;
@@ -284,7 +274,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     state: AppState,
     _: BinaryFiles,
   ) => {
-    console.log('onChange');
     if (isRemoteUpdate) {
       console.log('remote update detected');
       setIsRemoteUpdate(false);
@@ -294,7 +283,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       (el) => !el.isDeleted,
     ) as NonDeletedExcalidrawElement[];
     if (isCollaborating) {
-      console.log('call sendUpdateIfNeeded');
       sendUpdateIfNeeded({
         elements: nonDeletedElements,
         appState: state,

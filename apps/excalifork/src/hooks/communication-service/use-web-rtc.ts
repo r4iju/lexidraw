@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ICommunicationOptions, ICommunicationProps, ICommunicationReturnType } from './interface';
 import type { WebRtcMessage, MessageStructure } from '@packages/types';
 import { useToast } from '~/components/ui/use-toast';
