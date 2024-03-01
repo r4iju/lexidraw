@@ -136,7 +136,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       elements: ExcalidrawElement[];
       appState: AppState;
     }) => {
-      console.log('sending update');
       void sendMessage({
         type: 'update',
         userId: userId,
