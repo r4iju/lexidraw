@@ -40,6 +40,7 @@ export default async function DrawingBoard(props: Props) {
 
   try {
     const drawing = await api.drawings.load.query({ id: drawingId });
+    const iceServers = await api.auth.iceServers.query();
 
     console.log("typeof appstate: ", typeof drawing.appState);
     console.log("appstate: ", drawing.appState);
@@ -58,6 +59,7 @@ export default async function DrawingBoard(props: Props) {
             drawing={drawing}
             elements={parsedElements}
             appState={parsedAppState}
+            iceServers={iceServers}
           />
         )}
         {drawing.accessLevel === AccessLevel.READ && (

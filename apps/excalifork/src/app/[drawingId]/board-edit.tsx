@@ -1,53 +1,55 @@
-"use client";
+'use client';
 
 import {
   exportToSvg,
   LiveCollaborationTrigger,
   THEME,
-} from "@excalidraw/excalidraw";
+} from '@excalidraw/excalidraw';
 import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
-} from "@excalidraw/excalidraw/types/element/types";
+} from '@excalidraw/excalidraw/types/element/types';
 import type {
   AppState,
   ExcalidrawImperativeAPI,
   ExcalidrawProps,
   BinaryFiles,
-} from "@excalidraw/excalidraw/types/types";
-import type { RouterOutputs } from "~/trpc/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { useToast } from "~/components/ui/use-toast";
-import { api } from "~/trpc/react";
-import { Button } from "~/components/ui/button";
-import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
-import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
-import ModeToggle from "~/components/theme/dark-mode-toggle";
-import { debounce } from "@packages/lib";
-// import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
+} from '@excalidraw/excalidraw/types/types';
+import type { RouterOutputs } from '~/trpc/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useIsDarkTheme } from '~/components/theme/theme-provider';
+import { useToast } from '~/components/ui/use-toast';
+import { api } from '~/trpc/react';
+import { Button } from '~/components/ui/button';
+import { CommitIcon, ReloadIcon } from '@radix-ui/react-icons';
+import { useUserIdOrGuestId } from '~/hooks/use-user-id-or-guest-id';
+import ModeToggle from '~/components/theme/dark-mode-toggle';
+import { debounce } from '@packages/lib';
+import { useWebRtcService } from '~/hooks/communication-service/use-web-rtc';
 // import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
-import { useWebSocketService } from "~/hooks/communication-service/use-web-socket";
-import { type MessageStructure } from "@packages/types";
-import dynamic from "next/dynamic";
+// import { useWebSocketService } from "~/hooks/communication-service/use-web-socket";
+import { type MessageStructure } from '@packages/types';
+import dynamic from 'next/dynamic';
 
 const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+  async () => (await import('@excalidraw/excalidraw')).Excalidraw,
   {
     ssr: false,
   },
 );
 
 type Props = {
-  drawing: RouterOutputs["drawings"]["load"];
+  drawing: RouterOutputs['drawings']['load'];
   appState?: AppState;
   elements?: NonDeletedExcalidrawElement[];
+  iceServers: RTCIceServer[];
 };
 
 const ExcalidrawWrapper: React.FC<Props> = ({
   drawing,
   appState,
   elements,
+  iceServers,
 }) => {
   // hooks
   const isDarkTheme = useIsDarkTheme();
@@ -96,7 +98,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const handleMessage = useCallback(
     (message: MessageStructure) => {
       switch (message.type) {
-        case "update":
+        case 'update':
           applyUpdate(message.payload);
           break;
       }
@@ -104,10 +106,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [applyUpdate],
   );
   const { sendMessage, initializeConnection, closeConnection } =
-    useWebSocketService(
+    useWebRtcService(
       {
         drawingId: drawing.id,
         userId,
+        iceServers,
       },
       {
         onMessage: handleMessage,
@@ -133,8 +136,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       elements: ExcalidrawElement[];
       appState: AppState;
     }) => {
+      console.log('sending update');
       void sendMessage({
-        type: "update",
+        type: 'update',
         userId: userId,
         drawingId: drawing.id,
         payload: {
@@ -177,7 +181,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         if (prevElement && prevElement.version > element.version) {
           elements.push(prevElement);
         }
-        console.log("element: ", element);
+        console.log('element: ', element);
       });
       if (appState.isResizing || appState.draggingElement) {
         changesDetected = true;
@@ -196,7 +200,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
     const appState: AppState = excalidrawApi.current.getAppState();
     await exportDrawingAsSvg({ elements: elements, appState });
-    console.log("elements: ", JSON.stringify(elements, null, 2));
+    console.log('elements: ', JSON.stringify(elements, null, 2));
     save(
       {
         id: drawing.id,
@@ -210,14 +214,14 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       {
         onSuccess: () => {
           toast({
-            title: "Saved!",
+            title: 'Saved!',
           });
         },
         onError: (err) => {
           toast({
-            title: "Something went wrong!",
+            title: 'Something went wrong!',
             description: err.message,
-            variant: "destructive",
+            variant: 'destructive',
           });
         },
       },
@@ -225,18 +229,18 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   };
 
   const handleToggleLiveCollaboration = async () => {
-    if (drawing.publicAccess === "PRIVATE" && drawing.sharedWith.length === 0) {
+    if (drawing.publicAccess === 'PRIVATE' && drawing.sharedWith.length === 0) {
       toast({
-        title: "This drawing is private",
+        title: 'This drawing is private',
         description: "You can't collaborate on private drawings",
-        variant: "destructive",
+        variant: 'destructive',
       });
       return;
     }
     if (isCollaborating) {
       closeConnection();
     } else {
-      initializeConnection();
+      await initializeConnection();
     }
   };
 
@@ -280,7 +284,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     state: AppState,
     _: BinaryFiles,
   ) => {
+    console.log('onChange');
     if (isRemoteUpdate) {
+      console.log('remote update detected');
       setIsRemoteUpdate(false);
       return;
     }
@@ -288,6 +294,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       (el) => !el.isDeleted,
     ) as NonDeletedExcalidrawElement[];
     if (isCollaborating) {
+      console.log('call sendUpdateIfNeeded');
       sendUpdateIfNeeded({
         elements: nonDeletedElements,
         appState: state,
@@ -341,12 +348,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   }, [isDarkTheme]);
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
+    <div style={{ width: '100vw', height: '100vh' }}>
       <Excalidraw
         {...options}
         excalidrawAPI={(api) => {
           excalidrawApi.current = api;
-          console.log("excalidraw api set");
+          console.log('excalidraw api set');
         }}
         renderTopRightUI={() => (
           <>

@@ -272,6 +272,28 @@ importers:
         specifier: ^5.1.6
         version: 5.3.3
 
+  apps/signaling-server:
+    dependencies:
+      ws:
+        specifier: ^8.16.0
+        version: 8.16.0
+    devDependencies:
+      '@packages/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@types/ws':
+        specifier: ^8.5.10
+        version: 8.5.10
+      eslint:
+        specifier: ^8.57.0
+        version: 8.57.0
+      tsx:
+        specifier: ^4.7.1
+        version: 4.7.1
+      typescript:
+        specifier: ^5.3.3
+        version: 5.3.3
+
   packages/db:
     dependencies:
       '@packages/env':

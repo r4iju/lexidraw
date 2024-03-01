@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "outDir": "dist",
+    "baseUrl": "src",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "declaration": true,
+    // strictness
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "checkJs": true,
+    "noImplicitAny": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "incremental": true
+  },
+  "include": ["src", "eslintrc.cjs"],
+  "exclude": ["node_modules", "dist"]
+}

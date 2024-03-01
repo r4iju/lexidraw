@@ -35,7 +35,7 @@ export const useFirestoreService = (
     }
   }, [drawingId, userId]);
 
-  const initializeConnection = useCallback(() => {
+  const initializeConnection = useCallback(async () => {
     const docRef = doc(firestore, 'drawings', drawingId);
 
     const unsubscribe = onSnapshot(docRef, (docSnapshot) => {
@@ -51,9 +51,8 @@ export const useFirestoreService = (
       console.log('Error getting document:', error);
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     });
-
-    // Return unsubscribe function to stop listening to changes
-    return unsubscribe;
+    setUnsubscribe(unsubscribe);
+    return;
   }, [drawingId, onMessage, toast, userId]);
 
   const closeConnection = useCallback(() => {
