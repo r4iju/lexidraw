@@ -5,7 +5,7 @@ const config = {
   trailingComma: 'all',
   tabWidth: 2,
   semi: true,
-  singleQuote: true,
+  singleQuote: false,
   printWidth: 80,
   endOfLine: 'auto',
 };

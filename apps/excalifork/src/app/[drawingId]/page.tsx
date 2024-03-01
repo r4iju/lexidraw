@@ -72,13 +72,9 @@ export default async function DrawingBoard(props: Props) {
       </div>
     );
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error?.message : "Something went wrong";
-    console.error("Error loading drawing:", errorMessage);
     return (
       <div className="flex h-[90vh] w-full flex-col items-center justify-center gap-4">
         <p className="text-lg">Something went wrong</p>
-        <p>{errorMessage}</p>
         <Link href={`/dashboard`}>
           <Button>Go to dashboard</Button>
         </Link>
