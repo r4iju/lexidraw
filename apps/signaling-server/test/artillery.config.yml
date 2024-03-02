@@ -1,0 +1,17 @@
+config:
+  target: "ws://localhost:8080"
+  phases:
+    - duration: 30
+      arrivalRate: 50 # New users per second
+      rampTo: 50 # Ramp up to this number of users over the test duration
+
+scenarios:
+  - engine: "ws"
+    flow:
+      - send: '{ "type": "connection", "action":"join","room":"testRoom","userId":"{{ $uuid }}" }'
+      - think: 5 # Wait for 5 seconds
+      # Example of sending an 'offer' message
+      - send: '{ "type":"offer", "action":"send","room":"testRoom","userId":"{{ $uuid }}","offer":"SDP data here"}'
+      - think: 10 # Wait for 10 seconds
+      # Example of leaving the room
+      - send: '{ "type": "connection", "action":"leave","room":"testRoom","userId":"{{ $uuid }}" }'
