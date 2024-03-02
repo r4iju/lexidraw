@@ -154,6 +154,9 @@ export function useWebRtcService(
             }));
           }
           break;
+        case 'notification':
+          console.log('Notification:', message.message);
+          break;
         default:
           console.log('Unknown message type:', message satisfies never);
       }

@@ -64,8 +64,15 @@ export type WebRtcMessage =
     candidate: string;
   }
   | {
-    action: 'send',
+    action: 'request',
     room: string;
     userId: string;
     type: 'initiateOffer';
+  }
+  | {
+    action: 'none',
+    message: string;
+    userId: null;
+    room: string;
+    type: 'notification';
   };
