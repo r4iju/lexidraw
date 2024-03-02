@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true // Prevents outputting files, just type-checks
+  },
+  "include": ["src/**/*", "test/**/*"]
+}
