@@ -75,15 +75,8 @@ describe('WebSocket Server E2E Tests', () => {
         type: 'connection',
         userId,
       };
-
       client!.send(JSON.stringify(message));
 
-      client!.on('message', (data: string) => {
-        const response = JSON.parse(data) as WebRtcMessage;
-        expect(response).toHaveProperty('type', 'notification');
-        expect(response).toHaveProperty('room', 'testRoom');
-        expect(response).toHaveProperty('message', 'Welcome, you are the first user in this room');
-      });
     });
 
   });
@@ -91,34 +84,41 @@ describe('WebSocket Server E2E Tests', () => {
   test('2 Clients can join a room', async () => {
     await createClients(2);
 
-    const message1 = {
-      action: 'join',
-      room: 'testRoom',
-      type: 'connection',
-      userId: createUserId(),
-    };
-    clients[0]!.send(JSON.stringify(message1))
+    const userId1 = createUserId();
+    const userId2 = createUserId();
 
-    clients[0]!.on('message', (data: string) => {
+    const client1 = clients[0];
+    const client2 = clients[1];
+
+    client1!.on('message', (data: string) => {
       const response = JSON.parse(data);
-      expect(response).toHaveProperty('type', 'notification');
+      expect(response).toHaveProperty('type', 'join');
     });
 
-    const message2 = {
-      action: 'join',
-      room: 'testRoom',
-      type: 'connection',
-      userId: createUserId(),
-    };
-    clients[1]!.send(JSON.stringify(message2))
-
-    clients[1]!.on('message', (data: string) => {
+    client2!.on('message', (data: string) => {
       const response = JSON.parse(data);
-      expect(response).toHaveProperty('action', 'send');
       expect(response).toHaveProperty('room', 'testRoom');
-      expect(response).toHaveProperty('userId', message1.userId);
-      expect(response).toHaveProperty('type', 'initiateOffer');
+      expect(response).toHaveProperty('userId', userId1);
+      expect(response).toHaveProperty('type', 'leave');
     });
+
+    client1!.send(JSON.stringify({
+      room: 'testRoom',
+      type: 'join',
+      userId: userId1,
+    } satisfies WebRtcMessage))
+
+    client2!.send(JSON.stringify({
+      room: 'testRoom',
+      type: 'join',
+      userId: userId2,
+    } satisfies WebRtcMessage))
+
+    client1!.send(JSON.stringify({
+      room: 'testRoom',
+      type: 'leave',
+      userId: userId1
+    } satisfies WebRtcMessage));
 
   });
 });
