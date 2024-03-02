@@ -16,8 +16,8 @@ export function startServer(port = 8080) {
 
   wss.on('connection', (ws: WebSocket) => {
     ws.on('message', (msg: string) => {
-      console.log('received: %s', msg);
       const message = JSON.parse(msg) as WebRtcMessage;
+      console.log('received: ', message);
 
       if (!rooms.has(message.room)) {
         rooms.set(message.room, new Map());
@@ -25,64 +25,26 @@ export function startServer(port = 8080) {
 
       const currentRoom = rooms.get(message.room);
 
-      switch (message.action) {
-        case 'join':
-          if (currentRoom) {
-            currentRoom.set(message.userId, { ws, userId: message.userId });
-            console.log('currentRoom.size', currentRoom.size);
-            if (currentRoom.size === 1) {
-              ws.send(JSON.stringify({
-                action: 'none',
-                message: 'Welcome, you are the first user in this room',
-                room: message.room,
-                userId: null,
-                type: 'notification'
-              } satisfies WebRtcMessage));
-            }
-            if (currentRoom.size === 2) {
-              // Notify the first participant to create an offer
-              const [firstUserId] = currentRoom.keys();
-              if (!firstUserId) return;
-              const firstUserClient = currentRoom.get(firstUserId);
-              firstUserClient?.ws.send(JSON.stringify({
-                action: 'request',
-                room: message.room,
-                userId: firstUserId,
-                type: 'initiateOffer'
-              } satisfies WebRtcMessage));
-            }
-          }
-          break;
-        case 'leave':
-          // Remove client from room
-          if (currentRoom) currentRoom.delete(message.userId);
-          break;
-        case 'send':
-        case 'request':
-        case 'none':
-          break;
-        default:
-          throw new Error('Unknown action:', message satisfies never);
+      if ('userId' in message && !currentRoom?.get(message.userId)) {
+        currentRoom?.set(message.userId, { ws, userId: message.userId });
       }
 
       // Relay message to other clients in the same room
-      if (message.type && currentRoom) {
+      if ('userId' in message && currentRoom) {
         currentRoom.forEach((client, clientId) => {
           if (clientId !== message.userId) {
             switch (message.type) {
               case 'offer':
-                client.ws.send(JSON.stringify({ ...message, userId: clientId, offer: message.offer }));
-                break;
               case 'answer':
-                client.ws.send(JSON.stringify({ ...message, userId: clientId, answer: message.answer }));
-                break;
               case 'iceCandidate':
-                client.ws.send(JSON.stringify({ ...message, userId: clientId, candidate: message.candidate }));
+                client.ws.send(JSON.stringify(message));
                 break;
-              case 'notification':
-              case 'initiateOffer':
-              case 'connection':
-                console.log(`should not relay ${message.type} to other users`);
+              case 'leave':
+                if (currentRoom) currentRoom.delete(message.userId);
+                client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
+                break;
+              case 'join':
+                client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
                 break;
               default:
                 throw new Error('Unknown message type', message satisfies never);
@@ -98,6 +60,14 @@ export function startServer(port = 8080) {
         room.forEach((client, clientId) => {
           if (client.ws === ws) {
             room.delete(clientId);
+            // also notify all peers
+            room.forEach((peer) => {
+              peer.ws.send(JSON.stringify({
+                room: roomId,
+                userId: clientId,
+                type: 'leave'
+              } satisfies WebRtcMessage));
+            });
           }
         });
         if (room.size === 0) {

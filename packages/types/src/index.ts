@@ -37,42 +37,25 @@ export const MessageStructure = z.object({
 
 export type WebRtcMessage =
   | {
-    action: 'join' | 'leave';
+    type: 'join' | 'leave';
     room: string;
     userId: string;
-    type: 'connection';
   }
   | {
-    action: 'send';
     room: string;
     userId: string;
     type: 'offer';
     offer: string;
   }
   | {
-    action: 'send';
     room: string;
     userId: string;
     type: 'answer';
     answer: string;
   }
   | {
-    action: 'send';
     room: string;
     userId: string;
     type: 'iceCandidate';
     candidate: string;
-  }
-  | {
-    action: 'request',
-    room: string;
-    userId: string;
-    type: 'initiateOffer';
-  }
-  | {
-    action: 'none',
-    message: string;
-    userId: null;
-    room: string;
-    type: 'notification';
   };
