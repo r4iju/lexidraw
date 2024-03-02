@@ -3,7 +3,6 @@ const config = {
   extends: ["../../eslint.config.mjs"],
   parserOptions: {
     ecmaVersion: 2023,
-    sourceType: true,
   },
 };
 
