@@ -27,7 +27,8 @@ export function useWebRtcService(
       await peerConnection.setLocalDescription(answer);
       websocket.current?.send(JSON.stringify({
         room: drawingId,
-        userId,
+        from: userId,
+        to: clientId,
         type: 'answer',
         answer: JSON.stringify(answer)
       } satisfies WebRtcMessage));
@@ -76,9 +77,11 @@ export function useWebRtcService(
 
     conn.onicecandidate = event => {
       if (event.candidate && websocket) {
+        //change to to: and from: 
         websocket.current?.send(JSON.stringify({
           room: drawingId,
-          userId,
+          to: clientId,
+          from: userId,
           type: 'iceCandidate',
           candidate: JSON.stringify(event.candidate)
         } satisfies WebRtcMessage));
@@ -117,7 +120,7 @@ export function useWebRtcService(
       // setupPeerConnection()
       ws.send(JSON.stringify({
         room: drawingId,
-        userId,
+        from : userId,
         type: "join"
       } satisfies WebRtcMessage));
     };
@@ -125,7 +128,7 @@ export function useWebRtcService(
     ws.onmessage = async (event: MessageEvent<string>) => {
       console.log('received websocket message: ', event.data);
       const message = JSON.parse(event.data) as WebRtcMessage;
-      const clientId = message.userId;
+      const clientId = message.from;
       // Handle different types of messages (offer, answer, ICE candidate)
       switch (message.type) {
         case 'offer':
@@ -155,11 +158,12 @@ export function useWebRtcService(
           console.log('set local description');
           websocket.current?.send(JSON.stringify({
             room: drawingId,
-            userId,
+            to: clientId,
+            from: userId,
             type: 'offer',
             offer: JSON.stringify(offer)
           } satisfies WebRtcMessage));
-          console.log(localConnections.current.get(message.userId));
+          console.log(localConnections.current.get(message.from));
           break;
         default:
           console.log('Unknown message type:', message satisfies never);
