@@ -334,6 +334,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     });
   }, [isDarkTheme]);
 
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      closeConnection();
+    };
+  }, []);
+
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
       <Excalidraw

@@ -120,7 +120,7 @@ export function useWebRtcService(
       // setupPeerConnection()
       ws.send(JSON.stringify({
         room: drawingId,
-        from : userId,
+        from: userId,
         type: "join"
       } satisfies WebRtcMessage));
     };
@@ -185,16 +185,17 @@ export function useWebRtcService(
   }, [drawingId, handleIceCandidate, handleRemoteAnswer, handleRemoteOffer, reconnectionAttempts, setupPeerConnection, shouldReconnect, toast, userId]);
 
   const closeConnection = useCallback(() => {
-    for (const conn of localConnections.current) {
-      conn[1].close();
+    setShouldReconnect(false);
+    setReconnectionAttempts(0);
+    for (const [_, conn] of localConnections.current) {
+      conn.close();
     }
     localConnections.current = new Map();
-    for (const channel of dataChannels.current) {
-      channel[1].close();
+    for (const [_, channel] of dataChannels.current) {
+      channel.close();
     }
     dataChannels.current = new Map();
     if (websocket.current) {
-      setShouldReconnect(false);
       websocket.current.close();
       websocket.current = null;
     }
