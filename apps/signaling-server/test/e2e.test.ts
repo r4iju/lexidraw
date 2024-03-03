@@ -8,7 +8,7 @@ describe('WebSocket Server E2E Tests', () => {
   let serverControl: ReturnType<typeof startServer>;
 
   beforeAll(() => {
-    serverControl = startServer();
+    serverControl = startServer(8081);
   });
 
   afterAll(() => {
@@ -57,7 +57,6 @@ describe('WebSocket Server E2E Tests', () => {
 
   test('Utility function createUserId', () => {
     const userId = createUserId();
-    console.log(userId);
     expect(userId).toBeDefined();
     expect(typeof userId).toBe('string');
     expect(userId.length).toBe(10);
@@ -105,19 +104,19 @@ describe('WebSocket Server E2E Tests', () => {
     client1!.send(JSON.stringify({
       room: 'testRoom',
       type: 'join',
-      userId: userId1,
+      from: userId1,
     } satisfies WebRtcMessage))
 
     client2!.send(JSON.stringify({
       room: 'testRoom',
       type: 'join',
-      userId: userId2,
+      from: userId2,
     } satisfies WebRtcMessage))
 
     client1!.send(JSON.stringify({
       room: 'testRoom',
       type: 'leave',
-      userId: userId1
+      from: userId1
     } satisfies WebRtcMessage));
 
   });

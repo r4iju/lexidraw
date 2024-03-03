@@ -25,22 +25,21 @@ export function startServer(port = 8080) {
 
       const currentRoom = rooms.get(message.room);
 
-      if ('userId' in message && !currentRoom?.get(message.userId)) {
-        currentRoom?.set(message.userId, { ws, userId: message.userId });
+      if (!currentRoom) {
+        throw new Error('Room not found');
+      }
+
+      if ('from' in message && !currentRoom.get(message.from)) {
+        currentRoom?.set(message.from, { ws, userId: message.from });
       }
 
       // Relay message to other clients in the same room
-      if ('userId' in message && currentRoom) {
+      if (message.type === 'join' || message.type === 'leave') {
         currentRoom.forEach((client, clientId) => {
-          if (clientId !== message.userId) {
+          if (clientId !== message.from) {
             switch (message.type) {
-              case 'offer':
-              case 'answer':
-              case 'iceCandidate':
-                client.ws.send(JSON.stringify(message));
-                break;
               case 'leave':
-                if (currentRoom) currentRoom.delete(message.userId);
+                if (currentRoom) currentRoom.delete(message.from);
                 client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
                 break;
               case 'join':
@@ -51,6 +50,14 @@ export function startServer(port = 8080) {
             }
           }
         });
+      }
+      // Relay message to specific user
+      if (message.type === 'offer' || message.type === 'answer' || message.type === 'iceCandidate') {
+        currentRoom.forEach((client, clientId) => {
+          if (clientId === message.to) {
+            client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
+          }
+        })
       }
     });
 
@@ -64,7 +71,7 @@ export function startServer(port = 8080) {
             room.forEach((peer) => {
               peer.ws.send(JSON.stringify({
                 room: roomId,
-                userId: clientId,
+                from: clientId,
                 type: 'leave'
               } satisfies WebRtcMessage));
             });

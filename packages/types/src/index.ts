@@ -39,23 +39,26 @@ export type WebRtcMessage =
   | {
     type: 'join' | 'leave';
     room: string;
-    userId: string;
+    from: string; // userId
   }
   | {
-    room: string;
-    userId: string;
     type: 'offer';
+    room: string;
+    from: string; // userId
+    to: string; // userId
     offer: string;
   }
   | {
-    room: string;
-    userId: string;
     type: 'answer';
+    room: string;
+    from: string; // userId
+    to: string; // userId
     answer: string;
   }
   | {
-    room: string;
-    userId: string;
     type: 'iceCandidate';
+    room: string;
+    from: string; // userId
+    to: string; // userId
     candidate: string;
   };
