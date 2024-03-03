@@ -167,7 +167,7 @@ const testAppState: AppStateSchema = assertTypeCompatibility<ExcalidrawAppState>
 export const SaveDrawing = z.object({
   id: z.string(),
   title: z.string().optional(),
-  elements: z.array(ElementSchema),
+  elements: z.array(ElementSchema).readonly(),
   appState: AppStateSchema,
   // appState: z.string(),
 })

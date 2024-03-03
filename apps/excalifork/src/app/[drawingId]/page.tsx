@@ -9,7 +9,7 @@ import { Button } from "~/components/ui/button";
 import Link from "next/link";
 import { AccessLevel } from "@packages/db";
 
-export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 const Params = z.object({
   params: z.object({

@@ -9,7 +9,7 @@ export type MessageStructure = {
   userId: string;
   drawingId: string;
   payload: {
-    elements: ExcalidrawElement[];
+    elements: readonly ExcalidrawElement[];
     appState: AppState;
   };
 };
