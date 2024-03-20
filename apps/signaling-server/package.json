@@ -10,7 +10,7 @@
     "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
     "clean": "rm -rf ./dist && rm -rf .turbo",
     "load-test": "artillery run test/artillery.config.yml",
-    "test": "jest"
+    "test": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -19,15 +19,12 @@
     "ws": "^8.16.0"
   },
   "devDependencies": {
-    "@jest/globals": "^29.7.0",
     "@packages/types": "workspace:*",
-    "@types/jest": "^29.5.12",
     "@types/ws": "^8.5.10",
     "artillery": "^2.0.6",
     "eslint": "^8.57.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.2",
     "tsx": "^4.7.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.4.0"
   }
 }

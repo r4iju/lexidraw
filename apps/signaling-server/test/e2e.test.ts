@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws'
 import { startServer } from '../src/server';
-import type { WebRtcMessage } from '@packages/types';
-import { expect, describe, beforeAll, afterAll, afterEach, test } from '@jest/globals';
+import { WebRtcMessage } from '@packages/types';
+import { expect, describe, beforeAll, afterAll, afterEach, test } from 'vitest';
 
 describe('WebSocket Server E2E Tests', () => {
   const port = 8080
