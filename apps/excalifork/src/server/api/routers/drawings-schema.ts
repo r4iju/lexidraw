@@ -82,7 +82,7 @@ export const AppStateSchema = z.object({
   exportScale: z.number(),
   exportEmbedScene: z.boolean(),
   exportWithDarkMode: z.boolean(),
-  fileHandle: z.string().nullable(),
+  fileHandle: z.object({}).nullable(),
   gridSize: z.number().nullable(),
   isBindingEnabled: z.boolean(),
   defaultSidebarDockedPreference: z.boolean(),

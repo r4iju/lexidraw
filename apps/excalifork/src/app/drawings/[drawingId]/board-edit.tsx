@@ -56,6 +56,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
   const { toast } = useToast();
+
   // excalidraw api
   const excalidrawApi = useRef<ExcalidrawImperativeAPI | null>(null);
   // server state
@@ -200,7 +201,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
     const appState: AppState = excalidrawApi.current.getAppState();
     await exportDrawingAsSvg({ elements: elements, appState });
-    console.log("elements: ", JSON.stringify(elements, null, 2));
     save(
       {
         id: drawing.id,
@@ -346,6 +346,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   // cleanup on unmount
   useEffect(() => {
+    for (const el of elements ?? []) {
+      console.log("element", el.isDeleted);
+    }
     return () => {
       closeConnection();
     };
@@ -365,12 +368,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
               isCollaborating={isCollaborating}
               onSelect={handleToggleLiveCollaboration}
             >
-              <Badge
-                variant="default"
-                // className="cursor-pointer"
-              >
-                {peers.length + 1}
-              </Badge>
+              <Badge variant="default">{peers.length + 1}</Badge>
             </LiveCollaborationTrigger>
             <Button onClick={saveToBackend} disabled={isSaving}>
               {!isSaving && <CommitIcon className=" h-4 w-4 " />}
