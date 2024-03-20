@@ -19,7 +19,7 @@ export const metadata = {
 };
 
 export const dynamic = "force-dynamic";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export default async function LandingPage() {
   const drawings = await api.drawings.list.query();
