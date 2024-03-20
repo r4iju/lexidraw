@@ -10,17 +10,41 @@ export function useWebRtcService(
   { drawingId, userId, iceServers }: ICommunicationProps & { iceServers: RTCIceServer[] },
   { onMessage, onConnectionClose, onConnectionOpen }: ICommunicationOptions
 ): ICommunicationReturnType {
+
   const { toast } = useToast();
+
   const [shouldReconnect, setShouldReconnect] = useState(true);
   const [reconnectionAttempts, setReconnectionAttempts] = useState(0);
+
   const websocket = useRef<WebSocket | null>(null);
   const localConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const dataChannels = useRef<Map<string, RTCDataChannel>>(new Map());
 
+  const handleParticipantLeft = useCallback((clientId: string) => {
+    console.log('Participant left:', clientId);
+    localConnections.current.get(clientId)?.close();
+    localConnections.current.delete(clientId);
+    dataChannels.current.get(clientId)?.close();
+    dataChannels.current.delete(clientId);
+  }, []);
+
+  const handleParticipantJoined = useCallback(async (clientId: string) => {
+    console.log('Participant joined:', clientId);
+    const peerConnection = setupPeerConnection(clientId);
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    websocket.current?.send(JSON.stringify({
+      room: drawingId,
+      to: clientId,
+      from: userId,
+      type: 'offer',
+      offer: JSON.stringify(offer)
+    } satisfies WebRtcMessage));
+  }, []);
+
   const handleRemoteOffer = useCallback(async (clientId: string, offer: string) => {
     console.log('Handling remote offer');
     const peerConnection = setupPeerConnection(clientId);
-    console.log('peerConnection', peerConnection);
     try {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer) as RTCSessionDescriptionInit));
       const answer = await peerConnection.createAnswer();
@@ -44,7 +68,6 @@ export function useWebRtcService(
       console.error('Local connection not established');
       return;
     };
-    console.log('peerConnection', peerConnection);
 
     try {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer) as RTCSessionDescriptionInit));
@@ -90,7 +113,12 @@ export function useWebRtcService(
 
     const channel = conn.createDataChannel("dataChannel");
     channel.onopen = () => console.log("Data channel open");
-    channel.onclose = () => console.log("Data channel closed");
+    channel.onclose = () => {
+      console.log("channel closed")
+      if (dataChannels.current.has(clientId)) {
+        dataChannels.current.delete(clientId);
+      }
+    };
     channel.onmessage = (event: MessageEvent<string>) => {
       onMessage(JSON.parse(event.data) as MessageStructure)
     };
@@ -100,6 +128,12 @@ export function useWebRtcService(
       const receiveChannel = event.channel;
       receiveChannel.onmessage = (event: MessageEvent<string>) => {
         onMessage(JSON.parse(event.data) as MessageStructure)
+      };
+      receiveChannel.onclose = () => {
+        console.log("receiveChannel closed")
+        if (dataChannels.current.has(clientId)) {
+          dataChannels.current.delete(clientId);
+        }
       };
       dataChannels.current.set(clientId, receiveChannel);
       onConnectionOpen();
@@ -117,7 +151,6 @@ export function useWebRtcService(
 
     ws.onopen = () => {
       console.log('WebSocket connection established');
-      // setupPeerConnection()
       ws.send(JSON.stringify({
         room: drawingId,
         from: userId,
@@ -141,29 +174,10 @@ export function useWebRtcService(
           await handleIceCandidate(clientId, message.candidate);
           break;
         case 'leave':
-          console.log('Participant left:', clientId);
-          localConnections.current.get(clientId)?.close();
-          localConnections.current.delete(clientId);
-          dataChannels.current.get(clientId)?.close();
-          dataChannels.current.delete(clientId);
+          handleParticipantLeft(clientId);
           break;
         case 'join':
-          console.log('Participant joined:', clientId);
-          console.log('Creating offer for ', clientId);
-          const peerConnection = setupPeerConnection(clientId);
-          console.log('peerConnection', peerConnection);
-          const offer = await peerConnection.createOffer();
-          console.log('created offer', offer);
-          await peerConnection.setLocalDescription(offer);
-          console.log('set local description');
-          websocket.current?.send(JSON.stringify({
-            room: drawingId,
-            to: clientId,
-            from: userId,
-            type: 'offer',
-            offer: JSON.stringify(offer)
-          } satisfies WebRtcMessage));
-          console.log(localConnections.current.get(message.from));
+          handleParticipantJoined(clientId);
           break;
         default:
           console.log('Unknown message type:', message satisfies never);
@@ -182,6 +196,11 @@ export function useWebRtcService(
         }, delay);
       }
     };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
   }, [drawingId, handleIceCandidate, handleRemoteAnswer, handleRemoteOffer, reconnectionAttempts, setupPeerConnection, shouldReconnect, toast, userId]);
 
   const closeConnection = useCallback(() => {
@@ -206,7 +225,6 @@ export function useWebRtcService(
     onConnectionClose();
   }, [onConnectionClose]);
 
-
   const sendMessage = useCallback((message: MessageStructure) => {
     dataChannels.current.forEach((channel) => {
       if (channel.readyState === 'open') {
@@ -217,5 +235,7 @@ export function useWebRtcService(
     })
   }, []);
 
-  return { closeConnection, sendMessage, initializeConnection };
+  const peers = Array.from(localConnections.current.keys());
+
+  return { closeConnection, sendMessage, initializeConnection, peers };
 }

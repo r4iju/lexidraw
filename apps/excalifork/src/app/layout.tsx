@@ -7,7 +7,7 @@ import { cn } from "~/lib/utils";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SessionProvider } from "next-auth/react";
 
-export const fontSans = FontSans({
+const fontSans = FontSans({
   subsets: ["latin"],
   variable: "--font-sans",
 });
@@ -26,7 +26,7 @@ export default function RootLayout({ children }: Props) {
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
-          "min-h-screen bg-background font-sans antialiased",
+          "flex min-h-screen flex-col bg-background font-sans antialiased",
           fontSans.variable,
         )}
       >
@@ -38,8 +38,11 @@ export default function RootLayout({ children }: Props) {
               enableSystem
               disableTransitionOnChange
             >
-              {children}
-              <Toaster />
+              {" "}
+              <div className="flex h-screen flex-col">
+                {children}
+                <Toaster />
+              </div>
             </ThemeProvider>
           </TRPCReactProvider>
         </SessionProvider>

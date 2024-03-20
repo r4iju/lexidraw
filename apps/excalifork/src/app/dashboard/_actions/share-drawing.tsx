@@ -1,6 +1,6 @@
 "use client";
 
-import { type $Enums, PublicAccess, AccessLevel } from "@packages/db";
+import { PublicAccess, AccessLevel } from "@packages/types";
 import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -27,7 +27,7 @@ import { Input } from "~/components/ui/input";
 
 type Props = {
   drawing: RouterOutputs["drawings"]["list"][number];
-  currentAccess: $Enums.PublicAccess;
+  currentAccess: PublicAccess;
   revalidatePath: VoidFunction;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
@@ -42,7 +42,7 @@ const publicAccessLevelLabel = {
 const accessLevelLabel = {
   [AccessLevel.EDIT]: "Edit",
   [AccessLevel.READ]: "View",
-};
+} as const;
 
 export default function ShareDrawing({
   drawing,
@@ -52,8 +52,16 @@ export default function ShareDrawing({
   onOpenChange,
 }: Props) {
   const [shareWith, setShareWith] = useState<string>("");
-  const [accessLevel, setAccessLevel] = useState<$Enums.AccessLevel>(
-    AccessLevel.READ,
+  const [accessLevel, setAccessLevel] = useState<AccessLevel>(AccessLevel.READ);
+  const { data: sharedWith, refetch } = api.drawings.getSharedInfo.useQuery(
+    {
+      drawingId: drawing.id,
+    },
+    {
+      enabled: isOpen,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
   );
   const { mutate: share, isLoading } = api.drawings.update.useMutation();
   const { mutate: shareWithUser } = api.drawings.share.useMutation();
@@ -77,6 +85,7 @@ export default function ShareDrawing({
             title: "Shared!",
           });
           revalidatePath();
+          refetch();
         },
         onError(error) {
           toast({
@@ -91,7 +100,7 @@ export default function ShareDrawing({
 
   type ChangeAccessLevelProps = {
     userId: string;
-    accessLevel: $Enums.AccessLevel;
+    accessLevel: AccessLevel;
   };
 
   const handleChangeAccessLevel = ({
@@ -110,6 +119,7 @@ export default function ShareDrawing({
             title: "Access level changed!",
           });
           revalidatePath();
+          refetch();
         },
       },
     );
@@ -124,18 +134,20 @@ export default function ShareDrawing({
             title: "Unshared!",
           });
           revalidatePath();
+          refetch();
         },
       },
     );
   };
 
-  const handleChangePublicAccess = (publicAccess: $Enums.PublicAccess) => {
+  const handleChangePublicAccess = (publicAccess: PublicAccess) => {
     share(
       { id: drawing.id, publicAccess: publicAccess },
       {
         onSuccess: () => {
           toast({ title: "Saved!" });
           revalidatePath();
+          refetch();
         },
         onError: (error) => {
           toast({
@@ -159,7 +171,7 @@ export default function ShareDrawing({
               Please select the type of public access you want to give to this
               drawing.
             </div>
-            <div className="flex justify-end">
+            <div className="flex full-w justify-end">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button className="gap-2" variant="outline">
@@ -187,6 +199,7 @@ export default function ShareDrawing({
                 className="w-full"
                 placeholder="Email"
                 type="email"
+                value={shareWith}
                 onChange={(e) => setShareWith(e.target.value)}
               />
               <div className="flex flex-row justify-end gap-x-2">
@@ -213,24 +226,26 @@ export default function ShareDrawing({
             <div className="h2 text-md font-bold">Shared with</div>
             <span>The following users have access to this drawing.</span>
             <div className="space-y-2">
-              {drawing.sharedWith.map((sharedUser) => (
+              {sharedWith?.map((sharedUser) => (
                 <div
-                  key={sharedUser.id}
+                  key={sharedUser.userId}
                   className="flex items-center justify-between"
                 >
                   <div className="flex gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
-                      {sharedUser.user.name[0]}
+                      {sharedUser.name ? sharedUser.name[0] : ""}
                     </span>
-                    <span className="flex items-center">
-                      {sharedUser.user.name}
-                    </span>
+                    <span className="flex items-center">{sharedUser.name}</span>
                   </div>
                   <div className="flex gap-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline">
-                          {accessLevelLabel[sharedUser.accessLevel]}
+                          {
+                            accessLevelLabel[
+                              sharedUser.accessLevel as AccessLevel
+                            ]
+                          }
                           <ChevronDownIcon />
                         </Button>
                       </DropdownMenuTrigger>

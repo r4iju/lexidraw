@@ -6,6 +6,9 @@ import FormSkeleton from "./skeleton";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 
+export const dynamic = "force-dynamic";
+export const runtime = "edge";
+
 export default async function SignInPage() {
   const session = await auth();
   if (!session) {
@@ -13,7 +16,7 @@ export default async function SignInPage() {
   }
 
   return (
-    <div className=" flex min-h-[90vh] flex-col items-center justify-center ">
+    <div className=" flex h-full flex-col items-center justify-center ">
       <div className="flex w-full flex-col gap-y-6  rounded border p-6 shadow-lg md:max-w-lg">
         <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white">
           Sign Out

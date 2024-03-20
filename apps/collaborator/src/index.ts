@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { MessageStructure } from "@packages/types"
-import { db, Prisma } from "@packages/db"
+import { drizzle, eq, schema } from "@packages/drizzle"
 import { debounce } from "@packages/lib"
 
 const wss = new WebSocketServer({ port: 8080 });
@@ -14,15 +14,13 @@ const debouncedSave = debounce(async (
 ) => {
   console.log('debouncedSave');
 
-  await db.drawing.update({
-    where: {
-      id: drawingId
-    },
-    data: {
-      elements: elements,
-      appState: appState as unknown as Prisma.InputJsonObject,
-    },
-  });
+  await drizzle.update(schema.drawing)
+    .set({
+      elements: JSON.stringify(elements),
+      appState: JSON.stringify(appState),
+    })
+    .where(eq(schema.drawing.id, drawingId))
+    .execute();
 }, 1000);
 
 wss.on('connection', function connection(ws) {

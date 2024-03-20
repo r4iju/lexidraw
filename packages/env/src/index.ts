@@ -6,6 +6,8 @@ const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
+    TURSO_URL: z.string().min(1),
+    TURSO_TOKEN: z.string().min(1),
     DATABASE_URL: z
       .string()
       .url()
@@ -46,6 +48,7 @@ const env = createEnv({
     ),
   },
   client: {
+    NEXT_PUBLIC_NODE_ENV: z.enum(["development", "test", "production"]),
     NEXT_PUBLIC_WS_SERVER: z.string().min(1),
     NEXT_PUBLIC_FIRESTORE_API_KEY: z.string().min(1),
     NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN: z.string().min(1),
@@ -55,10 +58,13 @@ const env = createEnv({
     NEXT_PUBLIC_FIRESTORE_APP_ID: z.string().min(1),
   },
   runtimeEnv: {
+    NEXT_PUBLIC_NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_WS_SERVER: process.env.NEXT_PUBLIC_WS_SERVER,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,
     DATABASE_URL: process.env.DATABASE_URL,
+    TURSO_URL: process.env.TURSO_URL,
+    TURSO_TOKEN: process.env.TURSO_TOKEN,
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,

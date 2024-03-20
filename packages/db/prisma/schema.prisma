@@ -3,11 +3,12 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // Necessary for Next auth
@@ -34,7 +35,7 @@ model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
-  expires      DateTime
+  expires      Int
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -43,7 +44,7 @@ model User {
   name           String
   email          String?         @unique
   password       String?
-  emailVerified  DateTime?
+  emailVerified  Int?
   image          String?
   accounts       Account[]
   sessions       Session[]
@@ -54,14 +55,14 @@ model User {
 model VerificationToken {
   identifier String
   token      String   @unique
-  expires    DateTime
+  expires    Int
 
   @@unique([identifier, token])
 }
 
 model Analytics {
   id          Int      @id @default(autoincrement())
-  timestamp   DateTime @default(now())
+  timestamp   Int
   visitorId   String
   pageVisited String
   userAgent   String
@@ -87,26 +88,26 @@ model CityCoordinates {
 model Drawing {
   id                 String               @id @default(cuid())
   title              String
-  elements           Json
-  appState           Json?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  deletedAt          DateTime?
+  elements           String
+  appState           String?
+  createdAt          Int             
+  updatedAt          Int             
+  deletedAt          Int?
   userId             String
   user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   sharedWith         SharedDrawing[]
-  publicAccess       PublicAccess         @default(PRIVATE)
+  publicAccess       String // PublicAccess         @default(PRIVATE)
   webRTCOffer        WebRTCOffer[]
   webRTCAnswer       WebRTCAnswer[]
 
   @@index([userId])
 }
 
-enum PublicAccess {
-  PRIVATE
-  READ
-  EDIT
-}
+// enum PublicAccess {
+//   PRIVATE
+//   READ
+//   EDIT
+// }
 
 model SharedDrawing {
   id          String      @id @default(cuid())
@@ -114,27 +115,27 @@ model SharedDrawing {
   drawing     Drawing     @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   userId      String
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessLevel AccessLevel
-  createdAt   DateTime    @default(now())
+  accessLevel String // AccessLevel
+  createdAt   Int    
 
   @@unique([drawingId, userId], name: "uniqueDrawingUserShare")
   @@index([drawingId])
   @@index([userId])
 }
 
-enum AccessLevel {
-  READ
-  EDIT
-}
+// enum AccessLevel {
+//   READ
+//   EDIT
+// }
 
 model WebRTCOffer {
   id        String   @id @default(cuid())
-  offer     String   @db.Text
+  offer     String   // @db.Text
   drawingId String
   drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt Int 
+  updatedAt Int 
 
   @@index([drawingId])
   @@index([createdBy])
@@ -142,12 +143,12 @@ model WebRTCOffer {
 
 model WebRTCAnswer {
   id        String   @id @default(cuid())
-  answer    String   @db.Text
+  answer    String   // @db.Text
   drawingId String
   drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt Int
+  updatedAt Int
 
   @@index([drawingId])
   @@index([createdBy])

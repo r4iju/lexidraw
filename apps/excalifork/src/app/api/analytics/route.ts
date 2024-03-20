@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { db } from '@packages/db';
 import { validateAuthToken } from '~/lib/validate-auth-token';
 import { generateVisitorId } from '~/lib/generate-visitor-id';
+import { drizzle, schema } from '@packages/drizzle';
+
+export const runtime = "edge";
 
 export async function POST(req: Request) {
   const isAuthed = await validateAuthToken(req.headers.get('Authorization'));
@@ -29,9 +31,10 @@ export async function POST(req: Request) {
       region: input.region,
     });
 
-    const response = await db.analytics.create({
-      data: {
+    const response = await drizzle.insert(schema.analytics)
+      .values({
         visitorId,
+        timestamp: new Date(),
         pageVisited: input.pageVisited,
         referer: input.referer,
         userAgent: input.userAgent,
@@ -39,8 +42,7 @@ export async function POST(req: Request) {
         country: input.country,
         city: input.city,
         region: input.region,
-      },
-    });
+      })
     return new Response(JSON.stringify(response), { status: 200 });
   } catch (error) {
     console.error(error);

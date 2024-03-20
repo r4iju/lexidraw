@@ -5,6 +5,8 @@ import { auth } from "~/server/auth";
 import Header from "~/sections/header";
 import Footer from "~/sections/footer";
 
+export const runtime = "edge";
+
 export const metadata = {
   title: "An excalidraw demo",
   description:
@@ -16,7 +18,7 @@ export default async function LandingPage() {
   return (
     <>
       <Header />
-      <div className="flex min-h-screen flex-col">
+      <div className="flex h-full flex-col">
         <main className="flex-1">
           <section id="about" className="w-full pt-12 md:pt-24 lg:pt-32">
             <div className="space-y-10 px-4 md:px-6 xl:space-y-16">

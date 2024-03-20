@@ -2,6 +2,7 @@ import { z } from "zod";
 import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { type AppState } from "@excalidraw/excalidraw/types/types";
 export * from "./helpers";
+export * from "./enums";
 
 export type MessageStructure = {
   type: "update";

@@ -14,7 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@packages/db": "workspace:*",
+    "@packages/drizzle": "workspace:*",
     "@packages/lib": "workspace:*",
     "ws": "^8.16.0"
   },

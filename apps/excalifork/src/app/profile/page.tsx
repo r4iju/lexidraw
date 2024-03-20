@@ -5,6 +5,9 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/server";
 
+export const dynamic = "force-dynamic";
+export const runtime = "edge";
+
 export default async function SignInPage() {
   const user = await api.auth.getProfile.query();
 

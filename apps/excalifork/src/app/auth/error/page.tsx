@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 
+export const runtime = "edge";
+
 export default function AuthError() {
   return (
-    <div className="flex min-h-[90vh] items-center justify-center">
+    <div className="flex h-full items-center justify-center">
       <div className="w-full rounded  border p-6 shadow-lg md:max-w-lg">
         <h2 className="mb-4 text-center text-2xl font-bold text-gray-900 dark:text-white">
           Error

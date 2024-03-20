@@ -1,116 +1,138 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
+import { and, eq, lte, ne, schema } from "@packages/drizzle";
 
 export const webRtcRouter = createTRPCRouter({
   createOffer: publicProcedure
     .input(z.object({ drawingId: z.string(), offer: z.string().min(1), userId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      return await ctx.db.webRTCOffer.create({
-        data: {
+      return await ctx.drizzle
+        .insert(schema.webRtcOffer)
+        .values({
+          createdAt: new Date(),
+          updatedAt: new Date(),
           drawingId: input.drawingId,
           offer: input.offer,
           createdBy: input.userId,
-        }
-      })
+        })
+        .execute();
     }),
   updateOffer: publicProcedure
-    .input(z.object({ offerId: z.string(), drawingId: z.string(), offer: z.string().min(1) }))
+    .input(z.object({ offerId: z.number(), drawingId: z.string(), offer: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      return await ctx.db.webRTCOffer.update({
-        where: { id: input.offerId },
-        data: {
+      return await ctx.drizzle
+        .update(schema.webRtcOffer)
+        .set({
           offer: input.offer,
-        }
-      })
+        })
+        .where(eq(schema.webRtcOffer.id, input.offerId))
+        .execute();
     }),
   upsertOffer: publicProcedure
-    .input(z.object({ offerId: z.string(), drawingId: z.string(), offer: z.string().min(1), userId: z.string().min(1) }))
+    .input(z.object({ offerId: z.number(), drawingId: z.string(), offer: z.string().min(1), userId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      return await ctx.db.webRTCOffer.upsert({
-        where: { id: input.offerId },
-        create: {
-          id: input.offerId,
+      return await ctx.drizzle
+        .insert(schema.webRtcOffer)
+        .values({
+          createdAt: new Date(),
+          updatedAt: new Date(),
           drawingId: input.drawingId,
           offer: input.offer,
           createdBy: input.userId,
-        },
-        update: {
-          offer: input.offer,
-        }
-      })
+        })
+        .onConflictDoUpdate({
+          target: schema.webRtcOffer.id,
+          set: {
+            offer: input.offer,
+            updatedAt: new Date(),
+          },
+        })
+        .execute();
     }),
   getOffers: publicProcedure
     .input(z.object({ drawingId: z.string(), userId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
-      return await ctx.db.webRTCOffer.findMany({
-        where: {
-          drawingId: input.drawingId,
-          updatedAt: { gt: new Date(Date.now() - 1000 * 5) },
-          NOT: { createdBy: input.userId }
-        }
-      })
+      return await ctx.drizzle
+        .select()
+        .from(schema.webRtcOffer)
+        .where(and(
+          eq(schema.webRtcOffer.drawingId, input.drawingId),
+          ne(schema.webRtcOffer.createdBy, input.userId),
+          lte(schema.webRtcOffer.updatedAt, new Date(new Date().getTime() - 1000 * 5)),
+        ))
     }),
   deleteOffer: publicProcedure
-    .input(z.object({ offerId: z.string() }))
+    .input(z.object({ offerId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      await ctx.db.webRTCOffer.delete({
-        where: { id: input.offerId }
-      })
+      await ctx.drizzle
+        .delete(schema.webRtcOffer)
+        .where(eq(schema.webRtcOffer.id, input.offerId))
+        .execute();
     }),
   createAnswer: publicProcedure
     .input(z.object({ drawingId: z.string(), answer: z.string().min(1), userId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      return await ctx.db.webRTCAnswer.create({
-        data: {
+      return await ctx.drizzle
+        .insert(schema.webRtcAnswer)
+        .values({
+          createdAt: new Date(),
+          updatedAt: new Date(),
           drawingId: input.drawingId,
           answer: input.answer,
           createdBy: input.userId,
-        }
-      })
+        })
+        .execute();
     }),
   updateAnswer: publicProcedure
-    .input(z.object({ answerId: z.string(), drawingId: z.string(), answer: z.string().min(1) }))
+    .input(z.object({ answerId: z.number(), drawingId: z.string(), answer: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      return await ctx.db.webRTCAnswer.update({
-        where: { id: input.answerId },
-        data: {
+      return await ctx.drizzle
+        .update(schema.webRtcAnswer)
+        .set({
           answer: input.answer,
-        }
-      })
+        })
+        .where(eq(schema.webRtcAnswer.id, input.answerId))
+        .execute();
     }),
   upsertAnswer: publicProcedure
     .input(z.object({ answerId: z.string(), drawingId: z.string(), answer: z.string().min(1), userId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      return await ctx.db.webRTCAnswer.upsert({
-        where: { id: input.answerId },
-        create: {
-          id: input.answerId,
+      return await ctx.drizzle
+        .insert(schema.webRtcAnswer)
+        .values({
+          createdAt: new Date(),
+          updatedAt: new Date(),
           drawingId: input.drawingId,
           answer: input.answer,
           createdBy: input.userId,
-        },
-        update: {
-          answer: input.answer,
-        }
-      })
+        })
+        .onConflictDoUpdate({
+          target: schema.webRtcAnswer.id,
+          set: {
+            answer: input.answer,
+            updatedAt: new Date(),
+          },
+        })
+        .execute();
     }),
   getAnswers: publicProcedure
     .input(z.object({ drawingId: z.string(), userId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
-      return await ctx.db.webRTCAnswer.findMany({
-        where: {
-          drawingId: input.drawingId,
-          // last 5 seconds
-          updatedAt: { gt: new Date(Date.now() - 1000 * 5) },
-          NOT: { createdBy: input.userId }
-        }
-      })
+      return await ctx.drizzle
+        .select()
+        .from(schema.webRtcAnswer)
+        .where(and(
+          eq(schema.webRtcAnswer.drawingId, input.drawingId),
+          ne(schema.webRtcAnswer.createdBy, input.userId),
+          lte(schema.webRtcAnswer.updatedAt, new Date(new Date().getTime() - 1000 * 5)),
+        ))
     }),
   deleteAnswer: publicProcedure
-    .input(z.object({ answerId: z.string() }))
+    .input(z.object({ answerId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      await ctx.db.webRTCAnswer.delete({
-        where: { id: input.answerId }
-      })
+      await ctx.drizzle
+        .delete(schema.webRtcAnswer)
+        .where(eq(schema.webRtcAnswer.id, input.answerId))
+        .execute();
     }),
 })

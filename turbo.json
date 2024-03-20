@@ -7,7 +7,7 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["build"],
       "outputs": []
     },
     "lint": {
@@ -21,6 +21,13 @@
     },
     "clean": {
       "cache": false
+    },
+    "db:push": {},
+    "db:generate": {},
+    "db:pull": {},
+    "test:ts": {
+      "dependsOn": ["^test"],
+      "outputs": []
     }
   }
 }

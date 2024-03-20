@@ -12,7 +12,11 @@
     "start": "turbo run start",
     "lint": "turbo run lint",
     "clean": "turbo run clean",
-    "test": "turbo run test"
+    "db:pull": "dotenv -- turbo run db:pull",
+    "db:push": "dotenv -- turbo run db:push",
+    "db:generate": "dotenv -- turbo run db:generate",
+    "test": "turbo run test",
+    "test:ts": "turbo run test:ts"
   },
   "devDependencies": {
     "dotenv-cli": "latest",
