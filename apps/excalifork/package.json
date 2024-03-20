@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "ANALYZE=true next build",
+    "build": "\\cp ./excalidraw-main.js ./node_modules/@excalidraw/excalidraw/main.js && ANALYZE=true next build",
     "dev": "next dev --port 3100",
     "lint": "next lint",
     "start": "next start --port 3100"
