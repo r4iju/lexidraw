@@ -4,11 +4,12 @@ import type { WebRtcMessage } from '@packages/types';
 import { expect, describe, beforeAll, afterAll, afterEach, test } from '@jest/globals';
 
 describe('WebSocket Server E2E Tests', () => {
+  const port = 8080
   let clients: WebSocket[] = [];
   let serverControl: ReturnType<typeof startServer>;
 
   beforeAll(() => {
-    serverControl = startServer(8081);
+    serverControl = startServer(port);
   });
 
   afterAll(() => {
@@ -33,7 +34,7 @@ describe('WebSocket Server E2E Tests', () => {
     const connections: Promise<void>[] = [];
 
     for (let i = 0; i < count; i++) {
-      const client = new WebSocket('ws://localhost:8080');
+      const client = new WebSocket(`ws://localhost:${port}`);
       const openPromise = new Promise<void>((resolve) => {
         client.on('open', resolve);
       });

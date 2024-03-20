@@ -7,16 +7,16 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "dotenv -- turbo run build",
-    "dev": "dotenv -- turbo run dev",
-    "start": "turbo run start",
+    "build": "dotenv -e .env.production -- turbo run build",
+    "dev": "dotenv -e .env.development -- turbo run dev",
+    "start": "dotenv -e .env.production -- turbo run start",
     "lint": "turbo run lint",
     "clean": "turbo run clean",
-    "db:pull": "dotenv -- turbo run db:pull",
-    "db:push": "dotenv -- turbo run db:push",
-    "db:generate": "dotenv -- turbo run db:generate",
-    "test": "turbo run test",
-    "test:ts": "turbo run test:ts"
+    "db:pull": "dotenv -e .env.development -- turbo run db:pull",
+    "db:push": "dotenv -e .env.development -- turbo run db:push",
+    "db:generate": "dotenv -e .env.development -- turbo run db:generate",
+    "test": "dotenv -e .env.test -- turbo run test",
+    "test:ts": "dotenv -e .env.test -- turbo run test:ts"
   },
   "devDependencies": {
     "dotenv-cli": "latest",
