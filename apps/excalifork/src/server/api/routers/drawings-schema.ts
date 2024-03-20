@@ -33,6 +33,7 @@ export const ElementSchema = z.object({
   frameId: z.string().nullable(),
   roundness: z.any().optional(),
   // boundElements: z.array(BoundElement).or(z.array(BoundElement).readonly()).nullable(),
+  points: z.array(z.any()).optional(),
   boundElements: z.any(),
   updated: z.number(),
   link: z.string().nullable(),
