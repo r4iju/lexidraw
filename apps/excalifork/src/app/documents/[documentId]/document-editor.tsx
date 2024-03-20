@@ -1,5 +1,6 @@
 "use client";
 
+// import styles from "./_themes/scrollbar.css";
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { LinkNode } from "@lexical/link";
@@ -14,50 +15,35 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
-import { Theme } from "./themes/themes";
-import ToolbarPlugin from "./plugins/toolbar-plugin";
-import TreeViewPlugin from "./plugins/tree-view-plugin";
+import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { Theme } from "./_themes/themes";
+import ToolbarPlugin from "./_plugins/toolbar-plugin";
+import TreeViewPlugin from "./_plugins/tree-view-plugin";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import env from "@packages/env";
-
-const initialMarkdown = `# Welcome to Lexical
-# Heading 1
-## Heading 2
-### Heading 3
-#### Heading 4
-##### Heading 5
-
-This is a list:
-- List item 1
-- List item 2
-- List item 3
-
-This is a numbered list
-1. List item 1
-2. List item 2
-3. List item 3
-
-[Link](https://lexical.dev)
-
-Here's a piece of code:
-\`Hello world!\`
-`;
-
-const initialEditorState = () => {
-  return $convertFromMarkdownString(initialMarkdown, TRANSFORMERS);
-};
+import { useRef } from "react";
+import OptionsDropdown from "./_plugins/options-dropdown";
+import { EditorState } from "lexical";
 
 function Placeholder() {
   return (
-    <div className="absolute p-20 text-gray-600 dark:text-gray-100 select-none pointer-events-none">
+    <div className="px-6 text-gray-600 dark:text-gray-100 select-none pointer-events-none">
       Enter some rich text...
     </div>
   );
 }
 
-export default function DocumentEditor() {
+type Props = {
+  documentId: string;
+  elements: string;
+};
+
+export default function DocumentEditor({ documentId, elements }: Props) {
+  console.log("elements: ", elements);
   const isDarkTheme = useIsDarkTheme();
+  const editorStateRef = useRef<EditorState>();
+
   return (
     <LexicalComposer
       initialConfig={{
@@ -73,36 +59,37 @@ export default function DocumentEditor() {
           CodeNode,
         ],
         onError(error: Error) {
-          throw error;
+          console.error(error);
         },
         theme: Theme,
-        editorState: initialEditorState,
+        editorState: elements,
       }}
     >
-      <div className="min-h-screen w-[100wv] bg-zinc-50 dark:bg-zinc-950 flex justify-center items-center">
-        <div className="w-full px-4 md:px-8 lg:max-w-4xl xl:max-w-5xl fixed top-3 z-50">
+      <div className="relative w-full h-screen">
+        {/* Toolbar with semi-transparent background floating over the content */}
+        <div className="fixed top-0 left-0 right-0 z-10 px-4 md:px-8">
           <div className="flex justify-between items-center py-2">
-            {/* Placeholder for additional elements or empty div if nothing is on the left */}
-            <div></div>
+            <OptionsDropdown documentId={documentId} state={editorStateRef} />
             <ToolbarPlugin />
-            <div className="flex gap-3 px-4 py-2 bg-white backdrop-blur-lg shadow-lg dark:border-slate-600 dark:bg-zinc-800 rounded-lg">
-              <ModeToggle />
-            </div>
+            <ModeToggle />
           </div>
         </div>
-        <div className="mt-14 pt-10 px-4 md:px-8 shadow-lg rounded-lg overflow-hidden w-[960px]">
+
+        {/* ContentEditable allowing content to scroll behind the toolbar */}
+        <div className="w-full h-full overflow-y-auto max-w-screen-lg bg-zinc-50 dark:bg-zinc-950 mx-auto">
           <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
           <RichTextPlugin
             contentEditable={
-              <ContentEditable className="min-h-[100vh] h-auto resize-none outline-none text-black dark:text-white" />
+              <ContentEditable className="resize-none outline-none pt-20 px-6 text-black dark:text-white " />
             }
             placeholder={<Placeholder />}
             ErrorBoundary={LexicalErrorBoundary}
           />
+          <OnChangePlugin
+            onChange={(editorState) => (editorStateRef.current = editorState)}
+          />
           <HistoryPlugin />
           <AutoFocusPlugin />
-          {/*  */}
-          {env.NEXT_PUBLIC_NODE_ENV === "development" && <TreeViewPlugin />}
         </div>
       </div>
     </LexicalComposer>

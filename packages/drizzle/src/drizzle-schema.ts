@@ -106,11 +106,12 @@ export const cityCoordinates = sqliteTable("CityCoordinates", {
 		}
 	});
 
-export const drawing = sqliteTable("Drawing", {
+export const entity = sqliteTable("Entity", {
 	id: text("id").primaryKey().notNull(),
 	title: text("title").notNull(),
 	elements: text("elements").notNull(),
 	appState: text("appState"),
+	entityType: text("entityType").notNull().default("drawing"), // drawing or document
 	createdAt: integer('createdAt', { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).notNull(),
 	deletedAt: integer('deletedAt', { mode: 'timestamp_ms' }),
@@ -119,29 +120,29 @@ export const drawing = sqliteTable("Drawing", {
 },
 	(table) => {
 		return {
-			userIdIdx: index("Drawing_userId_idx").on(table.userId),
+			userIdIdx: index("Entity_userId_idx").on(table.userId),
 		}
 	});
 
-export const sharedDrawing = sqliteTable("SharedDrawing", {
+export const sharedEntity = sqliteTable("SharedEntity", {
 	id: text("id").primaryKey().notNull(),
-	drawingId: text("drawingId").notNull().references(() => drawing.id, { onDelete: "cascade", onUpdate: "cascade" }),
+	entityId: text("entityId").notNull().references(() => entity.id, { onDelete: "cascade", onUpdate: "cascade" }),
 	userId: text("userId").notNull().references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
 	accessLevel: text("accessLevel").notNull(),
 	createdAt: integer('createdAt', { mode: 'timestamp_ms' }).notNull(),
 },
 	(table) => {
 		return {
-			drawingIdUserIdKey: uniqueIndex("SharedDrawing_drawingId_userId_key").on(table.drawingId, table.userId),
-			userIdIdx: index("SharedDrawing_userId_idx").on(table.userId),
-			drawingIdIdx: index("SharedDrawing_drawingId_idx").on(table.drawingId),
+			entityIdUserIdKey: uniqueIndex("SharedEntity_entityId_userId_key").on(table.entityId, table.userId),
+			userIdIdx: index("SharedEntity_userId_idx").on(table.userId),
+			entityIdIdx: index("SharedEntity_entityId_idx").on(table.entityId),
 		}
 	});
 
 export const webRtcOffer = sqliteTable("WebRTCOffer", {
 	id: integer('id').primaryKey({ autoIncrement: true }).notNull(),
 	offer: text("offer").notNull(),
-	drawingId: text("drawingId").notNull().references(() => drawing.id, { onDelete: "cascade", onUpdate: "cascade" }),
+	entityId: text("entityId").notNull().references(() => entity.id, { onDelete: "cascade", onUpdate: "cascade" }),
 	createdBy: text("createdBy").notNull(),
 	createdAt: integer('createdAt', { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).notNull(),
@@ -149,14 +150,14 @@ export const webRtcOffer = sqliteTable("WebRTCOffer", {
 	(table) => {
 		return {
 			createdByIdx: index("WebRTCOffer_createdBy_idx").on(table.createdBy),
-			drawingIdIdx: index("WebRTCOffer_drawingId_idx").on(table.drawingId),
+			entityIdIdx: index("WebRTCOffer_entityId_idx").on(table.entityId),
 		}
 	});
 
 export const webRtcAnswer = sqliteTable("WebRTCAnswer", {
 	id: integer('id').primaryKey({ autoIncrement: true }).notNull(),
 	answer: text("answer").notNull(),
-	drawingId: text("drawingId").notNull().references(() => drawing.id, { onDelete: "cascade", onUpdate: "cascade" }),
+	entityId: text("entityId").notNull().references(() => entity.id, { onDelete: "cascade", onUpdate: "cascade" }),
 	createdBy: text("createdBy").notNull(),
 	createdAt: integer('createdAt', { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).notNull(),
@@ -164,6 +165,6 @@ export const webRtcAnswer = sqliteTable("WebRTCAnswer", {
 	(table) => {
 		return {
 			createdByIdx: index("WebRTCAnswer_createdBy_idx").on(table.createdBy),
-			drawingIdIdx: index("WebRTCAnswer_drawingId_idx").on(table.drawingId),
+			entityIdIdx: index("WebRTCAnswer_entityId_idx").on(table.entityId),
 		}
 	});

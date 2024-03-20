@@ -14,26 +14,26 @@ import {
   Share1Icon,
   TrashIcon,
 } from "@radix-ui/react-icons";
-import DeleteDrawing from "./delete-drawing";
+import DeleteDrawing from "./delete-entity";
 import { useState } from "react";
 import { useToast } from "~/components/ui/use-toast";
-import ShareDrawing from "./share-drawing";
-import { PublicAccess } from "@packages/types";
+import ShareDrawing from "./share-entity";
+import { EntityType, PublicAccess } from "@packages/types";
 import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {
-  drawing: RouterOutputs["drawings"]["list"][number];
+  entity: RouterOutputs["entities"]["list"][number];
   currentAccess: PublicAccess;
   revalidatePath: VoidFunction;
 };
 
-export function MoreActions({ drawing, currentAccess, revalidatePath }: Props) {
+export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const copyPublicLink = async () => {
-    const url = `${window.location.origin}/${drawing.id}`;
+    const url = `${window.location.origin}/${entity.id}`;
     try {
       await navigator.clipboard.writeText(url);
       toast({
@@ -69,7 +69,7 @@ export function MoreActions({ drawing, currentAccess, revalidatePath }: Props) {
               onSelect={() => setIsShareDialogOpen(true)}
               className="justify-between"
             >
-              Share drawing
+              Share {entity.entityType}
               <Share1Icon />
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -84,14 +84,14 @@ export function MoreActions({ drawing, currentAccess, revalidatePath }: Props) {
         </DropdownMenuContent>
       </DropdownMenu>
       <ShareDrawing
-        drawing={drawing}
+        entity={entity}
         currentAccess={currentAccess}
         revalidatePath={revalidatePath}
         isOpen={isShareDialogOpen}
         onOpenChange={setIsShareDialogOpen}
       />
       <DeleteDrawing
-        drawingId={drawing.id}
+        entity={entity}
         revalidatePath={revalidatePath}
         isOpen={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}

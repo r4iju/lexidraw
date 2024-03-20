@@ -12,7 +12,7 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {
-  drawing: RouterOutputs["drawings"]["load"];
+  drawing: RouterOutputs["entities"]["load"];
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
 };

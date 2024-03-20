@@ -5,13 +5,14 @@ import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
 import Redirect from "./redirect";
+import { emptyContent } from "./initial-content";
 
 export const runtime = "edge";
 export const fetchCache = "force-no-store";
 
 const Params = z.object({
   params: z.object({
-    drawingId: z.string(),
+    documentId: z.string(),
   }),
 });
 
@@ -19,19 +20,19 @@ type Props = z.infer<typeof Params>;
 
 export default async function DrawingBoard(props: Props) {
   const {
-    params: { drawingId },
+    params: { documentId },
   } = Params.parse(props);
 
   try {
     await api.entities.create.mutate({
-      id: drawingId,
-      title: "New drawing",
-      elements: "[]",
-      entityType: "drawing",
+      id: documentId,
+      title: "New document",
+      entityType: "document",
+      elements: JSON.stringify(emptyContent()),
     });
     return (
       <>
-        <Redirect drawingId={drawingId} />
+        <Redirect documentId={documentId} />
       </>
     );
   } catch (error) {

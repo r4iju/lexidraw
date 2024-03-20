@@ -31,7 +31,7 @@ import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { type MessageStructure } from "@packages/types";
 
 type Props = {
-  drawing: RouterOutputs["drawings"]["load"];
+  drawing: RouterOutputs["entities"]["load"];
   appState?: AppState;
   elements?: NonDeletedExcalidrawElement[];
   iceServers: RTCIceServer[];
@@ -51,7 +51,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // excalidraw api
   const excalidrawApi = useRef<ExcalidrawImperativeAPI | null>(null);
   // server state
-  const { mutate: save, isLoading: isSaving } = api.drawings.save.useMutation();
+  const { mutate: save, isLoading: isSaving } = api.entities.save.useMutation();
   // local state
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
@@ -151,8 +151,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       save(
         {
           id: drawing.id,
-          appState: { ...appState, openDialog: null } satisfies AppState,
-          elements: elements as ExcalidrawElement[], // readonly... hmm
+          entityType: "drawing",
+          appState: JSON.stringify({
+            ...appState,
+            openDialog: null,
+          } satisfies AppState),
+          elements: JSON.stringify(elements as ExcalidrawElement[]), // readonly... hmm
         },
         {
           onSuccess: () => console.log("auto save success"),
@@ -195,12 +199,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     save(
       {
         id: drawing.id,
-        appState: {
+        entityType: "drawing",
+        appState: JSON.stringify({
           ...appState,
           openDialog: null,
           theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
-        } satisfies AppState,
-        elements: elements,
+        } satisfies AppState),
+        elements: JSON.stringify(elements),
       },
       {
         onSuccess: () => {
@@ -262,7 +267,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         // convert it to string
         const svgString = new XMLSerializer().serializeToString(svg);
         saveSvg({
-          drawingId: drawing.id,
+          entityId: drawing.id,
           svg: svgString,
           theme: theme,
         });
