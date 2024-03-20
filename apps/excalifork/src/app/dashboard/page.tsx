@@ -19,6 +19,7 @@ export const metadata = {
 };
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 export const runtime = "edge";
 
 export default async function LandingPage() {

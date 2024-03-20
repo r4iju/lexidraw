@@ -8,7 +8,7 @@ import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 
 export const runtime = "edge";
-export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 const ViewBoard = dynamicImport(() => import("./board-view"), { ssr: false });
 const EditBoard = dynamicImport(() => import("./board-edit"), { ssr: false });
@@ -35,7 +35,20 @@ export default async function DrawingBoard(props: Props) {
       : undefined;
 
     const parsedElements = drawing.elements
-      ? (JSON.parse(drawing.elements) as unknown as ExcalidrawElement[])
+      ? (JSON.parse(drawing.elements) as unknown as ExcalidrawElement[]).map(
+          (el) => {
+            if (
+              ["freedraw", "line", "arrow"].includes(el.type) &&
+              !("points" in el)
+            ) {
+              return {
+                ...(el as unknown as ExcalidrawElement),
+                points: [],
+              };
+            }
+            return el;
+          },
+        )
       : undefined;
 
     return (
