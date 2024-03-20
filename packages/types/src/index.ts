@@ -2,6 +2,7 @@ import { z } from "zod";
 import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { type AppState } from "@excalidraw/excalidraw/types/types";
 export * from "./helpers";
+export * from "./enums";
 
 export type MessageStructure = {
   type: "update";
@@ -9,7 +10,7 @@ export type MessageStructure = {
   userId: string;
   drawingId: string;
   payload: {
-    elements: ExcalidrawElement[];
+    elements: readonly ExcalidrawElement[];
     appState: AppState;
   };
 };
@@ -37,42 +38,28 @@ export const MessageStructure = z.object({
 
 export type WebRtcMessage =
   | {
-    action: 'join' | 'leave';
+    type: 'join' | 'leave';
     room: string;
-    userId: string;
-    type: 'connection';
+    from: string; // userId
   }
   | {
-    action: 'send';
-    room: string;
-    userId: string;
     type: 'offer';
+    room: string;
+    from: string; // userId
+    to: string; // userId
     offer: string;
   }
   | {
-    action: 'send';
-    room: string;
-    userId: string;
     type: 'answer';
+    room: string;
+    from: string; // userId
+    to: string; // userId
     answer: string;
   }
   | {
-    action: 'send';
-    room: string;
-    userId: string;
     type: 'iceCandidate';
+    room: string;
+    from: string; // userId
+    to: string; // userId
     candidate: string;
-  }
-  | {
-    action: 'request',
-    room: string;
-    userId: string;
-    type: 'initiateOffer';
-  }
-  | {
-    action: 'none',
-    message: string;
-    userId: null;
-    room: string;
-    type: 'notification';
   };

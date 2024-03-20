@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 export default function TermsOfService() {
   return (
     <div className="flex min-h-[90vh] flex-col">

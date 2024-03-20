@@ -18,12 +18,12 @@ import DeleteDrawing from "./delete-drawing";
 import { useState } from "react";
 import { useToast } from "~/components/ui/use-toast";
 import ShareDrawing from "./share-drawing";
-import { type $Enums, PublicAccess } from "@packages/db";
+import { PublicAccess } from "@packages/types";
 import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {
   drawing: RouterOutputs["drawings"]["list"][number];
-  currentAccess: $Enums.PublicAccess;
+  currentAccess: PublicAccess;
   revalidatePath: VoidFunction;
 };
 

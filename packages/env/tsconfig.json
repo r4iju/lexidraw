@@ -17,6 +17,6 @@
     "incremental": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "eslint.config.mjs"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
