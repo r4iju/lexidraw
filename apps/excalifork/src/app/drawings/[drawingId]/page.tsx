@@ -1,5 +1,5 @@
 import Link from "next/link";
-import dynamic from "next/dynamic";
+import dynamicImport from "next/dynamic";
 import { z } from "zod";
 import type { AppState } from "@excalidraw/excalidraw/types/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
@@ -8,11 +8,10 @@ import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 
 export const runtime = "edge";
-// export const runtime = "nodejs";
-// export const fetchCache = "force-no-store";
+export const dynamic = "force-dynamic";
 
-// const ViewBoard = dynamic(() => import("./board-view"), { ssr: false });
-const EditBoard = dynamic(() => import("./board-edit"), { ssr: false });
+const ViewBoard = dynamicImport(() => import("./board-view"), { ssr: false });
+const EditBoard = dynamicImport(() => import("./board-edit"), { ssr: false });
 
 const Params = z.object({
   params: z.object({
@@ -49,13 +48,13 @@ export default async function DrawingBoard(props: Props) {
             iceServers={iceServers}
           />
         )}
-        {/* {drawing.accessLevel === AccessLevel.READ && (
+        {drawing.accessLevel === AccessLevel.READ && (
           <ViewBoard
             drawing={drawing}
             elements={parsedElements}
             appState={parsedAppState}
           />
-        )} */}
+        )}
       </div>
     );
   } catch (error) {
