@@ -7,11 +7,11 @@ import { AccessLevel } from "@packages/types";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 
-// ideally move to edge
-export const runtime = "nodejs";
-export const fetchCache = "force-no-store";
+export const runtime = "edge";
+// export const runtime = "nodejs";
+// export const fetchCache = "force-no-store";
 
-const ViewBoard = dynamic(() => import("./board-view"), { ssr: false });
+// const ViewBoard = dynamic(() => import("./board-view"), { ssr: false });
 const EditBoard = dynamic(() => import("./board-edit"), { ssr: false });
 
 const Params = z.object({
@@ -49,13 +49,13 @@ export default async function DrawingBoard(props: Props) {
             iceServers={iceServers}
           />
         )}
-        {drawing.accessLevel === AccessLevel.READ && (
+        {/* {drawing.accessLevel === AccessLevel.READ && (
           <ViewBoard
             drawing={drawing}
             elements={parsedElements}
             appState={parsedAppState}
           />
-        )}
+        )} */}
       </div>
     );
   } catch (error) {
