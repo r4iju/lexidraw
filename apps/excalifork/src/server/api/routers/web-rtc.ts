@@ -11,7 +11,7 @@ export const webRtcRouter = createTRPCRouter({
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
-          drawingId: input.drawingId,
+          entityId: input.drawingId,
           offer: input.offer,
           createdBy: input.userId,
         })
@@ -36,7 +36,7 @@ export const webRtcRouter = createTRPCRouter({
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
-          drawingId: input.drawingId,
+          entityId: input.drawingId,
           offer: input.offer,
           createdBy: input.userId,
         })
@@ -56,7 +56,7 @@ export const webRtcRouter = createTRPCRouter({
         .select()
         .from(schema.webRtcOffer)
         .where(and(
-          eq(schema.webRtcOffer.drawingId, input.drawingId),
+          eq(schema.webRtcOffer.entityId, input.drawingId),
           ne(schema.webRtcOffer.createdBy, input.userId),
           lte(schema.webRtcOffer.updatedAt, new Date(new Date().getTime() - 1000 * 5)),
         ))
@@ -77,7 +77,7 @@ export const webRtcRouter = createTRPCRouter({
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
-          drawingId: input.drawingId,
+          entityId: input.drawingId,
           answer: input.answer,
           createdBy: input.userId,
         })
@@ -102,7 +102,7 @@ export const webRtcRouter = createTRPCRouter({
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
-          drawingId: input.drawingId,
+          entityId: input.drawingId,
           answer: input.answer,
           createdBy: input.userId,
         })
@@ -122,7 +122,7 @@ export const webRtcRouter = createTRPCRouter({
         .select()
         .from(schema.webRtcAnswer)
         .where(and(
-          eq(schema.webRtcAnswer.drawingId, input.drawingId),
+          eq(schema.webRtcAnswer.entityId, input.drawingId),
           ne(schema.webRtcAnswer.createdBy, input.userId),
           lte(schema.webRtcAnswer.updatedAt, new Date(new Date().getTime() - 1000 * 5)),
         ))

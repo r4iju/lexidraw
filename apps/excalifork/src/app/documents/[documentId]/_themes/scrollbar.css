@@ -1,0 +1,19 @@
+/* DocumentEditor.module.css */
+.customScrollbar::-webkit-scrollbar {
+  width: 12px;
+}
+
+.customScrollbar::-webkit-scrollbar-track {
+  background: var(--scrollbar-bg, #f0f0f0);
+}
+
+.customScrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-bg, #888);
+  border-radius: 6px;
+  border: 3px solid var(--scrollbar-bg, #f0f0f0);
+}
+
+.customScrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-bg, #888) var(--scrollbar-bg, #f0f0f0);
+}

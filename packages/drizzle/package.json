@@ -5,10 +5,11 @@
   "private": true,
   "scripts": {
     "dev": "tsc --watch",
-    "db:pull": "dotenv drizzle-kit introspect:sqlite",
-    "db:push": "dotenv drizzle-kit push:sqlite",
-    "db:studio": "dotenv drizzle-kit studio --port 3100",
-    "postinstall": "echo 'enable postinstall later' # dotenv drizzle-kit generate:sqlite",
+    "db:pull": "drizzle-kit introspect:sqlite",
+    "db:push": "drizzle-kit push:sqlite",
+    "db:generate": "drizzle-kit generate:sqlite",
+    "db:studio": "drizzle-kit studio --port 3100",
+    "postinstall": "# drizzle-kit generate:sqlite",
     "build": "tsc",
     "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
     "clean": "rm -rf ./dist && rm -rf .turbo"

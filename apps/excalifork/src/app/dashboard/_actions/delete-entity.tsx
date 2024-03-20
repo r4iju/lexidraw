@@ -1,5 +1,6 @@
 "use client";
 
+import { EntityType } from "@packages/types";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -12,26 +13,27 @@ import {
 } from "~/components/ui/dialog";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
+import { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
-  drawingId: string;
+  entity: RouterOutputs["entities"]["list"][number];
   revalidatePath: VoidFunction;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };
 
 export default function DeleteDrawing({
-  drawingId,
+  entity,
   revalidatePath,
   isOpen,
   onOpenChange,
 }: Props) {
-  const { mutate: remove, isLoading } = api.drawings.delete.useMutation();
+  const { mutate: remove, isLoading } = api.entities.delete.useMutation();
   const { toast } = useToast();
 
   const handleDelete = () => {
     remove(
-      { id: drawingId },
+      { id: entity.id },
       {
         onSuccess: () => {
           toast({ title: "Removed!" });
@@ -54,8 +56,8 @@ export default function DeleteDrawing({
         <DialogHeader>
           <DialogTitle>Confirm Deletion</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this drawing? This action cannot be
-            undone.
+            Are you sure you want to delete this {entity.entityType}? This
+            action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex justify-end space-x-4">
@@ -64,7 +66,7 @@ export default function DeleteDrawing({
           </DialogClose>
           <DialogClose asChild>
             <Button
-              variant="default"
+              variant="destructive"
               type="button"
               onClick={handleDelete}
               disabled={isLoading}

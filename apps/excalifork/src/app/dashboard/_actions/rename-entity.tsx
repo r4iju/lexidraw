@@ -13,11 +13,11 @@ type Props = {
   onTitleChange: VoidFunction;
 };
 
-const DrawingTitle = ({ title, drawingId, onTitleChange }: Props) => {
+const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
   const [newTitle, setNewTitle] = useState(title);
   const { toast } = useToast();
-  const { mutate } = api.drawings.update.useMutation();
+  const { mutate } = api.entities.update.useMutation();
 
   const handleSave = () => {
     mutate(
@@ -71,4 +71,4 @@ const DrawingTitle = ({ title, drawingId, onTitleChange }: Props) => {
   );
 };
 
-export default DrawingTitle;
+export default EntityTitle;

@@ -27,7 +27,7 @@ export default async function DrawingBoard(props: Props) {
   } = Params.parse(props);
 
   try {
-    const drawing = await api.drawings.load.query({ id: drawingId });
+    const drawing = await api.entities.load.query({ id: drawingId });
     const iceServers = await api.auth.iceServers.query();
 
     const parsedAppState = drawing.appState

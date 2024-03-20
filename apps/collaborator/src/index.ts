@@ -14,12 +14,12 @@ const debouncedSave = debounce(async (
 ) => {
   console.log('debouncedSave');
 
-  await drizzle.update(schema.drawing)
+  await drizzle.update(schema.entity)
     .set({
       elements: JSON.stringify(elements),
       appState: JSON.stringify(appState),
     })
-    .where(eq(schema.drawing.id, drawingId))
+    .where(eq(schema.entity.id, drawingId))
     .execute();
 }, 1000);
 

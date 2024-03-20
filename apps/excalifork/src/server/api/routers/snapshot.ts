@@ -11,7 +11,26 @@ const THEME = {
   LIGHT: 'light',
 } as const;
 
-const genericSvgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-alert-circle"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg>`;
+const genericSvgContent = `<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 85.07 80.75">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #010101;
+      }
+
+      .cls-2 {
+        fill: #81b1e0;
+      }
+    </style>
+  </defs>
+  <path class="cls-1" d="M33.88,25.23h15.86v7.21h-15.86v-7.21Z"/>
+  <path class="cls-2" d="M53.35,25.23h6.49v7.21h-6.49v-7.21ZM14.42,36.77h25.95v7.21H14.42v-7.21Zm29.56,0h15.86v7.21h-15.86v-7.21Z"/>
+  <path class="cls-1" d="M14.42,48.3h15.86v7.21H14.42v-7.21Z"/>
+  <path class="cls-2" d="M33.88,48.3h15.86v7.21h-15.86v-7.21Z"/>
+  <path class="cls-1" d="M53.35,48.3h6.49v7.21h-6.49v-7.21Z"/>
+  <path class="cls-1" d="M78.58,0V7.21h-7.93V73.54h7.93v7.21h-22.35v-7.21h7.21V7.21h-7.21V0h22.35Zm-18.74,10.81v7.21H7.21V62.72H59.84v7.21H0V10.81H59.84Zm25.23,0v59.12h-10.82v-7.21h3.6V18.02h-3.6v-7.21h10.82Z"/>
+</svg>`;
 
 async function blobToString(blob: Blob) {
   const arrayBuffer = await blob.arrayBuffer();
@@ -21,23 +40,23 @@ async function blobToString(blob: Blob) {
 
 export const snapshotRouter = createTRPCRouter({
   create: publicProcedure
-    .input(z.object({ drawingId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
+    .input(z.object({ entityId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .mutation(async ({ input, ctx }) => {
-      const drawing = await ctx.drizzle.query.drawing.findFirst({
-        where: (drw, { eq }) => eq(drw.id, input.drawingId),
+      const entity = await ctx.drizzle.query.entity.findFirst({
+        where: (drw, { eq }) => eq(drw.id, input.entityId),
       })
-      if (!drawing) {
+      if (!entity) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' })
       }
 
-      const isOwner = drawing.userId === ctx.session?.user.id;
-      const anyOneCanEdit = drawing.publicAccess === PublicAccess.EDIT;
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
       if (!isOwner && !anyOneCanEdit) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to save this drawing' })
       }
-      const { drawingId, theme, svg } = input;
+      const { entityId: entityId, theme, svg } = input;
       const svgBuffer = Buffer.from(svg);
-      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${drawingId}-${theme}.svg`, svgBuffer, {
+      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${entityId}-${theme}.svg`, svgBuffer, {
         contentType: 'image/svg+xml',
         upsert: true,
       });
@@ -46,43 +65,43 @@ export const snapshotRouter = createTRPCRouter({
 
     }),
   update: publicProcedure
-    .input(z.object({ drawingId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
+    .input(z.object({ entityId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .mutation(async ({ input, ctx }) => {
-      const drawing = await ctx.drizzle.query.drawing.findFirst({
-        where: (drw, { eq }) => eq(drw.id, input.drawingId),
+      const entity = await ctx.drizzle.query.entity.findFirst({
+        where: (drw, { eq }) => eq(drw.id, input.entityId),
       })
-      if (!drawing) {
+      if (!entity) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' })
       }
-      const isOwner = drawing.userId === ctx.session?.user.id;
-      const anyOneCanEdit = drawing.publicAccess === PublicAccess.EDIT;
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
       if (!isOwner && !anyOneCanEdit) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to save this drawing' })
       }
-      const { drawingId, svg, theme } = input;
+      const { entityId: entityId, svg, theme } = input;
       const svgBuffer = Buffer.from(svg);
-      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${drawingId}-${theme}.svg`, svgBuffer, {
+      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${entityId}-${theme}.svg`, svgBuffer, {
         contentType: 'image/svg+xml',
       });
 
       if (uploadError) throw new Error(uploadError.message);
     }),
   get: publicProcedure
-    .input(z.object({ drawingId: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
+    .input(z.object({ entityId: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .query(async ({ input, ctx }) => {
-      const drawing = await ctx.drizzle.query.drawing.findFirst({
-        where: (drw, { eq }) => eq(drw.id, input.drawingId),
+      const entity = await ctx.drizzle.query.entity.findFirst({
+        where: (drw, { eq }) => eq(drw.id, input.entityId),
       })
-      if (!drawing) {
+      if (!entity) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' })
       }
-      const isOwner = drawing.userId === ctx.session?.user.id;
-      const anyOneCanEditOrView = drawing.publicAccess !== PublicAccess.PRIVATE;
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEditOrView = entity.publicAccess !== PublicAccess.PRIVATE;
       if (!isOwner && !anyOneCanEditOrView) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to view this drawing' })
       }
-      const { drawingId, theme } = input;
-      const { data: snapshotStream, error } = await supabase.storage.from('excalidraw').download(`${drawingId}-${theme}.svg`);
+      const { entityId: entityId, theme } = input;
+      const { data: snapshotStream, error } = await supabase.storage.from('excalidraw').download(`${entityId}-${theme}.svg`);
       if (error ?? !snapshotStream) return genericSvgContent;
       const svgString = await blobToString(snapshotStream);
       return svgString;
