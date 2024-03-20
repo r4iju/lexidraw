@@ -57,6 +57,7 @@
     "date-fns": "^3.3.1",
     "dompurify": "^3.0.8",
     "drizzle-orm": "^0.30.2",
+    "firebase": "^10.8.0",
     "jsdom": "^24.0.0",
     "lexical": "^0.13.1",
     "lucide-react": "^0.322.0",
