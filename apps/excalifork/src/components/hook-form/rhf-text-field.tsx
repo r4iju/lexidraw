@@ -41,7 +41,6 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
             {label && <Label>{label}</Label>}
             {multiline ? (
               <Textarea
-                // className="dark:bg-gray-50 dark:text-black"
                 {...field}
                 id={name}
                 autoComplete={autoComplete}
@@ -51,7 +50,6 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
               />
             ) : (
               <Input
-                // className="dark:bg-gray-50 dark:text-black"
                 {...field}
                 id={name}
                 autoComplete={autoComplete}

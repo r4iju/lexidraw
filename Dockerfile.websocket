@@ -32,10 +32,11 @@ WORKDIR /app
 
 COPY --from=builder /app/apps/collaborator/dist /app/apps/collaborator/dist
 COPY --from=builder /app/apps/collaborator/package.json /app/apps/collaborator/package.json
-COPY --from=builder /app/packages/db/dist /app/packages/db/dist
-COPY --from=builder /app/packages/db/prisma /app/packages/db/prisma
-COPY --from=builder /app/packages/db/src /app/packages/db/src
-COPY --from=builder /app/packages/db/package.json /app/packages/db/package.json
+COPY --from=builder /app/packages/drizzle/dist /app/packages/drizzle/dist
+COPY --from=builder /app/packages/drizzle/drizzle /app/packages/drizzle/drizzle
+COPY --from=builder /app/packages/drizzle/src /app/packages/drizzle/src
+COPY --from=builder /app/packages/drizzle/drizzle.config.ts /app/packages/drizzle/drizzle.config.ts
+COPY --from=builder /app/packages/drizzle/package.json /app/packages/drizzle/package.json
 COPY --from=builder /app/packages/lib/dist /app/packages/lib/dist
 COPY --from=builder /app/packages/lib/package.json /app/packages/lib/package.json
 COPY --from=builder /app/packages/env/dist /app/packages/env/dist
