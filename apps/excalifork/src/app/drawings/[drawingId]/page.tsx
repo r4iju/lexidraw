@@ -43,7 +43,7 @@ export default async function DrawingBoard(props: Props) {
             ) {
               return {
                 ...(el as unknown as ExcalidrawElement),
-                points: [],
+                points: [] as const,
               };
             }
             return el;
