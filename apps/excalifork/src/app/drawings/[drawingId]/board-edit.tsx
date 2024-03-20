@@ -30,13 +30,14 @@ import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 // import { useWebSocketService } from "~/hooks/communication-service/use-web-socket";
 import { type MessageStructure } from "@packages/types";
 import dynamic from "next/dynamic";
+import { Excalidraw } from "@excalidraw/excalidraw";
 
-const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
-  {
-    ssr: false,
-  },
-);
+// const Excalidraw = dynamic(
+//   async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+//   {
+//     ssr: false,
+//   },
+// );
 
 type Props = {
   drawing: RouterOutputs["drawings"]["load"];
