@@ -21,12 +21,12 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
+import { Badge } from "~/components/ui/badge";
 import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
-// import { useFirestoreService } from "~/hooks/communication-service/use-firestore";
 // import { useWebSocketService } from "~/hooks/communication-service/use-web-socket";
 import { type MessageStructure } from "@packages/types";
 import dynamic from "next/dynamic";
@@ -59,8 +59,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const excalidrawApi = useRef<ExcalidrawImperativeAPI | null>(null);
   // server state
   const { mutate: save, isLoading: isSaving } = api.drawings.save.useMutation();
-  // const { mutate: updateDrawing } = api.drawings.update.useMutation();
-  // const { mutate: saveAppState } = api.appState.upsert.useMutation();
   // local state
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
@@ -105,7 +103,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
     [applyUpdate],
   );
-  const { sendMessage, initializeConnection, closeConnection } =
+  const { sendMessage, initializeConnection, closeConnection, peers } =
     useWebRtcService(
       {
         drawingId: drawing.id,
@@ -365,7 +363,14 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             <LiveCollaborationTrigger
               isCollaborating={isCollaborating}
               onSelect={handleToggleLiveCollaboration}
-            />
+            >
+              <Badge
+                variant="default"
+                // className="cursor-pointer"
+              >
+                {peers.length + 1}
+              </Badge>
+            </LiveCollaborationTrigger>
             <Button onClick={saveToBackend} disabled={isSaving}>
               {!isSaving && <CommitIcon className=" h-4 w-4 " />}
               {isSaving && <ReloadIcon className=" h-4 w-4 animate-spin" />}

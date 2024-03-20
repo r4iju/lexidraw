@@ -15,7 +15,7 @@ import { auth } from "~/server/auth";
 export default async function Header() {
   const session = await auth();
   return (
-    <header className="sticky top-0 z-50 flex h-14 items-center justify-between bg-background px-4 shadow-md lg:px-6">
+    <header className="sticky top-0 z-50 flex h-14 border-b border-gray-200 dark:border-gray-600 items-center justify-between bg-background py-2 px-4 shadow-md lg:px-6">
       <Link href="/" className="flex items-center justify-center">
         <BuildingIcon className="h-6 w-6" />
         <span className="sr-only">An Excalidraw Demo</span>
@@ -24,7 +24,7 @@ export default async function Header() {
         <ul className="flex items-center gap-4 sm:gap-6">
           <li>
             <DropdownMenu>
-              <DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
                   <UserIcon className="h-[1.2rem] w-[1.2rem]" />
                 </Button>

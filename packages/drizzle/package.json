@@ -1,0 +1,59 @@
+{
+  "name": "@packages/drizzle",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "tsc --watch",
+    "db:pull": "dotenv drizzle-kit introspect:sqlite",
+    "db:push": "dotenv drizzle-kit push:sqlite",
+    "db:studio": "dotenv drizzle-kit studio --port 3100",
+    "postinstall": "echo 'enable postinstall later' # dotenv drizzle-kit generate:sqlite",
+    "build": "tsc",
+    "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
+    "clean": "rm -rf ./dist && rm -rf .turbo"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./*": [
+      "./dist/*.js",
+      "./dist/*/index.js"
+    ]
+  },
+  "dependencies": {
+    "@libsql/client": "^0.5.6",
+    "@packages/env": "workspace:*",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "drizzle-orm": "^0.30.1"
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*",
+        "src/*/index"
+      ]
+    }
+  },
+  "publishConfig": {
+    "typesVersions": {
+      "*": {
+        "*": [
+          "dist/*.d.ts",
+          "dist/*/index.d.ts"
+        ]
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "^18.17.0",
+    "dotenv-cli": "latest",
+    "drizzle-kit": "^0.20.14",
+    "eslint": "^8.11.0",
+    "typescript": "^4.5.5"
+  }
+}
