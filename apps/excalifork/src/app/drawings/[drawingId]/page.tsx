@@ -7,7 +7,8 @@ import { AccessLevel } from "@packages/types";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 
-export const runtime = "edge";
+// ideally move to edge
+export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
 const ViewBoard = dynamic(() => import("./board-view"), { ssr: false });

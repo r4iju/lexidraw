@@ -11,13 +11,14 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { type RouterOutputs } from "~/trpc/shared";
+import { Excalidraw } from "@excalidraw/excalidraw";
 
-const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
-  {
-    ssr: false,
-  },
-);
+// const Excalidraw = dynamic(
+//   async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+//   {
+//     ssr: false,
+//   },
+// );
 
 type Props = {
   drawing: RouterOutputs["drawings"]["load"];
