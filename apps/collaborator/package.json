@@ -8,7 +8,8 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
-    "clean": "rm -rf ./dist && rm -rf .turbo"
+    "clean": "rm -rf ./dist && rm -rf .turbo",
+    "test:ts": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",

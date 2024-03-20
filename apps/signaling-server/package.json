@@ -10,7 +10,8 @@
     "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
     "clean": "rm -rf ./dist && rm -rf .turbo",
     "load-test": "artillery run test/artillery.config.yml",
-    "test": "vitest"
+    "test": "vitest",
+    "test:ts": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
