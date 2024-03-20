@@ -12,6 +12,7 @@
     "postinstall": "# drizzle-kit generate:sqlite",
     "build": "tsc",
     "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
+    "test:ts": "tsc --noEmit",
     "clean": "rm -rf ./dist && rm -rf .turbo"
   },
   "sideEffects": false,

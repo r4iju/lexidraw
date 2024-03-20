@@ -7,6 +7,7 @@
     "build": "\\cp ./excalidraw-main.js ./node_modules/@excalidraw/excalidraw/main.js && ANALYZE=true next build",
     "dev": "next dev --port 3100",
     "lint": "next lint",
+    "test:ts": "tsc --noEmit",
     "start": "next start --port 3100"
   },
   "dependencies": {
