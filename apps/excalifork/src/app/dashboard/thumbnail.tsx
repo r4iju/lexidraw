@@ -1,6 +1,6 @@
 "use client";
 
-import { THEME } from "@excalidraw/excalidraw";
+import type { THEME } from "@excalidraw/excalidraw";
 import Image from "next/image";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { api } from "~/trpc/react";
@@ -14,7 +14,9 @@ export function Thumbnail({ drawingId }: Props) {
   const isDarkTheme = useIsDarkTheme();
   const { data: svg } = api.snapshot.get.useQuery({
     drawingId,
-    theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
+    theme: isDarkTheme
+      ? ("dark" satisfies typeof THEME.DARK)
+      : ("light" satisfies typeof THEME.LIGHT),
   });
   if (!svg) return;
   const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
