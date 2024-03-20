@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws'
-import { startServer } from '../src/server.js';
+import { startServer } from '../src/server';
 import type { WebRtcMessage } from '@packages/types';
 import { expect, describe, beforeAll, afterAll, afterEach, test } from '@jest/globals';
 
