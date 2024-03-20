@@ -8,18 +8,11 @@ const env = createEnv({
       .default("development"),
     TURSO_URL: z.string().min(1),
     TURSO_TOKEN: z.string().min(1),
-    DATABASE_URL: z
-      .string()
-      .url()
-      .refine(
-        (str) => !str.includes("YOUR_MYSQL_URL_HERE"),
-        "You forgot to change the default URL"
-      ),
     SHARED_KEY: z.string(),
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.preprocess(
       (str) => process.env.VERCEL_URL ?? str,
-      process.env.VERCEL ? z.string() : z.string().url()
+      process.env.VERCEL ? z.string() : z.string().url(),
     ),
     SUPABASE_URL: z.string().url(),
     SUPABASE_KEY: z.string().min(1),
@@ -43,8 +36,8 @@ const env = createEnv({
           z.object({
             urls: z.string().url(),
           }),
-        ])
-      )
+        ]),
+      ),
     ),
   },
   client: {
@@ -62,7 +55,6 @@ const env = createEnv({
     NEXT_PUBLIC_WS_SERVER: process.env.NEXT_PUBLIC_WS_SERVER,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,
-    DATABASE_URL: process.env.DATABASE_URL,
     TURSO_URL: process.env.TURSO_URL,
     TURSO_TOKEN: process.env.TURSO_TOKEN,
     NODE_ENV: process.env.NODE_ENV,
