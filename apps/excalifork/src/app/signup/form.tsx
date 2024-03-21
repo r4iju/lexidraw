@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import React from "react";
+import React, { useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { SignUpSchema } from "./schema";
 import { api } from "~/trpc/react";
@@ -11,7 +11,7 @@ import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { useToast } from "~/components/ui/use-toast";
 import { getDefaults } from "@packages/lib";
-import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { signIn } from "next-auth/react";
 
 export default function SignUpForm() {
@@ -22,10 +22,12 @@ export default function SignUpForm() {
     mode: "onBlur",
   });
   const { handleSubmit } = methods;
-  const { mutate } = api.auth.signUp.useMutation();
+  const { mutate, isLoading } = api.auth.signUp.useMutation();
   const router = useRouter();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const onSubmit: SubmitHandler<SignUpSchema> = (data) => {
+    setSubmitError(null);
     mutate(
       {
         email: data.email,
@@ -34,21 +36,21 @@ export default function SignUpForm() {
       },
       {
         onSuccess: () => {
-          console.log("success");
           toast({
             title: "Account created.",
             description: "You may now login.",
           });
-          router.push("/auth/signin");
+          router.push("/signin");
         },
         onError: (err) => {
-          console.log("error", err);
+          setSubmitError(err.message);
         },
       },
     );
   };
 
   const handleGitHubSignup = async () => {
+    setSubmitError(null);
     await signIn("github", {
       callbackUrl: "/dashboard",
       redirect: true,
@@ -62,14 +64,25 @@ export default function SignUpForm() {
         Sign in with GitHub
       </Button>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 gap-y-4">
           <RHFTextField name="name" label="Name" autoComplete="name" />
           <RHFTextField name="email" label="Email" type="email" />
           <RHFTextField name="password" label="Password" type="password" />
         </div>
-        <Button type="submit" className="w-full">
+        <Button disabled={isLoading} type="submit" className="w-full mt-6">
+          <ReloadIcon
+            className={`animate-spin w-4 mr-2 ${isLoading ? "opacity-100" : "opacity-0"}`}
+          />
           Create account
+          <div className="w-4 ml-2 opacity-0" />
         </Button>
+        {submitError && (
+          <div className="text-center">
+            <span className="dark:text-red-300 text-red-600">
+              {submitError}
+            </span>
+          </div>
+        )}
       </FormProvider>
     </div>
   );

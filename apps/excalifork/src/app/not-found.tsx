@@ -9,9 +9,9 @@ export default function NotFound() {
       <Header />
       <div className="flex h-full w-full flex-col items-center justify-center gap-4">
         <p className="text-lg">Sorry, that page doesn't seem to exist.</p>
-        <Link href={`/`}>
-          <Button>Go home</Button>
-        </Link>
+        <Button asChild>
+          <Link href={`/`}>Go home</Link>
+        </Button>
       </div>
       <Footer />
     </>

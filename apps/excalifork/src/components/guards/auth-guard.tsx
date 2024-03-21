@@ -44,7 +44,7 @@ function Container({ status, session, children }: ContainerProps) {
 
   const check = useCallback(() => {
     if (status !== "authenticated" || !session) {
-      redirect("/auth/signin");
+      redirect("/signin");
     }
     if (!session.user.email || !session.user.name) {
       console.log("session dataa: ", session.user);

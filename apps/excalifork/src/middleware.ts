@@ -1,6 +1,37 @@
-import { type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getGeoInfo } from '~/lib/get-geo-location';
-import { generateAuthToken } from '~/lib/generate-auth-token';
+import { generateVisitorId } from './lib/generate-visitor-id';
+import { drizzle, schema } from '@packages/drizzle';
+import { auth } from './server/auth';
+
+const analytics = async (req: NextRequest): Promise<void> => {
+  if (req.method === 'GET') {
+    // Current page the user is visiting
+    const pageVisited = req.nextUrl.href;
+    const referer = req.headers.get('referer') ?? 'Direct/Bookmark';
+    const userAgent = req.headers.get('user-agent')! || 'Unknown';
+    const ipAddress = req.headers.get('x-forwarded-for')! || 'Unknown';
+    const { city, country, region } = getGeoInfo(req);
+    if (city && country && region) {
+      const visitorId = await generateVisitorId({ userAgent, country, city, region });
+      drizzle.insert(schema.analytics)
+        .values({
+          visitorId,
+          timestamp: new Date(),
+          pageVisited,
+          referer,
+          userAgent,
+          ipAddress,
+          country,
+          city,
+          region,
+        })
+        .catch(console.error);
+    } else {
+      console.error('Could not get geolocation. Dev environment?');
+    }
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -10,44 +41,16 @@ export async function middleware(request: NextRequest) {
     return;
   }
 
-  if (request.method === 'GET') {
-    const apiUrl = new URL(
-      '/api/analytics',
-      `https://${request.headers.get('host')}`
-    ).toString();
-    // Current page the user is visiting
-    const pageVisited = request.nextUrl.href;
-    const referer = request.headers.get('referer') ?? 'Direct/Bookmark';
-    const userAgent = request.headers.get('user-agent')! || 'Unknown';
-    const ipAddress = request.headers.get('x-forwarded-for')! || 'Unknown';
-    const { city, country, region } = getGeoInfo(request);
-    if (city && country && region) {
-      const authToken = await generateAuthToken();
-      fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-          cookie: request.headers.get('cookie') ?? '',
-        },
-        body: JSON.stringify({
-          pageVisited,
-          referer,
-          userAgent,
-          ipAddress,
-          country,
-          city,
-          region,
-        }),
-      }).catch((error) => {
-        console.error(error);
-      });
-    } else {
-      console.error('Could not get geolocation. Dev environment?');
-    }
+  const session = await auth()
+  const url = new URL(request.url);
+  console.log('auth checking requested url', url.pathname);
+  const needsAuth = ["/dashboard", "/settings", "/profile", "/signout"];
+  if (!session && needsAuth.includes(url.pathname)) {
+    url.pathname = '/signin';
+    console.log('redirecting to signin');
+    return NextResponse.rewrite(url);
   }
 
-  return
 }
 
 export const config = {

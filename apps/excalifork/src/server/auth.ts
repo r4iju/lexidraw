@@ -3,7 +3,7 @@ import Credentials from 'next-auth/providers/credentials';
 import GitHubProvider from 'next-auth/providers/github'
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { drizzle } from '@packages/drizzle';
-import { SignInSchema } from '~/app/auth/signin/schema';
+import { SignInSchema } from '~/app/signin/schema';
 import env from '@packages/env';
 declare module 'next-auth' {
   interface Session extends DefaultSession {
@@ -18,11 +18,12 @@ export const {
   auth,
 } = NextAuth({
   adapter: DrizzleAdapter(drizzle),
+  // basePath: '/',
   pages: {
-    signIn: '/auth/signin',
-    newUser: '/auth/signup',
-    signOut: '/auth/signout',
-    error: '/auth/error',
+    signIn: '/signin',
+    newUser: '/signup',
+    signOut: '/signout',
+    error: '/error',
   },
   callbacks: {
     session: (params) => {
@@ -44,9 +45,9 @@ export const {
     signIn: () => {
       return true;
     },
-    // redirect: ({ baseUrl }) => {
-    //   return `${baseUrl}/dashboard`;
-    // },
+    redirect: ({ baseUrl }) => {
+      return `${baseUrl}/dashboard`;
+    },
   },
   providers: [
     GitHubProvider({

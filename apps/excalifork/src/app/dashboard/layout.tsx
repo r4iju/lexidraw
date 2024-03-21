@@ -12,7 +12,7 @@ export default function Layout({ children }: Props) {
   return (
     <>
       <Header />
-      <AuthGuard>{children}</AuthGuard>
+      {children}
       <Footer />
     </>
   );

@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { SignUpSchema } from '~/app/auth/signup/schema';
+import { SignUpSchema } from '~/app/signup/schema';
 import { ProfileSchema } from '~/app/profile/schema';
 import env from '@packages/env';
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '~/server/api/trpc';
@@ -18,11 +18,12 @@ export const authRouter = createTRPCRouter({
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-      await ctx.drizzle.insert(schema.user).values({
-        email: input.email,
-        name: input.name,
-        password: hashedPassword,
-      });
+      await ctx.drizzle.insert(schema.user)
+        .values({
+          email: input.email,
+          name: input.name,
+          password: hashedPassword,
+        })
 
       return true;
 

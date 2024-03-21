@@ -165,129 +165,126 @@ export default function ShareDrawing({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Share {entity.entityType}</DialogTitle>
-          <DialogDescription className="flex flex-col gap-6 py-4">
-            <div className="gap-2">
-              <div className="h2 text-md font-bold">Public link</div>
-              <div>
-                Please select the type of public access you want to give to this{" "}
-                {entity.entityType}.
-              </div>
-              <div className="flex full-w justify-end">
+        </DialogHeader>
+        <DialogDescription className="flex flex-col gap-6 py-4">
+          <div className="gap-2">
+            <div className="h2 text-md font-bold">Public link</div>
+            <div>
+              Please select the type of public access you want to give to this{" "}
+              {entity.entityType}.
+            </div>
+            <div className="flex full-w justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="gap-2" variant="outline">
+                    {publicAccessLevelLabel[currentAccess]} <ChevronDownIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56">
+                  {Object.entries(PublicAccess).map(([key, value]) => (
+                    <DropdownMenuItem
+                      key={key}
+                      onSelect={() => handleChangePublicAccess(value)}
+                    >
+                      {publicAccessLevelLabel[value]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+          <div className="gap-2">
+            <div className="h2 text-md font-bold">Specific Users</div>
+            <div>
+              Share with individual users by entering their email address.
+            </div>
+            <div className="flex w-full flex-col  gap-y-2 space-x-2 pt-2">
+              <Input
+                className="w-full"
+                placeholder="Email"
+                type="email"
+                value={shareWith}
+                onChange={(e) => setShareWith(e.target.value)}
+              />
+              <div className="flex flex-row justify-end gap-x-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button className="gap-2" variant="outline">
-                      {publicAccessLevelLabel[currentAccess]}{" "}
-                      <ChevronDownIcon />
+                      {accessLevelLabel[accessLevel]} <ChevronDownIcon />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56">
-                    {Object.entries(PublicAccess).map(([key, value]) => (
+                    {Object.entries(AccessLevel).map(([key, value]) => (
                       <DropdownMenuItem
                         key={key}
-                        onSelect={() => handleChangePublicAccess(value)}
+                        onSelect={() => setAccessLevel(value)}
                       >
-                        {publicAccessLevelLabel[value]}
+                        {accessLevelLabel[value]}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <Button onClick={handleShareWith}>Share</Button>
               </div>
             </div>
-            <div className="gap-2">
-              <div className="h2 text-md font-bold">Specific Users</div>
-              <div>
-                Share with individual users by entering their email address.
-              </div>
-              <div className="flex w-full flex-col  gap-y-2 space-x-2 pt-2">
-                <Input
-                  className="w-full"
-                  placeholder="Email"
-                  type="email"
-                  value={shareWith}
-                  onChange={(e) => setShareWith(e.target.value)}
-                />
-                <div className="flex flex-row justify-end gap-x-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button className="gap-2" variant="outline">
-                        {accessLevelLabel[accessLevel]} <ChevronDownIcon />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-56">
-                      {Object.entries(AccessLevel).map(([key, value]) => (
-                        <DropdownMenuItem
-                          key={key}
-                          onSelect={() => setAccessLevel(value)}
-                        >
-                          {accessLevelLabel[value]}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Button onClick={handleShareWith}>Share</Button>
-                </div>
-              </div>
-            </div>
-            <div className="gap-2">
-              <div className="h2 text-md font-bold">Shared with</div>
-              <span>
-                The following users have access to this {entity.entityType}.
-              </span>
-              <div className="space-y-2">
-                {sharedWith?.map((sharedUser) => (
-                  <div
-                    key={sharedUser.userId}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
-                        {sharedUser.name ? sharedUser.name[0] : ""}
-                      </span>
-                      <span className="flex items-center">
-                        {sharedUser.name}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline">
-                            {
-                              accessLevelLabel[
-                                sharedUser.accessLevel as AccessLevel
-                              ]
-                            }
-                            <ChevronDownIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {Object.entries(AccessLevel).map(([key, value]) => (
-                            <DropdownMenuItem
-                              key={key}
-                              onSelect={() =>
-                                handleChangeAccessLevel({
-                                  userId: sharedUser.userId,
-                                  accessLevel: value,
-                                })
-                              }
-                            >
-                              {accessLevelLabel[value]}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <Button
-                        variant="destructive"
-                        onClick={() => handleUnshare(sharedUser.userId)}
-                      >
-                        Unshare
-                      </Button>
-                    </div>
+          </div>
+          <div className="gap-2">
+            <div className="h2 text-md font-bold">Shared with</div>
+            <span>
+              The following users have access to this {entity.entityType}.
+            </span>
+            <div className="space-y-2">
+              {sharedWith?.map((sharedUser) => (
+                <div
+                  key={sharedUser.userId}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
+                      {sharedUser.name ? sharedUser.name[0] : ""}
+                    </span>
+                    <span className="flex items-center">{sharedUser.name}</span>
                   </div>
-                ))}
-              </div>
+                  <div className="flex gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline">
+                          {
+                            accessLevelLabel[
+                              sharedUser.accessLevel as AccessLevel
+                            ]
+                          }
+                          <ChevronDownIcon />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {Object.entries(AccessLevel).map(([key, value]) => (
+                          <DropdownMenuItem
+                            key={key}
+                            onSelect={() =>
+                              handleChangeAccessLevel({
+                                userId: sharedUser.userId,
+                                accessLevel: value,
+                              })
+                            }
+                          >
+                            {accessLevelLabel[value]}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleUnshare(sharedUser.userId)}
+                    >
+                      Unshare
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </DialogDescription>
-        </DialogHeader>
+          </div>
+        </DialogDescription>
         <DialogFooter className="flex justify-end space-x-4">
           <DialogClose asChild>
             <Button variant="outline" disabled={isLoading}>
