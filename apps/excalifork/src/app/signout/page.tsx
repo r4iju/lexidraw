@@ -12,7 +12,7 @@ export const runtime = "edge";
 export default async function SignInPage() {
   const session = await auth();
   if (!session) {
-    return redirect("/auth/signin");
+    return redirect("/signin");
   }
 
   return (
@@ -28,9 +28,9 @@ export default async function SignInPage() {
           <SignOutForm />
         </Suspense>
       </div>
-      <Link href="/dashboard">
-        <Button variant="link">Go to my drawings</Button>
-      </Link>
+      <Button asChild variant="link">
+        <Link href="/dashboard">Go to my drawings</Link>
+      </Button>
     </div>
   );
 }

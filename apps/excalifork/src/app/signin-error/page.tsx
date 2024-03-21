@@ -15,12 +15,12 @@ export default function AuthError() {
         </p>
 
         <div className="flex flex-col gap-4 ">
-          <Link href="/signin">
-            <Button className="w-full">Sign in</Button>
-          </Link>
-          <Link href="/signup">
-            <Button className="w-full">Sign up</Button>
-          </Link>
+          <Button asChild className="w-full">
+            <Link href="/signin">Sign in</Link>
+          </Button>
+          <Button asChild className="w-full">
+            <Link href="/signup">Sign up</Link>
+          </Button>
         </div>
       </div>
     </div>

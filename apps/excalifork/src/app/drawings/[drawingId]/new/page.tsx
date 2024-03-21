@@ -41,9 +41,9 @@ export default async function DrawingBoard(props: Props) {
       <div className="flex h-full w-full flex-col items-center justify-center gap-4">
         <p className="text-lg">Something went wrong</p>
         <p>{errorMessage}</p>
-        <Link href={`/dashboard`}>
-          <Button>Go to dashboard</Button>
-        </Link>
+        <Button asChild>
+          <Link href={`/dashboard`}>Go to dashboard</Link>
+        </Button>
       </div>
     );
   }

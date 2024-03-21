@@ -48,9 +48,11 @@ export default function OptionsDropdown({ state, documentId }: Props) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup title="App">
-          <Link href="/dashboard">
-            <DropdownMenuItem>Go to dashboard</DropdownMenuItem>
-          </Link>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard">
+              Go to dashboard
+            </Link>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup title="Document">

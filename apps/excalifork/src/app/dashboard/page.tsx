@@ -12,6 +12,7 @@ import { Thumbnail } from "./thumbnail";
 import { FilePlusIcon } from "@radix-ui/react-icons";
 import { PublicAccess } from "@packages/types";
 import { NewEntity } from "./_actions/new-entity";
+import Image from "next/image";
 
 export const metadata = {
   title: "An Excalidraw App | My drawings",
@@ -44,21 +45,7 @@ export default async function LandingPage() {
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between p-4 lg:p-6">
         <h1 className="text-xl font-bold">My Drawings</h1>
-        <div className="flex items-center gap-4">
-          <NewEntity />
-          {/* <Link href={newItem("drawing")} passHref>
-            <Button>
-              <FilePlusIcon className="mr-4" />
-              New drawing
-            </Button>
-          </Link>
-          <Link href={newItem("document")} passHref>
-            <Button>
-              <FilePlusIcon className="mr-4" />
-              New document
-            </Button>
-          </Link> */}
-        </div>
+        <NewEntity />
       </header>
       <main className="flex-1 h-full md:container">
         <section className="w-full p-4">
@@ -87,12 +74,12 @@ export default async function LandingPage() {
                     onTitleChange={refetch}
                   />
                 </div>
-                <Suspense fallback={<div className="h-100 w-120"></div>}>
-                  <Thumbnail entityId={entity.id} />
-                </Suspense>
-                <Link href={`/drawings/${entity.id}`} passHref>
-                  <Button className="mt-2 w-full">Open</Button>
-                </Link>
+                <Thumbnail entityId={entity.id} />
+                <Button className="mt-2 w-full" asChild>
+                  <Link href={`/drawings/${entity.id}`} passHref>
+                    Open
+                  </Link>
+                </Button>
               </Card>
             ))}
           </div>

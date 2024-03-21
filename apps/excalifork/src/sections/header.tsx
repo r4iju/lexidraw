@@ -32,29 +32,39 @@ export default async function Header() {
               <DropdownMenuContent>
                 {session && (
                   <>
-                    <Link className="cursor-default" href="/dashboard">
-                      <DropdownMenuItem>My drawings</DropdownMenuItem>
-                    </Link>
+                    <DropdownMenuItem asChild>
+                      <Link className="cursor-default" href="/dashboard">
+                        My drawings
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <Link className="cursor-default" href="/profile">
-                      <DropdownMenuItem>Profile</DropdownMenuItem>
-                    </Link>
-                    <Link
-                      className="cursor-default"
-                      href="/api/auth/signout?callbackUrl=/api/auth/session"
-                    >
-                      <DropdownMenuItem>Sign out</DropdownMenuItem>
-                    </Link>
+                    <DropdownMenuItem asChild>
+                      <Link className="cursor-default" href="/profile">
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        className="cursor-default"
+                        href="/api/auth/signout?callbackUrl=/api/auth/session"
+                      >
+                        Sign out
+                      </Link>
+                    </DropdownMenuItem>
                   </>
                 )}
                 {!session && (
                   <>
-                    <Link className="cursor-default" href="/auth/signin">
-                      <DropdownMenuItem>Sign in</DropdownMenuItem>
-                    </Link>
-                    <Link className="cursor-default" href="/auth/signup">
-                      <DropdownMenuItem>Create account</DropdownMenuItem>
-                    </Link>
+                    <DropdownMenuItem asChild>
+                      <Link className="cursor-default" href="/signin">
+                        Sign in
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link className="cursor-default" href="/signup">
+                        Create account
+                      </Link>
+                    </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>

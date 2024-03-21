@@ -21,9 +21,9 @@ export default async function SignInPage() {
           <ProfileForm user={user} />
         </Suspense>
       </div>
-      <Link href="/dashboard">
-        <Button variant="link">Go to my drawings</Button>
-      </Link>
+      <Button asChild variant="link">
+        <Link href="/dashboard">Go to my drawings</Link>
+      </Button>
     </div>
   );
 }

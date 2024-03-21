@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "sqlite",
-  "id": "933d34f2-8511-49e8-8244-d202169e4244",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "c9990b88-aa23-4b2e-a5ca-78a301e4121e",
+  "prevId": "933d34f2-8511-49e8-8244-d202169e4244",
   "tables": {
     "Account": {
       "name": "Account",
@@ -267,95 +267,8 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "Document": {
-      "name": "Document",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "elements": {
-          "name": "elements",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updatedAt": {
-          "name": "updatedAt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "deletedAt": {
-          "name": "deletedAt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "userId": {
-          "name": "userId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "publicAccess": {
-          "name": "publicAccess",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "Document_userId_idx": {
-          "name": "Document_userId_idx",
-          "columns": [
-            "userId"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "Document_userId_User_id_fk": {
-          "name": "Document_userId_User_id_fk",
-          "tableFrom": "Document",
-          "tableTo": "User",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "Drawing": {
-      "name": "Drawing",
+    "Entity": {
+      "name": "Entity",
       "columns": {
         "id": {
           "name": "id",
@@ -385,6 +298,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "entityType": {
+          "name": "entityType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'drawing'"
+        },
         "createdAt": {
           "name": "createdAt",
           "type": "integer",
@@ -422,8 +343,8 @@
         }
       },
       "indexes": {
-        "Drawing_userId_idx": {
-          "name": "Drawing_userId_idx",
+        "Entity_userId_idx": {
+          "name": "Entity_userId_idx",
           "columns": [
             "userId"
           ],
@@ -431,9 +352,9 @@
         }
       },
       "foreignKeys": {
-        "Drawing_userId_User_id_fk": {
-          "name": "Drawing_userId_User_id_fk",
-          "tableFrom": "Drawing",
+        "Entity_userId_User_id_fk": {
+          "name": "Entity_userId_User_id_fk",
+          "tableFrom": "Entity",
           "tableTo": "User",
           "columnsFrom": [
             "userId"
@@ -573,8 +494,8 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "SharedDocument": {
-      "name": "SharedDocument",
+    "SharedEntity": {
+      "name": "SharedEntity",
       "columns": {
         "id": {
           "name": "id",
@@ -583,8 +504,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "documentId": {
-          "name": "documentId",
+        "entityId": {
+          "name": "entityId",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -613,36 +534,36 @@
         }
       },
       "indexes": {
-        "SharedDocument_documentId_userId_key": {
-          "name": "SharedDocument_documentId_userId_key",
+        "SharedEntity_entityId_userId_key": {
+          "name": "SharedEntity_entityId_userId_key",
           "columns": [
-            "documentId",
+            "entityId",
             "userId"
           ],
           "isUnique": true
         },
-        "SharedDocument_userId_idx": {
-          "name": "SharedDocument_userId_idx",
+        "SharedEntity_userId_idx": {
+          "name": "SharedEntity_userId_idx",
           "columns": [
             "userId"
           ],
           "isUnique": false
         },
-        "SharedDocument_documentId_idx": {
-          "name": "SharedDocument_documentId_idx",
+        "SharedEntity_entityId_idx": {
+          "name": "SharedEntity_entityId_idx",
           "columns": [
-            "documentId"
+            "entityId"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "SharedDocument_documentId_Document_id_fk": {
-          "name": "SharedDocument_documentId_Document_id_fk",
-          "tableFrom": "SharedDocument",
-          "tableTo": "Document",
+        "SharedEntity_entityId_Entity_id_fk": {
+          "name": "SharedEntity_entityId_Entity_id_fk",
+          "tableFrom": "SharedEntity",
+          "tableTo": "Entity",
           "columnsFrom": [
-            "documentId"
+            "entityId"
           ],
           "columnsTo": [
             "id"
@@ -650,103 +571,9 @@
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
-        "SharedDocument_userId_User_id_fk": {
-          "name": "SharedDocument_userId_User_id_fk",
-          "tableFrom": "SharedDocument",
-          "tableTo": "User",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "SharedDrawing": {
-      "name": "SharedDrawing",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "drawingId": {
-          "name": "drawingId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "userId": {
-          "name": "userId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "accessLevel": {
-          "name": "accessLevel",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "SharedDrawing_drawingId_userId_key": {
-          "name": "SharedDrawing_drawingId_userId_key",
-          "columns": [
-            "drawingId",
-            "userId"
-          ],
-          "isUnique": true
-        },
-        "SharedDrawing_userId_idx": {
-          "name": "SharedDrawing_userId_idx",
-          "columns": [
-            "userId"
-          ],
-          "isUnique": false
-        },
-        "SharedDrawing_drawingId_idx": {
-          "name": "SharedDrawing_drawingId_idx",
-          "columns": [
-            "drawingId"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "SharedDrawing_drawingId_Drawing_id_fk": {
-          "name": "SharedDrawing_drawingId_Drawing_id_fk",
-          "tableFrom": "SharedDrawing",
-          "tableTo": "Drawing",
-          "columnsFrom": [
-            "drawingId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
-        "SharedDrawing_userId_User_id_fk": {
-          "name": "SharedDrawing_userId_User_id_fk",
-          "tableFrom": "SharedDrawing",
+        "SharedEntity_userId_User_id_fk": {
+          "name": "SharedEntity_userId_User_id_fk",
+          "tableFrom": "SharedEntity",
           "tableTo": "User",
           "columnsFrom": [
             "userId"
@@ -883,8 +710,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "drawingId": {
-          "name": "drawingId",
+        "entityId": {
+          "name": "entityId",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -920,21 +747,21 @@
           ],
           "isUnique": false
         },
-        "WebRTCAnswer_drawingId_idx": {
-          "name": "WebRTCAnswer_drawingId_idx",
+        "WebRTCAnswer_entityId_idx": {
+          "name": "WebRTCAnswer_entityId_idx",
           "columns": [
-            "drawingId"
+            "entityId"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "WebRTCAnswer_drawingId_Drawing_id_fk": {
-          "name": "WebRTCAnswer_drawingId_Drawing_id_fk",
+        "WebRTCAnswer_entityId_Entity_id_fk": {
+          "name": "WebRTCAnswer_entityId_Entity_id_fk",
           "tableFrom": "WebRTCAnswer",
-          "tableTo": "Drawing",
+          "tableTo": "Entity",
           "columnsFrom": [
-            "drawingId"
+            "entityId"
           ],
           "columnsTo": [
             "id"
@@ -963,8 +790,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "drawingId": {
-          "name": "drawingId",
+        "entityId": {
+          "name": "entityId",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1000,21 +827,21 @@
           ],
           "isUnique": false
         },
-        "WebRTCOffer_drawingId_idx": {
-          "name": "WebRTCOffer_drawingId_idx",
+        "WebRTCOffer_entityId_idx": {
+          "name": "WebRTCOffer_entityId_idx",
           "columns": [
-            "drawingId"
+            "entityId"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "WebRTCOffer_drawingId_Drawing_id_fk": {
-          "name": "WebRTCOffer_drawingId_Drawing_id_fk",
+        "WebRTCOffer_entityId_Entity_id_fk": {
+          "name": "WebRTCOffer_entityId_Entity_id_fk",
           "tableFrom": "WebRTCOffer",
-          "tableTo": "Drawing",
+          "tableTo": "Entity",
           "columnsFrom": [
-            "drawingId"
+            "entityId"
           ],
           "columnsTo": [
             "id"
@@ -1030,7 +857,14 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {
+      "\"Drawing\"": "\"Entity\"",
+      "\"SharedDrawing\"": "\"SharedEntity\""
+    },
+    "columns": {
+      "\"WebRTCAnswer\".\"drawingId\"": "\"WebRTCAnswer\".\"entityId\"",
+      "\"WebRTCOffer\".\"drawingId\"": "\"WebRTCOffer\".\"entityId\"",
+      "\"SharedEntity\".\"drawingId\"": "\"SharedEntity\".\"entityId\""
+    }
   }
 }

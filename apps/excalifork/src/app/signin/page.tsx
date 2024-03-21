@@ -11,10 +11,9 @@ export const runtime = "edge";
 
 export default async function SignInPage() {
   const session = await auth();
-  console.log({ session });
-  // if (session) {
-  //   return redirect("/dashboard");
-  // }
+  if (session) {
+    return redirect("/dashboard");
+  }
 
   return (
     <div className=" flex h-full flex-col items-center justify-center ">
@@ -26,9 +25,9 @@ export default async function SignInPage() {
           <SignInForm />
         </Suspense>
       </div>
-      <Link href="/auth/signup">
-        <Button variant="link">No account? Sign up here</Button>
-      </Link>
+      <Button asChild variant="link">
+        <Link href="/signup">No account? Sign up here</Link>
+      </Button>
     </div>
   );
 }

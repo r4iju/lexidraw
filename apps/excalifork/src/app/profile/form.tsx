@@ -10,12 +10,13 @@ import { api } from "~/trpc/react";
 import { useToast } from "~/components/ui/use-toast";
 import { type RouterOutputs } from "~/trpc/shared";
 import { useSession } from "next-auth/react";
+import { ReloadIcon } from "@radix-ui/react-icons";
 
 type Props = {
   user: RouterOutputs["auth"]["getProfile"];
 };
 
-export default function SignInForm({ user }: Props) {
+export default function ProfileForm({ user }: Props) {
   const { data: session, update } = useSession();
 
   const { mutate: saveProfile, isLoading } =
@@ -71,16 +72,25 @@ export default function SignInForm({ user }: Props) {
             label="Email"
             name="email"
             type="email"
-            autoComplete="username"
+            //
           />
-          <RHFTextField label="Name" name="name" type="name" />
+          <RHFTextField
+            label="Name"
+            name="name"
+            type="name"
+            //
+          />
         </div>
         <Button
           className="w-full"
           type="submit"
           disabled={!isDirty || isLoading}
         >
+          <ReloadIcon
+            className={`animate-spin w-4 mr-2 ${!isLoading && "opacity-0"}`}
+          />
           Save
+          <div className="w-4 ml-2 opacity-0" />
         </Button>
       </FormProvider>
     </div>

@@ -33,14 +33,14 @@ export default async function LandingPage() {
                     automatically and shareable with a link.
                   </p>
                   {!session?.user && (
-                    <Link href="/auth/signup">
-                      <Button>Sign up</Button>
-                    </Link>
+                    <Button asChild>
+                      <Link href="/signup">Sign up</Link>
+                    </Button>
                   )}
                   {session?.user && (
-                    <Link href="/dashboard">
-                      <Button>My drawings</Button>
-                    </Link>
+                    <Button asChild>
+                      <Link href="/dashboard">My drawings</Link>
+                    </Button>
                   )}
                 </div>
 

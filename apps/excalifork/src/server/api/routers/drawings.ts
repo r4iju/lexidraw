@@ -5,6 +5,7 @@ import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gt, gte, isNotNull, isNull, or, schema, sql } from "@packages/drizzle";
 import { AppState } from "@excalidraw/excalidraw/types/types";
+import { entity } from "node_modules/@packages/drizzle/dist/drizzle-schema";
 
 export const entityRouter = createTRPCRouter({
   create: protectedProcedure
@@ -213,14 +214,30 @@ export const entityRouter = createTRPCRouter({
   share: protectedProcedure
     .input(z.object({ drawingId: z.string(), userEmail: z.string(), accessLevel: z.enum([AccessLevel.READ, AccessLevel.EDIT]) }))
     .mutation(async ({ input, ctx }) => {
-      // Ensure the current user is the owner of the drawing or has EDIT rights
-      const drawings = await ctx.drizzle
+
+      console.log('share with input: ', input);
+
+      const sharedWith = await ctx.drizzle
         .select()
+        .from(schema.sharedEntity)
+        // .where(eq(
+        //   schema.sharedEntity.entityId, input.drawingId
+        // ))
+        .execute();
+      console.log('sharedWith: ', sharedWith);
+
+      // Ensure the current user is the owner of the drawing or has EDIT rights
+      const entities = await ctx.drizzle
+        .select({
+          id: schema.entity.id,
+        })
         .from(schema.entity)
         .where(and(
           eq(schema.entity.id, input.drawingId),
           or(
+            // Owner
             eq(schema.entity.userId, ctx.session.user.id),
+            // Editor
             and(
               eq(schema.sharedEntity.userId, ctx.session.user.id),
               eq(schema.sharedEntity.entityId, input.drawingId),
@@ -228,10 +245,13 @@ export const entityRouter = createTRPCRouter({
             )
           )
         ))
+        .leftJoin(schema.sharedEntity, eq(schema.entity.id, schema.sharedEntity.entityId))
         .execute();
 
-      if (!drawings[0]) {
+      if (!entities[0]) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to share this drawing' });
+      } else {
+        console.log('found applicable entity', entity.id);
       }
 
       // Find the user by email
@@ -240,7 +260,9 @@ export const entityRouter = createTRPCRouter({
       });
 
       if (!userToShareWith) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'User to share with not found' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: "Sorry that user doesn't exist" });
+      } else {
+        console.log('found user to share with: ', userToShareWith);
       }
 
       await ctx.drizzle.insert(schema.sharedEntity)

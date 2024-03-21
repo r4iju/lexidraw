@@ -26,9 +26,9 @@ export default async function SignInPage() {
         </Suspense>
       </div>
 
-      <Link href="/auth/signin">
-        <Button variant="link">Already registered? Sign in here</Button>
-      </Link>
+      <Button asChild variant="link">
+        <Link href="/signin">Already registered? Sign in here</Link>
+      </Button>
     </div>
   );
 }
