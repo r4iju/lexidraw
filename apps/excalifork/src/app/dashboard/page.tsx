@@ -10,7 +10,7 @@ import EntityTitle from "./_actions/rename-entity";
 import { MoreActions } from "./_actions/more-actions";
 import { Thumbnail } from "./thumbnail";
 import { FilePlusIcon } from "@radix-ui/react-icons";
-import { PublicAccess } from "@packages/types";
+import { EntityType, PublicAccess } from "@packages/types";
 import { NewEntity } from "./_actions/new-entity";
 import Image from "next/image";
 
@@ -27,12 +27,12 @@ export const runtime = "edge";
 export default async function LandingPage() {
   const entities = await api.entities.list.query();
 
-  const newItem = (kind: "drawing" | "document") => {
+  const itemUrl = (kind: "drawing" | "document", id: string) => {
     switch (kind) {
       case "drawing":
-        return `/drawings/${uuidv4()}/new`;
+        return `/drawings/${id}`;
       case "document":
-        return `/documents/${uuidv4()}/new`;
+        return `/documents/${id}`;
     }
   };
 
@@ -76,7 +76,7 @@ export default async function LandingPage() {
                 </div>
                 <Thumbnail entityId={entity.id} />
                 <Button className="mt-2 w-full" asChild>
-                  <Link href={`/drawings/${entity.id}`} passHref>
+                  <Link href={itemUrl(entity.entityType as EntityType, entity.id)} passHref>
                     Open
                   </Link>
                 </Button>

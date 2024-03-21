@@ -342,15 +342,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   // cleanup on unmount
   useEffect(() => {
-    for (const el of elements ?? []) {
-      console.log("isFreeDrawElement", el.id, el.type === "freedraw");
-      console.log(
-        "isLinearElement",
-        el.id,
-        el.type === "line" || el.type === "arrow",
-      );
-      if (el.id === "uCQfCFMBw-CyFcKbrsPoq") console.log(el);
-    }
     return () => {
       closeConnection();
     };
