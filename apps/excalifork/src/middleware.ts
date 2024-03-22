@@ -43,11 +43,9 @@ export async function middleware(request: NextRequest) {
 
   const session = await auth()
   const url = new URL(request.url);
-  console.log('auth checking requested url', url.pathname);
   const needsAuth = ["/dashboard", "/settings", "/profile", "/signout"];
   if (!session && needsAuth.includes(url.pathname)) {
     url.pathname = '/signin';
-    console.log('redirecting to signin');
     return NextResponse.rewrite(url);
   }
 
