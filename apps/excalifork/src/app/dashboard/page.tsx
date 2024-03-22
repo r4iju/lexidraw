@@ -42,11 +42,11 @@ export default async function LandingPage() {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between p-4 lg:p-6">
+    <div className="flex h-full flex-col pb-6">
+      <div className="flex items-center justify-between p-4 lg:p-6">
         <h1 className="text-xl font-bold">My Drawings</h1>
         <NewEntity />
-      </header>
+      </div>
       <main className="flex-1 h-full md:container">
         <section className="w-full p-4">
           <div className="grid grid-cols-1 gap-4  md:grid-cols-2 lg:grid-cols-3">
@@ -76,7 +76,10 @@ export default async function LandingPage() {
                 </div>
                 <Thumbnail entityId={entity.id} />
                 <Button className="mt-2 w-full" asChild>
-                  <Link href={itemUrl(entity.entityType as EntityType, entity.id)} passHref>
+                  <Link
+                    href={itemUrl(entity.entityType as EntityType, entity.id)}
+                    passHref
+                  >
                     Open
                   </Link>
                 </Button>
