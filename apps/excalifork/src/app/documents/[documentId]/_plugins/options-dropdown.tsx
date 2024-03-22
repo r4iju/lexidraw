@@ -42,16 +42,14 @@ export default function OptionsDropdown({ state, documentId }: Props) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon">
-          <HamburgerMenuIcon className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <HamburgerMenuIcon />
           <span className="sr-only">Open menu</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="start">
         <DropdownMenuGroup title="App">
           <DropdownMenuItem asChild>
-            <Link href="/dashboard">
-              Go to dashboard
-            </Link>
+            <Link href="/dashboard">Go to dashboard</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
