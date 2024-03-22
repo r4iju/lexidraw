@@ -10,7 +10,7 @@ export default function SignInForm() {
   };
 
   return (
-    <Button onClick={handleSignOut} className="w-full">
+    <Button variant="destructive" onClick={handleSignOut} className="w-full">
       <ExitIcon className="mr-4" />
       Sign Out
     </Button>

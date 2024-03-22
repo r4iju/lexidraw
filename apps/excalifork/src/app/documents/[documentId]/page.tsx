@@ -13,9 +13,6 @@ const Params = z.object({
   params: z.object({
     documentId: z.string(),
   }),
-  searchParams: z.object({
-    new: z.string().optional(),
-  }),
 });
 
 type Props = z.infer<typeof Params>;
@@ -23,7 +20,6 @@ type Props = z.infer<typeof Params>;
 export default async function DocumentPage(props: Props) {
   const {
     params: { documentId },
-    searchParams,
   } = Params.parse(props);
 
   const document = await api.entities.load.query({ id: documentId });

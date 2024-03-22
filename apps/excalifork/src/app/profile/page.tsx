@@ -12,7 +12,7 @@ export default async function SignInPage() {
   const user = await api.auth.getProfile.query();
 
   return (
-    <div className=" flex min-h-[90vh] flex-col items-center justify-center ">
+    <main className=" flex h-full flex-col items-center justify-center ">
       <div className="w-full rounded  border p-6 shadow-lg md:max-w-lg">
         <h2 className="mb-4 text-center text-2xl font-bold text-gray-900 dark:text-white">
           Edit profile
@@ -24,6 +24,6 @@ export default async function SignInPage() {
       <Button asChild variant="link">
         <Link href="/dashboard">Go to my drawings</Link>
       </Button>
-    </div>
+    </main>
   );
 }
