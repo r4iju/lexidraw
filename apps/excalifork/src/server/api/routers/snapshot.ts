@@ -5,6 +5,7 @@ import { createTRPCRouter, publicProcedure } from "../trpc";
 import { supabase } from "~/server/storage";
 import { TRPCError } from "@trpc/server";
 import { PublicAccess } from "@packages/types";
+import { eq, schema } from "@packages/drizzle";
 
 const THEME = {
   DARK: 'dark',
@@ -42,6 +43,7 @@ export const snapshotRouter = createTRPCRouter({
   create: publicProcedure
     .input(z.object({ entityId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .mutation(async ({ input, ctx }) => {
+      console.log('input', input)
       const entity = await ctx.drizzle.query.entity.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       })
@@ -56,13 +58,34 @@ export const snapshotRouter = createTRPCRouter({
       }
       const { entityId: entityId, theme, svg } = input;
       const svgBuffer = Buffer.from(svg);
-      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${entityId}-${theme}.svg`, svgBuffer, {
-        contentType: 'image/svg+xml',
-        upsert: true,
+      const { error: uploadError } = await supabase.storage
+        .from('excalidraw')
+        .upload(`${entityId}-${theme}.svg`, svgBuffer, {
+          contentType: 'image/svg+xml',
+          upsert: true,
+        });
+
+      if (uploadError) throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: uploadError.message,
       });
 
-      if (uploadError) throw new Error(uploadError.message);
+      const { data, error: signedUrlErr } = await supabase.storage
+        .from('excalidraw')
+        .createSignedUrl(`${entityId}-${theme}.svg`, 9999999);
 
+      if (signedUrlErr) throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: signedUrlErr.message,
+      });
+
+      await ctx.drizzle.update(schema.entity)
+        .set({
+          [theme === THEME.DARK ? 'screenShotDark' : 'screenShotLight']: data?.signedUrl as string,
+        })
+        .where(eq(schema.entity.id, entityId))
+        .execute();
+      return
     }),
   update: publicProcedure
     .input(z.object({ entityId: z.string(), svg: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
@@ -80,13 +103,35 @@ export const snapshotRouter = createTRPCRouter({
       }
       const { entityId: entityId, svg, theme } = input;
       const svgBuffer = Buffer.from(svg);
-      const { error: uploadError } = await supabase.storage.from('excalidraw').upload(`${entityId}-${theme}.svg`, svgBuffer, {
-        contentType: 'image/svg+xml',
-      });
+      const { error: uploadError } = await supabase.storage
+        .from('excalidraw')
+        .upload(`${entityId}-${theme}.svg`, svgBuffer, {
+          contentType: 'image/svg+xml',
+        });
 
       if (uploadError) throw new Error(uploadError.message);
     }),
   get: publicProcedure
+    .input(z.object({ entityId: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
+    .query(async ({ input, ctx }) => {
+      const entity = await ctx.drizzle.query.entity.findFirst({
+        where: (drw, { eq }) => eq(drw.id, input.entityId),
+      })
+      if (!entity) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' })
+      }
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEditOrView = entity.publicAccess !== PublicAccess.PRIVATE;
+      if (!isOwner && !anyOneCanEditOrView) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to view this drawing' })
+      }
+      const { entityId: entityId, theme } = input;
+      const { data: snapshotStream, error } = await supabase.storage.from('excalidraw').download(`${entityId}-${theme}.svg`);
+      if (error ?? !snapshotStream) return genericSvgContent;
+      const svgString = await blobToString(snapshotStream);
+      return svgString;
+    }),
+  getSignedUrl: publicProcedure
     .input(z.object({ entityId: z.string(), theme: z.enum([THEME.DARK, THEME.LIGHT]) }))
     .query(async ({ input, ctx }) => {
       const entity = await ctx.drizzle.query.entity.findFirst({

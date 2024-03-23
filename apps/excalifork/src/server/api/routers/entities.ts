@@ -3,7 +3,7 @@ import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateEntity, SaveEntity } from "./drawings-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gt, gte, isNotNull, isNull, or, schema, sql } from "@packages/drizzle";
+import { and, desc, eq, isNull, or, schema, sql } from "@packages/drizzle";
 import { AppState } from "@excalidraw/excalidraw/types/types";
 import { entity } from "node_modules/@packages/drizzle/dist/drizzle-schema";
 
@@ -133,6 +133,8 @@ export const entityRouter = createTRPCRouter({
         entityType: schema.entity.entityType,
         createdAt: schema.entity.createdAt,
         updatedAt: schema.entity.updatedAt,
+        screenShotLight: schema.entity.screenShotLight,
+        screenShotDark: schema.entity.screenShotDark,
         userId: schema.entity.userId,
         publicAccess: schema.entity.publicAccess,
         sharedWithCount: sql<number>`count(${schema.sharedEntity.userId})`,

@@ -112,6 +112,8 @@ export const entity = sqliteTable("Entity", {
 	elements: text("elements").notNull(),
 	appState: text("appState"),
 	entityType: text("entityType").notNull().default("drawing"), // drawing or document
+	screenShotLight: text("screenShotLight").default("").notNull(),
+	screenShotDark: text("screenShotDark").default("").notNull(),
 	createdAt: integer('createdAt', { mode: 'timestamp_ms' }).notNull(),
 	updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).notNull(),
 	deletedAt: integer('deletedAt', { mode: 'timestamp_ms' }),
