@@ -69,7 +69,7 @@ export default async function LandingPage() {
                     onTitleChange={refetch}
                   />
                 </div>
-                <Thumbnail entityId={entity.id} />
+                <Thumbnail entity={entity} />
                 <Button className="mt-2 w-full" asChild>
                   <Link
                     href={itemUrl(entity.entityType as EntityType, entity.id)}

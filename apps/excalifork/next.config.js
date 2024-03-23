@@ -13,6 +13,17 @@ const config = {
   webpack: (config, { isServer }) => {
     return config;
   },
+  images: {
+    dangerouslyAllowSVG: true,
+    remotePatterns: [
+      {
+        protocol: "https",
+        port: "",
+        hostname: "khebpsoymyxdkdwpltvv.supabase.co",
+        pathname: "/storage/v1/object/sign/**",
+      },
+    ],
+  },
 };
 
 export default withBundleAnalyzer(config);

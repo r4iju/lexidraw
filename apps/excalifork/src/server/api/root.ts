@@ -1,6 +1,6 @@
 import { createTRPCRouter } from "~/server/api/trpc";
 import { authRouter } from "./routers/auth";
-import { entityRouter } from "./routers/drawings";
+import { entityRouter } from "./routers/entities";
 import { snapshotRouter } from "./routers/snapshot";
 import { webRtcRouter } from "./routers/web-rtc";
 

@@ -195,7 +195,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     const elements =
       excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
     const appState: AppState = excalidrawApi.current.getAppState();
-    await exportDrawingAsSvg({ elements: elements, appState });
     save(
       {
         id: drawing.id,
@@ -208,10 +207,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         elements: JSON.stringify(elements),
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           toast({
             title: "Saved!",
           });
+          await exportDrawingAsSvg({ elements: elements, appState });
         },
         onError: (err) => {
           toast({
