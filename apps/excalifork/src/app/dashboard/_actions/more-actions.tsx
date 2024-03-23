@@ -33,7 +33,7 @@ export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
   const { toast } = useToast();
 
   const copyPublicLink = async () => {
-    const url = `${window.location.origin}/${entity.id}`;
+    const url = `${window.location.origin}/${entity.entityType}/${entity.id}`;
     try {
       await navigator.clipboard.writeText(url);
       toast({

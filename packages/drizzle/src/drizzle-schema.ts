@@ -1,4 +1,4 @@
-import { sqliteTable, AnySQLiteColumn, text, numeric, uniqueIndex, foreignKey, integer, index, real } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, numeric, uniqueIndex, integer, index, real } from "drizzle-orm/sqlite-core"
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from "drizzle-orm"
 
