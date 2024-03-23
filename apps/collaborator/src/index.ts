@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws'
-import { MessageStructure } from "@packages/types"
+import type { MessageStructure } from "@packages/types"
 import { drizzle, eq, schema } from "@packages/drizzle"
 import { debounce } from "@packages/lib"
 

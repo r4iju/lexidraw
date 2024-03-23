@@ -17,6 +17,7 @@ export const {
   handlers: { GET, POST },
   auth,
 } = NextAuth({
+  // trustHost: true,
   adapter: DrizzleAdapter(drizzle),
   // basePath: '/',
   pages: {

@@ -1,10 +1,10 @@
-import { drizzle } from 'drizzle-orm/libsql';
+import { drizzle, LibSQLDatabase } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import env from '@packages/env';
 import * as schema from './drizzle-schema';
 
 const globalForDrizzle = globalThis as unknown as {
-  db: ReturnType<typeof drizzle<typeof schema>> | undefined;
+  db: LibSQLDatabase<typeof schema> | undefined;
 };
 
 const createSingleton = () => {

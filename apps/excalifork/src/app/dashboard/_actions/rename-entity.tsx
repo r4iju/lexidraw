@@ -32,7 +32,7 @@ const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
       {
         onSuccess: async () => {
           await onTitleChange();
-          toast({ title: "Saved!", description: title });
+          toast({ title: "Saved!", description: newTitle });
           setIsEditing(false);
           setIsLoading(false);
         },
