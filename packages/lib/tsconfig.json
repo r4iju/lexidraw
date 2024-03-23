@@ -1,22 +1,35 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "esnext",
-    "outDir": "dist",
-    "baseUrl": "src",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "declaration": true,
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
+    /* Base Options: */
     "esModuleInterop": true,
-    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
     "resolveJsonModule": true,
+
+    /* If transpiling with TypeScript: */
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "outDir": "dist",
+    "sourceMap": true,
+
+    /* strictness */
+    "strict": true,
     "isolatedModules": true,
-    "incremental": true,
-    "jsx": "react-jsx"
+    "forceConsistentCasingInFileNames": true,
+
+    /* building for a library in a monorepo: */
+    "declaration": true,
+    "composite": true,
+    "declarationMap": true,
+
+    /* doesn't run in DOM */
+    "lib": ["es2022"],
+
+    /* other */
+    "baseUrl": "src"
   },
   "include": ["src"],
+
   "exclude": ["node_modules", "dist"]
 }
