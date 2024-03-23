@@ -1,15 +1,27 @@
 import "~/styles/globals.css";
 
-import { Inter as FontSans } from "next/font/google";
+import { Fredoka, Inter, Roboto_Mono } from "next/font/google";
 import { Toaster } from "~/components/ui/toaster";
 import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SessionProvider } from "next-auth/react";
 
-const fontSans = FontSans({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const roboto_mono = Roboto_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-roboto-mono",
+});
+
+const fredoka = Fredoka({
+  subsets: ["latin"],
+  variable: "--font-fredoka",
 });
 
 export const metadata = {
@@ -26,8 +38,10 @@ export default function RootLayout({ children }: Props) {
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
-          "flex min-h-screen flex-col bg-background font-sans antialiased",
-          fontSans.variable,
+          "flex min-h-screen flex-col font-fredoka bg-background antialiased",
+          fredoka.variable,
+          inter.variable,
+          roboto_mono.variable,
         )}
       >
         <SessionProvider>

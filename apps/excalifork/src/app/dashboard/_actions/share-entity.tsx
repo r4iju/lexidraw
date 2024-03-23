@@ -1,7 +1,7 @@
 "use client";
 
 import { PublicAccess, AccessLevel } from "@packages/types";
-import { ChevronDownIcon } from "@radix-ui/react-icons";
+import { ChevronDownIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
@@ -27,8 +27,7 @@ import { Input } from "~/components/ui/input";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
-  currentAccess: PublicAccess;
-  revalidatePath: VoidFunction;
+  revalidatePath: () => Promise<void>;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };
@@ -46,7 +45,6 @@ const accessLevelLabel = {
 
 export default function ShareDrawing({
   entity,
-  currentAccess,
   revalidatePath,
   isOpen,
   onOpenChange,
@@ -63,11 +61,14 @@ export default function ShareDrawing({
       refetchOnMount: false,
     },
   );
-  const { mutate: share, isLoading } = api.entities.update.useMutation();
-  const { mutate: shareWithUser } = api.entities.share.useMutation();
-  const { mutate: changeAccessLevel } =
+  const { mutate: publicShare, isLoading: publicShareIsLoading } =
+    api.entities.update.useMutation();
+  const { mutate: shareWithUser, isLoading: shareWithIsLoading } =
+    api.entities.share.useMutation();
+  const { mutate: changeAccessLevel, isLoading: changeAccessLevelIsLoading } =
     api.entities.changeAccessLevel.useMutation();
-  const { mutate: unshare } = api.entities.unShare.useMutation();
+  const { mutate: unshare, isLoading: unshareIsLoading } =
+    api.entities.unShare.useMutation();
   const { toast } = useToast();
 
   const handleShareWith = () => {
@@ -79,13 +80,13 @@ export default function ShareDrawing({
         accessLevel: accessLevel,
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           setShareWith("");
+          refetch();
+          await revalidatePath();
           toast({
             title: "Shared!",
           });
-          revalidatePath();
-          refetch();
         },
         onError(error) {
           toast({
@@ -114,12 +115,12 @@ export default function ShareDrawing({
         accessLevel: accessLevel,
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          refetch();
+          await revalidatePath();
           toast({
             title: "Access level changed!",
           });
-          revalidatePath();
-          refetch();
         },
       },
     );
@@ -129,25 +130,25 @@ export default function ShareDrawing({
     unshare(
       { userId, drawingId: entity.id },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          refetch();
+          await revalidatePath();
           toast({
             title: "Unshared!",
           });
-          revalidatePath();
-          refetch();
         },
       },
     );
   };
 
   const handleChangePublicAccess = (publicAccess: PublicAccess) => {
-    share(
+    publicShare(
       { id: entity.id, publicAccess: publicAccess },
       {
-        onSuccess: () => {
-          toast({ title: "Saved!" });
-          revalidatePath();
+        onSuccess: async () => {
           refetch();
+          await revalidatePath();
+          toast({ title: "Saved!" });
         },
         onError: (error) => {
           toast({
@@ -176,8 +177,20 @@ export default function ShareDrawing({
             <div className="flex full-w justify-end">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button className="gap-2" variant="outline">
-                    {publicAccessLevelLabel[currentAccess]} <ChevronDownIcon />
+                  <Button
+                    className="gap-2"
+                    variant="outline"
+                    disabled={publicShareIsLoading}
+                  >
+                    {publicShareIsLoading && (
+                      <ReloadIcon className="animate-spin w-4 mr-2" />
+                    )}
+                    {
+                      publicAccessLevelLabel[
+                        entity.publicAccess as PublicAccess
+                      ]
+                    }{" "}
+                    <ChevronDownIcon />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56">
@@ -224,7 +237,12 @@ export default function ShareDrawing({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button onClick={handleShareWith}>Share</Button>
+                <Button disabled={shareWithIsLoading} onClick={handleShareWith}>
+                  {shareWithIsLoading && (
+                    <ReloadIcon className="animate-spin w-4 mr-2" />
+                  )}
+                  Share
+                </Button>
               </div>
             </div>
           </div>
@@ -248,7 +266,13 @@ export default function ShareDrawing({
                   <div className="flex gap-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline">
+                        <Button
+                          disabled={changeAccessLevelIsLoading}
+                          variant="outline"
+                        >
+                          {changeAccessLevelIsLoading && (
+                            <ReloadIcon className="animate-spin w-4 mr-2" />
+                          )}
                           {
                             accessLevelLabel[
                               sharedUser.accessLevel as AccessLevel
@@ -275,8 +299,12 @@ export default function ShareDrawing({
                     </DropdownMenu>
                     <Button
                       variant="destructive"
+                      disabled={unshareIsLoading}
                       onClick={() => handleUnshare(sharedUser.userId)}
                     >
+                      {unshareIsLoading && (
+                        <ReloadIcon className="animate-spin w-4 mr-2" />
+                      )}
                       Unshare
                     </Button>
                   </div>
@@ -287,9 +315,7 @@ export default function ShareDrawing({
         </DialogDescription>
         <DialogFooter className="flex justify-end space-x-4">
           <DialogClose asChild>
-            <Button variant="outline" disabled={isLoading}>
-              Close
-            </Button>
+            <Button variant="outline">Close</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>

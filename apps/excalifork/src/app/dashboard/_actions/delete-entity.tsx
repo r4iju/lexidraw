@@ -17,7 +17,7 @@ import { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
-  revalidatePath: VoidFunction;
+  revalidatePath: () => Promise<void>;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };

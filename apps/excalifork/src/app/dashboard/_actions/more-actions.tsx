@@ -24,7 +24,7 @@ import { type RouterOutputs } from "~/trpc/shared";
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   currentAccess: PublicAccess;
-  revalidatePath: VoidFunction;
+  revalidatePath: () => Promise<void>;
 };
 
 export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
@@ -85,7 +85,6 @@ export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
       </DropdownMenu>
       <ShareDrawing
         entity={entity}
-        currentAccess={currentAccess}
         revalidatePath={revalidatePath}
         isOpen={isShareDialogOpen}
         onOpenChange={setIsShareDialogOpen}
