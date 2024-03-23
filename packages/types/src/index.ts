@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
-import { type AppState } from "@excalidraw/excalidraw/types/types";
-export * from "./helpers";
-export * from "./enums";
+import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types.js";
+import { type AppState } from "@excalidraw/excalidraw/types/types.js";
+export * from "./helpers.js";
+export * from "./enums.js";
 
 export type MessageStructure = {
   type: "update";

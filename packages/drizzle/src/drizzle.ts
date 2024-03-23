@@ -1,10 +1,12 @@
 import { drizzle, LibSQLDatabase } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import env from '@packages/env';
-import * as schema from './drizzle-schema';
+import * as schema from './drizzle-schema.js';
+
+type Schema = typeof schema;
 
 const globalForDrizzle = globalThis as unknown as {
-  db: LibSQLDatabase<typeof schema> | undefined;
+  db: LibSQLDatabase<Schema> | undefined;
 };
 
 const createSingleton = () => {
@@ -12,7 +14,7 @@ const createSingleton = () => {
     url: env.TURSO_URL,
     authToken: env.TURSO_TOKEN,
   });
-  return drizzle<typeof schema>(turso, {
+  return drizzle<Schema>(turso, {
     schema,
     logger: true,
   });
