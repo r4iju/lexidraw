@@ -18,7 +18,7 @@ import DeleteDrawing from "./delete-entity";
 import { useState } from "react";
 import { useToast } from "~/components/ui/use-toast";
 import ShareDrawing from "./share-entity";
-import { EntityType, PublicAccess } from "@packages/types";
+import { PublicAccess } from "@packages/types";
 import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {
@@ -74,7 +74,10 @@ export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={copyPublicLink}
-              disabled={currentAccess === PublicAccess.PRIVATE}
+              disabled={
+                currentAccess === PublicAccess.PRIVATE &&
+                entity.sharedWithCount === 0
+              }
               className="justify-between"
             >
               Copy link
