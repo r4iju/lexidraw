@@ -34,7 +34,7 @@ export default async function Header() {
                   <>
                     <DropdownMenuItem asChild>
                       <Link className="cursor-default" href="/dashboard">
-                        My drawings
+                        My Drawings
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

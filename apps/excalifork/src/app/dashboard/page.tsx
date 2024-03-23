@@ -1,7 +1,5 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
-import { v4 as uuidv4 } from "uuid";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
@@ -9,10 +7,8 @@ import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 import EntityTitle from "./_actions/rename-entity";
 import { MoreActions } from "./_actions/more-actions";
 import { Thumbnail } from "./thumbnail";
-import { FilePlusIcon } from "@radix-ui/react-icons";
 import { EntityType, PublicAccess } from "@packages/types";
 import { NewEntity } from "./_actions/new-entity";
-import Image from "next/image";
 
 export const metadata = {
   title: "An Excalidraw App | My drawings",
@@ -38,7 +34,7 @@ export default async function LandingPage() {
 
   const refetch = async () => {
     "use server";
-    revalidatePath("/dashboard");
+    revalidatePath("/dashboard", "page");
   };
 
   return (
@@ -55,12 +51,12 @@ export default async function LandingPage() {
                 key={entity.id}
                 className="relative flex flex-col gap-2 rounded-lg p-4 shadow-md"
               >
-                <div className="right flex justify-end gap-4">
-                  <div className="text-right text-sm text-gray-500 dark:text-gray-300">
+                <div className="flex justify-between items-center gap-4">
+                  <span className="font-thin">
                     {formatDistanceToNow(new Date(entity.updatedAt), {
                       addSuffix: true,
                     })}
-                  </div>
+                  </span>
                   <MoreActions
                     entity={entity}
                     currentAccess={entity.publicAccess as PublicAccess}

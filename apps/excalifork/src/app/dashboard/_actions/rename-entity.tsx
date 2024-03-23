@@ -4,13 +4,18 @@ import React, { useState } from "react";
 import { api } from "~/trpc/react";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
-import { Pencil1Icon, Cross1Icon, CheckIcon } from "@radix-ui/react-icons";
+import {
+  Pencil1Icon,
+  Cross1Icon,
+  CheckIcon,
+  ReloadIcon,
+} from "@radix-ui/react-icons";
 import { useToast } from "~/components/ui/use-toast";
 
 type Props = {
   title: string;
   drawingId: string;
-  onTitleChange: VoidFunction;
+  onTitleChange: () => Promise<void>;
 };
 
 const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
@@ -18,15 +23,23 @@ const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
   const [newTitle, setNewTitle] = useState(title);
   const { toast } = useToast();
   const { mutate } = api.entities.update.useMutation();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSave = () => {
+    setIsLoading(true);
     mutate(
       { id: drawingId, title: newTitle },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          await onTitleChange();
+          toast({ title: "Saved!", description: title });
           setIsEditing(false);
-          onTitleChange();
-          toast({ title: "Saved!" });
+          setIsLoading(false);
+        },
+        onError: (error) => {
+          toast({ title: error.message, variant: "destructive" });
+          setIsEditing(false);
+          setIsLoading(false);
         },
       },
     );
@@ -36,33 +49,43 @@ const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
     <div className="flex w-full gap-4">
       <div className="flex flex-1  items-center gap-2">
         {!isEditing && (
-          <span className="flex-1 text-lg font-bold">{title}</span>
-        )}
-        {isEditing && (
-          <Input
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            className="flex-1 text-lg"
-          />
-        )}
-        {isEditing && (
           <>
-            <Button variant="outline" onClick={handleSave}>
-              <CheckIcon className="h-5 w-5" />
-            </Button>
-            <Button variant="outline" onClick={() => setIsEditing(false)}>
-              <Cross1Icon className="h-5 w-5" />
-            </Button>
-          </>
-        )}
-        {!isEditing && (
-          <>
+            <span className="flex-1 text-lg font-semibold">{title}</span>
             <Button
+              className="px-2"
               variant="outline"
               onClick={() => setIsEditing(true)}
               aria-label="Edit title"
             >
-              <Pencil1Icon className="h-5 w-5" />
+              <Pencil1Icon className="w-4" />
+            </Button>
+          </>
+        )}
+        {(isEditing || isLoading) && (
+          <>
+            <Input
+              autoFocus
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className=" text-lg font-semibold px-0 border-none focus-visible:ring-transparent"
+            ></Input>
+            <Button
+              className="px-2"
+              variant="outline"
+              disabled={isLoading}
+              onClick={handleSave}
+              type="submit"
+            >
+              {!isLoading && <CheckIcon className="w-4" />}
+              {isLoading && <ReloadIcon className="animate-spin w-4" />}
+            </Button>
+            <Button
+              className="px-2"
+              variant="outline"
+              disabled={isLoading}
+              onClick={() => setIsEditing(false)}
+            >
+              <Cross1Icon className="w-4" />
             </Button>
           </>
         )}

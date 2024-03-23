@@ -23,10 +23,10 @@ export default async function LandingPage() {
           <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
             <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
               <div className="flex flex-col gap-3">
-                <h1 className="lg:leading-tighter text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
+                <h1 className="lg:leading-tighter text-3xl font-semibold tracking-tighter sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
                   Excalidraw demo
                 </h1>
-                <p className="mx-auto max-w-[700px] text-gray-500 dark:text-gray-400 md:text-xl">
+                <p className="mx-auto max-w-[700px] text-gray-600 dark:text-gray-300 md:text-xl">
                   Collaborative online drawing and diagramming tool. Create
                   wireframes, flowcharts, user interfaces, and more. All saved
                   automatically and shareable with a link.
@@ -46,10 +46,10 @@ export default async function LandingPage() {
               <div>
                 <Image
                   alt="A web application for drawing and diagramming"
-                  className="mx-auto aspect-[4/3] overflow-hidden rounded-2xl object-cover"
+                  className="mx-auto aspect-[4/3] border overflow-hidden rounded-2xl object-cover"
                   src="/images/homepage-banner.png"
-                  height="500"
-                  width="500"
+                  height={500}
+                  width={500}
                 />
               </div>
             </div>
@@ -57,19 +57,19 @@ export default async function LandingPage() {
         </section>
         <section id="projects" className="w-full py-12 md:py-24 lg:py-32">
           <div className="container px-4 md:px-6">
-            <h2 className="text-center text-3xl font-bold tracking-tighter sm:text-5xl">
+            <h2 className="text-center text-3xl font-semibold tracking-tighter sm:text-5xl">
               Sample projects
             </h2>
             <div className="mx-auto mt-12 grid items-start gap-8 sm:max-w-4xl sm:grid-cols-2 md:gap-12 lg:max-w-5xl lg:grid-cols-3">
               <div className="grid gap-1">
                 <Image
                   alt="Project 1"
-                  className="mx-auto aspect-[7/6] overflow-hidden rounded-2xl object-cover"
-                  height="350"
-                  width="350"
+                  className="mx-auto aspect-[7/6] overflow-hidden border rounded-2xl object-cover"
+                  height={350}
+                  width={350}
                   src="/images/projects/project.png"
                 />
-                <h3 className="text-lg font-bold">Quick sketches</h3>
+                <h3 className="text-lg font-semibold">Quick sketches</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Quick sketches
                 </p>
@@ -77,9 +77,9 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 2"
-                  className="mx-auto aspect-[7/6] overflow-hidden rounded-2xl object-cover"
-                  height="350"
-                  width="350"
+                  className="mx-auto aspect-[7/6] overflow-hidden border rounded-2xl object-cover"
+                  height={350}
+                  width={350}
                   src="/images/projects/project.png"
                 />
                 <h3 className="text-lg font-bold">Make wiregrams</h3>
@@ -90,9 +90,9 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 3"
-                  className="mx-auto aspect-[7/6] overflow-hidden rounded-2xl object-cover"
-                  height="350"
-                  width="350"
+                  className="mx-auto aspect-[7/6] overflow-hidden border rounded-2xl object-cover"
+                  height={350}
+                  width={350}
                   src="/images/projects/project.png"
                 />
                 <h3 className="text-lg font-bold">Make a product pitch</h3>
