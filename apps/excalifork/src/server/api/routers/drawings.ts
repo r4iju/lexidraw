@@ -135,6 +135,7 @@ export const entityRouter = createTRPCRouter({
         updatedAt: schema.entity.updatedAt,
         userId: schema.entity.userId,
         publicAccess: schema.entity.publicAccess,
+        sharedWithCount: sql<number>`count(${schema.sharedEntity.userId})`,
       })
         .from(schema.entity)
         .leftJoin(schema.user, eq(schema.entity.userId, schema.user.id))

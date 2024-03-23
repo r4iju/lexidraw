@@ -11,16 +11,16 @@ import {
   ReloadIcon,
 } from "@radix-ui/react-icons";
 import { useToast } from "~/components/ui/use-toast";
+import { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
-  title: string;
-  drawingId: string;
+  entity: RouterOutputs["entities"]["list"][number];
   onTitleChange: () => Promise<void>;
 };
 
-const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
+const EntityTitle = ({ entity, onTitleChange }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [newTitle, setNewTitle] = useState(title);
+  const [newTitle, setNewTitle] = useState(entity.title);
   const { toast } = useToast();
   const { mutate } = api.entities.update.useMutation();
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +28,7 @@ const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
   const handleSave = () => {
     setIsLoading(true);
     mutate(
-      { id: drawingId, title: newTitle },
+      { id: entity.id, title: newTitle },
       {
         onSuccess: async () => {
           await onTitleChange();
@@ -50,7 +50,7 @@ const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
       <div className="flex flex-1  items-center gap-2">
         {!isEditing && (
           <>
-            <span className="flex-1 text-lg font-semibold">{title}</span>
+            <span className="flex-1 text-lg font-semibold">{newTitle}</span>
             <Button
               className="px-2"
               variant="outline"
@@ -74,7 +74,6 @@ const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
               variant="outline"
               disabled={isLoading}
               onClick={handleSave}
-              type="submit"
             >
               {!isLoading && <CheckIcon className="w-4" />}
               {isLoading && <ReloadIcon className="animate-spin w-4" />}
@@ -83,7 +82,10 @@ const EntityTitle = ({ title, drawingId, onTitleChange }: Props) => {
               className="px-2"
               variant="outline"
               disabled={isLoading}
-              onClick={() => setIsEditing(false)}
+              onClick={() => {
+                setIsEditing(false);
+                setNewTitle(entity.title);
+              }}
             >
               <Cross1Icon className="w-4" />
             </Button>

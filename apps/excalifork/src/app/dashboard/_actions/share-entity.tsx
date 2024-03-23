@@ -51,11 +51,21 @@ export default function ShareDrawing({
 }: Props) {
   const [shareWith, setShareWith] = useState<string>("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>(AccessLevel.READ);
-  const { data: sharedWith, refetch } = api.entities.getSharedInfo.useQuery(
+  const [publicAccess, setPublicAccess] = useState<PublicAccess>(
+    entity.publicAccess as PublicAccess,
+  );
+  const [sharedWithUsers, setSharedWithUsers] = useState<
+    RouterOutputs["entities"]["getSharedInfo"]
+  >([]);
+
+  const { refetch } = api.entities.getSharedInfo.useQuery(
     {
       drawingId: entity.id,
     },
     {
+      onSuccess: (data) => {
+        setSharedWithUsers(data);
+      },
       enabled: isOpen,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
@@ -108,6 +118,11 @@ export default function ShareDrawing({
     userId,
     accessLevel,
   }: ChangeAccessLevelProps) => {
+    setSharedWithUsers((prev) =>
+      prev.map((user) =>
+        user.userId === userId ? { ...user, accessLevel } : user,
+      ),
+    );
     changeAccessLevel(
       {
         drawingId: entity.id,
@@ -142,6 +157,7 @@ export default function ShareDrawing({
   };
 
   const handleChangePublicAccess = (publicAccess: PublicAccess) => {
+    setPublicAccess(publicAccess);
     publicShare(
       { id: entity.id, publicAccess: publicAccess },
       {
@@ -169,7 +185,7 @@ export default function ShareDrawing({
         </DialogHeader>
         <DialogDescription className="flex flex-col gap-6 py-4">
           <div className="gap-2">
-            <div className="h2 text-md font-bold">Public link</div>
+            <div className="h2 text-md font-semibold">Public link</div>
             <div>
               Please select the type of public access you want to give to this{" "}
               {entity.entityType}.
@@ -185,11 +201,7 @@ export default function ShareDrawing({
                     {publicShareIsLoading && (
                       <ReloadIcon className="animate-spin w-4 mr-2" />
                     )}
-                    {
-                      publicAccessLevelLabel[
-                        entity.publicAccess as PublicAccess
-                      ]
-                    }{" "}
+                    {publicAccessLevelLabel[publicAccess as PublicAccess]}{" "}
                     <ChevronDownIcon />
                   </Button>
                 </DropdownMenuTrigger>
@@ -207,7 +219,7 @@ export default function ShareDrawing({
             </div>
           </div>
           <div className="gap-2">
-            <div className="h2 text-md font-bold">Specific Users</div>
+            <div className="h2 text-md font-semibold">Specific Users</div>
             <div>
               Share with individual users by entering their email address.
             </div>
@@ -247,12 +259,12 @@ export default function ShareDrawing({
             </div>
           </div>
           <div className="gap-2">
-            <div className="h2 text-md font-bold">Shared with</div>
+            <div className="h2 text-md font-semibold">Shared with</div>
             <span>
               The following users have access to this {entity.entityType}.
             </span>
             <div className="space-y-2">
-              {sharedWith?.map((sharedUser) => (
+              {sharedWithUsers.map((sharedUser) => (
                 <div
                   key={sharedUser.userId}
                   className="flex items-center justify-between"
@@ -313,11 +325,6 @@ export default function ShareDrawing({
             </div>
           </div>
         </DialogDescription>
-        <DialogFooter className="flex justify-end space-x-4">
-          <DialogClose asChild>
-            <Button variant="outline">Close</Button>
-          </DialogClose>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

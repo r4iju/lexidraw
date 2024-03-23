@@ -65,8 +65,7 @@ export default async function LandingPage() {
                 </div>
                 <div className="flex w-full justify-between gap-4">
                   <EntityTitle
-                    drawingId={entity.id}
-                    title={entity.title}
+                    entity={entity}
                     onTitleChange={refetch}
                   />
                 </div>
