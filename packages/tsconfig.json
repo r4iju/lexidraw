@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.json",
+
+  "compilerOptions": {
+    /* If transpiling with TypeScript: */
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "outDir": "dist",
+    "sourceMap": true,
+
+    /* building for a library in a monorepo: */
+    "declaration": true,
+    "composite": true,
+    "declarationMap": true,
+
+    /* doesn't run in DOM */
+    "lib": ["es2022"]
+  }
+}

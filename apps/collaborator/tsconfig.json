@@ -1,25 +1,17 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "outDir": "dist",
-    "baseUrl": "src",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "declaration": true,
-    // strictness
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "checkJs": true,
-    "noImplicitAny": true,
+  "extends": "../../tsconfig.json",
 
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "incremental": true
+  "compilerOptions": {
+    /* If transpiling with TypeScript: */
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "outDir": "dist",
+    "sourceMap": true,
+
+    /* If your code doesn't run in the DOM: */
+    "lib": ["es2022"]
   },
+
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
