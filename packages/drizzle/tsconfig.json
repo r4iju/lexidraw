@@ -1,9 +1,37 @@
 {
-  "extends": "../tsconfig.json",
   "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* If transpiling with TypeScript: */
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "sourceMap": true,
+
+    /* building for a library in a monorepo: */
+    "declaration": true,
+    "composite": true,
+    "declarationMap": true,
+
+    /* doesn't run in DOM */
+    "lib": ["es2022"],
+
     /* other */
-    "baseUrl": "src"
+    "outDir": "dist",
+    "baseUrl": ".",
+    "rootDir": "src"
   },
-  "include": ["src"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
