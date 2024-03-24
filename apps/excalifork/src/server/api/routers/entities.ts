@@ -3,7 +3,7 @@ import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateEntity, SaveEntity } from "./drawings-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, isNull, or, schema, sql } from "@packages/drizzle";
+import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
 import { AppState } from "@excalidraw/excalidraw/types/types";
 import { entity } from "node_modules/@packages/drizzle/dist/drizzle-schema";
 
@@ -31,6 +31,7 @@ export const entityRouter = createTRPCRouter({
   save: publicProcedure
     .input(SaveEntity)
     .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session?.user.id ?? ""
       const drawings = await ctx.drizzle.select({
         count: sql<number>`cast(count(${schema.entity.id}) as int)`,
       })
@@ -39,8 +40,9 @@ export const entityRouter = createTRPCRouter({
         .leftJoin(schema.sharedEntity, eq(schema.entity.id, schema.sharedEntity.entityId))
         .where(and(
           or(
-            eq(schema.entity.userId, ctx.session?.user.id as string),
-            eq(schema.sharedEntity.userId, ctx.session?.user.id as string)
+            eq(schema.entity.userId, userId),
+            eq(schema.sharedEntity.userId, userId),
+            eq(schema.entity.publicAccess, PublicAccess.EDIT),
           ),
           isNull(schema.entity.deletedAt)
         ))
@@ -71,6 +73,7 @@ export const entityRouter = createTRPCRouter({
   load: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
+      const userId = ctx.session?.user?.id ?? ""
 
       const entities = await ctx.drizzle.select(
         {
@@ -89,14 +92,14 @@ export const entityRouter = createTRPCRouter({
           eq(schema.entity.id, input.id),
           isNull(schema.entity.deletedAt),
           or(
-            eq(schema.entity.userId, ctx.session?.user?.id as string),
-            eq(schema.sharedEntity.userId, ctx.session?.user?.id as string),
-            eq(schema.entity.publicAccess, PublicAccess.PRIVATE)
+            eq(schema.entity.userId, userId),
+            eq(schema.sharedEntity.userId, userId),
+            ne(schema.entity.publicAccess, PublicAccess.PRIVATE)
           )
         ))
         .leftJoin(schema.sharedEntity, and(
           eq(schema.sharedEntity.entityId, schema.entity.id),
-          eq(schema.sharedEntity.userId, ctx.session?.user?.id as string)
+          eq(schema.sharedEntity.userId, userId)
         ))
         .leftJoin(schema.user, eq(schema.user.id, schema.entity.userId))
         .execute();
