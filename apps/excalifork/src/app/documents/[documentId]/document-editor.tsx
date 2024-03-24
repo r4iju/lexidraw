@@ -1,7 +1,6 @@
 "use client";
 
-// import styles from "./_themes/scrollbar.css";
-import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
+import { TRANSFORMERS } from "@lexical/markdown";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { LinkNode } from "@lexical/link";
 import { CodeNode } from "@lexical/code";
@@ -18,10 +17,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { Theme } from "./_themes/themes";
 import ToolbarPlugin from "./_plugins/toolbar-plugin";
-import TreeViewPlugin from "./_plugins/tree-view-plugin";
-import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
-import env from "@packages/env";
 import { useRef } from "react";
 import OptionsDropdown from "./_plugins/options-dropdown";
 import { EditorState } from "lexical";
@@ -41,7 +37,6 @@ type Props = {
 
 export default function DocumentEditor({ documentId, elements }: Props) {
   console.log("elements: ", elements);
-  const isDarkTheme = useIsDarkTheme();
   const editorStateRef = useRef<EditorState>();
 
   return (
@@ -80,7 +75,10 @@ export default function DocumentEditor({ documentId, elements }: Props) {
           <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
           <RichTextPlugin
             contentEditable={
-              <ContentEditable className="resize-none outline-none pt-20 px-6 text-black dark:text-white " />
+              <ContentEditable
+                id="lexical-content"
+                className="resize-none outline-none pt-20 px-6 text-black dark:text-white "
+              />
             }
             placeholder={<Placeholder />}
             ErrorBoundary={LexicalErrorBoundary}

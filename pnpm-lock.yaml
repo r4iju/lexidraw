@@ -189,6 +189,9 @@ importers:
       date-fns:
         specifier: ^3.3.1
         version: 3.3.1
+      dom-to-svg:
+        specifier: ^0.12.2
+        version: 0.12.2
       dompurify:
         specifier: ^3.0.8
         version: 3.0.9
@@ -6847,6 +6850,14 @@ packages:
       entities: 4.5.0
     dev: true
 
+  /dom-to-svg@0.12.2:
+    resolution: {integrity: sha512-zVlswIYMj3669dUfErBszLcYOy+NzPEFhMezdzLVaqFcaj7VQecS0o8r9bqzBSczDtex2X/4HMZktFoj4EDqOA==}
+    dependencies:
+      gradient-parser: 1.0.2
+      postcss: 8.4.35
+      postcss-value-parser: 4.2.0
+    dev: false
+
   /domelementtype@2.3.0:
     resolution: {integrity: sha512-OLETBj6w0OsagBwdXnPdN0cnMfF9opN69co+7ZrbfPGrdpPVNBUj02spi6B1N7wChLQiPn4CSH/zJvXw56gmHw==}
     dev: true
@@ -8184,6 +8195,11 @@ packages:
 
   /graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  /gradient-parser@1.0.2:
+    resolution: {integrity: sha512-gR6nY33xC9yJoH4wGLQtZQMXDi6RI3H37ERu7kQCVUzlXjNedpZM7xcA489Opwbq0BSGohtWGsWsntupmxelMg==}
+    engines: {node: '>=0.10.0'}
+    dev: false
 
   /graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}

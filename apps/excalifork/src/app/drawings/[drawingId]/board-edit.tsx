@@ -4,7 +4,6 @@ import {
   Excalidraw,
   exportToSvg,
   LiveCollaborationTrigger,
-  THEME,
 } from "@excalidraw/excalidraw";
 import type {
   ExcalidrawElement,
@@ -28,7 +27,7 @@ import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
-import { type MessageStructure } from "@packages/types";
+import { Theme, type MessageStructure } from "@packages/types";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
@@ -202,7 +201,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         appState: JSON.stringify({
           ...appState,
           openDialog: null,
-          theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
+          theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
         } satisfies AppState),
         elements: JSON.stringify(elements),
       },
@@ -250,13 +249,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     appState,
   }: ExportAsSvgProps) => {
     await Promise.all(
-      [THEME.DARK, THEME.LIGHT].map(async (theme) => {
+      [Theme.DARK, Theme.LIGHT].map(async (theme) => {
         const svg = await exportToSvg({
           elements,
           appState: {
             ...appState,
             theme: theme,
-            exportWithDarkMode: theme === THEME.DARK ? true : false,
+            exportWithDarkMode: theme === Theme.DARK ? true : false,
           },
           files: null,
           exportPadding: 10,
@@ -301,7 +300,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       appState: appState
         ? ({
             ...appState,
-            theme: isDarkTheme ? THEME.DARK : THEME.LIGHT, // Ensure the theme matches the site's theme
+            theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
             exportWithDarkMode: false,
             exportBackground: false,
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -310,7 +309,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
               : new Map(),
           } satisfies AppState)
         : ({
-            theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
+            theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
             exportWithDarkMode: false,
             exportBackground: false,
           } satisfies Partial<AppState>),
@@ -336,7 +335,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // switching dark-light mode
   useEffect(() => {
     excalidrawApi.current?.updateScene({
-      appState: { theme: isDarkTheme ? THEME.DARK : THEME.LIGHT },
+      appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
     });
   }, [isDarkTheme]);
 

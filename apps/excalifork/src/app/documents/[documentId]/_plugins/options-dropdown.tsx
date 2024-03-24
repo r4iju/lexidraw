@@ -17,6 +17,8 @@ import {
   DropdownMenuSeparator,
 } from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
+import { exportLexicalAsSvg } from "./export-svg";
+import { Theme } from "@packages/types";
 
 type Props = {
   documentId: string;
@@ -25,17 +27,37 @@ type Props = {
 
 export default function OptionsDropdown({ state, documentId }: Props) {
   const { mutate: save } = api.entities.save.useMutation();
+  const { mutate: saveSvg } = api.snapshot.create.useMutation();
+
+  const exportDrawingAsSvg = async () => {
+    const svgString = exportLexicalAsSvg();
+    [Theme.DARK, Theme.LIGHT].map(async (theme) => {
+      saveSvg({
+        entityId: documentId,
+        svg: svgString,
+        theme: theme,
+      });
+    });
+  };
+
   const handleSave = () => {
     if (!state.current) {
       console.error("No state to save");
       return;
     }
     console.log(JSON.stringify(state.current!));
-    save({
-      id: documentId,
-      elements: JSON.stringify(state.current!),
-      entityType: "document",
-    });
+    save(
+      {
+        id: documentId,
+        elements: JSON.stringify(state.current!),
+        entityType: "document",
+      },
+      {
+        onSuccess: async () => {
+          await exportDrawingAsSvg();
+        },
+      },
+    );
   };
 
   return (
