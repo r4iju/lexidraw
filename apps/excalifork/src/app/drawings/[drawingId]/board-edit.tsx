@@ -2,8 +2,8 @@
 
 import {
   Excalidraw,
-  exportToSvg,
   LiveCollaborationTrigger,
+  MainMenu,
 } from "@excalidraw/excalidraw";
 import type {
   ExcalidrawElement,
@@ -28,6 +28,11 @@ import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { Theme, type MessageStructure } from "@packages/types";
+import DrawingBoardMenu from "./dropdown";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+} from "@radix-ui/react-dropdown-menu";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
@@ -52,13 +57,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // server state
   const { mutate: save, isLoading: isSaving } = api.entities.save.useMutation();
   // local state
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
-  // thumbnails
-  const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
   const updateElementsRef = useCallback(
     (currentElements: Map<string, ExcalidrawElement>) => {
@@ -189,40 +193,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [updateElementsRef],
   );
 
-  const saveToBackend = async () => {
-    if (!excalidrawApi.current) return;
-    const elements =
-      excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
-    const appState: AppState = excalidrawApi.current.getAppState();
-    save(
-      {
-        id: drawing.id,
-        entityType: "drawing",
-        appState: JSON.stringify({
-          ...appState,
-          openDialog: null,
-          theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
-        } satisfies AppState),
-        elements: JSON.stringify(elements),
-      },
-      {
-        onSuccess: async () => {
-          toast({
-            title: "Saved!",
-          });
-          await exportDrawingAsSvg({ elements: elements, appState });
-        },
-        onError: (err) => {
-          toast({
-            title: "Something went wrong!",
-            description: err.message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
-
   const handleToggleLiveCollaboration = async () => {
     if (drawing.publicAccess === "PRIVATE" && drawing.sharedWith.length === 0) {
       toast({
@@ -237,41 +207,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     } else {
       await initializeConnection();
     }
-  };
-
-  type ExportAsSvgProps = {
-    elements: readonly ExcalidrawElement[];
-    appState: AppState;
-  };
-
-  const exportDrawingAsSvg = async ({
-    elements,
-    appState,
-  }: ExportAsSvgProps) => {
-    await Promise.all(
-      [Theme.DARK, Theme.LIGHT].map(async (theme) => {
-        const svg = await exportToSvg({
-          elements,
-          appState: {
-            ...appState,
-            theme: theme,
-            exportWithDarkMode: theme === Theme.DARK ? true : false,
-          },
-          files: null,
-          exportPadding: 10,
-          renderEmbeddables: true,
-          exportingFrame: null,
-        });
-
-        // convert it to string
-        const svgString = new XMLSerializer().serializeToString(svg);
-        saveSvg({
-          entityId: drawing.id,
-          svg: svgString,
-          theme: theme,
-        });
-      }),
-    );
   };
 
   const onChange = (
@@ -317,14 +252,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
     UIOptions: {
       canvasActions: {
-        // export: {
-        //   onExportToBackend(exportedElements, appState) {
-        //     void saveToBackend({
-        //       exportedElements: [...exportedElements],
-        //       appState,
-        //     });
-        //   },
-        // },
         toggleTheme: false,
       },
     },
@@ -359,17 +286,26 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             <LiveCollaborationTrigger
               isCollaborating={isCollaborating}
               onSelect={handleToggleLiveCollaboration}
+              className="hidden md:inline-block"
             >
               <Badge variant="default">{peers.length + 1}</Badge>
             </LiveCollaborationTrigger>
-            <Button onClick={saveToBackend} disabled={isSaving}>
+            {/* <Button onClick={saveToBackend} disabled={isSaving}>
               {!isSaving && <CommitIcon className=" h-4 w-4 " />}
               {isSaving && <ReloadIcon className=" h-4 w-4 animate-spin" />}
-            </Button>
-            <ModeToggle />
+            </Button> */}
+            <ModeToggle className="hidden md:inline-block" />
           </>
         )}
-      />
+      >
+        <MainMenu>
+          <DrawingBoardMenu
+            isMenuOpen={isMenuOpen}
+            drawing={drawing}
+            excalidrawApi={excalidrawApi}
+          />
+        </MainMenu>
+      </Excalidraw>
     </div>
   );
 };

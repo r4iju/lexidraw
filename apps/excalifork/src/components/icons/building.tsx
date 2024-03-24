@@ -1,4 +1,4 @@
-export function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
+export function AppIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -8,21 +8,13 @@ export function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      className="brush"
     >
-      <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
-      <path d="M9 22v-4h6v4" />
-      <path d="M8 6h.01" />
-      <path d="M16 6h.01" />
-      <path d="M12 6h.01" />
-      <path d="M12 10h.01" />
-      <path d="M12 14h.01" />
-      <path d="M16 10h.01" />
-      <path d="M16 14h.01" />
-      <path d="M8 10h.01" />
-      <path d="M8 14h.01" />
+      <path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08" />
+      <path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z" />
     </svg>
   );
 }

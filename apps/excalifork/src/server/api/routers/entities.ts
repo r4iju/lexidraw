@@ -78,6 +78,7 @@ export const entityRouter = createTRPCRouter({
       const entities = await ctx.drizzle.select(
         {
           id: schema.entity.id,
+          title: schema.entity.title,
           appState: schema.entity.appState,
           elements: schema.entity.elements,
           entityType: schema.entity.entityType,
@@ -121,6 +122,7 @@ export const entityRouter = createTRPCRouter({
 
       return {
         id: entity.id,
+        title: entity.title,
         appState: entity.appState,
         elements: entity.elements,
         publicAccess: entity.publicAccess,
