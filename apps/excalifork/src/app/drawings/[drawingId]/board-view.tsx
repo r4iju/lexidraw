@@ -30,7 +30,9 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements }) => {
         ? ({
             ...appState,
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            collaborators: new Map(Object.entries(appState.collaborators)),
+            collaborators: appState.collaborators
+              ? new Map(Object.entries(appState.collaborators))
+              : new Map(),
           } satisfies UIAppState)
         : ({
             theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
