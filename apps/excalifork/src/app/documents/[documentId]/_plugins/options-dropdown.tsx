@@ -9,13 +9,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
+  DropdownMenuSeparator,
 } from "~/components/ui/dropdown-menu";
 import { EditorState } from "lexical";
 import { api } from "~/trpc/react";
-import {
-  DropdownMenuGroup,
-  DropdownMenuSeparator,
-} from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import { exportLexicalAsSvg } from "./export-svg";
 import { Theme } from "@packages/types";

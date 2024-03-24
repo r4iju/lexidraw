@@ -1,6 +1,6 @@
 import { UserIcon } from "lucide-react";
 import Link from "next/link";
-import { BuildingIcon } from "~/components/icons/building";
+import { AppIcon } from "~/components/icons/building";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { Button } from "~/components/ui/button";
 import {
@@ -17,7 +17,7 @@ export default async function Header() {
   return (
     <header className="sticky top-0 z-50 flex h-14 border-b border-gray-200 dark:border-gray-600 items-center justify-between bg-background py-2 px-4 shadow-md lg:px-6">
       <Link href="/" className="flex items-center justify-center">
-        <BuildingIcon className="h-6 w-6" />
+        <AppIcon className="h-6 w-6" />
         <span className="sr-only">An Excalidraw Demo</span>
       </Link>
       <nav>
