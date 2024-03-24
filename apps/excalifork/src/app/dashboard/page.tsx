@@ -40,7 +40,7 @@ export default async function LandingPage() {
   return (
     <main className="flex h-full flex-col overflow-auto pb-6">
       <div className="flex items-center justify-between p-4 lg:p-6">
-        <h1 className="text-xl font-bold">My Drawings</h1>
+        <h1 className="text-xl font-bold">Drawings and documents</h1>
         <NewEntity />
       </div>
       <div className="flex-1  md:container">
@@ -64,10 +64,7 @@ export default async function LandingPage() {
                   />
                 </div>
                 <div className="flex w-full justify-between gap-4">
-                  <EntityTitle
-                    entity={entity}
-                    onTitleChange={refetch}
-                  />
+                  <EntityTitle entity={entity} onTitleChange={refetch} />
                 </div>
                 <Thumbnail entity={entity} />
                 <Button className="mt-2 w-full" asChild>
