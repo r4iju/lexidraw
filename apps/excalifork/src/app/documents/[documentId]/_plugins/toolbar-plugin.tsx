@@ -1,14 +1,18 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { mergeRegister } from "@lexical/utils";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import {
   $getSelection,
   $isRangeSelection,
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
+  ElementFormatType,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
+  LexicalCommand,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
+  TextFormatType,
   UNDO_COMMAND,
 } from "lexical";
 import {
@@ -18,6 +22,7 @@ import {
   AlignRightIcon,
   BoldIcon,
   CodeIcon,
+  CrossIcon,
   ItalicIcon,
   RedoIcon,
   StrikethroughIcon,
@@ -25,11 +30,107 @@ import {
   UndoIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as React from "react";
+import { ElementType } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { Button } from "~/components/ui/button";
 
 const LowPriority = 1;
+
+type ActionOption = "redo" | "undo";
+const actionOptions: readonly {
+  action: ActionOption;
+  command: LexicalCommand<void>;
+}[] = [
+  { action: "undo", command: UNDO_COMMAND },
+  { action: "redo", command: REDO_COMMAND },
+] as const;
+
+type ElementOption = Extract<
+  ElementFormatType,
+  "left" | "center" | "right" | "justify"
+>;
+const elementFormats: readonly {
+  action: ElementOption;
+  command: LexicalCommand<string>;
+}[] = [
+  {
+    action: "left",
+    command: FORMAT_ELEMENT_COMMAND,
+  },
+  {
+    action: "center",
+    command: FORMAT_ELEMENT_COMMAND,
+  },
+  {
+    action: "right",
+    command: FORMAT_ELEMENT_COMMAND,
+  },
+  {
+    action: "justify",
+    command: FORMAT_ELEMENT_COMMAND,
+  },
+] as const;
+
+type TextOption = Extract<
+  TextFormatType,
+  "bold" | "underline" | "strikethrough" | "italic" | "code"
+>;
+const textFormats: readonly {
+  action: TextOption;
+  command: LexicalCommand<string>;
+}[] = [
+  {
+    action: "bold",
+    command: FORMAT_TEXT_COMMAND,
+  },
+  {
+    action: "underline",
+    command: FORMAT_TEXT_COMMAND,
+  },
+  {
+    action: "strikethrough",
+    command: FORMAT_TEXT_COMMAND,
+  },
+  {
+    action: "italic",
+    command: FORMAT_TEXT_COMMAND,
+  },
+  {
+    action: "code",
+    command: FORMAT_TEXT_COMMAND,
+  },
+] as const;
+
+type Option = ElementOption | ActionOption | TextOption;
+
+const getIconComponent = (option: Option) => {
+  switch (option) {
+    case "undo":
+      return UndoIcon;
+    case "redo":
+      return RedoIcon;
+    case "bold":
+      return BoldIcon;
+    case "italic":
+      return ItalicIcon;
+    case "underline":
+      return UnderlineIcon;
+    case "strikethrough":
+      return StrikethroughIcon;
+    case "code":
+      return CodeIcon;
+    case "left":
+      return AlignLeftIcon;
+    case "center":
+      return AlignCenterIcon;
+    case "right":
+      return AlignRightIcon;
+    case "justify":
+      return AlignJustifyIcon;
+    default:
+      console.error(`Invalid option: ${option satisfies never}`);
+      return CrossIcon;
+  }
+};
 
 function Divider() {
   return <div className="w-[1px] bg-gray-200 my-0 mx-1" />;
@@ -37,26 +138,25 @@ function Divider() {
 
 export default function ToolbarPlugin() {
   const [editor] = useLexicalComposerContext();
-  const toolbarRef = useRef(null);
+  const isDarkTheme = useIsDarkTheme();
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [isUnderline, setIsUnderline] = useState(false);
-  const [isStrikethrough, setIsStrikethrough] = useState(false);
-  const [isCode, setIsCode] = useState(false);
-  const [isLeft, setIsLeft] = useState(false);
-  const isDarkTheme = useIsDarkTheme();
+  const [toggledValues, setToggledValues] = useState<TextOption[]>([]);
+  const [toggledStyle, setToggledStyle] = useState<ElementOption>("left");
 
   const updateToolbar = useCallback(() => {
     const selection = $getSelection();
     if ($isRangeSelection(selection)) {
-      // Update text format
-      setIsBold(selection.hasFormat("bold"));
-      setIsItalic(selection.hasFormat("italic"));
-      setIsUnderline(selection.hasFormat("underline"));
-      setIsStrikethrough(selection.hasFormat("strikethrough"));
-      setIsCode(selection.hasFormat("code"));
+      // should update toggledValues
+      for (const text of textFormats) {
+        if (selection.hasFormat(text.action)) {
+          setToggledValues((prev) => [...prev, text.action]);
+        } else {
+          setToggledValues((prev) =>
+            prev.filter((value) => value !== text.action),
+          );
+        }
+      }
     }
   }, []);
 
@@ -93,151 +193,124 @@ export default function ToolbarPlugin() {
       ),
     );
   }, [editor, updateToolbar]);
-  return (
-    <div
-      className="flex gap-3 px-4 py-2 bg-white backdrop-blur-lg shadow-lg dark:border-slate-600 dark:bg-zinc-800 rounded-lg"
-      ref={toolbarRef}
+
+  const onValueChange = useCallback(
+    (newValues: TextOption[]) => {
+      // diff
+      console.log("newValues: ", newValues);
+      const newlyToggled = newValues.filter(
+        (value) => !toggledValues.includes(value),
+      );
+      console.log("newlyToggled: ", newlyToggled);
+      const untoggled = toggledValues.filter(
+        (value) => !newValues.includes(value),
+      );
+      console.log("untoggled: ", untoggled);
+      for (const value of [...newlyToggled, ...untoggled]) {
+        const text = textFormats.find((option) => option.action === value);
+        if (text) {
+          editor.dispatchCommand(text.command, value);
+        }
+      }
+      setToggledValues(newValues);
+    },
+    [editor, toggledValues],
+  );
+
+  const onActionChange = useCallback(
+    (value: ActionOption) => {
+      console.log("value: ", value);
+      const action = actionOptions.find((option) => option.action === value);
+      if (action) {
+        editor.dispatchCommand(action.command, undefined);
+      }
+    },
+    [editor, toggledValues],
+  );
+
+  const onStyleChange = useCallback(
+    (newStyle: ElementOption) => {
+      const elementStyle = elementFormats.find(
+        (option) => option.action === newStyle,
+      );
+      if (elementStyle) {
+        editor.dispatchCommand(elementStyle.command, elementStyle.action);
+      }
+      setToggledStyle(newStyle);
+    },
+    [editor, toggledValues],
+  );
+
+  const renderToggleButton = <T extends Option>(
+    value: T,
+    IconComponent: ElementType,
+    ariaLabel: string,
+  ) => (
+    <ToggleGroupItem
+      key={value}
+      className="px-1 py-0.5"
+      disabled={
+        (value === "undo" && !canUndo) || (value === "redo" && !canRedo)
+      }
+      value={value}
+      aria-label={ariaLabel}
     >
-      <Button
-        disabled={!canUndo}
-        variant={"outline"}
-        size="sm"
-        onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
-        className="disabled:opacity-50 p-2 rounded-lg cursor-pointer"
+      <IconComponent
+        className="w-4 h-4"
+        color={isDarkTheme ? "white" : "black"}
+      />
+    </ToggleGroupItem>
+  );
+
+  return (
+    <div className="flex flex-row px-4 py-2 gap-2 bg-white backdrop-blur-lg shadow-lg dark:border-slate-300 dark:bg-black rounded-lg">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        value=""
+        onValueChange={onActionChange}
       >
-        <UndoIcon className="w-4 h-4" color={isDarkTheme ? "white" : "black"} />
-      </Button>
-      <Button
-        disabled={!canRedo}
-        variant={"outline"}
-        size="sm"
-        onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
-        className="disabled:opacity-50 p-2 rounded-lg cursor-pointer"
-      >
-        <RedoIcon className="w-4 h-4" color={isDarkTheme ? "white" : "black"} />
-      </Button>
+        {actionOptions.map((action) => {
+          const IconComponent = getIconComponent(action.action);
+          return renderToggleButton<ActionOption>(
+            action.action,
+            IconComponent,
+            action.action,
+          );
+        })}
+      </ToggleGroup>
       <Divider />
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
-        }}
-        variant={"outline"}
-        size="sm"
-        className={`p-2 rounded-lg cursor-pointer ${isBold ? "" : "opacity-50"}`}
-        aria-label="Format Bold"
+      <ToggleGroup
+        type="multiple"
+        variant="outline"
+        value={toggledValues}
+        onValueChange={onValueChange}
       >
-        <BoldIcon className="w-4 h-4" color={isDarkTheme ? "white" : "black"} />
-      </Button>
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
-        }}
-        variant={"outline"}
-        size="sm"
-        className={`p-2 rounded-lg cursor-pointer ${isItalic ? "" : "opacity-50"}`}
-        aria-label="Format Italics"
-      >
-        <ItalicIcon
-          className="w-4 h-4"
-          color={isDarkTheme ? "white" : "black"}
-        />
-      </Button>
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
-        }}
-        variant={"outline"}
-        size="sm"
-        className={`p-2 rounded-lg cursor-pointer ${isUnderline ? "" : "opacity-50"}`}
-      >
-        <UnderlineIcon
-          className="w-4 h-4"
-          color={isDarkTheme ? "white" : "black"}
-        />
-      </Button>
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough");
-        }}
-        variant={"outline"}
-        size="sm"
-        className={`p-2 rounded-lg cursor-pointer ${isStrikethrough ? "" : "opacity-50"}`}
-        aria-label="Format Strikethrough"
-      >
-        <StrikethroughIcon
-          className="w-4 h-4"
-          color={isDarkTheme ? "white" : "black"}
-        />
-      </Button>
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
-        }}
-        variant={"outline"}
-        size="sm"
-        className={`p-2 rounded-lg cursor-pointer ${isCode ? "" : "opacity-50"}`}
-        aria-label="Format code"
-      >
-        <CodeIcon className="w-4 h-4" color={isDarkTheme ? "white" : "black"} />
-      </Button>
+        {textFormats.map((text) => {
+          const IconComponent = getIconComponent(text.action);
+          return renderToggleButton<TextOption>(
+            text.action,
+            IconComponent,
+            text.action,
+          );
+        })}
+      </ToggleGroup>
       <Divider />
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "left");
-        }}
-        variant={"outline"}
-        size="sm"
-        className="p-2 rounded-lg cursor-pointer"
-        aria-label="Left Align"
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        value={toggledStyle}
+        onValueChange={onStyleChange}
       >
-        <AlignLeftIcon
-          className="w-4 h-4"
-          color={isDarkTheme ? "white" : "black"}
-        />
-      </Button>
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "center");
-        }}
-        variant={"outline"}
-        size="sm"
-        className="p-2 rounded-lg cursor-pointer"
-        aria-label="Center Align"
-      >
-        <AlignCenterIcon
-          className="w-4 h-4"
-          color={isDarkTheme ? "white" : "black"}
-        />
-      </Button>
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "right");
-        }}
-        variant={"outline"}
-        size="sm"
-        className="p-2 rounded-lg cursor-pointer"
-        aria-label="Right Align"
-      >
-        <AlignRightIcon
-          className="w-4 h-4"
-          color={isDarkTheme ? "white" : "black"}
-        />
-      </Button>
-      <Button
-        onClick={() => {
-          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "justify");
-        }}
-        variant={"outline"}
-        size="sm"
-        className="p-2 rounded-lg cursor-pointer"
-        aria-label="Justify Align"
-      >
-        <AlignJustifyIcon
-          className="w-4 h-4"
-          color={isDarkTheme ? "white" : "black"}
-        />
-      </Button>
-      {""}
+        {elementFormats.map((element) => {
+          const IconComponent = getIconComponent(element.action);
+          return renderToggleButton<ElementOption>(
+            element.action,
+            IconComponent,
+            element.action,
+          );
+        })}
+      </ToggleGroup>
     </div>
   );
 }
