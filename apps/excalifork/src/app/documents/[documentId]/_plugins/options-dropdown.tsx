@@ -17,13 +17,20 @@ import { api } from "~/trpc/react";
 import Link from "next/link";
 import { exportLexicalAsSvg } from "./export-svg";
 import { Theme } from "@packages/types";
+import { useToast } from "~/components/ui/use-toast";
 
 type Props = {
+  className?: string;
   documentId: string;
   state: MutableRefObject<EditorState | undefined>;
 };
 
-export default function OptionsDropdown({ state, documentId }: Props) {
+export default function OptionsDropdown({
+  className,
+  state,
+  documentId,
+}: Props) {
+  const { toast } = useToast();
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
@@ -53,6 +60,16 @@ export default function OptionsDropdown({ state, documentId }: Props) {
       {
         onSuccess: async () => {
           await exportDrawingAsSvg();
+          toast({
+            title: "Saved!",
+          });
+        },
+        onError: (error) => {
+          toast({
+            title: "Error saving",
+            description: error.message,
+            variant: "destructive",
+          });
         },
       },
     );
@@ -61,7 +78,7 @@ export default function OptionsDropdown({ state, documentId }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button className={className} variant="outline" size="icon">
           <HamburgerMenuIcon />
           <span className="sr-only">Open menu</span>
         </Button>
@@ -75,10 +92,24 @@ export default function OptionsDropdown({ state, documentId }: Props) {
         <DropdownMenuSeparator />
         <DropdownMenuGroup title="Document">
           <DropdownMenuItem onClick={handleSave}>Save</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => console.log("...")}>
+          <DropdownMenuItem
+            onClick={() =>
+              toast({
+                title: "Not implemented yet!",
+                variant: "destructive",
+              })
+            }
+          >
             Import from file
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => console.log("...")}>
+          <DropdownMenuItem
+            onClick={() =>
+              toast({
+                title: "Not implemented yet!",
+                variant: "destructive",
+              })
+            }
+          >
             Export to file
           </DropdownMenuItem>
         </DropdownMenuGroup>

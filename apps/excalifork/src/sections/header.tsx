@@ -1,6 +1,6 @@
 import { UserIcon } from "lucide-react";
 import Link from "next/link";
-import { AppIcon } from "~/components/icons/building";
+import { AppIcon } from "~/components/icons/app";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { Button } from "~/components/ui/button";
 import {

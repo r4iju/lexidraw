@@ -20,19 +20,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
-import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { CommitIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { Theme, type MessageStructure } from "@packages/types";
 import DrawingBoardMenu from "./dropdown";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@radix-ui/react-dropdown-menu";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
@@ -146,7 +140,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const debouncedSendUpdateRef = useRef(
     debounce(({ elements, appState }: SendUpdateProps) => {
       sendUpdate({ elements, appState });
-    }, 30),
+    }, 100),
   );
 
   const debouncedSaveRef = useRef(
@@ -286,15 +280,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             <LiveCollaborationTrigger
               isCollaborating={isCollaborating}
               onSelect={handleToggleLiveCollaboration}
-              className="hidden md:inline-block"
+              className="hidden md:flex"
             >
               <Badge variant="default">{peers.length + 1}</Badge>
             </LiveCollaborationTrigger>
-            {/* <Button onClick={saveToBackend} disabled={isSaving}>
-              {!isSaving && <CommitIcon className=" h-4 w-4 " />}
-              {isSaving && <ReloadIcon className=" h-4 w-4 animate-spin" />}
-            </Button> */}
-            <ModeToggle className="hidden md:inline-block" />
+            <ModeToggle className="hidden md:flex" />
           </>
         )}
       >
