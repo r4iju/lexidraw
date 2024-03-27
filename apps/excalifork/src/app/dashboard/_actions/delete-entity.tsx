@@ -1,6 +1,7 @@
 "use client";
 
 import { EntityType } from "@packages/types";
+import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -28,6 +29,7 @@ export default function DeleteDrawing({
   isOpen,
   onOpenChange,
 }: Props) {
+  const router = useRouter();
   const { mutate: remove, isLoading } = api.entities.delete.useMutation();
   const { toast } = useToast();
 
@@ -35,9 +37,10 @@ export default function DeleteDrawing({
     remove(
       { id: entity.id },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           toast({ title: "Removed!" });
-          revalidatePath();
+          await revalidatePath();
+          router.refresh();
         },
         onError: (error) => {
           toast({

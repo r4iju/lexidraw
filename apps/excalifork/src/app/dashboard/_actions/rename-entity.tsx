@@ -12,13 +12,15 @@ import {
 } from "@radix-ui/react-icons";
 import { useToast } from "~/components/ui/use-toast";
 import { RouterOutputs } from "~/trpc/shared";
+import { useRouter } from "next/navigation";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
-  onTitleChange: () => Promise<void>;
+  revalidatePath: () => Promise<void>;
 };
 
-const EntityTitle = ({ entity, onTitleChange }: Props) => {
+const EntityTitle = ({ entity, revalidatePath }: Props) => {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [newTitle, setNewTitle] = useState(entity.title);
   const { toast } = useToast();
@@ -31,7 +33,8 @@ const EntityTitle = ({ entity, onTitleChange }: Props) => {
       { id: entity.id, title: newTitle },
       {
         onSuccess: async () => {
-          await onTitleChange();
+          await revalidatePath();
+          router.refresh();
           toast({ title: "Saved!", description: newTitle });
           setIsEditing(false);
           setIsLoading(false);

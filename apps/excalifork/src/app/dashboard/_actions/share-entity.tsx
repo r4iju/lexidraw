@@ -24,6 +24,7 @@ import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
 import { type RouterOutputs } from "~/trpc/shared";
 import { Input } from "~/components/ui/input";
+import { useRouter } from "next/navigation";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -49,6 +50,7 @@ export default function ShareDrawing({
   isOpen,
   onOpenChange,
 }: Props) {
+  const router = useRouter();
   const [shareWith, setShareWith] = useState<string>("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>(AccessLevel.READ);
   const [publicAccess, setPublicAccess] = useState<PublicAccess>(
@@ -94,6 +96,7 @@ export default function ShareDrawing({
           setShareWith("");
           refetch();
           await revalidatePath();
+          router.refresh();
           toast({
             title: "Shared!",
           });
@@ -133,6 +136,7 @@ export default function ShareDrawing({
         onSuccess: async () => {
           refetch();
           await revalidatePath();
+          router.refresh();
           toast({
             title: "Access level changed!",
           });
@@ -148,6 +152,7 @@ export default function ShareDrawing({
         onSuccess: async () => {
           refetch();
           await revalidatePath();
+          router.refresh();
           toast({
             title: "Unshared!",
           });
@@ -164,6 +169,7 @@ export default function ShareDrawing({
         onSuccess: async () => {
           refetch();
           await revalidatePath();
+          router.refresh();
           toast({ title: "Saved!" });
         },
         onError: (error) => {

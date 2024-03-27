@@ -64,7 +64,7 @@ export default async function LandingPage() {
                   />
                 </div>
                 <div className="flex w-full justify-between gap-4">
-                  <EntityTitle entity={entity} onTitleChange={refetch} />
+                  <EntityTitle entity={entity} revalidatePath={refetch} />
                 </div>
                 <Thumbnail entity={entity} />
                 <Button className="mt-2 w-full" asChild>
