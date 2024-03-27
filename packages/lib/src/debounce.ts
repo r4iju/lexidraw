@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function debounce<F extends (...args: any[]) => void>(
   fn: F,
   delay: number,

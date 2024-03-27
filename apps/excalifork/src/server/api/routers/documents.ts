@@ -20,6 +20,7 @@ export const documentRouter = createTRPCRouter({
           userId: ctx.session?.user.id,
           entityType: "document",
           publicAccess: PublicAccess.PRIVATE,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           elements: input.elements,
         })
         .onConflictDoNothing()

@@ -23,12 +23,6 @@
     "lib": ["es2022"]
   },
 
-  "include": ["src"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "test",
-    "tsconfig.json",
-    "tsconfig.test.json"
-  ]
+  // "include": ["src", "test"],
+  "exclude": ["node_modules", "dist", "tsconfig.json", "tsconfig.test.json"]
 }

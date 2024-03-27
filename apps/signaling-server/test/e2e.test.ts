@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws'
-import { startServer } from '../src/server';
-import { WebRtcMessage } from '@packages/types';
+import { startServer } from '../src/server.js';
+import { MessageStructure, WebRtcMessage } from '@packages/types';
 import { expect, describe, beforeAll, afterAll, afterEach, test } from 'vitest';
 
 describe('WebSocket Server E2E Tests', () => {
@@ -91,12 +91,12 @@ describe('WebSocket Server E2E Tests', () => {
     const client2 = clients[1];
 
     client1!.on('message', (data: string) => {
-      const response = JSON.parse(data);
+      const response = JSON.parse(data) as MessageStructure;
       expect(response).toHaveProperty('type', 'join');
     });
 
     client2!.on('message', (data: string) => {
-      const response = JSON.parse(data);
+      const response = JSON.parse(data) as MessageStructure;
       expect(response).toHaveProperty('room', 'testRoom');
       expect(response).toHaveProperty('userId', userId1);
       expect(response).toHaveProperty('type', 'leave');

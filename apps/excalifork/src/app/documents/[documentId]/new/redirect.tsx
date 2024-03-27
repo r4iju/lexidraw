@@ -7,7 +7,7 @@ type Props = {
   documentId: string;
 };
 
-export default function redirect({ documentId }: Props) {
+export default function Redirect({ documentId }: Props) {
   const router = useRouter();
   router.push(`/documents/${documentId}`);
   return <></>;

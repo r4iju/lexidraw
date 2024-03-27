@@ -7,11 +7,11 @@ const withBundleAnalyzer = nextBundleAnalyzer.default({
 
 /** @type {import("next").NextConfig} */
 const config = {
-  experimental: {
-    serverComponentsExternalPackages: ["bcrypt"],
-  },
   webpack: (config, { isServer }) => {
     return config;
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
   },
   images: {
     dangerouslyAllowSVG: true,

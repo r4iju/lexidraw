@@ -1,5 +1,5 @@
-import { migrate } from 'drizzle-orm/mysql2/migrator';
-import { db } from './src/drizzle';
+import { migrate } from 'drizzle-orm/libsql/migrator';
+import { db } from './src/drizzle.js';
 
 // This will run migrations on the database, skipping the ones already applied
 await migrate(db, { migrationsFolder: './drizzle' });

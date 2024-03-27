@@ -14,6 +14,7 @@ import type {
   ExcalidrawImperativeAPI,
   ExcalidrawProps,
   BinaryFiles,
+  Collaborator,
 } from "@excalidraw/excalidraw/types/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -235,7 +236,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             collaborators: appState.collaborators
               ? new Map(Object.entries(appState.collaborators))
-              : new Map(),
+              : new Map<string, Collaborator>(),
           } satisfies AppState)
         : ({
             theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,

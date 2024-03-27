@@ -39,7 +39,6 @@ export default function ProfileForm({ user }: Props) {
 
   const onSubmit = async (data: ProfileSchema) => {
     saveProfile(data, {
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       onSuccess: async () => {
         toast({
           title: "Profile saved",
