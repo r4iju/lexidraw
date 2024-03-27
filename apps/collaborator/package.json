@@ -7,7 +7,7 @@
     "dev": "echo 'collaborator is disabled' # tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
-    "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
+    "lint": "TIMING=1 eslint \"**/*.{ts,js}\" --fix",
     "clean": "rm -rf ./dist && rm -rf .turbo",
     "test:ts": "tsc --noEmit"
   },
@@ -23,7 +23,7 @@
     "@packages/types": "workspace:*",
     "@types/ws": "^8.5.10",
     "eslint": "^8.57.0",
-    "tsx": "^4.7.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^7.4.0"
   }
 }

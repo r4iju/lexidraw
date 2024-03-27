@@ -10,7 +10,7 @@
     "build": "dotenv -e .env.production -- turbo run build",
     "dev": "dotenv -e .env.development -- turbo run dev",
     "start": "dotenv -e .env.production -- turbo run start",
-    "lint": "turbo run lint",
+    "lint": "dotenv -e .env.development -- turbo run lint",
     "clean": "turbo run clean",
     "db:pull": "dotenv -e .env.development -- turbo run db:pull",
     "db:push": "dotenv -e .env.development -- turbo run db:push",
@@ -20,8 +20,10 @@
   },
   "devDependencies": {
     "dotenv-cli": "latest",
-    "eslint": "^8.28.0",
+    "eslint": "^8.57.0",
     "eslint-config-turbo": "latest",
-    "turbo": "^1.8.3"
+    "turbo": "^1.8.3",
+    "typescript": "^5.4.3",
+    "typescript-eslint": "^7.4.0"
   }
 }

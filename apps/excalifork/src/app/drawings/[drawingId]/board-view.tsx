@@ -6,6 +6,7 @@ import {
   type UIAppState,
   type ExcalidrawImperativeAPI,
   type ExcalidrawProps,
+  type Collaborator,
 } from "@excalidraw/excalidraw/types/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
@@ -32,7 +33,7 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements }) => {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             collaborators: appState.collaborators
               ? new Map(Object.entries(appState.collaborators))
-              : new Map(),
+              : new Map<string, Collaborator>(),
           } satisfies UIAppState)
         : ({
             theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,

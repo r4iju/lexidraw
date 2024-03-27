@@ -87,7 +87,6 @@ export const {
 
         if (!isPasswordCorrect) return null;
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, ...user } = dbUser;
         return user;
       },

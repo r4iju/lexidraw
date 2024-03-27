@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { useFormContext, Controller } from 'react-hook-form';
+import React from "react";
+import { useFormContext, Controller } from "react-hook-form";
 
 interface RHFCheckboxProps {
   name: string;
@@ -73,7 +73,7 @@ export function RHFMultiCheckbox({
       render={({ field, fieldState: { error } }) => (
         <div>
           {label && <legend className="text-lg font-medium">{label}</legend>}
-          <div className={`flex ${row ? 'flex-row' : 'flex-col'}`}>
+          <div className={`flex ${row ? "flex-row" : "flex-col"}`}>
             {options.map((option) => (
               <label key={option.value} className="flex items-center space-x-2">
                 <input

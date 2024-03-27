@@ -6,7 +6,7 @@
   "scripts": {
     "build": "\\cp ./excalidraw-main.js ./node_modules/@excalidraw/excalidraw/main.js && ANALYZE=true next build",
     "dev": "next dev --port 3100",
-    "lint": "next lint",
+    "lint": "eslint './**/*.{ts,tsx}'",
     "test:ts": "tsc --noEmit",
     "start": "next start --port 3100"
   },
@@ -90,8 +90,6 @@
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/eslint-plugin": "^6.11.0",
-    "@typescript-eslint/parser": "^6.11.0",
     "autoprefixer": "^10.4.14",
     "drizzle-kit": "^0.20.14",
     "eslint": "^8.54.0",
@@ -101,7 +99,8 @@
     "prettier": "^3.1.0",
     "prettier-plugin-tailwindcss": "^0.5.7",
     "tailwindcss": "^3.3.5",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "typescript-eslint": "^7.4.0"
   },
   "packageManager": "pnpm@8.14.3"
 }

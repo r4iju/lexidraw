@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { type ReactNode } from 'react';
-import { useFormContext, Controller } from 'react-hook-form';
+import { type ReactNode } from "react";
+import { useFormContext, Controller } from "react-hook-form";
 
 interface RHFSwitchProps {
   name: string;
