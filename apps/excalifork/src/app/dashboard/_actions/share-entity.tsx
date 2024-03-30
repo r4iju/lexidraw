@@ -191,7 +191,7 @@ export default function ShareDrawing({
         </DialogHeader>
         <DialogDescription className="flex flex-col gap-6 py-4">
           <div className="gap-2">
-            <div className="h2 text-md font-semibold">Public link</div>
+            <div className="text-md font-semibold">Public link</div>
             <div>
               Please select the type of public access you want to give to this{" "}
               {entity.entityType}.
@@ -225,7 +225,7 @@ export default function ShareDrawing({
             </div>
           </div>
           <div className="gap-2">
-            <div className="h2 text-md font-semibold">Specific Users</div>
+            <div className="text-md font-semibold">Specific Users</div>
             <div>
               Share with individual users by entering their email address.
             </div>
@@ -265,7 +265,7 @@ export default function ShareDrawing({
             </div>
           </div>
           <div className="gap-2">
-            <div className="h2 text-md font-semibold">Shared with</div>
+            <div className="text-md font-semibold">Shared with</div>
             <span>
               The following users have access to this {entity.entityType}.
             </span>

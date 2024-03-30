@@ -53,7 +53,7 @@ export default function RootLayout({ children }: Props) {
               disableTransitionOnChange
             >
               {" "}
-              <div className="flex h-screen flex-col">
+              <div className="flex h-screen flex-col bg-background">
                 {children}
                 <Toaster />
               </div>
