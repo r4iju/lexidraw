@@ -13,6 +13,7 @@
   "dependencies": {
     "@auth/core": "^0.26.3",
     "@auth/drizzle-adapter": "^0.8.0",
+    "@dnd-kit/core": "^6.1.0",
     "@excalidraw/excalidraw": "^0.17.3",
     "@hookform/resolvers": "^3.3.4",
     "@lexical/code": "^0.13.1",
