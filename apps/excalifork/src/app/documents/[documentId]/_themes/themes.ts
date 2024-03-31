@@ -1,6 +1,6 @@
 import { EditorThemeClasses } from "lexical";
-import "./theme-default.css"
-import "./theme-dracula.css"
+// import "./theme-default.css"
+// import "./theme-dracula.css"
 
 export const Theme = {
   code: "code",

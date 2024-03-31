@@ -18,7 +18,7 @@ export default async function LandingPage() {
   return (
     <>
       <Header />
-      <main className="flex h-full flex-col flex-1">
+      <main className="flex h-full flex-col overflow-auto pb-6">
         <section id="about" className="w-full pt-12 md:pt-24 lg:pt-32">
           <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
             <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
