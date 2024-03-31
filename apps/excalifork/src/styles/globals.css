@@ -83,9 +83,13 @@
 }
 
 .lexical blockquote {
-  @apply block font-sans text-xl font-normal leading-relaxed text-inherit antialiased;
+  @apply block bg-gray-100 dark:bg-gray-100/[0.1] text-gray-100/[0.1] dark:text-gray-100 font-sans text-xl font-normal leading-relaxed antialiased;
 }
 
 .lexical code {
-  @apply rounded-md bg-gray-900/[0.1] px-1 py-0.5 text-sm font-normal text-gray-900;
+  @apply rounded-md dark:bg-gray-100/[0.1] dark:text-gray-100 bg-gray-100 px-1 py-0.5 text-sm font-normal text-gray-100/[0.1];
+}
+
+.code {
+  @apply rounded-md whitespace-pre block relative font-mono overflow-x-auto my-2 pl-8 pt-4 pb-2 text-sm font-normal bg-gray-100/[0.1] dark:bg-gray-100/[0.1];
 }
