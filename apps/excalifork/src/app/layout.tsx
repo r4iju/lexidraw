@@ -1,6 +1,6 @@
 import "~/styles/globals.css";
 
-import { Fredoka, Inter, Roboto_Mono } from "next/font/google";
+import { Fredoka, Inter, Anonymous_Pro } from "next/font/google";
 import { Toaster } from "~/components/ui/toaster";
 import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
@@ -13,10 +13,10 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const roboto_mono = Roboto_Mono({
+const mono = Anonymous_Pro({
+  weight: "700",
   subsets: ["latin"],
-  display: "swap",
-  variable: "--font-roboto-mono",
+  variable: "--font-mono",
 });
 
 const fredoka = Fredoka({
@@ -41,7 +41,7 @@ export default function RootLayout({ children }: Props) {
           "flex min-h-screen flex-col font-fredoka bg-background antialiased",
           fredoka.variable,
           inter.variable,
-          roboto_mono.variable,
+          mono.variable,
         )}
       >
         <SessionProvider>
