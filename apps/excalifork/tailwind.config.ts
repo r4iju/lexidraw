@@ -76,7 +76,7 @@ const config = {
       fontFamily: {
         fredoka: ["var(--font-fredoka)"],
         sans: ['var(--font-inter)'],
-        mono: ['var(--font-roboto-mono)'],
+        mono: ['var(--font-mono)'],
       },
     },
   },

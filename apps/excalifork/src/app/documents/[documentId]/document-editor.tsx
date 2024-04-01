@@ -21,6 +21,7 @@ import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { useRef } from "react";
 import OptionsDropdown from "./_plugins/options-dropdown";
 import { EditorState } from "lexical";
+// import { CustomCodeNode as CodeNode } from "./_plugins/custom-code-node";
 
 function Placeholder() {
   return (

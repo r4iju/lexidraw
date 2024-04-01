@@ -1,9 +1,9 @@
-import { EditorThemeClasses } from "lexical";
+import { type EditorThemeClasses } from "lexical";
 // import "./theme-default.css"
 // import "./theme-dracula.css"
 
 export const Theme = {
-  code: "code",
+  code: "rounded-md whitespace-pre block relative font-mono overflow-x-auto my-2 pl-8 py-4 bg-secondary dark:bg-secondary",
   codeHighlight: {
     atrule: "tokenAttr",
     attr: "tokenAttr",
@@ -37,12 +37,12 @@ export const Theme = {
     variable: "tokenVariable"
   },
   heading: {
-    h1: 'text-2xl font-bold mb-2',
-    h2: 'text-xl font-bold mb-2',
-    h3: 'text-lg font-bold mb-1',
-    h4: 'text-md font-bold mb-1',
-    h5: 'text-sm font-bold mb-0.5',
-    h6: 'text-xs font-bold mb-0.5',
+    h1: 'text-3xl font-semibold mb-2',
+    h2: 'text-2xl font-semibold mb-2',
+    h3: 'text-xl font-semibold mb-1',
+    h4: 'text-lg font-semibold mb-1',
+    h5: 'text-md font-semibold mb-0.5',
+    h6: 'text-sm font-semibold mb-0.5',
   },
   image: 'editor-image',
   link: 'inline-flex items-center font-medium text-blue-600 dark:text-blue-500 hover:underline',
@@ -65,7 +65,7 @@ export const Theme = {
   rtl: 'text-right',
   text: {
     bold: 'font-bold',
-    code: 'rounded-md bg-gray-100 dark:bg-gray-900 px-1 py-0.5 text-sm font-normal text-gray-900 dark:text-gray-100',
+    code: 'rounded-sm bg-secondary dark:bg-secondary px-2 py-1 font-mono text-gray-900 dark:text-gray-100',
     hashtag: 'editor-text-hashtag',
     italic: 'font-italic',
     overflowed: 'editor-text-overflowed',
