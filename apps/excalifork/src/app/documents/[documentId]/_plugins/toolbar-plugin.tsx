@@ -197,15 +197,12 @@ export default function ToolbarPlugin() {
   const onValueChange = useCallback(
     (newValues: TextOption[]) => {
       // diff
-      console.log("newValues: ", newValues);
       const newlyToggled = newValues.filter(
         (value) => !toggledValues.includes(value),
       );
-      console.log("newlyToggled: ", newlyToggled);
       const untoggled = toggledValues.filter(
         (value) => !newValues.includes(value),
       );
-      console.log("untoggled: ", untoggled);
       for (const value of [...newlyToggled, ...untoggled]) {
         const text = textFormats.find((option) => option.action === value);
         if (text) {
@@ -219,7 +216,6 @@ export default function ToolbarPlugin() {
 
   const onActionChange = useCallback(
     (value: ActionOption) => {
-      console.log("value: ", value);
       const action = actionOptions.find((option) => option.action === value);
       if (action) {
         editor.dispatchCommand(action.command, undefined);
