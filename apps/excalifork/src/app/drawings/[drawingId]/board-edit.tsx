@@ -130,9 +130,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         entityId: drawing.id,
         payload: {
           elements,
-          appState,
+          appState: appState,
         },
-      } satisfies MessageStructure);
+      } as MessageStructure);
     },
     [drawing.id, sendMessage, userId],
   );
