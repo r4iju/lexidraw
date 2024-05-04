@@ -6,9 +6,19 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/typ
 import { AccessLevel } from "@packages/types";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
+import { Metadata } from "next";
 
 export const runtime = "edge";
 export const fetchCache = "force-no-store";
+
+export const metadata: Metadata = {
+  title: "Excalifork | drawing",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black",
+    title: "Excalifork",
+  },
+};
 
 const ViewBoard = dynamicImport(() => import("./board-view"), { ssr: false });
 const EditBoard = dynamicImport(() => import("./board-edit"), { ssr: false });

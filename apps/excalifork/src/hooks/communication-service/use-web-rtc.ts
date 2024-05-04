@@ -33,13 +33,15 @@ export function useWebRtcService(
     const peerConnection = setupPeerConnection(clientId);
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
-    websocket.current?.send(JSON.stringify({
-      room: drawingId,
-      to: clientId,
-      from: userId,
-      type: 'offer',
-      offer: JSON.stringify(offer)
-    } satisfies WebRtcMessage));
+    if (websocket.current?.OPEN) {
+      websocket.current?.send(JSON.stringify({
+        room: drawingId,
+        to: clientId,
+        from: userId,
+        type: 'offer',
+        offer: JSON.stringify(offer)
+      } satisfies WebRtcMessage));
+    }
   }, []);
 
   const handleRemoteOffer = useCallback(async (clientId: string, offer: string) => {
@@ -49,13 +51,15 @@ export function useWebRtcService(
       await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer) as RTCSessionDescriptionInit));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
-      websocket.current?.send(JSON.stringify({
-        room: drawingId,
-        from: userId,
-        to: clientId,
-        type: 'answer',
-        answer: JSON.stringify(answer)
-      } satisfies WebRtcMessage));
+      if (websocket.current?.OPEN) {
+        websocket.current?.send(JSON.stringify({
+          room: drawingId,
+          from: userId,
+          to: clientId,
+          type: 'answer',
+          answer: JSON.stringify(answer)
+        } satisfies WebRtcMessage));
+      }
     } catch (error) {
       console.error("Failed to handle remote offer:", error);
     }
@@ -99,8 +103,7 @@ export function useWebRtcService(
     const conn = new RTCPeerConnection(config);
 
     conn.onicecandidate = event => {
-      if (event.candidate && websocket) {
-        //change to to: and from: 
+      if (event.candidate && websocket.current?.OPEN) {
         websocket.current?.send(JSON.stringify({
           room: drawingId,
           to: clientId,
@@ -144,6 +147,15 @@ export function useWebRtcService(
   }, [drawingId, userId, iceServers, onMessage, onConnectionOpen]);
 
   const initializeConnection = useCallback(async () => {
+    // check if we're already connected or if we're connecting
+    if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
+      console.log('Already connected');
+      return;
+    }
+    if (websocket.current && websocket.current.readyState === WebSocket.CONNECTING) {
+      console.log('Already connecting');
+      return;
+    }
     console.log('Initializing WebSocket connection');
 
     const ws = new WebSocket(env.NEXT_PUBLIC_WS_SERVER);
@@ -200,7 +212,6 @@ export function useWebRtcService(
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-
   }, [drawingId, handleIceCandidate, handleRemoteAnswer, handleRemoteOffer, reconnectionAttempts, setupPeerConnection, shouldReconnect, toast, userId]);
 
   const closeConnection = useCallback(() => {

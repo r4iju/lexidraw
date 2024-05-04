@@ -88,12 +88,15 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     (message: MessageStructure) => {
       switch (message.type) {
         case "update":
-          applyUpdate(message.payload);
+          if (message.entityType === "drawing") {
+            applyUpdate(message.payload);
+          }
           break;
       }
     },
     [applyUpdate],
   );
+
   const { sendMessage, initializeConnection, closeConnection, peers } =
     useWebRtcService(
       {
@@ -123,7 +126,8 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       void sendMessage({
         type: "update",
         userId: userId,
-        drawingId: drawing.id,
+        entityType: "drawing",
+        entityId: drawing.id,
         payload: {
           elements,
           appState,
