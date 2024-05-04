@@ -56,7 +56,7 @@ const DrawingMessageStructure = z.object({
   }),
 });
 
-type DrawingMessageStructure = {
+export type DrawingMessageStructure = {
   type: "update";
   entityType: "drawing";
   timestamp?: object | number | null;
