@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { DotsHorizontalIcon, Link1Icon } from "@radix-ui/react-icons";
-import { CODE_LANGUAGE_MAP, CodeNode } from "@lexical/code";
+import { CODE_LANGUAGE_MAP, CodeNode as OriginalCodeNode } from "@lexical/code";
 
 function SelectLanguage() {
   const handleSelect = (language: string) => {
@@ -41,6 +41,6 @@ function SelectLanguage() {
 }
 
 
-export class CustomCodeNode extends CodeNode {
+export class CodeNode extends OriginalCodeNode {
   toolbarComponent = SelectLanguage;
 }

@@ -9,11 +9,15 @@ import { MoreActions } from "./_actions/more-actions";
 import { Thumbnail } from "./thumbnail";
 import { EntityType, PublicAccess } from "@packages/types";
 import { NewEntity } from "./_actions/new-entity";
+import type { Metadata, ResolvingMetadata } from "next";
 
-export const metadata = {
-  title: "An Excalidraw App | My drawings",
-  description:
-    "This is a demo of the excalidraw tool. It is a collaborative online drawing and diagramming tool.",
+export const metadata: Metadata = {
+  title: "Excalifork | Dashboard",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black",
+    title: "Excalifork",
+  },
 };
 
 export const dynamic = "force-dynamic";

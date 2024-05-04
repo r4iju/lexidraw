@@ -4,22 +4,42 @@ import { type AppState } from "@excalidraw/excalidraw/types/types.js";
 export * from "./helpers.js";
 export * from "./enums.js";
 
-export type MessageStructure = {
-  type: "update";
-  timestamp?: object | number | null;
-  userId: string;
-  drawingId: string;
-  payload: {
-    elements: readonly ExcalidrawElement[];
-    appState: AppState;
-  };
-};
+type DocumentPayload = {
+  elements: string;
+  appState?: null;
+}
 
-export const MessageStructure = z.object({
+type DrawingPayload = {
+  elements: readonly ExcalidrawElement[];
+  appState: AppState;
+}
+
+const DocumentMessageStructure = z.object({
   type: z.literal("update"),
+  entityType: z.literal("document"),
   timestamp: z.object({}).optional().nullable(),
   userId: z.string(),
-  drawingId: z.string(),
+  entityId: z.string(),
+  payload: z.object({
+    elements: z.string(),
+  }),
+});
+
+type DocumentMessageStructure = {
+  type: "update";
+  entityType: "document";
+  timestamp?: object | number | null;
+  userId: string;
+  entityId: string;
+  payload: DocumentPayload;
+};
+
+const DrawingMessageStructure = z.object({
+  type: z.literal("update"),
+  entityType: z.literal("drawing"),
+  timestamp: z.object({}).optional().nullable(),
+  userId: z.string(),
+  entityId: z.string(),
   payload: z.object({
     elements: z.array(z.object({
       type: z.string(),
@@ -35,6 +55,19 @@ export const MessageStructure = z.object({
     }),
   }),
 });
+
+type DrawingMessageStructure = {
+  type: "update";
+  entityType: "drawing";
+  timestamp?: object | number | null;
+  userId: string;
+  entityId: string;
+  payload: DrawingPayload;
+};
+
+export type MessageStructure = DocumentMessageStructure | DrawingMessageStructure;
+
+export const MessageStructure = z.union([DocumentMessageStructure, DrawingMessageStructure]);
 
 export type WebRtcMessage =
   | {

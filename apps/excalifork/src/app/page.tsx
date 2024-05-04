@@ -4,13 +4,19 @@ import Image from "~/components/image/image";
 import { auth } from "~/server/auth";
 import Header from "~/sections/header";
 import Footer from "~/sections/footer";
+import { Metadata } from "next";
 
 export const runtime = "edge";
 
-export const metadata = {
-  title: "An excalidraw demo",
+export const metadata: Metadata = {
+  title: "Excalifork",
   description:
     "This is a demo of the excalidraw tool. It is a collaborative online drawing and diagramming tool.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black",
+    title: "Excalifork",
+  },
 };
 
 export default async function LandingPage() {

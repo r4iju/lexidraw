@@ -24,7 +24,7 @@ export const useFirestoreService = (
           elements: message.payload.elements,
           appState: {
             ...message.payload.appState,
-            collaborators: Object.fromEntries(message.payload.appState.collaborators.entries()),
+            collaborators: Object.fromEntries(message.payload.appState?.collaborators.entries() ?? new Map()),
           },
         }
       }, {
