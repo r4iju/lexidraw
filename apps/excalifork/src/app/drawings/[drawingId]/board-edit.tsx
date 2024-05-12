@@ -17,7 +17,7 @@ import type {
   Collaborator,
 } from "@excalidraw/excalidraw/types/types";
 import type { RouterOutputs } from "~/trpc/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
@@ -54,6 +54,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // local state
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
+  const canCollaborate = useMemo(() => {
+    return drawing.publicAccess !== "PRIVATE" || drawing.sharedWith.length > 0;
+  }, [drawing.publicAccess, drawing.sharedWith, userId]);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
@@ -192,22 +195,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [updateElementsRef],
   );
 
-  const handleToggleLiveCollaboration = async () => {
-    if (drawing.publicAccess === "PRIVATE" && drawing.sharedWith.length === 0) {
-      toast({
-        title: "This drawing is private",
-        description: "You can't collaborate on private drawings",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (isCollaborating) {
-      closeConnection();
-    } else {
-      await initializeConnection();
-    }
-  };
-
   const onChange = (
     elements: readonly ExcalidrawElement[],
     state: AppState,
@@ -255,7 +242,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       },
     },
     onChange: onChange,
-    // isCollaborating: true,
   } satisfies ExcalidrawProps;
 
   // switching dark-light mode
@@ -265,10 +251,24 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     });
   }, [isDarkTheme]);
 
+  // trigger live collaboration on mount
+  useEffect(() => {
+    console.log("canCollaborate", canCollaborate);
+    if (!isCollaborating && canCollaborate) {
+      initializeConnection()
+        .then(() => {
+          console.log("connection initialized");
+        })
+        .catch((err) => {
+          console.error("error initializing connection", err);
+        });
+    }
+  }, []);
+
   // cleanup on unmount
   useEffect(() => {
     return () => {
-      closeConnection();
+      closeConnection(true);
     };
   }, []);
 
@@ -282,13 +282,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         }}
         renderTopRightUI={() => (
           <>
-            <LiveCollaborationTrigger
-              isCollaborating={isCollaborating}
-              onSelect={handleToggleLiveCollaboration}
-              className="hidden md:flex"
-            >
-              <Badge variant="default">{peers.length + 1}</Badge>
-            </LiveCollaborationTrigger>
+            {/* would be nice to show active users */}
             <ModeToggle className="hidden md:flex" />
           </>
         )}
