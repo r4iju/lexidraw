@@ -13,7 +13,7 @@ export type ICommunicationOptions = {
 
 export type ICommunicationReturnType = {
   peers: string[]; // userIds
-  closeConnection: () => void;
+  closeConnection: (muted?: boolean) => void;
   sendMessage: (message: MessageStructure) => void | Promise<void>;
   initializeConnection: () => Promise<void>;
 };

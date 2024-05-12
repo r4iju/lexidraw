@@ -36,7 +36,7 @@ type EditorProps = {
 };
 
 function EditorHandler({ entity, iceServers }: EditorProps) {
-  const editorStateRef = useRef<EditorState>();
+  const editorStateRef = useRef<string>();
   const canCollaborate =
     entity.sharedWith.length > 0 || entity.publicAccess !== "private";
   const userId = useUserIdOrGuestId();
@@ -45,31 +45,34 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
   const [editor] = useLexicalComposerContext();
 
   const debouncedSendUpdateRef = useRef(
-    debounce((editorState: EditorState) => {
+    debounce((parsedState: string) => {
       sendMessage({
         type: "update",
         entityId: entity.id,
         userId,
         entityType: "document",
         payload: {
-          elements: JSON.stringify(editorState),
+          elements: parsedState,
         },
       });
-    }, 50),
+    }, 100),
   );
 
   const onChange = (editorState: EditorState) => {
-    // console.log("we made a change");
-    editorStateRef.current = editorState;
     if (isRemoteUpdate) return;
-    debouncedSendUpdateRef.current(editorState);
+    const parsedState = JSON.stringify(editorState);
+    if (parsedState === editorStateRef.current) {
+      return;
+    }
+    editorStateRef.current = parsedState;
+    debouncedSendUpdateRef.current(parsedState);
   };
 
   const applyUpdate = useCallback(
     (message: MessageStructure) => {
-      // console.log("they made a change, let's apply it");
       if (message.entityType === "document") {
         setIsRemoteUpdate(true);
+        editorStateRef.current = message.payload.elements;
         const editorState = editor.parseEditorState(message.payload.elements);
         editor.setEditorState(editorState);
         setIsRemoteUpdate(false);
@@ -94,10 +97,20 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
 
   useEffect(() => {
     if (!isCollaborating && canCollaborate) {
-      initializeConnection();
+      initializeConnection()
+        .then(() => {
+          console.log("connection initialized");
+        })
+        .catch((err) => {
+          console.error("error initializing connection", err);
+        });
     }
+  }, []);
+
+  // cleanup on unmount
+  useEffect(() => {
     return () => {
-      closeConnection();
+      closeConnection(true);
     };
   }, []);
 

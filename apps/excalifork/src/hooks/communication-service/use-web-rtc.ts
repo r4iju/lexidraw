@@ -214,7 +214,7 @@ export function useWebRtcService(
     };
   }, [drawingId, handleIceCandidate, handleRemoteAnswer, handleRemoteOffer, reconnectionAttempts, setupPeerConnection, shouldReconnect, toast, userId]);
 
-  const closeConnection = useCallback(() => {
+  const closeConnection = useCallback((muted = false) => {
     setShouldReconnect(false);
     setReconnectionAttempts(0);
     for (const [_, conn] of localConnections.current) {
@@ -229,10 +229,12 @@ export function useWebRtcService(
       websocket.current.close();
       websocket.current = null;
     }
-    toast({
-      title: 'Connection closed',
-      variant: 'default',
-    });
+    if (!muted) {
+      toast({
+        title: 'Connection closed',
+        variant: 'default',
+      });
+    }
     onConnectionClose();
   }, [onConnectionClose]);
 

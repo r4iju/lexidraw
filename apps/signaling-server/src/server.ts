@@ -17,7 +17,7 @@ export function startServer(port = 8080) {
   wss.on('connection', (ws: WebSocket) => {
     ws.on('message', (msg: string) => {
       const message = JSON.parse(msg) as WebRtcMessage;
-      console.log('received: ', message);
+      // console.log('received: ', message);
 
       if (!rooms.has(message.room)) {
         rooms.set(message.room, new Map());
