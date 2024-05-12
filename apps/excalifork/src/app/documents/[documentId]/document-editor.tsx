@@ -36,7 +36,7 @@ type EditorProps = {
 };
 
 function EditorHandler({ entity, iceServers }: EditorProps) {
-  const editorStateRef = useRef<string>();
+  const editorStateRef = useRef<EditorState>();
   const canCollaborate =
     entity.sharedWith.length > 0 || entity.publicAccess !== "private";
   const userId = useUserIdOrGuestId();
@@ -61,10 +61,10 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
   const onChange = (editorState: EditorState) => {
     if (isRemoteUpdate) return;
     const parsedState = JSON.stringify(editorState);
-    if (parsedState === editorStateRef.current) {
+    if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
     }
-    editorStateRef.current = parsedState;
+    editorStateRef.current = editorState;
     debouncedSendUpdateRef.current(parsedState);
   };
 
@@ -72,8 +72,8 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
     (message: MessageStructure) => {
       if (message.entityType === "document") {
         setIsRemoteUpdate(true);
-        editorStateRef.current = message.payload.elements;
         const editorState = editor.parseEditorState(message.payload.elements);
+        editorStateRef.current = editorState;
         editor.setEditorState(editorState);
         setIsRemoteUpdate(false);
       }
