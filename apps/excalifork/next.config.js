@@ -25,6 +25,12 @@ const config = {
         hostname: "khebpsoymyxdkdwpltvv.supabase.co",
         pathname: "/storage/v1/object/sign/**",
       },
+      {
+        protocol: "https",
+        port: "",
+        hostname: "khebpsoymyxdkdwpltvv.supabase.co",
+        pathname: "/storage/v1/s3/excalidraw/**",
+      },
     ],
   },
 };

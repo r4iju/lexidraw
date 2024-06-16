@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  Excalidraw,
-  LiveCollaborationTrigger,
-  MainMenu,
-} from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
@@ -30,6 +26,7 @@ import { Theme, type MessageStructure } from "@packages/types";
 import DrawingBoardMenu from "./dropdown";
 
 type Props = {
+  revalidate: () => void;
   drawing: RouterOutputs["entities"]["load"];
   appState?: AppState;
   elements?: NonDeletedExcalidrawElement[];
@@ -37,6 +34,7 @@ type Props = {
 };
 
 const ExcalidrawWrapper: React.FC<Props> = ({
+  revalidate,
   drawing,
   appState,
   elements,
@@ -268,6 +266,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // cleanup on unmount
   useEffect(() => {
     return () => {
+      revalidate();
       closeConnection(true);
     };
   }, []);

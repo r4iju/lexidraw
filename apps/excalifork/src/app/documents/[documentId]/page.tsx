@@ -1,10 +1,11 @@
 import { Metadata } from "next";
-import dynamic from "next/dynamic";
+import { revalidatePath } from "next/cache";
+import dynamicImport from "next/dynamic";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
 
-const DocumentEditor = dynamic(() => import("./document-editor"), {
+const DocumentEditor = dynamicImport(() => import("./document-editor"), {
   ssr: false,
 });
 
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
 
 export const runtime = "edge";
 export const fetchCache = "force-no-store";
+export const dynamic = "force-dynamic";
 
 const Params = z.object({
   params: z.object({
@@ -36,9 +38,19 @@ export default async function DocumentPage(props: Props) {
   const document = await api.entities.load.query({ id: documentId });
   const iceServers = await api.auth.iceServers.query();
   if (!document) throw new Error("Document not found");
+  const revalidate = async () => {
+    "use server";
+    revalidatePath(`/documents/${document.id}`, "page");
+  };
 
   try {
-    return <DocumentEditor entity={document} iceServers={iceServers} />;
+    return (
+      <DocumentEditor
+        revalidate={revalidate}
+        entity={document}
+        iceServers={iceServers}
+      />
+    );
   } catch (error) {
     console.error("Error loading document:", error);
     return redirect("/dashboard");
