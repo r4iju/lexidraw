@@ -31,11 +31,12 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 // import { CodeNode } from "./_plugins/custom-code-node";
 
 type EditorProps = {
+  revalidate: () => void;
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
 };
 
-function EditorHandler({ entity, iceServers }: EditorProps) {
+function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
   const editorStateRef = useRef<EditorState>();
   const canCollaborate =
     entity.sharedWith.length > 0 || entity.publicAccess !== "private";
@@ -110,6 +111,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
   // cleanup on unmount
   useEffect(() => {
     return () => {
+      revalidate();
       closeConnection(true);
     };
   }, []);
@@ -166,11 +168,16 @@ function Placeholder() {
 }
 
 type Props = {
+  revalidate: () => void;
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
 };
 
-export default function DocumentEditor({ entity, iceServers }: Props) {
+export default function DocumentEditor({
+  revalidate,
+  entity,
+  iceServers,
+}: Props) {
   return (
     <LexicalComposer
       initialConfig={{
@@ -192,7 +199,11 @@ export default function DocumentEditor({ entity, iceServers }: Props) {
         theme: Theme,
       }}
     >
-      <EditorHandler entity={entity} iceServers={iceServers} />
+      <EditorHandler
+        revalidate={revalidate}
+        entity={entity}
+        iceServers={iceServers}
+      />
     </LexicalComposer>
   );
 }

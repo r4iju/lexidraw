@@ -7,9 +7,11 @@ import { AccessLevel } from "@packages/types";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 import { Metadata } from "next";
+import { revalidatePath } from "next/cache";
 
 export const runtime = "edge";
 export const fetchCache = "force-no-store";
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Excalifork | drawing",
@@ -40,6 +42,11 @@ export default async function DrawingBoard(props: Props) {
     const drawing = await api.entities.load.query({ id: drawingId });
     const iceServers = await api.auth.iceServers.query();
 
+    const revalidate = async () => {
+      "use server";
+      revalidatePath(`/drawings/${drawing.id}`, "page");
+    };
+
     const parsedAppState = drawing.appState
       ? (JSON.parse(drawing.appState) as unknown as AppState)
       : undefined;
@@ -65,6 +72,7 @@ export default async function DrawingBoard(props: Props) {
       <div className="flex w-full items-center justify-center">
         {drawing.accessLevel === AccessLevel.EDIT && (
           <EditBoard
+            revalidate={revalidate}
             drawing={drawing}
             elements={parsedElements}
             appState={parsedAppState}
@@ -73,6 +81,7 @@ export default async function DrawingBoard(props: Props) {
         )}
         {drawing.accessLevel === AccessLevel.READ && (
           <ViewBoard
+            revalidate={revalidate}
             drawing={drawing}
             elements={parsedElements}
             appState={parsedAppState}

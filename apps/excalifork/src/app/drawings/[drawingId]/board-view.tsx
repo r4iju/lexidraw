@@ -13,12 +13,13 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { type RouterOutputs } from "~/trpc/shared";
 
 type Props = {
+  revalidate: () => void;
   drawing: RouterOutputs["entities"]["load"];
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
 };
 
-const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements }) => {
+const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements, revalidate }) => {
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const isDarkTheme = useIsDarkTheme();
@@ -59,6 +60,12 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements }) => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDarkTheme]);
+
+  useEffect(() => {
+    return () => {
+      revalidate();
+    };
+  }, []);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
