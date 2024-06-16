@@ -23,9 +23,8 @@
     "@packages/types": "workspace:*",
     "@types/ws": "^8.5.10",
     "artillery": "^2.0.6",
-    "eslint": "^8.57.0",
     "tsx": "^4.7.1",
-    "typescript": "^5.3.3",
+    "typescript": "5.5.1-rc",
     "vitest": "^1.4.0"
   }
 }

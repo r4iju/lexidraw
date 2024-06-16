@@ -22,8 +22,6 @@
   "devDependencies": {
     "@packages/types": "workspace:*",
     "@types/ws": "^8.5.10",
-    "eslint": "^8.57.0",
-    "typescript": "^5.3.3",
-    "typescript-eslint": "^7.4.0"
+    "typescript": "5.5.1-rc"
   }
 }

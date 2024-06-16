@@ -31,7 +31,6 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements, revalidate
       appState: appState
         ? ({
             ...appState,
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             collaborators: appState.collaborators
               ? new Map(Object.entries(appState.collaborators))
               : new Map<string, Collaborator>(),
@@ -65,6 +64,7 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements, revalidate
     return () => {
       revalidate();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

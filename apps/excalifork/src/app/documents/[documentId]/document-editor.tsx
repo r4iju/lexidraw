@@ -2,7 +2,7 @@
 
 import { debounce } from "@packages/lib";
 import { TRANSFORMERS } from "@lexical/markdown";
-import { HeadingNode, QuoteNode, registerRichText } from "@lexical/rich-text";
+import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
@@ -20,7 +20,7 @@ import ToolbarPlugin from "./_plugins/toolbar-plugin";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { useCallback, useEffect, useRef, useState } from "react";
 import OptionsDropdown from "./_plugins/options-dropdown";
-import { EditorState, createEditor } from "lexical";
+import { EditorState } from "lexical";
 import { CodeNode } from "@lexical/code";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { RouterOutputs } from "~/trpc/shared";
@@ -79,10 +79,10 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
         setIsRemoteUpdate(false);
       }
     },
-    [editorStateRef],
+    [editor],
   );
 
-  const { sendMessage, initializeConnection, closeConnection, peers } =
+  const { sendMessage, initializeConnection, closeConnection } =
     useWebRtcService(
       {
         drawingId: entity.id,
@@ -106,6 +106,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
           console.error("error initializing connection", err);
         });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // cleanup on unmount
@@ -114,6 +115,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
       revalidate();
       closeConnection(true);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

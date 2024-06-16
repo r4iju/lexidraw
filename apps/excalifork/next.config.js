@@ -10,6 +10,12 @@ const config = {
   webpack: (config, { isServer }) => {
     return config;
   },
+  // productionBrowserSourceMaps: true,
+  // experimental: {
+  //   reactCompiler: {
+  //     compilationMode: "infer",
+  //   },
+  // },
   eslint: {
     ignoreDuringBuilds: true,
   },

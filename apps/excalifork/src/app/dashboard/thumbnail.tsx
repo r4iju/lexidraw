@@ -28,6 +28,7 @@ export function Thumbnail({ entity }: Props) {
   }, [data, isDarkTheme, entity.screenShotDark, entity.screenShotLight]);
 
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={svgDataUrl}
       className="aspect-[4/3] min-h-[300px]"

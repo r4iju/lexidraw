@@ -41,7 +41,9 @@ describe('WebSocket Server E2E Tests', () => {
       connections.push(openPromise);
       clients.push(client);
     }
-    return Promise.all(connections).then(() => { });
+    return Promise.all(connections).then(() => {
+      console.log('All clients connected');
+    });
   };
 
   test('Utility function createClients', async () => {
@@ -75,7 +77,7 @@ describe('WebSocket Server E2E Tests', () => {
         type: 'connection',
         userId,
       };
-      client!.send(JSON.stringify(message));
+      client.send(JSON.stringify(message));
 
     });
 
@@ -90,31 +92,35 @@ describe('WebSocket Server E2E Tests', () => {
     const client1 = clients[0];
     const client2 = clients[1];
 
-    client1!.on('message', (data: string) => {
+    if (!client1 || !client2) {
+      throw new Error('Clients are not defined');
+    }
+
+    client1.on('message', (data: string) => {
       const response = JSON.parse(data) as MessageStructure;
       expect(response).toHaveProperty('type', 'join');
     });
 
-    client2!.on('message', (data: string) => {
+    client2.on('message', (data: string) => {
       const response = JSON.parse(data) as MessageStructure;
       expect(response).toHaveProperty('room', 'testRoom');
       expect(response).toHaveProperty('userId', userId1);
       expect(response).toHaveProperty('type', 'leave');
     });
 
-    client1!.send(JSON.stringify({
+    client1.send(JSON.stringify({
       room: 'testRoom',
       type: 'join',
       from: userId1,
     } satisfies WebRtcMessage))
 
-    client2!.send(JSON.stringify({
+    client2.send(JSON.stringify({
       room: 'testRoom',
       type: 'join',
       from: userId2,
     } satisfies WebRtcMessage))
 
-    client1!.send(JSON.stringify({
+    client1.send(JSON.stringify({
       room: 'testRoom',
       type: 'leave',
       from: userId1

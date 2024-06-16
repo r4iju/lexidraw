@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* not transpiling with TypeScript: */
+    "noEmit": true,
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "incremental": true,
+
+    /* runs in the DOM */
+    "lib": ["dom", "dom.iterable", "ES2022"],
+
+    /* Path Aliases */
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./src/*"]
+    },
+    "module": "esnext"
+  },
+  "include": [
+    "./eslint.config.mjs",
+    "./next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.cjs",
+    "**/*.js",
+    ".next/types/**/*.ts",
+    "../../packages/lib/src/get-zod-defaults.ts"
+  ],
+  "exclude": ["**/node_modules**/*", "**/dist**/*"]
+}

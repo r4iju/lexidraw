@@ -25,8 +25,8 @@ export default function ProfileForm({ user }: Props) {
   const methods = useForm<ProfileSchema>({
     resolver: zodResolver(ProfileSchema),
     defaultValues: {
-      email: user!.email ?? "",
-      name: user!.name ?? "",
+      email: user?.email ?? "",
+      name: user?.name ?? "",
     },
     mode: "onBlur",
   });

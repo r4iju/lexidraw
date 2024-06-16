@@ -28,73 +28,6 @@ export function useWebRtcService(
     dataChannels.current.delete(clientId);
   }, []);
 
-  const handleParticipantJoined = useCallback(async (clientId: string) => {
-    console.log('Participant joined:', clientId);
-    const peerConnection = setupPeerConnection(clientId);
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    if (websocket.current?.OPEN) {
-      websocket.current?.send(JSON.stringify({
-        room: drawingId,
-        to: clientId,
-        from: userId,
-        type: 'offer',
-        offer: JSON.stringify(offer)
-      } satisfies WebRtcMessage));
-    }
-  }, []);
-
-  const handleRemoteOffer = useCallback(async (clientId: string, offer: string) => {
-    console.log('Handling remote offer');
-    const peerConnection = setupPeerConnection(clientId);
-    try {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer) as RTCSessionDescriptionInit));
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      if (websocket.current?.OPEN) {
-        websocket.current?.send(JSON.stringify({
-          room: drawingId,
-          from: userId,
-          to: clientId,
-          type: 'answer',
-          answer: JSON.stringify(answer)
-        } satisfies WebRtcMessage));
-      }
-    } catch (error) {
-      console.error("Failed to handle remote offer:", error);
-    }
-  }, [drawingId, userId, websocket]);
-
-  const handleRemoteAnswer = useCallback(async (clientId: string, answer: string) => {
-    console.log('Handling remote answer for ', clientId);
-    const peerConnection = localConnections.current?.get(clientId);
-    if (!peerConnection) {
-      console.error('Local connection not established');
-      return;
-    };
-
-    try {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer) as RTCSessionDescriptionInit));
-    } catch (error) {
-      console.error("Failed to handle remote answer:", error);
-    }
-  }, []);
-
-  const handleIceCandidate = useCallback(async (clientId: string, candidate: string) => {
-    console.log('Handling ice candidate');
-    const peerConnection = localConnections.current?.get(clientId);
-    if (!peerConnection) {
-      console.error('Local connection not established');
-      return;
-    };
-
-    try {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate) as RTCIceCandidateInit));
-    } catch (error) {
-      console.error("Failed to handle ICE candidate:", error);
-    }
-  }, [])
-
   const setupPeerConnection = useCallback((clientId: string) => {
     if (!websocket.current) {
       throw new Error('WebSocket connection not established');
@@ -145,6 +78,75 @@ export function useWebRtcService(
     localConnections.current.set(clientId, conn);
     return conn;
   }, [drawingId, userId, iceServers, onMessage, onConnectionOpen]);
+
+
+  const handleParticipantJoined = useCallback(async (clientId: string) => {
+    console.log('Participant joined:', clientId);
+    const peerConnection = setupPeerConnection(clientId);
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    if (websocket.current?.OPEN) {
+      websocket.current?.send(JSON.stringify({
+        room: drawingId,
+        to: clientId,
+        from: userId,
+        type: 'offer',
+        offer: JSON.stringify(offer)
+      } satisfies WebRtcMessage));
+    }
+  }, [drawingId, setupPeerConnection, userId]);
+
+  const handleRemoteOffer = useCallback(async (clientId: string, offer: string) => {
+    console.log('Handling remote offer');
+    const peerConnection = setupPeerConnection(clientId);
+    try {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(offer) as RTCSessionDescriptionInit));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      if (websocket.current?.OPEN) {
+        websocket.current?.send(JSON.stringify({
+          room: drawingId,
+          from: userId,
+          to: clientId,
+          type: 'answer',
+          answer: JSON.stringify(answer)
+        } satisfies WebRtcMessage));
+      }
+    } catch (error) {
+      console.error("Failed to handle remote offer:", error);
+    }
+  }, [drawingId, setupPeerConnection, userId]);
+
+  const handleRemoteAnswer = useCallback(async (clientId: string, answer: string) => {
+    console.log('Handling remote answer for ', clientId);
+    const peerConnection = localConnections.current?.get(clientId);
+    if (!peerConnection) {
+      console.error('Local connection not established');
+      return;
+    };
+
+    try {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer) as RTCSessionDescriptionInit));
+    } catch (error) {
+      console.error("Failed to handle remote answer:", error);
+    }
+  }, []);
+
+  const handleIceCandidate = useCallback(async (clientId: string, candidate: string) => {
+    console.log('Handling ice candidate');
+    const peerConnection = localConnections.current?.get(clientId);
+    if (!peerConnection) {
+      console.error('Local connection not established');
+      return;
+    };
+
+    try {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate) as RTCIceCandidateInit));
+    } catch (error) {
+      console.error("Failed to handle ICE candidate:", error);
+    }
+  }, [])
+
 
   const initializeConnection = useCallback(async () => {
     // check if we're already connected or if we're connecting
@@ -212,15 +214,17 @@ export function useWebRtcService(
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-  }, [drawingId, handleIceCandidate, handleRemoteAnswer, handleRemoteOffer, reconnectionAttempts, setupPeerConnection, shouldReconnect, toast, userId]);
+  }, [drawingId, handleIceCandidate, handleParticipantJoined, handleParticipantLeft, handleRemoteAnswer, handleRemoteOffer, reconnectionAttempts, shouldReconnect, userId]);
 
   const closeConnection = useCallback((muted = false) => {
     setShouldReconnect(false);
     setReconnectionAttempts(0);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, conn] of localConnections.current) {
       conn.close();
     }
     localConnections.current = new Map();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, channel] of dataChannels.current) {
       channel.close();
     }
@@ -236,6 +240,7 @@ export function useWebRtcService(
       });
     }
     onConnectionClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onConnectionClose]);
 
   const sendMessage = useCallback((message: MessageStructure) => {

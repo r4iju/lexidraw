@@ -1,6 +1,5 @@
 "use client";
 
-import { EntityType } from "@packages/types";
 import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import {

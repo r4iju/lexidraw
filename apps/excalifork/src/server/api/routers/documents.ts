@@ -1,4 +1,4 @@
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { CreateDocument } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
 import { and, eq, schema, } from "@packages/drizzle";
@@ -20,7 +20,6 @@ export const documentRouter = createTRPCRouter({
           userId: ctx.session?.user.id,
           entityType: "document",
           publicAccess: PublicAccess.PRIVATE,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           elements: input.elements,
         })
         .onConflictDoNothing()

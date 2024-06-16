@@ -23,7 +23,6 @@ const RHFSwitch: React.FC<RHFSwitchProps> = ({ name, helperText, label }) => {
             {...field}
             id={name}
             className="h-4 w-4 checked:bg-blue-600"
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             checked={field.value}
             role="switch"
           />
