@@ -1,4 +1,4 @@
-export function debounce<F extends (...args: any[]) => void>(
+export function debounce<F extends (...args: unknown[]) => void>(
   fn: F,
   delay: number,
 ): (this: ThisParameterType<F>, ...args: Parameters<F>) => void {

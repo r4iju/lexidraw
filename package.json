@@ -19,11 +19,19 @@
     "test:ts": "dotenv -e .env.test -- turbo run test:ts"
   },
   "devDependencies": {
+    "@eslint/js": "^9.4.0",
+    "@next/eslint-plugin-next": "15.0.0-rc.0",
+    "@types/eslint": "^8.56.10",
+    "@types/eslint__js": "^8.42.3",
+    "@typescript-eslint/parser": "^7.13.0",
     "dotenv-cli": "latest",
-    "eslint": "^8.57.0",
+    "eslint": "^9.5.0",
     "eslint-config-turbo": "latest",
+    "eslint-plugin-react": "^7.34.2",
+    "eslint-plugin-react-compiler": "0.0.0-experimental-c8b3f72-20240517",
+    "eslint-plugin-react-hooks": "5.1.0-rc-fb9a90fa48-20240614",
     "turbo": "^1.8.3",
-    "typescript": "^5.4.3",
-    "typescript-eslint": "^7.4.0"
+    "typescript": "5.5.1-rc",
+    "typescript-eslint": "^7.13.0"
   }
 }

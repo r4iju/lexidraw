@@ -1,4 +1,3 @@
-import AuthGuard from "~/components/guards/auth-guard";
 import Footer from "~/sections/footer";
 import Header from "~/sections/header";
 

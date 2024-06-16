@@ -18,6 +18,7 @@ export const {
   auth,
 } = NextAuth({
   // trustHost: true,
+  // @ts-expect-error this should be fine...
   adapter: DrizzleAdapter(drizzle),
   // basePath: '/',
   pages: {
@@ -87,6 +88,7 @@ export const {
 
         if (!isPasswordCorrect) return null;
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, ...user } = dbUser;
         return user;
       },

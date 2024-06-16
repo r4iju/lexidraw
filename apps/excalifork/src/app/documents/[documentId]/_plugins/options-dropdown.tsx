@@ -50,11 +50,11 @@ export default function OptionsDropdown({
       console.error("No state to save");
       return;
     }
-    console.log(JSON.stringify(state.current!));
+    console.log(JSON.stringify(state.current));
     save(
       {
         id: documentId,
-        elements: JSON.stringify(state.current!),
+        elements: JSON.stringify(state.current),
         entityType: "document",
       },
       {

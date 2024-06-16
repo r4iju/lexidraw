@@ -21,7 +21,6 @@ export function RHFCheckbox({ name, helperText, label }: RHFCheckboxProps) {
           <input
             type="checkbox"
             {...field}
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             checked={field.value}
             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
           />
@@ -84,7 +83,6 @@ export function RHFMultiCheckbox({
                   }
                   onChange={() =>
                     Array.isArray(field.value) &&
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                     field.onChange(getSelected(field.value, option.value))
                   }
                   className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"

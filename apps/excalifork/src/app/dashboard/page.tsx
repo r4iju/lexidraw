@@ -9,7 +9,7 @@ import { MoreActions } from "./_actions/more-actions";
 import { Thumbnail } from "./thumbnail";
 import { EntityType, PublicAccess } from "@packages/types";
 import { NewEntity } from "./_actions/new-entity";
-import type { Metadata, ResolvingMetadata } from "next";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Excalifork | Dashboard",

@@ -5,7 +5,6 @@ import {
   exportToBlob,
 } from "@excalidraw/excalidraw";
 import { Button } from "~/components/ui/button";
-import { DashboardIcon, HomeIcon } from "@radix-ui/react-icons";
 import Link from "next/link";
 import type {
   AppState,
@@ -33,10 +32,10 @@ type Props = {
   excalidrawApi: RefObject<ExcalidrawImperativeAPI>;
 };
 
-const DrawingBoardMenu = ({ isMenuOpen, drawing, excalidrawApi }: Props) => {
+const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const isDarkTheme = useIsDarkTheme();
   const { toast } = useToast();
-  const { mutate: save, isLoading: isSaving } = api.entities.save.useMutation();
+  const { mutate: save } = api.entities.save.useMutation();
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
   const saveToBackend = async () => {

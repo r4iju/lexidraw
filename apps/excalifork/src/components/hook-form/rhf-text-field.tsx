@@ -57,7 +57,6 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
                 placeholder={placeholder}
                 required={required}
                 value={
-                  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                   typeof field.value === "number" && field.value === 0
                     ? ""
                     : field.value

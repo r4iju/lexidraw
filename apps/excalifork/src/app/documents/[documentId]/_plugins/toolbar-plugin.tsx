@@ -29,7 +29,7 @@ import {
   UnderlineIcon,
   UndoIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ElementType } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 
@@ -169,7 +169,7 @@ export default function ToolbarPlugin() {
       }),
       editor.registerCommand(
         SELECTION_CHANGE_COMMAND,
-        (_payload, newEditor) => {
+        (_payload, _newEditor) => {
           updateToolbar();
           return false;
         },
@@ -221,7 +221,7 @@ export default function ToolbarPlugin() {
         editor.dispatchCommand(action.command, undefined);
       }
     },
-    [editor, toggledValues],
+    [editor],
   );
 
   const onStyleChange = useCallback(
@@ -234,7 +234,7 @@ export default function ToolbarPlugin() {
       }
       setToggledStyle(newStyle);
     },
-    [editor, toggledValues],
+    [editor],
   );
 
   const renderToggleButton = <T extends Option>(

@@ -15,9 +15,7 @@ import type {
 import type { RouterOutputs } from "~/trpc/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
-import { Badge } from "~/components/ui/badge";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
@@ -43,18 +41,17 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   // hooks
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
-  const { toast } = useToast();
 
   // excalidraw api
   const excalidrawApi = useRef<ExcalidrawImperativeAPI | null>(null);
   // server state
-  const { mutate: save, isLoading: isSaving } = api.entities.save.useMutation();
+  const { mutate: save } = api.entities.save.useMutation();
   // local state
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuOpen] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const canCollaborate = useMemo(() => {
     return drawing.publicAccess !== "PRIVATE" || drawing.sharedWith.length > 0;
-  }, [drawing.publicAccess, drawing.sharedWith, userId]);
+  }, [drawing.publicAccess, drawing.sharedWith]);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
@@ -98,7 +95,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [applyUpdate],
   );
 
-  const { sendMessage, initializeConnection, closeConnection, peers } =
+  const { sendMessage, initializeConnection, closeConnection } =
     useWebRtcService(
       {
         drawingId: drawing.id,
@@ -222,7 +219,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
             exportWithDarkMode: false,
             exportBackground: false,
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             collaborators: appState.collaborators
               ? new Map(Object.entries(appState.collaborators))
               : new Map<string, Collaborator>(),
@@ -261,6 +257,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           console.error("error initializing connection", err);
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // cleanup on unmount
@@ -269,6 +266,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       revalidate();
       closeConnection(true);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

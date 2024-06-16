@@ -4,13 +4,14 @@ import { generateVisitorId } from './lib/generate-visitor-id';
 import { drizzle, schema } from '@packages/drizzle';
 import { auth } from './server/auth';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const analytics = async (req: NextRequest): Promise<void> => {
   if (req.method === 'GET') {
     // Current page the user is visiting
     const pageVisited = req.nextUrl.href;
     const referer = req.headers.get('referer') ?? 'Direct/Bookmark';
-    const userAgent = req.headers.get('user-agent')! || 'Unknown';
-    const ipAddress = req.headers.get('x-forwarded-for')! || 'Unknown';
+    const userAgent = req.headers.get('user-agent') ?? 'Unknown';
+    const ipAddress = req.headers.get('x-forwarded-for') ?? 'Unknown';
     const { city, country, region } = getGeoInfo(req);
     if (city && country && region) {
       const visitorId = await generateVisitorId({ userAgent, country, city, region });

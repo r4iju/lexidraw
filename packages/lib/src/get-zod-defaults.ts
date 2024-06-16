@@ -1,10 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-
 import { z } from 'zod';
 
 export function getDefaults<T extends z.ZodTypeAny>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   schema: z.AnyZodObject | z.ZodEffects<any>
 ): z.infer<T> {
   // Check if it's a ZodEffect
@@ -31,7 +28,7 @@ export function getDefaults<T extends z.ZodTypeAny>(
 
   return Object.fromEntries(
     Object.entries(schema.shape).map(([key, value]) => {
-      // eslint-disable-next-line
+
       return [key, getDefaultValue(value as z.ZodTypeAny)];
     })
   );

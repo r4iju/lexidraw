@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import FormSkeleton from "./skeleton";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import dynamic from "next/dynamic";
 import SignInForm from "./form";
 
 export const runtime = "edge";
