@@ -118,8 +118,8 @@ export function InsertImageUploadedDialogBody({
         accept="image/*"
         data-test-id="image-modal-file-upload"
       />
+      <Label htmlFor="alt-text">Alt Text</Label>
       <Input
-        label="Alt Text"
         placeholder="Descriptive alternative text"
         onChange={(e) => setAltText(e.target.value)}
         value={altText}

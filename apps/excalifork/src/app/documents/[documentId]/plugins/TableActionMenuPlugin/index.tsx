@@ -48,6 +48,7 @@ import { createPortal } from "react-dom";
 import useModal from "~/hooks/useModal";
 import invariant from "../../shared/invariant";
 import ColorPicker from "~/components/ui/color-picker";
+import { PaintBucket } from "lucide-react";
 
 function computeSelectionCount(selection: TableSelection): {
   columns: number;
@@ -91,7 +92,7 @@ function isTableSelectionRectangular(selection: TableSelection): boolean {
         if (currentRows[currentColumns + j] === undefined) {
           currentRows[currentColumns + j] = 0;
         }
-        currentRows[currentColumns + j] += node.__rowSpan;
+        (currentRows[currentColumns + j] as number) += node.__rowSpan;
       }
       currentColumns += colSpan;
     }
@@ -530,6 +531,7 @@ function TableActionMenu({
             <ColorPicker
               color={backgroundColor}
               onChange={handleCellBackgroundColor}
+              Icon={PaintBucket}
             />
           ))
         }

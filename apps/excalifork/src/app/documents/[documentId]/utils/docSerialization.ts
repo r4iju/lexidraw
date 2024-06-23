@@ -55,7 +55,7 @@ export async function docFromHash(
   hash: string,
 ): Promise<SerializedDocument | null> {
   const m = /^#doc=(.*)$/.exec(hash);
-  if (!m) {
+  if (!m || !m[1]) {
     return null;
   }
   const ds = new DecompressionStream('gzip');

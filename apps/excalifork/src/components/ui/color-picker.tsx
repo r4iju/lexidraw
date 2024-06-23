@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import { Button } from "./button";
-import { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 let skipAddingToHistoryStack = false;
@@ -22,7 +22,7 @@ interface ColorPickerProps {
   buttonAriaLabel?: string;
   title?: string;
   color: string;
-  Icon: LucideIcon;
+  Icon?: LucideIcon;
   onChange?: (value: string, skipHistoryStack: boolean) => void;
 }
 
@@ -129,7 +129,7 @@ export default function ColorPicker({
               className="w-8 h-10 p-0.5"
               disabled={disabled}
             >
-              <Icon className="size-4" />
+              {Icon && <Icon className="size-4" />}
             </Button>
           </TooltipTrigger>
         </DropdownMenuTrigger>

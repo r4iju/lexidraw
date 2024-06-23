@@ -61,7 +61,7 @@ import Placeholder from "~/components/ui/placeholder";
 import { EmojiNode } from "./EmojiNode";
 import { $isImageNode } from "./ImageNode";
 import { KeywordNode } from "./KeywordNode";
-import Image from "next/image";
+import NextImage from "next/image";
 
 const imageCache = new Set();
 
@@ -124,7 +124,7 @@ function LazyImage({
 
 function BrokenImage(): JSX.Element {
   return (
-    <Image
+    <NextImage
       alt="Image is broken"
       height={200}
       width={200}

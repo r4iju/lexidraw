@@ -18,7 +18,6 @@ export const {
   auth,
 } = NextAuth({
   // trustHost: true,
-  // @ts-expect-error this should be fine...
   adapter: DrizzleAdapter(drizzle),
   // basePath: '/',
   pages: {
