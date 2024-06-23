@@ -42,7 +42,7 @@ const accessLevelLabel = {
   [AccessLevel.READ]: "View",
 } as const;
 
-export default function ShareDrawing({
+export default function ShareEntity({
   entity,
   revalidatePath,
   isOpen,

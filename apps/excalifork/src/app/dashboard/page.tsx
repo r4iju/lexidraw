@@ -38,7 +38,10 @@ export default async function LandingPage() {
 
   const refetch = async () => {
     "use server";
-    revalidatePath("/dashboard", "page");
+    return await new Promise<void>((resolve) => {
+      revalidatePath("/dashboard", "page");
+      resolve();
+    });
   };
 
   return (

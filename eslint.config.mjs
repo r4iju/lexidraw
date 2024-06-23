@@ -69,13 +69,11 @@ export default tseslint.config(
   // ignore files
   {
     ignores: [
-      ".next/*",
-      "coverage/*",
+      "**/.next/*",
+      "**/dist/**/*",
+      "**/coverage/*",
       "postcss.config.cjs",
       "tailwind.config.cjs",
-      "drizzle.config.ts",
-      "migrate.ts",
-      "**/dist/**/*",
     ],
   },
 );
