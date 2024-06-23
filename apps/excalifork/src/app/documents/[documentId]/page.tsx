@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const runtime = "edge";
+export const runtime = "nodejs"; // some plugins like code+formatter with prettier are quite large
 export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 
