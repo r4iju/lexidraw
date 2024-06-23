@@ -96,6 +96,9 @@ importers:
       '@lexical/code':
         specifier: ^0.16.0
         version: 0.16.0
+      '@lexical/file':
+        specifier: ^0.16.0
+        version: 0.16.0
       '@lexical/hashtag':
         specifier: ^0.16.0
         version: 0.16.0
@@ -109,6 +112,9 @@ importers:
         specifier: ^0.16.0
         version: 0.16.0
       '@lexical/markdown':
+        specifier: ^0.16.0
+        version: 0.16.0
+      '@lexical/overflow':
         specifier: ^0.16.0
         version: 0.16.0
       '@lexical/react':
@@ -3953,6 +3959,12 @@ packages:
 
   /@lexical/dragon@0.16.0:
     resolution: {integrity: sha512-Yr29SFZzOPs+S6UrEZaXnnso1fJGVfZOXVJQZbyzlspqJpSHXVH7InOXYHWN6JSWQ8Hs/vU3ksJXwqz+0TCp2g==}
+    dependencies:
+      lexical: 0.16.0
+    dev: false
+
+  /@lexical/file@0.16.0:
+    resolution: {integrity: sha512-bwNNj0IRQATElfns+OmvzkcWx4nrg0HeA6W1nut+cIvZ6eECwVcsFdFyo/NDLbkiPJUippgI5B98Dl5Hk7Mizw==}
     dependencies:
       lexical: 0.16.0
     dev: false

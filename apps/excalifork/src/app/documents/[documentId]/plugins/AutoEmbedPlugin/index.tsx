@@ -41,7 +41,11 @@ export const YoutubeEmbedConfig: PlaygroundEmbedConfig = {
   parseUrl: async (url: string) => {
     const match =
       /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/.exec(url);
-    const id = match ? (match?.[2].length === 11 ? match[2] : null) : null;
+    const id = match
+      ? (match?.[2] as string).length === 11
+        ? match[2]
+        : null
+      : null;
     if (id != null) {
       return { id, url };
     }
@@ -64,7 +68,7 @@ export const TwitterEmbedConfig: PlaygroundEmbedConfig = {
         text,
       );
     if (match != null) {
-      return { id: match[5], url: match[1] };
+      return { id: match[5] as string, url: match[1] as string };
     }
     return null;
   },
@@ -85,7 +89,7 @@ export const FigmaEmbedConfig: PlaygroundEmbedConfig = {
         text,
       );
     if (match != null) {
-      return { id: match[3], url: match[0] };
+      return { id: match[3] as string, url: match[0] as string };
     }
     return null;
   },

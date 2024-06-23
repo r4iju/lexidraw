@@ -91,7 +91,7 @@ export function InsertInlineImageDialog({
       }
       return "";
     };
-    if (files !== null) {
+    if (files !== null && files[0]) {
       reader.readAsDataURL(files[0]);
     }
   };
