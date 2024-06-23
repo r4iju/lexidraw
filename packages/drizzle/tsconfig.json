@@ -32,6 +32,6 @@
     "baseUrl": ".",
     "rootDir": "src"
   },
-  "include": ["**/src/**/*"],
+  "include": ["**/src/**/*", "drizzle.config.ts", "migrate.ts"],
   "exclude": ["node_modules", "dist"]
 }

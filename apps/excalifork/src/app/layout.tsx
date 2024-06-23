@@ -6,6 +6,7 @@ import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SessionProvider } from "next-auth/react";
+import { TooltipProvider } from "~/components/ui/tooltip";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -54,8 +55,10 @@ export default function RootLayout({ children }: Props) {
             >
               {" "}
               <div className="flex h-screen flex-col bg-background">
-                {children}
-                <Toaster />
+                <TooltipProvider>
+                  {children}
+                  <Toaster />
+                </TooltipProvider>
               </div>
             </ThemeProvider>
           </TRPCReactProvider>

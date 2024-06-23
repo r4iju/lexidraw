@@ -17,7 +17,7 @@ import {
 import DeleteDrawing from "./delete-entity";
 import { useState } from "react";
 import { useToast } from "~/components/ui/use-toast";
-import ShareDrawing from "./share-entity";
+import ShareEntity from "./share-entity";
 import { PublicAccess } from "@packages/types";
 import { type RouterOutputs } from "~/trpc/shared";
 
@@ -86,7 +86,7 @@ export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <ShareDrawing
+      <ShareEntity
         entity={entity}
         revalidatePath={revalidatePath}
         isOpen={isShareDialogOpen}

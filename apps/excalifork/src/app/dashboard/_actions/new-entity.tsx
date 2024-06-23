@@ -11,7 +11,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "~/components/ui/navigation-menu";
-import { DrawingPinIcon, FilePlusIcon, FileIcon } from "@radix-ui/react-icons";
+import { Brush, File, Plus } from "lucide-react";
 
 const newItem = (kind: "drawing" | "document") => {
   switch (kind) {
@@ -30,13 +30,13 @@ const items: {
 }[] = [
   {
     title: "Drawing",
-    icon: <DrawingPinIcon className="h-25 w-25" />,
+    icon: <Brush className="h-25 w-25" />,
     href: newItem("drawing"),
     description: "For creating visual content.",
   },
   {
     title: "Document",
-    icon: <FileIcon className="h-25 w-25" />,
+    icon: <File className="h-25 w-25" />,
     href: newItem("document"),
     description: "For creating rich text documents.",
   },
@@ -48,7 +48,7 @@ export function NewEntity() {
       <NavigationMenuList>
         <NavigationMenuItem>
           <NavigationMenuTrigger>
-            <FilePlusIcon className="mr-4" />
+            <Plus className="mr-4" />
             New
           </NavigationMenuTrigger>
           <NavigationMenuContent>

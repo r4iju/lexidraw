@@ -1,34 +1,43 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
+// packages
 import { debounce } from "@packages/lib";
 import { TRANSFORMERS } from "@lexical/markdown";
+import { MessageStructure } from "@packages/types";
+// nodes
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { MarkNode } from "@lexical/mark";
+import { CodeNode, CodeHighlightNode } from "@lexical/code";
+// plugins
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
+import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
+import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
-import { LexicalComposer } from "@lexical/react/LexicalComposer";
-import { ContentEditable } from "@lexical/react/LexicalContentEditable";
-import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-import { Theme } from "./_themes/themes";
-import ToolbarPlugin from "./_plugins/toolbar-plugin";
+// import ToolbarPlugin from "./_plugins/toolbar-plugin";
+import ToolbarPlugin from "./plugins/ToolbarPlugin";
+import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { ContentEditable } from "@lexical/react/LexicalContentEditable";
+import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+// shadcnui
+// import { theme } from "./_themes/playground-theme";
+import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
-import { useCallback, useEffect, useRef, useState } from "react";
-import OptionsDropdown from "./_plugins/options-dropdown";
+import OptionsDropdown from "./plugins/options-dropdown";
 import { EditorState } from "lexical";
-import { CodeNode } from "@lexical/code";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
-import { MessageStructure } from "@packages/types";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-
-// import { CodeNode } from "./_plugins/custom-code-node";
+import FloatingLinkEditorPlugin from "./plugins/FloatingLinkEditorPlugin";
+import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
+import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
 
 type EditorProps = {
   revalidate: () => void;
@@ -44,6 +53,18 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [editor] = useLexicalComposerContext();
+  const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
+  const [floatingAnchorElem, setFloatingAnchorElem] =
+    useState<HTMLDivElement | null>(null);
+  const onRef = (_floatingAnchorElem: HTMLDivElement) => {
+    if (_floatingAnchorElem !== null) {
+      setFloatingAnchorElem(_floatingAnchorElem);
+    }
+  };
+
+  useEffect(() => {
+    console.log("floatingAnchorElem", floatingAnchorElem);
+  }, [floatingAnchorElem]);
 
   const debouncedSendUpdateRef = useRef(
     debounce((parsedState: string) => {
@@ -106,7 +127,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
           console.error("error initializing connection", err);
         });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // cleanup on unmount
@@ -119,45 +140,72 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
   }, []);
 
   return (
-    <div className="relative w-full h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Toolbar with semi-transparent background floating over the content */}
-      <div className="fixed top-0 left-0 right-0 z-10 w-full">
-        <div className="flex justify-center md:justify-between md:px-8 items-center py-2 max-w-screen-lg mx-auto">
-          <OptionsDropdown
-            className="hidden md:flex"
-            documentId={entity.id}
-            state={editorStateRef}
+    <>
+      <div className="relative w-full h-screen bg-zinc-50 dark:bg-zinc-950">
+        {/* Toolbar with semi-transparent background floating over the content */}
+        <div className="fixed top-0 left-0 right-0 z-10 w-full">
+          <div className="flex justify-center md:justify-between md:px-8 items-center py-2 max-w-screen-lg mx-auto">
+            <OptionsDropdown
+              className="hidden md:flex"
+              documentId={entity.id}
+              state={editorStateRef}
+            />
+            {/* <ToolbarPlugin /> */}
+            <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
+            <ModeToggle className="hidden md:flex" />
+          </div>
+        </div>
+        {/* bottom left options */}
+
+        <OptionsDropdown
+          className=" fixed bottom-2 left-2 z-10 md:hidden"
+          documentId={entity.id}
+          state={editorStateRef}
+        />
+
+        {/* ContentEditable allowing content to scroll behind the toolbar */}
+        <div className="w-full h-full overflow-y-auto max-w-screen-lg border-x border-x-zinc-200 mx-auto">
+          <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+          <CodeHighlightPlugin />
+          <RichTextPlugin
+            contentEditable={
+              <div className="editor-scroller">
+                <div className="editor" ref={onRef}>
+                  <ContentEditable
+                    id="lexical-content"
+                    className="resize-none outline-none pt-20 px-6 text-black dark:text-white "
+                  />
+                </div>
+              </div>
+            }
+            placeholder={<Placeholder />}
+            ErrorBoundary={LexicalErrorBoundary}
           />
-          <ToolbarPlugin />
-          <ModeToggle className="hidden md:flex" />
+          <OnChangePlugin onChange={onChange} />
+          <HistoryPlugin />
+          <AutoFocusPlugin />
         </div>
       </div>
-      {/* bottom left options */}
-
-      <OptionsDropdown
-        className=" fixed bottom-2 left-2 z-10 md:hidden"
-        documentId={entity.id}
-        state={editorStateRef}
-      />
-
-      {/* ContentEditable allowing content to scroll behind the toolbar */}
-      <div className="w-full h-full overflow-y-auto max-w-screen-lg border-x border-x-zinc-200 mx-auto">
-        <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
-        <RichTextPlugin
-          contentEditable={
-            <ContentEditable
-              id="lexical-content"
-              className="resize-none outline-none pt-20 px-6 text-black dark:text-white "
-            />
-          }
-          placeholder={<Placeholder />}
-          ErrorBoundary={LexicalErrorBoundary}
-        />
-        <OnChangePlugin onChange={onChange} />
-        <HistoryPlugin />
-        <AutoFocusPlugin />
-      </div>
-    </div>
+      {floatingAnchorElem && (
+        <>
+          {/* <DraggableBlockPlugin anchorElem={floatingAnchorElem} /> */}
+          <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+          <FloatingLinkEditorPlugin
+            anchorElem={floatingAnchorElem}
+            isLinkEditMode={isLinkEditMode}
+            setIsLinkEditMode={setIsLinkEditMode}
+          />
+          <TableActionMenuPlugin
+            anchorElem={floatingAnchorElem}
+            cellMerge={true}
+          />
+          <FloatingTextFormatToolbarPlugin
+            anchorElem={floatingAnchorElem}
+            setIsLinkEditMode={setIsLinkEditMode}
+          />
+        </>
+      )}
+    </>
   );
 }
 
@@ -185,7 +233,7 @@ export default function DocumentEditor({
       initialConfig={{
         namespace: "Excalifork",
         editorState: entity.elements,
-        onError: (error) => {
+        onError: (error: unknown) => {
           console.error("Error in LexicalComposer: ", error);
         },
         nodes: [
@@ -197,8 +245,9 @@ export default function DocumentEditor({
           HorizontalRuleNode,
           MarkNode,
           CodeNode,
+          CodeHighlightNode,
         ],
-        theme: Theme,
+        theme: theme,
       }}
     >
       <EditorHandler
