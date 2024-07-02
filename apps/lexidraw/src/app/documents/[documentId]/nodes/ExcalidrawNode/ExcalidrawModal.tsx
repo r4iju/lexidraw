@@ -139,30 +139,33 @@ export default function ExcalidrawModal({
   function ShowDiscardDialog(): JSX.Element {
     return (
       <Dialog open={discardModalOpen} onOpenChange={setDiscardModalOpen}>
-        <DialogOverlay />
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Discard</DialogTitle>
-          </DialogHeader>
-          Are you sure you want to discard the changes?
-          <div className="ExcalidrawModal__discardModal">
-            <Button
-              onClick={() => {
-                setDiscardModalOpen(false);
-                onClose();
-              }}
-            >
-              Discard
-            </Button>
-            <Button
-              onClick={() => {
-                setDiscardModalOpen(false);
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </DialogContent>
+        <DialogOverlay>
+          <DialogContent className="z-[150]">
+            <DialogHeader>
+              <DialogTitle>Discard</DialogTitle>
+            </DialogHeader>
+            Are you sure you want to discard the changes?
+            <div className="flex justify-between">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDiscardModalOpen(false);
+                  onClose();
+                }}
+              >
+                Discard
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDiscardModalOpen(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </DialogContent>
+        </DialogOverlay>
       </Dialog>
     );
   }
@@ -199,12 +202,12 @@ export default function ExcalidrawModal({
             }}
           />
           <div className="ExcalidrawModal__actions">
-            <button className="action-button" onClick={discard}>
+            <Button variant="outline" onClick={discard}>
               Discard
-            </button>
-            <button className="action-button" onClick={save}>
+            </Button>
+            <Button variant="outline" onClick={save}>
               Save
-            </button>
+            </Button>
           </div>
         </div>
       </div>
