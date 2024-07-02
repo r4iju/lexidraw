@@ -17,19 +17,11 @@ import {
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as React from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "~/components/ui/dialog";
+import { DialogFooter } from "~/components/ui/dialog";
 import invariant from "../shared/invariant";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { CopyPlus } from "lucide-react";
 
 export type InsertTableCommandPayload = Readonly<{
   columns: string;
@@ -122,40 +114,29 @@ export function InsertTableDialog({
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          Insert table
-          <CopyPlus className="size-4" />
+    <>
+      <Label>Rows</Label>
+      <Input
+        placeholder={"# of rows (1-500)"}
+        onChange={(e) => setRows(e.target.value)}
+        value={rows}
+        data-test-id="table-modal-rows"
+        type="number"
+      />
+      <Label>Columns</Label>
+      <Input
+        placeholder={"# of columns (1-50)"}
+        onChange={(e) => setColumns(e.target.value)}
+        value={columns}
+        data-test-id="table-modal-columns"
+        type="number"
+      />
+      <DialogFooter data-test-id="table-model-confirm-insert">
+        <Button disabled={isDisabled} onClick={onClick}>
+          Confirm
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Insert Table</DialogTitle>
-        </DialogHeader>
-        <Label>Rows</Label>
-        <Input
-          placeholder={"# of rows (1-500)"}
-          onChange={(e) => setRows(e.target.value)}
-          value={rows}
-          data-test-id="table-modal-rows"
-          type="number"
-        />
-        <Label>Columns</Label>
-        <Input
-          placeholder={"# of columns (1-50)"}
-          onChange={(e) => setColumns(e.target.value)}
-          value={columns}
-          data-test-id="table-modal-columns"
-          type="number"
-        />
-        <DialogFooter data-test-id="table-model-confirm-insert">
-          <Button disabled={isDisabled} onClick={onClick}>
-            Confirm
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </DialogFooter>
+    </>
   );
 }
 

@@ -1175,8 +1175,7 @@ export default function ToolbarPlugin({
                 }}
                 className="item"
               >
-                <i className="icon image" />
-                <span className="text">Inline Image</span>
+                Inline Image
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() =>

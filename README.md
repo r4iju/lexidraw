@@ -1,6 +1,6 @@
-# An Excalidraw Demo App
+# Lexidraw
 
-This is a wrapper around Excalidraw, providing persistance and sharing capabilities.
+This is a wrapper around Excalidraw and Lexical, providing persistance and sharing capabilities.
 The Web-RTC based collaboration feature is currently not reliable.
 
 ## Getting started
@@ -9,4 +9,4 @@ Setup a database, configure connect string with the .env.example, and run `pnpm 
 
 ## How do I deploy this?
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+Follow t3-stack deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.

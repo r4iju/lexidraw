@@ -31,13 +31,7 @@ import {
   InlineImageNode,
   InlineImagePayload,
 } from "../../nodes/InlineImageNode/InlineImageNode";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
+import { DialogFooter } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import FileInput from "~/components/ui/file-input";
 import { Input } from "~/components/ui/input";
@@ -114,69 +108,64 @@ export function InsertInlineImageDialog({
   };
 
   return (
-    <Dialog>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Insert Inline Image</DialogTitle>
-        </DialogHeader>
-        <div style={{ marginBottom: "1em" }}>
-          <FileInput
-            label="Image Upload"
-            onChange={loadImage}
-            accept="image/*"
-            data-test-id="image-modal-file-upload"
-          />
-        </div>
-        <div style={{ marginBottom: "1em" }}>
-          <Label htmlFor="alt-text">Alt Text</Label>
-          <Input
-            placeholder="Descriptive alternative text"
-            onChange={(e) => setAltText(e.target.value)}
-            value={altText}
-            data-test-id="image-modal-alt-text-input"
-          />
-        </div>
+    <>
+      <div style={{ marginBottom: "1em" }}>
+        <FileInput
+          label="Image Upload"
+          onChange={loadImage}
+          accept="image/*"
+          data-test-id="image-modal-file-upload"
+        />
+      </div>
+      <div style={{ marginBottom: "1em" }}>
+        <Label htmlFor="alt-text">Alt Text</Label>
+        <Input
+          placeholder="Descriptive alternative text"
+          onChange={(e) => setAltText(e.target.value)}
+          value={altText}
+          data-test-id="image-modal-alt-text-input"
+        />
+      </div>
 
-        <Select
-          name="position"
-          onValueChange={(val) => setPosition(val as Position)}
+      <Select
+        name="position"
+        onValueChange={(val) => setPosition(val as Position)}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Position" className="mb-1 w-[290px]">
+            {position}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="left">Left</SelectItem>
+            <SelectItem value="right">Right</SelectItem>
+            <SelectItem value="full">Full Width</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+
+      <div className="Input__wrapper">
+        <input
+          id="caption"
+          className="InlineImageNode_Checkbox"
+          type="checkbox"
+          checked={showCaption}
+          onChange={handleShowCaptionChange}
+        />
+        <label htmlFor="caption">Show Caption</label>
+      </div>
+
+      <DialogFooter>
+        <Button
+          data-test-id="image-modal-file-upload-btn"
+          disabled={isDisabled}
+          onClick={() => handleOnClick()}
         >
-          <SelectTrigger>
-            <SelectValue placeholder="Position" className="mb-1 w-[290px]">
-              {position}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="left">Left</SelectItem>
-              <SelectItem value="right">Right</SelectItem>
-              <SelectItem value="full">Full Width</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-
-        <div className="Input__wrapper">
-          <input
-            id="caption"
-            className="InlineImageNode_Checkbox"
-            type="checkbox"
-            checked={showCaption}
-            onChange={handleShowCaptionChange}
-          />
-          <label htmlFor="caption">Show Caption</label>
-        </div>
-
-        <DialogFooter>
-          <Button
-            data-test-id="image-modal-file-upload-btn"
-            disabled={isDisabled}
-            onClick={() => handleOnClick()}
-          >
-            Confirm
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          Confirm
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
 

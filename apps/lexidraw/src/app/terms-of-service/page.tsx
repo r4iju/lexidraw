@@ -15,33 +15,33 @@ export default function PrivacyPolicy() {
                   Introduction
                 </h2>
                 <p>
-                  Welcome to this Excalidraw Demo App, a collaborative online
-                  drawing and diagramming tool. By accessing or using our
-                  service, you agree to be bound by these Terms of Service and
-                  any additional terms and conditions that are referenced herein
-                  or that otherwise may apply to specific sections of the
-                  Service, or to products and services that we make available to
-                  you through the Service. If you do not agree to all of these
-                  terms, do not use the service.
+                  Welcome to this Lexidraw, a collaborative online drawing and
+                  diagramming tool. By accessing or using our service, you agree
+                  to be bound by these Terms of Service and any additional terms
+                  and conditions that are referenced herein or that otherwise
+                  may apply to specific sections of the Service, or to products
+                  and services that we make available to you through the
+                  Service. If you do not agree to all of these terms, do not use
+                  the service.
                 </p>
                 <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
                   Use of Service
                 </h2>
                 <p>
-                  This Excalidraw Demo App allows you to create, share, and
-                  collaborate on drawings and diagrams. You are responsible for
-                  your use of the service, for any content you create, and for
-                  any consequences thereof. The content you create and share
-                  must comply with all applicable laws and regulations. You
-                  should only provide content that you are comfortable sharing
-                  with others under these Terms.
+                  This Lexidraw allows you to create, share, and collaborate on
+                  drawings and diagrams. You are responsible for your use of the
+                  service, for any content you create, and for any consequences
+                  thereof. The content you create and share must comply with all
+                  applicable laws and regulations. You should only provide
+                  content that you are comfortable sharing with others under
+                  these Terms.
                 </p>
                 <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
                   Intellectual Property Rights
                 </h2>
                 <p>
                   All content uploaded remains your property. By creating
-                  content on this Excalidraw Demo App, you grant us a worldwide,
+                  content on this Lexidraw, you grant us a worldwide,
                   non-exclusive, royalty-free license to host, store, use,
                   display, reproduce, modify, and distribute your content solely
                   for the purposes of operating, developing, providing, and

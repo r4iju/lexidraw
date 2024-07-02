@@ -26,7 +26,7 @@ const fredoka = Fredoka({
 });
 
 export const metadata = {
-  title: "Excalidraw Demo App",
+  title: "Lexidraw",
   description: "An Excalidraw demo app",
 };
 
