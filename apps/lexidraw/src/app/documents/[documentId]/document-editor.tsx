@@ -44,6 +44,10 @@ import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbar
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { TableContext } from "./plugins/TablePlugin";
 import TableCellResizer from "./plugins/TableCellResizer";
+import { ImageNode } from "./nodes/ImageNode";
+import ImagesPlugin from "./plugins/ImagesPlugin";
+import InlineImagePlugin from "./plugins/InlineImagePlugin";
+import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
 
 type EditorProps = {
   revalidate: () => void;
@@ -60,6 +64,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [editor] = useLexicalComposerContext();
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
+
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null);
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
@@ -147,74 +152,78 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
 
   return (
     <TableContext>
-      <div className="relative w-full h-screen bg-zinc-50 dark:bg-zinc-950">
-        {/* Toolbar with semi-transparent background floating over the content */}
-        <div className="fixed top-0 left-0 right-0 z-10 w-full">
-          <div className="flex justify-center md:justify-between md:px-8 items-center py-2 max-w-screen-lg mx-auto">
-            <OptionsDropdown
-              className="hidden md:flex"
-              documentId={entity.id}
-              state={editorStateRef}
+      <>
+        <div className="relative w-full h-screen bg-zinc-50 dark:bg-zinc-950">
+          {/* Toolbar with semi-transparent background floating over the content */}
+          <div className="fixed top-0 left-0 right-0 z-10 w-full">
+            <div className="flex justify-center md:justify-between md:px-8 items-center py-2 max-w-screen-lg mx-auto">
+              <OptionsDropdown
+                className="hidden md:flex"
+                documentId={entity.id}
+                state={editorStateRef}
+              />
+              {/* <ToolbarPlugin /> */}
+              <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
+              <ModeToggle className="hidden md:flex" />
+            </div>
+          </div>
+          {/* bottom left options */}
+
+          <OptionsDropdown
+            className=" fixed bottom-2 left-2 z-10 md:hidden"
+            documentId={entity.id}
+            state={editorStateRef}
+          />
+
+          {/* ContentEditable allowing content to scroll behind the toolbar */}
+          <div className="w-full h-full overflow-y-auto max-w-screen-lg border-x border-x-zinc-200 mx-auto">
+            <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+            <CodeHighlightPlugin />
+            <TabIndentationPlugin />
+            <HorizontalRulePlugin />
+            <TablePlugin />
+            <TableCellResizer />
+            <ImagesPlugin />
+            <InlineImagePlugin />
+            <RichTextPlugin
+              contentEditable={
+                <div className="editor-scroller">
+                  <div className="editor" ref={onRef}>
+                    <ContentEditable
+                      id="lexical-content"
+                      className="resize-none outline-none pt-20 px-6 text-black dark:text-white "
+                    />
+                  </div>
+                </div>
+              }
+              placeholder={<Placeholder />}
+              ErrorBoundary={LexicalErrorBoundary}
             />
-            {/* <ToolbarPlugin /> */}
-            <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
-            <ModeToggle className="hidden md:flex" />
+            <OnChangePlugin onChange={onChange} />
+            <HistoryPlugin />
+            <AutoFocusPlugin />
           </div>
         </div>
-        {/* bottom left options */}
-
-        <OptionsDropdown
-          className=" fixed bottom-2 left-2 z-10 md:hidden"
-          documentId={entity.id}
-          state={editorStateRef}
-        />
-
-        {/* ContentEditable allowing content to scroll behind the toolbar */}
-        <div className="w-full h-full overflow-y-auto max-w-screen-lg border-x border-x-zinc-200 mx-auto">
-          <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
-          <CodeHighlightPlugin />
-          <TabIndentationPlugin />
-          <HorizontalRulePlugin />
-          <TablePlugin />
-          <TableCellResizer />
-          <RichTextPlugin
-            contentEditable={
-              <div className="editor-scroller">
-                <div className="editor" ref={onRef}>
-                  <ContentEditable
-                    id="lexical-content"
-                    className="resize-none outline-none pt-20 px-6 text-black dark:text-white "
-                  />
-                </div>
-              </div>
-            }
-            placeholder={<Placeholder />}
-            ErrorBoundary={LexicalErrorBoundary}
-          />
-          <OnChangePlugin onChange={onChange} />
-          <HistoryPlugin />
-          <AutoFocusPlugin />
-        </div>
-      </div>
-      {floatingAnchorElem && (
-        <>
-          {/* <DraggableBlockPlugin anchorElem={floatingAnchorElem} /> */}
-          <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
-          <FloatingLinkEditorPlugin
-            anchorElem={floatingAnchorElem}
-            isLinkEditMode={isLinkEditMode}
-            setIsLinkEditMode={setIsLinkEditMode}
-          />
-          <TableActionMenuPlugin
-            anchorElem={floatingAnchorElem}
-            cellMerge={true}
-          />
-          <FloatingTextFormatToolbarPlugin
-            anchorElem={floatingAnchorElem}
-            setIsLinkEditMode={setIsLinkEditMode}
-          />
-        </>
-      )}
+        {floatingAnchorElem && (
+          <>
+            {/* <DraggableBlockPlugin anchorElem={floatingAnchorElem} /> */}
+            <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+            <FloatingLinkEditorPlugin
+              anchorElem={floatingAnchorElem}
+              isLinkEditMode={isLinkEditMode}
+              setIsLinkEditMode={setIsLinkEditMode}
+            />
+            <TableActionMenuPlugin
+              anchorElem={floatingAnchorElem}
+              cellMerge={true}
+            />
+            <FloatingTextFormatToolbarPlugin
+              anchorElem={floatingAnchorElem}
+              setIsLinkEditMode={setIsLinkEditMode}
+            />
+          </>
+        )}
+      </>
     </TableContext>
   );
 }
@@ -259,6 +268,8 @@ export default function DocumentEditor({
           TableNode,
           TableCellNode,
           TableRowNode,
+          ImageNode,
+          InlineImageNode,
         ],
         theme: theme,
       }}

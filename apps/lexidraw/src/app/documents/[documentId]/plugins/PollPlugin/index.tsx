@@ -46,10 +46,7 @@ export function InsertPollDialog({
   };
 
   return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Insert Poll</DialogTitle>
-      </DialogHeader>
+    <>
       <Label>Question</Label>
       <Input onChange={(e) => setQuestion(e.target.value)} value={question} />
       <DialogFooter>
@@ -57,7 +54,7 @@ export function InsertPollDialog({
           Confirm
         </Button>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 }
 

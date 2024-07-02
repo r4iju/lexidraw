@@ -165,56 +165,45 @@ export function InsertImageDialog({
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button>Insert Image</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Insert Image</DialogTitle>
-          <DialogDescription>
-            Choose how you want to insert the image.
-          </DialogDescription>
-        </DialogHeader>
-        {!mode && (
-          <>
-            <Button
-              data-test-id="image-modal-option-sample"
-              onClick={() =>
-                onClick(
-                  hasModifier.current
-                    ? {
-                        altText:
-                          "Daylight fir trees forest glacier green high ice landscape",
-                        src: "/images/landscape.jpg",
-                      }
-                    : {
-                        altText: "Yellow flower in tilt shift lens",
-                        src: "/images/yellow-flower.jpg",
-                      },
-                )
-              }
-            >
-              Sample
-            </Button>
-            <Button
-              data-test-id="image-modal-option-url"
-              onClick={() => setMode("url")}
-            >
-              URL
-            </Button>
-            <Button
-              data-test-id="image-modal-option-file"
-              onClick={() => setMode("file")}
-            >
-              File
-            </Button>
-          </>
-        )}
-        {mode === "url" && <InsertImageUriDialogBody onClick={onClick} />}
-        {mode === "file" && <InsertImageUploadedDialogBody onClick={onClick} />}
-      </DialogContent>
-    </Dialog>
+    <>
+      {!mode && (
+        <>
+          <Button
+            data-test-id="image-modal-option-sample"
+            onClick={() =>
+              onClick(
+                hasModifier.current
+                  ? {
+                      altText:
+                        "Daylight fir trees forest glacier green high ice landscape",
+                      src: "/images/landscape.jpg",
+                    }
+                  : {
+                      altText: "Yellow flower in tilt shift lens",
+                      src: "/images/yellow-flower.jpg",
+                    },
+              )
+            }
+          >
+            Sample
+          </Button>
+          <Button
+            data-test-id="image-modal-option-url"
+            onClick={() => setMode("url")}
+          >
+            URL
+          </Button>
+          <Button
+            data-test-id="image-modal-option-file"
+            onClick={() => setMode("file")}
+          >
+            File
+          </Button>
+        </>
+      )}
+      {mode === "url" && <InsertImageUriDialogBody onClick={onClick} />}
+      {mode === "file" && <InsertImageUploadedDialogBody onClick={onClick} />}
+    </>
   );
 }
 

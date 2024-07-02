@@ -3,12 +3,9 @@ import * as React from "react";
 
 import {
   Dialog,
-  DialogOverlay,
   DialogContent,
   DialogHeader,
-  DialogFooter,
   DialogTitle,
-  DialogClose,
 } from "~/components/ui/dialog";
 
 export default function useModal(): [
@@ -51,17 +48,12 @@ export default function useModal(): [
     const { title, content } = modalContent;
     return (
       <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogOverlay />
+        {/* <DialogOverlay /> */}
         <DialogContent ref={ref}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
           {content}
-          <DialogFooter>
-            <DialogClose asChild>
-              <button onClick={onClose}>Close</button>
-            </DialogClose>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -70,7 +62,7 @@ export default function useModal(): [
   const showModal = useCallback(
     (
       title: string,
-       
+
       getContent: (onClose: () => void) => JSX.Element,
       closeOnClickOutside = false,
     ) => {

@@ -1,4 +1,5 @@
 import { type EditorThemeClasses } from "lexical";
+import './playground-theme.css';
 // import "./theme-default.css"
 // import "./theme-dracula.css"
 
@@ -36,6 +37,20 @@ export const theme = {
     url: "text-blue-600 dark:text-blue-400",
     variable: "text-indigo-600 dark:text-indigo-400"
   },
+  table: "PlaygroundEditorTheme__table",
+  tableAddColumns: "PlaygroundEditorTheme__tableAddColumns",
+  tableAddRows: "PlaygroundEditorTheme__tableAddRows",
+  tableCell: "PlaygroundEditorTheme__tableCell",
+  tableCellActionButton: "PlaygroundEditorTheme__tableCellActionButton",
+  tableCellActionButtonContainer: "PlaygroundEditorTheme__tableCellActionButtonContainer",
+  tableCellEditing: "PlaygroundEditorTheme__tableCellEditing",
+  tableCellHeader: "PlaygroundEditorTheme__tableCellHeader",
+  tableCellPrimarySelected: "PlaygroundEditorTheme__tableCellPrimarySelected",
+  tableCellResizer: "PlaygroundEditorTheme__tableCellResizer",
+  tableCellSelected: "PlaygroundEditorTheme__tableCellSelected",
+  tableCellSortedIndicator: "PlaygroundEditorTheme__tableCellSortedIndicator",
+  tableResizeRuler: "PlaygroundEditorTheme__tableCellResizeRuler",
+  tableSelected: "PlaygroundEditorTheme__tableSelected",
   heading: {
     h1: 'text-3xl font-semibold mb-2 text-gray-900 dark:text-gray-100',
     h2: 'text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100',
