@@ -14,6 +14,9 @@ import { MarkNode } from "@lexical/mark";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
 // plugins
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
+import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
+import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
+import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
 import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
@@ -38,6 +41,9 @@ import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import FloatingLinkEditorPlugin from "./plugins/FloatingLinkEditorPlugin";
 import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
+import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
+import { TableContext } from "./plugins/TablePlugin";
+import TableCellResizer from "./plugins/TableCellResizer";
 
 type EditorProps = {
   revalidate: () => void;
@@ -140,7 +146,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
   }, []);
 
   return (
-    <>
+    <TableContext>
       <div className="relative w-full h-screen bg-zinc-50 dark:bg-zinc-950">
         {/* Toolbar with semi-transparent background floating over the content */}
         <div className="fixed top-0 left-0 right-0 z-10 w-full">
@@ -167,6 +173,10 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
         <div className="w-full h-full overflow-y-auto max-w-screen-lg border-x border-x-zinc-200 mx-auto">
           <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
           <CodeHighlightPlugin />
+          <TabIndentationPlugin />
+          <HorizontalRulePlugin />
+          <TablePlugin />
+          <TableCellResizer />
           <RichTextPlugin
             contentEditable={
               <div className="editor-scroller">
@@ -205,7 +215,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
           />
         </>
       )}
-    </>
+    </TableContext>
   );
 }
 
@@ -246,6 +256,9 @@ export default function DocumentEditor({
           MarkNode,
           CodeNode,
           CodeHighlightNode,
+          TableNode,
+          TableCellNode,
+          TableRowNode,
         ],
         theme: theme,
       }}
