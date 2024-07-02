@@ -7,7 +7,7 @@ import { TRANSFORMERS } from "@lexical/markdown";
 import { MessageStructure } from "@packages/types";
 // nodes
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { LinkNode } from "@lexical/link";
+import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { MarkNode } from "@lexical/mark";
@@ -19,6 +19,7 @@ import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
 import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
+import AutocompletePlugin from "./plugins/AutocompletePlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
@@ -40,6 +41,7 @@ import { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import FloatingLinkEditorPlugin from "./plugins/FloatingLinkEditorPlugin";
 import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
+import AutoEmbedPlugin from "./plugins/AutoEmbedPlugin";
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { TableContext } from "./plugins/TablePlugin";
@@ -48,6 +50,17 @@ import { ImageNode } from "./nodes/ImageNode";
 import ImagesPlugin from "./plugins/ImagesPlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
 import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
+import { AutocompleteNode } from "./nodes/AutocompleteNode";
+import TwitterPlugin from "./plugins/TwitterPlugin";
+import YouTubePlugin from "./plugins/YouTubePlugin";
+import { TweetNode } from "./nodes/TweetNode";
+import { YouTubeNode } from "./nodes/YouTubeNode";
+import ExcalidrawPlugin from "./plugins/ExcalidrawPlugin";
+import { ExcalidrawNode } from "./nodes/ExcalidrawNode";
+import { FigmaNode } from "./nodes/FigmaNode";
+import { EquationNode } from "./nodes/EquationNode";
+import FigmaPlugin from "./plugins/FigmaPlugin";
+import EquationsPlugin from "./plugins/EquationsPlugin";
 
 type EditorProps = {
   revalidate: () => void;
@@ -180,11 +193,18 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
             <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
             <CodeHighlightPlugin />
             <TabIndentationPlugin />
+            <AutocompletePlugin />
+            <AutoEmbedPlugin />
             <HorizontalRulePlugin />
             <TablePlugin />
             <TableCellResizer />
             <ImagesPlugin />
             <InlineImagePlugin />
+            <TwitterPlugin />
+            <YouTubePlugin />
+            <ExcalidrawPlugin />
+            <FigmaPlugin />
+            <EquationsPlugin />
             <RichTextPlugin
               contentEditable={
                 <div className="editor-scroller">
@@ -258,7 +278,6 @@ export default function DocumentEditor({
         nodes: [
           HeadingNode,
           QuoteNode,
-          LinkNode,
           ListItemNode,
           ListNode,
           HorizontalRuleNode,
@@ -270,6 +289,14 @@ export default function DocumentEditor({
           TableRowNode,
           ImageNode,
           InlineImageNode,
+          AutocompleteNode,
+          LinkNode,
+          AutoLinkNode,
+          TweetNode,
+          YouTubeNode,
+          ExcalidrawNode,
+          FigmaNode,
+          EquationNode,
         ],
         theme: theme,
       }}

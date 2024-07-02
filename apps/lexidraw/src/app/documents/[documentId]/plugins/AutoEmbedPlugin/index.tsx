@@ -21,6 +21,7 @@ import { Button } from "~/components/ui/button";
 import { INSERT_FIGMA_COMMAND } from "../FigmaPlugin";
 import { INSERT_TWEET_COMMAND } from "../TwitterPlugin";
 import { INSERT_YOUTUBE_COMMAND } from "../YouTubePlugin";
+import { Input } from "~/components/ui/input";
 
 interface PlaygroundEmbedConfig extends EmbedConfig {
   contentName: string;
@@ -215,21 +216,19 @@ export function AutoEmbedDialog({
       <DialogHeader>
         <DialogTitle>Embed {embedConfig.contentName}</DialogTitle>
       </DialogHeader>
-      <div style={{ width: "600px" }}>
-        <div className="Input__wrapper">
-          <input
-            type="text"
-            className="Input__input"
-            placeholder={embedConfig.exampleUrl}
-            value={text}
-            data-test-id={`${embedConfig.type}-embed-modal-url`}
-            onChange={(e) => {
-              const { value } = e.target;
-              setText(value);
-              validateText(value);
-            }}
-          />
-        </div>
+      <div className="w-full">
+        <Input
+          type="text"
+          className=""
+          placeholder={embedConfig.exampleUrl}
+          value={text}
+          data-test-id={`${embedConfig.type}-embed-modal-url`}
+          onChange={(e) => {
+            const { value } = e.target;
+            setText(value);
+            validateText(value);
+          }}
+        />
       </div>
       <DialogFooter>
         <Button
