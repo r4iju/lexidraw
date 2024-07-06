@@ -161,7 +161,7 @@
   top: 0;
 }
 .PlaygroundEditorTheme__tableCellHeader {
-  background-color: #f2f3f5;
+  /* background-color: #f2f3f5; */
   text-align: start;
 }
 .PlaygroundEditorTheme__tableCellSelected {
