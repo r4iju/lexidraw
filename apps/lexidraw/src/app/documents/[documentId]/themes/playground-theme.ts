@@ -10,7 +10,7 @@ import type { EditorThemeClasses } from 'lexical';
 
 import './playground-theme.css';
 
-export const theme: EditorThemeClasses = {
+export const baseTheme: EditorThemeClasses = {
   autocomplete: 'PlaygroundEditorTheme__autocomplete',
   blockCursor: 'PlaygroundEditorTheme__blockCursor',
   characterLimit: 'PlaygroundEditorTheme__characterLimit',

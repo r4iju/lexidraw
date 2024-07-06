@@ -13,13 +13,13 @@ import type {
   NodeKey,
   SerializedLexicalNode,
   Spread,
-} from 'lexical';
+} from "lexical";
 
-import {DecoratorNode} from 'lexical';
-import * as React from 'react';
+import { DecoratorNode } from "lexical";
+import * as React from "react";
 
-import {useSharedAutocompleteContext} from '../context/SharedAutocompleteContext';
-import {uuid as UUID} from '../plugins/AutocompletePlugin';
+import { useSharedAutocompleteContext } from "../context/shared-autocomplete-context";
+import { uuid as UUID } from "../plugins/AutocompletePlugin";
 
 declare global {
   interface Navigator {
@@ -51,8 +51,8 @@ export class AutocompleteNode extends DecoratorNode<JSX.Element | null> {
     return new AutocompleteNode(node.__uuid, node.__key);
   }
 
-  static getType(): 'autocomplete' {
-    return 'autocomplete';
+  static getType(): "autocomplete" {
+    return "autocomplete";
   }
 
   static importJSON(
@@ -65,7 +65,7 @@ export class AutocompleteNode extends DecoratorNode<JSX.Element | null> {
   exportJSON(): SerializedAutocompleteNode {
     return {
       ...super.exportJSON(),
-      type: 'autocomplete',
+      type: "autocomplete",
       uuid: this.__uuid,
       version: 1,
     };
@@ -85,7 +85,7 @@ export class AutocompleteNode extends DecoratorNode<JSX.Element | null> {
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
-    return document.createElement('span');
+    return document.createElement("span");
   }
 
   decorate(editor: LexicalEditor, config: EditorConfig): JSX.Element | null {
@@ -113,7 +113,7 @@ function AutocompleteComponent({
       : window.innerWidth <= 800 && window.innerHeight <= 600;
   return (
     <span className={className} spellCheck="false">
-      {suggestion} {isMobile ? '(SWIPE \u2B95)' : '(TAB)'}
+      {suggestion} {isMobile ? "(SWIPE \u2B95)" : "(TAB)"}
     </span>
   );
 }

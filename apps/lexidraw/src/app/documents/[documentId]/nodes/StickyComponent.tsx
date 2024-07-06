@@ -20,7 +20,7 @@ import { $getNodeByKey } from "lexical";
 import * as React from "react";
 import { useEffect, useRef } from "react";
 import useLayoutEffect from "../shared/useLayoutEffect";
-import { useSharedHistoryContext } from "../context/SharedHistoryContext";
+import { useSharedHistoryContext } from "../context/shared-history-context";
 import StickyEditorTheme from "../themes/sticky-editor-theme";
 import Placeholder from "~/components/ui/placeholder";
 import { $isStickyNode } from "./StickyNode";

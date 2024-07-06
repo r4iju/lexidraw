@@ -6,9 +6,9 @@
  *
  */
 
-import type {SettingName} from '../lexical-settings';
+import type { SettingName } from "./app-settings";
 
-import * as React from 'react';
+import * as React from "react";
 import {
   createContext,
   ReactNode,
@@ -16,9 +16,9 @@ import {
   useContext,
   useMemo,
   useState,
-} from 'react';
+} from "react";
 
-import {DEFAULT_SETTINGS, INITIAL_SETTINGS} from '../lexical-settings';
+import { DEFAULT_SETTINGS, INITIAL_SETTINGS } from "./app-settings";
 
 type SettingsContextShape = {
   setOption: (name: SettingName, value: boolean) => void;
@@ -48,7 +48,7 @@ export const SettingsContext = ({
   }, []);
 
   const contextValue = useMemo(() => {
-    return {setOption, settings};
+    return { setOption, settings };
   }, [setOption, settings]);
 
   return <Context.Provider value={contextValue}>{children}</Context.Provider>;
@@ -67,5 +67,5 @@ function setURLParam(param: SettingName, value: null | boolean) {
     params.delete(param);
   }
   url.search = params.toString();
-  window.history.pushState(null, '', url.toString());
+  window.history.pushState(null, "", url.toString());
 }
