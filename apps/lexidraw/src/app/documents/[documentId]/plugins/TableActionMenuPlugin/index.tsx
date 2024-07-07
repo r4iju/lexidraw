@@ -498,25 +498,21 @@ function TableActionMenu({
   if (cellMerge) {
     if (canMergeCells) {
       mergeCellButton = (
-        <button
-          type="button"
-          className="item"
+        <DropdownMenuItem
           onClick={() => mergeTableCellsAtSelection()}
           data-test-id="table-merge-cells"
         >
           Merge cells
-        </button>
+        </DropdownMenuItem>
       );
     } else if (canUnmergeCell) {
       mergeCellButton = (
-        <button
-          type="button"
-          className="item"
+        <DropdownMenuItem
           onClick={() => unmergeTableCellsAtSelection()}
           data-test-id="table-unmerge-cells"
         >
           Unmerge cells
-        </button>
+        </DropdownMenuItem>
       );
     }
   }
