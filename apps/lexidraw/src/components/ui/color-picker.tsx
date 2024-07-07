@@ -40,6 +40,7 @@ const HEIGHT = 150;
 interface ColorPickerContentProps {
   color: string;
   onChange?: (value: string, skipHistoryStack: boolean) => void;
+  className?: string;
 }
 
 interface ColorPickerButtonProps {
@@ -49,7 +50,6 @@ interface ColorPickerButtonProps {
   color: string;
   Icon?: LucideIcon;
   onChange?: (value: string, skipHistoryStack: boolean) => void;
-  className?: string;
 }
 
 export function ColorPickerContent({
