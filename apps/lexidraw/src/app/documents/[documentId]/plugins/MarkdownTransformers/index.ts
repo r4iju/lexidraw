@@ -84,6 +84,9 @@ export const IMAGE: TextMatchTransformer = {
   regExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
   replace: (textNode, match) => {
     const [, altText, src] = match;
+    if (!src || !altText) {
+      return;
+    }
     const imageNode = $createImageNode({
       altText,
       maxWidth: 800,
@@ -101,7 +104,7 @@ export const EMOJI: TextMatchTransformer = {
   importRegExp: /:([a-z0-9_]+):/,
   regExp: /:([a-z0-9_]+):/,
   replace: (textNode, [, name]) => {
-    const emoji = emojiList.find((e) => e.aliases.includes(name))?.emoji;
+    const emoji = emojiList.find((e) => e.aliases.includes(name as string))?.emoji;
     if (emoji) {
       textNode.replace($createTextNode(emoji));
     }
@@ -142,6 +145,9 @@ export const TWEET: ElementTransformer = {
   regExp: /<tweet id="([^"]+?)"\s?\/>\s?$/,
   replace: (textNode, _1, match) => {
     const [, id] = match;
+    if (!id) {
+      return;
+    }
     const tweetNode = $createTweetNode(id);
     textNode.replace(tweetNode);
   },
@@ -194,6 +200,9 @@ export const TABLE: ElementTransformer = {
   regExp: TABLE_ROW_REG_EXP,
   replace: (parentNode, _1, match) => {
     // Header row
+    if (!match[0]) {
+      return;
+    }
     if (TABLE_ROW_DIVIDER_REG_EXP.test(match[0])) {
       const table = parentNode.getPreviousSibling();
       if (!table || !$isTableNode(table)) {
@@ -264,7 +273,7 @@ export const TABLE: ElementTransformer = {
       table.append(tableRow);
 
       for (let i = 0; i < maxCells; i++) {
-        tableRow.append(i < cells.length ? cells[i] : $createTableCell(''));
+        tableRow.append(i < cells.length ? cells[i] as TableCellNode : $createTableCell(''));
       }
     }
 
@@ -296,7 +305,7 @@ const $createTableCell = (textContent: string): TableCellNode => {
   return cell;
 };
 
-const mapToTableCells = (textContent: string): Array<TableCellNode> | null => {
+const mapToTableCells = (textContent: string): TableCellNode[] | null => {
   const match = textContent.match(TABLE_ROW_REG_EXP);
   if (!match || !match[1]) {
     return null;
@@ -304,7 +313,7 @@ const mapToTableCells = (textContent: string): Array<TableCellNode> | null => {
   return match[1].split('|').map((text) => $createTableCell(text));
 };
 
-export const PLAYGROUND_TRANSFORMERS: Array<Transformer> = [
+export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
   TABLE,
   HR,
   IMAGE,

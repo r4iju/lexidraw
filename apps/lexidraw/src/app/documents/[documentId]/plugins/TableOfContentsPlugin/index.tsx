@@ -28,27 +28,36 @@ function indent(tagName: HeadingTagType) {
 }
 
 function isHeadingAtTheTopOfThePage(element: HTMLElement): boolean {
-  const elementYPosition = element?.getClientRects()[0].y;
+  const elementYPosition = element?.getClientRects()[0]?.y;
+  if (elementYPosition === undefined) {
+    return false;
+  }
   return (
     elementYPosition >= MARGIN_ABOVE_EDITOR &&
     elementYPosition <= MARGIN_ABOVE_EDITOR + HEADING_WIDTH
   );
 }
 function isHeadingAboveViewport(element: HTMLElement): boolean {
-  const elementYPosition = element?.getClientRects()[0].y;
+  const elementYPosition = element?.getClientRects()[0]?.y;
+  if (elementYPosition === undefined) {
+    return false;
+  }
   return elementYPosition < MARGIN_ABOVE_EDITOR;
 }
 function isHeadingBelowTheTopOfThePage(element: HTMLElement): boolean {
-  const elementYPosition = element?.getClientRects()[0].y;
+  const elementYPosition = element?.getClientRects()[0]?.y;
+  if (elementYPosition === undefined) {
+    return false;
+  }
   return elementYPosition >= MARGIN_ABOVE_EDITOR + HEADING_WIDTH;
 }
 
 function TableOfContentsList({
   tableOfContents,
 }: {
-  tableOfContents: Array<TableOfContentsEntry>;
+  tableOfContents: TableOfContentsEntry[];
 }): JSX.Element {
-  const [selectedKey, setSelectedKey] = useState('');
+  const [selectedKey, setSelectedKey] = useState("");
   const selectedIndex = useRef(0);
   const [editor] = useLexicalComposerContext();
 
@@ -70,6 +79,7 @@ function TableOfContentsList({
         selectedIndex.current < tableOfContents.length - 1
       ) {
         let currentHeading = editor.getElementByKey(
+          // @ts-expect-error this is fine
           tableOfContents[selectedIndex.current][0],
         );
         if (currentHeading !== null) {
@@ -81,6 +91,7 @@ function TableOfContentsList({
               selectedIndex.current > 0
             ) {
               const prevHeading = editor.getElementByKey(
+                // @ts-expect-error this is fine
                 tableOfContents[selectedIndex.current - 1][0],
               );
               if (
@@ -92,6 +103,7 @@ function TableOfContentsList({
               }
               currentHeading = prevHeading;
             }
+            // @ts-expect-error this is fine
             const prevHeadingKey = tableOfContents[selectedIndex.current][0];
             setSelectedKey(prevHeadingKey);
           } else if (isHeadingAboveViewport(currentHeading)) {
@@ -102,6 +114,7 @@ function TableOfContentsList({
               selectedIndex.current < tableOfContents.length - 1
             ) {
               const nextHeading = editor.getElementByKey(
+                // @ts-expect-error this is fine
                 tableOfContents[selectedIndex.current + 1][0],
               );
               if (
@@ -113,6 +126,7 @@ function TableOfContentsList({
               }
               currentHeading = nextHeading;
             }
+            // @ts-expect-error this is fine
             const nextHeadingKey = tableOfContents[selectedIndex.current][0];
             setSelectedKey(nextHeadingKey);
           }
@@ -132,8 +146,8 @@ function TableOfContentsList({
       debounceFunction(scrollCallback, 10);
     }
 
-    document.addEventListener('scroll', onScroll);
-    return () => document.removeEventListener('scroll', onScroll);
+    document.addEventListener("scroll", onScroll);
+    return () => document.removeEventListener("scroll", onScroll);
   }, [tableOfContents, editor]);
 
   return (
@@ -147,9 +161,10 @@ function TableOfContentsList({
                   className="first-heading"
                   onClick={() => scrollToNode(key, index)}
                   role="button"
-                  tabIndex={0}>
-                  {('' + text).length > 20
-                    ? text.substring(0, 20) + '...'
+                  tabIndex={0}
+                >
+                  {("" + text).length > 20
+                    ? text.substring(0, 20) + "..."
                     : text}
                 </div>
                 <br />
@@ -159,21 +174,24 @@ function TableOfContentsList({
             return (
               <div
                 className={`normal-heading-wrapper ${
-                  selectedKey === key ? 'selected-heading-wrapper' : ''
+                  selectedKey === key ? "selected-heading-wrapper" : ""
                 }`}
-                key={key}>
+                key={key}
+              >
                 <div
                   onClick={() => scrollToNode(key, index)}
                   role="button"
                   className={indent(tag)}
-                  tabIndex={0}>
+                  tabIndex={0}
+                >
                   <li
                     className={`normal-heading ${
-                      selectedKey === key ? 'selected-heading' : ''
+                      selectedKey === key ? "selected-heading" : ""
                     }
-                    `}>
-                    {('' + text).length > 27
-                      ? text.substring(0, 27) + '...'
+                    `}
+                  >
+                    {("" + text).length > 27
+                      ? text.substring(0, 27) + "..."
                       : text}
                   </li>
                 </div>

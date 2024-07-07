@@ -95,13 +95,17 @@ function getBlockElement(
   const anchorElementRect = anchorElem.getBoundingClientRect();
   const topLevelNodeKeys = getTopLevelNodeKeys(editor);
 
+  if (!topLevelNodeKeys[0]) {
+    return null;
+  }
+
   let blockElem: HTMLElement | null = null;
 
   editor.getEditorState().read(() => {
     if (useEdgeAsDefault) {
       const [firstNode, lastNode] = [
-        editor.getElementByKey(topLevelNodeKeys[0]),
-        editor.getElementByKey(topLevelNodeKeys[topLevelNodeKeys.length - 1]),
+        editor.getElementByKey(topLevelNodeKeys[0] as string),
+        editor.getElementByKey(topLevelNodeKeys[topLevelNodeKeys.length - 1] as string),
       ];
 
       const [firstNodeRect, lastNodeRect] = [
@@ -129,6 +133,9 @@ function getBlockElement(
 
     while (index >= 0 && index < topLevelNodeKeys.length) {
       const key = topLevelNodeKeys[index];
+      if (!key) {
+        break;
+      }
       const elem = editor.getElementByKey(key);
       if (elem === null) {
         break;

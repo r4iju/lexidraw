@@ -243,7 +243,7 @@ class AutocompleteServer {
     const dismiss = () => {
       isDismissed = true;
     };
-    const promise: Promise<null | string> = new Promise((resolve, reject) => {
+    const promise = new Promise<null | string>((resolve, reject) => {
       setTimeout(() => {
         if (isDismissed) {
           // TODO cache result
