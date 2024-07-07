@@ -54,7 +54,7 @@ export function InsertImageUriDialogBody({
     <>
       <Label>Image URL</Label>
       <Input
-        placeholder="i.e. https://source.unsplash.com/random"
+        placeholder="https://picsum.photos/200/300.jpg"
         onChange={(e) => setSrc(e.target.value)}
         value={src}
         data-test-id="image-modal-url-input"
