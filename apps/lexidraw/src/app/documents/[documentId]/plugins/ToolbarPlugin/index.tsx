@@ -77,7 +77,7 @@ import { IS_APPLE } from "../../shared/environment";
 import useModal from "~/hooks/useModal";
 import { $createStickyNode } from "../../nodes/StickyNode";
 // import DropDown, { DropDownItem } from "../../ui/DropDown";
-import DropdownColorPicker from "~/components/ui/color-picker";
+import { ColorPickerButton } from "~/components/ui/color-picker";
 import { getSelectedNode } from "../../utils/getSelectedNode";
 import { sanitizeUrl } from "../../utils/url";
 import { EmbedConfigs } from "../AutoEmbedPlugin";
@@ -903,7 +903,7 @@ export default function ToolbarPlugin({
   };
 
   return (
-    <div className="flex flex-row gap-1 toolbar">
+    <div className="flex flex-row gap-1 bg-background p-1 rounded-md">
       <TooltipButton
         onClick={() => {
           activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
@@ -1029,7 +1029,7 @@ export default function ToolbarPlugin({
             Icon={Link}
             ariaLabel="Insert link"
           />
-          <DropdownColorPicker
+          <ColorPickerButton
             disabled={!isEditable}
             buttonAriaLabel="Formatting text color"
             color={fontColor}
@@ -1037,7 +1037,7 @@ export default function ToolbarPlugin({
             title="Text color"
             Icon={Baseline}
           />
-          <DropdownColorPicker
+          <ColorPickerButton
             disabled={!isEditable}
             buttonAriaLabel="Formatting background color"
             color={bgColor}

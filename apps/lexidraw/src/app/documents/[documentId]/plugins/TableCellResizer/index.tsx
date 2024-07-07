@@ -309,7 +309,9 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
           if (activeCell === null) {
             return;
           }
-          const zoom = calculateZoomLevel(event.target as Element);
+          const zoom =
+            calculateZoomLevel(event.target as Element) /
+            window.devicePixelRatio;
 
           if (isHeightChanging(direction)) {
             const heightChange = (event.clientY - y) / zoom;
@@ -354,7 +356,8 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
     if (activeCell) {
       const { height, width, top, left } =
         activeCell.elem.getBoundingClientRect();
-      const zoom = calculateZoomLevel(activeCell.elem);
+      const zoom =
+        calculateZoomLevel(activeCell.elem) / window.devicePixelRatio;
       const zoneWidth = 10; // Pixel width of the zone where you can drag the edge
       const styles = {
         bottom: {

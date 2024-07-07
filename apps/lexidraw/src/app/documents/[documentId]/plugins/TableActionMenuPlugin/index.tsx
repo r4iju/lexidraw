@@ -47,8 +47,15 @@ import { createPortal } from "react-dom";
 
 import useModal from "~/hooks/useModal";
 import invariant from "../../shared/invariant";
-import ColorPicker from "~/components/ui/color-picker";
-import { PaintBucket } from "lucide-react";
+import { ColorPickerContent } from "~/components/ui/color-picker";
+import { ChevronDown } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 
 function computeSelectionCount(selection: TableSelection): {
   columns: number;
@@ -515,34 +522,28 @@ function TableActionMenu({
   }
 
   return createPortal(
-    <div
-      className="dropdown"
+    <DropdownMenuContent
       ref={dropDownRef}
       onClick={(e) => {
         e.stopPropagation();
       }}
     >
       {mergeCellButton}
-      <button
-        type="button"
-        className="item"
+      <DropdownMenuItem
         onClick={() =>
           showColorPickerModal("Cell background color", () => (
-            <ColorPicker
+            <ColorPickerContent
               color={backgroundColor}
               onChange={handleCellBackgroundColor}
-              Icon={PaintBucket}
+              className="min-w-[300px]"
             />
           ))
         }
-        data-test-id="table-background-color"
       >
         <span className="text">Background color</span>
-      </button>
+      </DropdownMenuItem>
       <hr />
-      <button
-        type="button"
-        className="item"
+      <DropdownMenuItem
         onClick={() => insertTableRowAtSelection(false)}
         data-test-id="table-insert-row-above"
       >
@@ -551,10 +552,8 @@ function TableActionMenu({
           {selectionCounts.rows === 1 ? "row" : `${selectionCounts.rows} rows`}{" "}
           above
         </span>
-      </button>
-      <button
-        type="button"
-        className="item"
+      </DropdownMenuItem>
+      <DropdownMenuItem
         onClick={() => insertTableRowAtSelection(true)}
         data-test-id="table-insert-row-below"
       >
@@ -563,11 +562,9 @@ function TableActionMenu({
           {selectionCounts.rows === 1 ? "row" : `${selectionCounts.rows} rows`}{" "}
           below
         </span>
-      </button>
+      </DropdownMenuItem>
       <hr />
-      <button
-        type="button"
-        className="item"
+      <DropdownMenuItem
         onClick={() => insertTableColumnAtSelection(false)}
         data-test-id="table-insert-column-before"
       >
@@ -578,10 +575,8 @@ function TableActionMenu({
             : `${selectionCounts.columns} columns`}{" "}
           left
         </span>
-      </button>
-      <button
-        type="button"
-        className="item"
+      </DropdownMenuItem>
+      <DropdownMenuItem
         onClick={() => insertTableColumnAtSelection(true)}
         data-test-id="table-insert-column-after"
       >
@@ -592,38 +587,28 @@ function TableActionMenu({
             : `${selectionCounts.columns} columns`}{" "}
           right
         </span>
-      </button>
+      </DropdownMenuItem>
       <hr />
-      <button
-        type="button"
-        className="item"
+      <DropdownMenuItem
         onClick={() => deleteTableColumnAtSelection()}
         data-test-id="table-delete-columns"
       >
         <span className="text">Delete column</span>
-      </button>
-      <button
-        type="button"
-        className="item"
+      </DropdownMenuItem>
+      <DropdownMenuItem
         onClick={() => deleteTableRowAtSelection()}
         data-test-id="table-delete-rows"
       >
         <span className="text">Delete row</span>
-      </button>
-      <button
-        type="button"
-        className="item"
+      </DropdownMenuItem>
+      <DropdownMenuItem
         onClick={() => deleteTableAtSelection()}
         data-test-id="table-delete"
       >
         <span className="text">Delete table</span>
-      </button>
+      </DropdownMenuItem>
       <hr />
-      <button
-        type="button"
-        className="item"
-        onClick={() => toggleTableRowIsHeader()}
-      >
+      <DropdownMenuItem onClick={() => toggleTableRowIsHeader()}>
         <span className="text">
           {(tableCellNode.__headerState & TableCellHeaderStates.ROW) ===
           TableCellHeaderStates.ROW
@@ -631,10 +616,8 @@ function TableActionMenu({
             : "Add"}{" "}
           row header
         </span>
-      </button>
-      <button
-        type="button"
-        className="item"
+      </DropdownMenuItem>
+      <DropdownMenuItem
         onClick={() => toggleTableColumnIsHeader()}
         data-test-id="table-column-header"
       >
@@ -645,8 +628,8 @@ function TableActionMenu({
             : "Add"}{" "}
           column header
         </span>
-      </button>
-    </div>,
+      </DropdownMenuItem>
+    </DropdownMenuContent>,
     document.body,
   );
 }
@@ -756,31 +739,40 @@ function TableCellActionMenuContainer({
   }, [prevTableCellDOM, tableCellNode]);
 
   return (
-    <div className="table-cell-action-button-container" ref={menuButtonRef}>
+    <div
+      className="absolute top-0 left-0 will-change-transform"
+      ref={menuButtonRef}
+    >
       {tableCellNode != null && (
         <>
-          <button
-            type="button"
-            className="table-cell-action-button chevron-down"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsMenuOpen(!isMenuOpen);
-            }}
-            ref={menuRootRef}
-          >
-            <i className="chevron-down" />
-          </button>
-          {colorPickerModal}
-          {isMenuOpen && (
-            <TableActionMenu
-              contextRef={menuRootRef}
-              setIsMenuOpen={setIsMenuOpen}
-              onClose={() => setIsMenuOpen(false)}
-              tableCellNode={tableCellNode}
-              cellMerge={cellMerge}
-              showColorPickerModal={showColorPickerModal}
-            />
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="flex justify-center items-center border-0 size-6"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMenuOpen(!isMenuOpen);
+                }}
+                ref={menuRootRef}
+              >
+                <ChevronDown className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            {colorPickerModal}
+            {isMenuOpen && (
+              <TableActionMenu
+                contextRef={menuRootRef}
+                setIsMenuOpen={setIsMenuOpen}
+                onClose={() => setIsMenuOpen(false)}
+                tableCellNode={tableCellNode}
+                cellMerge={cellMerge}
+                showColorPickerModal={showColorPickerModal}
+              />
+            )}
+          </DropdownMenu>
         </>
       )}
     </div>

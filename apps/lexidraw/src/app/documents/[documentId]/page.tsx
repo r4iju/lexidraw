@@ -4,6 +4,7 @@ import dynamicImport from "next/dynamic";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
+import "./index.css"
 
 const DocumentEditor = dynamicImport(() => import("./document-editor"), {
   ssr: false,

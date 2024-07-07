@@ -1,5 +1,3 @@
-import "./color-picker.css";
-
 import { calculateZoomLevel } from "@lexical/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as React from "react";
@@ -14,17 +12,9 @@ import {
 import { Button } from "./button";
 import type { LucideIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import { cn } from "~/lib/utils";
 
 let skipAddingToHistoryStack = false;
-
-interface ColorPickerProps {
-  disabled?: boolean;
-  buttonAriaLabel?: string;
-  title?: string;
-  color: string;
-  Icon?: LucideIcon;
-  onChange?: (value: string, skipHistoryStack: boolean) => void;
-}
 
 const basicColors = [
   "#d0021b",
@@ -47,14 +37,26 @@ const basicColors = [
 const WIDTH = 214;
 const HEIGHT = 150;
 
-export default function ColorPicker({
-  buttonAriaLabel,
-  title,
-  disabled,
+interface ColorPickerContentProps {
+  color: string;
+  onChange?: (value: string, skipHistoryStack: boolean) => void;
+}
+
+interface ColorPickerButtonProps {
+  disabled?: boolean;
+  buttonAriaLabel?: string;
+  title?: string;
+  color: string;
+  Icon?: LucideIcon;
+  onChange?: (value: string, skipHistoryStack: boolean) => void;
+  className?: string;
+}
+
+export function ColorPickerContent({
   color,
   onChange,
-  Icon,
-}: Readonly<ColorPickerProps>): JSX.Element {
+  className,
+}: Readonly<ColorPickerContentProps>): JSX.Element {
   const [selfColor, setSelfColor] = useState(transformColor("hex", color));
   const [inputColor, setInputColor] = useState(color);
   const innerDivRef = useRef(null);
@@ -119,6 +121,99 @@ export default function ColorPicker({
   }, [color]);
 
   return (
+    <div
+      className={cn("flex flex-col gap-2 p-5 min-w-fit", className)}
+      style={{ width: WIDTH }}
+      ref={innerDivRef}
+    >
+      <Label htmlFor="hex">Hex</Label>
+      <Input id="hex" onChange={onSetHex} value={inputColor} />
+      <div className="flex flex-wrap gap-2.5 m-0 p-0">
+        {basicColors.map((basicColor) => (
+          <Button
+            variant="default"
+            className={cn(
+              "outline size-5 rounded-full p-0 m-0",
+              basicColor === selfColor.hex
+                ? " ring-4 ring-muted-foreground"
+                : "",
+            )}
+            key={basicColor}
+            style={{ backgroundColor: basicColor }}
+            onClick={() => {
+              setInputColor(basicColor);
+              setSelfColor(transformColor("hex", basicColor));
+            }}
+          />
+        ))}
+      </div>
+      <MoveWrapper
+        className="color-picker-saturation relative select-none mt-3 h-[150px] min-w-[250px] rounded-sm border-[1px] border-foreground"
+        style={{
+          backgroundColor: `hsl(${selfColor.hsv.h}, 100%, 50%)`,
+          backgroundImage: `linear-gradient(transparent, black), linear-gradient(to right, white, transparent)`,
+        }}
+        onChange={onMoveSaturation}
+      >
+        <div
+          className="absolute size-5 border-2 border-foreground rounded-full cursor-pointer shadow-md translate-x-[-10px] translate-y-[-10px]"
+          style={{
+            backgroundColor: selfColor.hex,
+            left: saturationPosition.x,
+            top: saturationPosition.y,
+          }}
+        />
+      </MoveWrapper>
+      <MoveWrapper
+        className="w-full relative mt-4 h-4 select-none rounded-sm min-w-[250px]"
+        onChange={onMoveHue}
+        style={{
+          backgroundImage: `linear-gradient(
+            to right,
+            rgb(255, 0, 0),
+            rgb(255, 255, 0),
+            rgb(0, 255, 0),
+            rgb(0, 255, 255),
+            rgb(0, 0, 255),
+            rgb(255, 0, 255),
+            rgb(255, 0, 0)
+          )`,
+        }}
+      >
+        <div
+          className="absolute size-5 border-2 border-foreground rounded-full cursor-pointer shadow-md translate-x-[-10px] translate-y-[-4px]"
+          style={{
+            backgroundColor: `hsl(${selfColor.hsv.h}, 100%, 50%)`,
+            left: huePosition.x,
+          }}
+        />
+      </MoveWrapper>
+      <div
+        className=" border-[1px] border-foreground mt-4 w-full h-5 rounded-sm"
+        style={{ backgroundColor: selfColor.hex }}
+      />
+    </div>
+  );
+}
+
+export function ColorPickerButton({
+  buttonAriaLabel,
+  title,
+  disabled,
+  color,
+  onChange,
+  Icon,
+}: Readonly<ColorPickerButtonProps>): JSX.Element {
+  const [currentColor, setCurrentColor] = useState(color);
+
+  const handleChange = (newColor: string, skipHistoryStack: boolean) => {
+    setCurrentColor(newColor);
+    if (onChange) {
+      onChange(newColor, skipHistoryStack);
+    }
+  };
+
+  return (
     <Tooltip>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -133,57 +228,8 @@ export default function ColorPicker({
             </Button>
           </TooltipTrigger>
         </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <div
-            className="color-picker-wrapper"
-            style={{ width: WIDTH }}
-            ref={innerDivRef}
-          >
-            <Label htmlFor="hex">Hex</Label>
-            <Input id="hex" onChange={onSetHex} value={inputColor} />
-            <div className="color-picker-basic-color">
-              {basicColors.map((basicColor) => (
-                <button
-                  className={basicColor === selfColor.hex ? " active" : ""}
-                  key={basicColor}
-                  style={{ backgroundColor: basicColor }}
-                  onClick={() => {
-                    setInputColor(basicColor);
-                    setSelfColor(transformColor("hex", basicColor));
-                  }}
-                />
-              ))}
-            </div>
-            <MoveWrapper
-              className="color-picker-saturation"
-              style={{
-                backgroundColor: `hsl(${selfColor.hsv.h}, 100%, 50%)`,
-              }}
-              onChange={onMoveSaturation}
-            >
-              <div
-                className="color-picker-saturation_cursor"
-                style={{
-                  backgroundColor: selfColor.hex,
-                  left: saturationPosition.x,
-                  top: saturationPosition.y,
-                }}
-              />
-            </MoveWrapper>
-            <MoveWrapper className="color-picker-hue" onChange={onMoveHue}>
-              <div
-                className="color-picker-hue_cursor"
-                style={{
-                  backgroundColor: `hsl(${selfColor.hsv.h}, 100%, 50%)`,
-                  left: huePosition.x,
-                }}
-              />
-            </MoveWrapper>
-            <div
-              className="color-picker-color"
-              style={{ backgroundColor: selfColor.hex }}
-            />
-          </div>
+        <DropdownMenuContent className="min-w-[300px]">
+          <ColorPickerContent color={currentColor} onChange={handleChange} />
         </DropdownMenuContent>
       </DropdownMenu>
       <TooltipContent>{title}</TooltipContent>
@@ -212,13 +258,13 @@ function MoveWrapper({
   const divRef = useRef<HTMLDivElement>(null);
   const draggedRef = useRef(false);
 
-  const move = (e: React.MouseEvent | MouseEvent): void => {
+  const move = (e: MouseEvent | React.MouseEvent): void => {
     if (divRef.current) {
       const { current: div } = divRef;
       const { width, height, left, top } = div.getBoundingClientRect();
-      const zoom = calculateZoomLevel(div);
-      const x = clamp(e.clientX / zoom - left, width, 0);
-      const y = clamp(e.clientY / zoom - top, height, 0);
+      const zoom = calculateZoomLevel(div) / window.devicePixelRatio;
+      const x = clamp((e.clientX - left) / zoom, width, 0);
+      const y = clamp((e.clientY - top) / zoom, height, 0);
 
       onChange({ x, y });
     }
@@ -242,15 +288,15 @@ function MoveWrapper({
         skipAddingToHistoryStack = false;
       }
 
-      document.removeEventListener("mousemove", onMouseMove, false);
-      document.removeEventListener("mouseup", onMouseUp, false);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
 
       move(_e);
       draggedRef.current = false;
     };
 
-    document.addEventListener("mousemove", onMouseMove, false);
-    document.addEventListener("mouseup", onMouseUp, false);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   };
 
   return (
