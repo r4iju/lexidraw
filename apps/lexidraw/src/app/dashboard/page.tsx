@@ -12,11 +12,11 @@ import { NewEntity } from "./_actions/new-entity";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Excalifork | Dashboard",
+  title: "Lexidraw | Dashboard",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
-    title: "Excalifork",
+    title: "Lexidraw",
   },
 };
 

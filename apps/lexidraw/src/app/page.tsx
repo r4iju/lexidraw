@@ -9,13 +9,13 @@ import { Metadata } from "next";
 export const runtime = "edge";
 
 export const metadata: Metadata = {
-  title: "Excalifork",
+  title: "Lexidraw",
   description:
     "This is a demo of the excalidraw tool. It is a collaborative online drawing and diagramming tool.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
-    title: "Excalifork",
+    title: "Lexidraw",
   },
 };
 

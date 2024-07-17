@@ -72,7 +72,7 @@ export default tseslint.config(
       "**/.next/*",
       "**/dist/**/*",
       "**/coverage/*",
-      "postcss.config.cjs",
+      "postcss.config.js",
       "tailwind.config.cjs",
       "**/drizzle.config.ts",
       "**/migrate.ts",

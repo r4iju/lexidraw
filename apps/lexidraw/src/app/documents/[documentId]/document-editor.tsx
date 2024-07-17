@@ -312,7 +312,7 @@ export default function DocumentEditor({
   return (
     <LexicalComposer
       initialConfig={{
-        namespace: "Excalifork",
+        namespace: "Lexidraw",
         editorState: entity.elements,
         onError: (error: unknown) => {
           console.error("Error in LexicalComposer: ", error);

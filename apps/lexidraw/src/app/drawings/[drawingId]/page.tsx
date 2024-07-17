@@ -14,11 +14,11 @@ export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Excalifork | drawing",
+  title: "Lexidraw | drawing",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
-    title: "Excalifork",
+    title: "Lexidraw",
   },
 };
 

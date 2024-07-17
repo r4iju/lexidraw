@@ -11,11 +11,11 @@ const DocumentEditor = dynamicImport(() => import("./document-editor"), {
 });
 
 export const metadata: Metadata = {
-  title: "Excalifork | document",
+  title: "Lexidraw | document",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
-    title: "Excalifork",
+    title: "Lexidraw",
   },
 };
 
