@@ -30,10 +30,10 @@ export default async function LandingPage() {
             <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
               <div className="flex flex-col gap-3">
                 <h1 className="lg:leading-tighter text-3xl font-semibold tracking-tighter sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
-                  Excalidraw demo
+                  Lexidraw
                 </h1>
                 <p className="mx-auto max-w-[700px] text-gray-600 dark:text-gray-300 md:text-xl">
-                  Collaborative online drawing and diagramming tool. Create
+                  Collaborative online drawing and diagramming tool. Create documents
                   wireframes, flowcharts, user interfaces, and more. All saved
                   automatically and shareable with a link.
                 </p>
