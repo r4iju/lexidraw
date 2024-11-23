@@ -182,7 +182,8 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
       revalidate();
       closeConnection(true);
     };
-  }, [closeConnection, revalidate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <SettingsContext>
