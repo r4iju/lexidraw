@@ -4,9 +4,9 @@ import Image from "~/components/image/image";
 import { auth } from "~/server/auth";
 import Header from "~/sections/header";
 import Footer from "~/sections/footer";
-import { Metadata } from "next";
+import type { Metadata, ServerRuntime } from "next";
 
-export const runtime = "edge";
+export const runtime: ServerRuntime = "edge";
 
 export const metadata: Metadata = {
   title: "Lexidraw",
@@ -33,9 +33,9 @@ export default async function LandingPage() {
                   Lexidraw
                 </h1>
                 <p className="mx-auto max-w-[700px] text-gray-600 dark:text-gray-300 md:text-xl">
-                  Collaborative online drawing and diagramming tool. Create documents
-                  wireframes, flowcharts, user interfaces, and more. All saved
-                  automatically and shareable with a link.
+                  Collaborative online drawing and diagramming tool. Create
+                  documents wireframes, flowcharts, user interfaces, and more.
+                  All saved automatically and shareable with a link.
                 </p>
                 {!session?.user && (
                   <Button asChild>

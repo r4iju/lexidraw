@@ -1,4 +1,6 @@
-export const runtime = "edge";
+import type { ServerRuntime } from "next";
+
+export const runtime: ServerRuntime = "edge";
 
 export default function TermsOfService() {
   return (

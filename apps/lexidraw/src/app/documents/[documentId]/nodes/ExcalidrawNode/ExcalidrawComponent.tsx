@@ -9,7 +9,10 @@
 import type { ExcalidrawInitialElements } from "./ExcalidrawModal";
 import type { NodeKey } from "lexical";
 
-import { AppState, BinaryFiles } from "@packages/excalidraw/types/types";
+import type {
+  AppState,
+  BinaryFiles,
+} from "@dwelle/excalidraw/dist/excalidraw/types";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";

@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import type { Metadata, ServerRuntime } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const runtime = "nodejs"; // some plugins like code+formatter with prettier are quite large
+export const runtime: ServerRuntime = "edge"; // some plugins like code+formatter with prettier are quite large
 export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 

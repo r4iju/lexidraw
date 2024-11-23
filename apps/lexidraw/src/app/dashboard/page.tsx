@@ -9,7 +9,7 @@ import { MoreActions } from "./_actions/more-actions";
 import { Thumbnail } from "./thumbnail";
 import { EntityType, PublicAccess } from "@packages/types";
 import { NewEntity } from "./_actions/new-entity";
-import type { Metadata } from "next";
+import type { Metadata, ServerRuntime } from "next";
 
 export const metadata: Metadata = {
   title: "Lexidraw | Dashboard",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
-export const runtime = "edge";
+export const runtime: ServerRuntime = "edge";
 
 export default async function LandingPage() {
   const entities = await api.entities.list.query();
