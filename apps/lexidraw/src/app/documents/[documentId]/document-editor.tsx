@@ -174,8 +174,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
           console.error("error initializing connection", err);
         });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canCollaborate, initializeConnection, isCollaborating]);
 
   // cleanup on unmount
   useEffect(() => {
@@ -183,8 +182,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
       revalidate();
       closeConnection(true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [closeConnection, revalidate]);
 
   return (
     <SettingsContext>

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { type ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types.js";
-import { type AppState } from "@excalidraw/excalidraw/types/types.js";
+import { type ExcalidrawElement } from "@dwelle/excalidraw/dist/excalidraw/element/types.js";
+import { type AppState } from "@dwelle/excalidraw/dist/excalidraw/types.js";
 export * from "./helpers.js";
 export * from "./enums.js";
 
@@ -50,6 +50,7 @@ const DrawingMessageStructure = z.object({
       height: z.number(),
       version: z.number(),
       isDeleted: z.boolean(),
+      baseline: z.number().optional(),
     })),
     appState: z.object({
     }),

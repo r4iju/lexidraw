@@ -1,13 +1,14 @@
 "use client";
 
-import { Excalidraw, THEME } from "@excalidraw/excalidraw";
-import { type NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+import "@dwelle/excalidraw/dist/dev/index.css";
+import { Excalidraw, THEME } from "@dwelle/excalidraw";
+import { type NonDeletedExcalidrawElement } from "@dwelle/excalidraw/dist/excalidraw/element/types";
 import {
   type UIAppState,
   type ExcalidrawImperativeAPI,
   type ExcalidrawProps,
   type Collaborator,
-} from "@excalidraw/excalidraw/types/types";
+} from "@dwelle/excalidraw/dist/excalidraw/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { type RouterOutputs } from "~/trpc/shared";
@@ -19,7 +20,11 @@ type Props = {
   elements?: NonDeletedExcalidrawElement[];
 };
 
-const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements, revalidate }) => {
+const ExcalidrawViewWrapper: React.FC<Props> = ({
+  appState,
+  elements,
+  revalidate,
+}) => {
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const isDarkTheme = useIsDarkTheme();
@@ -57,15 +62,13 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({ appState, elements, revalidate
     excalidrawApi?.updateScene({
       appState: { theme: isDarkTheme ? THEME.DARK : THEME.LIGHT },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDarkTheme]);
+  }, [excalidrawApi, isDarkTheme]);
 
   useEffect(() => {
     return () => {
       revalidate();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [revalidate]);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>

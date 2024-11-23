@@ -4,7 +4,7 @@ import { CreateEntity, SaveEntity } from "./drawings-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
-import { AppState } from "@excalidraw/excalidraw/types/types";
+import { AppState } from "@dwelle/excalidraw/dist/excalidraw/types";
 import { entity } from "node_modules/@packages/drizzle/dist/drizzle-schema";
 
 export const entityRouter = createTRPCRouter({

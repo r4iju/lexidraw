@@ -6,12 +6,17 @@
  *
  */
 
-import { exportToSvg } from "@excalidraw/excalidraw";
+"use client";
+
+import { exportToSvg } from "@dwelle/excalidraw";
 import {
   ExcalidrawElement,
   NonDeleted,
-} from "@excalidraw/excalidraw/types/element/types";
-import { AppState, BinaryFiles } from "@excalidraw/excalidraw/types/types";
+} from "@dwelle/excalidraw/dist/excalidraw/element/types";
+import {
+  AppState,
+  BinaryFiles,
+} from "@dwelle/excalidraw/dist/excalidraw/types";
 import * as React from "react";
 import { useEffect, useState } from "react";
 
@@ -91,9 +96,11 @@ export default function ExcalidrawImage({
   useEffect(() => {
     const setContent = async () => {
       const svg: SVGElement = await exportToSvg({
-        appState,
-        elements,
-        files,
+        data: {
+          appState,
+          elements,
+          files,
+        },
       });
       removeStyleFromSvg_HACK(svg);
 

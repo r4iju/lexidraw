@@ -8,6 +8,6 @@ type Props = {
 
 export default function Redirect({ drawingId }: Props) {
   const router = useRouter();
-  router.push(`/drawings/${drawingId}`);
+  router.replace(`/drawings/${drawingId}`);
   return <></>;
 }

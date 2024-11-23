@@ -1,17 +1,13 @@
-import {
-  MainMenu,
-  exportToSvg,
-  loadFromBlob,
-  exportToBlob,
-} from "@excalidraw/excalidraw";
+"use client";
+
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
 import type {
   AppState,
   ExcalidrawImperativeAPI,
-} from "@excalidraw/excalidraw/types/types";
+} from "@dwelle/excalidraw/dist/excalidraw/types";
 import { RefObject } from "react";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+import type { ExcalidrawElement } from "@dwelle/excalidraw/dist/excalidraw/element/types";
 import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
@@ -25,6 +21,11 @@ import {
   LayoutDashboardIcon,
   RotateCcwIcon,
 } from "lucide-react";
+import { exportToBlob, exportToSvg, loadFromBlob } from "@dwelle/excalidraw";
+
+import { MainMenu } from "@dwelle/excalidraw";
+
+const CustomMenuItem = MainMenu.ItemCustom;
 
 type Props = {
   isMenuOpen: boolean;
@@ -84,16 +85,20 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     await Promise.all(
       [Theme.DARK, Theme.LIGHT].map(async (theme) => {
         const svg = await exportToSvg({
-          elements,
-          appState: {
-            ...appState,
-            theme: theme,
-            exportWithDarkMode: theme === Theme.DARK ? true : false,
+          data: {
+            elements,
+            appState: {
+              ...appState,
+              theme: theme,
+              exportWithDarkMode: theme === Theme.DARK ? true : false,
+            },
+            files: null,
           },
-          files: null,
-          exportPadding: 10,
-          renderEmbeddables: true,
-          exportingFrame: null,
+          config: {
+            padding: 10,
+            renderEmbeddables: true,
+            exportingFrame: null,
+          },
         });
 
         // convert it to string
@@ -210,7 +215,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
 
   return (
     <>
-      <MainMenu.ItemCustom
+      <CustomMenuItem
         style={{
           padding: 0,
           marginTop: 0,
@@ -235,8 +240,8 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
             Go to dashboard
           </Link>
         </Button>
-      </MainMenu.ItemCustom>
-      <MainMenu.ItemCustom
+      </CustomMenuItem>
+      <CustomMenuItem
         style={{
           padding: 0,
           marginTop: 0,
@@ -250,8 +255,8 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           <FileCheck size={14} strokeWidth={2} />
           Save
         </Button>
-      </MainMenu.ItemCustom>
-      <MainMenu.ItemCustom
+      </CustomMenuItem>
+      <CustomMenuItem
         style={{
           padding: 0,
           marginTop: 0,
@@ -265,9 +270,9 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           <FolderIcon size={14} strokeWidth={2} />
           Open
         </Button>
-      </MainMenu.ItemCustom>
+      </CustomMenuItem>
       {/* <MainMenu.DefaultItems.LoadScene /> */}
-      <MainMenu.ItemCustom
+      <CustomMenuItem
         style={{
           padding: 0,
           marginTop: 0,
@@ -281,9 +286,9 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           <DownloadIcon size={14} strokeWidth={2} />
           Export to file
         </Button>
-      </MainMenu.ItemCustom>
+      </CustomMenuItem>
       {/* <MainMenu.DefaultItems.Export /> */}
-      <MainMenu.ItemCustom
+      <CustomMenuItem
         style={{
           padding: 0,
           marginTop: 0,
@@ -297,8 +302,8 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           <ImageDownIcon size={14} strokeWidth={2} />
           Export as PNG
         </Button>
-      </MainMenu.ItemCustom>
-      <MainMenu.ItemCustom
+      </CustomMenuItem>
+      <CustomMenuItem
         style={{
           padding: 0,
           marginTop: 0,
@@ -312,9 +317,9 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           <ImageDownIcon size={14} strokeWidth={2} />
           Export as SVG
         </Button>
-      </MainMenu.ItemCustom>
+      </CustomMenuItem>
       {/* <MainMenu.DefaultItems.SaveAsImage /> */}
-      <MainMenu.ItemCustom
+      <CustomMenuItem
         style={{
           padding: 0,
           marginTop: 0,
@@ -328,7 +333,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           <RotateCcwIcon size={14} strokeWidth={2} />
           Clear canvas
         </Button>
-      </MainMenu.ItemCustom>
+      </CustomMenuItem>
       {/* <MainMenu.DefaultItems.ClearCanvas /> */}
     </>
   );

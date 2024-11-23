@@ -69,8 +69,7 @@ export const useWebSocketService = (
       setShouldReconnect(false);
       closeConnection()
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [closeConnection]);
 
   return { closeConnection, sendMessage, initializeConnection, peers: [] };
 };

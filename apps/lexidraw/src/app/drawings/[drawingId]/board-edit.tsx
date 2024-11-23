@@ -1,17 +1,20 @@
 "use client";
 
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import "@dwelle/excalidraw/dist/dev/index.css";
+
+import { Excalidraw, MainMenu } from "@dwelle/excalidraw";
 import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
-} from "@excalidraw/excalidraw/types/element/types";
+} from "@dwelle/excalidraw/dist/excalidraw/element/types";
 import type {
   AppState,
+  SocketId,
   ExcalidrawImperativeAPI,
   ExcalidrawProps,
   BinaryFiles,
   Collaborator,
-} from "@excalidraw/excalidraw/types/types";
+} from "@dwelle/excalidraw/dist/excalidraw/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
@@ -190,53 +193,64 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [updateElementsRef],
   );
 
-  const onChange = (
-    elements: readonly ExcalidrawElement[],
-    state: AppState,
-    _: BinaryFiles,
-  ) => {
-    debouncedSaveRef.current({ elements, appState: state });
-    if (isRemoteUpdate) {
-      console.log("remote update detected");
-      setIsRemoteUpdate(false);
-      return;
-    }
+  const onChange = useCallback(
+    (
+      elements: readonly ExcalidrawElement[],
+      state: AppState,
+      _: BinaryFiles,
+    ) => {
+      debouncedSaveRef.current({ elements, appState: state });
+      if (isRemoteUpdate) {
+        console.log("remote update detected");
+        setIsRemoteUpdate(false);
+        return;
+      }
 
-    if (isCollaborating) {
-      sendUpdateIfNeeded({
-        elements: elements,
-        appState: state,
-      });
-    }
-  };
+      if (isCollaborating) {
+        sendUpdateIfNeeded({
+          elements,
+          appState: state,
+        });
+      }
+    },
+    [
+      debouncedSaveRef,
+      isRemoteUpdate,
+      setIsRemoteUpdate,
+      isCollaborating,
+      sendUpdateIfNeeded,
+    ],
+  );
 
-  const options = {
-    // excalidrawAPI: (api) => setExcalidrawAPI(api),
-    initialData: {
-      appState: appState
-        ? ({
-            ...appState,
-            theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
-            exportWithDarkMode: false,
-            exportBackground: false,
-            collaborators: appState.collaborators
-              ? new Map(Object.entries(appState.collaborators))
-              : new Map<string, Collaborator>(),
-          } satisfies AppState)
-        : ({
-            theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
-            exportWithDarkMode: false,
-            exportBackground: false,
-          } satisfies Partial<AppState>),
-      elements: elements ?? [],
-    },
-    UIOptions: {
-      canvasActions: {
-        toggleTheme: false,
-      },
-    },
-    onChange: onChange,
-  } satisfies ExcalidrawProps;
+  const options = useMemo(
+    () =>
+      ({
+        initialData: {
+          appState: appState
+            ? {
+                ...appState,
+                theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
+                exportWithDarkMode: false,
+                exportBackground: false,
+                collaborators:
+                  appState.collaborators ?? new Map<SocketId, Collaborator>(),
+              }
+            : {
+                theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
+                exportWithDarkMode: false,
+                exportBackground: false,
+              },
+          elements: elements ?? [],
+        },
+        UIOptions: {
+          canvasActions: {
+            toggleTheme: false,
+          },
+        },
+        onChange: onChange,
+      }) as ExcalidrawProps,
+    [appState, elements, isDarkTheme, onChange],
+  );
 
   // switching dark-light mode
   useEffect(() => {
@@ -257,16 +271,15 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           console.error("error initializing connection", err);
         });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isCollaborating, canCollaborate, initializeConnection]);
 
-  // cleanup on unmount
+  // // cleanup on unmount
   useEffect(() => {
+    console.log("call useEffect for cleanup");
     return () => {
       revalidate();
       closeConnection(true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

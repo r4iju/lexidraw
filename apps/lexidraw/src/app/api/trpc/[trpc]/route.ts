@@ -3,12 +3,13 @@ import { type NextRequest } from "next/server";
 import env from "@packages/env";
 import { appRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
+import { headers } from "next/headers";
 
 export const runtime = "edge";
 
-const createContext = async (req: NextRequest) => {
+const createContext = async (_req: NextRequest) => {
   return createTRPCContext({
-    headers: req.headers,
+    headers: await headers()
   });
 };
 

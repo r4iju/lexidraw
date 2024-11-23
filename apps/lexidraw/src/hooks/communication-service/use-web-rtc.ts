@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import type { ICommunicationOptions, ICommunicationProps, ICommunicationReturnType } from './interface';
 import type { WebRtcMessage, MessageStructure } from '@packages/types';
 import { useToast } from '~/components/ui/use-toast';
@@ -13,8 +13,9 @@ export function useWebRtcService(
 
   const { toast } = useToast();
 
-  const [shouldReconnect, setShouldReconnect] = useState(true);
-  const [reconnectionAttempts, setReconnectionAttempts] = useState(0);
+  const shouldReconnectRef = useRef(true);
+  const reconnectionAttemptsRef = useRef(0);
+
 
   const websocket = useRef<WebSocket | null>(null);
   const localConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -200,10 +201,10 @@ export function useWebRtcService(
 
     ws.onclose = () => {
       console.log('WebSocket connection closed');
-      if (shouldReconnect) {
-        const delay = Math.min(10000, (reconnectionAttempts + 1) * 1000);
+      if (shouldReconnectRef.current) {
+        const delay = Math.min(10000, (reconnectionAttemptsRef.current + 1) * 1000);
         setTimeout(() => {
-          setReconnectionAttempts((attempts) => attempts + 1);
+          reconnectionAttemptsRef.current += 1;
           initializeConnection()
             .then(() => console.log('Reconnecting websocket connection...'))
             .catch(console.error);
@@ -214,11 +215,11 @@ export function useWebRtcService(
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-  }, [drawingId, handleIceCandidate, handleParticipantJoined, handleParticipantLeft, handleRemoteAnswer, handleRemoteOffer, reconnectionAttempts, shouldReconnect, userId]);
+  }, [drawingId, handleIceCandidate, handleParticipantJoined, handleParticipantLeft, handleRemoteAnswer, handleRemoteOffer, userId]);
 
   const closeConnection = useCallback((muted = false) => {
-    setShouldReconnect(false);
-    setReconnectionAttempts(0);
+    shouldReconnectRef.current = false;
+    reconnectionAttemptsRef.current = 0;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, conn] of localConnections.current) {
       conn.close();
@@ -240,8 +241,7 @@ export function useWebRtcService(
       });
     }
     onConnectionClose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onConnectionClose]);
+  }, [onConnectionClose, toast]);
 
   const sendMessage = useCallback((message: MessageStructure) => {
     dataChannels.current.forEach((channel) => {
