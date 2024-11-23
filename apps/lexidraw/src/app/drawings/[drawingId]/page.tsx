@@ -5,12 +5,12 @@ import type { ExcalidrawElement } from "@dwelle/excalidraw/dist/excalidraw/eleme
 import { AccessLevel } from "@packages/types";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
-import { Metadata } from "next";
+import type { Metadata, ServerRuntime } from "next";
 import { revalidatePath } from "next/cache";
 import EditBoard from "./board-edit-client";
 import ViewBoard from "./board-view-client";
 
-export const runtime = "edge";
+export const runtime: ServerRuntime = "edge";
 export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 

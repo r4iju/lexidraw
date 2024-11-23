@@ -4,8 +4,9 @@ import env from "@packages/env";
 import { appRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
+import type { ServerRuntime } from "next";
 
-export const runtime = "edge";
+export const runtime: ServerRuntime = "nodejs";
 
 const createContext = async (_req: NextRequest) => {
   return createTRPCContext({

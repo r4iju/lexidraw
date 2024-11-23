@@ -1,6 +1,7 @@
-import { geolocation } from '@vercel/edge';
+import { geolocation } from '@vercel/functions'
+import type { ServerRuntime } from 'next';
 
-export const runtime = 'edge';
+export const runtime: ServerRuntime = 'edge';
 
 export function getGeoInfo(request: Request) {
   const { city, country, region } = geolocation(request);

@@ -5,8 +5,9 @@ import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 import Link from "next/link";
 import Redirect from "./redirect";
+import type { ServerRuntime } from "next";
 
-export const runtime = "edge";
+export const runtime: ServerRuntime = "edge";
 export const fetchCache = "force-no-store";
 
 const Params = z.object({
