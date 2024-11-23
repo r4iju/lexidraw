@@ -14,16 +14,16 @@ import type {
   SerializedEditor,
   SerializedLexicalNode,
   Spread,
-} from 'lexical';
+} from "lexical";
 
-import {$setSelection, createEditor, DecoratorNode} from 'lexical';
-import * as React from 'react';
-import {Suspense} from 'react';
-import {createPortal} from 'react-dom';
+import { $setSelection, createEditor, DecoratorNode } from "lexical";
+import * as React from "react";
+import { Suspense } from "react";
+import { createPortal } from "react-dom";
 
-const StickyComponent = React.lazy(() => import('./StickyComponent'));
+const StickyComponent = React.lazy(() => import("./StickyComponent"));
 
-type StickyNoteColor = 'pink' | 'yellow';
+type StickyNoteColor = "pink" | "yellow";
 
 export type SerializedStickyNode = Spread<
   {
@@ -42,7 +42,7 @@ export class StickyNode extends DecoratorNode<JSX.Element> {
   __caption: LexicalEditor;
 
   static getType(): string {
-    return 'sticky';
+    return "sticky";
   }
 
   static clone(node: StickyNode): StickyNode {
@@ -72,7 +72,7 @@ export class StickyNode extends DecoratorNode<JSX.Element> {
   constructor(
     x: number,
     y: number,
-    color: 'pink' | 'yellow',
+    color: "pink" | "yellow",
     caption?: LexicalEditor,
     key?: NodeKey,
   ) {
@@ -87,7 +87,7 @@ export class StickyNode extends DecoratorNode<JSX.Element> {
     return {
       caption: this.__caption.toJSON(),
       color: this.__color,
-      type: 'sticky',
+      type: "sticky",
       version: 1,
       xOffset: this.__x,
       yOffset: this.__y,
@@ -95,8 +95,8 @@ export class StickyNode extends DecoratorNode<JSX.Element> {
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
-    const div = document.createElement('div');
-    div.style.display = 'contents';
+    const div = document.createElement("div");
+    div.style.display = "contents";
     return div;
   }
 
@@ -113,7 +113,7 @@ export class StickyNode extends DecoratorNode<JSX.Element> {
 
   toggleColor(): void {
     const writable = this.getWritable();
-    writable.__color = writable.__color === 'pink' ? 'yellow' : 'pink';
+    writable.__color = writable.__color === "pink" ? "yellow" : "pink";
   }
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
@@ -146,5 +146,5 @@ export function $createStickyNode(
   xOffset: number,
   yOffset: number,
 ): StickyNode {
-  return new StickyNode(xOffset, yOffset, 'yellow');
+  return new StickyNode(xOffset, yOffset, "yellow");
 }

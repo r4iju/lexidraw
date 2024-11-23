@@ -44,8 +44,8 @@
     "dist"
   ],
   "devDependencies": {
-    "@excalidraw/excalidraw": "^0.17.3",
+    "@dwelle/excalidraw": "^0.5.0-d0d846e",
     "@types/node": "^18.17.0",
-    "typescript": "5.5.1-rc"
+    "typescript": "^5.6.3"
   }
 }

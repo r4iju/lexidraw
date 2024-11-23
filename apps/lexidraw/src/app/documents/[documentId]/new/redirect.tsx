@@ -9,6 +9,6 @@ type Props = {
 
 export default function Redirect({ documentId }: Props) {
   const router = useRouter();
-  router.push(`/documents/${documentId}`);
+  router.replace(`/documents/${documentId}`);
   return <></>;
 }

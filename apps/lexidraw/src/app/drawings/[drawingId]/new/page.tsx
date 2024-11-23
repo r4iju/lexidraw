@@ -10,17 +10,16 @@ export const runtime = "edge";
 export const fetchCache = "force-no-store";
 
 const Params = z.object({
-  params: z.object({
-    drawingId: z.string(),
-  }),
+  drawingId: z.string(),
 });
 
-type Props = z.infer<typeof Params>;
+type Props = {
+  params: Promise<z.infer<typeof Params>>;
+};
 
 export default async function DrawingBoard(props: Props) {
-  const {
-    params: { drawingId },
-  } = Params.parse(props);
+  const param = await props.params;
+  const { drawingId } = Params.parse(param);
 
   try {
     await api.entities.create.mutate({

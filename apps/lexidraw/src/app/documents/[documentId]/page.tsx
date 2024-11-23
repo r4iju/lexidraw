@@ -1,14 +1,10 @@
 import { Metadata } from "next";
 import { revalidatePath } from "next/cache";
-import dynamicImport from "next/dynamic";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
-import "./index.css"
-
-const DocumentEditor = dynamicImport(() => import("./document-editor"), {
-  ssr: false,
-});
+import "./index.css";
+import DocumentEditor from "./document-editor-client";
 
 export const metadata: Metadata = {
   title: "Lexidraw | document",
@@ -24,17 +20,16 @@ export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 
 const Params = z.object({
-  params: z.object({
-    documentId: z.string(),
-  }),
+  documentId: z.string(),
 });
 
-type Props = z.infer<typeof Params>;
+type Props = {
+  params: Promise<z.infer<typeof Params>>;
+};
 
 export default async function DocumentPage(props: Props) {
-  const {
-    params: { documentId },
-  } = Params.parse(props);
+  const param = await props.params;
+  const { documentId } = Params.parse(param);
 
   const document = await api.entities.load.query({ id: documentId });
   const iceServers = await api.auth.iceServers.query();

@@ -55,8 +55,7 @@ function Container({ status, session, children }: ContainerProps) {
 
   useEffect(() => {
     check();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [check]);
 
   if (!checked) {
     return null;

@@ -1,12 +1,16 @@
-await import("@packages/env");
+import _env from "@packages/env";
+import { NextConfig } from "next";
+import nextBundleAnalyzer from "@next/bundle-analyzer";
 
-const nextBundleAnalyzer = await import("@next/bundle-analyzer");
-const withBundleAnalyzer = nextBundleAnalyzer.default({
+// import path from "path";
+// import { fileURLToPath } from "url";
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const withBundleAnalyzer = nextBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
 
-/** @type {import("next").NextConfig} */
-const config = {
+const config: NextConfig = {
   webpack: (config, { isServer }) => {
     return config;
   },
