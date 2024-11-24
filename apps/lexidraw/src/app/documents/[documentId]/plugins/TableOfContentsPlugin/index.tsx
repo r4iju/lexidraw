@@ -5,27 +5,23 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import type {TableOfContentsEntry} from '@lexical/react/LexicalTableOfContentsPlugin';
-import type {HeadingTagType} from '@lexical/rich-text';
-import type {NodeKey} from 'lexical';
+import type { TableOfContentsEntry } from "@lexical/react/LexicalTableOfContentsPlugin";
+import type { HeadingTagType } from "@lexical/rich-text";
+import type { NodeKey } from "lexical";
 
-import './index.css';
-
-import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
-import {TableOfContentsPlugin as LexicalTableOfContentsPlugin} from '@lexical/react/LexicalTableOfContentsPlugin';
-import {useEffect, useRef, useState} from 'react';
-import * as React from 'react';
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
+import { useEffect, useRef, useState } from "react";
+import * as React from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
+import { Button } from "~/components/ui/button";
 
 const MARGIN_ABOVE_EDITOR = 624;
 const HEADING_WIDTH = 9;
-
-function indent(tagName: HeadingTagType) {
-  if (tagName === 'h2') {
-    return 'heading2';
-  } else if (tagName === 'h3') {
-    return 'heading3';
-  }
-}
 
 function isHeadingAtTheTopOfThePage(element: HTMLElement): boolean {
   const elementYPosition = element?.getClientRects()[0]?.y;
@@ -70,6 +66,25 @@ function TableOfContentsList({
         selectedIndex.current = currIndex;
       }
     });
+  }
+
+  function headingToPadding(tag: HeadingTagType): number {
+    switch (tag) {
+      case "h1":
+        return 0;
+      case "h2":
+        return 2;
+      case "h3":
+        return 4;
+      case "h4":
+        return 6;
+      case "h5":
+        return 8;
+      case "h6":
+        return 10;
+      default:
+        return 0;
+    }
   }
 
   useEffect(() => {
@@ -151,56 +166,38 @@ function TableOfContentsList({
   }, [tableOfContents, editor]);
 
   return (
-    <div className="table-of-contents">
-      <ul className="headings">
-        {tableOfContents.map(([key, text, tag], index) => {
-          if (index === 0) {
-            return (
-              <div className="normal-heading-wrapper" key={key}>
-                <div
-                  className="first-heading"
-                  onClick={() => scrollToNode(key, index)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  {("" + text).length > 20
-                    ? text.substring(0, 20) + "..."
-                    : text}
-                </div>
-                <br />
-              </div>
-            );
-          } else {
-            return (
-              <div
-                className={`normal-heading-wrapper ${
-                  selectedKey === key ? "selected-heading-wrapper" : ""
-                }`}
-                key={key}
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="fixed top-[150px] right-4 z-10 rounded-lg shadow-lg"
+        >
+          Table of Contents
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-3  rounded-lg shadow-lg max-h-[80vh] overflow-y-auto">
+        <ul>
+          {tableOfContents.map(([key, text, tag], index) => (
+            <li
+              key={key}
+              className={`relative pl-${headingToPadding(tag)} 
+              
+              `}
+            >
+              <Button
+                variant="link"
+                onClick={() => scrollToNode(key, index)}
+                className="py-0"
               >
-                <div
-                  onClick={() => scrollToNode(key, index)}
-                  role="button"
-                  className={indent(tag)}
-                  tabIndex={0}
-                >
-                  <li
-                    className={`normal-heading ${
-                      selectedKey === key ? "selected-heading" : ""
-                    }
-                    `}
-                  >
-                    {("" + text).length > 27
-                      ? text.substring(0, 27) + "..."
-                      : text}
-                  </li>
-                </div>
-              </div>
-            );
-          }
-        })}
-      </ul>
-    </div>
+                <span className={`${selectedKey === key ? " underline" : ""}`}>
+                  {text.length > 27 ? `${text.substring(0, 27)}...` : text}
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 

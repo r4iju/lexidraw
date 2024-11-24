@@ -22,7 +22,6 @@ import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
 import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import AutocompletePlugin from "./plugins/AutocompletePlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
-import ActionsPlugin from "./plugins/ActionsPlugin";
 import AutoLinkPlugin from "./plugins/AutoLinkPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import LinkPlugin from "./plugins/LinkPlugin";
@@ -90,10 +89,8 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
   const {
     settings: {
       isAutocomplete,
-      isRichText,
       showTableOfContents,
       shouldUseLexicalContextMenu,
-      shouldPreserveNewLinesInMarkdown,
       tableCellMerge,
       tableCellBackgroundColor,
     },
@@ -182,7 +179,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
       revalidate();
       closeConnection(true);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -190,22 +187,22 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
       <FlashMessageContext>
         <TableContext>
           <>
-            <div className="relative w-full h-screen bg-zinc-50 dark:bg-zinc-950">
-              {/* Toolbar with semi-transparent background floating over the content */}
-              <div className="fixed top-0 left-0 right-0 z-10 w-full">
-                <div className="flex justify-center md:justify-between md:px-8 items-center py-2 max-w-screen-lg mx-auto">
-                  <OptionsDropdown
-                    className="hidden md:flex"
-                    documentId={entity.id}
-                    state={editorStateRef}
-                  />
-                  {/* <ToolbarPlugin /> */}
-                  <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
-                  <ModeToggle className="hidden md:flex" />
-                </div>
+            <div className="bg-white dark:bg-zinc-900 sticky top-0 left-0 z-10 w-full shadow-sm">
+              <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
+                {/* Dropdown for options (hidden on small screens) */}
+                <OptionsDropdown
+                  className="hidden md:flex"
+                  documentId={entity.id}
+                  state={editorStateRef}
+                />
+                {/* Toolbar Plugin (always visible) */}
+                <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
+                {/* Dark Mode Toggle (hidden on small screens) */}
+                <ModeToggle className="hidden md:flex" />
               </div>
+            </div>
+            <div className="relative w-full min-h-[calc(100vh-56px)]  bg-zinc-50 dark:bg-zinc-950">
               {/* bottom left options */}
-
               <OptionsDropdown
                 className=" fixed bottom-2 left-2 z-10 md:hidden"
                 documentId={entity.id}
@@ -276,12 +273,6 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
             {isAutocomplete && <AutocompletePlugin />}
             <div>{showTableOfContents && <TableOfContentsPlugin />}</div>
             {shouldUseLexicalContextMenu && <ContextMenuPlugin />}
-            <ActionsPlugin
-              isRichText={isRichText}
-              shouldPreserveNewLinesInMarkdown={
-                shouldPreserveNewLinesInMarkdown
-              }
-            />
           </>
         </TableContext>
       </FlashMessageContext>
