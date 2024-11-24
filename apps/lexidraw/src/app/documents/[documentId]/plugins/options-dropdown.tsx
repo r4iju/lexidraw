@@ -34,7 +34,7 @@ export default function OptionsDropdown({
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
-  const exportDrawingAsSvg = async () => {
+  const exportDocumentAsSvg = async () => {
     const svgString = exportLexicalAsSvg();
     [Theme.DARK, Theme.LIGHT].map(async (theme) => {
       saveSvg({
@@ -59,7 +59,7 @@ export default function OptionsDropdown({
       },
       {
         onSuccess: async () => {
-          await exportDrawingAsSvg();
+          await exportDocumentAsSvg();
           toast({
             title: "Saved!",
           });

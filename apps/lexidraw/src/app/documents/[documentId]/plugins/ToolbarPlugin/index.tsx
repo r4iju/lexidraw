@@ -903,7 +903,7 @@ export default function ToolbarPlugin({
   };
 
   return (
-    <div className="flex flex-row gap-1 bg-background p-1 rounded-md">
+    <div className="flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible top-0">
       <TooltipButton
         onClick={() => {
           activeEditor.dispatchCommand(UNDO_COMMAND, undefined);

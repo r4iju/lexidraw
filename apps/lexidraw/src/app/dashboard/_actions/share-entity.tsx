@@ -187,7 +187,7 @@ export default function ShareEntity({
         <DialogHeader>
           <DialogTitle>Share {entity.entityType}</DialogTitle>
         </DialogHeader>
-        <DialogDescription className="flex flex-col gap-6 py-4">
+        <div className="flex flex-col gap-6 py-4">
           <div className="gap-2">
             <div className="text-md font-semibold">Public link</div>
             <div>
@@ -328,7 +328,7 @@ export default function ShareEntity({
               ))}
             </div>
           </div>
-        </DialogDescription>
+        </div>
       </DialogContent>
     </Dialog>
   );
