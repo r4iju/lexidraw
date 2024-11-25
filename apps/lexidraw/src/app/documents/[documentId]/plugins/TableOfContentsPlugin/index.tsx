@@ -170,7 +170,7 @@ function TableOfContentsList({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="fixed top-[150px] right-4 z-10 rounded-lg shadow-lg"
+          className="fixed top-[75px] right-4 z-10 rounded-lg shadow-lg"
         >
           Table of Contents
         </Button>

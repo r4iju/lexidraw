@@ -6,9 +6,52 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "~/lib/utils";
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+const DropdownMenuContext = React.createContext<{
+  open: boolean;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+} | null>(null);
 
-const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+const DropdownMenu = ({
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen} {...props}>
+      <DropdownMenuContext.Provider value={{ open, setOpen }}>
+        {children}
+      </DropdownMenuContext.Provider>
+    </DropdownMenuPrimitive.Root>
+  );
+};
+
+const DropdownMenuTrigger = ({
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>) => {
+  const context = React.useContext(DropdownMenuContext);
+  if (context === null) {
+    throw new Error("DropdownMenuTrigger must be used within a DropdownMenu");
+  }
+  const { open, setOpen } = context;
+
+  return (
+    <DropdownMenuPrimitive.Trigger
+      {...props}
+      onPointerDown={(e) => e.preventDefault()} // Prevents menu from opening on touch scroll
+      onClick={(e) => {
+        setOpen(!open); // Toggle the menu on click
+        props.onClick?.(e);
+      }}
+      aria-expanded={open}
+    >
+      {children}
+    </DropdownMenuPrimitive.Trigger>
+  );
+};
+
+DropdownMenuTrigger.displayName = DropdownMenuPrimitive.Trigger.displayName;
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 

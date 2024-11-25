@@ -192,6 +192,7 @@ function TextFormatFloatingToolbar({
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
             }}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Bold"
             Icon={Bold}
@@ -201,6 +202,7 @@ function TextFormatFloatingToolbar({
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
             }}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Italic"
             Icon={Italic}
@@ -210,6 +212,7 @@ function TextFormatFloatingToolbar({
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
             }}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Underline"
             Icon={Underline}
@@ -219,6 +222,7 @@ function TextFormatFloatingToolbar({
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough");
             }}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Strikethrough"
             Icon={Strikethrough}
@@ -228,6 +232,7 @@ function TextFormatFloatingToolbar({
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript");
             }}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Subscript"
             Icon={Subscript}
@@ -237,6 +242,7 @@ function TextFormatFloatingToolbar({
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript");
             }}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Superscript"
             Icon={Superscript}
@@ -246,6 +252,7 @@ function TextFormatFloatingToolbar({
             onClick={() => {
               editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
             }}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Code"
             Icon={Code}
@@ -253,6 +260,7 @@ function TextFormatFloatingToolbar({
           />
           <TooltipButton
             onClick={insertLink}
+            className="w-10 md:w-8 h-12 md:h-10"
             disabled={false}
             title="Link"
             Icon={Link}

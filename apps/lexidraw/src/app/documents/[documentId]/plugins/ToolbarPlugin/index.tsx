@@ -316,7 +316,7 @@ function BlockFormatDropDown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="flex gap-1"
+          className="flex gap-1 h-12 md:h-10"
           aria-label="Formatting options for text style"
           disabled={disabled}
           variant="outline"
@@ -432,7 +432,7 @@ function FontDropDown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="flex gap-1"
+          className="flex gap-1 h-12 md:h-10"
           variant="outline"
           disabled={disabled}
           aria-label={buttonAriaLabel}
@@ -478,7 +478,7 @@ function ElementFormatDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="flex gap-1"
+          className="flex gap-1 h-12 md:h-10"
           variant="outline"
           disabled={disabled}
           aria-label="Formatting options for text alignment"
@@ -908,6 +908,7 @@ export default function ToolbarPlugin({
         onClick={() => {
           activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
         }}
+        className="w-10 md:w-8 h-12 md:h-10"
         disabled={!canUndo || !isEditable}
         title={IS_APPLE ? "Undo (⌘Z)" : "Undo (Ctrl+Z)"}
         Icon={Undo}
@@ -918,6 +919,7 @@ export default function ToolbarPlugin({
         onClick={() => {
           activeEditor.dispatchCommand(REDO_COMMAND, undefined);
         }}
+        className="w-10 md:w-8 h-12 md:h-10"
         disabled={!canRedo || !isEditable}
         title={IS_APPLE ? "Redo (⌘Y)" : "Redo (Ctrl+Y)"}
         Icon={Redo}
@@ -943,7 +945,7 @@ export default function ToolbarPlugin({
             <Button
               variant="outline"
               disabled={!isEditable}
-              className="flex gap-1"
+              className="flex gap-1 h-12 md:h-10"
               aria-label="Select language"
             >
               {getLanguageFriendlyName(codeLanguage)}
@@ -985,7 +987,7 @@ export default function ToolbarPlugin({
             onClick={() => {
               activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
             }}
-            className={isBold ? "bg-muted" : ""}
+            className={`${isBold ? "bg-muted" : ""} w-10 md:w-8 h-12 md:h-10`}
             disabled={!isEditable}
             title={IS_APPLE ? "Bold (⌘B)" : "Bold (Ctrl+B)"}
             Icon={Bold}
@@ -995,7 +997,7 @@ export default function ToolbarPlugin({
             onClick={() => {
               activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
             }}
-            className={isItalic ? "bg-muted" : ""}
+            className={`${isItalic ? "bg-muted" : ""} w-10 md:w-8 h-12 md:h-10`}
             disabled={!isEditable}
             title={IS_APPLE ? "Italic (⌘I)" : "Italic (Ctrl+I)"}
             Icon={Italic}
@@ -1005,7 +1007,7 @@ export default function ToolbarPlugin({
             onClick={() => {
               activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
             }}
-            className={isUnderline ? "bg-muted" : ""}
+            className={`${isUnderline ? "bg-muted" : ""}  w-10 md:w-8 h-12 md:h-10`}
             disabled={!isEditable}
             title={IS_APPLE ? "Underline (⌘U)" : "Underline (Ctrl+U)"}
             Icon={Underline}
@@ -1015,14 +1017,14 @@ export default function ToolbarPlugin({
             onClick={() => {
               activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
             }}
-            className={isCode ? "bg-muted" : ""}
+            className={`${isCode ? "bg-muted" : ""}  w-10 md:w-8 h-12 md:h-10`}
             disabled={!isEditable}
             title="Insert code block"
             Icon={Code}
             ariaLabel="Insert code block"
           />
           <TooltipButton
-            className={isLink ? "bg-muted" : ""}
+            className={`${isLink ? "bg-muted" : ""} w-10 md:w-8 h-12 md:h-10`}
             onClick={insertLink}
             disabled={!isEditable}
             title="Insert link"
@@ -1053,7 +1055,7 @@ export default function ToolbarPlugin({
                     variant="outline"
                     disabled={!isEditable}
                     aria-label="Formatting options for additional text styles"
-                    className="px-0.5 h-10 w-8"
+                    className="px-0.5 h-12 md:h-10"
                   >
                     <Ellipsis className="size-4" />
                   </Button>
@@ -1121,7 +1123,7 @@ export default function ToolbarPlugin({
               <Button
                 disabled={!isEditable}
                 variant="outline"
-                className="flex gap-1"
+                className="flex gap-1 h-12 md:h-10"
                 aria-label="Insert specialized editor node"
               >
                 Insert
