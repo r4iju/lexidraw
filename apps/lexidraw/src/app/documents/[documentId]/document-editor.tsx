@@ -187,7 +187,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
       <FlashMessageContext>
         <TableContext>
           <>
-            <div className="bg-white dark:bg-zinc-900 sticky top-0 left-0 z-10 w-full shadow-sm">
+            <div className="bg-white dark:bg-zinc-900 fixed top-0 left-0 z-10 w-full shadow-sm">
               <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
                 {/* Dropdown for options (hidden on small screens) */}
                 <OptionsDropdown
@@ -201,7 +201,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                 <ModeToggle className="hidden md:flex" />
               </div>
             </div>
-            <div className="relative w-full min-h-[calc(100vh-56px)]  bg-zinc-50 dark:bg-zinc-950">
+            <div className="relative w-full min-h-[calc(100vh-56px)]  ">
               {/* bottom left options */}
               <OptionsDropdown
                 className=" fixed bottom-2 left-2 z-10 md:hidden"
@@ -210,7 +210,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
               />
 
               {/* ContentEditable allowing content to scroll behind the toolbar */}
-              <div className="w-full h-full overflow-y-auto max-w-screen-lg border-x border-x-zinc-200 mx-auto">
+              <div className="w-full h-full max-w-screen-lg mx-auto">
                 <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
                 <CodeHighlightPlugin />
                 <TabIndentationPlugin />
@@ -238,7 +238,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                       <div className="editor" ref={onRef}>
                         <ContentEditable
                           id="lexical-content"
-                          className="resize-none outline-none pt-20 px-6 text-black dark:text-white "
+                          className="resize-none outline-none pt-20 px-6 text-black dark:text-white border-x"
                         />
                       </div>
                     </div>

@@ -191,6 +191,7 @@ export default function FontSize({
     <>
       <TooltipButton
         onClick={() => handleButtonClick(updateFontSizeType.decrement)}
+        className="w-12 md:w-8 h-12 md:h-10"
         disabled={
           disabled ||
           (selectionFontSize !== "" &&
@@ -205,7 +206,7 @@ export default function FontSize({
         type="number"
         value={inputValue}
         disabled={disabled}
-        className="max-w-fit"
+        className="max-w-fit min-w-10 h-12 md:h-10"
         min={MIN_ALLOWED_FONT_SIZE}
         max={MAX_ALLOWED_FONT_SIZE}
         onChange={(e) => setInputValue(e.target.value)}
@@ -215,6 +216,7 @@ export default function FontSize({
 
       <TooltipButton
         onClick={() => handleButtonClick(updateFontSizeType.increment)}
+        className="w-12 md:w-8 h-12 md:h-10"
         disabled={
           disabled ||
           (selectionFontSize !== "" &&

@@ -221,7 +221,7 @@ export function ColorPickerButton({
             <Button
               aria-label={buttonAriaLabel}
               variant="outline"
-              className="w-8 h-10 p-0.5"
+              className="w-8 h-12 md:h-10 p-0.5"
               disabled={disabled}
             >
               {Icon && <Icon className="size-4" />}
