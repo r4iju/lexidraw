@@ -113,17 +113,20 @@ export const snapshotRouter = createTRPCRouter({
       const entity = await ctx.drizzle.query.entity.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       });
+      console.log('entity', entity);
       if (!entity) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' });
       }
       const isOwner = entity.userId === ctx.session?.user.id;
+      console.log('isOwner', isOwner);
       const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+      console.log('anyOneCanEdit', anyOneCanEdit);
       if (!isOwner && !anyOneCanEdit) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to save this drawing' });
       }
       const { entityId, svg, theme } = input;
       const svgBuffer = Buffer.from(svg);
-
+      console.log('svgBuffer', svgBuffer);
       try {
         const uploadParams = {
           Bucket: env.SUPABASE_S3_BUCKET,
@@ -131,7 +134,9 @@ export const snapshotRouter = createTRPCRouter({
           Body: svgBuffer,
           ContentType: 'image/svg+xml',
         };
-        await s3.send(new PutObjectCommand(uploadParams));
+        const res = await s3.send(new PutObjectCommand(uploadParams));
+        console.log('uploaded to s3 with res', res);
+        return res;
       } catch (error) {
         let errorMessage = 'Failed to update snapshot due to an unknown error.';
         if (error instanceof Error) {
@@ -209,11 +214,14 @@ export const snapshotRouter = createTRPCRouter({
       const entity = await ctx.drizzle.query.entity.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       });
+      console.log('entity', entity);
       if (!entity) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' });
       }
       const isOwner = entity.userId === ctx.session?.user.id;
       const anyOneCanEditOrView = entity.publicAccess !== PublicAccess.PRIVATE;
+      console.log('isOwner', isOwner);
+      console.log('anyOneCanEditOrView', anyOneCanEditOrView);
       if (!isOwner && !anyOneCanEditOrView) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to view this drawing' });
       }
@@ -232,5 +240,71 @@ export const snapshotRouter = createTRPCRouter({
           message: errorMessage,
         });
       }
+    }),
+  generateUploadUrls: publicProcedure
+    .input(
+      z.object({
+        entityId: z.string(),
+        contentType: z.enum(["image/svg+xml"]),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const entity = (await ctx.drizzle.select({
+        id: ctx.schema.entity.id,
+        userId: ctx.schema.entity.userId,
+        publicAccess: ctx.schema.entity.publicAccess,
+      }).from(schema.entity)
+        .where(eq(schema.entity.id, input.entityId)))[0]
+
+      if (!entity) {
+        console.error('entity not found');
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' });
+      }
+
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+
+      if (!isOwner && !anyOneCanEdit) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to view this drawing' });
+      }
+
+      const { entityId, contentType } = input;
+
+      // let's make sure we have both dark and light themes
+      const signedUrls = await Promise.all(
+        [THEME.DARK, THEME.LIGHT].map(async (theme) => {
+          const fileName = `${entityId}-${theme}.svg`;
+          console.log('fileName', fileName);
+
+          const fileUrl = `${ctx.headers.get('origin')}/api/images/${fileName}`;
+          console.log('fileUrl', fileUrl);
+
+          try {
+            const command = new PutObjectCommand({
+              Bucket: env.SUPABASE_S3_BUCKET,
+              Key: fileName,
+              ContentType: contentType,
+            });
+
+            const signedUrl = await getSignedUrl(s3, command, {
+              expiresIn: 15 * 60, // 15 minutes
+            });
+
+            await ctx.drizzle.update(schema.entity)
+              .set({
+                [theme === THEME.DARK ? 'screenShotDark' : 'screenShotLight']: fileUrl,
+              })
+              .where(eq(schema.entity.id, entityId))
+              .execute();
+
+            return { theme, uploadUrl: signedUrl, key: fileName, bucket: env.SUPABASE_S3_BUCKET };
+          } catch (error) {
+            console.error(`Failed to generate signed URL for theme ${theme}:`, error);
+            throw error;
+          }
+        })
+      );
+
+      return signedUrls;
     }),
 });

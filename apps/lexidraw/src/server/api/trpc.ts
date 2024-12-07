@@ -3,12 +3,13 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
-import { drizzle } from "@packages/drizzle";
+import { drizzle, schema } from "@packages/drizzle";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const session = await auth();
   return {
     drizzle,
+    schema,
     session,
     ...opts,
   };

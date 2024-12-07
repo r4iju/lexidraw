@@ -157,6 +157,8 @@ export const entityRouter = createTRPCRouter({
         .groupBy(schema.entity.id)
         .orderBy(desc(schema.entity.updatedAt))
         .execute();
+      
+      
 
       return drawings;
     }),
