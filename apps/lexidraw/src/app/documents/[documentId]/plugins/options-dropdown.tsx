@@ -18,6 +18,8 @@ import Link from "next/link";
 import { exportLexicalAsSvg } from "./export-svg";
 import { Theme } from "@packages/types";
 import { useToast } from "~/components/ui/use-toast";
+import { useTheme } from "next-themes";
+import { useIsDarkTheme } from "~/components/theme/theme-provider";
 
 type Props = {
   className?: string;
@@ -25,24 +27,71 @@ type Props = {
   state: MutableRefObject<EditorState | undefined>;
 };
 
+async function uploadToS3({
+  uploadUrl,
+  file: blob,
+}: {
+  uploadUrl: string;
+  file: Blob;
+}) {
+  try {
+    await fetch(uploadUrl, {
+      method: "PUT",
+      body: blob, // File object from input
+      headers: {
+        "Content-Type": blob.type,
+      },
+    });
+  } catch (error) {
+    console.error("Error uploading to S3", error);
+  }
+}
+
 export default function OptionsDropdown({
   className,
   state,
   documentId,
 }: Props) {
+  const { setTheme } = useTheme();
+  const isDarkTheme = useIsDarkTheme();
   const { toast } = useToast();
   const { mutate: save } = api.entities.save.useMutation();
-  const { mutate: saveSvg } = api.snapshot.create.useMutation();
+  const { mutate: generateUploadUrls } =
+    api.snapshot.generateUploadUrls.useMutation();
+  // const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
   const exportDocumentAsSvg = async () => {
-    const svgString = exportLexicalAsSvg();
-    [Theme.DARK, Theme.LIGHT].map(async (theme) => {
-      saveSvg({
+    generateUploadUrls(
+      {
         entityId: documentId,
-        svg: svgString,
-        theme: theme,
-      });
-    });
+        contentType: "image/svg+xml",
+      },
+      {
+        onSuccess: async (uploadParams) => {
+          const nextTheme = isDarkTheme ? Theme.DARK : Theme.LIGHT;
+          console.log("uploadParams", uploadParams);
+          const promises = [];
+          for (const uploadParam of uploadParams) {
+            setTheme(uploadParam.theme);
+            // sleep 20 ms\
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            const svgString = exportLexicalAsSvg();
+            const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
+            promises.push(
+              uploadToS3({
+                uploadUrl: uploadParam.uploadUrl,
+                file: svgBlob,
+              }),
+            );
+          }
+          setTheme(nextTheme);
+          await Promise.all(promises);
+        },
+        onError: (error) => {
+          console.error("Error generating upload URL", error);
+        },
+      },
+    );
   };
 
   const handleSave = () => {

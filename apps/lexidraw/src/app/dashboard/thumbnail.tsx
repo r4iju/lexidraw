@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
@@ -11,26 +9,12 @@ type Props = {
 
 export function Thumbnail({ entity }: Props) {
   const isDarkTheme = useIsDarkTheme();
-
-  const { data } = api.snapshot.getSvgData.useQuery({
-    entityId: entity.id,
-    theme: isDarkTheme ? "dark" : "light",
-  });
-
-  const [svgDataUrl, setSvgDataUrl] = useState<string>(
-    isDarkTheme ? entity.screenShotDark : entity.screenShotLight,
-  );
-
-  useEffect(() => {
-    setSvgDataUrl(
-      data || (isDarkTheme ? entity.screenShotDark : entity.screenShotLight),
-    );
-  }, [data, isDarkTheme, entity.screenShotDark, entity.screenShotLight]);
+  const src = isDarkTheme ? entity.screenShotDark : entity.screenShotLight;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={svgDataUrl}
+      src={src}
       className="aspect-[4/3] min-h-[300px]"
       alt={`Thumbnail for ${entity.title}`}
       height={300}
