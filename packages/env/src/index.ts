@@ -18,6 +18,7 @@ const env = createEnv({
     SUPABASE_S3_SECRET_ACCESS_KEY: z.string().min(1),
     SUPABASE_S3_ENDPOINT: z.string().url(),
     SUPABASE_S3_REGION: z.string().min(1),
+    SUPABASE_S3_BUCKET: z.string().min(1),
     GITHUB_CLIENT_ID: z.string().min(1),
     GITHUB_CLIENT_SECRET: z.string().min(1),
     ICE_SERVER_CONFIG: z.preprocess(
@@ -66,6 +67,7 @@ const env = createEnv({
     SUPABASE_S3_SECRET_ACCESS_KEY: process.env.SUPABASE_S3_SECRET_ACCESS_KEY,
     SUPABASE_S3_ENDPOINT: process.env.SUPABASE_S3_ENDPOINT,
     SUPABASE_S3_REGION: process.env.SUPABASE_S3_REGION,
+    SUPABASE_S3_BUCKET: process.env.SUPABASE_S3_BUCKET,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
     NEXT_PUBLIC_FIRESTORE_API_KEY: process.env.NEXT_PUBLIC_FIRESTORE_API_KEY,

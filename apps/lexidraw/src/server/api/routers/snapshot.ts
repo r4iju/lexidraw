@@ -7,6 +7,7 @@ import { s3 } from "~/server/s3";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "stream";
+import env from "@packages/env";
 
 const THEME = {
   DARK: 'dark',
@@ -80,14 +81,14 @@ export const snapshotRouter = createTRPCRouter({
 
       try {
         const uploadParams = {
-          Bucket: 'excalidraw',
+          Bucket: env.SUPABASE_S3_BUCKET,
           Key: `${entityId}-${theme}.svg`,
           Body: svgBuffer,
           ContentType: 'image/svg+xml',
         };
         await s3.send(new PutObjectCommand(uploadParams));
 
-        const signedUrl = await generatePresignedUrl('excalidraw', `${entityId}-${theme}.svg`);
+        const signedUrl = await generatePresignedUrl(env.SUPABASE_S3_BUCKET, `${entityId}-${theme}.svg`);
 
         await ctx.drizzle.update(schema.entity)
           .set({
@@ -125,7 +126,7 @@ export const snapshotRouter = createTRPCRouter({
 
       try {
         const uploadParams = {
-          Bucket: 'excalidraw',
+          Bucket: env.SUPABASE_S3_BUCKET,
           Key: `${entityId}-${theme}.svg`,
           Body: svgBuffer,
           ContentType: 'image/svg+xml',
@@ -156,7 +157,7 @@ export const snapshotRouter = createTRPCRouter({
 
       try {
         const getObjectParams = {
-          Bucket: 'excalidraw',
+          Bucket: env.SUPABASE_S3_BUCKET,
           Key: `${entityId}-${theme}.svg`,
         };
         const { Body } = await s3.send(new GetObjectCommand(getObjectParams));
@@ -191,7 +192,7 @@ export const snapshotRouter = createTRPCRouter({
 
       try {
         const getObjectParams = {
-          Bucket: 'excalidraw',
+          Bucket: env.SUPABASE_S3_BUCKET,
           Key: `${entityId}-${theme}.svg`,
         };
         const { Body } = await s3.send(new GetObjectCommand(getObjectParams));
