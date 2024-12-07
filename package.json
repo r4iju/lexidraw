@@ -27,9 +27,9 @@
     "dotenv-cli": "latest",
     "eslint": "^9.5.0",
     "eslint-config-turbo": "latest",
-    "eslint-plugin-react": "^7.34.2",
-    "eslint-plugin-react-compiler": "0.0.0-experimental-c8b3f72-20240517",
-    "eslint-plugin-react-hooks": "5.1.0-rc-fb9a90fa48-20240614",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-compiler": "19.0.0-beta-df7b47d-20241124",
+    "eslint-plugin-react-hooks": "^5.1.0",
     "turbo": "^1.8.3",
     "typescript": "^5.7.2",
     "typescript-eslint": "^7.13.0"

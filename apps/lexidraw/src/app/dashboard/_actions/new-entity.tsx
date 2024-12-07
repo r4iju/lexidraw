@@ -13,36 +13,36 @@ import {
 } from "~/components/ui/navigation-menu";
 import { Brush, File, Plus } from "lucide-react";
 
-const newItem = (kind: "drawing" | "document") => {
-  switch (kind) {
-    case "drawing":
-      return `/drawings/${uuidv4()}/new`;
-    case "document":
-      return `/documents/${uuidv4()}/new`;
-  }
-};
-
-const items: {
-  title: string;
-  icon: JSX.Element;
-  href: string;
-  description: string;
-}[] = [
-  {
-    title: "Drawing",
-    icon: <Brush className="h-25 w-25" />,
-    href: newItem("drawing"),
-    description: "For creating visual content.",
-  },
-  {
-    title: "Document",
-    icon: <File className="h-25 w-25" />,
-    href: newItem("document"),
-    description: "For creating rich text documents.",
-  },
-];
-
 export function NewEntity() {
+  function newItem(kind: "drawing" | "document") {
+    switch (kind) {
+      case "drawing":
+        return `/drawings/${uuidv4()}/new`;
+      case "document":
+        return `/documents/${uuidv4()}/new`;
+    }
+  }
+
+  const items: {
+    title: string;
+    icon: JSX.Element;
+    href: string;
+    description: string;
+  }[] = [
+    {
+      title: "Drawing",
+      icon: <Brush className="h-25 w-25" />,
+      href: newItem("drawing"),
+      description: "For creating visual content.",
+    },
+    {
+      title: "Document",
+      icon: <File className="h-25 w-25" />,
+      href: newItem("document"),
+      description: "For creating rich text documents.",
+    },
+  ];
+  
   return (
     <NavigationMenu>
       <NavigationMenuList>

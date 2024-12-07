@@ -187,7 +187,7 @@ function TableOfContentsList({
               <Button
                 variant="link"
                 onClick={() => scrollToNode(key, index)}
-                className="py-0"
+                className="py-0 text-foreground"
               >
                 <span className={`${selectedKey === key ? " underline" : ""}`}>
                   {text.length > 27 ? `${text.substring(0, 27)}...` : text}

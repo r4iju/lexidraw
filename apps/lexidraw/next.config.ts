@@ -1,4 +1,3 @@
-import _env from "@packages/env";
 import { NextConfig } from "next";
 import nextBundleAnalyzer from "@next/bundle-analyzer";
 
@@ -11,14 +10,12 @@ const withBundleAnalyzer = nextBundleAnalyzer({
 });
 
 const config: NextConfig = {
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     return config;
   },
   productionBrowserSourceMaps: true,
   experimental: {
-    // reactCompiler: {
-    //   compilationMode: "all",
-    // },
+    reactCompiler: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
