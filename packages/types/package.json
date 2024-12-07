@@ -45,7 +45,7 @@
   ],
   "devDependencies": {
     "@dwelle/excalidraw": "^0.5.0-d0d846e",
-    "@types/node": "^18.17.0",
-    "typescript": "^5.6.3"
+    "@types/node": "^20.17.9",
+    "typescript": "^5.7.2"
   }
 }
