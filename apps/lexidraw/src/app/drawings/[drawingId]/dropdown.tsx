@@ -27,6 +27,26 @@ import { MainMenu } from "@dwelle/excalidraw";
 
 const CustomMenuItem = MainMenu.ItemCustom;
 
+async function uploadToS3({
+  uploadUrl,
+  file: blob,
+}: {
+  uploadUrl: string;
+  file: Blob;
+}) {
+  try {
+    await fetch(uploadUrl, {
+      method: "PUT",
+      body: blob, // File object from input
+      headers: {
+        "Content-Type": blob.type,
+      },
+    });
+  } catch (error) {
+    console.error("Error uploading to S3", error);
+  }
+}
+
 type Props = {
   isMenuOpen: boolean;
   drawing: RouterOutputs["entities"]["load"];
@@ -37,7 +57,8 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const isDarkTheme = useIsDarkTheme();
   const { toast } = useToast();
   const { mutate: save } = api.entities.save.useMutation();
-  const { mutate: saveSvg } = api.snapshot.create.useMutation();
+  const { mutate: generateUploadUrls } =
+    api.snapshot.generateUploadUrls.useMutation();
 
   const saveToBackend = async () => {
     if (!excalidrawApi.current) return;
@@ -82,33 +103,45 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     elements,
     appState,
   }: ExportAsSvgProps) => {
-    await Promise.all(
-      [Theme.DARK, Theme.LIGHT].map(async (theme) => {
-        const svg = await exportToSvg({
-          data: {
-            elements,
-            appState: {
-              ...appState,
-              theme: theme,
-              exportWithDarkMode: theme === Theme.DARK ? true : false,
-            },
-            files: null,
-          },
-          config: {
-            padding: 10,
-            renderEmbeddables: true,
-            exportingFrame: null,
-          },
-        });
+    generateUploadUrls(
+      {
+        entityId: drawing.id,
+        contentType: "image/svg+xml",
+      },
+      {
+        onSuccess: async (uploadParams) => {
+          const promises: Promise<void>[] = [];
+          uploadParams.map(async (param) => {
+            const svg = await exportToSvg({
+              data: {
+                elements,
+                appState: {
+                  ...appState,
+                  theme: param.theme,
+                  exportWithDarkMode: param.theme === Theme.DARK ? true : false,
+                },
+                files: null,
+              },
+              config: {
+                padding: 10,
+                renderEmbeddables: true,
+                exportingFrame: null,
+              },
+            });
 
-        // convert it to string
-        const svgString = new XMLSerializer().serializeToString(svg);
-        saveSvg({
-          entityId: drawing.id,
-          svg: svgString,
-          theme: theme,
-        });
-      }),
+            // convert it to string
+            const svgString = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([svgString], { type: "image/svg+xml" });
+            promises.push(
+              uploadToS3({
+                uploadUrl: param.uploadUrl,
+                file: blob,
+              }),
+            );
+          });
+          await Promise.all(promises);
+        },
+      },
     );
   };
 
