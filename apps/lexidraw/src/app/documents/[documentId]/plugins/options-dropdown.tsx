@@ -58,7 +58,6 @@ export default function OptionsDropdown({
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: generateUploadUrls } =
     api.snapshot.generateUploadUrls.useMutation();
-  // const { mutate: saveSvg } = api.snapshot.create.useMutation();
 
   const exportDocumentAsSvg = async () => {
     generateUploadUrls(
