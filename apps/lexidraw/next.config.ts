@@ -1,9 +1,6 @@
 import { NextConfig } from "next";
 import nextBundleAnalyzer from "@next/bundle-analyzer";
-
-// import path from "path";
-// import { fileURLToPath } from "url";
-// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import env from "@packages/env";
 
 const withBundleAnalyzer = nextBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
@@ -24,19 +21,13 @@ const config: NextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    dangerouslyAllowSVG: true,
+    dangerouslyAllowSVG: false, // true
     remotePatterns: [
       {
         protocol: "https",
         port: "",
-        hostname: "khebpsoymyxdkdwpltvv.supabase.co",
-        pathname: "/storage/v1/object/sign/**",
-      },
-      {
-        protocol: "https",
-        port: "",
-        hostname: "khebpsoymyxdkdwpltvv.supabase.co",
-        pathname: "/storage/v1/s3/excalidraw/**",
+        hostname: new URL(env.SUPABASE_S3_ENDPOINT).hostname,
+        pathname: new URL(env.SUPABASE_S3_ENDPOINT).pathname + "/**",
       },
     ],
   },

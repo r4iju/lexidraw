@@ -7,7 +7,6 @@ import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
@@ -183,10 +182,17 @@ export default function ShareEntity({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        aria-describedby="dialog-description"
+      >
         <DialogHeader>
           <DialogTitle>Share {entity.entityType}</DialogTitle>
         </DialogHeader>
+        <div id="dialog-description" className="sr-only">
+          Share settings for {entity.entityType}. You can adjust public access,
+          share with specific users, or modify permissions for existing users.
+        </div>
         <div className="flex flex-col gap-6 py-4">
           <div className="gap-2">
             <div className="text-md font-semibold">Public link</div>

@@ -31,8 +31,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
+
   try {
-    if (!fileName.endsWith(".svg")) {
+    if (!fileName.endsWith(".svg") && !fileName.endsWith(".png") && !fileName.endsWith(".jpg") && !fileName.endsWith(".jpeg")) {
       return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
     }
 

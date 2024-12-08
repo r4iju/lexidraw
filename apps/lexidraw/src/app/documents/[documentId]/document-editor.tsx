@@ -78,7 +78,7 @@ type EditorProps = {
 };
 
 function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
-  const editorStateRef = useRef<EditorState>();
+  const editorStateRef = useRef<EditorState>(undefined);
   const canCollaborate =
     entity.sharedWith.length > 0 || entity.publicAccess !== "private";
   const userId = useUserIdOrGuestId();

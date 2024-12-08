@@ -245,7 +245,8 @@ export const snapshotRouter = createTRPCRouter({
     .input(
       z.object({
         entityId: z.string(),
-        contentType: z.enum(["image/svg+xml"]),
+        // svg, jpeg or png
+        contentType: z.enum(["image/svg+xml", "image/jpeg", "image/png"]),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -269,11 +270,12 @@ export const snapshotRouter = createTRPCRouter({
       }
 
       const { entityId, contentType } = input;
+      const extension = contentType.split('/')[1]?.replace(/[-+]/g, '');
 
       // let's make sure we have both dark and light themes
       const signedUrls = await Promise.all(
         [THEME.DARK, THEME.LIGHT].map(async (theme) => {
-          const fileName = `${entityId}-${theme}.svg`;
+          const fileName = `${entityId}-${theme}.${extension}`;
           console.log('fileName', fileName);
 
           const fileUrl = `${ctx.headers.get('origin')}/api/images/${fileName}`;
