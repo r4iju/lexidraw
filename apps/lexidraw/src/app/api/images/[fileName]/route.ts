@@ -7,11 +7,11 @@ import { auth } from "~/server/auth";
 import { drizzle, eq, schema } from "@packages/drizzle";
 import { PublicAccess } from "@packages/types";
 
-export async function GET(req: NextRequest, { params }: { params: { fileName: string } }) {
-  const { fileName } = params;
+export async function GET(req: NextRequest, { params }: { params: Promise<{ fileName: string }> }) {
+  const fileName = (await params).fileName;
   const entityId = fileName.replace(/-dark.*|-light.*/, '');
   const session = await auth();
-  
+
   const entity = (await drizzle.select({
     id: schema.entity.id,
     userId: schema.entity.userId,
