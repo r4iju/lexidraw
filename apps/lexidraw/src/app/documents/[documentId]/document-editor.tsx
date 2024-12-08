@@ -212,7 +212,6 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                 state={editorStateRef}
               />
 
-              {/* ContentEditable allowing content to scroll behind the toolbar */}
               <div className="w-full h-full max-w-screen-lg mx-auto">
                 <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
                 <CodeHighlightPlugin />
@@ -237,13 +236,14 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                 <EquationsPlugin />
                 <RichTextPlugin
                   contentEditable={
-                    <div className="editor-scroller">
-                      <div className="editor" ref={onRef}>
-                        <ContentEditable
-                          id="lexical-content"
-                          className="resize-none outline-none p-4 text-black dark:text-white border-x"
-                        />
-                      </div>
+                    <div
+                      className="min-h-[150px] h-full border-none flex relative outline-none z-0 overflow-auto resize-y"
+                      ref={onRef}
+                    >
+                      <ContentEditable
+                        id="lexical-content"
+                        className="resize-none outline-none p-4 text-black dark:text-white border-x"
+                      />
                     </div>
                   }
                   placeholder={<Placeholder />}

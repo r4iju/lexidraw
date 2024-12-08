@@ -81,7 +81,7 @@ function LazyImage({
   src: string;
   width: "inherit" | number;
   position: Position;
-}): JSX.Element {
+}): React.JSX.Element {
   useSuspenseImage(src);
   return (
     // eslint-disable-next-line @next/next/no-img-element
