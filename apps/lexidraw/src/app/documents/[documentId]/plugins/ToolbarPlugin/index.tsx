@@ -159,6 +159,7 @@ function getCodeLanguageOptions(): [string, string][] {
 const CODE_LANGUAGE_OPTIONS = getCodeLanguageOptions();
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
+  ["Fredoka", "Fredoka"],
   ["Arial", "Arial"],
   ["Courier New", "Courier New"],
   ["Georgia", "Georgia"],
@@ -595,7 +596,7 @@ export default function ToolbarPlugin({
   const [fontSize, setFontSize] = useState<string>("15px");
   const [fontColor, setFontColor] = useState<string>("#000");
   const [bgColor, setBgColor] = useState<string>("#fff");
-  const [fontFamily, setFontFamily] = useState<string>("Arial");
+  const [fontFamily, setFontFamily] = useState<string>("Fredoka");
   const [elementFormat, setElementFormat] = useState<ElementFormatType>("left");
   const [isLink, setIsLink] = useState(false);
   const [isBold, setIsBold] = useState(false);
@@ -697,7 +698,7 @@ export default function ToolbarPlugin({
         ),
       );
       setFontFamily(
-        $getSelectionStyleValueForProperty(selection, "font-family", "Arial"),
+        $getSelectionStyleValueForProperty(selection, "font-family", "Fredoka"),
       );
       let matchingParent;
       if ($isLinkNode(parent)) {
