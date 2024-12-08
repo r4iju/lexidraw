@@ -41,13 +41,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
       Key: fileName,
     });
 
+    const expiresIn = 24 * 60 * 60; // 24 hours
+
     const signedUrl = await getSignedUrl(s3, command, {
-      expiresIn: 24 * 60 * 60, // 24 hours
+      expiresIn,
     });
 
     // client can cache
     const headers = new Headers();
-    headers.set("Cache-Control", "public, max-age=86400, immutable");
+    headers.set("Cache-Control", `public, max-age=${expiresIn}, immutable`);
 
     // Redirect to the signed URL
     return NextResponse.redirect(signedUrl, {
