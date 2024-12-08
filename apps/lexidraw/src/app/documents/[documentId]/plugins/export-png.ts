@@ -89,12 +89,5 @@ export async function exportPng({ setTheme, restoreTheme }: Props): Promise<Blob
   performance.clearMarks();
   performance.clearMeasures();
 
-  // download the blob
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `doc-${new Date().toLocaleString()}.png`;
-  a.click();
-
   return blob;
 }

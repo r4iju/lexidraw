@@ -106,10 +106,12 @@ export default function OptionsDropdown({
 
   const handleSave = () => {
     if (!state.current) {
-      console.error("No state to save");
+      toast({
+        title: "No state to save",
+        variant: "destructive",
+      });
       return;
     }
-    console.log(JSON.stringify(state.current));
     save(
       {
         id: documentId,
@@ -118,10 +120,11 @@ export default function OptionsDropdown({
       },
       {
         onSuccess: async () => {
-          await exportDocumentAsSvg();
           toast({
             title: "Saved!",
           });
+          // unless entity exists, can't update screenshot reference
+          await exportDocumentAsSvg();
         },
         onError: (error) => {
           toast({

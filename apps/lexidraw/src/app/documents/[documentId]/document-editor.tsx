@@ -173,14 +173,17 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
     }
   }, [canCollaborate, initializeConnection, isCollaborating]);
 
+  const onUnmount = useCallback(() => {
+    revalidate();
+    closeConnection();
+  }, [revalidate, closeConnection]);
+
   // cleanup on unmount
   useEffect(() => {
     return () => {
-      revalidate();
-      closeConnection(true);
+      onUnmount;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onUnmount]);
 
   return (
     <SettingsContext>
@@ -299,6 +302,7 @@ export default function DocumentEditor({
   entity,
   iceServers,
 }: Props) {
+  "use memo";
   return (
     <LexicalComposer
       initialConfig={{
