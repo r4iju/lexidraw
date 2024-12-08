@@ -270,7 +270,7 @@ export const snapshotRouter = createTRPCRouter({
       }
 
       const { entityId, contentType } = input;
-      const extension = contentType.split('/')[1]?.replace(/[-+]/g, '');
+      const extension = contentType.split('/')[1]?.replace(/\+.*$/, '');
 
       // let's make sure we have both dark and light themes
       const signedUrls = await Promise.all(
