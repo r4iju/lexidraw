@@ -15,7 +15,8 @@ import {
 import { EditorState } from "lexical";
 import { api } from "~/trpc/react";
 import Link from "next/link";
-import { exportLexicalAsSvg } from "./export-svg";
+// import { exportLexicalAsSvg } from "./export-svg";
+import { exportDomTracedSvg } from "./export-rasterized-dom";
 import { Theme } from "@packages/types";
 import { useToast } from "~/components/ui/use-toast";
 import { useTheme } from "next-themes";
@@ -71,10 +72,15 @@ export default function OptionsDropdown({
           console.log("uploadParams", uploadParams);
           const promises = [];
           for (const uploadParam of uploadParams) {
-            setTheme(uploadParam.theme);
-            // sleep 20 ms\
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            const svgString = exportLexicalAsSvg();
+            // setTheme(uploadParam.theme);
+            await new Promise<void>((resolve) =>
+              requestAnimationFrame(() => resolve()),
+            );
+            // const svgString = await exportLexicalAsSvg();
+            const svgString = await exportDomTracedSvg({
+              setTheme: () => {setTheme(uploadParam.theme)},
+              restoreTheme: () => {setTheme(nextTheme)},
+            });
             const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
             promises.push(
               uploadToS3({
@@ -83,8 +89,11 @@ export default function OptionsDropdown({
               }),
             );
           }
-          setTheme(nextTheme);
+          // setTheme(nextTheme);
           await Promise.all(promises);
+          toast({
+            title: "Exported as SVG!",
+          });
         },
         onError: (error) => {
           console.error("Error generating upload URL", error);
