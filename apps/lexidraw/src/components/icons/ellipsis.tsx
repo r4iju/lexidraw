@@ -16,7 +16,7 @@ export default function Ellipsis({ className }: Props) {
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
-        stroke-linejoin="round"
+        strokeLinejoin="round"
         className={cn("lucide lucide-ellipsis", className)}
       >
         <circle cx="12" cy="12" r="1" />
