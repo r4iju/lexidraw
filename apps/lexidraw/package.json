@@ -66,6 +66,7 @@
     "dom-to-svg": "^0.12.2",
     "drizzle-orm": "^0.30.10",
     "firebase": "^10.11.1",
+    "html2canvas": "^1.4.1",
     "jsdom": "^24.0.0",
     "katex": "^0.16.10",
     "lexical": "^0.16.0",
