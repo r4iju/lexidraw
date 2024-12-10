@@ -19,7 +19,8 @@ export function Thumbnail({ entity }: Props) {
       alt={`Thumbnail for ${entity.title}`}
       height={300}
       width={400}
-      typeof="image/svg+xml"
+      // typeof="image/svg+xml"
+      crossOrigin="anonymous"
     />
   );
 }

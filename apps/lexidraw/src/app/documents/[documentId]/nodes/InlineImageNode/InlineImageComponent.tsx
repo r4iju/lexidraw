@@ -58,6 +58,7 @@ function useSuspenseImage(src: string) {
     throw new Promise((resolve) => {
       const img = new Image();
       img.src = src;
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         imageCache.add(src);
         resolve(null);
@@ -83,12 +84,25 @@ function LazyImage({
   width: "inherit" | number;
   position: Position;
 }): React.JSX.Element {
+  const [fetchedSrc, setFetchedSrc] = useState<string | undefined>(undefined);
   useSuspenseImage(src);
+
+  useEffect(() => {
+    fetch(src)
+      .then(async (res) => {
+        console.log({ url: res.url });
+        setFetchedSrc(res.url);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  }, [src]);
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       className={className || undefined}
-      src={src}
+      src={fetchedSrc}
       alt={altText}
       ref={imageRef}
       data-position={position}
@@ -98,6 +112,7 @@ function LazyImage({
         width,
       }}
       draggable="false"
+      crossOrigin="anonymous"
     />
   );
 }
@@ -110,7 +125,7 @@ export function UpdateInlineImageDialog({
   activeEditor: LexicalEditor;
   nodeKey: NodeKey;
   onClose: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const editorState = activeEditor.getEditorState();
   const node = editorState.read(
     () => $getNodeByKey(nodeKey) as InlineImageNode,

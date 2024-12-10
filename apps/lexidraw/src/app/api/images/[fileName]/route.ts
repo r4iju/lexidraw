@@ -29,9 +29,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
   }
 
   const isOwner = entity.userId === session?.user.id;
-  const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+  const anyOneCanView = entity.publicAccess !== PublicAccess.PRIVATE;
 
-  if (!isOwner && !anyOneCanEdit) {
+  if (!isOwner && !anyOneCanView) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -62,6 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
     // client can cache
     const headers = new Headers();
     headers.set("Cache-Control", `public, max-age=${expiresIn}, immutable`);
+    headers.set("Access-Control-Allow-Origin", "*");
 
     // Redirect to the signed URL
     return NextResponse.redirect(signedUrl, {
