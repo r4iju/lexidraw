@@ -44,6 +44,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
   Select,
+  SelectContent,
   SelectGroup,
   SelectItem,
   SelectTrigger,
@@ -159,11 +160,15 @@ export function UpdateInlineImageDialog({
         <SelectTrigger className="w-[208px] mb-1">
           <SelectValue placeholder="Position" />
         </SelectTrigger>
-        <SelectGroup>
-          <SelectItem value={"left" satisfies Position}>Left</SelectItem>
-          <SelectItem value={"right" satisfies Position}>Right</SelectItem>
-          <SelectItem value={"full" satisfies Position}>Full Width</SelectItem>
-        </SelectGroup>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value={"left" satisfies Position}>Left</SelectItem>
+            <SelectItem value={"right" satisfies Position}>Right</SelectItem>
+            <SelectItem value={"full" satisfies Position}>
+              Full Width
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
       </Select>
 
       <div className="Input__wrapper">

@@ -65,7 +65,7 @@ import { FigmaNode } from "./nodes/FigmaNode";
 import { EquationNode } from "./nodes/EquationNode";
 import FigmaPlugin from "./plugins/FigmaPlugin";
 import EquationsPlugin from "./plugins/EquationsPlugin";
-import useLexicalEditable from "@lexical/react/useLexicalEditable";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { SettingsContext, useSettings } from "./context/settings-context";
 import { FlashMessageContext } from "./context/flash-message-context";
 import ContextMenuPlugin from "./plugins/ContextMenuPlugin";

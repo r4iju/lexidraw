@@ -31,6 +31,8 @@ import { DialogFooter } from "~/components/ui/dialog";
 import FileInput from "~/components/ui/file-input";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { useUploader } from "~/hooks/use-uploader";
+import { useEntityId } from "~/hooks/use-entity-id";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
 
@@ -84,29 +86,25 @@ export function InsertImageUploadedDialogBody({
 }: {
   onClick: (payload: InsertImagePayload) => void;
 }) {
-  const [src, setSrc] = useState("");
+  const { src, handleFileChange } = useUploader();
+  const entityId = useEntityId();
   const [altText, setAltText] = useState("");
 
   const isDisabled = src === "";
 
-  const loadImage = (files: FileList | null) => {
-    const reader = new FileReader();
-    reader.onload = function () {
-      if (typeof reader.result === "string") {
-        setSrc(reader.result);
-      }
-      return "";
-    };
-    if (files !== null && files[0]) {
-      reader.readAsDataURL(files[0]);
-    }
+  const onChange = (files: FileList | null) => {
+    handleFileChange(files, entityId);
   };
+
+  useEffect(() => {
+    console.log("InsertImageUploadedDialogBody", src);
+  }, [src]);
 
   return (
     <>
       <FileInput
         label="Image Upload"
-        onChange={loadImage}
+        onChange={onChange}
         accept="image/*"
         data-test-id="image-modal-file-upload"
       />
