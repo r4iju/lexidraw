@@ -246,7 +246,7 @@ export const snapshotRouter = createTRPCRouter({
       z.object({
         entityId: z.string(),
         // svg, jpeg or png
-        contentType: z.enum(["image/svg+xml", "image/jpeg", "image/png"]),
+        contentType: z.enum(["image/svg+xml", "image/jpeg", "image/png", "image/webp", "image/avif"]),
       })
     )
     .mutation(async ({ input, ctx }) => {

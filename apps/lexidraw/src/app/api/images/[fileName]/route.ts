@@ -9,7 +9,11 @@ import { PublicAccess } from "@packages/types";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ fileName: string }> }) {
   const fileName = (await params).fileName;
-  const entityId = fileName.replace(/-dark.*|-light.*/, '');
+  // match first uuid with regex in filename
+  const entityId = fileName.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/)?.[0];
+  if (!entityId) {
+    return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
+  }
   const session = await auth();
 
   const entity = (await drizzle.select({
@@ -33,7 +37,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
 
 
   try {
-    if (!fileName.endsWith(".svg") && !fileName.endsWith(".png") && !fileName.endsWith(".jpg") && !fileName.endsWith(".jpeg")) {
+    if (
+      !fileName.endsWith(".svg") &&
+      !fileName.endsWith(".png") &&
+      !fileName.endsWith(".jpg") &&
+      !fileName.endsWith(".jpeg") &&
+      !fileName.endsWith(".avif") &&
+      !fileName.endsWith(".webp")
+    ) {
       return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
     }
 
@@ -42,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
       Key: fileName,
     });
 
-    const expiresIn = 24 * 60 * 60; // 24 hours
+    const expiresIn = 7 * 24 * 60 * 60; // 7 days
 
     const signedUrl = await getSignedUrl(s3, command, {
       expiresIn,

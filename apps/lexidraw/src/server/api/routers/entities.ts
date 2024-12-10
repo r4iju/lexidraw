@@ -6,6 +6,11 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
 import { AppState } from "@dwelle/excalidraw/dist/excalidraw/types";
 import { entity } from "node_modules/@packages/drizzle/dist/drizzle-schema";
+import env from "@packages/env";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { v4 as uuidV4 } from "uuid";
+import { s3 } from "~/server/s3";
 
 export const entityRouter = createTRPCRouter({
   create: protectedProcedure
@@ -157,8 +162,8 @@ export const entityRouter = createTRPCRouter({
         .groupBy(schema.entity.id)
         .orderBy(desc(schema.entity.updatedAt))
         .execute();
-      
-      
+
+
 
       return drawings;
     }),
@@ -339,5 +344,64 @@ export const entityRouter = createTRPCRouter({
         ))
         .execute();
       return { success: true, message: 'Drawing unshared successfully' };
+    }),
+  generateUploadUrl: protectedProcedure
+    .input(
+      z.object({
+        entityId: z.string(),
+        // svg, jpeg, webp, avif or png
+        contentType: z.enum(["image/svg+xml", "image/jpeg", "image/png", "image/webp", "image/avif"]),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const entity = (await ctx.drizzle.select({
+        id: ctx.schema.entity.id,
+        userId: ctx.schema.entity.userId,
+        publicAccess: ctx.schema.entity.publicAccess,
+      }).from(schema.entity)
+        .where(eq(schema.entity.id, input.entityId)))[0]
+
+      if (!entity) {
+        console.error('entity not found');
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' });
+      }
+
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+
+      if (!isOwner && !anyOneCanEdit) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to view this drawing' });
+      }
+
+      const { entityId, contentType } = input;
+      const extension = contentType.split('/')[1]?.replace(/\+.*$/, '');
+      const randomId = uuidV4();
+
+      // let's make sure we have both dark and light themes
+      const fileName = `${entityId}-${randomId}.${extension}`;
+      console.log('fileName', fileName);
+
+      const fileUrl = `${ctx.headers.get('origin')}/api/images/${fileName}`;
+      console.log('fileUrl', fileUrl);
+
+      try {
+        const uploadCommand = new PutObjectCommand({
+          Bucket: env.SUPABASE_S3_BUCKET,
+          Key: fileName,
+          ContentType: contentType,
+        });
+
+        const signedUploadUrl = await getSignedUrl(s3, uploadCommand, {
+          expiresIn: 15 * 60, // 15 minutes
+        });
+
+        return {
+          signedUploadUrl,
+          fileUrl
+        }
+      } catch (error) {
+        console.error(`Failed to generate signed URL`, error);
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to generate signed URL' });
+      }
     }),
 })

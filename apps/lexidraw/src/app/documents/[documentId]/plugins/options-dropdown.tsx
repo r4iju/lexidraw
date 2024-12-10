@@ -20,7 +20,8 @@ import { Theme } from "@packages/types";
 import { useToast } from "~/components/ui/use-toast";
 import { useTheme } from "next-themes";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { exportPng } from "./export-png";
+// import { exportPng } from "./export-png";
+import { exportWebp } from "./export-webp";
 
 type Props = {
   className?: string;
@@ -64,7 +65,7 @@ export default function OptionsDropdown({
     generateUploadUrls(
       {
         entityId: documentId,
-        contentType: "image/png",
+        contentType: "image/webp",
       },
       {
         onSuccess: async (uploadParams) => {
@@ -76,7 +77,7 @@ export default function OptionsDropdown({
             await new Promise<void>((resolve) =>
               requestAnimationFrame(() => resolve()),
             );
-            const svgBlob = await exportPng({
+            const webpBlob = await exportWebp({
               setTheme: () => {
                 setTheme(uploadParam.theme);
               },
@@ -87,7 +88,7 @@ export default function OptionsDropdown({
             promises.push(
               uploadToS3({
                 uploadUrl: uploadParam.uploadUrl,
-                file: svgBlob,
+                file: webpBlob,
               }),
             );
           }

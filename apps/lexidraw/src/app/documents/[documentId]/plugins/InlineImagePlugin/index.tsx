@@ -44,6 +44,8 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { SelectTrigger } from "@radix-ui/react-select";
+import { useUploader } from "~/hooks/use-uploader";
+import { useEntityId } from "~/hooks/use-entity-id";
 
 export type InsertInlineImagePayload = Readonly<InlineImagePayload>;
 
@@ -59,10 +61,10 @@ export function InsertInlineImageDialog({
 }: {
   activeEditor: LexicalEditor;
   onClose: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const hasModifier = useRef(false);
-
-  const [src, setSrc] = useState("");
+  const entityId = useEntityId();
+  const { src, handleFileChange } = useUploader();
   const [altText, setAltText] = useState("");
   const [showCaption, setShowCaption] = useState(false);
   const [position, setPosition] = useState<Position>("left");
@@ -77,18 +79,13 @@ export function InsertInlineImageDialog({
   //   setPosition(e.target.value as Position);
   // };
 
-  const loadImage = (files: FileList | null) => {
-    const reader = new FileReader();
-    reader.onload = function () {
-      if (typeof reader.result === "string") {
-        setSrc(reader.result);
-      }
-      return "";
-    };
-    if (files !== null && files[0]) {
-      reader.readAsDataURL(files[0]);
-    }
+  const onChange = (files: FileList | null) => {
+    handleFileChange(files, entityId);
   };
+
+  useEffect(() => {
+    console.log("InsertInlineImageDialog", src);
+  }, [src]);
 
   useEffect(() => {
     hasModifier.current = false;
@@ -104,6 +101,7 @@ export function InsertInlineImageDialog({
   const handleOnClick = () => {
     const payload = { altText, position, showCaption, src };
     activeEditor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, payload);
+    console.log("InsertInlineImageDialog handleOnClick", payload);
     onClose();
   };
 
@@ -112,7 +110,7 @@ export function InsertInlineImageDialog({
       <div style={{ marginBottom: "1em" }}>
         <FileInput
           label="Image Upload"
-          onChange={loadImage}
+          onChange={onChange}
           accept="image/*"
           data-test-id="image-modal-file-upload"
         />
