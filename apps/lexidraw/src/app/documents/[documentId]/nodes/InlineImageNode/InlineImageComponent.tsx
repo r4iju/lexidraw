@@ -25,7 +25,7 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
 import * as React from "react";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, use } from "react";
 
 import LinkPlugin from "../../plugins/LinkPlugin";
 
@@ -51,22 +51,6 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 
-const imageCache = new Set();
-
-function useSuspenseImage(src: string) {
-  if (!imageCache.has(src)) {
-    throw new Promise((resolve) => {
-      const img = new Image();
-      img.src = src;
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        imageCache.add(src);
-        resolve(null);
-      };
-    });
-  }
-}
-
 function LazyImage({
   altText,
   className,
@@ -84,25 +68,14 @@ function LazyImage({
   width: "inherit" | number;
   position: Position;
 }): React.JSX.Element {
-  const [fetchedSrc, setFetchedSrc] = useState<string | undefined>(undefined);
-  useSuspenseImage(src);
-
-  useEffect(() => {
-    fetch(src)
-      .then(async (res) => {
-        console.log({ url: res.url });
-        setFetchedSrc(res.url);
-      })
-      .catch((err) => {
-        console.error(err);
-      });
-  }, [src]);
+  // src is redirect to s3
+  const fetchedSrc = use(fetch(src));
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       className={className || undefined}
-      src={fetchedSrc}
+      src={fetchedSrc.url}
       alt={altText}
       ref={imageRef}
       data-position={position}

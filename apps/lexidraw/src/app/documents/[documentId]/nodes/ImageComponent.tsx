@@ -47,7 +47,7 @@ import {
   TextNode,
 } from "lexical";
 import * as React from "react";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, use } from "react";
 import { useSettings } from "../context/settings-context";
 import { useSharedHistoryContext } from "../context/shared-history-context";
 import EmojisPlugin from "../plugins/EmojisPlugin";
@@ -63,27 +63,8 @@ import { $isImageNode } from "./ImageNode";
 import { KeywordNode } from "./KeywordNode";
 import NextImage from "next/image";
 
-const imageCache = new Set();
-
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> =
   createCommand("RIGHT_CLICK_IMAGE_COMMAND");
-
-function useSuspenseImage(src: string) {
-  if (!imageCache.has(src)) {
-    throw new Promise((resolve) => {
-      const img = new Image();
-      img.src = src;
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        imageCache.add(src);
-        resolve(null);
-      };
-      img.onerror = () => {
-        imageCache.add(src);
-      };
-    });
-  }
-}
 
 function LazyImage({
   altText,
@@ -104,26 +85,13 @@ function LazyImage({
   width: "inherit" | number;
   onError: () => void;
 }): React.JSX.Element {
-  const [fetchedSrc, setFetchedSrc] = useState<string | undefined>(undefined);
-
-  useSuspenseImage(src);
-
-  useEffect(() => {
-    fetch(src)
-      .then(async (res) => {
-        console.log({ url: res.url });
-        setFetchedSrc(res.url);
-      })
-      .catch((err) => {
-        console.error(err);
-      });
-  }, [src]);
+  const fetchedSrc = use(fetch(src));
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       className={className || undefined}
-      src={fetchedSrc}
+      src={fetchedSrc.url}
       alt={altText}
       ref={imageRef}
       style={{
@@ -138,7 +106,7 @@ function LazyImage({
   );
 }
 
-function BrokenImage(): JSX.Element {
+function BrokenImage(): React.JSX.Element {
   return (
     <NextImage
       alt="Image is broken"
@@ -175,7 +143,7 @@ export default function ImageComponent({
   src: string;
   width: "inherit" | number;
   captionsEnabled: boolean;
-}): JSX.Element {
+}): React.JSX.Element {
   const imageRef = useRef<null | HTMLImageElement>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [isSelected, setSelected, clearSelection] =
