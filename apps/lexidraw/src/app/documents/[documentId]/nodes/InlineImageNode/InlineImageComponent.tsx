@@ -26,7 +26,6 @@ import {
 } from "lexical";
 import * as React from "react";
 import { Suspense, useCallback, useEffect, useRef, useState, use } from "react";
-
 import LinkPlugin from "../../plugins/LinkPlugin";
 
 import {
@@ -50,6 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { loadImage } from "../../actions/action";
 
 function LazyImage({
   altText,
@@ -69,13 +69,12 @@ function LazyImage({
   position: Position;
 }): React.JSX.Element {
   // src is redirect to s3
-  const fetchedSrc = use(fetch(src));
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       className={className || undefined}
-      src={fetchedSrc.url}
+      src={src.replace("/images/", "/direct-images/")}
       alt={altText}
       ref={imageRef}
       data-position={position}

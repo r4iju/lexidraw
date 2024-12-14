@@ -170,3 +170,21 @@ export const webRtcAnswer = sqliteTable("WebRTCAnswer", {
 			entityIdIdx: index("WebRTCAnswer_entityId_idx").on(table.entityId),
 		}
 	});
+
+export const uploadedImage = sqliteTable("UploadedImage", {
+	id: text("id").primaryKey().notNull(),
+	userId: text("userId").notNull().references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+	entityId: text("entityId").notNull().references(() => entity.id, { onDelete: "cascade", onUpdate: "cascade" }),
+	fileName: text("fileName").notNull(),
+	signedUploadUrl: text("fileUrl").notNull(),
+	signedDownloadUrl: text("fileUrl").notNull(),
+	// enum ["thumbnail", "attachment"]
+	kind: text("kind").notNull().default("attachment"),
+	createdAt: integer('createdAt', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+	updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+},
+	(table) => {
+		return {
+			userIdIdx: index("UploadedImage_userId_idx").on(table.userId),
+		}
+	});

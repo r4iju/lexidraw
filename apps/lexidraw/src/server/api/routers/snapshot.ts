@@ -228,7 +228,7 @@ export const snapshotRouter = createTRPCRouter({
       const { entityId, theme } = input;
 
       try {
-        const signedUrl = await generatePresignedUrl('excalidraw', `${entityId}-${theme}.svg`);
+        const signedUrl = await generatePresignedUrl(env.SUPABASE_S3_BUCKET, `${entityId}-${theme}.svg`);
         return signedUrl;
       } catch (error) {
         let errorMessage = 'Failed to generate signed URL due to an unknown error.';
@@ -250,59 +250,101 @@ export const snapshotRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const entity = (await ctx.drizzle.select({
-        id: ctx.schema.entity.id,
-        userId: ctx.schema.entity.userId,
-        publicAccess: ctx.schema.entity.publicAccess,
-      }).from(schema.entity)
-        .where(eq(schema.entity.id, input.entityId)))[0]
+      const { entityId, contentType } = input;
+
+      // Fetch the entity
+      const entity = await ctx.drizzle
+        .select({
+          id: ctx.schema.entity.id,
+          userId: ctx.schema.entity.userId,
+          publicAccess: ctx.schema.entity.publicAccess,
+        })
+        .from(ctx.schema.entity)
+        .where(eq(ctx.schema.entity.id, entityId))
+        .then((rows) => rows[0]);
 
       if (!entity) {
-        console.error('entity not found');
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Drawing not found' });
+        console.error("Entity not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Drawing not found" });
       }
 
       const isOwner = entity.userId === ctx.session?.user.id;
       const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
 
       if (!isOwner && !anyOneCanEdit) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You are not authorized to view this drawing' });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "You are not authorized to view this drawing" });
       }
 
-      const { entityId, contentType } = input;
-      const extension = contentType.split('/')[1]?.replace(/\+.*$/, '');
+      const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
+      const themes = [THEME.DARK, THEME.LIGHT];
+      const now = new Date();
 
-      // let's make sure we have both dark and light themes
+      // Generate file details for both themes
+      const files = themes.map((theme) => {
+        const fileName = `${entityId}-${theme}.${extension}`;
+        return {
+          theme,
+          fileName,
+          uploadCommand: new PutObjectCommand({
+            Bucket: env.SUPABASE_S3_BUCKET,
+            Key: fileName,
+            ContentType: contentType,
+          }),
+          downloadCommand: new GetObjectCommand({
+            Bucket: env.SUPABASE_S3_BUCKET,
+            Key: fileName,
+          }),
+        };
+      });
+
+      // Generate signed URLs and update entity
       const signedUrls = await Promise.all(
-        [THEME.DARK, THEME.LIGHT].map(async (theme) => {
-          const fileName = `${entityId}-${theme}.${extension}`;
-          console.log('fileName', fileName);
-
-          const fileUrl = `${ctx.headers.get('origin')}/api/images/${fileName}`;
-          console.log('fileUrl', fileUrl);
-
+        files.map(async ({ theme, fileName, uploadCommand, downloadCommand }) => {
           try {
-            const command = new PutObjectCommand({
-              Bucket: env.SUPABASE_S3_BUCKET,
-              Key: fileName,
-              ContentType: contentType,
-            });
+            const [signedUploadUrl, signedDownloadUrl] = await Promise.all([
+              getSignedUrl(s3, uploadCommand, { expiresIn: 15 * 60 }), // 15 minutes
+              getSignedUrl(s3, downloadCommand, { expiresIn: 7 * 24 * 60 * 60 }), // 7 days
+            ]);
 
-            const signedUrl = await getSignedUrl(s3, command, {
-              expiresIn: 15 * 60, // 15 minutes
-            });
-
-            await ctx.drizzle.update(schema.entity)
+            const fieldToUpdate = theme === THEME.DARK ? "screenShotDark" : "screenShotLight";
+            await ctx.drizzle
+              .update(ctx.schema.entity)
               .set({
-                [theme === THEME.DARK ? 'screenShotDark' : 'screenShotLight']: fileUrl,
+                [fieldToUpdate]: signedDownloadUrl,
+                updatedAt: now, // Update the entity's timestamp
               })
-              .where(eq(schema.entity.id, entityId))
+              .where(eq(ctx.schema.entity.id, entityId))
+              .execute();
+            await ctx.drizzle
+              .insert(ctx.schema.uploadedImage)
+              .values({
+                id: `${entity.id}-${theme}`,
+                userId: ctx.session?.user.id ?? '',
+                entityId,
+                fileName,
+                kind: 'thumbnail',
+                signedUploadUrl,
+                signedDownloadUrl,
+              })
+              .onConflictDoUpdate({
+                target: ctx.schema.uploadedImage.id,
+                set: {
+                  signedUploadUrl: signedUploadUrl,
+                  signedDownloadUrl: signedDownloadUrl,
+                }
+              })
               .execute();
 
-            return { theme, uploadUrl: signedUrl, key: fileName, bucket: env.SUPABASE_S3_BUCKET };
+            return {
+              theme,
+              signedUploadUrl,
+              signedDownloadUrl,
+              key: fileName,
+              bucket: env.SUPABASE_S3_BUCKET,
+            };
           } catch (error) {
             console.error(`Failed to generate signed URL for theme ${theme}:`, error);
-            throw error;
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate signed URL" });
           }
         })
       );

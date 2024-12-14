@@ -351,6 +351,7 @@ export const entityRouter = createTRPCRouter({
         entityId: z.string(),
         // svg, jpeg, webp, avif or png
         contentType: z.enum(["image/svg+xml", "image/jpeg", "image/png", "image/webp", "image/avif"]),
+        mode: z.enum(["direct", "redirect"]),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -390,14 +391,41 @@ export const entityRouter = createTRPCRouter({
           Key: fileName,
           ContentType: contentType,
         });
-
-        const signedUploadUrl = await getSignedUrl(s3, uploadCommand, {
-          expiresIn: 15 * 60, // 15 minutes
+        const downloadCommand = new GetObjectCommand({
+          Bucket: env.SUPABASE_S3_BUCKET,
+          Key: fileName,
         });
+
+        const [signedUploadUrl, signedDownloadUrl] = await Promise.all([
+          getSignedUrl(s3, uploadCommand, {
+            expiresIn: 15 * 60, // 15 minutes
+          }),
+          getSignedUrl(s3, downloadCommand, {
+            expiresIn: 7 * 24 * 60 * 60, // 7 days
+          })
+        ])
+
+        await ctx.drizzle.insert(ctx.schema.uploadedImage)
+          .values({
+            id: randomId,
+            userId: ctx.session.user.id,
+            entityId: entityId,
+            fileName: fileName,
+            signedUploadUrl: signedUploadUrl,
+            signedDownloadUrl: signedDownloadUrl,
+          })
+          .onConflictDoUpdate({
+            target: ctx.schema.uploadedImage.id,
+            set: {
+              signedUploadUrl: signedUploadUrl,
+              signedDownloadUrl: signedDownloadUrl,
+            }
+          })
+          .execute();
 
         return {
           signedUploadUrl,
-          fileUrl
+          signedDownloadUrl,
         }
       } catch (error) {
         console.error(`Failed to generate signed URL`, error);

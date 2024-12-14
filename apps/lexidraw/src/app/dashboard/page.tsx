@@ -10,6 +10,8 @@ import { Thumbnail } from "./thumbnail";
 import { EntityType, PublicAccess } from "@packages/types";
 import { NewEntity } from "./_actions/new-entity";
 import type { Metadata, ServerRuntime } from "next";
+import { ThumbnailFallback } from "./thumbnail-client";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Lexidraw | Dashboard",
@@ -73,7 +75,9 @@ export default async function LandingPage() {
                 <div className="flex w-full justify-between gap-4">
                   <EntityTitle entity={entity} revalidatePath={refetch} />
                 </div>
-                <Thumbnail entity={entity} />
+                <Suspense fallback={<ThumbnailFallback />}>
+                  <Thumbnail entity={entity} />
+                </Suspense>
                 <Button className="mt-2 w-full" asChild>
                   <Link
                     href={itemUrl(entity.entityType as EntityType, entity.id)}

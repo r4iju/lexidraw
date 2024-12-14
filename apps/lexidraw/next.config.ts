@@ -29,6 +29,12 @@ const config: NextConfig = {
         hostname: new URL(env.SUPABASE_S3_ENDPOINT).hostname,
         pathname: new URL(env.SUPABASE_S3_ENDPOINT).pathname + "/**",
       },
+      {
+        protocol: "https",
+        port: "",
+        hostname: new URL(env.VERCEL_URL).hostname,
+        pathname: "/api/*images/**",
+      },
     ],
   },
 };

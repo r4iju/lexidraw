@@ -1,8 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/cron",
-      "schedule": "0 4 * * *"
+      "path": "/api/crons/bucket-cleanup",
+      "schedule": "50 * * * *"
+    },
+    {
+      "path": "/api/crons/refresh-signed-urls",
+      "schedule": "55 * * * *"
     }
   ]
 }
