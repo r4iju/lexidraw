@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { s3 } from '~/server/s3';
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import env from '@packages/env';
-import { asc, drizzle, eq, schema } from '@packages/drizzle';
+import { asc, drizzle, eq, lte, schema } from '@packages/drizzle';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export async function GET() {
@@ -28,6 +28,7 @@ export async function GET() {
         updatedAt: schema.uploadedImage.updatedAt,
       })
       .from(schema.uploadedImage)
+      .where(lte(schema.uploadedImage.updatedAt, new Date(Date.now() - 1 * 24 * 60 * 60 * 1000))) // 1 day for testing
       .orderBy(asc(schema.uploadedImage.entityId))
       .execute();
 
