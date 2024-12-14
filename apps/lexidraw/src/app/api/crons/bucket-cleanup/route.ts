@@ -5,6 +5,8 @@ import { DeleteObjectsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import env from '@packages/env';
 import { count, drizzle, eq, schema } from '@packages/drizzle';
 
+export const maxDuration = 120; // 2 minutes
+
 export async function GET() {
   console.log('#'.repeat(20), ' Cron job started ', '#'.repeat(20));
 
