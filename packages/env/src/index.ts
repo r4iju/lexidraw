@@ -9,6 +9,7 @@ const env = createEnv({
     TURSO_URL: z.string().min(1),
     TURSO_TOKEN: z.string().min(1),
     SHARED_KEY: z.string(),
+    CRON_SECRET: z.string(),
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.preprocess(
       (str) => str ?? process.env.VERCEL_URL,
@@ -59,6 +60,7 @@ const env = createEnv({
     NEXT_PUBLIC_WS_SERVER: process.env.NEXT_PUBLIC_WS_SERVER,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,
+    CRON_SECRET: process.env.CRON_SECRET,
     TURSO_URL: process.env.TURSO_URL,
     TURSO_TOKEN: process.env.TURSO_TOKEN,
     NODE_ENV: process.env.NODE_ENV,
