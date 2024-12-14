@@ -10,7 +10,7 @@ export async function GET() {
   console.log('#'.repeat(20), ' Cron job started ', '#'.repeat(20));
 
   const headers = await reqHeaders();
-  if (headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (headers.get('Authorization') !== `Bearer ${env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
