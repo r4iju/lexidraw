@@ -6,6 +6,8 @@ import env from '@packages/env';
 import { asc, drizzle, eq, lte, schema } from '@packages/drizzle';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+export const maxDuration = 120; // 2 minutes
+
 export async function GET() {
   console.log('#'.repeat(20), ' Cron job started ', '#'.repeat(20));
 
