@@ -11,7 +11,7 @@ const env = createEnv({
     SHARED_KEY: z.string(),
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.preprocess(
-      (str) => process.env.VERCEL_URL ?? str,
+      (str) => str ?? process.env.VERCEL_URL,
       process.env.VERCEL ? z.string() : z.string().url(),
     ),
     VERCEL_URL: z.string(),
