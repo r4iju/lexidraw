@@ -134,7 +134,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
             const blob = new Blob([svgString], { type: "image/svg+xml" });
             promises.push(
               uploadToS3({
-                uploadUrl: param.uploadUrl,
+                uploadUrl: param.signedUploadUrl,
                 file: blob,
               }),
             );

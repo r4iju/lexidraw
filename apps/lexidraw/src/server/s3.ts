@@ -18,7 +18,6 @@ const createClient = () => {
 
 export const s3 = globalForS3.s3Client ?? createClient();
 
-
 if (env.NODE_ENV !== 'production') {
   globalForS3.s3Client = s3;
 }

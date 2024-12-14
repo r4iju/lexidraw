@@ -1,26 +1,28 @@
-"use client";
-
-import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
+import { ThumbnailClient } from "./thumbnail-client";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
 };
 
-export function Thumbnail({ entity }: Props) {
-  const isDarkTheme = useIsDarkTheme();
-  const src = isDarkTheme ? entity.screenShotDark : entity.screenShotLight;
+// can cache this
+export async function Thumbnail({ entity }: Props) {
+  try {
+    return (
+      <ThumbnailClient
+        darkUrl={entity.screenShotDark}
+        lightUrl={entity.screenShotLight}
+        alt={entity.title}
+      />
+    );
+  } catch (error) {
+    console.error("Error fetching thumbnail", error);
+    return <BrokenImage />;
+  }
+}
 
+function BrokenImage() {
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      className="aspect-[4/3] min-h-[300px]"
-      alt={`Thumbnail for ${entity.title}`}
-      height={300}
-      width={400}
-      // typeof="image/svg+xml"
-      crossOrigin="anonymous"
-    />
+    <div className="aspect-[4/3] min-h-[300px] bg-muted-foreground rounded-sm" />
   );
 }

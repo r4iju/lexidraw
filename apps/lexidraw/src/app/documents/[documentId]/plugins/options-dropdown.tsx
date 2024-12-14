@@ -87,7 +87,7 @@ export default function OptionsDropdown({
             });
             promises.push(
               uploadToS3({
-                uploadUrl: uploadParam.uploadUrl,
+                uploadUrl: uploadParam.signedUploadUrl,
                 file: webpBlob,
               }),
             );

@@ -85,6 +85,7 @@ function LazyImage({
   width: "inherit" | number;
   onError: () => void;
 }): React.JSX.Element {
+  // src is a redirect
   const fetchedSrc = use(fetch(src));
 
   return (

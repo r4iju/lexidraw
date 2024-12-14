@@ -19,14 +19,14 @@ export const useUploader = () => {
       } else if (allowedTypes.indexOf(file.type as AllowedType) === -1) {
         setError('File type should be image/png, image/jpeg, image/jpg');
       } else {
-        generateUploadUrl({ entityId, contentType: file.type as AllowedType }, {
+        generateUploadUrl({ entityId, contentType: file.type as AllowedType, mode: 'direct' }, {
           onSuccess: async (res) => {
             await fetch(res.signedUploadUrl, {
               method: 'PUT',
               body: file,
             });
-            setSrc(res.fileUrl);
-            console.log("res.signedDownloadUrl", res.fileUrl);
+            setSrc(res.signedDownloadUrl);
+            console.log("res.signedDownloadUrl", res.signedDownloadUrl);
           },
         });
 
