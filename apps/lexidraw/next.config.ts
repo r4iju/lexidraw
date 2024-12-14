@@ -32,7 +32,7 @@ const config: NextConfig = {
       {
         protocol: "https",
         port: "",
-        hostname: new URL(env.VERCEL_URL).hostname,
+        hostname: env.VERCEL_URL,
         pathname: "/api/*images/**",
       },
     ],

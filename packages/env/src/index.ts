@@ -14,7 +14,10 @@ const env = createEnv({
       (str) => process.env.VERCEL_URL ?? str,
       process.env.VERCEL ? z.string() : z.string().url(),
     ),
-    VERCEL_URL: z.string(),
+    VERCEL_URL: z.string().refine((val) => {
+      const url = 'https://' + val
+      z.string().url().parse(url)
+    }),
     SUPABASE_S3_ACCESS_KEY_ID: z.string().min(1),
     SUPABASE_S3_SECRET_ACCESS_KEY: z.string().min(1),
     SUPABASE_S3_ENDPOINT: z.string().url(),
