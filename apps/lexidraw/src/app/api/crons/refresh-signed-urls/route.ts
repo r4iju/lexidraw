@@ -5,8 +5,10 @@ import { GetObjectCommand } from "@aws-sdk/client-s3";
 import env from '@packages/env';
 import { asc, drizzle, eq, lte, schema } from '@packages/drizzle';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { ServerRuntime } from 'next';
 
 export const maxDuration = 120; // 2 minutes
+export const runtime: ServerRuntime = "edge";
 
 export async function GET() {
   console.log('#'.repeat(20), ' Cron job started ', '#'.repeat(20));
