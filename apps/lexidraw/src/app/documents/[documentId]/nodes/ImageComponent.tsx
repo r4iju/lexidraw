@@ -47,7 +47,7 @@ import {
   TextNode,
 } from "lexical";
 import * as React from "react";
-import { Suspense, useCallback, useEffect, useRef, useState, use } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSettings } from "../context/settings-context";
 import { useSharedHistoryContext } from "../context/shared-history-context";
 import EmojisPlugin from "../plugins/EmojisPlugin";
@@ -62,9 +62,24 @@ import { EmojiNode } from "./EmojiNode";
 import { $isImageNode } from "./ImageNode";
 import { KeywordNode } from "./KeywordNode";
 import NextImage from "next/image";
+import { ErrorBoundary } from "react-error-boundary";
 
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> =
   createCommand("RIGHT_CLICK_IMAGE_COMMAND");
+
+function BrokenImage(): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-center w-full h-full opacity-50">
+      <NextImage
+        alt="Image is broken"
+        height={200}
+        width={200}
+        src="/images/image-broken.svg"
+        draggable="false"
+      />
+    </div>
+  );
+}
 
 function LazyImage({
   altText,
@@ -85,42 +100,65 @@ function LazyImage({
   width: "inherit" | number;
   onError: () => void;
 }): React.JSX.Element {
-  // src is a redirect
-  const fetchedSrc = use(fetch(src));
+  const computedWidth = width === "inherit" ? "auto" : `${width}px`;
+  const computedHeight = height === "inherit" ? "auto" : `${height}px`;
+  
+  // calculate width and height based on the actual image
+  
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      className={className || undefined}
-      src={fetchedSrc.url}
-      alt={altText}
-      ref={imageRef}
-      style={{
-        height,
-        maxWidth,
-        width,
-      }}
+    <ErrorBoundary
+      FallbackComponent={() => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={altText}
+          width={width === "inherit" ? undefined : width}
+          height={height === "inherit" ? undefined : height}
+          className={className ?? undefined}
+          ref={imageRef as React.RefObject<HTMLImageElement>}
+          draggable={false}
+        />
+      )}
       onError={onError}
-      draggable="false"
-      crossOrigin="anonymous"
-    />
+    >
+      <div
+        className="relative inline-block z-0"
+        style={{
+          maxWidth: maxWidth,
+          width: computedWidth,
+          height: computedHeight,
+        }}
+      >
+        {/* Avoid using fill. Use fixed width/height or responsive layout */}
+        <NextImage
+          src={src}
+          alt={altText}
+          width={100} // or a responsive size if needed
+          height={100}
+          ref={imageRef as React.RefObject<HTMLImageElement>}
+          className={className ?? ""}
+          draggable={false}
+          onError={onError}
+          style={{ objectFit: "contain" }}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }
 
-function BrokenImage(): React.JSX.Element {
-  return (
-    <NextImage
-      alt="Image is broken"
-      height={200}
-      width={200}
-      src="/images/image-broken.svg"
-      style={{
-        opacity: 0.2,
-      }}
-      draggable="false"
-    />
-  );
-}
+type ImageComponentProps = {
+  altText: string;
+  caption: LexicalEditor;
+  height: "inherit" | number;
+  maxWidth: number;
+  nodeKey: NodeKey;
+  resizable: boolean;
+  showCaption: boolean;
+  src: string;
+  width: "inherit" | number;
+  captionsEnabled: boolean;
+};
 
 export default function ImageComponent({
   src,
@@ -133,18 +171,7 @@ export default function ImageComponent({
   showCaption,
   caption,
   captionsEnabled,
-}: {
-  altText: string;
-  caption: LexicalEditor;
-  height: "inherit" | number;
-  maxWidth: number;
-  nodeKey: NodeKey;
-  resizable: boolean;
-  showCaption: boolean;
-  src: string;
-  width: "inherit" | number;
-  captionsEnabled: boolean;
-}): React.JSX.Element {
+}: ImageComponentProps): React.JSX.Element {
   const imageRef = useRef<null | HTMLImageElement>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [isSelected, setSelected, clearSelection] =
@@ -381,79 +408,81 @@ export default function ImageComponent({
   const isFocused = isSelected || isResizing;
   return (
     <Suspense fallback={null}>
-      <>
-        <div draggable={draggable}>
-          {isLoadError ? (
-            <BrokenImage />
-          ) : (
-            <LazyImage
-              className={
-                isFocused
-                  ? `focused ${$isNodeSelection(selection) ? "draggable" : ""}`
-                  : null
-              }
-              src={src}
-              altText={altText}
-              imageRef={imageRef}
-              width={width}
-              height={height}
-              maxWidth={maxWidth}
-              onError={() => setIsLoadError(true)}
-            />
-          )}
-        </div>
-
-        {showCaption && (
-          <div className="image-caption-container">
-            <LexicalNestedComposer
-              initialEditor={caption}
-              initialNodes={[
-                RootNode,
-                TextNode,
-                LineBreakNode,
-                ParagraphNode,
-                LinkNode,
-                EmojiNode,
-                HashtagNode,
-                KeywordNode,
-              ]}
-            >
-              <AutoFocusPlugin />
-              <MentionsPlugin />
-              <LinkPlugin />
-              <EmojisPlugin />
-              <HashtagPlugin />
-              <KeywordsPlugin />
-              <HistoryPlugin externalHistoryState={historyState} />
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable className="ImageNode__contentEditable" />
-                }
-                placeholder={
-                  <Placeholder className="ImageNode__placeholder">
-                    Enter a caption...
-                  </Placeholder>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              {showNestedEditorTreeView === true ? <TreeViewPlugin /> : null}
-            </LexicalNestedComposer>
-          </div>
-        )}
-        {resizable && $isNodeSelection(selection) && isFocused && (
-          <ImageResizer
-            showCaption={showCaption}
-            setShowCaption={setShowCaption}
-            editor={editor}
-            buttonRef={buttonRef}
+      {/* Common parent with relative positioning */}
+      <div
+        className={`relative inline-block ${draggable ? "cursor-move" : ""}`}
+        draggable={draggable}
+      >
+        {isLoadError ? (
+          <BrokenImage />
+        ) : (
+          <LazyImage
+            className={isFocused ? "ring-2 ring-ring rounded-sm" : null}
+            src={src}
+            altText={altText}
             imageRef={imageRef}
+            width={width}
+            height={height}
             maxWidth={maxWidth}
-            onResizeStart={onResizeStart}
-            onResizeEnd={onResizeEnd}
-            captionsEnabled={!isLoadError && captionsEnabled}
+            onError={() => setIsLoadError(true)}
           />
         )}
-      </>
+
+        {resizable && $isNodeSelection(selection) && isFocused && (
+          // Position the resizer absolutely within the same container as the image
+          <div className="absolute top-0 left-0 w-full h-full z-50">
+            <ImageResizer
+              showCaption={showCaption}
+              setShowCaption={setShowCaption}
+              editor={editor}
+              buttonRef={buttonRef}
+              imageRef={imageRef}
+              maxWidth={maxWidth}
+              onResizeStart={onResizeStart}
+              onResizeEnd={onResizeEnd}
+              captionsEnabled={!isLoadError && captionsEnabled}
+            />
+          </div>
+        )}
+      </div>
+
+      {showCaption && (
+        <div className="mt-2">
+          <LexicalNestedComposer
+            initialEditor={caption}
+            initialNodes={[
+              RootNode,
+              TextNode,
+              LineBreakNode,
+              ParagraphNode,
+              LinkNode,
+              EmojiNode,
+              HashtagNode,
+              KeywordNode,
+            ]}
+          >
+            <AutoFocusPlugin />
+            <MentionsPlugin />
+            <LinkPlugin />
+            <EmojisPlugin />
+            <HashtagPlugin />
+            <KeywordsPlugin />
+            <HistoryPlugin externalHistoryState={historyState} />
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable className="border p-2 text-sm w-full rounded" />
+              }
+              placeholder={
+                <Placeholder className="text-muted-foreground text-sm">
+                  Enter a caption...
+                </Placeholder>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+            {showNestedEditorTreeView && <TreeViewPlugin />}
+          </LexicalNestedComposer>
+        </div>
+      )}
     </Suspense>
   );
 }
