@@ -25,7 +25,7 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
 import * as React from "react";
-import { Suspense, useCallback, useEffect, useRef, useState, use } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import LinkPlugin from "../../plugins/LinkPlugin";
 
 import {
@@ -265,7 +265,7 @@ export default function InlineImageComponent({
   src: string;
   width: "inherit" | number;
   position: Position;
-}): JSX.Element {
+}): React.JSX.Element {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [isSelected, setSelected, clearSelection] =
