@@ -49,43 +49,110 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { loadImage } from "../../actions/action";
+import Image from "next/image";
+import { cn } from "~/lib/utils";
+import { ErrorBoundary } from "react-error-boundary";
 
-function LazyImage({
-  altText,
-  className,
-  imageRef,
+type ResizableImageProps = {
+  src: string;
+  altText: string;
+  width: number | "inherit";
+  height: number | "inherit";
+  position: string | undefined;
+  className?: string;
+  onResize: (newWidth: number, newHeight: number) => void;
+};
+
+function ResizableImage({
   src,
+  altText,
   width,
   height,
   position,
-}: {
-  altText: string;
-  className: string | null;
-  height: "inherit" | number;
-  imageRef: { current: null | HTMLImageElement };
-  src: string;
-  width: "inherit" | number;
-  position: Position;
-}): React.JSX.Element {
-  // src is redirect to s3
+  className,
+  onResize,
+}: ResizableImageProps): React.JSX.Element {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const isResizingRef = useRef(false);
+  const [dimensions, setDimensions] = useState<{
+    width: number;
+    height: number;
+  }>({
+    width: width === "inherit" ? 300 : width,
+    height: height === "inherit" ? 200 : height,
+  });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+  };
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (isResizingRef.current && containerRef.current) {
+        // Update width & height based on mouse movement
+        const newWidth = Math.max(dimensions.width + e.movementX, 50);
+        const newHeight = Math.max(dimensions.height + e.movementY, 50);
+        setDimensions({ width: newWidth, height: newHeight });
+        onResize(newWidth, newHeight);
+      }
+    },
+    [dimensions, onResize],
+  );
+
+  const handleMouseUp = useCallback(() => {
+    isResizingRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    if (isResizingRef.current) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      className={className || undefined}
-      src={src.replace("/images/", "/direct-images/")}
-      alt={altText}
-      ref={imageRef}
+    <div
+      ref={containerRef}
+      className={cn(
+        "relative inline-block border focus-within:border-foreground hover:border-secondary rounded-sm",
+        className,
+      )}
+      style={{ width: dimensions.width, height: dimensions.height }}
       data-position={position}
-      style={{
-        display: "block",
-        height,
-        width,
-      }}
-      draggable="false"
-      crossOrigin="anonymous"
-    />
+    >
+      {/* Must use fallback img for external images */}
+      <ErrorBoundary
+        FallbackComponent={() => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={altText}
+            draggable={false}
+            className="object-contain"
+            sizes="(max-width: 600px) 100vw, 300px"
+          />
+        )}
+      >
+        <Image
+          src={src}
+          alt={altText}
+          draggable={false}
+          fill
+          className="object-contain"
+          sizes="(max-width: 600px) 100vw, 300px"
+        />
+      </ErrorBoundary>
+      {/* Resize Handle */}
+      <div
+        onMouseDown={handleMouseDown}
+        className="absolute bottom-0 right-0 w-3 h-3 bg-background opacity-50 cursor-nwse-resize"
+      />
+    </div>
   );
 }
 
@@ -200,7 +267,6 @@ export default function InlineImageComponent({
   position: Position;
 }): JSX.Element {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const imageRef = useRef<null | HTMLImageElement>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
@@ -211,8 +277,7 @@ export default function InlineImageComponent({
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
       if (isSelected && $isNodeSelection($getSelection())) {
-        const event: KeyboardEvent = payload;
-        event.preventDefault();
+        payload.preventDefault();
         const node = $getNodeByKey(nodeKey);
         if ($isInlineImageNode(node)) {
           node.remove();
@@ -227,7 +292,6 @@ export default function InlineImageComponent({
   const $onEnter = useCallback(
     (event: KeyboardEvent) => {
       const latestSelection = $getSelection();
-      const buttonElem = buttonRef.current;
       if (
         isSelected &&
         $isNodeSelection(latestSelection) &&
@@ -240,11 +304,11 @@ export default function InlineImageComponent({
           caption.focus();
           return true;
         } else if (
-          buttonElem !== null &&
-          buttonElem !== document.activeElement
+          buttonRef.current !== null &&
+          buttonRef.current !== document.activeElement
         ) {
           event.preventDefault();
-          buttonElem.focus();
+          buttonRef.current.focus();
           return true;
         }
       }
@@ -292,9 +356,8 @@ export default function InlineImageComponent({
       ),
       editor.registerCommand<MouseEvent>(
         CLICK_COMMAND,
-        (payload) => {
-          const event = payload;
-          if (event.target === imageRef.current) {
+        (event) => {
+          if ((event.target as HTMLElement).closest("[data-position]")) {
             if (event.shiftKey) {
               setSelected(!isSelected);
             } else {
@@ -303,7 +366,6 @@ export default function InlineImageComponent({
             }
             return true;
           }
-
           return false;
         },
         COMMAND_PRIORITY_LOW,
@@ -311,9 +373,8 @@ export default function InlineImageComponent({
       editor.registerCommand(
         DRAGSTART_COMMAND,
         (event) => {
-          if (event.target === imageRef.current) {
-            // TODO This is just a temporary workaround for FF to behave like other browsers.
-            // Ideally, this handles drag & drop too (and all browsers).
+          const target = event.target as HTMLElement;
+          if (target.closest("[data-position]")) {
             event.preventDefault();
             return true;
           }
@@ -359,46 +420,50 @@ export default function InlineImageComponent({
   return (
     <Suspense fallback={null}>
       <>
-        <span draggable={draggable}>
-          <button
-            className="image-edit-button"
-            ref={buttonRef}
-            onClick={() => setIsDialogOpen(true)}
-          >
-            Edit
-          </button>
-          <LazyImage
-            className={
-              isFocused
-                ? `focused ${$isNodeSelection(selection) ? "draggable" : ""}`
-                : null
-            }
+        <span draggable={draggable} className="inline-block relative">
+          <ResizableImage
+            className={isFocused ? "ring-2 ring-foreground" : ""}
             src={src}
             altText={altText}
-            imageRef={imageRef}
             width={width}
             height={height}
             position={position}
+            onResize={(newWidth, newHeight) => {
+              editor.update(() => {
+                const node = $getNodeByKey(nodeKey);
+                if ($isInlineImageNode(node)) {
+                  node.setWidthAndHeight(newWidth, newHeight);
+                }
+              });
+            }}
           />
+          <Button
+            ref={buttonRef}
+            variant="ghost"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10"
+            onClick={() => setIsDialogOpen(true)}
+          >
+            Edit
+          </Button>
         </span>
         {showCaption && (
-          <span className="image-caption-container">
+          <div className="mt-2">
             <LexicalNestedComposer initialEditor={caption}>
               <AutoFocusPlugin />
               <LinkPlugin />
               <RichTextPlugin
                 contentEditable={
-                  <LexicalContentEditable className="InlineImageNode__contentEditable" />
+                  <LexicalContentEditable className="border p-2 text-sm w-full" />
                 }
                 placeholder={
-                  <Placeholder className="InlineImageNode__placeholder">
+                  <Placeholder className="text-gray-400 text-sm">
                     Enter a caption...
                   </Placeholder>
                 }
                 ErrorBoundary={LexicalErrorBoundary}
               />
             </LexicalNestedComposer>
-          </span>
+          </div>
         )}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <UpdateInlineImageDialog
