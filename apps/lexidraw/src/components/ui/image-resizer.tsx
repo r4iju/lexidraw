@@ -25,6 +25,18 @@ const Direction = {
   west: 1 << 2,
 };
 
+type ImageResizerProps = {
+  onResizeStart: () => void;
+  onResizeEnd: (width: "inherit" | number, height: "inherit" | number) => void;
+  buttonRef: React.RefObject<HTMLButtonElement>;
+  imageRef: React.RefObject<HTMLElement>;
+  maxWidth?: number;
+  editor: LexicalEditor;
+  showCaption: boolean;
+  setShowCaption: (show: boolean) => void;
+  captionsEnabled: boolean;
+};
+
 export default function ImageResizer({
   onResizeStart,
   onResizeEnd,
@@ -35,18 +47,7 @@ export default function ImageResizer({
   showCaption,
   setShowCaption,
   captionsEnabled,
-}: {
-  editor: LexicalEditor;
-  buttonRef: { current: null | HTMLButtonElement };
-  imageRef: { current: null | HTMLElement };
-  maxWidth?: number;
-  onResizeEnd: (width: "inherit" | number, height: "inherit" | number) => void;
-  onResizeStart: () => void;
-  setShowCaption: (show: boolean) => void;
-  showCaption: boolean;
-  captionsEnabled: boolean;
-}): React.JSX.Element {
-  console.log("ImageResizer");
+}: ImageResizerProps): React.JSX.Element {
   const controlWrapperRef = useRef<HTMLDivElement>(null);
   const [isResizingState, setIsResizingState] = React.useState(false);
 
@@ -269,8 +270,8 @@ export default function ImageResizer({
     <div
       ref={controlWrapperRef}
       className={cn(
-        "relative z-50", // ensure we are on top of the image
-        isResizingState ? "ring-2 ring-primary rounded-sm" : "",
+        "absolute top-0 left-0 size-full z-10",
+        isResizingState ? "ring rounded-sm" : "",
       )}
       style={{ pointerEvents: "none" }} // parent won't catch events, only children
     >
@@ -286,46 +287,45 @@ export default function ImageResizer({
           Add Caption
         </Button>
       )}
+      {/* Top-Right */}
       <div
-        className="absolute top-0 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-foreground cursor-ns-resize pointer-events-auto"
-        onPointerDown={(event) => handlePointerDown(event, Direction.north)}
-      />
-      <div
-        className="absolute top-0 right-0 w-2 h-2 bg-foreground cursor-nesw-resize pointer-events-auto"
+        className="absolute top-0 right-0 w-4 h-4 pointer-events-auto cursor-nesw-resize"
         onPointerDown={(event) =>
           handlePointerDown(event, Direction.north | Direction.east)
         }
-      />
+      >
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:top-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:right-0" />
+      </div>
+
+      {/* Bottom-Right */}
       <div
-        className="absolute top-1/2 right-0 transform -translate-y-1/2 w-2 h-2 bg-foreground cursor-ew-resize pointer-events-auto"
-        onPointerDown={(event) => handlePointerDown(event, Direction.east)}
-      />
-      <div
-        className="absolute bottom-0 right-0 w-2 h-2 bg-foreground cursor-nwse-resize pointer-events-auto"
+        className="absolute bottom-0 right-0 w-4 h-4 pointer-events-auto cursor-nwse-resize"
         onPointerDown={(event) =>
           handlePointerDown(event, Direction.south | Direction.east)
         }
-      />
+      >
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:bottom-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:right-0" />
+      </div>
+
+      {/* Bottom-Left */}
       <div
-        className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-foreground cursor-ns-resize pointer-events-auto"
-        onPointerDown={(event) => handlePointerDown(event, Direction.south)}
-      />
-      <div
-        className="absolute bottom-0 left-0 w-2 h-2 bg-foreground cursor-nesw-resize pointer-events-auto"
+        className="absolute bottom-0 left-0 w-4 h-4 pointer-events-auto cursor-nesw-resize"
         onPointerDown={(event) =>
           handlePointerDown(event, Direction.south | Direction.west)
         }
-      />
+      >
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:bottom-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:left-0" />
+      </div>
+
+      {/* Top-Left */}
       <div
-        className="absolute top-1/2 left-0 transform -translate-y-1/2 w-2 h-2 bg-foreground cursor-ew-resize pointer-events-auto"
-        onPointerDown={(event) => handlePointerDown(event, Direction.west)}
-      />
-      <div
-        className="absolute top-0 left-0 w-2 h-2 bg-foreground cursor-nwse-resize pointer-events-auto"
+        className="absolute top-0 left-0 w-4 h-4 pointer-events-auto cursor-nwse-resize"
         onPointerDown={(event) =>
           handlePointerDown(event, Direction.north | Direction.west)
         }
-      />
+      >
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:top-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:left-0" />
+      </div>
     </div>
   );
 }
