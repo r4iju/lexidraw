@@ -102,9 +102,8 @@ function LazyImage({
 }): React.JSX.Element {
   const computedWidth = width === "inherit" ? "auto" : `${width}px`;
   const computedHeight = height === "inherit" ? "auto" : `${height}px`;
-  
+
   // calculate width and height based on the actual image
-  
 
   return (
     <ErrorBoundary
@@ -417,7 +416,7 @@ export default function ImageComponent({
           <BrokenImage />
         ) : (
           <LazyImage
-            className={isFocused ? "ring-2 ring-ring rounded-sm" : null}
+            className={isFocused ? "rounded-sm" : null}
             src={src}
             altText={altText}
             imageRef={imageRef}
@@ -429,20 +428,17 @@ export default function ImageComponent({
         )}
 
         {resizable && $isNodeSelection(selection) && isFocused && (
-          // Position the resizer absolutely within the same container as the image
-          <div className="absolute top-0 left-0 w-full h-full z-50">
-            <ImageResizer
-              showCaption={showCaption}
-              setShowCaption={setShowCaption}
-              editor={editor}
-              buttonRef={buttonRef}
-              imageRef={imageRef}
-              maxWidth={maxWidth}
-              onResizeStart={onResizeStart}
-              onResizeEnd={onResizeEnd}
-              captionsEnabled={!isLoadError && captionsEnabled}
-            />
-          </div>
+          <ImageResizer
+            showCaption={showCaption}
+            setShowCaption={setShowCaption}
+            editor={editor}
+            buttonRef={buttonRef}
+            imageRef={imageRef}
+            maxWidth={maxWidth}
+            onResizeStart={onResizeStart}
+            onResizeEnd={onResizeEnd}
+            captionsEnabled={!isLoadError && captionsEnabled}
+          />
         )}
       </div>
 
