@@ -271,7 +271,9 @@ export default function ImageResizer({
       ref={controlWrapperRef}
       className={cn(
         "absolute top-0 left-0 size-full z-10",
-        isResizingState ? "ring rounded-sm" : "",
+        isResizingState
+          ? "border-2 border-muted-foreground border-dashed rounded-sm"
+          : "",
       )}
       style={{ pointerEvents: "none" }} // parent won't catch events, only children
     >
@@ -294,7 +296,7 @@ export default function ImageResizer({
           handlePointerDown(event, Direction.north | Direction.east)
         }
       >
-        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:top-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:right-0" />
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-foreground before:top-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-foreground after:right-0" />
       </div>
 
       {/* Bottom-Right */}
@@ -304,7 +306,7 @@ export default function ImageResizer({
           handlePointerDown(event, Direction.south | Direction.east)
         }
       >
-        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:bottom-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:right-0" />
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-foreground before:bottom-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-foreground after:right-0" />
       </div>
 
       {/* Bottom-Left */}
@@ -314,7 +316,7 @@ export default function ImageResizer({
           handlePointerDown(event, Direction.south | Direction.west)
         }
       >
-        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:bottom-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:left-0" />
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-foreground before:bottom-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-foreground after:left-0" />
       </div>
 
       {/* Top-Left */}
@@ -324,7 +326,7 @@ export default function ImageResizer({
           handlePointerDown(event, Direction.north | Direction.west)
         }
       >
-        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-muted-foreground before:top-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-muted-foreground after:left-0" />
+        <div className="before:content-[''] before:absolute before:w-full before:h-0.5 before:bg-foreground before:top-0 after:content-[''] after:absolute after:w-0.5 after:h-full after:bg-foreground after:left-0" />
       </div>
     </div>
   );
