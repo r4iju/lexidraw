@@ -63,6 +63,7 @@ import { $isImageNode } from "./ImageNode";
 import { KeywordNode } from "./KeywordNode";
 import NextImage from "next/image";
 import { ErrorBoundary } from "react-error-boundary";
+import { cn } from "~/lib/utils";
 
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> =
   createCommand("RIGHT_CLICK_IMAGE_COMMAND");
@@ -136,7 +137,7 @@ function LazyImage({
           width={100} // or a responsive size if needed
           height={100}
           ref={imageRef as React.RefObject<HTMLImageElement>}
-          className={className ?? ""}
+          className={cn("rounded-sm", className)}
           draggable={false}
           onError={onError}
           style={{ objectFit: "contain" }}
@@ -416,7 +417,9 @@ export default function ImageComponent({
           <BrokenImage />
         ) : (
           <LazyImage
-            className={isFocused ? "rounded-sm" : null}
+            className={
+              isFocused ? "rounded-sm ring ring-muted-foreground" : null
+            }
             src={src}
             altText={altText}
             imageRef={imageRef}
