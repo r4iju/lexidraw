@@ -1,13 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-import "./flash-message.css";
-
 import { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -17,10 +7,16 @@ export interface FlashMessageProps {
 
 export default function FlashMessage({
   children,
-}: FlashMessageProps): JSX.Element {
+}: FlashMessageProps): React.JSX.Element {
   return createPortal(
-    <div className="FlashMessage__overlay" role="dialog">
-      <p className="FlashMessage__alert" role="alert">
+    <div
+      className="fixed inset-0 flex justify-center items-center pointer-events-none top-0 bottom-0 left-0 right-0"
+      role="dialog"
+    >
+      <p
+        className="bg-black text-white p-2 rounded-md font-medium text-lg px-4 py-2"
+        role="alert"
+      >
         {children}
       </p>
     </div>,
