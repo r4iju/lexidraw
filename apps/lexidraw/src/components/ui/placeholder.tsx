@@ -1,15 +1,6 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-import './placeholder.css';
-
-import * as React from 'react';
-import {ReactNode} from 'react';
+import * as React from "react";
+import { ReactNode } from "react";
+import { cn } from "~/lib/utils";
 
 export default function Placeholder({
   children,
@@ -17,6 +8,15 @@ export default function Placeholder({
 }: {
   children: ReactNode;
   className?: string;
-}): JSX.Element {
-  return <div className={className || 'Placeholder__root'}>{children}</div>;
+}): React.JSX.Element {
+  return (
+    <div
+      className={cn(
+        "absolute text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap inline-block pointer-events-none select-none top-2 left-2 lg:left-7 right-7",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
