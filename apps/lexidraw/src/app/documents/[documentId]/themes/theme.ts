@@ -70,7 +70,7 @@ export const theme = {
     ul: 'list-disc text-gray-900 dark:text-gray-100',
   },
   ltr: 'text-left',
-  paragraph: 'm-0 mb-2 relative text-gray-900 dark:text-gray-100',
+  paragraph: 'm-0 relative text-gray-900 dark:text-gray-100',
   placeholder: 'text-gray-500 dark:text-gray-400 top-4 left-3 absolute text-sm font-medium pointer-events-none inline-block',
   quote: `m-0 ml-5 border-l-4 border-gray-200 dark:border-gray-700 px-5 py-3 text-gray-900 dark:text-gray-100`,
   rtl: 'text-right',

@@ -25,18 +25,23 @@ const config: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        port: "",
         hostname: new URL(env.SUPABASE_S3_ENDPOINT).hostname,
         pathname: new URL(env.SUPABASE_S3_ENDPOINT).pathname + "/**",
       },
       {
         protocol: "https",
-        port: "",
         hostname: env.VERCEL_URL,
         pathname: "/api/*images/**",
+      },
+      {
+        protocol: "https",
+        hostname: env.VERCEL_URL,
+        pathname: "/_next/**",
       },
     ],
   },
 };
+
+console.log(config.images);
 
 export default withBundleAnalyzer(config);

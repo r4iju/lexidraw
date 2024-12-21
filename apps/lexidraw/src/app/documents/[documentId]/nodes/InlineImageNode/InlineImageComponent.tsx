@@ -49,9 +49,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import Image from "next/image";
 import { cn } from "~/lib/utils";
 import { ErrorBoundary } from "react-error-boundary";
+import ImageResizer from "~/components/ui/image-resizer";
 
 type ResizableImageProps = {
   src: string;
@@ -60,7 +60,12 @@ type ResizableImageProps = {
   height: number | "inherit";
   position: string | undefined;
   className?: string;
-  onResize: (newWidth: number, newHeight: number) => void;
+  nodeKey: NodeKey;
+  editor: LexicalEditor;
+  onResize: (
+    newWidth: number | "inherit",
+    newHeight: number | "inherit",
+  ) => void;
 };
 
 function ResizableImage({
@@ -70,60 +75,19 @@ function ResizableImage({
   height,
   position,
   className,
+  nodeKey,
+  editor,
   onResize,
 }: ResizableImageProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const isResizingRef = useRef(false);
-  const [dimensions, setDimensions] = useState<{
-    width: number;
-    height: number;
-  }>({
-    width: width === "inherit" ? 300 : width,
-    height: height === "inherit" ? 200 : height,
-  });
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingRef.current = true;
-  };
-
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (isResizingRef.current && containerRef.current) {
-        // Update width & height based on mouse movement
-        const newWidth = Math.max(dimensions.width + e.movementX, 50);
-        const newHeight = Math.max(dimensions.height + e.movementY, 50);
-        setDimensions({ width: newWidth, height: newHeight });
-        onResize(newWidth, newHeight);
-      }
-    },
-    [dimensions, onResize],
-  );
-
-  const handleMouseUp = useCallback(() => {
-    isResizingRef.current = false;
-  }, []);
-
-  useEffect(() => {
-    if (isResizingRef.current) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [handleMouseMove, handleMouseUp]);
 
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "relative inline-block border focus-within:border-foreground hover:border-secondary rounded-sm",
-        className,
-      )}
-      style={{ width: dimensions.width, height: dimensions.height }}
+      className="relative inline-block"
+      style={{ width, height }}
       data-position={position}
+      data-lexical-node-key={nodeKey}
     >
       {/* Must use fallback img for external images */}
       <ErrorBoundary
@@ -138,19 +102,30 @@ function ResizableImage({
           />
         )}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={src}
           alt={altText}
+          style={{
+            width: typeof width === "number" ? `${width}px` : "auto",
+            height: typeof height === "number" ? `${height}px` : "auto",
+            objectFit: "contain",
+          }}
           draggable={false}
-          fill
-          className="object-contain"
-          sizes="(max-width: 600px) 100vw, 300px"
+          className={cn("rounded-xs", className)}
         />
       </ErrorBoundary>
-      {/* Resize Handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="absolute bottom-0 right-0 w-3 h-3 bg-background opacity-50 cursor-nwse-resize"
+      <ImageResizer
+        onResizeStart={() => {}}
+        onResizeEnd={(newWidth, newHeight) => {
+          onResize(newWidth, newHeight);
+        }}
+        buttonRef={containerRef}
+        imageRef={containerRef}
+        editor={editor}
+        showCaption={false}
+        setShowCaption={() => {}}
+        captionsEnabled={false}
       />
     </div>
   );
@@ -357,7 +332,12 @@ export default function InlineImageComponent({
       editor.registerCommand<MouseEvent>(
         CLICK_COMMAND,
         (event) => {
-          if ((event.target as HTMLElement).closest("[data-position]")) {
+          const target = event.target as HTMLElement;
+          const clickedNodeKey = target
+            .closest("[data-position]")
+            ?.getAttribute("data-lexical-node-key");
+
+          if (clickedNodeKey === nodeKey) {
             if (event.shiftKey) {
               setSelected(!isSelected);
             } else {
@@ -422,12 +402,13 @@ export default function InlineImageComponent({
       <>
         <span draggable={draggable} className="inline-block relative">
           <ResizableImage
-            className={isFocused ? "ring-2 ring-foreground" : ""}
+            className={isFocused ? "ring-1 ring-muted-foreground" : ""}
             src={src}
             altText={altText}
             width={width}
             height={height}
             position={position}
+            nodeKey={nodeKey}
             onResize={(newWidth, newHeight) => {
               editor.update(() => {
                 const node = $getNodeByKey(nodeKey);
@@ -436,6 +417,7 @@ export default function InlineImageComponent({
                 }
               });
             }}
+            editor={editor}
           />
           <Button
             ref={buttonRef}
