@@ -1,20 +1,36 @@
 /**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
+.ContentEditable__root {
+  border: 0;
+  font-size: 15px;
+  display: block;
+  position: relative;
+  outline: 0;
+  padding: 8px 28px 40px;
+  min-height: 150px;
+}
+@media (max-width: 1025px) {
+  .ContentEditable__root {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
  */
 
-import "./content-editable.css";
-
-import {ContentEditable} from '@lexical/react/LexicalContentEditable';
-import * as React from 'react';
+import { ContentEditable } from "@lexical/react/LexicalContentEditable";
+import * as React from "react";
+import { cn } from "~/lib/utils";
 
 export default function LexicalContentEditable({
   className,
 }: {
   className?: string;
-}): JSX.Element {
-  return <ContentEditable className={className || 'ContentEditable__root'} />;
+}): React.JSX.Element {
+  return (
+    <ContentEditable
+      className={cn(
+        "border-none font-medium block relative outline-none p-2",
+        className,
+      )}
+    />
+  );
 }

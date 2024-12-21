@@ -12,7 +12,7 @@ export default function Placeholder({
   return (
     <div
       className={cn(
-        "absolute text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap inline-block pointer-events-none select-none top-2 left-2 lg:left-7 right-7",
+        "absolute text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap inline-block pointer-events-none select-none top-2 left-2",
         className,
       )}
     >

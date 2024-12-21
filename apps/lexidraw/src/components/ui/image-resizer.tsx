@@ -260,18 +260,14 @@ export default function ImageResizer({
   return (
     <div
       ref={controlWrapperRef}
-      className={cn(
-        "absolute top-0 left-0 size-full z-10",
-        isResizingState
-          ? "border-2 border-muted-foreground border-dashed rounded-sm"
-          : "",
-      )}
+      className={cn("absolute top-0 left-0 size-full z-30")}
       style={{ pointerEvents: "none" }} // parent won't catch events, only children
     >
       {!showCaption && captionsEnabled && (
         <Button
           variant="ghost"
-          className="absolute top-0 right-0 z-50 m-2 pointer-events-auto"
+          // middle of the bottom
+          className="absolute bottom-0 right-1/2 translate-x-1/2 z-50 m-2 pointer-events-auto"
           ref={buttonRef}
           onClick={() => {
             setShowCaption(!showCaption);
