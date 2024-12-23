@@ -42,6 +42,4 @@ const config: NextConfig = {
   },
 };
 
-console.log(config.images);
-
 export default withBundleAnalyzer(config);

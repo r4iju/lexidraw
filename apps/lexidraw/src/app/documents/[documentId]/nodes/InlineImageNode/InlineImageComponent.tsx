@@ -61,11 +61,7 @@ type ResizableImageProps = {
   position: string | undefined;
   className?: string;
   nodeKey: NodeKey;
-  editor: LexicalEditor;
-  onResize: (
-    newWidth: number | "inherit",
-    newHeight: number | "inherit",
-  ) => void;
+  containerRef: React.RefObject<HTMLDivElement>;
 };
 
 function ResizableImage({
@@ -76,20 +72,21 @@ function ResizableImage({
   position,
   className,
   nodeKey,
-  editor,
-  onResize,
+  containerRef,
 }: ResizableImageProps): React.JSX.Element {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
   return (
     <div
       ref={containerRef}
-      className="relative inline-block"
-      style={{ width, height }}
+      // inline-block keeps it inline-level while still allowing width/height
+      style={{
+        display: "inline-block",
+        width: typeof width === "number" ? width : undefined,
+        height: typeof height === "number" ? height : undefined,
+      }}
       data-position={position}
       data-lexical-node-key={nodeKey}
+      className={cn("relative")}
     >
-      {/* Must use fallback img for external images */}
       <ErrorBoundary
         FallbackComponent={() => (
           // eslint-disable-next-line @next/next/no-img-element
@@ -98,7 +95,6 @@ function ResizableImage({
             alt={altText}
             draggable={false}
             className="object-contain"
-            sizes="(max-width: 600px) 100vw, 300px"
           />
         )}
       >
@@ -106,27 +102,17 @@ function ResizableImage({
         <img
           src={src}
           alt={altText}
+          draggable={false}
           style={{
+            // Convert "inherit" or number to actual styles
             width: typeof width === "number" ? `${width}px` : "auto",
             height: typeof height === "number" ? `${height}px` : "auto",
             objectFit: "contain",
+            display: "block",
           }}
-          draggable={false}
           className={cn("rounded-xs", className)}
         />
       </ErrorBoundary>
-      <ImageResizer
-        onResizeStart={() => {}}
-        onResizeEnd={(newWidth, newHeight) => {
-          onResize(newWidth, newHeight);
-        }}
-        buttonRef={containerRef}
-        imageRef={containerRef}
-        editor={editor}
-        showCaption={false}
-        setShowCaption={() => {}}
-        captionsEnabled={false}
-      />
     </div>
   );
 }
@@ -242,13 +228,22 @@ export default function InlineImageComponent({
   position: Position;
 }): React.JSX.Element {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const [isSelected, setSelected, clearSelection] =
-    useLexicalNodeSelection(nodeKey);
   const [editor] = useLexicalComposerContext();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
+
+  // Node selection
+  const [isSelected, setSelected, clearSelection] =
+    useLexicalNodeSelection(nodeKey);
+
+  // For some keydown logic
   const activeEditorRef = useRef<LexicalEditor | null>(null);
 
+  // We'll store a ref to the <div> from ResizableImage
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // This is for focusing the "Edit" button
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Keydown logic
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
       if (isSelected && $isNodeSelection($getSelection())) {
@@ -267,11 +262,7 @@ export default function InlineImageComponent({
   const $onEnter = useCallback(
     (event: KeyboardEvent) => {
       const latestSelection = $getSelection();
-      if (
-        isSelected &&
-        $isNodeSelection(latestSelection) &&
-        latestSelection.getNodes().length === 1
-      ) {
+      if (isSelected && $isNodeSelection(latestSelection)) {
         if (showCaption) {
           // Move focus into nested editor
           $setSelection(null);
@@ -301,10 +292,7 @@ export default function InlineImageComponent({
         $setSelection(null);
         editor.update(() => {
           setSelected(true);
-          const parentRootElement = editor.getRootElement();
-          if (parentRootElement !== null) {
-            parentRootElement.focus();
-          }
+          editor.getRootElement()?.focus();
         });
         return true;
       }
@@ -313,6 +301,7 @@ export default function InlineImageComponent({
     [caption, editor, setSelected],
   );
 
+  // Register commands
   useEffect(() => {
     let isMounted = true;
     const unregister = mergeRegister(
@@ -337,6 +326,7 @@ export default function InlineImageComponent({
             .closest("[data-position]")
             ?.getAttribute("data-lexical-node-key");
 
+          // If you clicked on THIS image's container
           if (clickedNodeKey === nodeKey) {
             if (event.shiftKey) {
               setSelected(!isSelected);
@@ -386,20 +376,26 @@ export default function InlineImageComponent({
   }, [
     clearSelection,
     editor,
-    isSelected,
     nodeKey,
     $onDelete,
     $onEnter,
     $onEscape,
+    isSelected,
     setSelected,
   ]);
 
+  // For dragging
   const draggable = isSelected && $isNodeSelection(selection);
+  // Highlight ring
   const isFocused = isSelected;
 
   return (
     <Suspense fallback={null}>
       <>
+        {/* 
+          We use <span> for inline flow, 
+          but the contained <div> has display:inline-block so it can size properly.
+        */}
         <span draggable={draggable} className="inline-block relative">
           <ResizableImage
             className={isFocused ? "ring-1 ring-muted-foreground" : ""}
@@ -409,16 +405,9 @@ export default function InlineImageComponent({
             height={height}
             position={position}
             nodeKey={nodeKey}
-            onResize={(newWidth, newHeight) => {
-              editor.update(() => {
-                const node = $getNodeByKey(nodeKey);
-                if ($isInlineImageNode(node)) {
-                  node.setWidthAndHeight(newWidth, newHeight);
-                }
-              });
-            }}
-            editor={editor}
+            containerRef={containerRef}
           />
+          {/* “Edit” button on top */}
           <Button
             ref={buttonRef}
             variant="ghost"
@@ -427,7 +416,30 @@ export default function InlineImageComponent({
           >
             Edit
           </Button>
+
+          {isSelected && (
+            <ImageResizer
+              // We pass the containerRef so the resizer can measure & update .style
+              imageRef={containerRef}
+              editor={editor}
+              buttonRef={buttonRef}
+              showCaption={false}
+              setShowCaption={() => {}}
+              captionsEnabled={false}
+              onResizeStart={() => {}}
+              onResizeEnd={(newWidth, newHeight) => {
+                editor.update(() => {
+                  const node = $getNodeByKey(nodeKey);
+                  if ($isInlineImageNode(node)) {
+                    node.setWidthAndHeight(newWidth, newHeight);
+                  }
+                });
+              }}
+            />
+          )}
         </span>
+
+        {/* If the node has a caption */}
         {showCaption && (
           <div className="mt-2">
             <LexicalNestedComposer initialEditor={caption}>
@@ -447,6 +459,8 @@ export default function InlineImageComponent({
             </LexicalNestedComposer>
           </div>
         )}
+
+        {/* The “Update Inline Image” dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <UpdateInlineImageDialog
             activeEditor={editor}
