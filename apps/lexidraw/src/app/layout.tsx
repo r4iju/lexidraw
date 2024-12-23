@@ -54,7 +54,7 @@ export default function RootLayout({ children }: Props) {
               disableTransitionOnChange
             >
               {" "}
-              <div className="flex h-screen flex-col bg-background">
+              <div className="flex min-h-screen flex-col bg-background">
                 <TooltipProvider>
                   {children}
                   <Toaster />
