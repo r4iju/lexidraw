@@ -1,24 +1,35 @@
-import { headers as reqHeaders } from 'next/headers';
-import { NextResponse } from 'next/server';
-import { s3 } from '~/server/s3';
+import { headers as reqHeaders } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
+import { s3 } from "~/server/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import env from '@packages/env';
-import { asc, drizzle, eq, lte, schema } from '@packages/drizzle';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { ServerRuntime } from 'next';
+import env from "@packages/env";
+import { asc, drizzle, eq, lte, schema } from "@packages/drizzle";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { ServerRuntime } from "next";
 
 export const maxDuration = 120; // 2 minutes
 export const runtime: ServerRuntime = "edge";
 
-export async function GET() {
-  console.log('#'.repeat(20), ' Cron job started ', '#'.repeat(20));
+export async function GET(request: NextRequest) {
+  console.log("#".repeat(20), " Cron job started ", "#".repeat(20));
 
   const headers = await reqHeaders();
-  if (headers.get('Authorization') !== `Bearer ${env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (headers.get("Authorization") !== `Bearer ${env.CRON_SECRET}`) {
+    console.log(
+      "Unauthorized, expected: ",
+      `"Bearer ${env.CRON_SECRET}"`,
+      `got: "${headers.get("Authorization")}"`,
+    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let updatedCount = 0
+  // query param to force the cron job to run
+  const shouldForceUpdate =
+    request.nextUrl.searchParams.get("force-update") !== null;
+
+  console.log("shouldForceUpdate", shouldForceUpdate);
+
+  let updatedCount = 0;
 
   try {
     // Fetch all uploaded images
@@ -32,11 +43,18 @@ export async function GET() {
         updatedAt: schema.uploadedImage.updatedAt,
       })
       .from(schema.uploadedImage)
-      .where(lte(schema.uploadedImage.updatedAt, new Date(Date.now() - 1 * 24 * 60 * 60 * 1000))) // 1 day for testing
+      .where(() =>
+        shouldForceUpdate
+          ? undefined
+          : lte(
+              schema.uploadedImage.updatedAt,
+              new Date(Date.now() - 24 * 60 * 60 * 1000),
+            ),
+      )
       .orderBy(asc(schema.uploadedImage.entityId))
       .execute();
 
-    console.log('Found images in table:', uploadedImages.length);
+    console.log("Found images in table:", uploadedImages.length);
 
     // Process one entity at a time to avoid holding large data in memory
     let currentEntityId: string | null = null;
@@ -90,7 +108,9 @@ export async function GET() {
         Bucket: env.SUPABASE_S3_BUCKET,
         Key: image.fileName,
       });
-      const signedDownloadUrl = await getSignedUrl(s3, downloadCommand, { expiresIn: 7 * 24 * 60 * 60 });
+      const signedDownloadUrl = await getSignedUrl(s3, downloadCommand, {
+        expiresIn: 7 * 24 * 60 * 60,
+      });
 
       // Update the image record
       await drizzle
@@ -103,16 +123,19 @@ export async function GET() {
         .execute();
 
       console.log(
-        `Updated download URL for image ${image.id}. Old URL: ${image.signedDownloadUrl}, New URL: ${signedDownloadUrl}`
+        `Updated download URL for image ${image.id}. Old URL: ${image.signedDownloadUrl}, New URL: ${signedDownloadUrl}`,
       );
 
       // Replace URLs in the entity's elements
-      if (image.kind === 'attachment') {
-        currentEntity.elements = currentEntity.elements.replaceAll(image.signedDownloadUrl, signedDownloadUrl);
+      if (image.kind === "attachment") {
+        currentEntity.elements = currentEntity.elements.replaceAll(
+          image.signedDownloadUrl,
+          signedDownloadUrl,
+        );
         updatedCount += 1;
       }
-      if (image.kind === 'thumbnail') {
-        if (image.fileName.includes('dark')) {
+      if (image.kind === "thumbnail") {
+        if (image.fileName.includes("dark")) {
           currentEntityDarkThumbnail = signedDownloadUrl;
         } else {
           currentEntityLightThumbnail = signedDownloadUrl;
@@ -127,9 +150,15 @@ export async function GET() {
         .update(schema.entity)
         .set({
           // only update the parts that have changed
-          ...(currentEntity.elements !== currentEntity.elements ? { elements: currentEntity.elements } : {}),
-          ...(currentEntityDarkThumbnail ? { darkThumbnail: currentEntityDarkThumbnail } : {}),
-          ...(currentEntityLightThumbnail ? { lightThumbnail: currentEntityLightThumbnail } : {}),
+          ...(currentEntity.elements !== currentEntity.elements
+            ? { elements: currentEntity.elements }
+            : {}),
+          ...(currentEntityDarkThumbnail
+            ? { darkThumbnail: currentEntityDarkThumbnail }
+            : {}),
+          ...(currentEntityLightThumbnail
+            ? { lightThumbnail: currentEntityLightThumbnail }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(schema.entity.id, currentEntityId))
@@ -137,10 +166,13 @@ export async function GET() {
       console.log(`Updated entity ${currentEntityId}`);
     }
 
-    console.log('#'.repeat(20), ' Cron job finished ', '#'.repeat(20));
+    console.log("#".repeat(20), " Cron job finished ", "#".repeat(20));
     return NextResponse.json({ ok: true, updatedCount });
   } catch (error) {
-    console.error('Error during cron job:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error("Error during cron job:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }
