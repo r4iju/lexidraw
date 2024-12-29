@@ -16,7 +16,7 @@ import type {
 } from "lexical";
 
 import { DecoratorNode } from "lexical";
-import * as React from "react";
+import { useEffect, type JSX } from "react";
 
 import { useSharedAutocompleteContext } from "../context/shared-autocomplete-context";
 import { uuid as UUID } from "../plugins/AutocompletePlugin";
@@ -111,6 +111,9 @@ function AutocompleteComponent({
     userAgentData !== undefined
       ? userAgentData.mobile
       : window.innerWidth <= 800 && window.innerHeight <= 600;
+  useEffect(() => {
+    console.log("suggestion", suggestion);
+  }, [suggestion]);
   return (
     <span className={className} spellCheck="false">
       {suggestion} {isMobile ? "(SWIPE \u2B95)" : "(TAB)"}
