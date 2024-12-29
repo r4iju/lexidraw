@@ -8,7 +8,8 @@
     "dev": "next dev --port 3100 #--turbo",
     "lint": "eslint './**/*.{ts,tsx}'",
     "test:ts": "tsc --noEmit",
-    "start": "next start --port 3100"
+    "start": "next start --port 3100",
+    "build:worker": "vite build --config vite.worker.config.js"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^0.8.2",
@@ -32,6 +33,7 @@
     "@lexical/text": "^0.21.0",
     "@lexical/utils": "^0.21.0",
     "@libsql/client": "^0.5.6",
+    "@mlc-ai/web-llm": "^0.2.77",
     "@packages/drizzle": "workspace:*",
     "@packages/env": "workspace:*",
     "@packages/lib": "workspace:*",
@@ -105,7 +107,8 @@
     "prettier-plugin-tailwindcss": "^0.5.14",
     "tailwindcss": "^3.4.16",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "worker-loader": "^3.0.8"
   },
   "packageManager": "pnpm@8.14.3"
 }
