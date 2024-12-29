@@ -189,7 +189,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
     <SettingsContext>
       <FlashMessageContext>
         <TableContext>
-          <div className="flex flex-col min-h-[100vh]">
+          <div className="flex flex-col size-full">
             <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-sm">
               <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
                 {/* Dropdown for options (hidden on small screens) */}
@@ -204,7 +204,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                 <ModeToggle className="hidden md:flex" />
               </div>
             </div>
-            <div className="relative w-full">
+            <div className="relative size-full">
               {/* bottom left options */}
               <OptionsDropdown
                 className=" fixed bottom-2 left-2 z-10 md:hidden"
@@ -212,7 +212,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                 state={editorStateRef}
               />
 
-              <div className="w-full h-full max-w-screen-lg mx-auto">
+              <div className="relative size-full max-w-screen-lg mx-auto">
                 <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
                 <CodeHighlightPlugin />
                 <TabIndentationPlugin />
@@ -237,12 +237,12 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                 <RichTextPlugin
                   contentEditable={
                     <div
-                      className="min-h-[150px] h-full border-none flex relative outline-none z-0 overflow-auto resize-y"
+                      className="size-full border-none flex relative outline-none z-0 overflow-auto resize-y"
                       ref={onRef}
                     >
                       <ContentEditable
                         id="lexical-content"
-                        className="resize-none outline-none p-4 text-black dark:text-white border-x"
+                        className="resize-none size-full min-h-[90vh] outline-none p-4 text-black dark:text-white border-x"
                       />
                     </div>
                   }
@@ -285,7 +285,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
 
 function Placeholder() {
   return (
-    <div className="px-6 text-gray-600 mt-[-32px] dark:text-gray-100 select-none pointer-events-none">
+    <div className="absolute top-4 left-4 text-primary-foreground  select-none pointer-events-none">
       Enter some rich text...
     </div>
   );
