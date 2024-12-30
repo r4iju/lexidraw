@@ -16,19 +16,20 @@ import {
   KEY_TAB_COMMAND,
 } from "lexical";
 import { type JSX, useCallback, useEffect, useRef } from "react";
-import { useSharedAutocompleteContext } from "../../context/shared-autocomplete-context";
 import {
   $createAutocompleteNode,
   AutocompleteNode,
 } from "../../nodes/AutocompleteNode";
 import { addSwipeRightListener } from "../../utils/swipe";
+import { useSettings } from "../../context/settings-context";
+import { useToast } from "~/components/ui/use-toast";
 
-type SearchPromise = {
+type CompletionRequest = {
   dismiss: () => void;
   promise: Promise<null | string>;
 };
 
-export const uuid = Math.random()
+export const UUID = Math.random()
   .toString(36)
   .replace(/[^a-z]+/g, "")
   .substr(0, 5);
@@ -51,12 +52,11 @@ function $search(selection: null | BaseSelection): [boolean, string] {
   return [true, sentence.reverse().join("")];
 }
 
-/**
- * 1) Setup a single Worker for the entire plugin. We only load the model once in the Worker.
- * 2) `useQuery` sends messages to the worker and returns a {promise, dismiss} object.
- */
-function useQuery(): (searchText: string) => SearchPromise {
+/* Using a Worker that queries your local LLM  */
+function useQuery(): (textSnippet: string) => CompletionRequest {
   const workerRef = useRef<Worker | null>(null);
+  const { settings } = useSettings();
+  const { toast } = useToast();
 
   // Create the worker exactly once
   useEffect(() => {
@@ -74,131 +74,144 @@ function useQuery(): (searchText: string) => SearchPromise {
     };
   }, []);
 
-  const queryLLM = useCallback((prompt: string) => {
-    let isDismissed = false;
-    let removeListener: () => void = () => {};
+  const sendQuery = useCallback(
+    (prompt: string) => {
+      let isDismissed = false;
+      let removeListener = () => {};
+      let currentToastId: string | undefined;
 
-    const dismiss = () => {
-      isDismissed = true;
-      removeListener();
-    };
-
-    // The main promise we return to the plugin
-    const promise = new Promise<null | string>((resolve, reject) => {
-      if (!workerRef.current) {
-        // Worker not ready
-        console.log("workerRef.current not ready");
-        return resolve(null);
-      }
-
-      // Handler for incoming messages from the worker
-      const onMessage = (e: MessageEvent) => {
-        const data = e.data || {};
-        console.log("workerRef.current.onmessage", data);
-        if (isDismissed) {
-          return reject("Dismissed");
-        }
-        switch (data.type) {
-          case "completion":
-            console.log('we have a suggestion')
-            removeListener();
-            resolve(data.text || null);
-            break;
-          case "error":
-            removeListener();
-            reject(data.error);
-            break;
-          default:
-            console.log("[Client] Worker event:", data);
-            break;
+      const dismiss = () => {
+        isDismissed = true;
+        removeListener();
+        if (currentToastId) {
+          toast.dismiss(currentToastId);
+          currentToastId = undefined;
         }
       };
 
-      removeListener = () => {
-        workerRef.current?.removeEventListener("message", onMessage);
-      };
+      const promise = new Promise<null | string>((resolve, reject) => {
+        if (!workerRef.current) {
+          return resolve(null);
+        }
 
-      // Attach listener
-      workerRef.current.addEventListener("message", onMessage);
+        const onMessage = (e: MessageEvent) => {
+          if (isDismissed) {
+            return reject("Dismissed");
+          }
 
-      // Send message to Worker
-      console.log("sending message to worker", prompt);
-      workerRef.current.postMessage({ prompt });
+          const data = e.data;
+          switch (data.type) {
+            case "completion":
+              removeListener();
+              if (currentToastId) toast.dismiss(currentToastId);
+              resolve(data.text || null);
+              break;
+            case "error":
+              removeListener();
+              if (currentToastId) toast.dismiss(currentToastId);
+              reject(data.error);
+              break;
+            case "loading":
+              currentToastId = toast({
+                title: "Loading model...",
+                description: "Please wait while the model initializes",
+              }).id;
+              break;
+            case "ready":
+              if (currentToastId) {
+                toast.dismiss(currentToastId);
+                currentToastId = undefined;
+              }
+              break;
+            case "progress":
+              if (currentToastId) {
+                toast({
+                  id: currentToastId,
+                  title: "Loading...",
+                  description: data.progress.text as string,
+                });
+              }
+              break;
+          }
+        };
+
+        removeListener = () => workerRef.current?.removeEventListener("message", onMessage);
+        workerRef.current.addEventListener("message", onMessage);
+        workerRef.current.postMessage({
+          type: "completion",
+          textSnippet: prompt,
+        });
+      });
+
+      return { dismiss, promise };
+    },
+    [toast]
+  );
+
+  // handle settings changes
+  useEffect(() => {
+    workerRef.current?.postMessage({
+      type: "settings",
+      model: settings.llmModel,
+      temperature: settings.llmTemperature,
+      maxTokens: settings.llmMaxTokens,
     });
+  }, [
+    settings.isLlm,
+    settings.llmModel,
+    settings.llmTemperature,
+    settings.llmMaxTokens,
+  ]);
 
-    return { dismiss, promise };
-  }, []);
-
-  return queryLLM;
+  return sendQuery;
 }
 
-// The rest is nearly identical
 export default function AutocompletePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const [, setSuggestion] = useSharedAutocompleteContext();
-  const query = useQuery();
+  const queryLLM = useQuery();
 
   useEffect(() => {
-    let autocompleteNodeKey: null | NodeKey = null;
-    let lastMatch: null | string = null;
-    let lastSuggestion: null | string = null;
-    let searchPromise: null | SearchPromise = null;
+    let autocompleteNodeKey: NodeKey | null = null;
+    let lastWord: string | null = null;
+    let lastSuggestion: string | null = null;
+    let completionRequest: CompletionRequest | null = null;
 
-    function $clearSuggestion() {
+    function clearSuggestion() {
       if (autocompleteNodeKey !== null) {
-        const autocompleteNode = $getNodeByKey(autocompleteNodeKey);
-        if (autocompleteNode?.isAttached()) {
-          autocompleteNode.remove();
+        const existingNode = $getNodeByKey(autocompleteNodeKey);
+        if (existingNode?.isAttached()) {
+          existingNode.remove();
         }
         autocompleteNodeKey = null;
       }
-      if (searchPromise) {
-        searchPromise.dismiss();
-        searchPromise = null;
+      if (completionRequest) {
+        completionRequest.dismiss();
+        completionRequest = null;
       }
-      lastMatch = null;
+      lastWord = null;
       lastSuggestion = null;
-      setSuggestion(null);
     }
 
-    function updateAsyncSuggestion(
-      refSearchPromise: SearchPromise,
-      newSuggestion: null | string,
+    function handleNewSuggestion(
+      refReq: CompletionRequest,
+      newText: null | string,
     ) {
-      if (searchPromise !== refSearchPromise || newSuggestion === null) {
-        // Outdated or no suggestion
-        return;
-      }
-      editor.update(
-        () => {
-          const selection = $getSelection();
-          const [hasMatch, match] = $search(selection);
-          if (
-            !hasMatch ||
-            match !== lastMatch ||
-            !$isRangeSelection(selection)
-          ) {
-            // Outdated
-            return;
-          }
-          const selectionCopy = selection.clone();
-          const node = $createAutocompleteNode(uuid);
-          autocompleteNodeKey = node.getKey();
-          selection.insertNodes([node]);
-          $setSelection(selectionCopy);
-          lastSuggestion = newSuggestion;
-          setSuggestion(newSuggestion);
-        },
-        { tag: "history-merge" },
-      );
-    }
+      // If outdated or no suggestion, do nothing
+      if (completionRequest !== refReq || !newText) return;
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+        const [hasMatch, match] = $search(selection);
+        if (!hasMatch || match !== lastWord) return;
 
-    function $handleAutocompleteNodeTransform(node: AutocompleteNode) {
-      const key = node.getKey();
-      if (node.__uuid === uuid && key !== autocompleteNodeKey) {
-        // Max one Autocomplete node at a time
-        $clearSuggestion();
-      }
+        // Insert an AutocompleteNode with the text
+        const selectionClone = selection.clone();
+        const node = $createAutocompleteNode(newText, UUID);
+        autocompleteNodeKey = node.getKey();
+        selection.insertNodes([node]);
+        $setSelection(selectionClone);
+        lastSuggestion = newText;
+      });
     }
 
     function handleUpdate() {
@@ -206,47 +219,54 @@ export default function AutocompletePlugin(): JSX.Element | null {
         const selection = $getSelection();
         const [hasMatch, match] = $search(selection);
         if (!hasMatch) {
-          $clearSuggestion();
+          clearSuggestion();
           return;
         }
-        if (match === lastMatch) {
-          // Same word, do nothing
+        if (match === lastWord) {
+          // same partial word, do nothing
           return;
         }
-        $clearSuggestion();
+        // clear old suggestion
+        clearSuggestion();
 
-        // Kick off new LLM query
-        searchPromise = query(match);
-        searchPromise.promise
-          .then((newSuggestion) => {
-            if (searchPromise) {
-              updateAsyncSuggestion(searchPromise, newSuggestion);
+        // query LLM for new suggestion
+        completionRequest = queryLLM(match);
+        completionRequest.promise
+          .then((suggestion) => {
+            if (completionRequest) {
+              handleNewSuggestion(completionRequest, suggestion);
             }
           })
           .catch((err) => {
-            console.error("Autocomplete error", err);
+            console.error("Autocomplete error:", err);
           });
-        lastMatch = match;
+        lastWord = match;
       });
     }
 
-    function $handleAutocompleteIntent(): boolean {
+    function handleAcceptSuggestion(): boolean {
       if (!lastSuggestion || !autocompleteNodeKey) {
         return false;
       }
-      const autocompleteNode = $getNodeByKey(autocompleteNodeKey);
-      if (!autocompleteNode) {
+      const node = $getNodeByKey(autocompleteNodeKey);
+      if (!node) {
         return false;
       }
-      const textNode = $createTextNode(lastSuggestion);
-      autocompleteNode.replace(textNode);
-      textNode.selectNext();
-      $clearSuggestion();
+      // Replace the node with plain text
+      editor.update(() => {
+        if (!lastSuggestion) {
+          return false;
+        }
+        const textNode = $createTextNode(lastSuggestion);
+        node.replace(textNode);
+        textNode.selectNext();
+        clearSuggestion();
+      });
       return true;
     }
 
-    function $handleKeypressCommand(e: Event) {
-      if ($handleAutocompleteIntent()) {
+    function handleKeypressCommand(e: Event) {
+      if (handleAcceptSuggestion()) {
         e.preventDefault();
         return true;
       }
@@ -255,16 +275,24 @@ export default function AutocompletePlugin(): JSX.Element | null {
 
     function handleSwipeRight(_force: number, e: TouchEvent) {
       editor.update(() => {
-        if ($handleAutocompleteIntent()) {
+        if (handleAcceptSuggestion()) {
           e.preventDefault();
         }
       });
     }
 
-    function unmountSuggestion() {
+    function cleanup() {
       editor.update(() => {
-        $clearSuggestion();
+        clearSuggestion();
       });
+    }
+
+    function handleAutocompleteNodeTransform(node: AutocompleteNode) {
+      const key = node.getKey();
+      if (node.__uuid === UUID && key !== autocompleteNodeKey) {
+        // Max one Autocomplete node per session
+        clearSuggestion();
+      }
     }
 
     const rootElem = editor.getRootElement();
@@ -272,23 +300,23 @@ export default function AutocompletePlugin(): JSX.Element | null {
     return mergeRegister(
       editor.registerNodeTransform(
         AutocompleteNode,
-        $handleAutocompleteNodeTransform,
+        handleAutocompleteNodeTransform,
       ),
       editor.registerUpdateListener(handleUpdate),
       editor.registerCommand(
         KEY_TAB_COMMAND,
-        $handleKeypressCommand,
+        handleKeypressCommand,
         COMMAND_PRIORITY_LOW,
       ),
       editor.registerCommand(
         KEY_ARROW_RIGHT_COMMAND,
-        $handleKeypressCommand,
+        handleKeypressCommand,
         COMMAND_PRIORITY_LOW,
       ),
       ...(rootElem ? [addSwipeRightListener(rootElem, handleSwipeRight)] : []),
-      unmountSuggestion,
+      cleanup,
     );
-  }, [editor, query, setSuggestion]);
+  }, [editor, queryLLM]);
 
   return null;
 }

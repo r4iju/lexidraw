@@ -71,7 +71,7 @@ import {
   UNDO_COMMAND,
 } from "lexical";
 import { Dispatch, useCallback, useEffect, useState } from "react";
-import * as React from "react";
+import type { JSX } from "react";
 import { IS_APPLE } from "../../shared/environment";
 
 import useModal from "~/hooks/useModal";
@@ -97,8 +97,10 @@ import { InsertTableDialog } from "../TablePlugin";
 import FontSize from "./font-size";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
@@ -123,6 +125,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { useSettings } from "../../context/settings-context";
+import { Input } from "~/components/ui/input";
+import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
@@ -223,7 +228,7 @@ const ELEMENT_FORMAT_OPTIONS: {
 
 function dropDownActiveClass(active: boolean) {
   if (active) {
-    return "active dropdown-item-active";
+    return "bg-accent text-accent-foreground";
   } else {
     return "";
   }
@@ -574,6 +579,77 @@ function ElementFormatDropdown({
           <i className={"icon " + (isRTL ? "outdent" : "indent")} />
           <span className="text">Indent</span>
         </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+const ModelList = prebuiltAppConfig.model_list.filter(
+  (model) => model.vram_required_MB && model.vram_required_MB < 2000,
+);
+
+function LlmDropdown(): JSX.Element {
+  const { settings, setOption } = useSettings();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline">
+          AI
+          <ChevronDownIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem>
+          Enable LLM
+          <DropdownMenuCheckboxItem
+            checked={settings.isLlm as boolean}
+            onCheckedChange={(checked) => {
+              setOption("isLlm", checked);
+            }}
+          />
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {/* Temperature */}
+        <DropdownMenuLabel>Temperature</DropdownMenuLabel>
+        {/* number input */}
+        <Input
+          className="w-full"
+          type="number"
+          min={0}
+          max={1}
+          step={0.01}
+          value={settings.llmTemperature.toString()}
+          onChange={(e) => {
+            setOption("llmTemperature", Number(e.target.value));
+          }}
+        />
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Max Tokens</DropdownMenuLabel>
+        <Input
+          className="w-full"
+          type="number"
+          min={0}
+          max={1000}
+          step={1}
+          value={settings.llmMaxTokens.toString()}
+          onChange={(e) => {
+            setOption("llmMaxTokens", Number(e.target.value));
+          }}
+        />
+        <DropdownMenuSeparator />
+        {/* Models */}
+        <DropdownMenuLabel>Model</DropdownMenuLabel>
+        {ModelList.map((model) => (
+          <DropdownMenuItem
+            key={model.model_id}
+            onClick={() => {
+              setOption("llmModel", model.model_id);
+            }}
+            className={dropDownActiveClass(settings.llmModel === model.model_id)}
+          >
+            {model.model_id}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1309,6 +1385,7 @@ export default function ToolbarPlugin({
         editor={activeEditor}
         isRTL={isRTL}
       />
+      <LlmDropdown />
 
       {modal}
     </div>

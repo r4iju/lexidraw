@@ -4,61 +4,108 @@ import {
   MLCEngine,
   AppConfig,
 } from "@mlc-ai/web-llm";
+import { debounce } from "@packages/lib";
 
 let engine: MLCEngine | null = null;
 
-// const selectedModel = "Llama-3.1-8B-Instruct-q4f32_1-MLC";
-const selectedModel: AppConfig["model_list"][number]["model_id"] =
-  "SmolLM2-135M-Instruct-q0f32-MLC";
+type Config = {
+  model: AppConfig["model_list"][number]["model_id"];
+  temperature: number;
+  maxTokens: number;
+};
+
+const config: Config = {
+  model: "Llama-3.1-8B-Instruct-q4f32_1-MLC",
+  temperature: 0.3,
+  maxTokens: 24,
+};
 
 const initProgressCallback: InitProgressCallback = (initProgress) => {
-  console.log(initProgress);
+  postMessage({ type: "progress", ...initProgress });
 };
 
 (async () => {
   console.log("initializing web-llm");
   postMessage({ type: "loading" });
-  engine = await CreateMLCEngine(
-    selectedModel,
-    { initProgressCallback }, // engineConfig
-  );
+  engine = await CreateMLCEngine(config.model, { initProgressCallback });
 
   postMessage({ type: "ready" });
   console.log("web-llm is ready");
 })();
 
-self.onmessage = async (evt) => {
+self.onmessage = debounce(async (evt: MessageEvent) => {
   if (!engine) {
     postMessage({ type: "error", error: "Model not ready" });
     return;
   }
-  try {
-    // basically openai completion
-    console.log("evt.data", evt.data);
-    const prompt = evt.data.prompt;
 
-    console.log("extracted prompt", prompt);
-
-    const result = await engine.chatCompletion({
-      // minimal instruct-style usage
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a helpful auto-complition assistant. Complete the user's sentence. Do not include the user's sentence in your response. If the user's sentence ends with a whitespace, do not start your response with a whitespace.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      max_tokens: 32,
-      temperature: 0.7,
-    });
-
-    const answer = result.choices?.[0]?.message?.content;
-    postMessage({ type: "completion", text: answer });
-  } catch (err) {
-    postMessage({ type: "error", error: String(err) });
+  if (evt.data.type === "settings") {
+    config.temperature = evt.data.temperature;
+    config.maxTokens = evt.data.maxTokens;
+    if (config.model !== evt.data.model) {
+      config.model = evt.data.model;
+      engine = await CreateMLCEngine(config.model, { initProgressCallback });
+    }
+    return;
   }
-};
+
+  if (evt.data.type === "completion") {
+    try {
+      const textSnippet = evt.data.textSnippet;
+
+      console.log(
+        "complete textSnippet: ",
+        textSnippet,
+        "with model: ",
+        config.model,
+        "with temperature: ",
+        config.temperature,
+        "with maxTokens: ",
+        config.maxTokens,
+      );
+
+      const result = await engine.chatCompletion({
+        messages: [
+          {
+            role: "system",
+            content: `
+          You are an autocomplete assistant. Your job is to complete the user's sentence with minimal, concise, and relevant text. 
+
+          - Do not repeat the user's input.
+          - Do not include greetings or explanations.
+          - Do not introduce new ideas unrelated to the context.
+          - Do not repeat the examples below.
+          - Respond in the same tone and style as the user input. 
+
+          Examples:
+          User: "The quick brown fox"
+          Assistant: " jumps over the lazy dog"
+
+          User: "She went to the store to buy"
+          Assistant: " some groceries."
+
+          User: "Artificial intelligence is"
+          Assistant: " transforming the world."`.replaceAll("          ", ""),
+          },
+          {
+            role: "user",
+            content: `${textSnippet}`,
+          },
+        ],
+        max_tokens: config.maxTokens,
+        temperature: config.temperature,
+        top_p: 0.95,
+      });
+
+      const answer = result.choices?.[0]?.message?.content?.trim();
+      if (!answer) {
+        console.log("no answer", result);
+        return;
+      }
+
+      postMessage({ type: "completion", text: answer });
+    } catch (err) {
+      postMessage({ type: "error", error: String(err) });
+    }
+  }
+}, 300);
