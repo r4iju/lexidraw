@@ -56,7 +56,14 @@ function $search(selection: null | BaseSelection): [boolean, string] {
 function useQuery(): (textSnippet: string) => CompletionRequest {
   const workerRef = useRef<Worker | null>(null);
   const { settings } = useSettings();
-  const { toast } = useToast();
+  const toast = useToast();
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const dismissToast = useRef<() => void>(() => {});
+  const updateToast = useRef<
+    (props: { title: string; description: string; id: string }) => void
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+  >(() => {});
+  const toastId = useRef<string>("");
 
   // Create the worker exactly once
   useEffect(() => {
@@ -77,65 +84,53 @@ function useQuery(): (textSnippet: string) => CompletionRequest {
   const sendQuery = useCallback(
     (prompt: string) => {
       let isDismissed = false;
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       let removeListener = () => {};
-      let currentToastId: string | undefined;
 
       const dismiss = () => {
         isDismissed = true;
         removeListener();
-        if (currentToastId) {
-          toast.dismiss(currentToastId);
-          currentToastId = undefined;
-        }
       };
 
       const promise = new Promise<null | string>((resolve, reject) => {
         if (!workerRef.current) {
           return resolve(null);
         }
-
         const onMessage = (e: MessageEvent) => {
           if (isDismissed) {
             return reject("Dismissed");
           }
-
           const data = e.data;
-          switch (data.type) {
-            case "completion":
-              removeListener();
-              if (currentToastId) toast.dismiss(currentToastId);
-              resolve(data.text || null);
-              break;
-            case "error":
-              removeListener();
-              if (currentToastId) toast.dismiss(currentToastId);
-              reject(data.error);
-              break;
-            case "loading":
-              currentToastId = toast({
-                title: "Loading model...",
-                description: "Please wait while the model initializes",
-              }).id;
-              break;
-            case "ready":
-              if (currentToastId) {
-                toast.dismiss(currentToastId);
-                currentToastId = undefined;
-              }
-              break;
-            case "progress":
-              if (currentToastId) {
-                toast({
-                  id: currentToastId,
-                  title: "Loading...",
-                  description: data.progress.text as string,
-                });
-              }
-              break;
+          if (data.type === "completion") {
+            removeListener();
+            resolve(data.text || null);
+          } else if (data.type === "error") {
+            removeListener();
+            reject(data.error);
+          } else if (data.type === "loading") {
+            // show toast
+            ({
+              id: toastId.current,
+              dismiss: dismissToast.current,
+              update: updateToast.current,
+            } = toast.toast({
+              title: "Loading...",
+              description: "",
+            }));
+          } else if (data.type === "ready") {
+            // hide toast
+            toast.dismiss(toastId.current);
+          } else if (data.type === "progress") {
+            updateToast.current({
+              title: "Loading...",
+              description: data.progress.text as string,
+              id: toastId.current,
+            });
           }
         };
+        removeListener = () =>
+          workerRef.current?.removeEventListener("message", onMessage);
 
-        removeListener = () => workerRef.current?.removeEventListener("message", onMessage);
         workerRef.current.addEventListener("message", onMessage);
         workerRef.current.postMessage({
           type: "completion",
@@ -145,7 +140,7 @@ function useQuery(): (textSnippet: string) => CompletionRequest {
 
       return { dismiss, promise };
     },
-    [toast]
+    [toast],
   );
 
   // handle settings changes
