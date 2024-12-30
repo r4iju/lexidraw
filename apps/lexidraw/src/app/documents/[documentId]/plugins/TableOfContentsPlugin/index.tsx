@@ -52,7 +52,7 @@ function TableOfContentsList({
   tableOfContents,
 }: {
   tableOfContents: TableOfContentsEntry[];
-}): JSX.Element {
+}): React.JSX.Element {
   const [selectedKey, setSelectedKey] = useState("");
   const selectedIndex = useRef(0);
   const [editor] = useLexicalComposerContext();

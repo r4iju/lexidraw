@@ -1,19 +1,6 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-const hostName = window.location.hostname;
-export const isDevPlayground: boolean =
-  hostName !== 'playground.lexical.dev' &&
-  hostName !== 'lexical-playground.vercel.app';
-
 export const DEFAULT_SETTINGS = {
   disableBeforeInput: false,
-  emptyEditor: isDevPlayground,
+  emptyEditor: false,
   isAutocomplete: false,
   isCharLimit: false,
   isCharLimitUtf8: false,
@@ -28,12 +15,17 @@ export const DEFAULT_SETTINGS = {
   showTreeView: true,
   tableCellBackgroundColor: true,
   tableCellMerge: true,
+  isLlm: true,
+  llmModel: "SmolLM2-135M-Instruct-q0f32-MLC",
+  llmTemperature: 0.3,
+  llmMaxTokens: 24,
 } as const;
 
 // These are mutated in setupEnv
-export const INITIAL_SETTINGS: Record<SettingName, boolean> = {
-  ...DEFAULT_SETTINGS,
-};
+export const INITIAL_SETTINGS: Record<SettingName, boolean | string | number> =
+  {
+    ...DEFAULT_SETTINGS,
+  };
 
 export type SettingName = keyof typeof DEFAULT_SETTINGS;
 

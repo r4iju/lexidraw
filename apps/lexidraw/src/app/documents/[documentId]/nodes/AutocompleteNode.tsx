@@ -1,42 +1,16 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
+import { TextNode, type EditorConfig, type NodeKey } from "lexical";
+import type { SerializedTextNode, Spread } from "lexical";
 
-import type {
-  EditorConfig,
-  EditorThemeClassName,
-  LexicalEditor,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
-} from "lexical";
-
-import { DecoratorNode } from "lexical";
-import { useEffect, type JSX } from "react";
-
-import { useSharedAutocompleteContext } from "../context/shared-autocomplete-context";
-import { uuid as UUID } from "../plugins/AutocompletePlugin";
-
-declare global {
-  interface Navigator {
-    userAgentData?: {
-      mobile: boolean;
-    };
-  }
-}
+import { UUID } from "../plugins/AutocompletePlugin";
 
 export type SerializedAutocompleteNode = Spread<
   {
     uuid: string;
   },
-  SerializedLexicalNode
+  SerializedTextNode
 >;
 
-export class AutocompleteNode extends DecoratorNode<JSX.Element | null> {
+export class AutocompleteNode extends TextNode {
   /**
    * A unique uuid is generated for each session and assigned to the instance.
    * This helps to:
@@ -47,76 +21,68 @@ export class AutocompleteNode extends DecoratorNode<JSX.Element | null> {
    */
   __uuid: string;
 
-  static clone(node: AutocompleteNode): AutocompleteNode {
-    return new AutocompleteNode(node.__uuid, node.__key);
-  }
-
   static getType(): "autocomplete" {
     return "autocomplete";
+  }
+
+  static clone(node: AutocompleteNode): AutocompleteNode {
+    return new AutocompleteNode(node.__text, node.__uuid, node.__key);
   }
 
   static importJSON(
     serializedNode: SerializedAutocompleteNode,
   ): AutocompleteNode {
-    const node = $createAutocompleteNode(serializedNode.uuid);
+    const node = $createAutocompleteNode(
+      serializedNode.text,
+      serializedNode.uuid,
+    );
+    node.setFormat(serializedNode.format);
+    node.setDetail(serializedNode.detail);
+    node.setMode(serializedNode.mode);
+    node.setStyle(serializedNode.style);
     return node;
   }
 
   exportJSON(): SerializedAutocompleteNode {
     return {
       ...super.exportJSON(),
-      type: "autocomplete",
+      type: AutocompleteNode.getType(),
       uuid: this.__uuid,
       version: 1,
     };
   }
 
-  constructor(uuid: string, key?: NodeKey) {
-    super(key);
+  constructor(text: string, uuid: string, key?: NodeKey) {
+    super(text, key);
     this.__uuid = uuid;
   }
 
-  updateDOM(
-    _prevNode: unknown,
-    _dom: HTMLElement,
-    _config: EditorConfig,
-  ): boolean {
+  createDOM(config: EditorConfig): HTMLElement {
+    // Create a span or text node
+    const dom = super.createDOM(config);
+    dom.classList.add(config.theme.autocomplete);
+    // Hide the suggestion if it's from another user/session
+    if (this.__uuid !== UUID) {
+      dom.style.display = "none";
+    }
+    return dom;
+  }
+
+  updateDOM(_prevNode: AutocompleteNode, _dom: HTMLElement): boolean {
+    // no changes needed after initial creation
     return false;
   }
 
-  createDOM(_config: EditorConfig): HTMLElement {
-    return document.createElement("span");
-  }
-
-  decorate(editor: LexicalEditor, config: EditorConfig): JSX.Element | null {
-    if (this.__uuid !== UUID) {
-      return null;
-    }
-    return <AutocompleteComponent className={config.theme.autocomplete} />;
+  excludeFromCopy() {
+    return true;
   }
 }
 
-export function $createAutocompleteNode(uuid: string): AutocompleteNode {
-  return new AutocompleteNode(uuid);
-}
-
-function AutocompleteComponent({
-  className,
-}: {
-  className: EditorThemeClassName;
-}): JSX.Element {
-  const [suggestion] = useSharedAutocompleteContext();
-  const userAgentData = window.navigator.userAgentData;
-  const isMobile =
-    userAgentData !== undefined
-      ? userAgentData.mobile
-      : window.innerWidth <= 800 && window.innerHeight <= 600;
-  useEffect(() => {
-    console.log("suggestion", suggestion);
-  }, [suggestion]);
-  return (
-    <span className={className} spellCheck="false">
-      {suggestion} {isMobile ? "(SWIPE \u2B95)" : "(TAB)"}
-    </span>
-  );
+export function $createAutocompleteNode(
+  text: string,
+  uuid: string,
+): AutocompleteNode {
+  // We set the node to 'token' mode (read-only, basically),
+  // so user can't directly edit it.
+  return new AutocompleteNode(text, uuid).setMode("token");
 }
