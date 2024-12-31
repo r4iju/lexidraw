@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 type Force = [number, number];
 type Listener = (force: Force, e: TouchEvent) => void;
 type ElementValues = {
@@ -49,8 +41,8 @@ function addListener(element: HTMLElement, cb: Listener): () => void {
         }
       }
     };
-    element.addEventListener('touchstart', handleTouchstart);
-    element.addEventListener('touchend', handleTouchend);
+    element.addEventListener("touchstart", handleTouchstart);
+    element.addEventListener("touchend", handleTouchend);
 
     elementValues = {
       handleTouchend,
@@ -73,8 +65,8 @@ function deleteListener(element: HTMLElement, cb: Listener): void {
   listeners.delete(cb);
   if (listeners.size === 0) {
     elements.delete(element);
-    element.removeEventListener('touchstart', elementValues.handleTouchstart);
-    element.removeEventListener('touchend', elementValues.handleTouchend);
+    element.removeEventListener("touchstart", elementValues.handleTouchstart);
+    element.removeEventListener("touchend", elementValues.handleTouchend);
   }
 }
 

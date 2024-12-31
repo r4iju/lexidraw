@@ -1,20 +1,12 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
+import type { EditorThemeClasses } from "lexical";
 
-import type { EditorThemeClasses } from 'lexical';
+import "./sticky-editor-theme.css";
 
-import './sticky-editor-theme.css';
-
-import { baseTheme } from './playground-theme';
+import { baseTheme } from "./playground-theme";
 
 const theme: EditorThemeClasses = {
   ...baseTheme,
-  paragraph: 'StickyEditorTheme__paragraph',
+  paragraph: "StickyEditorTheme__paragraph",
 };
 
 export default theme;

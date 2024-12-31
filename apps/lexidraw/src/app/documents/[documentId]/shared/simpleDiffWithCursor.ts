@@ -1,16 +1,8 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 export default function simpleDiffWithCursor(
   a: string,
   b: string,
   cursor: number,
-): {index: number; insert: string; remove: number} {
+): { index: number; insert: string; remove: number } {
   const aLength = a.length;
   const bLength = b.length;
   let left = 0; // number of same characters counting from left

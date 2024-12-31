@@ -1,19 +1,16 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
+import type {
+  ElementNode,
+  LexicalCommand,
+  LexicalNode,
+  NodeKey,
+} from "lexical";
 
-import type {ElementNode, LexicalCommand, LexicalNode, NodeKey} from 'lexical';
-
-import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $findMatchingParent,
   $insertNodeToNearestRoot,
   mergeRegister,
-} from '@lexical/utils';
+} from "@lexical/utils";
 import {
   $createParagraphNode,
   $getNodeByKey,
@@ -26,19 +23,19 @@ import {
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
   KEY_ARROW_UP_COMMAND,
-} from 'lexical';
-import {useEffect} from 'react';
+} from "lexical";
+import { useEffect } from "react";
 
 import {
   $createLayoutContainerNode,
   $isLayoutContainerNode,
   LayoutContainerNode,
-} from '../../nodes/LayoutContainerNode';
+} from "../../nodes/LayoutContainerNode";
 import {
   $createLayoutItemNode,
   $isLayoutItemNode,
   LayoutItemNode,
-} from '../../nodes/LayoutItemNode';
+} from "../../nodes/LayoutItemNode";
 
 export const INSERT_LAYOUT_COMMAND: LexicalCommand<string> =
   createCommand<string>();
@@ -46,14 +43,14 @@ export const INSERT_LAYOUT_COMMAND: LexicalCommand<string> =
 export const UPDATE_LAYOUT_COMMAND: LexicalCommand<{
   template: string;
   nodeKey: NodeKey;
-}> = createCommand<{template: string; nodeKey: NodeKey}>();
+}> = createCommand<{ template: string; nodeKey: NodeKey }>();
 
 export function LayoutPlugin(): null {
   const [editor] = useLexicalComposerContext();
   useEffect(() => {
     if (!editor.hasNodes([LayoutContainerNode, LayoutItemNode])) {
       throw new Error(
-        'LayoutPlugin: LayoutContainerNode, or LayoutItemNode not registered on editor',
+        "LayoutPlugin: LayoutContainerNode, or LayoutItemNode not registered on editor",
       );
     }
 
@@ -149,7 +146,7 @@ export function LayoutPlugin(): null {
       ),
       editor.registerCommand(
         UPDATE_LAYOUT_COMMAND,
-        ({template, nodeKey}) => {
+        ({ template, nodeKey }) => {
           editor.update(() => {
             const container = $getNodeByKey<LexicalNode>(nodeKey);
 

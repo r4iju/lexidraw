@@ -1,12 +1,4 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-import {SerializedDocument} from '@lexical/file';
+import { SerializedDocument } from "@lexical/file";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function* generateReader<T = any>(
@@ -15,7 +7,7 @@ async function* generateReader<T = any>(
   let done = false;
   while (!done) {
     const res = await reader.read();
-    const {value} = res;
+    const { value } = res;
     if (value !== undefined) {
       yield value;
     }
@@ -33,11 +25,11 @@ async function readBytestoString(
       output.push(String.fromCharCode(...value.subarray(i, i + chunkSize)));
     }
   }
-  return output.join('');
+  return output.join("");
 }
 
 export async function docToHash(doc: SerializedDocument): Promise<string> {
-  const cs = new CompressionStream('gzip');
+  const cs = new CompressionStream("gzip");
   const writer = cs.writable.getWriter();
   const [, output] = await Promise.all([
     writer
@@ -46,9 +38,9 @@ export async function docToHash(doc: SerializedDocument): Promise<string> {
     readBytestoString(cs.readable.getReader()),
   ]);
   return `#doc=${btoa(output)
-    .replace(/\//g, '_')
-    .replace(/\+/g, '-')
-    .replace(/=+$/, '')}`;
+    .replace(/\//g, "_")
+    .replace(/\+/g, "-")
+    .replace(/=+$/, "")}`;
 }
 
 export async function docFromHash(
@@ -58,9 +50,9 @@ export async function docFromHash(
   if (!m || !m[1]) {
     return null;
   }
-  const ds = new DecompressionStream('gzip');
+  const ds = new DecompressionStream("gzip");
   const writer = ds.writable.getWriter();
-  const b64 = atob(m[1].replace(/_/g, '/').replace(/-/g, '+'));
+  const b64 = atob(m[1].replace(/_/g, "/").replace(/-/g, "+"));
   const array = new Uint8Array(b64.length);
   for (let i = 0; i < b64.length; i++) {
     array[i] = b64.charCodeAt(i);
@@ -73,5 +65,5 @@ export async function docFromHash(
     output.push(chunk);
   }
   await closed;
-  return JSON.parse(output.join(''));
+  return JSON.parse(output.join(""));
 }
