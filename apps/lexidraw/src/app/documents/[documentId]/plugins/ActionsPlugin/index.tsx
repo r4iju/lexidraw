@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 import type { LexicalEditor } from "lexical";
 
 import { $createCodeNode, $isCodeNode } from "@lexical/code";
@@ -109,35 +101,33 @@ export default function ActionsPlugin({
   }, [editor]);
 
   useEffect(() => {
-    return editor.registerUpdateListener(
-      ({ dirtyElements, tags }) => {
-        // If we are in read only mode, send the editor state
-        // to server and ask for validation if possible.
-        if (
-          !isEditable &&
-          dirtyElements.size > 0 &&
-          !tags.has("historic") &&
-          !tags.has("collaboration")
-        ) {
-          validateEditorState(editor);
-        }
-        editor.getEditorState().read(() => {
-          const root = $getRoot();
-          const children = root.getChildren();
+    return editor.registerUpdateListener(({ dirtyElements, tags }) => {
+      // If we are in read only mode, send the editor state
+      // to server and ask for validation if possible.
+      if (
+        !isEditable &&
+        dirtyElements.size > 0 &&
+        !tags.has("historic") &&
+        !tags.has("collaboration")
+      ) {
+        validateEditorState(editor);
+      }
+      editor.getEditorState().read(() => {
+        const root = $getRoot();
+        const children = root.getChildren();
 
-          if (children.length > 1) {
-            setIsEditorEmpty(false);
+        if (children.length > 1) {
+          setIsEditorEmpty(false);
+        } else {
+          if ($isParagraphNode(children[0])) {
+            const paragraphChildren = children[0].getChildren();
+            setIsEditorEmpty(paragraphChildren.length === 0);
           } else {
-            if ($isParagraphNode(children[0])) {
-              const paragraphChildren = children[0].getChildren();
-              setIsEditorEmpty(paragraphChildren.length === 0);
-            } else {
-              setIsEditorEmpty(false);
-            }
+            setIsEditorEmpty(false);
           }
-        });
-      },
-    );
+        }
+      });
+    });
   }, [editor, isEditable]);
 
   const handleMarkdownToggle = useCallback(() => {

@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 import {
   $applyNodeReplacement,
   type DOMConversionMap,
@@ -17,7 +9,7 @@ import {
   type SerializedTextNode,
   type Spread,
   TextNode,
-} from 'lexical';
+} from "lexical";
 
 export type SerializedMentionNode = Spread<
   {
@@ -41,12 +33,12 @@ function $convertMentionElement(
   return null;
 }
 
-const mentionStyle = 'background-color: rgba(24, 119, 232, 0.2)';
+const mentionStyle = "background-color: rgba(24, 119, 232, 0.2)";
 export class MentionNode extends TextNode {
   __mention: string;
 
   static getType(): string {
-    return 'mention';
+    return "mention";
   }
 
   static clone(node: MentionNode): MentionNode {
@@ -71,7 +63,7 @@ export class MentionNode extends TextNode {
     return {
       ...super.exportJSON(),
       mentionName: this.__mention,
-      type: 'mention',
+      type: "mention",
       version: 1,
     };
   }
@@ -79,21 +71,21 @@ export class MentionNode extends TextNode {
   createDOM(config: EditorConfig): HTMLElement {
     const dom = super.createDOM(config);
     dom.style.cssText = mentionStyle;
-    dom.className = 'mention';
+    dom.className = "mention";
     return dom;
   }
 
   exportDOM(): DOMExportOutput {
-    const element = document.createElement('span');
-    element.setAttribute('data-lexical-mention', 'true');
+    const element = document.createElement("span");
+    element.setAttribute("data-lexical-mention", "true");
     element.textContent = this.__text;
-    return {element};
+    return { element };
   }
 
   static importDOM(): DOMConversionMap | null {
     return {
       span: (domNode: HTMLElement) => {
-        if (!domNode.hasAttribute('data-lexical-mention')) {
+        if (!domNode.hasAttribute("data-lexical-mention")) {
           return null;
         }
         return {
@@ -119,7 +111,7 @@ export class MentionNode extends TextNode {
 
 export function $createMentionNode(mentionName: string): MentionNode {
   const mentionNode = new MentionNode(mentionName);
-  mentionNode.setMode('segmented').toggleDirectionless();
+  mentionNode.setMode("segmented").toggleDirectionless();
   return $applyNodeReplacement(mentionNode);
 }
 
