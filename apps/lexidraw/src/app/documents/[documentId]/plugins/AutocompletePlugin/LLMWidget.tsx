@@ -1,3 +1,5 @@
+"use client";
+
 import { RotateCw, CheckCircleIcon } from "lucide-react";
 import { useLLM } from "../../context/llm-context";
 import { Progress } from "~/components/ui/progress";
