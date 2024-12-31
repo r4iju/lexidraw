@@ -5,11 +5,10 @@
   "type": "module",
   "scripts": {
     "build": "ANALYZE=true next build",
-    "dev": "next dev --port 3100 #--turbo",
+    "dev": "next dev --port 3100 --turbo",
     "lint": "eslint './**/*.{ts,tsx}'",
     "test:ts": "tsc --noEmit",
-    "start": "next start --port 3100",
-    "build:worker": "vite build --config vite.worker.config.js"
+    "start": "next start --port 3100"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^0.8.2",

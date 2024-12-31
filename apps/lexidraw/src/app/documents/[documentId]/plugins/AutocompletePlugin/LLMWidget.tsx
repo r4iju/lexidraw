@@ -1,4 +1,4 @@
-import { LoaderIcon, CheckCircleIcon } from "lucide-react";
+import { RotateCw, CheckCircleIcon } from "lucide-react";
 import { useLLM } from "../../context/llm-context";
 import { Progress } from "~/components/ui/progress";
 import { useEffect, useState } from "react";
@@ -6,13 +6,13 @@ import { cn } from "~/lib/utils";
 
 export function LLMWidget() {
   const {
-    llmState: { loading: llmLoading, progress: llmProgress, text: llmText },
+    llmState: { loading, progress, text },
   } = useLLM();
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    const text = llmText.toLowerCase();
-    if (text.includes("ready") || text.includes("finish")) {
+    const textLower = text.toLowerCase();
+    if (textLower.includes("ready") || textLower.includes("finish")) {
       const timeout = setTimeout(() => {
         setHidden(true);
       }, 2000);
@@ -22,22 +22,23 @@ export function LLMWidget() {
         setHidden(false);
       }
     }
-  }, [llmText, hidden]);
+  }, [text, hidden]);
 
   return (
     <div
+      // animate in and out
       className={cn(
-        "fixed bottom-4 right-4 z-50 border bg-background w-full max-w-sm h-16 p-2 rounded-md shadow-md",
-        hidden && "hidden",
+        "fixed bottom-4 right-4 z-50 border bg-background w-full max-w-sm h-20 p-2 rounded-md shadow-md transition-transform duration-300 ease-in-out",
+        hidden ? "translate-x-full opacity-0" : "translate-x-0 opacity-100",
       )}
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          {llmLoading && <LoaderIcon className="size-4 animate-spin" />}
-          {!llmLoading && <CheckCircleIcon className="size-4" />}
-          <Progress value={llmProgress} max={1} className="w-full" />
+          {loading && <RotateCw className="size-4 animate-spin" />}
+          {!loading && <CheckCircleIcon className="size-4" />}
+          <Progress value={progress} max={1} className="w-full" />
         </div>
-        <p className="text-xs text-muted-foreground">{llmText}</p>
+        <p className="text-xs text-muted-foreground">{text}</p>
       </div>
     </div>
   );

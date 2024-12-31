@@ -8,7 +8,6 @@ import { cn } from "~/lib/utils";
 type ProgressProps = React.ComponentPropsWithRef<typeof ProgressPrimitive.Root>;
 
 const Progress = ({ className, value, max, ref, ...props }: ProgressProps) => {
-  console.log("progress", { max, value });
   return (
     <ProgressPrimitive.Root
       ref={ref}

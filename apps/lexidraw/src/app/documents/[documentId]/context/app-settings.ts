@@ -15,17 +15,13 @@ export const DEFAULT_SETTINGS = {
   showTreeView: true,
   tableCellBackgroundColor: true,
   tableCellMerge: true,
-  isLlm: true,
-  llmModel: "SmolLM2-135M-Instruct-q0f32-MLC",
-  llmTemperature: 0.3,
-  llmMaxTokens: 24,
+  isLlmEnabled: true,
 } as const;
 
 // These are mutated in setupEnv
-export const INITIAL_SETTINGS: Record<SettingName, boolean | string | number> =
-  {
-    ...DEFAULT_SETTINGS,
-  };
+export const INITIAL_SETTINGS: Record<SettingName, boolean> = {
+  ...DEFAULT_SETTINGS,
+};
 
 export type SettingName = keyof typeof DEFAULT_SETTINGS;
 

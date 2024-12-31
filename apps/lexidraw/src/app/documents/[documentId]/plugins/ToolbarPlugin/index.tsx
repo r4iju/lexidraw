@@ -128,6 +128,7 @@ import {
 import { useSettings } from "../../context/settings-context";
 import { Input } from "~/components/ui/input";
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
+import { useLLM } from "../../context/llm-context";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
@@ -590,6 +591,7 @@ const ModelList = prebuiltAppConfig.model_list.filter(
 
 function LlmDropdown(): JSX.Element {
   const { settings, setOption } = useSettings();
+  const { llmState, setLlmOption } = useLLM();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -602,9 +604,9 @@ function LlmDropdown(): JSX.Element {
         <DropdownMenuItem>
           Enable LLM
           <DropdownMenuCheckboxItem
-            checked={settings.isLlm as boolean}
+            checked={settings.isLlmEnabled}
             onCheckedChange={(checked) => {
-              setOption("isLlm", checked);
+              setOption("isLlmEnabled", checked);
             }}
           />
         </DropdownMenuItem>
@@ -618,9 +620,9 @@ function LlmDropdown(): JSX.Element {
           min={0}
           max={1}
           step={0.01}
-          value={settings.llmTemperature.toString()}
+          value={llmState.temperature.toString()}
           onChange={(e) => {
-            setOption("llmTemperature", Number(e.target.value));
+            setLlmOption("temperature", Number(e.target.value));
           }}
         />
         <DropdownMenuSeparator />
@@ -631,9 +633,9 @@ function LlmDropdown(): JSX.Element {
           min={0}
           max={1000}
           step={1}
-          value={settings.llmMaxTokens.toString()}
+          value={llmState.maxTokens.toString()}
           onChange={(e) => {
-            setOption("llmMaxTokens", Number(e.target.value));
+            setLlmOption("maxTokens", Number(e.target.value));
           }}
         />
         <DropdownMenuSeparator />
@@ -643,9 +645,9 @@ function LlmDropdown(): JSX.Element {
           <DropdownMenuItem
             key={model.model_id}
             onClick={() => {
-              setOption("llmModel", model.model_id);
+              setLlmOption("model", model.model_id);
             }}
-            className={dropDownActiveClass(settings.llmModel === model.model_id)}
+            className={dropDownActiveClass(llmState.model === model.model_id)}
           >
             {model.model_id}
           </DropdownMenuItem>

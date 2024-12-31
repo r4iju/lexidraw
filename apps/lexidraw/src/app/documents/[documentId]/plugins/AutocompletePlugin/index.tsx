@@ -15,7 +15,7 @@ import {
   KEY_ARROW_RIGHT_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
-import { type JSX, useCallback, useEffect, useRef } from "react";
+import { type JSX, useCallback, useEffect } from "react";
 import {
   $createAutocompleteNode,
   AutocompleteNode,
@@ -109,9 +109,12 @@ export function useLLMQuery() {
 
 export default function AutocompletePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const queryLLM = useLLMQuery();
+  const { settings } = useSettings();
+  const queryLLM = useLLMQuery(settings.isLlmEnabled);
 
   useEffect(() => {
+    if (!settings.isLlmEnabled) return;
+
     let autocompleteNodeKey: NodeKey | null = null;
     let lastWord: string | null = null;
     let lastSuggestion: string | null = null;
@@ -257,7 +260,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
       ...(rootElem ? [addSwipeRightListener(rootElem, handleSwipeRight)] : []),
       cleanup,
     );
-  }, [editor, queryLLM]);
+  }, [editor, queryLLM, settings.isLlmEnabled]);
 
   return null;
 }
