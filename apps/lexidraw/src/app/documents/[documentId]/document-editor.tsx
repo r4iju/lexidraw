@@ -68,8 +68,10 @@ import EquationsPlugin from "./plugins/EquationsPlugin";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { SettingsContext, useSettings } from "./context/settings-context";
 import { FlashMessageContext } from "./context/flash-message-context";
+import { LLMProvider } from "./context/llm-context";
 import ContextMenuPlugin from "./plugins/ContextMenuPlugin";
 import TableOfContentsPlugin from "./plugins/TableOfContentsPlugin";
+import { LLMWidget } from "./plugins/AutocompletePlugin/LLMWidget";
 
 type EditorProps = {
   revalidate: () => void;
@@ -85,6 +87,7 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [editor] = useLexicalComposerContext();
+
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {
     settings: {
@@ -189,94 +192,97 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
     <SettingsContext>
       <FlashMessageContext>
         <TableContext>
-          <div className="flex flex-col size-full">
-            <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-sm">
-              <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
-                {/* Dropdown for options (hidden on small screens) */}
+          <LLMProvider>
+            <div className="flex flex-col size-full">
+              <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-sm">
+                <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
+                  {/* Dropdown for options (hidden on small screens) */}
+                  <OptionsDropdown
+                    className="hidden md:flex"
+                    documentId={entity.id}
+                    state={editorStateRef}
+                  />
+                  {/* Toolbar Plugin (always visible) */}
+                  <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
+                  {/* Dark Mode Toggle (hidden on small screens) */}
+                  <ModeToggle className="hidden md:flex" />
+                </div>
+              </div>
+              <div className="relative size-full">
+                {/* bottom left options */}
                 <OptionsDropdown
-                  className="hidden md:flex"
+                  className=" fixed bottom-2 left-2 z-10 md:hidden"
                   documentId={entity.id}
                   state={editorStateRef}
                 />
-                {/* Toolbar Plugin (always visible) */}
-                <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
-                {/* Dark Mode Toggle (hidden on small screens) */}
-                <ModeToggle className="hidden md:flex" />
-              </div>
-            </div>
-            <div className="relative size-full">
-              {/* bottom left options */}
-              <OptionsDropdown
-                className=" fixed bottom-2 left-2 z-10 md:hidden"
-                documentId={entity.id}
-                state={editorStateRef}
-              />
 
-              <div className="relative size-full max-w-screen-lg mx-auto">
-                <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
-                <CodeHighlightPlugin />
-                <TabIndentationPlugin />
-                <AutocompletePlugin />
-                <AutoEmbedPlugin />
-                <AutoLinkPlugin />
-                <HorizontalRulePlugin />
-                <TablePlugin
-                  hasCellMerge={tableCellMerge}
-                  hasCellBackgroundColor={tableCellBackgroundColor}
-                />
-                <TableCellResizer />
-                <ImagesPlugin />
-                <InlineImagePlugin />
-                <LinkPlugin />
-                <ClickableLinkPlugin disabled={isEditable} />
-                <TwitterPlugin />
-                <YouTubePlugin />
-                <ExcalidrawPlugin />
-                <FigmaPlugin />
-                <EquationsPlugin />
-                <RichTextPlugin
-                  contentEditable={
-                    <div
-                      className="size-full border-none flex relative outline-none z-0 overflow-auto resize-y"
-                      ref={onRef}
-                    >
-                      <ContentEditable
-                        id="lexical-content"
-                        className="resize-none size-full min-h-[90vh] outline-none p-4 text-black dark:text-white border-x"
-                      />
-                    </div>
-                  }
-                  placeholder={<Placeholder />}
-                  ErrorBoundary={LexicalErrorBoundary}
-                />
-                <OnChangePlugin onChange={onChange} />
-                <HistoryPlugin />
-                <AutoFocusPlugin />
+                <div className="relative size-full max-w-screen-lg mx-auto">
+                  <LLMWidget />
+                  <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+                  <CodeHighlightPlugin />
+                  <TabIndentationPlugin />
+                  <AutocompletePlugin />
+                  <AutoEmbedPlugin />
+                  <AutoLinkPlugin />
+                  <HorizontalRulePlugin />
+                  <TablePlugin
+                    hasCellMerge={tableCellMerge}
+                    hasCellBackgroundColor={tableCellBackgroundColor}
+                  />
+                  <TableCellResizer />
+                  <ImagesPlugin />
+                  <InlineImagePlugin />
+                  <LinkPlugin />
+                  <ClickableLinkPlugin disabled={isEditable} />
+                  <TwitterPlugin />
+                  <YouTubePlugin />
+                  <ExcalidrawPlugin />
+                  <FigmaPlugin />
+                  <EquationsPlugin />
+                  <RichTextPlugin
+                    contentEditable={
+                      <div
+                        className="size-full border-none flex relative outline-none z-0 overflow-auto resize-y"
+                        ref={onRef}
+                      >
+                        <ContentEditable
+                          id="lexical-content"
+                          className="resize-none size-full min-h-[90vh] outline-none p-4 text-black dark:text-white border-x"
+                        />
+                      </div>
+                    }
+                    placeholder={<Placeholder />}
+                    ErrorBoundary={LexicalErrorBoundary}
+                  />
+                  <OnChangePlugin onChange={onChange} />
+                  <HistoryPlugin />
+                  <AutoFocusPlugin />
+                </div>
               </div>
+              {floatingAnchorElem && (
+                <>
+                  <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
+                  <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+                  <FloatingLinkEditorPlugin
+                    anchorElem={floatingAnchorElem}
+                    isLinkEditMode={isLinkEditMode}
+                    setIsLinkEditMode={setIsLinkEditMode}
+                  />
+                  <TableActionMenuPlugin
+                    anchorElem={floatingAnchorElem}
+                    cellMerge={true}
+                  />
+                  <FloatingTextFormatToolbarPlugin
+                    anchorElem={floatingAnchorElem}
+                    setIsLinkEditMode={setIsLinkEditMode}
+                  />
+                </>
+              )}
+              {isAutocomplete && <AutocompletePlugin />}
+              <div>{showTableOfContents && <TableOfContentsPlugin />}</div>
+              {shouldUseLexicalContextMenu && <ContextMenuPlugin />}
             </div>
-            {floatingAnchorElem && (
-              <>
-                <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
-                <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
-                <FloatingLinkEditorPlugin
-                  anchorElem={floatingAnchorElem}
-                  isLinkEditMode={isLinkEditMode}
-                  setIsLinkEditMode={setIsLinkEditMode}
-                />
-                <TableActionMenuPlugin
-                  anchorElem={floatingAnchorElem}
-                  cellMerge={true}
-                />
-                <FloatingTextFormatToolbarPlugin
-                  anchorElem={floatingAnchorElem}
-                  setIsLinkEditMode={setIsLinkEditMode}
-                />
-              </>
-            )}
-            {isAutocomplete && <AutocompletePlugin />}
-            <div>{showTableOfContents && <TableOfContentsPlugin />}</div>
-            {shouldUseLexicalContextMenu && <ContextMenuPlugin />}
-          </div>
+          </LLMProvider>
         </TableContext>
       </FlashMessageContext>
     </SettingsContext>
