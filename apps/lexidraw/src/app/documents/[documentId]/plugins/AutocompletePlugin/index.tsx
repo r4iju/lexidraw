@@ -22,7 +22,7 @@ import {
 } from "../../nodes/AutocompleteNode";
 import { addSwipeRightListener } from "../../utils/swipe";
 import { useSettings } from "../../context/settings-context";
-import { useToast } from "~/components/ui/use-toast";
+import { useLLM } from "../../context/llm-context";
 
 type CompletionRequest = {
   dismiss: () => void;
@@ -53,38 +53,12 @@ function $search(selection: null | BaseSelection): [boolean, string] {
 }
 
 /* Using a Worker that queries your local LLM  */
-function useQuery(): (textSnippet: string) => CompletionRequest {
-  const workerRef = useRef<Worker | null>(null);
-  const { settings } = useSettings();
-  const toast = useToast();
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  const dismissToast = useRef<() => void>(() => {});
-  const updateToast = useRef<
-    (props: { title: string; description: string; id: string }) => void
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-  >(() => {});
-  const toastId = useRef<string>("");
-
-  // Create the worker exactly once
-  useEffect(() => {
-    workerRef.current = new Worker(
-      new URL("../../../../../workers/web-llm.worker.ts", import.meta.url),
-    );
-    console.log("workerRef.current", workerRef.current);
-    // listen for worker "initReady" messages, etc.
-
-    return () => {
-      // Cleanup
-      console.log("terminating worker");
-      workerRef.current?.terminate();
-      workerRef.current = null;
-    };
-  }, []);
+export function useLLMQuery() {
+  const { workerRef } = useLLM();
 
   const sendQuery = useCallback(
     (prompt: string) => {
       let isDismissed = false;
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       let removeListener = () => {};
 
       const dismiss = () => {
@@ -94,76 +68,48 @@ function useQuery(): (textSnippet: string) => CompletionRequest {
 
       const promise = new Promise<null | string>((resolve, reject) => {
         if (!workerRef.current) {
-          return resolve(null);
+          resolve(null);
+          return;
         }
         const onMessage = (e: MessageEvent) => {
+          const data = e.data;
           if (isDismissed) {
             return reject("Dismissed");
           }
-          const data = e.data;
           if (data.type === "completion") {
             removeListener();
             resolve(data.text || null);
           } else if (data.type === "error") {
             removeListener();
             reject(data.error);
-          } else if (data.type === "loading") {
-            // show toast
-            ({
-              id: toastId.current,
-              dismiss: dismissToast.current,
-              update: updateToast.current,
-            } = toast.toast({
-              title: "Loading...",
-              description: "",
-            }));
-          } else if (data.type === "ready") {
-            // hide toast
-            toast.dismiss(toastId.current);
-          } else if (data.type === "progress") {
-            updateToast.current({
-              title: "Loading...",
-              description: data.progress.text as string,
-              id: toastId.current,
-            });
           }
         };
         removeListener = () =>
           workerRef.current?.removeEventListener("message", onMessage);
 
         workerRef.current.addEventListener("message", onMessage);
+
         workerRef.current.postMessage({
           type: "completion",
           textSnippet: prompt,
         });
       });
 
-      return { dismiss, promise };
+      const completionRequest: CompletionRequest = {
+        dismiss,
+        promise,
+      };
+      return completionRequest;
     },
-    [toast],
+    [workerRef],
   );
-
-  // handle settings changes
-  useEffect(() => {
-    workerRef.current?.postMessage({
-      type: "settings",
-      model: settings.llmModel,
-      temperature: settings.llmTemperature,
-      maxTokens: settings.llmMaxTokens,
-    });
-  }, [
-    settings.isLlm,
-    settings.llmModel,
-    settings.llmTemperature,
-    settings.llmMaxTokens,
-  ]);
 
   return sendQuery;
 }
 
 export default function AutocompletePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const queryLLM = useQuery();
+  const queryLLM = useLLMQuery();
 
   useEffect(() => {
     let autocompleteNodeKey: NodeKey | null = null;
