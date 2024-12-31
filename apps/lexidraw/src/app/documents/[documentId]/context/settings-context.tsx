@@ -21,12 +21,12 @@ import {
 import { DEFAULT_SETTINGS, INITIAL_SETTINGS } from "./app-settings";
 
 type SettingsContextShape = {
-  setOption: (name: SettingName, value: boolean | string | number) => void;
-  settings: Record<SettingName, boolean | string | number>;
+  setOption: (name: SettingName, value: boolean) => void;
+  settings: Record<SettingName, boolean>;
 };
 
 const Context: React.Context<SettingsContextShape> = createContext({
-  setOption: (_name: SettingName, _value: boolean | string | number) => {
+  setOption: (_name: SettingName, _value: boolean) => {
     return;
   },
   settings: INITIAL_SETTINGS,
@@ -39,7 +39,7 @@ export const SettingsContext = ({
 }): React.JSX.Element => {
   const [settings, setSettings] = useState(INITIAL_SETTINGS);
 
-  const setOption = useCallback((setting: SettingName, value: boolean | string | number) => {
+  const setOption = useCallback((setting: SettingName, value: boolean) => {
     setSettings((options) => ({
       ...options,
       [setting]: value,
@@ -58,7 +58,7 @@ export const useSettings = (): SettingsContextShape => {
   return useContext(Context);
 };
 
-function setURLParam(param: SettingName, value: null | boolean | string | number) {
+function setURLParam(param: SettingName, value: null | boolean) {
   const url = new URL(window.location.href);
   const params = new URLSearchParams(url.search);
   if (value !== DEFAULT_SETTINGS[param]) {
