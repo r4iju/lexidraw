@@ -4,7 +4,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "echo 'collaborator is disabled' # tsx watch src/index.ts",
+    "dev": "echo 'collaborator is disabled' # node --experimental-strip-types watch src/index.ts",
     "start": "echo 'collaborator is disabled' # node dist/index.js",
     "build": "tsc",
     "lint": "TIMING=1 eslint \"**/*.{ts,js}\" --fix",

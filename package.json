@@ -11,6 +11,7 @@
     "dev": "dotenv -e .env.development -- turbo run dev",
     "start": "dotenv -e .env.production -- turbo run start",
     "clean": "turbo run clean",
+    "db:studio": "dotenv -e .env.development -- turbo run db:studio",
     "db:pull": "dotenv -e .env.development -- turbo run db:pull",
     "db:push": "dotenv -e .env.development -- turbo run db:push",
     "db:generate": "dotenv -e .env.development -- turbo run db:generate",
@@ -23,16 +24,16 @@
     "@next/eslint-plugin-next": "15.0.0-rc.0",
     "@types/eslint": "^8.56.10",
     "@types/eslint__js": "^8.42.3",
-    "@typescript-eslint/parser": "^7.13.0",
+    "@typescript-eslint/parser": "^8.19.0",
     "dotenv-cli": "latest",
-    "eslint": "^9.5.0",
+    "eslint": "^9.17.0",
     "eslint-config-turbo": "latest",
-    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react": "^7.37.3",
     "eslint-plugin-react-compiler": "19.0.0-beta-df7b47d-20241124",
     "eslint-plugin-react-hooks": "^5.1.0",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^7.13.0"
+    "typescript-eslint": "^8.19.0"
   },
   "packageManager": "pnpm@9.10.0",
   "name": "excalifork"
