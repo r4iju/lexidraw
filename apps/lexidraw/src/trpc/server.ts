@@ -1,20 +1,11 @@
 import "server-only";
 
-import {
-  createTRPCClient,
-  loggerLink,
-  TRPCClientError,
-  unstable_httpBatchStreamLink,
-} from "@trpc/client";
-import { callProcedure } from "@trpc/server";
+import { createTRPCClient, loggerLink, TRPCClientError } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
-import { type TRPCErrorResponse } from "@trpc/server/rpc";
 import { headers } from "next/headers";
 import { cache } from "react";
-
 import { appRouter, type AppRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
-import { transformer, getUrl } from "./shared";
 
 /**
  * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
@@ -36,6 +27,7 @@ export const api = createTRPCClient<AppRouter>({
         process.env.NODE_ENV === "development" ||
         (op.direction === "down" && op.result instanceof Error),
     }),
+
     /**
      * Custom RSC link that lets us invoke procedures without using http requests. Since Server
      * Components always run on the server, we can just call the procedure as a function.
@@ -45,21 +37,31 @@ export const api = createTRPCClient<AppRouter>({
         observable((observer) => {
           createContext()
             .then((ctx) => {
-              return callProcedure({
-                procedures: appRouter._def.procedures,
-                path: op.path,
-                rawInput: op.input,
-                ctx,
-                type: op.type,
-              });
+              const caller = appRouter.createCaller(ctx);
+
+              if (
+                typeof caller[op.path as keyof typeof caller] === "function"
+              ) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return (caller as Record<string, any>)[op.path](op.input);
+              } else {
+                throw new Error(`Invalid procedure path: ${op.path}`);
+              }
             })
             .then((data) => {
               observer.next({ result: { data } });
               observer.complete();
             })
-            .catch((cause: TRPCErrorResponse) => {
+            .catch((cause) => {
               observer.error(TRPCClientError.from(cause));
             });
+
+          return () => {
+            // should teardown for
+            // - streaming
+            // - subscriptions
+            // - polling
+          };
         }),
   ],
 });
