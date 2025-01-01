@@ -16,3 +16,4 @@ RUN pnpm install --filter "@apps/signaling-server" --frozen-lockfile --prod
 EXPOSE 8080
 
 CMD ["pnpm", "--filter", "@apps/signaling-server", "start"]
+
