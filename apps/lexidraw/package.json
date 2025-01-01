@@ -31,7 +31,8 @@
     "@lexical/table": "^0.22.0",
     "@lexical/text": "^0.22.0",
     "@lexical/utils": "^0.22.0",
-    "@libsql/client": "^0.5.6",
+    "@libsql/client": "^0.14.0",
+    "@libsql/linux-x64-gnu": "0.5.0-pre.5",
     "@mlc-ai/web-llm": "^0.2.77",
     "@packages/drizzle": "workspace:*",
     "@packages/env": "workspace:*",
@@ -56,10 +57,10 @@
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
     "@tanstack/react-query": "^5.62.11",
-    "@trpc/client": "^10.45.2",
-    "@trpc/next": "^10.45.2",
-    "@trpc/react-query": "^10.45.2",
-    "@trpc/server": "^10.45.2",
+    "@trpc/client": "11.0.0-rc.682",
+    "@trpc/next": "11.0.0-rc.682",
+    "@trpc/react-query": "11.0.0-rc.682",
+    "@trpc/server": "11.0.0-rc.682",
     "@vercel/functions": "^1.5.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -102,6 +103,7 @@
     "autoprefixer": "^10.4.20",
     "babel-plugin-react-compiler": "19.0.0-beta-55955c9-20241229",
     "drizzle-kit": "^0.20.18",
+    "null-loader": "^4.0.1",
     "postcss": "^8.4.49",
     "prettier": "^3.3.2",
     "prettier-plugin-tailwindcss": "^0.5.14",
@@ -109,6 +111,5 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.2",
     "worker-loader": "^3.0.8"
-  },
-  "packageManager": "pnpm@8.14.3"
+  }
 }
