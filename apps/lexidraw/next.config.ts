@@ -3,13 +3,46 @@ import nextBundleAnalyzer from "@next/bundle-analyzer";
 import env from "@packages/env";
 
 const withBundleAnalyzer = nextBundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
+  enabled: false, // process.env.ANALYZE === "true",
 });
 
 const config: NextConfig = {
   webpack: (config) => {
+    
+    // exclude non-js files from being processed by webpack
+    config.module.rules.push(
+      {
+        test: /\.(md|LICENSE)$/,
+        use: "null-loader",
+      },
+      {
+        test: /\.d\.ts$/,
+        use: "null-loader",
+      },
+      {
+        test: /\.node$/,
+        loader: "node-loader",
+      },
+    );
+
+    config.resolve.fallback = {
+      punycode: false, // avoid deprecated punycode module
+    };
+
+    // mark .node files as external to prevent bundling
+    config.externals = [
+      ...(config.externals || []),
+      ({ context, request }, callback) => {
+        if (request && request.endsWith(".node")) {
+          return callback(null, "commonjs " + request); // leave native modules to Node.js
+        }
+        callback();
+      },
+    ];
+
     return config;
   },
+
   productionBrowserSourceMaps: true,
   experimental: {
     reactCompiler: true,

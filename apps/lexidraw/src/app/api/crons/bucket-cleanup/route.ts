@@ -13,7 +13,10 @@ export async function GET() {
   console.log("#".repeat(20), " Cron job started ", "#".repeat(20));
 
   const headers = await reqHeaders();
-  if (headers.get("Authorization") !== `Bearer ${env.CRON_SECRET}`) {
+  if (
+    env.NODE_ENV === "production" &&
+    headers.get("Authorization") !== `Bearer ${env.CRON_SECRET}`
+  ) {
     console.log(
       "Unauthorized, expected: ",
       `"Bearer ${env.CRON_SECRET}"`,
