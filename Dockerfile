@@ -1,6 +1,6 @@
 # dockerfile for signaling server
 # Build Stage
-FROM node:20-alpine as builder
+FROM node:22-alpine as builder
 
 # Set working directory
 WORKDIR /app
@@ -24,7 +24,7 @@ ENV SKIP_ENV_VALIDATION=1
 RUN pnpm build --filter "@apps/signaling-server"
 
 # Runtime Stage
-FROM node:20-alpine
+FROM node:22-alpine
 RUN corepack enable pnpm
 ENV NODE_ENV=production
 ENV SKIP_ENV_VALIDATION=1
