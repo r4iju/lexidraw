@@ -7,17 +7,17 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "dotenv -e .env.production -- turbo run build",
-    "dev": "dotenv -e .env.development -- turbo run dev",
-    "start": "dotenv -e .env.production -- turbo run start",
-    "clean": "turbo run clean",
-    "db:studio": "dotenv -e .env.development -- turbo run db:studio",
-    "db:pull": "dotenv -e .env.development -- turbo run db:pull",
-    "db:push": "dotenv -e .env.development -- turbo run db:push",
-    "db:generate": "dotenv -e .env.development -- turbo run db:generate",
-    "lint": "dotenv -e .env.development -- turbo run lint --continue",
-    "test": "dotenv -e .env.test -- turbo run test --continue",
-    "test:ts": "dotenv -e .env.test -- turbo run test:ts --continue"
+    "build": "bun dotenv -e .env.production -- turbo run build",
+    "dev": "bun dotenv -e .env.development -- turbo run dev",
+    "start": "bun dotenv -e .env.production -- turbo run start",
+    "clean": "turbo run clean && rm -rf node_modules && rm -f bun.lockb && rm -rf .turbo",
+    "db:studio": "bun dotenv -e .env.development -- turbo run db:studio",
+    "db:pull": "bun dotenv -e .env.development -- turbo run db:pull",
+    "db:push": "bun dotenv -e .env.development -- turbo run db:push",
+    "db:generate": "bun dotenv -e .env.development -- turbo run db:generate",
+    "lint": "bun dotenv -e .env.development -- turbo run lint --continue",
+    "test": "bun dotenv -e .env.test -- turbo run test --continue",
+    "test:ts": "bun dotenv -e .env.test -- turbo run test:ts --continue"
   },
   "devDependencies": {
     "@eslint/js": "^9.4.0",
@@ -32,9 +32,8 @@
     "eslint-plugin-react-compiler": "19.0.0-beta-df7b47d-20241124",
     "eslint-plugin-react-hooks": "^5.1.0",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2",
     "typescript-eslint": "^8.19.0"
   },
-  "packageManager": "pnpm@9.15.2",
+  "packageManager": "bun@1.1.42",
   "name": "excalifork"
 }

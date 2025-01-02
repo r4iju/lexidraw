@@ -4,11 +4,11 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "tsc --watch",
-    "build": "tsc",
+    "dev": "bun x tsc --watch --project tsconfig.json",
+    "build": "bun x tsc --project tsconfig.json",
     "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
-    "test:ts": "tsc --noEmit",
-    "clean": "rm -rf ./dist && rm -rf .turbo"
+    "test:ts": "bun x tsc --noEmit --project tsconfig.json",
+    "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules"
   },
   "sideEffects": false,
   "type": "module",

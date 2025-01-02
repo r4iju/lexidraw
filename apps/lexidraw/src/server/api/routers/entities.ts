@@ -5,7 +5,7 @@ import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
 import { AppState } from "@dwelle/excalidraw/dist/excalidraw/types";
-import { entity } from "node_modules/@packages/drizzle/dist/drizzle-schema";
+import { entity } from "@packages/drizzle/drizzle-schema"
 import env from "@packages/env";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";

@@ -8,7 +8,6 @@ const withBundleAnalyzer = nextBundleAnalyzer({
 
 const config: NextConfig = {
   webpack: (config) => {
-    
     // exclude non-js files from being processed by webpack
     config.module.rules.push(
       {
@@ -32,9 +31,10 @@ const config: NextConfig = {
     // mark .node files as external to prevent bundling
     config.externals = [
       ...(config.externals || []),
-      ({ context, request }, callback) => {
+      // @ts-expect-error unknown types
+      ({ request }, callback) => {
         if (request && request.endsWith(".node")) {
-          return callback(null, "commonjs " + request); // leave native modules to Node.js
+          return callback(null, "commonjs " + request);
         }
         callback();
       },
@@ -46,6 +46,11 @@ const config: NextConfig = {
   productionBrowserSourceMaps: true,
   experimental: {
     reactCompiler: true,
+    turbo: {
+      // minify: true,
+      // treeShaking: true,
+      // unstablePersistentCaching: true,
+    },
   },
   eslint: {
     ignoreDuringBuilds: true,

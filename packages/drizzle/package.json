@@ -4,16 +4,16 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "tsc --watch",
+    "dev": "bun x tsc --watch --project tsconfig.json",
     "db:pull": "drizzle-kit introspect:sqlite",
     "db:push": "drizzle-kit push:sqlite",
     "db:generate": "drizzle-kit generate:sqlite",
     "db:studio": "drizzle-kit studio --port 3100",
     "postinstall": "# drizzle-kit generate:sqlite",
-    "build": "tsc",
+    "build": "bun x tsc --project tsconfig.json",
     "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
-    "test:ts": "tsc --noEmit",
-    "clean": "rm -rf ./dist && rm -rf .turbo"
+    "test:ts": "bun x tsc --noEmit --project tsconfig.json",
+    "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules"
   },
   "sideEffects": false,
   "type": "module",
@@ -30,6 +30,12 @@
     "@packages/env": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
     "drizzle-orm": "^0.38.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.3",
+    "dotenv-cli": "latest",
+    "drizzle-kit": "^0.30.1",
+    "typescript": "^5.7.2"
   },
   "typesVersions": {
     "*": {
@@ -51,11 +57,5 @@
   },
   "files": [
     "dist"
-  ],
-  "devDependencies": {
-    "@types/node": "^22.10.3",
-    "dotenv-cli": "latest",
-    "drizzle-kit": "^0.30.1",
-    "typescript": "^5.7.2"
-  }
+  ]
 }
