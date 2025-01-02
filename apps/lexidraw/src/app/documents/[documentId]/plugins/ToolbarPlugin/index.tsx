@@ -100,6 +100,7 @@ import { Button } from "~/components/ui/button";
 import {
   Baseline,
   Bold,
+  Check,
   ChevronDownIcon,
   Code,
   Italic,
@@ -121,6 +122,8 @@ import { useSettings } from "../../context/settings-context";
 import { Input } from "~/components/ui/input";
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 import { useLLM } from "../../context/llm-context";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "~/components/ui/command";
+import { cn } from "~/lib/utils";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
@@ -580,18 +583,19 @@ const ModelList = prebuiltAppConfig.model_list.filter(
   (model) => model.vram_required_MB && model.vram_required_MB < 2000,
 );
 
-function LlmDropdown(): JSX.Element {
+function LlmModelSelector() {
   const { settings, setOption } = useSettings();
   const { llmState, setLlmOption } = useLLM();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" className="flex gap-2">
           AI
           <ChevronDownIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent className="w-[280px]">
         <DropdownMenuItem>
           Enable LLM
           <DropdownMenuCheckboxItem
@@ -602,47 +606,59 @@ function LlmDropdown(): JSX.Element {
           />
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {/* Temperature */}
+
+        {/* Temperature Control */}
         <DropdownMenuLabel>Temperature</DropdownMenuLabel>
-        {/* number input */}
         <Input
-          className="w-full"
           type="number"
           min={0}
           max={1}
           step={0.01}
           value={llmState.temperature.toString()}
-          onChange={(e) => {
-            setLlmOption("temperature", Number(e.target.value));
-          }}
+          onChange={(e) => setLlmOption("temperature", Number(e.target.value))}
         />
         <DropdownMenuSeparator />
+
+        {/* Max Tokens Control */}
         <DropdownMenuLabel>Max Tokens</DropdownMenuLabel>
         <Input
-          className="w-full"
           type="number"
           min={0}
           max={1000}
-          step={1}
           value={llmState.maxTokens.toString()}
-          onChange={(e) => {
-            setLlmOption("maxTokens", Number(e.target.value));
-          }}
+          onChange={(e) => setLlmOption("maxTokens", Number(e.target.value))}
         />
         <DropdownMenuSeparator />
-        {/* Models */}
-        <DropdownMenuLabel>Model</DropdownMenuLabel>
-        {ModelList.map((model) => (
-          <DropdownMenuItem
-            key={model.model_id}
-            onClick={() => {
-              setLlmOption("model", model.model_id);
-            }}
-            className={dropDownActiveClass(llmState.model === model.model_id)}
-          >
-            {model.model_id}
-          </DropdownMenuItem>
-        ))}
+
+        {/* Model Selection */}
+        <DropdownMenuLabel>Select Model</DropdownMenuLabel>
+        <DropdownMenuItem>
+          <Command>
+            <CommandInput placeholder="Search model..." />
+            <CommandList>
+            <CommandEmpty>No model found.</CommandEmpty>
+            <CommandGroup>
+              {ModelList.map((model) => (
+                <CommandItem
+                  key={model.model_id}
+                  value={model.model_id}
+                  onSelect={() => {
+                    setLlmOption("model", model.model_id);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      model.model_id === llmState.model ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {model.model_id}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1378,7 +1394,7 @@ export default function ToolbarPlugin({
         editor={activeEditor}
         isRTL={isRTL}
       />
-      <LlmDropdown />
+      <LlmModelSelector />
 
       {modal}
     </div>
