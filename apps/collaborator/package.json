@@ -8,7 +8,7 @@
     "start": "echo 'collaborator is disabled' # node dist/index.js",
     "build": "tsc",
     "lint": "TIMING=1 eslint \"**/*.{ts,js}\" --fix",
-    "clean": "rm -rf ./dist && rm -rf .turbo",
+    "clean": "rm -rf ./dist && rm -rf .turbo && rm -rf node_modules",
     "test:ts": "tsc --noEmit"
   },
   "keywords": [],
