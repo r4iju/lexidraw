@@ -12,10 +12,10 @@ import { useDebounce } from "../../utils";
 
 interface Props {
   editor: LexicalEditor;
-  codeDOMNode: HTMLElement | null;
+  getCodeDOMNode: () => HTMLElement | null;
 }
 
-export function CopyButton({ editor, codeDOMNode }: Props) {
+export function CopyButton({ editor, getCodeDOMNode }: Props) {
   const [isCopyCompleted, setCopyCompleted] = useState<boolean>(false);
 
   const removeSuccessIcon = useDebounce(() => {
@@ -23,6 +23,7 @@ export function CopyButton({ editor, codeDOMNode }: Props) {
   }, 1000);
 
   async function handleClick(): Promise<void> {
+    const codeDOMNode = getCodeDOMNode();
     if (!codeDOMNode) {
       return;
     }
