@@ -122,7 +122,14 @@ import { useSettings } from "../../context/settings-context";
 import { Input } from "~/components/ui/input";
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 import { useLLM } from "../../context/llm-context";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "~/components/ui/command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "~/components/ui/command";
 import { cn } from "~/lib/utils";
 
 const blockTypeToBlockName = {
@@ -632,10 +639,10 @@ function LlmModelSelector() {
 
         {/* Model Selection */}
         <DropdownMenuLabel>Select Model</DropdownMenuLabel>
-        <DropdownMenuItem>
-          <Command>
-            <CommandInput placeholder="Search model..." />
-            <CommandList>
+
+        <Command>
+          <CommandInput placeholder="Search model..." />
+          <CommandList>
             <CommandEmpty>No model found.</CommandEmpty>
             <CommandGroup>
               {ModelList.map((model) => (
@@ -649,7 +656,9 @@ function LlmModelSelector() {
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      model.model_id === llmState.model ? "opacity-100" : "opacity-0"
+                      model.model_id === llmState.model
+                        ? "opacity-100"
+                        : "opacity-0",
                     )}
                   />
                   {model.model_id}
@@ -658,7 +667,6 @@ function LlmModelSelector() {
             </CommandGroup>
           </CommandList>
         </Command>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
