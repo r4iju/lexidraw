@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
 import "./index.css";
 
 import { $isCodeNode } from "@lexical/code";
@@ -13,11 +6,11 @@ import type { Options } from "prettier";
 import * as React from "react";
 import { useState } from "react";
 
-interface Props {
+type Props = {
   lang: string;
   editor: LexicalEditor;
-  getCodeDOMNode: () => HTMLElement | null;
-}
+  codeDOMNode: HTMLElement | null;
+};
 
 const PRETTIER_PARSER_MODULES = {
   css: () => import("prettier/parser-postcss"),
@@ -70,13 +63,11 @@ function getPrettierOptions(lang: string): Options {
   return options;
 }
 
-export function PrettierButton({ lang, editor, getCodeDOMNode }: Props) {
+export function PrettierButton({ lang, editor, codeDOMNode }: Props) {
   const [syntaxError, setSyntaxError] = useState<string>("");
   const [tipsVisible, setTipsVisible] = useState<boolean>(false);
 
   async function handleClick(): Promise<void> {
-    const codeDOMNode = getCodeDOMNode();
-
     try {
       const format = await loadPrettierFormat();
       const options = getPrettierOptions(lang);
