@@ -7,7 +7,7 @@ import {
 } from "@lexical/code";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getNearestNodeFromDOMNode } from "lexical";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CopyButton } from "./components/CopyButton";
 import { canBePrettier, PrettierButton } from "./components/PrettierButton";
@@ -20,32 +20,48 @@ type Position = {
   right: string;
 };
 
-function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
+function CodeActionMenuContainer({
+  anchorElem,
+}: {
+  anchorElem: HTMLElement;
+}): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [lang, setLang] = useState("");
   const [isShown, setShown] = useState<boolean>(false);
   const [shouldListenMouseMove, setShouldListenMouseMove] =
     useState<boolean>(false);
-  const [position, setPosition] = useState<Position>({ right: "0", top: "0" });
-
-  // Store the actual code DOM node in React state
-  const [codeDOMNode, setCodeDOMNode] = useState<HTMLElement | null>(null);
+  const [position, setPosition] = useState<Position>({
+    right: "0",
+    top: "0",
+  });
 
   const codeSetRef = useRef<Set<string>>(new Set());
+  const codeDOMNodeRef = useRef<HTMLElement | null>(null);
+
+  /**
+   * 1. Provide a stable callback that returns the ref value.
+   *    We'll pass this to the child components instead of the raw ref.
+   */
+  const getCodeDOMNode = useCallback(() => {
+    return codeDOMNodeRef.current;
+  }, []);
 
   const debouncedOnMouseMove = useDebounce((event: MouseEvent) => {
-    const { codeDOMNode: maybeDOMNode, isOutside } = getMouseInfo(event);
+    const { codeDOMNode, isOutside } = getMouseInfo(event);
     if (isOutside) {
       setShown(false);
       return;
     }
-    if (!maybeDOMNode) return;
+
+    if (!codeDOMNode) {
+      return;
+    }
 
     let codeNode: CodeNode | null = null;
     let _lang = "";
 
     editor.update(() => {
-      const maybeCodeNode = $getNearestNodeFromDOMNode(maybeDOMNode);
+      const maybeCodeNode = $getNearestNodeFromDOMNode(codeDOMNode);
       if ($isCodeNode(maybeCodeNode)) {
         codeNode = maybeCodeNode;
         _lang = codeNode.getLanguage() || "";
@@ -55,8 +71,7 @@ function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
     if (codeNode) {
       const { y: editorElemY, right: editorElemRight } =
         anchorElem.getBoundingClientRect();
-      const { y, right } = maybeDOMNode.getBoundingClientRect();
-
+      const { y, right } = codeDOMNode.getBoundingClientRect();
       setLang(_lang);
       setShown(true);
       setPosition({
@@ -64,15 +79,19 @@ function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
         top: `${y - editorElemY}px`,
       });
 
-      // Update our state with the DOM node
-      setCodeDOMNode(maybeDOMNode);
+      /**
+       * 2. Store the new node in the ref,
+       *    but don't read it in the render path.
+       */
+      codeDOMNodeRef.current = codeDOMNode;
     }
   }, 50);
 
   useEffect(() => {
-    if (!shouldListenMouseMove) return;
+    if (!shouldListenMouseMove) {
+      return;
+    }
     document.addEventListener("mousemove", debouncedOnMouseMove);
-
     return () => {
       setShown(false);
       debouncedOnMouseMove.cancel();
@@ -80,9 +99,8 @@ function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
     };
   }, [shouldListenMouseMove, debouncedOnMouseMove]);
 
-  // Register code node mutations
+  // Register a mutation listener so we know when code nodes are added/removed
   useEffect(() => {
-    // Return the "unregister" handler so it cleans up
     return editor.registerMutationListener(CodeNode, (mutations) => {
       editor.getEditorState().read(() => {
         for (const [key, type] of mutations) {
@@ -106,28 +124,36 @@ function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
   const normalizedLang = normalizeCodeLang(lang);
   const codeFriendlyName = getLanguageFriendlyName(lang);
 
-  return createPortal(
+  return (
     <>
-      {isShown && (
+      {isShown ? (
         <div className="code-action-menu-container" style={{ ...position }}>
           <div className="code-highlight-language">{codeFriendlyName}</div>
-          {/* Now we pass the actual DOM node down instead of a getter function */}
-          <CopyButton editor={editor} codeDOMNode={codeDOMNode} />
-          {canBePrettier(normalizedLang) && (
+
+          {/**
+           * 3. Instead of passing a DOM node directly (or a ref),
+           *    we pass getCodeDOMNode, a stable callback,
+           *    which will only be called inside an event handler in the children.
+           */}
+          <CopyButton editor={editor} getCodeDOMNode={getCodeDOMNode} />
+
+          {canBePrettier(normalizedLang) ? (
             <PrettierButton
               editor={editor}
-              codeDOMNode={codeDOMNode}
+              getCodeDOMNode={getCodeDOMNode}
               lang={normalizedLang}
             />
-          )}
+          ) : null}
         </div>
-      )}
-    </>,
-    anchorElem,
+      ) : null}
+    </>
   );
 }
 
-function getMouseInfo(event: MouseEvent) {
+function getMouseInfo(event: MouseEvent): {
+  codeDOMNode: HTMLElement | null;
+  isOutside: boolean;
+} {
   const target = event.target;
   if (target && target instanceof HTMLElement) {
     const codeDOMNode = target.closest<HTMLElement>(
@@ -138,10 +164,18 @@ function getMouseInfo(event: MouseEvent) {
       target.closest<HTMLElement>("div.code-action-menu-container")
     );
     return { codeDOMNode, isOutside };
+  } else {
+    return { codeDOMNode: null, isOutside: true };
   }
-  return { codeDOMNode: null, isOutside: true };
 }
 
-export default function CodeActionMenuPlugin({ anchorElem = document.body }) {
-  return <CodeActionMenuContainer anchorElem={anchorElem} />;
+export default function CodeActionMenuPlugin({
+  anchorElem = document.body,
+}: {
+  anchorElem?: HTMLElement;
+}): React.ReactPortal | null {
+  return createPortal(
+    <CodeActionMenuContainer anchorElem={anchorElem} />,
+    anchorElem,
+  );
 }

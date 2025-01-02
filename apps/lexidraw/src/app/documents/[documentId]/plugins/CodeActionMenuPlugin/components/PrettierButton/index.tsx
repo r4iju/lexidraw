@@ -9,7 +9,7 @@ import { useState } from "react";
 type Props = {
   lang: string;
   editor: LexicalEditor;
-  codeDOMNode: HTMLElement | null;
+  getCodeDOMNode: () => HTMLElement | null;
 };
 
 const PRETTIER_PARSER_MODULES = {
@@ -63,7 +63,7 @@ function getPrettierOptions(lang: string): Options {
   return options;
 }
 
-export function PrettierButton({ lang, editor, codeDOMNode }: Props) {
+export function PrettierButton({ lang, editor, getCodeDOMNode }: Props) {
   const [syntaxError, setSyntaxError] = useState<string>("");
   const [tipsVisible, setTipsVisible] = useState<boolean>(false);
 
@@ -73,6 +73,7 @@ export function PrettierButton({ lang, editor, codeDOMNode }: Props) {
       const options = getPrettierOptions(lang);
       options.plugins = [await loadPrettierParserByLang(lang)];
 
+      const codeDOMNode = getCodeDOMNode();
       if (!codeDOMNode) {
         return;
       }
