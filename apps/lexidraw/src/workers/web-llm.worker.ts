@@ -4,7 +4,6 @@ import {
   MLCEngine,
   AppConfig,
 } from "@mlc-ai/web-llm";
-import { debounce } from "@packages/lib";
 
 let engine: MLCEngine | null = null;
 
@@ -14,32 +13,65 @@ type Config = {
   maxTokens: number;
 };
 
-const config: Config = {
-  model: "Llama-3.1-8B-Instruct-q4f32_1-MLC",
+let config: Config = {
+  model: "Llama-3.2-1B-Instruct-q4f32_1-MLC",
   temperature: 0.3,
-  maxTokens: 24,
+  maxTokens: 20,
 };
 
 const initProgressCallback: InitProgressCallback = (initProgress) => {
   postMessage({ type: "progress", ...initProgress });
 };
 
-(async () => {
-  console.log("initializing web-llm");
-  postMessage({ type: "loading" });
-  engine = await CreateMLCEngine(config.model, { initProgressCallback });
+/** Trim overlapping prefix from the completion so we don't repeat user input. */
+function trimOverlap(prompt: string, completion: string): string {
+  for (let i = 0; i < prompt.length; i++) {
+    if (completion.startsWith(prompt.slice(i))) {
+      return completion.slice(prompt.length - i);
+    }
+  }
+  return completion;
+}
 
-  postMessage({ type: "ready" });
-  console.log("web-llm is ready");
-})();
+/**
+ * Actually calls engine.completion, and trims overlapping prefix.
+ */
+async function completeTextSnippet(textSnippet: string) {
+  if (!engine) throw new Error("Engine not ready");
 
-self.onmessage = debounce(async (evt: MessageEvent) => {
+  const result = await engine.completion({
+    prompt: textSnippet,
+    max_tokens: config.maxTokens,
+    temperature: config.temperature,
+  });
+
+  const completion = result.choices?.[0]?.text?.trim() || "";
+  return trimOverlap(textSnippet, completion);
+}
+
+self.onmessage = async (evt: MessageEvent) => {
+  const { type } = evt.data;
+
+  if (type === "init") {
+    try {
+      if (evt.data.options) {
+        config = { ...config, ...(evt.data.options as Config) };
+      }
+      postMessage({ type: "loading" });
+      engine = await CreateMLCEngine(config.model, { initProgressCallback });
+      postMessage({ type: "ready" });
+    } catch (e) {
+      postMessage({ type: "error", error: String(e) });
+    }
+    return;
+  }
+
   if (!engine) {
     postMessage({ type: "error", error: "Model not ready" });
     return;
   }
 
-  if (evt.data.type === "settings") {
+  if (type === "settings") {
     config.temperature = evt.data.temperature;
     config.maxTokens = evt.data.maxTokens;
     if (config.model !== evt.data.model) {
@@ -49,63 +81,39 @@ self.onmessage = debounce(async (evt: MessageEvent) => {
     return;
   }
 
-  if (evt.data.type === "completion") {
+  if (type === "completion") {
+    const textSnippet = evt.data.textSnippet;
+    const requestId = evt.data.requestId;
+
+    console.log(
+      "Text snippet: ",
+      textSnippet,
+      "\nModel: ",
+      config.model,
+      "\nTemperature: ",
+      config.temperature,
+      "\nMax tokens: ",
+      config.maxTokens,
+      "\nRequest ID: ",
+      requestId,
+    );
+
     try {
-      const textSnippet = evt.data.textSnippet;
+      const answer = await completeTextSnippet(textSnippet);
 
-      console.log(
-        "complete textSnippet: ",
-        textSnippet,
-        "with model: ",
-        config.model,
-        "with temperature: ",
-        config.temperature,
-        "with maxTokens: ",
-        config.maxTokens,
-      );
-
-      const result = await engine.chatCompletion({
-        messages: [
-          {
-            role: "system",
-            content: `
-          You are an autocomplete assistant. Your job is to complete the user's sentence with minimal, concise, and relevant text. 
-
-          - Do not repeat the user's input.
-          - Do not include greetings or explanations.
-          - Do not introduce new ideas unrelated to the context.
-          - Do not repeat the examples below.
-          - Respond in the same tone and style as the user input. 
-
-          Examples:
-          User: "The quick brown fox"
-          Assistant: " jumps over the lazy dog"
-
-          User: "She went to the store to buy"
-          Assistant: " some groceries."
-
-          User: "Artificial intelligence is"
-          Assistant: " transforming the world."`.replaceAll("          ", ""),
-          },
-          {
-            role: "user",
-            content: `${textSnippet}`,
-          },
-        ],
-        max_tokens: config.maxTokens,
-        temperature: config.temperature,
-        top_p: 0.95,
-      });
-
-      const answer = result.choices?.[0]?.message?.content?.trim();
-      if (!answer) {
-        console.log("no answer", result);
-        return;
+      // If still valid, send the result
+      if (answer) {
+        const response = {
+          type: "completion",
+          requestId,
+          textSnippet,
+          completion: answer,
+        };
+        console.log("response", response);
+        postMessage(response);
       }
-
-      postMessage({ type: "completion", text: answer });
     } catch (err) {
       postMessage({ type: "error", error: String(err) });
     }
   }
-}, 300);
+};

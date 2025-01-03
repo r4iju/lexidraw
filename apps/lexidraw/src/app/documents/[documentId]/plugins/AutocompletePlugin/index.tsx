@@ -15,7 +15,7 @@ import {
   KEY_ARROW_RIGHT_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
-import { type JSX, useCallback, useEffect } from "react";
+import { type JSX, useEffect } from "react";
 import {
   $createAutocompleteNode,
   AutocompleteNode,
@@ -29,12 +29,16 @@ type CompletionRequest = {
   promise: Promise<null | string>;
 };
 
-export const UUID = Math.random()
-  .toString(36)
-  .replace(/[^a-z]+/g, "")
-  .substr(0, 5);
+function generateId(): string {
+  return Math.random()
+    .toString(36)
+    .replace(/[^a-z]+/g, "")
+    .substring(2, 15);
+}
 
-function $search(selection: null | BaseSelection): [boolean, string] {
+export const UUID = generateId();
+
+function search(selection: null | BaseSelection): [boolean, string] {
   if (!$isRangeSelection(selection) || !selection.isCollapsed())
     return [false, ""];
   const node = selection.getNodes()[0];
@@ -52,65 +56,10 @@ function $search(selection: null | BaseSelection): [boolean, string] {
   return [true, sentence.reverse().join("")];
 }
 
-/* Using a Worker that queries your local LLM  */
-export function useLLMQuery() {
-  const { workerRef } = useLLM();
-
-  const sendQuery = useCallback(
-    (prompt: string) => {
-      let isDismissed = false;
-      let removeListener = () => {};
-
-      const dismiss = () => {
-        isDismissed = true;
-        removeListener();
-      };
-
-      const promise = new Promise<null | string>((resolve, reject) => {
-        if (!workerRef.current) {
-          resolve(null);
-          return;
-        }
-        const onMessage = (e: MessageEvent) => {
-          const data = e.data;
-          if (isDismissed) {
-            return reject("Dismissed");
-          }
-          if (data.type === "completion") {
-            removeListener();
-            resolve(data.text || null);
-          } else if (data.type === "error") {
-            removeListener();
-            reject(data.error);
-          }
-        };
-        removeListener = () =>
-          workerRef.current?.removeEventListener("message", onMessage);
-
-        workerRef.current.addEventListener("message", onMessage);
-
-        workerRef.current.postMessage({
-          type: "completion",
-          textSnippet: prompt,
-        });
-      });
-
-      const completionRequest: CompletionRequest = {
-        dismiss,
-        promise,
-      };
-      return completionRequest;
-    },
-    [workerRef],
-  );
-
-  return sendQuery;
-}
-
 export default function AutocompletePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
-  const queryLLM = useLLMQuery(settings.isLlmEnabled);
+  const { sendQuery } = useLLM();
 
   useEffect(() => {
     if (!settings.isLlmEnabled) return;
@@ -145,7 +94,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
-        const [hasMatch, match] = $search(selection);
+        const [hasMatch, match] = search(selection);
         if (!hasMatch || match !== lastWord) return;
 
         // Insert an AutocompleteNode with the text
@@ -161,22 +110,32 @@ export default function AutocompletePlugin(): JSX.Element | null {
     function handleUpdate() {
       editor.update(() => {
         const selection = $getSelection();
-        const [hasMatch, match] = $search(selection);
+        const [hasMatch, match] = search(selection);
         if (!hasMatch) {
           clearSuggestion();
+          console.log("Autocomplete no match, clearing suggestion");
           return;
         }
         if (match === lastWord) {
-          // same partial word, do nothing
+          console.log(
+            "Autocomplete matches last word:",
+            match,
+            "returning early",
+          );
           return;
         }
         // clear old suggestion
         clearSuggestion();
-
+        console.log("Autocomplete clearing old suggestion");
         // query LLM for new suggestion
-        completionRequest = queryLLM(match);
+        completionRequest = sendQuery(match);
+        if (!completionRequest) {
+          console.error("Autocomplete error: no response from LLM");
+          return;
+        }
         completionRequest.promise
           .then((suggestion) => {
+            console.log("Autocomplete suggestion:", suggestion);
             if (completionRequest) {
               handleNewSuggestion(completionRequest, suggestion);
             }
@@ -260,7 +219,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
       ...(rootElem ? [addSwipeRightListener(rootElem, handleSwipeRight)] : []),
       cleanup,
     );
-  }, [editor, queryLLM, settings.isLlmEnabled]);
+  }, [editor, sendQuery, settings.isLlmEnabled]);
 
   return null;
 }
