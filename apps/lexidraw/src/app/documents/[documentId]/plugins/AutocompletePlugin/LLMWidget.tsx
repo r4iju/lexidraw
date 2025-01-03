@@ -19,11 +19,12 @@ export function LLMWidget() {
         setHidden(true);
       }, 2000);
       return () => clearTimeout(timeout);
-    } else {
-      if (hidden === true) {
-        setHidden(false);
-      }
     }
+    // else {
+    //   if (hidden === true) {
+    //     setHidden(false);
+    //   }
+    // }
   }, [text, hidden]);
 
   return (
