@@ -7,7 +7,7 @@ export default {
   // dbCredentials: {
   //   url: 'file:./dev.db',
   // },
-  driver: 'turso',
+  dialect: 'turso',
   dbCredentials: {
     url: env.TURSO_URL,
     authToken: env.TURSO_TOKEN,
