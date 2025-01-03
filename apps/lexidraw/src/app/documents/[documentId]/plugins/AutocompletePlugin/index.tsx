@@ -15,7 +15,7 @@ import {
   KEY_ARROW_RIGHT_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
-import { type JSX, useEffect } from "react";
+import { type JSX, useCallback, useEffect, useRef } from "react";
 import {
   $createAutocompleteNode,
   AutocompleteNode,
@@ -61,142 +61,158 @@ export default function AutocompletePlugin(): JSX.Element | null {
   const { settings } = useSettings();
   const { sendQuery } = useLLM();
 
-  useEffect(() => {
-    if (!settings.isLlmEnabled) return;
+  const autocompleteNodeKey = useRef<NodeKey | null>(null);
+  const lastWord = useRef<string | null>(null);
+  const lastSuggestion = useRef<string | null>(null);
+  const completionRequest = useRef<CompletionRequest | null>(null);
 
-    let autocompleteNodeKey: NodeKey | null = null;
-    let lastWord: string | null = null;
-    let lastSuggestion: string | null = null;
-    let completionRequest: CompletionRequest | null = null;
-
-    function clearSuggestion() {
-      if (autocompleteNodeKey !== null) {
-        const existingNode = $getNodeByKey(autocompleteNodeKey);
-        if (existingNode?.isAttached()) {
-          existingNode.remove();
-        }
-        autocompleteNodeKey = null;
+  const clearSuggestion = useCallback(() => {
+    if (autocompleteNodeKey.current !== null) {
+      const existingNode = $getNodeByKey(autocompleteNodeKey.current);
+      if (existingNode?.isAttached()) {
+        existingNode.remove();
       }
-      if (completionRequest) {
-        completionRequest.dismiss();
-        completionRequest = null;
-      }
-      lastWord = null;
-      lastSuggestion = null;
+      autocompleteNodeKey.current = null;
     }
+    if (completionRequest.current) {
+      completionRequest.current.dismiss();
+      completionRequest.current = null;
+    }
+    lastWord.current = null;
+    lastSuggestion.current = null;
+  }, [completionRequest, lastWord, lastSuggestion]);
 
-    function handleNewSuggestion(
-      refReq: CompletionRequest,
-      newText: null | string,
-    ) {
+  const handleNewSuggestion = useCallback(
+    (refReq: CompletionRequest, newText: null | string) => {
       // If outdated or no suggestion, do nothing
-      if (completionRequest !== refReq || !newText) return;
+      if (completionRequest.current !== refReq || !newText) return;
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
         const [hasMatch, match] = search(selection);
-        if (!hasMatch || match !== lastWord) return;
+        if (!hasMatch || match !== lastWord.current) return;
 
         // Insert an AutocompleteNode with the text
         const selectionClone = selection.clone();
         const node = $createAutocompleteNode(newText, UUID);
-        autocompleteNodeKey = node.getKey();
+        autocompleteNodeKey.current = node.getKey();
         selection.insertNodes([node]);
         $setSelection(selectionClone);
-        lastSuggestion = newText;
+        lastSuggestion.current = newText;
       });
-    }
+    },
+    [autocompleteNodeKey, editor, lastSuggestion],
+  );
 
-    function handleUpdate() {
-      editor.update(() => {
-        const selection = $getSelection();
-        const [hasMatch, match] = search(selection);
-        if (!hasMatch) {
-          clearSuggestion();
-          console.log("Autocomplete no match, clearing suggestion");
-          return;
-        }
-        if (match === lastWord) {
-          console.log(
-            "Autocomplete matches last word:",
-            match,
-            "returning early",
-          );
-          return;
-        }
-        // clear old suggestion
+  const handleUpdate = useCallback(() => {
+    editor.update(() => {
+      const selection = $getSelection();
+      const [hasMatch, match] = search(selection);
+      if (!hasMatch) {
         clearSuggestion();
-        console.log("Autocomplete clearing old suggestion");
-        // query LLM for new suggestion
-        completionRequest = sendQuery(match);
-        if (!completionRequest) {
-          console.error("Autocomplete error: no response from LLM");
-          return;
-        }
-        completionRequest.promise
-          .then((suggestion) => {
-            console.log("Autocomplete suggestion:", suggestion);
-            if (completionRequest) {
-              handleNewSuggestion(completionRequest, suggestion);
-            }
-          })
-          .catch((err) => {
-            console.error("Autocomplete error:", err);
-          });
-        lastWord = match;
-      });
-    }
+        console.log("Autocomplete no match, clearing suggestion");
+        return;
+      }
+      if (match === lastWord.current) {
+        console.log(
+          "Autocomplete matches last word:",
+          match,
+          "returning early",
+        );
+        return;
+      }
+      // clear old suggestion
+      clearSuggestion();
+      console.log("Autocomplete clearing old suggestion");
+      // query LLM for new suggestion
+      completionRequest.current = sendQuery(match) ?? null;
+      if (!completionRequest.current) {
+        console.error("Autocomplete error: no response from LLM");
+        return;
+      }
+      completionRequest.current.promise
+        .then((suggestion) => {
+          console.log("Autocomplete suggestion:", suggestion);
+          if (completionRequest.current) {
+            handleNewSuggestion(completionRequest.current, suggestion);
+          }
+        })
+        .catch((err) => {
+          console.error("Autocomplete error:", err);
+        });
+      lastWord.current = match;
+    });
+  }, [
+    clearSuggestion,
+    completionRequest,
+    editor,
+    handleNewSuggestion,
+    lastWord,
+    sendQuery,
+  ]);
 
-    function handleAcceptSuggestion(): boolean {
-      if (!lastSuggestion || !autocompleteNodeKey) {
+  const handleAcceptSuggestion = useCallback((): boolean => {
+    if (!lastSuggestion.current || !autocompleteNodeKey.current) {
+      return false;
+    }
+    const node = $getNodeByKey(autocompleteNodeKey.current);
+    if (!node) {
+      return false;
+    }
+    // Replace the node with plain text
+    editor.update(() => {
+      if (!lastSuggestion.current) {
         return false;
       }
-      const node = $getNodeByKey(autocompleteNodeKey);
-      if (!node) {
-        return false;
-      }
-      // Replace the node with plain text
-      editor.update(() => {
-        if (!lastSuggestion) {
-          return false;
-        }
-        const textNode = $createTextNode(lastSuggestion);
-        node.replace(textNode);
-        textNode.selectNext();
-        clearSuggestion();
-      });
-      return true;
-    }
+      const textNode = $createTextNode(lastSuggestion.current);
+      node.replace(textNode);
+      textNode.selectNext();
+      clearSuggestion();
+    });
+    return true;
+  }, [clearSuggestion, editor, lastSuggestion, autocompleteNodeKey]);
 
-    function handleKeypressCommand(e: Event) {
+  const handleKeypressCommand = useCallback(
+    (e: Event) => {
       if (handleAcceptSuggestion()) {
         e.preventDefault();
         return true;
       }
       return false;
-    }
+    },
+    [handleAcceptSuggestion],
+  );
 
-    function handleSwipeRight(_force: number, e: TouchEvent) {
+  const handleSwipeRight = useCallback(
+    (_force: number, e: TouchEvent) => {
       editor.update(() => {
         if (handleAcceptSuggestion()) {
           e.preventDefault();
         }
       });
-    }
+    },
+    [editor, handleAcceptSuggestion],
+  );
 
-    function cleanup() {
-      editor.update(() => {
-        clearSuggestion();
-      });
-    }
+  const cleanup = useCallback(() => {
+    editor.update(() => {
+      clearSuggestion();
+    });
+  }, [editor, clearSuggestion]);
 
-    function handleAutocompleteNodeTransform(node: AutocompleteNode) {
+  const handleAutocompleteNodeTransform = useCallback(
+    (node: AutocompleteNode) => {
       const key = node.getKey();
-      if (node.__uuid === UUID && key !== autocompleteNodeKey) {
+      if (node.__uuid === UUID && key !== autocompleteNodeKey.current) {
         // Max one Autocomplete node per session
         clearSuggestion();
       }
-    }
+    },
+    [autocompleteNodeKey, clearSuggestion],
+  );
+
+  useEffect(() => {
+    if (!settings.isLlmEnabled) return;
 
     const rootElem = editor.getRootElement();
 
@@ -219,7 +235,15 @@ export default function AutocompletePlugin(): JSX.Element | null {
       ...(rootElem ? [addSwipeRightListener(rootElem, handleSwipeRight)] : []),
       cleanup,
     );
-  }, [editor, sendQuery, settings.isLlmEnabled]);
+  }, [
+    editor,
+    settings.isLlmEnabled,
+    cleanup,
+    handleAutocompleteNodeTransform,
+    handleKeypressCommand,
+    handleSwipeRight,
+    handleUpdate,
+  ]);
 
   return null;
 }
