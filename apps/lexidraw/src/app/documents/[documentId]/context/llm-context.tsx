@@ -25,10 +25,12 @@ export type LLMState = {
 
 type LLMContextValue = {
   workerRef: React.RefObject<Worker | null>;
-  sendQuery: (textSnippet: string) => {
-    promise: Promise<string | null>;
-    dismiss: () => void;
-  };
+  sendQuery: (textSnippet: string) =>
+    | {
+        promise: Promise<string | null>;
+        dismiss: () => void;
+      }
+    | undefined;
   llmState: LLMState;
   setLlmState: React.Dispatch<React.SetStateAction<LLMState>>;
   setLlmOption: (
@@ -54,7 +56,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       string,
       {
         resolve: (value: string | null) => void;
-        reject: (reason?: any) => void;
+        reject: (reason?: unknown) => void;
       }
     >(),
   );
