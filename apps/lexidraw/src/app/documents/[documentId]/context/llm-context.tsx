@@ -17,7 +17,8 @@ export type LLMState = {
   model: string;
   temperature: number;
   maxTokens: number;
-  loading: boolean;
+  isLoading: boolean;
+  isError: boolean;
   progress: number;
   text: string;
 };
@@ -59,7 +60,8 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   );
 
   const [llmState, setLlmState] = useState<LLMState>({
-    loading: false,
+    isLoading: false,
+    isError: false,
     progress: 0,
     text: "",
     model: "Llama-3.2-1B-Instruct-q4f32_1-MLC",
@@ -116,23 +118,26 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       if (data.type === "loading") {
         setLlmState((prev) => ({
           ...prev,
-          loading: true,
+          isLoading: true,
+          isError: false,
           progress: data.progress || extractProgress(data.text) || 0,
           text: "Loading...",
         }));
       } else if (data.type === "progress") {
         setLlmState((prev) => ({
           ...prev,
-          loading:
+          isLoading:
             !data.text.toLowerCase().includes("finish") &&
             !data.text.toLowerCase().includes("ready"),
+          isError: false,
           progress: extractProgress(data.text) || data.progress || 0,
           text: data.text ?? "",
         }));
       } else if (data.type === "ready") {
         setLlmState((prev) => ({
           ...prev,
-          loading: false,
+          isLoading: false,
+          isError: false,
           text: "Ready!",
         }));
       } else if (data.type === "completion") {
@@ -143,12 +148,13 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         }
         setLlmState((prev) => ({
           ...prev,
-          loading: false,
+          isLoading: false,
         }));
       } else if (data.type === "error") {
         setLlmState((prev) => ({
           ...prev,
-          loading: false,
+          isLoading: false,
+          isError: true,
           progress: 0,
           text: `Error: ${data.error || "Unknown error"}`,
         }));
