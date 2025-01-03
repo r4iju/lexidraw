@@ -4,6 +4,7 @@ FROM oven/bun:alpine as build
 WORKDIR /app
 
 # Copy necessary files
+# Works as long as the app doesn't rely on workspace dependencies
 COPY ./apps/signaling-server/src /app/src
 COPY ./apps/signaling-server/package.json /app/package.json
 
