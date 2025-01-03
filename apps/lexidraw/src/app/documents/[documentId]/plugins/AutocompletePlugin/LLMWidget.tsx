@@ -1,14 +1,15 @@
 "use client";
 
-import { RotateCw, CheckCircleIcon } from "lucide-react";
+import { RotateCw, CheckCircleIcon, XCircleIcon, XIcon } from "lucide-react";
 import { useLLM } from "../../context/llm-context";
 import { Progress } from "~/components/ui/progress";
 import { useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
 
 export function LLMWidget() {
   const {
-    llmState: { loading, progress, text },
+    llmState: { isLoading, isError, progress, text },
   } = useLLM();
   const [hidden, setHidden] = useState(false);
 
@@ -37,9 +38,20 @@ export function LLMWidget() {
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          {loading && <RotateCw className="size-4 animate-spin" />}
-          {!loading && <CheckCircleIcon className="size-4" />}
+          {isLoading && <RotateCw className="size-6 animate-spin" />}
+          {!isLoading && !isError && <CheckCircleIcon className="size-6" />}
+          {isError && <XCircleIcon className="size-6" />}
           <Progress value={progress} max={1} className="w-full" />
+          {/* close icon */}
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            onClick={() => setHidden(true)}
+            className="h-6 cursor-pointer"
+          >
+            <XIcon />
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground">{text}</p>
       </div>
