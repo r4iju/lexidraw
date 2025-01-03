@@ -2,16 +2,17 @@
 
 import React, {
   createContext,
+  useMemo,
   useState,
   useEffect,
   useRef,
   useContext,
   useCallback,
   type PropsWithChildren,
-  useMemo,
 } from "react";
-import { useSettings } from "./settings-context";
 import { debounce } from "@packages/lib";
+import { useSettings } from "./settings-context";
+import { LLMEventMap, LLMWorkerMessage } from "./llm-type"; // Import the event map
 
 export type LLMState = {
   model: string;
@@ -24,13 +25,11 @@ export type LLMState = {
 };
 
 type LLMContextValue = {
-  workerRef: React.RefObject<Worker | null>;
-  sendQuery: (textSnippet: string) =>
-    | {
-        promise: Promise<string | null>;
-        dismiss: () => void;
-      }
-    | undefined;
+  sendQuery: (textSnippet: string) => void;
+  on: <K extends keyof LLMEventMap>(
+    event: K,
+    callback: (payload: LLMEventMap[K]) => void,
+  ) => () => void;
   llmState: LLMState;
   setLlmState: React.Dispatch<React.SetStateAction<LLMState>>;
   setLlmOption: (
@@ -51,15 +50,13 @@ function generateId(): string {
 export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const { settings } = useSettings();
   const workerRef = useRef<Worker | null>(null);
-  const pendingRequests = useRef(
-    new Map<
-      string,
-      {
-        resolve: (value: string | null) => void;
-        reject: (reason?: unknown) => void;
-      }
-    >(),
-  );
+
+  /** Event Emitter Implementation */
+  const eventEmitter = useRef<
+    Partial<{
+      [K in keyof LLMEventMap]: ((payload: LLMEventMap[K]) => void)[];
+    }>
+  >({});
 
   const [llmState, setLlmState] = useState<LLMState>({
     isLoading: false,
@@ -71,35 +68,52 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     maxTokens: 20,
   });
 
-  const sendQuery = useMemo(() => {
-    return debounce(
-      // eslint-disable-next-line react-compiler/react-compiler
-      (textSnippet: string) => {
-        const requestId = generateId();
-        const promise = new Promise<string | null>((resolve, reject) => {
-          pendingRequests.current.set(requestId, { resolve, reject });
-          workerRef.current?.postMessage({
-            type: "completion",
-            textSnippet,
-            requestId,
-          });
-        });
-        return {
-          promise,
-          dismiss: () => pendingRequests.current.delete(requestId),
-        };
-      },
-      250,
-      {
-        leading: false,
-        trailing: true,
-      },
-    );
+  /** Subscribe to an event */
+  const on = useCallback(
+    <K extends keyof LLMEventMap>(
+      event: K,
+      callback: (payload: LLMEventMap[K]) => void,
+    ) => {
+      if (!eventEmitter.current[event]) {
+        eventEmitter.current[event] = [];
+      }
+      eventEmitter.current[event].push(callback);
+      // Return an unsubscribe function
+      return () => {
+        if (eventEmitter.current[event]) {
+          eventEmitter.current[event] = eventEmitter.current[event].filter(
+            (cb) => cb !== callback,
+          ) as Partial<{
+            [K in keyof LLMEventMap]: ((payload: LLMEventMap[K]) => void)[];
+          }>[K];
+        }
+      };
+    },
+    [],
+  );
+
+  /** Emit an event */
+  const emit = useCallback(
+    <K extends keyof LLMEventMap>(event: K, payload: LLMEventMap[K]) => {
+      if (eventEmitter.current[event]) {
+        eventEmitter.current[event].forEach((cb) => cb(payload));
+      }
+    },
+    [],
+  );
+
+  /** Function to send queries to the worker */
+  const sendQuery = useCallback((textSnippet: string) => {
+    const requestId = generateId();
+    workerRef.current?.postMessage({
+      type: "completion",
+      textSnippet,
+      requestId,
+    });
+    // No promise returned; handling via events
   }, []);
 
-  /**
-   * Helper to parse progress from a "[3/10]" type string
-   */
+  /** Helper to parse progress from a "[3/10]" type string */
   const extractProgress = useCallback((text: string): number => {
     if (!text) return 0;
     const match = text.match(/\[(\d+)\/(\d+)\]/);
@@ -111,60 +125,70 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     return 0;
   }, []);
 
-  /**
-   * Handle messages from the Worker
-   */
+  /** Handle messages from the Worker */
   const onMessage = useCallback(
     (e: MessageEvent) => {
-      const data = e.data;
-      if (data.type === "loading") {
-        setLlmState((prev) => ({
-          ...prev,
-          isLoading: true,
-          isError: false,
-          progress: data.progress || extractProgress(data.text) || 0,
-          text: "Loading...",
-        }));
-      } else if (data.type === "progress") {
-        setLlmState((prev) => ({
-          ...prev,
-          isLoading:
-            !data.text.toLowerCase().includes("finish") &&
-            !data.text.toLowerCase().includes("ready"),
-          isError: false,
-          progress: extractProgress(data.text) || data.progress || 0,
-          text: data.text ?? "",
-        }));
-      } else if (data.type === "ready") {
-        setLlmState((prev) => ({
-          ...prev,
-          isLoading: false,
-          isError: false,
-          text: "Ready!",
-        }));
-      } else if (data.type === "completion") {
-        const inFlight = pendingRequests.current.get(data.requestId);
-        if (inFlight) {
-          inFlight.resolve(data.completion ?? null);
-          pendingRequests.current.delete(data.requestId);
-        }
-        setLlmState((prev) => ({
-          ...prev,
-          isLoading: false,
-        }));
-      } else if (data.type === "error") {
-        setLlmState((prev) => ({
-          ...prev,
-          isLoading: false,
-          isError: true,
-          progress: 0,
-          text: `Error: ${data.error || "Unknown error"}`,
-        }));
-      } else {
-        console.log("unknown message type", data);
+      const data = e.data as LLMWorkerMessage;
+
+      switch (data.type) {
+        case "loading":
+          setLlmState((prev) => ({
+            ...prev,
+            isLoading: true,
+            isError: false,
+            progress: data.progress || extractProgress(data.text) || 0,
+            text: "Loading...",
+          }));
+          emit("loading", data);
+          break;
+        case "progress":
+          setLlmState((prev) => ({
+            ...prev,
+            isLoading:
+              !data.text.toLowerCase().includes("finish") &&
+              !data.text.toLowerCase().includes("ready"),
+            isError: false,
+            progress: extractProgress(data.text) || data.progress || 0,
+            text: data.text ?? "",
+          }));
+          emit("progress", data);
+          break;
+        case "ready":
+          setLlmState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: false,
+            text: "Ready!",
+          }));
+          emit("ready", data);
+          break;
+        case "completion":
+          // Emit 'completion' event
+          emit("completion", data);
+          setLlmState((prev) => ({
+            ...prev,
+            isLoading: false,
+            text: data.completion ?? "",
+          }));
+          break;
+        case "error":
+          // Emit 'error' event
+          emit("error", data);
+          setLlmState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: true,
+            progress: 0,
+            text: `Error: ${data.error || "Unknown error"}`,
+          }));
+          break;
+        default:
+          console.log("unknown message type", data);
+          emit("unknown", data);
+          break;
       }
     },
-    [extractProgress],
+    [emit, extractProgress],
   );
 
   /**
@@ -253,7 +277,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
   return (
     <LLMContext.Provider
-      value={{ workerRef, sendQuery, llmState, setLlmState, setLlmOption }}
+      value={{ sendQuery, on, llmState, setLlmState, setLlmOption }}
     >
       {children}
     </LLMContext.Provider>
@@ -266,4 +290,18 @@ export function useLLM() {
     throw new Error("useLLM must be used inside an <LLMProvider />");
   }
   return ctx;
+}
+
+// useLLMQuery.ts
+export function useLLMQuery() {
+  const { sendQuery } = useLLM();
+
+  const debouncedSendQuery = useMemo(() => {
+    return debounce(sendQuery, 250, {
+      leading: false,
+      trailing: true,
+    });
+  }, [sendQuery]);
+
+  return debouncedSendQuery;
 }

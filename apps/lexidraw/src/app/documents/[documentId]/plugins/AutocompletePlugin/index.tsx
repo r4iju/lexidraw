@@ -22,7 +22,7 @@ import {
 } from "../../nodes/AutocompleteNode";
 import { addSwipeRightListener } from "../../utils/swipe";
 import { useSettings } from "../../context/settings-context";
-import { useLLM } from "../../context/llm-context";
+import { useLLM, useLLMQuery } from "../../context/llm-context";
 
 type CompletionRequest = {
   dismiss: () => void;
@@ -59,13 +59,17 @@ function search(selection: null | BaseSelection): [boolean, string] {
 export default function AutocompletePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
-  const { sendQuery } = useLLM();
+  const queryLLM = useLLMQuery();
+  const { on } = useLLM();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
   const lastWord = useRef<string | null>(null);
   const lastSuggestion = useRef<string | null>(null);
   const completionRequest = useRef<CompletionRequest | null>(null);
 
+  /**
+   * Clears the current autocomplete suggestion.
+   */
   const clearSuggestion = useCallback(() => {
     if (autocompleteNodeKey.current !== null) {
       const existingNode = $getNodeByKey(autocompleteNodeKey.current);
@@ -82,28 +86,47 @@ export default function AutocompletePlugin(): JSX.Element | null {
     lastSuggestion.current = null;
   }, [completionRequest, lastWord, lastSuggestion]);
 
+  /**
+   * Handles a new suggestion received from the LLM.
+   */
   const handleNewSuggestion = useCallback(
-    (refReq: CompletionRequest, newText: null | string) => {
-      // If outdated or no suggestion, do nothing
-      if (completionRequest.current !== refReq || !newText) return;
+    (data: { completion: string; requestId: string }) => {
+      const { completion } = data;
+      if (!completion) return;
+
+      // Insert the autocomplete suggestion into the editor
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
         const [hasMatch, match] = search(selection);
         if (!hasMatch || match !== lastWord.current) return;
 
-        // Insert an AutocompleteNode with the text
+        // Insert an AutocompleteNode with the suggested text
         const selectionClone = selection.clone();
-        const node = $createAutocompleteNode(newText, UUID);
+        const node = $createAutocompleteNode(completion, UUID);
         autocompleteNodeKey.current = node.getKey();
         selection.insertNodes([node]);
         $setSelection(selectionClone);
-        lastSuggestion.current = newText;
+        lastSuggestion.current = completion;
       });
     },
-    [autocompleteNodeKey, editor, lastSuggestion],
+    [editor],
   );
 
+  /**
+   * Handles errors received from the LLM.
+   */
+  const handleError = useCallback(
+    (data: { error: string; requestId?: string }) => {
+      console.error("Autocomplete error:", data.error);
+      // Optionally, display an error message to the user
+    },
+    [],
+  );
+
+  /**
+   * Monitors editor updates to trigger autocomplete suggestions.
+   */
   const handleUpdate = useCallback(() => {
     editor.update(() => {
       const selection = $getSelection();
@@ -114,43 +137,21 @@ export default function AutocompletePlugin(): JSX.Element | null {
         return;
       }
       if (match === lastWord.current) {
-        console.log(
-          "Autocomplete matches last word:",
-          match,
-          "returning early",
-        );
+        // Same partial text, do nothing
         return;
       }
-      // clear old suggestion
+      // Clear old suggestion
       clearSuggestion();
       console.log("Autocomplete clearing old suggestion");
-      // query LLM for new suggestion
-      completionRequest.current = sendQuery(match) ?? null;
-      if (!completionRequest.current) {
-        console.error("Autocomplete error: no response from LLM");
-        return;
-      }
-      completionRequest.current.promise
-        .then((suggestion) => {
-          console.log("Autocomplete suggestion:", suggestion);
-          if (completionRequest.current) {
-            handleNewSuggestion(completionRequest.current, suggestion);
-          }
-        })
-        .catch((err) => {
-          console.error("Autocomplete error:", err);
-        });
+      // Send query to LLM
+      queryLLM(match);
       lastWord.current = match;
     });
-  }, [
-    clearSuggestion,
-    completionRequest,
-    editor,
-    handleNewSuggestion,
-    lastWord,
-    sendQuery,
-  ]);
+  }, [clearSuggestion, editor, queryLLM]);
 
+  /**
+   * Accepts the current autocomplete suggestion.
+   */
   const handleAcceptSuggestion = useCallback((): boolean => {
     if (!lastSuggestion.current || !autocompleteNodeKey.current) {
       return false;
@@ -172,6 +173,9 @@ export default function AutocompletePlugin(): JSX.Element | null {
     return true;
   }, [clearSuggestion, editor, lastSuggestion, autocompleteNodeKey]);
 
+  /**
+   * Handles keypress commands to accept suggestions.
+   */
   const handleKeypressCommand = useCallback(
     (e: Event) => {
       if (handleAcceptSuggestion()) {
@@ -183,6 +187,9 @@ export default function AutocompletePlugin(): JSX.Element | null {
     [handleAcceptSuggestion],
   );
 
+  /**
+   * Handles swipe right gestures to accept suggestions.
+   */
   const handleSwipeRight = useCallback(
     (_force: number, e: TouchEvent) => {
       editor.update(() => {
@@ -194,12 +201,18 @@ export default function AutocompletePlugin(): JSX.Element | null {
     [editor, handleAcceptSuggestion],
   );
 
+  /**
+   * Cleans up suggestions when necessary.
+   */
   const cleanup = useCallback(() => {
     editor.update(() => {
       clearSuggestion();
     });
   }, [editor, clearSuggestion]);
 
+  /**
+   * Transforms AutocompleteNode instances to ensure only one suggestion is active.
+   */
   const handleAutocompleteNodeTransform = useCallback(
     (node: AutocompleteNode) => {
       const key = node.getKey();
@@ -211,8 +224,14 @@ export default function AutocompletePlugin(): JSX.Element | null {
     [autocompleteNodeKey, clearSuggestion],
   );
 
+  /**
+   * Sets up event listeners and command handlers.
+   */
   useEffect(() => {
     if (!settings.isLlmEnabled) return;
+
+    const unsubscribeSuggestion = on("completion", handleNewSuggestion);
+    const unsubscribeError = on("error", handleError);
 
     const rootElem = editor.getRootElement();
 
@@ -233,16 +252,21 @@ export default function AutocompletePlugin(): JSX.Element | null {
         COMMAND_PRIORITY_LOW,
       ),
       ...(rootElem ? [addSwipeRightListener(rootElem, handleSwipeRight)] : []),
+      unsubscribeSuggestion,
+      unsubscribeError,
       cleanup,
     );
   }, [
     editor,
     settings.isLlmEnabled,
+    on,
     cleanup,
     handleAutocompleteNodeTransform,
     handleKeypressCommand,
     handleSwipeRight,
     handleUpdate,
+    handleNewSuggestion,
+    handleError,
   ]);
 
   return null;
