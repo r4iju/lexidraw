@@ -10,21 +10,8 @@ import {
 import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
 
-export const prismaMigrations = sqliteTable("_prisma_migrations", {
-  id: text("id").primaryKey().notNull(),
-  checksum: text("checksum").notNull(),
-  finishedAt: numeric("finished_at"),
-  migrationName: text("migration_name").notNull(),
-  logs: text("logs"),
-  rolledBackAt: numeric("rolled_back_at"),
-  startedAt: numeric("started_at")
-    .default(sql`(current_timestamp)`)
-    .notNull(),
-  appliedStepsCount: numeric("applied_steps_count").notNull(),
-});
-
 export const account = sqliteTable(
-  "Account",
+  "Accounts",
   {
     id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
     userId: text("userId")
@@ -41,6 +28,15 @@ export const account = sqliteTable(
     idToken: text("id_token"),
     sessionState: text("session_state"),
     refreshTokenExpiresIn: integer("refresh_token_expires_in"),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`1735950685000`)
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`1735950685000`)  
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [
     uniqueIndex("Account_provider_providerAccountId_key").on(
@@ -51,7 +47,7 @@ export const account = sqliteTable(
 );
 
 export const session = sqliteTable(
-  "Session",
+  "Sessions",
   {
     id: text("id").primaryKey().notNull(),
     sessionToken: text("sessionToken").notNull(),
@@ -59,12 +55,19 @@ export const session = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
     expires: numeric("expires").notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [uniqueIndex("Session_sessionToken_key").on(table.sessionToken)],
 );
 
 export const user = sqliteTable(
-  "User",
+  "Users",
   {
     id: text("id")
       .primaryKey()
@@ -75,16 +78,92 @@ export const user = sqliteTable(
     password: text("password"),
     emailVerified: numeric("emailVerified"),
     image: text("image"),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`1735950685000`)
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`1735950685000`)
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [uniqueIndex("User_email_key").on(table.email)],
 );
 
+export const role = sqliteTable("Roles", {
+  id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+  name: text("name").notNull().unique(), // e.g., 'admin', 'user'
+  description: text("description"),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+});
+
+export const permissions = sqliteTable("Permissions", {
+  id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+  name: text("name").notNull().unique(), // e.g., 'create_post', 'delete_user'
+  description: text("description"),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+});
+
+export const rolePermissions = sqliteTable("RolePermissions", {
+  id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+  roleId: integer("roleId")
+    .references(() => role.id)
+    .notNull(),
+  permissionId: integer("permissionId")
+    .references(() => permissions.id)
+    .notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+});
+
+export const userRoles = sqliteTable("UserRoles", {
+  id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+  userId: integer("userId")
+    .references(() => user.id)
+    .notNull(),
+  roleId: integer("roleId")
+    .references(() => role.id)
+    .notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+});
+
 export const verificationToken = sqliteTable(
-  "VerificationToken",
+  "VerificationTokens",
   {
     identifier: text("identifier").notNull(),
     token: text("token").notNull(),
     expires: numeric("expires").notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    // hard delete
   },
   (table) => [
     uniqueIndex("VerificationToken_identifier_token_key").on(
@@ -108,6 +187,7 @@ export const analytics = sqliteTable(
     city: text("city").notNull(),
     region: text("region").notNull(),
     referer: text("referer").default("Direct/Bookmark"),
+    // hard delete
   },
   (table) => [index("Analytics_visitorId_idx").on(table.visitorId)],
 );
@@ -119,6 +199,13 @@ export const cityCoordinates = sqliteTable(
     city: text("city").notNull(),
     latitude: real("latitude").notNull(),
     longitude: real("longitude").notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    // hard delete
   },
   (table) => [
     uniqueIndex("CityCoordinates_city_key").on(table.city),
@@ -127,7 +214,7 @@ export const cityCoordinates = sqliteTable(
 );
 
 export const entity = sqliteTable(
-  "Entity",
+  "Entities",
   {
     id: text("id").primaryKey().notNull(),
     title: text("title").notNull(),
@@ -136,8 +223,12 @@ export const entity = sqliteTable(
     entityType: text("entityType").notNull().default("drawing"), // drawing or document
     screenShotLight: text("screenShotLight").default("").notNull(),
     screenShotDark: text("screenShotDark").default("").notNull(),
-    createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
     deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
     userId: text("userId")
       .notNull()
@@ -148,7 +239,7 @@ export const entity = sqliteTable(
 );
 
 export const sharedEntity = sqliteTable(
-  "SharedEntity",
+  "SharedEntities",
   {
     id: text("id").primaryKey().notNull(),
     entityId: text("entityId")
@@ -161,7 +252,15 @@ export const sharedEntity = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
     accessLevel: text("accessLevel").notNull(),
-    createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`1735950685000`)
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`1735950685000`)
+      .$defaultFn(() => new Date()),
+    // hard delete
   },
   (table) => [
     uniqueIndex("SharedEntity_entityId_userId_key").on(
@@ -174,7 +273,7 @@ export const sharedEntity = sqliteTable(
 );
 
 export const webRtcOffer = sqliteTable(
-  "WebRTCOffer",
+  "WebRTCOffers",
   {
     id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
     offer: text("offer").notNull(),
@@ -185,8 +284,13 @@ export const webRtcOffer = sqliteTable(
         onUpdate: "cascade",
       }),
     createdBy: text("createdBy").notNull(),
-    createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    // hard delete
   },
   (table) => [
     index("WebRTCOffer_createdBy_idx").on(table.createdBy),
@@ -195,7 +299,7 @@ export const webRtcOffer = sqliteTable(
 );
 
 export const webRtcAnswer = sqliteTable(
-  "WebRTCAnswer",
+  "WebRTCAnswers",
   {
     id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
     answer: text("answer").notNull(),
@@ -206,8 +310,13 @@ export const webRtcAnswer = sqliteTable(
         onUpdate: "cascade",
       }),
     createdBy: text("createdBy").notNull(),
-    createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    // hard delete
   },
   (table) => [
     index("WebRTCAnswer_createdBy_idx").on(table.createdBy),
@@ -216,7 +325,7 @@ export const webRtcAnswer = sqliteTable(
 );
 
 export const uploadedImage = sqliteTable(
-  "UploadedImage",
+  "UploadedImages",
   {
     id: text("id").primaryKey().notNull(),
     userId: text("userId")
@@ -239,6 +348,7 @@ export const uploadedImage = sqliteTable(
     updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [index("UploadedImage_userId_idx").on(table.userId)],
 );
