@@ -242,12 +242,12 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
                   <RichTextPlugin
                     contentEditable={
                       <div
-                        className="size-full border-none flex relative outline-none z-0 overflow-auto resize-y"
+                        className="size-full border-none flex relative outline-none z-0"
                         ref={onRef}
                       >
                         <ContentEditable
                           id="lexical-content"
-                          className="resize-none size-full min-h-[90vh] outline-none p-4 text-black dark:text-white border-x"
+                          className="size-full min-h-[90vh] outline-none p-4 text-foreground border-x"
                         />
                       </div>
                     }
