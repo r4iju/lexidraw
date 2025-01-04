@@ -5,7 +5,6 @@ import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
 import { AppState } from "@dwelle/excalidraw/dist/excalidraw/types";
-import { entities } from "@packages/drizzle/drizzle-schema";
 import env from "@packages/env";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -328,7 +327,7 @@ export const entityRouter = createTRPCRouter({
           message: "You are not authorized to share this drawing",
         });
       } else {
-        console.log("found applicable entity", entities.id);
+        console.log("found applicable entity", entities[0].id);
       }
 
       // Find the user by email

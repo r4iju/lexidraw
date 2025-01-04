@@ -61,7 +61,7 @@ export default function OptionsDropdown({
   const { mutate: generateUploadUrls } =
     api.snapshot.generateUploadUrls.useMutation();
 
-  const exportDocumentAsSvg = async () => {
+  const exportDocumentAsImage = async () => {
     generateUploadUrls(
       {
         entityId: documentId,
@@ -125,7 +125,7 @@ export default function OptionsDropdown({
             title: "Saved!",
           });
           // unless entity exists, can't update screenshot reference
-          await exportDocumentAsSvg();
+          await exportDocumentAsImage();
         },
         onError: (error) => {
           toast({
