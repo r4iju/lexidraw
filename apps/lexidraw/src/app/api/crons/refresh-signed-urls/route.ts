@@ -38,23 +38,23 @@ export async function GET(request: NextRequest) {
     // Fetch all uploaded images
     const uploadedImages = await drizzle
       .select({
-        id: schema.uploadedImage.id,
-        kind: schema.uploadedImage.kind,
-        signedDownloadUrl: schema.uploadedImage.signedDownloadUrl,
-        fileName: schema.uploadedImage.fileName,
-        entityId: schema.uploadedImage.entityId,
-        updatedAt: schema.uploadedImage.updatedAt,
+        id: schema.uploadedImages.id,
+        kind: schema.uploadedImages.kind,
+        signedDownloadUrl: schema.uploadedImages.signedDownloadUrl,
+        fileName: schema.uploadedImages.fileName,
+        entityId: schema.uploadedImages.entityId,
+        updatedAt: schema.uploadedImages.updatedAt,
       })
-      .from(schema.uploadedImage)
+      .from(schema.uploadedImages)
       .where(() =>
         shouldForceUpdate
           ? undefined
           : lte(
-              schema.uploadedImage.updatedAt,
+              schema.uploadedImages.updatedAt,
               new Date(Date.now() - 24 * 60 * 60 * 1000),
             ),
       )
-      .orderBy(asc(schema.uploadedImage.entityId))
+      .orderBy(asc(schema.uploadedImages.entityId))
       .execute();
 
     console.log("Found images in table:", uploadedImages.length);
@@ -71,12 +71,12 @@ export async function GET(request: NextRequest) {
         if (currentEntity && currentEntityId) {
           // Update the previous entity if any changes were made
           await drizzle
-            .update(schema.entity)
+            .update(schema.entities)
             .set({
               elements: currentEntity.elements,
               updatedAt: new Date(),
             })
-            .where(eq(schema.entity.id, currentEntityId))
+            .where(eq(schema.entities.id, currentEntityId))
             .execute();
           console.log(`Updated entity ${currentEntityId}`);
         }
@@ -85,13 +85,13 @@ export async function GET(request: NextRequest) {
         currentEntityId = image.entityId;
         currentEntity = await drizzle
           .select({
-            id: schema.entity.id,
-            userId: schema.entity.userId,
-            publicAccess: schema.entity.publicAccess,
-            elements: schema.entity.elements,
+            id: schema.entities.id,
+            userId: schema.entities.userId,
+            publicAccess: schema.entities.publicAccess,
+            elements: schema.entities.elements,
           })
-          .from(schema.entity)
-          .where(eq(schema.entity.id, currentEntityId))
+          .from(schema.entities)
+          .where(eq(schema.entities.id, currentEntityId))
           .then((rows) => rows[0]);
 
         if (!currentEntity) {
@@ -117,12 +117,12 @@ export async function GET(request: NextRequest) {
 
       // Update the image record
       await drizzle
-        .update(schema.uploadedImage)
+        .update(schema.uploadedImages)
         .set({
           signedDownloadUrl,
           updatedAt: new Date(),
         })
-        .where(eq(schema.uploadedImage.id, image.id))
+        .where(eq(schema.uploadedImages.id, image.id))
         .execute();
 
       console.log(
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
     // Final update for the last entity
     if (currentEntity && currentEntityId) {
       await drizzle
-        .update(schema.entity)
+        .update(schema.entities)
         .set({
           // only update the parts that have changed
           ...(currentEntity.elements !== currentEntity.elements
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
             : {}),
           updatedAt: new Date(),
         })
-        .where(eq(schema.entity.id, currentEntityId))
+        .where(eq(schema.entities.id, currentEntityId))
         .execute();
       console.log(`Updated entity ${currentEntityId}`);
     }

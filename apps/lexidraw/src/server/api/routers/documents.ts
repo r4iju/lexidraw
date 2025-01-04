@@ -1,16 +1,16 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { CreateDocument } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
-import { and, eq, schema, } from "@packages/drizzle";
+import { and, eq, schema } from "@packages/drizzle";
 import { z } from "zod";
 
 export const documentRouter = createTRPCRouter({
   create: protectedProcedure
     .input(CreateDocument)
     .mutation(async ({ input, ctx }) => {
-      console.log(input)
+      console.log(input);
       return await ctx.drizzle
-        .insert(schema.entity)
+        .insert(schema.entities)
         .values({
           id: input.id,
           createdAt: new Date(),
@@ -23,50 +23,48 @@ export const documentRouter = createTRPCRouter({
           elements: input.elements,
         })
         .onConflictDoNothing()
-        .returning()
+        .returning();
     }),
   get: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
-      return await ctx.drizzle.query.entity
-        .findFirst({
-          where: (doc, { eq, and }) => and(
-            eq(doc.id, input.id),
-            eq(doc.entityType, "document"),
-          ),
-        })
+      return await ctx.drizzle.query.entities.findFirst({
+        where: (doc, { eq, and }) =>
+          and(eq(doc.id, input.id), eq(doc.entityType, "document")),
+      });
     }),
-  list: protectedProcedure
-    .query(async ({ ctx }) => {
-      return await ctx.drizzle
-        .select()
-        .from(schema.entity)
-        .where(and(
-          eq(schema.entity.userId, ctx.session?.user.id),
-          eq(schema.entity.entityType, "document"),
-        ))
-        .execute();
-    }),
+  list: protectedProcedure.query(async ({ ctx }) => {
+    return await ctx.drizzle
+      .select()
+      .from(schema.entities)
+      .where(
+        and(
+          eq(schema.entities.userId, ctx.session?.user.id),
+          eq(schema.entities.entityType, "document"),
+        ),
+      )
+      .execute();
+  }),
   save: protectedProcedure
     .input(z.object({ id: z.string(), elements: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .update(schema.entity)
+        .update(schema.entities)
         .set({
           updatedAt: new Date(),
           elements: input.elements,
         })
-        .where(eq(schema.entity.id, input.id))
-        .returning()
+        .where(eq(schema.entities.id, input.id))
+        .returning();
     }),
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .update(schema.entity)
+        .update(schema.entities)
         .set({
           deletedAt: new Date(),
         })
-        .where(eq(schema.entity.id, input.id))
+        .where(eq(schema.entities.id, input.id));
     }),
-})
+});
