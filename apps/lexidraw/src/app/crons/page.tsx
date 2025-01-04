@@ -32,7 +32,7 @@ export default async function SignInPage() {
   return (
     <main className=" flex h-full flex-col items-center justify-center ">
       <div className="w-full rounded  border p-6 shadow-lg md:max-w-2xl">
-        <h2 className="mb-4 text-center text-2xl font-bold text-gray-900 dark:text-white">
+        <h2 className="mb-4 text-center text-2xl font-bold text-foreground">
           Jobs
         </h2>
         <Table>
