@@ -36,10 +36,10 @@ type Props = {
 
 export default function RootLayout({ children }: Props) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className="h-full">
       <body
         className={cn(
-          "flex min-h-screen flex-col font-fredoka bg-background antialiased p-0",
+          "flex min-h-screen h-full flex-col font-fredoka bg-background antialiased p-0",
           fredoka.variable,
           inter.variable,
           mono.variable,
@@ -53,13 +53,10 @@ export default function RootLayout({ children }: Props) {
               enableSystem
               disableTransitionOnChange
             >
-              {" "}
-              <div className="flex min-h-screen flex-col bg-background">
-                <TooltipProvider>
-                  {children}
-                  <Toaster />
-                </TooltipProvider>
-              </div>
+              <TooltipProvider>
+                {children}
+                <Toaster />
+              </TooltipProvider>
             </ThemeProvider>
           </TRPCReactProvider>
         </SessionProvider>
