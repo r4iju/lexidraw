@@ -45,8 +45,8 @@ export async function GET() {
       const res = (
         await drizzle
           .select({ count: count() })
-          .from(schema.uploadedImage)
-          .where(eq(schema.uploadedImage.fileName, item.Key))
+          .from(schema.uploadedImages)
+          .where(eq(schema.uploadedImages.fileName, item.Key))
       )[0];
       if (!res) continue;
       if (res.count === 0) {

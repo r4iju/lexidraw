@@ -1,15 +1,15 @@
-import NextAuth, { type DefaultSession } from 'next-auth';
-import Credentials from 'next-auth/providers/credentials';
-import GitHubProvider from 'next-auth/providers/github'
-import { DrizzleAdapter } from '@auth/drizzle-adapter';
-import { drizzle } from '@packages/drizzle';
-import { SignInSchema } from '~/app/signin/schema';
-import env from '@packages/env';
-declare module 'next-auth' {
+import NextAuth, { type DefaultSession } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import GitHubProvider from "next-auth/providers/github";
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { drizzle } from "@packages/drizzle";
+import { SignInSchema } from "~/app/signin/schema";
+import env from "@packages/env";
+declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-    } & DefaultSession['user'];
+    } & DefaultSession["user"];
   }
 }
 
@@ -21,15 +21,15 @@ export const {
   adapter: DrizzleAdapter(drizzle),
   // basePath: '/',
   pages: {
-    signIn: '/signin',
-    newUser: '/signup',
-    signOut: '/signout',
-    error: '/error',
+    signIn: "/signin",
+    newUser: "/signup",
+    signOut: "/signout",
+    error: "/error",
   },
   callbacks: {
     session: (params) => {
-      if (!('token' in params)) {
-        throw new Error('token should not be passed to session callback');
+      if (!("token" in params)) {
+        throw new Error("token should not be passed to session callback");
       }
       const { session, token } = params;
       return {
@@ -56,33 +56,33 @@ export const {
       clientSecret: env.GITHUB_CLIENT_SECRET,
       authorization: {
         params: { scope: "read:user user:email" },
-      }
+      },
     }),
     Credentials({
       credentials: {
-        name: { label: 'Name', type: 'text' },
+        name: { label: "Name", type: "text" },
         email: {
-          label: 'Email',
-          type: 'text',
-          placeholder: 'someone@example.com',
+          label: "Email",
+          type: "text",
+          placeholder: "someone@example.com",
         },
-        password: { label: 'Password', type: 'password' },
+        password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
         const parsedCredentials = SignInSchema.parse(credentials);
 
-        const dbUser = await drizzle.query.user.findFirst({
+        const dbUser = await drizzle.query.users.findFirst({
           where: (users, { eq }) => eq(users.email, parsedCredentials.email),
         });
 
         if (!dbUser?.password) return null;
         const encoder = new TextEncoder();
         const data = encoder.encode(parsedCredentials.password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const hashedSubmittedPassword = hashArray
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join('');
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
         const isPasswordCorrect = hashedSubmittedPassword === dbUser.password;
 
         if (!isPasswordCorrect) return null;
@@ -94,15 +94,15 @@ export const {
     }),
   ],
   session: {
-    strategy: 'jwt',
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 1 day
     generateSessionToken: () => {
       const array = new Uint8Array(32);
       crypto.getRandomValues(array);
       return Array.from(array, (byte) =>
-        byte.toString(16).padStart(2, '0'),
-      ).join('');
+        byte.toString(16).padStart(2, "0"),
+      ).join("");
     },
   },
   // debug: true,

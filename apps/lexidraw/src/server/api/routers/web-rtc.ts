@@ -4,10 +4,16 @@ import { and, eq, lte, ne, schema } from "@packages/drizzle";
 
 export const webRtcRouter = createTRPCRouter({
   createOffer: publicProcedure
-    .input(z.object({ drawingId: z.string(), offer: z.string().min(1), userId: z.string().min(1) }))
+    .input(
+      z.object({
+        drawingId: z.string(),
+        offer: z.string().min(1),
+        userId: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .insert(schema.webRtcOffer)
+        .insert(schema.webRtcOffers)
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -18,21 +24,34 @@ export const webRtcRouter = createTRPCRouter({
         .execute();
     }),
   updateOffer: publicProcedure
-    .input(z.object({ offerId: z.number(), drawingId: z.string(), offer: z.string().min(1) }))
+    .input(
+      z.object({
+        offerId: z.number(),
+        drawingId: z.string(),
+        offer: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .update(schema.webRtcOffer)
+        .update(schema.webRtcOffers)
         .set({
           offer: input.offer,
         })
-        .where(eq(schema.webRtcOffer.id, input.offerId))
+        .where(eq(schema.webRtcOffers.id, input.offerId))
         .execute();
     }),
   upsertOffer: publicProcedure
-    .input(z.object({ offerId: z.number(), drawingId: z.string(), offer: z.string().min(1), userId: z.string().min(1) }))
+    .input(
+      z.object({
+        offerId: z.number(),
+        drawingId: z.string(),
+        offer: z.string().min(1),
+        userId: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .insert(schema.webRtcOffer)
+        .insert(schema.webRtcOffers)
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -41,7 +60,7 @@ export const webRtcRouter = createTRPCRouter({
           createdBy: input.userId,
         })
         .onConflictDoUpdate({
-          target: schema.webRtcOffer.id,
+          target: schema.webRtcOffers.id,
           set: {
             offer: input.offer,
             updatedAt: new Date(),
@@ -54,26 +73,37 @@ export const webRtcRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return await ctx.drizzle
         .select()
-        .from(schema.webRtcOffer)
-        .where(and(
-          eq(schema.webRtcOffer.entityId, input.drawingId),
-          ne(schema.webRtcOffer.createdBy, input.userId),
-          lte(schema.webRtcOffer.updatedAt, new Date(new Date().getTime() - 1000 * 5)),
-        ))
+        .from(schema.webRtcOffers)
+        .where(
+          and(
+            eq(schema.webRtcOffers.entityId, input.drawingId),
+            ne(schema.webRtcOffers.createdBy, input.userId),
+            lte(
+              schema.webRtcOffers.updatedAt,
+              new Date(new Date().getTime() - 1000 * 5),
+            ),
+          ),
+        );
     }),
   deleteOffer: publicProcedure
     .input(z.object({ offerId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await ctx.drizzle
-        .delete(schema.webRtcOffer)
-        .where(eq(schema.webRtcOffer.id, input.offerId))
+        .delete(schema.webRtcOffers)
+        .where(eq(schema.webRtcOffers.id, input.offerId))
         .execute();
     }),
   createAnswer: publicProcedure
-    .input(z.object({ drawingId: z.string(), answer: z.string().min(1), userId: z.string().min(1) }))
+    .input(
+      z.object({
+        drawingId: z.string(),
+        answer: z.string().min(1),
+        userId: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .insert(schema.webRtcAnswer)
+        .insert(schema.webRtcAnswers)
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -84,21 +114,34 @@ export const webRtcRouter = createTRPCRouter({
         .execute();
     }),
   updateAnswer: publicProcedure
-    .input(z.object({ answerId: z.number(), drawingId: z.string(), answer: z.string().min(1) }))
+    .input(
+      z.object({
+        answerId: z.number(),
+        drawingId: z.string(),
+        answer: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .update(schema.webRtcAnswer)
+        .update(schema.webRtcAnswers)
         .set({
           answer: input.answer,
         })
-        .where(eq(schema.webRtcAnswer.id, input.answerId))
+        .where(eq(schema.webRtcAnswers.id, input.answerId))
         .execute();
     }),
   upsertAnswer: publicProcedure
-    .input(z.object({ answerId: z.string(), drawingId: z.string(), answer: z.string().min(1), userId: z.string().min(1) }))
+    .input(
+      z.object({
+        answerId: z.string(),
+        drawingId: z.string(),
+        answer: z.string().min(1),
+        userId: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       return await ctx.drizzle
-        .insert(schema.webRtcAnswer)
+        .insert(schema.webRtcAnswers)
         .values({
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -107,7 +150,7 @@ export const webRtcRouter = createTRPCRouter({
           createdBy: input.userId,
         })
         .onConflictDoUpdate({
-          target: schema.webRtcAnswer.id,
+          target: schema.webRtcAnswers.id,
           set: {
             answer: input.answer,
             updatedAt: new Date(),
@@ -120,19 +163,24 @@ export const webRtcRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return await ctx.drizzle
         .select()
-        .from(schema.webRtcAnswer)
-        .where(and(
-          eq(schema.webRtcAnswer.entityId, input.drawingId),
-          ne(schema.webRtcAnswer.createdBy, input.userId),
-          lte(schema.webRtcAnswer.updatedAt, new Date(new Date().getTime() - 1000 * 5)),
-        ))
+        .from(schema.webRtcAnswers)
+        .where(
+          and(
+            eq(schema.webRtcAnswers.entityId, input.drawingId),
+            ne(schema.webRtcAnswers.createdBy, input.userId),
+            lte(
+              schema.webRtcAnswers.updatedAt,
+              new Date(new Date().getTime() - 1000 * 5),
+            ),
+          ),
+        );
     }),
   deleteAnswer: publicProcedure
     .input(z.object({ answerId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await ctx.drizzle
-        .delete(schema.webRtcAnswer)
-        .where(eq(schema.webRtcAnswer.id, input.answerId))
+        .delete(schema.webRtcAnswers)
+        .where(eq(schema.webRtcAnswers.id, input.answerId))
         .execute();
     }),
-})
+});

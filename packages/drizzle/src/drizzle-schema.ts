@@ -10,13 +10,13 @@ import {
 import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
 
-export const account = sqliteTable(
+export const accounts = sqliteTable(
   "Accounts",
   {
     id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
     userId: text("userId")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("providerAccountId").notNull(),
@@ -34,7 +34,7 @@ export const account = sqliteTable(
       .$defaultFn(() => new Date()),
     updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
       .notNull()
-      .default(sql`1735950685000`)  
+      .default(sql`1735950685000`)
       .$defaultFn(() => new Date()),
     deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
@@ -46,14 +46,14 @@ export const account = sqliteTable(
   ],
 );
 
-export const session = sqliteTable(
+export const sessions = sqliteTable(
   "Sessions",
   {
     id: text("id").primaryKey().notNull(),
     sessionToken: text("sessionToken").notNull(),
     userId: text("userId")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     expires: numeric("expires").notNull(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
@@ -66,7 +66,7 @@ export const session = sqliteTable(
   (table) => [uniqueIndex("Session_sessionToken_key").on(table.sessionToken)],
 );
 
-export const user = sqliteTable(
+export const users = sqliteTable(
   "Users",
   {
     id: text("id")
@@ -91,7 +91,7 @@ export const user = sqliteTable(
   (table) => [uniqueIndex("User_email_key").on(table.email)],
 );
 
-export const role = sqliteTable("Roles", {
+export const roles = sqliteTable("Roles", {
   id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
   name: text("name").notNull().unique(), // e.g., 'admin', 'user'
   description: text("description"),
@@ -120,7 +120,7 @@ export const permissions = sqliteTable("Permissions", {
 export const rolePermissions = sqliteTable("RolePermissions", {
   id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
   roleId: integer("roleId")
-    .references(() => role.id)
+    .references(() => roles.id)
     .notNull(),
   permissionId: integer("permissionId")
     .references(() => permissions.id)
@@ -137,10 +137,10 @@ export const rolePermissions = sqliteTable("RolePermissions", {
 export const userRoles = sqliteTable("UserRoles", {
   id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
   userId: integer("userId")
-    .references(() => user.id)
+    .references(() => users.id)
     .notNull(),
   roleId: integer("roleId")
-    .references(() => role.id)
+    .references(() => roles.id)
     .notNull(),
   createdAt: integer("createdAt", { mode: "timestamp_ms" })
     .notNull()
@@ -151,7 +151,7 @@ export const userRoles = sqliteTable("UserRoles", {
   deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
 });
 
-export const verificationToken = sqliteTable(
+export const verificationTokens = sqliteTable(
   "VerificationTokens",
   {
     identifier: text("identifier").notNull(),
@@ -213,7 +213,7 @@ export const cityCoordinates = sqliteTable(
   ],
 );
 
-export const entity = sqliteTable(
+export const entities = sqliteTable(
   "Entities",
   {
     id: text("id").primaryKey().notNull(),
@@ -232,25 +232,25 @@ export const entity = sqliteTable(
     deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
     userId: text("userId")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     publicAccess: text("publicAccess").notNull(),
   },
   (table) => [index("Entity_userId_idx").on(table.userId)],
 );
 
-export const sharedEntity = sqliteTable(
+export const sharedEntities = sqliteTable(
   "SharedEntities",
   {
     id: text("id").primaryKey().notNull(),
     entityId: text("entityId")
       .notNull()
-      .references(() => entity.id, {
+      .references(() => entities.id, {
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
     userId: text("userId")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     accessLevel: text("accessLevel").notNull(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
@@ -272,14 +272,14 @@ export const sharedEntity = sqliteTable(
   ],
 );
 
-export const webRtcOffer = sqliteTable(
+export const webRtcOffers = sqliteTable(
   "WebRTCOffers",
   {
     id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
     offer: text("offer").notNull(),
     entityId: text("entityId")
       .notNull()
-      .references(() => entity.id, {
+      .references(() => entities.id, {
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
@@ -298,14 +298,14 @@ export const webRtcOffer = sqliteTable(
   ],
 );
 
-export const webRtcAnswer = sqliteTable(
+export const webRtcAnswers = sqliteTable(
   "WebRTCAnswers",
   {
     id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
     answer: text("answer").notNull(),
     entityId: text("entityId")
       .notNull()
-      .references(() => entity.id, {
+      .references(() => entities.id, {
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
@@ -324,16 +324,16 @@ export const webRtcAnswer = sqliteTable(
   ],
 );
 
-export const uploadedImage = sqliteTable(
+export const uploadedImages = sqliteTable(
   "UploadedImages",
   {
     id: text("id").primaryKey().notNull(),
     userId: text("userId")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     entityId: text("entityId")
       .notNull()
-      .references(() => entity.id, {
+      .references(() => entities.id, {
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
