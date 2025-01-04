@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun x tsc --watch --project tsconfig.json",
+    "db:migrate": "drizzle-kit migrate:generate",
     "db:pull": "drizzle-kit introspect",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",

@@ -1,13 +1,13 @@
-import type { Config } from 'drizzle-kit';
-import env from '@packages/env';
+import type { Config } from "drizzle-kit";
+import env from "@packages/env";
 export default {
-  schema: './src/drizzle-schema.ts',
-  out: './drizzle',
+  schema: "./src/drizzle-schema.ts",
+  out: "./drizzle",
   // driver: 'libsql',
   // dbCredentials: {
   //   url: 'file:./dev.db',
   // },
-  dialect: 'turso',
+  dialect: "turso",
   dbCredentials: {
     url: env.TURSO_URL,
     authToken: env.TURSO_TOKEN,

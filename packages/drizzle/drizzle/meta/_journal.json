@@ -8,6 +8,13 @@
       "when": 1710982131150,
       "tag": "0002_flippant_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1735948956972,
+      "tag": "0003_woozy_mesmero",
+      "breakpoints": true
     }
   ]
 }
