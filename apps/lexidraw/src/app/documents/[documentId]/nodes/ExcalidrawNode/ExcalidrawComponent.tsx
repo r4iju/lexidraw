@@ -18,7 +18,7 @@ import {
   KEY_DELETE_COMMAND,
 } from "lexical";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as React from "react";
+import type { JSX } from "react";
 
 import ImageResizer from "~/components/ui/image-resizer";
 import { $isExcalidrawNode } from ".";

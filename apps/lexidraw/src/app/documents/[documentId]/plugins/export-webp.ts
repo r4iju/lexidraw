@@ -5,15 +5,17 @@ import html2canvas from "html2canvas";
 type Props = {
   setTheme: () => void;
   restoreTheme: () => void;
-}
+};
 
 function dataURItoBlob(dataURI: string) {
   // convert base64 to raw binary data held in a string
   // doesn't handle URLEncoded DataURIs - see SO answer #6850276 for code that does this
-  const byteString = atob(dataURI.split(',')[1] as string);
+  const byteString = atob(dataURI.split(",")[1] as string);
 
   // separate out the mime component
-  const mimeString = ((dataURI.split(',')[0] as string).split(':')[1] as string).split(';')[0]
+  const mimeString = (
+    (dataURI.split(",")[0] as string).split(":")[1] as string
+  ).split(";")[0];
 
   // write the bytes of the string to an ArrayBuffer
   const ab = new ArrayBuffer(byteString.length);
@@ -31,8 +33,10 @@ function dataURItoBlob(dataURI: string) {
   return blob;
 }
 
-
-export async function exportWebp({ setTheme, restoreTheme }: Props): Promise<Blob> {
+export async function exportWebp({
+  setTheme,
+  restoreTheme,
+}: Props): Promise<Blob> {
   const element = document.querySelector("#lexical-content") as HTMLElement;
   if (!element) {
     throw new Error("#lexical-content element not found");
@@ -61,7 +65,7 @@ export async function exportWebp({ setTheme, restoreTheme }: Props): Promise<Blo
   hiddenContainer.appendChild(clonedElement);
   document.body.appendChild(hiddenContainer);
 
-  setTheme()
+  setTheme();
 
   // Wait for the next animation frame so the layout updates
   await new Promise<void>((resolve) => requestAnimationFrame(resolve));
@@ -72,11 +76,13 @@ export async function exportWebp({ setTheme, restoreTheme }: Props): Promise<Blo
     scale: 2,
     useCORS: true,
     backgroundColor: null, // optional, depends on if you want transparency
+    width: 500,
+    height: 400,
   });
   performance.mark("captured_canvas");
 
   // restore theme
-  restoreTheme()
+  restoreTheme();
 
   const ctx = canvas.getContext("2d");
   if (!ctx) {
@@ -90,7 +96,7 @@ export async function exportWebp({ setTheme, restoreTheme }: Props): Promise<Blo
   performance.mark("cleaned_up_clone");
 
   // image data to blob
-  const url = canvas.toDataURL("image/webp")
+  const url = canvas.toDataURL("image/webp");
   const blob = dataURItoBlob(url);
   if (!blob) {
     throw new Error("Failed to create blob");
@@ -99,15 +105,25 @@ export async function exportWebp({ setTheme, restoreTheme }: Props): Promise<Blo
 
   // Measure all performance marks
   performance.measure("DOM Resizing", "start", "resized_dom_element");
-  performance.measure("Canvas Capture", "resized_dom_element", "captured_canvas");
-  performance.measure("Canvas Context Retrieval", "captured_canvas", "got_canvas_context");
+  performance.measure(
+    "Canvas Capture",
+    "resized_dom_element",
+    "captured_canvas",
+  );
+  performance.measure(
+    "Canvas Context Retrieval",
+    "captured_canvas",
+    "got_canvas_context",
+  );
   performance.measure("Cleanup", "got_canvas_context", "cleaned_up_clone");
   performance.measure("Blob Creation", "cleaned_up_clone", "blob_created");
 
   // Log performance results
-  performance.getEntriesByType("measure").forEach((entry) =>
-    console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`)
-  );
+  performance
+    .getEntriesByType("measure")
+    .forEach((entry) =>
+      console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`),
+    );
 
   // Clear performance marks and measures to avoid clutter
   performance.clearMarks();
