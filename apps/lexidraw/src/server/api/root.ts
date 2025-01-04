@@ -3,10 +3,11 @@ import { authRouter } from "./routers/auth";
 import { entityRouter } from "./routers/entities";
 import { snapshotRouter } from "./routers/snapshot";
 import { webRtcRouter } from "./routers/web-rtc";
-
+import { cronRouter } from "./routers/crons";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
+  crons: cronRouter,
   entities: entityRouter,
   snapshot: snapshotRouter,
   webRtc: webRtcRouter,

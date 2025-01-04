@@ -102,7 +102,9 @@ export const roles = sqliteTable("Roles", {
     .notNull()
     .$defaultFn(() => new Date()),
   deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
-});
+  },
+  (table) => [uniqueIndex("Roles_name_unique").on(table.name)],
+);
 
 export const permissions = sqliteTable("Permissions", {
   id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
@@ -114,8 +116,10 @@ export const permissions = sqliteTable("Permissions", {
   updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
-  deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
-});
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+  },
+  (table) => [uniqueIndex("Permissions_name_unique").on(table.name)],
+);
 
 export const rolePermissions = sqliteTable("RolePermissions", {
   id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
