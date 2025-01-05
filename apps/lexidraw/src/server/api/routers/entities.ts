@@ -70,8 +70,8 @@ export const entityRouter = createTRPCRouter({
         ...(input.appState as unknown as AppState),
         collaborators: (input.appState as unknown as AppState).collaborators
           ? Object.fromEntries(
-              (input.appState as unknown as AppState).collaborators.entries(),
-            )
+            (input.appState as unknown as AppState).collaborators.entries(),
+          )
           : undefined,
       });
     }
@@ -82,6 +82,7 @@ export const entityRouter = createTRPCRouter({
         title: input.title,
         appState: appState,
         elements: input.elements,
+        ...(input.parentId ? { parentId: input.parentId } : {}),
       })
       .where(eq(schema.entities.id, input.id))
       .execute();
@@ -156,9 +157,57 @@ export const entityRouter = createTRPCRouter({
         accessLevel,
       };
     }),
+  getMetadata: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session?.user?.id ?? "";
+
+      const entities = await ctx.drizzle
+        .select({
+          id: schema.entities.id,
+          title: schema.entities.title,
+          entityType: schema.entities.entityType,
+          publicAccess: schema.entities.publicAccess,
+          sharedWithId: schema.sharedEntities.userId,
+          sharedAccessLevel: schema.sharedEntities.accessLevel,
+          parentId: schema.entities.parentId,
+          ownerId: schema.users.id,
+        })
+        .from(schema.entities)
+        .where(
+          and(
+            eq(schema.entities.id, input.id),
+            isNull(schema.entities.deletedAt),
+            or(
+              eq(schema.entities.userId, userId),
+              eq(schema.sharedEntities.userId, userId),
+              ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
+            ),
+          ),
+        )
+        .leftJoin(
+          schema.sharedEntities,
+          and(
+            eq(schema.sharedEntities.entityId, schema.entities.id),
+            eq(schema.sharedEntities.userId, userId),
+          ),
+        )
+        .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
+        .execute();
+      const entity = entities[0];
+
+      if (!entity) {
+        throw new TRPCError({
+          message: "Drawing not found",
+          code: "NOT_FOUND",
+        });
+      }
+
+      return entity;
+    }),
   list: protectedProcedure
     .input(z.object({
-      directoryId: z.string().nullable(),
+      parentId: z.string().nullable(),
     }))
     .query(async ({ ctx, input }) => {
       const drawings = await ctx.drizzle
@@ -167,36 +216,36 @@ export const entityRouter = createTRPCRouter({
           title: schema.entities.title,
           entityType: schema.entities.entityType,
           createdAt: schema.entities.createdAt,
-        updatedAt: schema.entities.updatedAt,
-        screenShotLight: schema.entities.screenShotLight,
-        screenShotDark: schema.entities.screenShotDark,
-        userId: schema.entities.userId,
-        publicAccess: schema.entities.publicAccess,
-        parentId: schema.entities.parentId,
-        sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
-      })
-      .from(schema.entities)
-      .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
-      .leftJoin(
-        schema.sharedEntities,
-        eq(schema.entities.id, schema.sharedEntities.entityId),
-      )
-      .where(
-        and(
-          or(
-            eq(schema.entities.userId, ctx.session.user.id),
-            eq(schema.sharedEntities.userId, ctx.session.user.id),
+          updatedAt: schema.entities.updatedAt,
+          screenShotLight: schema.entities.screenShotLight,
+          screenShotDark: schema.entities.screenShotDark,
+          userId: schema.entities.userId,
+          publicAccess: schema.entities.publicAccess,
+          parentId: schema.entities.parentId,
+          sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
+        })
+        .from(schema.entities)
+        .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
+        .leftJoin(
+          schema.sharedEntities,
+          eq(schema.entities.id, schema.sharedEntities.entityId),
+        )
+        .where(
+          and(
+            or(
+              eq(schema.entities.userId, ctx.session.user.id),
+              eq(schema.sharedEntities.userId, ctx.session.user.id),
+            ),
+            isNull(schema.entities.deletedAt),
+            (input.parentId ? eq(schema.entities.parentId, input.parentId) : isNull(schema.entities.parentId)),
           ),
-          isNull(schema.entities.deletedAt),
-          (input.directoryId ? eq(schema.entities.parentId, input.directoryId) : isNull(schema.entities.parentId)),
-        ),
-      )
-      .groupBy(schema.entities.id)
-      .orderBy(desc(schema.entities.updatedAt))
-      .execute();
+        )
+        .groupBy(schema.entities.id)
+        .orderBy(desc(schema.entities.updatedAt))
+        .execute();
 
-    return drawings;
-  }),
+      return drawings;
+    }),
   getSharedInfo: protectedProcedure
     .input(z.object({ drawingId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -234,6 +283,7 @@ export const entityRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         title: z.string().optional(),
+        parentId: z.string().nullable().optional(),
         publicAccess: z
           .enum([PublicAccess.READ, PublicAccess.EDIT, PublicAccess.PRIVATE])
           .optional(),
@@ -274,8 +324,10 @@ export const entityRouter = createTRPCRouter({
       ctx.drizzle
         .update(schema.entities)
         .set({
-          title: input.title,
-          publicAccess: input.publicAccess,
+          ...("title" in input ? { title: input.title } : {}),
+          ...("publicAccess" in input ? { publicAccess: input.publicAccess } : {}),
+          ...("parentId" in input ? { parentId: input.parentId } : {}),
+          updatedAt: new Date(),
         })
         .where(eq(schema.entities.id, input.id))
         .execute();

@@ -13,17 +13,22 @@ import {
 } from "~/components/ui/navigation-menu";
 import { Brush, File, FolderPlus, Plus } from "lucide-react";
 
-export function NewEntity() {
-  function newItem(kind: "drawing" | "document" | "directory") {
+type Props = {
+  parentId: string | null;
+};
+
+export function NewEntity({ parentId }: Props) {
+  const newItem = (kind: "drawing" | "document" | "directory") => {
+    const query = `?new=true${parentId ? `&parentId=${parentId}` : ""}`;
     switch (kind) {
       case "drawing":
-        return `/drawings/${uuidv4()}/new`;
+        return `/drawings/${uuidv4()}${query}`;
       case "document":
-        return `/documents/${uuidv4()}/new`;
+        return `/documents/${uuidv4()}${query}`;
       case "directory":
-        return `/dashboard/${uuidv4()}`;
+        return `/dashboard/${uuidv4()}${query}`;
     }
-  }
+  };
 
   const items: {
     title: string;

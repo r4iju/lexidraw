@@ -14,7 +14,7 @@
     "@auth/drizzle-adapter": "^1.7.4",
     "@aws-sdk/client-s3": "^3.598.0",
     "@aws-sdk/s3-request-presigner": "^3.598.0",
-    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/core": "^6.3.1",
     "@dwelle/excalidraw": "^0.5.0-edd6828",
     "@hookform/resolvers": "^3.6.0",
     "@lexical/code": "^0.22.0",

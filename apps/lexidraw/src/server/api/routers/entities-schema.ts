@@ -16,7 +16,7 @@ export const SaveEntity = z.object({
   elements: z.string(),
   appState: z.string().optional(),
   entityType: z.enum(["drawing", "document", "directory"]),
-  parentId: z.string().nullable(),
+  parentId: z.string().optional(),
 })
 
 export type SaveEntity = z.infer<typeof SaveEntity>

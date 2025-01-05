@@ -4,6 +4,7 @@ import { z } from "zod";
 import { api } from "~/trpc/server";
 import "./index.css";
 import DocumentEditor from "./document-editor-client";
+import { emptyContent } from "./initial-content";
 
 export const metadata: Metadata = {
   title: "Lexidraw | document",
@@ -24,11 +25,27 @@ const Params = z.object({
 
 type Props = {
   params: Promise<z.infer<typeof Params>>;
+  searchParams: Promise<{
+    new?: "true";
+    parentId?: string;
+  }>;
 };
 
 export default async function DocumentPage(props: Props) {
   const param = await props.params;
   const { documentId } = Params.parse(param);
+  const { new: isNew, parentId } = await props.searchParams;
+
+  if (isNew === "true") {
+    await api.entities.create.mutate({
+      id: documentId,
+      title: "New document",
+      entityType: "document",
+      elements: JSON.stringify(emptyContent()),
+      parentId: parentId ?? null,
+    });
+    return redirect(`/documents/${documentId}`);
+  }
 
   const document = await api.entities.load.query({ id: documentId });
   const iceServers = await api.auth.iceServers.query();
