@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { CreateEntity, SaveEntity } from "./drawings-schema";
+import { CreateEntity, SaveEntity } from "./entities-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
@@ -156,18 +156,23 @@ export const entityRouter = createTRPCRouter({
         accessLevel,
       };
     }),
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const drawings = await ctx.drizzle
-      .select({
-        id: schema.entities.id,
-        title: schema.entities.title,
-        entityType: schema.entities.entityType,
-        createdAt: schema.entities.createdAt,
+  list: protectedProcedure
+    .input(z.object({
+      directoryId: z.string().nullable(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const drawings = await ctx.drizzle
+        .select({
+          id: schema.entities.id,
+          title: schema.entities.title,
+          entityType: schema.entities.entityType,
+          createdAt: schema.entities.createdAt,
         updatedAt: schema.entities.updatedAt,
         screenShotLight: schema.entities.screenShotLight,
         screenShotDark: schema.entities.screenShotDark,
         userId: schema.entities.userId,
         publicAccess: schema.entities.publicAccess,
+        parentId: schema.entities.parentId,
         sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
       })
       .from(schema.entities)
@@ -183,6 +188,7 @@ export const entityRouter = createTRPCRouter({
             eq(schema.sharedEntities.userId, ctx.session.user.id),
           ),
           isNull(schema.entities.deletedAt),
+          (input.directoryId ? eq(schema.entities.parentId, input.directoryId) : isNull(schema.entities.parentId)),
         ),
       )
       .groupBy(schema.entities.id)
