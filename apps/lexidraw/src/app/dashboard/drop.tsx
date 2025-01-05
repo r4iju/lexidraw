@@ -18,7 +18,6 @@ export function Drop({ parentId, disabled, children, refetch }: Props) {
     disabled: disabled,
   });
 
-  // If you have an API mutation for re-parenting on drop:
   const { mutate: updateEntity } = api.entities.update.useMutation();
 
   // Monitor global drag end (drop) to update parent ID
