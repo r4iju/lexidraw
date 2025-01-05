@@ -1,5 +1,6 @@
 import { api } from "~/trpc/server";
 import { Dashboard } from "../dashboard";
+import { redirect } from "next/navigation";
 
 type Props = {
   params: Promise<{
@@ -18,6 +19,8 @@ export default async function DashboardPage({ params, searchParams }: Props) {
   const isNew = !!queryParams.new;
 
   if (isNew) {
+    console.log("creating new directory");
+    console.log({ parentId });
     await api.entities.create.mutate({
       id: directoryId,
       title: "New folder",
@@ -25,8 +28,9 @@ export default async function DashboardPage({ params, searchParams }: Props) {
       entityType: "directory",
       parentId: parentId,
     });
+    return redirect(`/dashboard/${directoryId}`);
   }
-  const entity = await api.entities.getMetadata.query({ id: directoryId });
+  const directory = await api.entities.getMetadata.query({ id: directoryId });
 
-  return <Dashboard directory={entity} />;
+  return <Dashboard directory={directory} />;
 }
