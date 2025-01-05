@@ -1,7 +1,7 @@
 "use client";
 
 import { useDndMonitor, useDraggable, useDroppable } from "@dnd-kit/core";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 
@@ -36,18 +36,28 @@ export function DragAndDrop({ entity, children }: Props) {
     },
   });
 
-  // Apply transform styles for draggable movement
-  const style = {
+  const dragStyle = {
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
       : undefined,
-    zIndex: transform ? 1000 : "auto", // Lift on drag
-    opacity: isOver ? 0.7 : 1, // Highlight when droppable
-  };
+    zIndex: transform ? 1000 : "auto", // lift on drag
+    opacity: isOver ? 0.7 : 1, // highlight when droppable
+    cursor: "grab",
+    pointerEvents: transform ? "none" : "auto", // disable pointer events on drag
+  } satisfies CSSProperties;
 
   return (
-    <div ref={setDroppableRef} style={{ position: "relative" }}>
-      <div ref={setDraggableRef} {...listeners} {...attributes} style={style}>
+    <div
+      ref={setDroppableRef}
+      style={{ position: "relative" } satisfies CSSProperties}
+    >
+      {" "}
+      <div
+        ref={setDraggableRef}
+        {...listeners}
+        {...attributes}
+        style={dragStyle}
+      >
         {children}
       </div>
     </div>
