@@ -6,6 +6,7 @@ import {
   integer,
   index,
   real,
+  AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
@@ -91,31 +92,35 @@ export const users = sqliteTable(
   (table) => [uniqueIndex("User_email_key").on(table.email)],
 );
 
-export const roles = sqliteTable("Roles", {
-  id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
-  name: text("name").notNull().unique(), // e.g., 'admin', 'user'
-  description: text("description"),
-  createdAt: integer("createdAt", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+export const roles = sqliteTable(
+  "Roles",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+    name: text("name").notNull().unique(), // e.g., 'admin', 'user'
+    description: text("description"),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [uniqueIndex("Roles_name_unique").on(table.name)],
 );
 
-export const permissions = sqliteTable("Permissions", {
-  id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
-  name: text("name").notNull().unique(), // e.g., 'create_post', 'delete_user'
-  description: text("description"),
-  createdAt: integer("createdAt", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
+export const permissions = sqliteTable(
+  "Permissions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+    name: text("name").notNull().unique(), // e.g., 'create_post', 'delete_user'
+    description: text("description"),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
     deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [uniqueIndex("Permissions_name_unique").on(table.name)],
@@ -224,7 +229,11 @@ export const entities = sqliteTable(
     title: text("title").notNull(),
     elements: text("elements").notNull(),
     appState: text("appState"),
-    entityType: text("entityType").notNull().default("drawing"), // drawing or document
+    entityType: text("entityType").notNull().default("drawing"), // drawing or document or directory
+    parentId: text("parentId").references((): AnySQLiteColumn => entities.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }), // null for root
     screenShotLight: text("screenShotLight").default("").notNull(),
     screenShotDark: text("screenShotDark").default("").notNull(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
@@ -239,7 +248,13 @@ export const entities = sqliteTable(
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     publicAccess: text("publicAccess").notNull(),
   },
-  (table) => [index("Entity_userId_idx").on(table.userId)],
+  (table) => [
+    index("Entity_userId_idx").on(table.userId),
+    index("Entity_parentId_idx").on(table.parentId),
+    uniqueIndex("Entity_unique_directory_name")
+      .on(table.title, table.parentId)
+      .where(sql`entityType = 'directory'`),
+  ],
 );
 
 export const sharedEntities = sqliteTable(

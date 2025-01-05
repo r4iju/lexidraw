@@ -12,6 +12,7 @@ export enum AccessLevel {
 export enum EntityType {
   DRAWING = 'drawing',
   DOCUMENT = 'document',
+  DIRECTORY = 'directory',
 }
 
 export enum Theme {

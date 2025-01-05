@@ -1,6 +1,6 @@
 "use client";
 
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { cn } from "~/lib/utils";
 import {
@@ -11,7 +11,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "~/components/ui/navigation-menu";
-import { Brush, File, FolderPlus, Plus } from "lucide-react";
+import { Brush, File, Folder, Plus } from "lucide-react";
 
 export function NewEntity() {
   function newItem(kind: "drawing" | "document" | "directory") {
@@ -45,7 +45,7 @@ export function NewEntity() {
     },
     {
       title: "Folder",
-      icon: <FolderPlus className="h-25 w-25" />,
+      icon: <Folder className="h-25 w-25" />,
       href: newItem("directory"),
       description: "Create a folder.",
     },
@@ -84,7 +84,7 @@ type ListItemProps = {
   title: string;
   icon: JSX.Element;
   href: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 };
 
 const ListItem = ({

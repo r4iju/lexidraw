@@ -13,6 +13,10 @@ export function ThumbnailClient({ darkUrl, lightUrl, alt }: Props) {
   const isDarkTheme = useIsDarkTheme();
   const src = isDarkTheme ? darkUrl : lightUrl;
 
+  if (src === "") {
+    return <ThumbnailFallback />;
+  }
+
   return (
     <Image
       src={src}
