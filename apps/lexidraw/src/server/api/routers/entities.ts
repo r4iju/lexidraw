@@ -27,6 +27,7 @@ export const entityRouter = createTRPCRouter({
           entityType: input.entityType,
           publicAccess: PublicAccess.PRIVATE,
           elements: input.elements,
+          parentId: input.parentId,
           appState: JSON.stringify({}),
         })
         .onConflictDoNothing()
@@ -70,8 +71,8 @@ export const entityRouter = createTRPCRouter({
         ...(input.appState as unknown as AppState),
         collaborators: (input.appState as unknown as AppState).collaborators
           ? Object.fromEntries(
-            (input.appState as unknown as AppState).collaborators.entries(),
-          )
+              (input.appState as unknown as AppState).collaborators.entries(),
+            )
           : undefined,
       });
     }
@@ -162,6 +163,7 @@ export const entityRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id ?? "";
 
+      // 1) Fetch the current entity
       const entities = await ctx.drizzle
         .select({
           id: schema.entities.id,
@@ -194,21 +196,64 @@ export const entityRouter = createTRPCRouter({
         )
         .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
         .execute();
-      const entity = entities[0];
 
+      const entity = entities[0];
       if (!entity) {
         throw new TRPCError({
-          message: "Drawing not found",
+          message: "Entity not found",
           code: "NOT_FOUND",
         });
       }
 
-      return entity;
+      // 2) Recursively fetch all ancestors
+      const ancestors: {
+        id: string | null;
+        title: string;
+        parentId: string | null;
+      }[] = [];
+      let currentParentId = entity.parentId;
+
+      while (currentParentId) {
+        const parentData = await ctx.drizzle
+          .select({
+            id: schema.entities.id,
+            title: schema.entities.title,
+            parentId: schema.entities.parentId,
+          })
+          .from(schema.entities)
+          .where(eq(schema.entities.id, currentParentId))
+          .execute();
+
+        const parent = parentData[0];
+        if (!parent) break;
+
+        ancestors.push(parent);
+        currentParentId = parent.parentId;
+      }
+
+      // Add the root entity
+      ancestors.push({
+        id: null,
+        title: "Root",
+        parentId: null,
+      });
+
+      // We typically want them in root->child order, so reverse
+      ancestors.reverse();
+
+      console.log("ancestors", ancestors);
+
+      return {
+        ...entity,
+        ancestors, // Return the entire chain of ancestors
+      };
     }),
   list: protectedProcedure
-    .input(z.object({
-      parentId: z.string().nullable(),
-    }))
+    .input(
+      z.object({
+        parentId: z.string().nullable(),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       const drawings = await ctx.drizzle
         .select({
@@ -237,7 +282,9 @@ export const entityRouter = createTRPCRouter({
               eq(schema.sharedEntities.userId, ctx.session.user.id),
             ),
             isNull(schema.entities.deletedAt),
-            (input.parentId ? eq(schema.entities.parentId, input.parentId) : isNull(schema.entities.parentId)),
+            input.parentId
+              ? eq(schema.entities.parentId, input.parentId)
+              : isNull(schema.entities.parentId),
           ),
         )
         .groupBy(schema.entities.id)
@@ -325,7 +372,9 @@ export const entityRouter = createTRPCRouter({
         .update(schema.entities)
         .set({
           ...("title" in input ? { title: input.title } : {}),
-          ...("publicAccess" in input ? { publicAccess: input.publicAccess } : {}),
+          ...("publicAccess" in input
+            ? { publicAccess: input.publicAccess }
+            : {}),
           ...("parentId" in input ? { parentId: input.parentId } : {}),
           updatedAt: new Date(),
         })
