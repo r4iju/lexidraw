@@ -72,14 +72,14 @@ import { LLMProvider } from "./context/llm-context";
 import ContextMenuPlugin from "./plugins/ContextMenuPlugin";
 import TableOfContentsPlugin from "./plugins/TableOfContentsPlugin";
 import { LLMWidget } from "./plugins/AutocompletePlugin/LLMWidget";
+import { revalidate } from "./actions";
 
 type EditorProps = {
-  revalidate: () => void;
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
 };
 
-function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
+function EditorHandler({ entity, iceServers }: EditorProps) {
   const editorStateRef = useRef<EditorState>(undefined);
   const canCollaborate =
     entity.sharedWith.length > 0 || entity.publicAccess !== "private";
@@ -176,17 +176,13 @@ function EditorHandler({ revalidate, entity, iceServers }: EditorProps) {
     }
   }, [canCollaborate, initializeConnection, isCollaborating]);
 
-  const onUnmount = useCallback(() => {
-    revalidate();
-    closeConnection();
-  }, [revalidate, closeConnection]);
-
   // cleanup on unmount
   useEffect(() => {
     return () => {
-      onUnmount;
+      revalidate(entity.id);
+      closeConnection();
     };
-  }, [onUnmount]);
+  }, [entity.id, closeConnection]);
 
   return (
     <SettingsContext>
@@ -298,16 +294,11 @@ function Placeholder() {
 }
 
 type Props = {
-  revalidate: () => void;
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
 };
 
-export default function DocumentEditor({
-  revalidate,
-  entity,
-  iceServers,
-}: Props) {
+export default function DocumentEditor({ entity, iceServers }: Props) {
   "use memo";
   return (
     <LexicalComposer
@@ -343,11 +334,7 @@ export default function DocumentEditor({
         theme: theme,
       }}
     >
-      <EditorHandler
-        revalidate={revalidate}
-        entity={entity}
-        iceServers={iceServers}
-      />
+      <EditorHandler entity={entity} iceServers={iceServers} />
     </LexicalComposer>
   );
 }
