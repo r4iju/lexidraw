@@ -13,8 +13,8 @@ import {
   type LexicalNode,
   PASTE_COMMAND,
 } from "lexical";
-import { useCallback, useMemo } from "react";
-import * as React from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { JSX } from "react";
 import * as ReactDOM from "react-dom";
 
 function ContextMenuItem({
@@ -184,7 +184,7 @@ export default function ContextMenuPlugin(): JSX.Element {
     ];
   }, [editor]);
 
-  const [options, setOptions] = React.useState(defaultOptions);
+  const [options, setOptions] = useState(defaultOptions);
 
   const onSelectOption = useCallback(
     (

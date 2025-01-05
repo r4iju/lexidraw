@@ -9,6 +9,7 @@ import type { Metadata, ServerRuntime } from "next";
 import { revalidatePath } from "next/cache";
 import EditBoard from "./board-edit-client";
 import ViewBoard from "./board-view-client";
+import { redirect } from "next/navigation";
 
 export const runtime: ServerRuntime = "edge";
 export const fetchCache = "force-no-store";
@@ -27,13 +28,34 @@ const Params = z.object({
   drawingId: z.string(),
 });
 
+const SearchParams = z.object({
+  new: z.literal("true").optional(),
+  parentId: z.string().optional(),
+});
+
 type Props = {
   params: Promise<z.infer<typeof Params>>;
+  searchParams: Promise<{
+    new?: "true";
+    parentId?: string;
+  }>;
 };
 
 export default async function DrawingBoard(props: Props) {
-  const param = await props.params;
+  const [param, search] = await Promise.all([props.params, props.searchParams]);
   const { drawingId } = Params.parse(param);
+  const { new: isNew, parentId } = SearchParams.parse(search);
+
+  if (isNew === "true") {
+    await api.entities.create.mutate({
+      id: drawingId,
+      title: "New drawing",
+      elements: "[]",
+      entityType: "drawing",
+      parentId: parentId ?? null,
+    });
+    return redirect(`/drawings/${drawingId}`);
+  }
 
   try {
     const drawing = await api.entities.load.query({ id: drawingId });
