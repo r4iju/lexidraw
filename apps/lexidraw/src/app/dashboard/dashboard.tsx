@@ -60,8 +60,8 @@ export async function Dashboard({ directory }: Props) {
   return (
     <main className="flex h-full flex-col overflow-auto pb-6">
       {/* Breadcrumb: each ancestor is droppable */}
-      {directory && directory.ancestors?.length > 0 && (
-        <nav className="flex justify-between items-center space-x-4 px-4 py-2">
+      <nav className="flex justify-between items-center space-x-4 px-4 py-2">
+        {directory && directory.ancestors?.length > 0 && (
           <div className="flex items-center space-x-2">
             {directory.ancestors.map((ancestor) => {
               return (
@@ -79,10 +79,11 @@ export async function Dashboard({ directory }: Props) {
             })}
             <span className="font-bold">{directory.title || "Untitled"}</span>
           </div>
+        )}
+        {(!directory || directory.ancestors.length === 0) && <span>Root</span>}
+        <NewEntity parentId={directory ? directory.id : null} />
+      </nav>
 
-          <NewEntity parentId={directory ? directory.id : null} />
-        </nav>
-      )}
       {/* Example: top bar for dropping back to the grandparent */}
       <div className="flex items-center justify-between p-4 lg:p-6"></div>
       <div className="flex-1  md:container">
