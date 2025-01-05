@@ -8,10 +8,14 @@ type Props = {
 
 // can cache this
 export async function Thumbnail({ entity }: Props) {
-  if (entity.entityType === "directory" && !entity.screenShotDark && !entity.screenShotLight) {
+  if (
+    entity.entityType === "directory" &&
+    !entity.screenShotDark &&
+    !entity.screenShotLight
+  ) {
     return (
-      <div className="aspect-[4/3] min-h-[300px]">
-        <Folder className="w-full h-full" />
+      <div className="aspect-[4/3] h-[300px]">
+        <Folder className="size-full" />
       </div>
     );
   }
