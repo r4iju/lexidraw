@@ -1,6 +1,9 @@
 import { api } from "~/trpc/server";
 import { Dashboard } from "../dashboard";
 import { redirect } from "next/navigation";
+import type { ServerRuntime } from "next/types";
+
+export const runtime: ServerRuntime = "edge";
 
 type Props = {
   params: Promise<{
