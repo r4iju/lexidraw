@@ -18,15 +18,18 @@ export function ThumbnailClient({ darkUrl, lightUrl, alt }: Props) {
   }
 
   return (
-    <Image
-      src={src}
-      alt={`Thumbnail for ${alt}`}
-      width={400}
-      height={300}
-      crossOrigin="anonymous"
-      className="aspect-[4/3]"
-      style={{ width: "auto", height: "auto" }}
-    />
+    <>
+      <span className="sr-only">{`Thumbnail for ${alt}`}</span>
+      <Image
+        src={src}
+        alt={alt.substring(0, 14)}
+        width={400}
+        height={300}
+        crossOrigin="anonymous"
+        className="aspect-[4/3]"
+        style={{ width: "auto", height: "auto" }}
+      />
+    </>
   );
 }
 
