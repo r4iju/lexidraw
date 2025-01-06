@@ -52,8 +52,8 @@ export async function Dashboard({ directory, sortBy, sortOrder }: Props) {
   return (
     <main className="flex h-full flex-col overflow-auto pb-6">
       {/* Breadcrumb: each ancestor is droppable */}
-      <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2">
-        <div className="flex justify-between items-center">
+      <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2 gap-y-4">
+        <div className="flex justify-between items-center ">
           <div className="flex items-center space-x-2 truncate">
             {directory && directory.ancestors?.length > 0 ? (
               <>
