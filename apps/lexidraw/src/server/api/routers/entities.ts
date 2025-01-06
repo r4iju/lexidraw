@@ -11,6 +11,44 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidV4 } from "uuid";
 import { s3 } from "~/server/s3";
 
+const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
+  sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
+
+const sortByNumber = (sortOrder: "asc" | "desc", a: number, b: number) =>
+  sortOrder === "asc" ? a - b : b - a;
+
+const sortByDate = (sortOrder: "asc" | "desc", a: Date, b: Date) =>
+  sortOrder === "asc" ? a.getTime() - b.getTime() : b.getTime() - a.getTime();
+
+const isString = (value: unknown): value is string => typeof value === "string";
+const isNumber = (value: unknown): value is number => typeof value === "number";
+const isDate = (value: unknown): value is Date => value instanceof Date;
+
+const sortArrOfObjects = <T extends Record<string, unknown>, K extends keyof T>(
+  arr: T[],
+  sortOrder: "asc" | "desc",
+  sortBy: K,
+): T[] => {
+  return arr.toSorted((a, b) => {
+    const valueA = a[sortBy];
+    const valueB = b[sortBy];
+
+    if (isString(valueA) && isString(valueB)) {
+      return sortByString(sortOrder, valueA, valueB);
+    }
+
+    if (isNumber(valueA) && isNumber(valueB)) {
+      return sortByNumber(sortOrder, valueA, valueB);
+    }
+
+    if (isDate(valueA) && isDate(valueB)) {
+      return sortByDate(sortOrder, valueA, valueB);
+    }
+
+    return 0;
+  });
+};
+
 export const entityRouter = createTRPCRouter({
   create: protectedProcedure
     .input(CreateEntity)
@@ -252,12 +290,15 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         parentId: z.string().nullable(),
-        sortBy: z.enum(["updatedAt", "createdAt", "title"]).optional(),
-        sortOrder: z.enum(["asc", "desc"]).optional(),
+        sortBy: z
+          .enum(["updatedAt", "createdAt", "title"])
+          .optional()
+          .default("updatedAt"),
+        sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const drawings = await ctx.drizzle
+      const entities = await ctx.drizzle
         .select({
           id: schema.entities.id,
           title: schema.entities.title,
@@ -293,12 +334,12 @@ export const entityRouter = createTRPCRouter({
         .orderBy(desc(schema.entities.updatedAt))
         .execute();
 
-      if (input.sortBy && input.sortOrder) {
-        drawings.sort((a, b) => {
-          return input.sortOrder === "asc" ? a[input.sortBy] - b[input.sortBy] : b[input.sortBy] - a[input.sortBy];
-        });
-      }
-      return drawings;
+      console.log(input);
+
+      return sortArrOfObjects<
+        (typeof entities)[number],
+        "title" | "updatedAt" | "createdAt"
+      >(entities, input.sortOrder, input.sortBy);
     }),
   getSharedInfo: protectedProcedure
     .input(z.object({ drawingId: z.string() }))

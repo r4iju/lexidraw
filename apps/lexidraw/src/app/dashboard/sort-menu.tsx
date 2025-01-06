@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { TooltipButton } from "~/components/ui/tooltip-button";
 
 type Props = {
   sortBy?: "updatedAt" | "createdAt" | "title";
@@ -30,6 +31,19 @@ export function SortMenu({ sortBy, sortOrder }: Props) {
     );
   };
 
+  const tooltipText = (() => {
+    switch (sortBy) {
+      case "createdAt":
+        return sortOrder === "asc" ? "Oldest first" : "Newest first";
+      case "updatedAt":
+        return sortOrder === "asc" ? "Oldest first" : "Newest first";
+      case "title":
+        return sortOrder === "asc" ? "A → Z" : "Z → A";
+      default:
+        return "Sort by";
+    }
+  })();
+
   return (
     <div className="flex justify-end items-center gap-2 px-2">
       <Select onValueChange={handleSort} defaultValue={sortBy}>
@@ -43,17 +57,15 @@ export function SortMenu({ sortBy, sortOrder }: Props) {
         </SelectContent>
       </Select>
       {/* button to sort by order */}
-      <Button
+
+      <TooltipButton
         variant="outline"
         onClick={handleSortOrder}
-        aria-label={`Sort by ${sortOrder === "asc" ? "ascending" : "descending"} order`}
-      >
-        {sortOrder === "asc" ? (
-          <ArrowUp className="h-4 w-4" />
-        ) : (
-          <ArrowDown className="h-4 w-4" />
-        )}
-      </Button>
+        disabled={false}
+        title={`${tooltipText}`}
+        ariaLabel={`Sorted by ${tooltipText}`}
+        Icon={sortOrder === "asc" ? ArrowUp : ArrowDown}
+      />
     </div>
   );
 }

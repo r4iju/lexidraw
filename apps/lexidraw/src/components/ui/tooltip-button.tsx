@@ -1,5 +1,5 @@
 import { LucideIcon } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonProps } from "~/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -7,28 +7,31 @@ import {
 } from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
 
-type ButtonProps = {
+type TooltipButtonProps = {
   onClick: () => void;
   disabled: boolean;
   title: string;
   Icon: LucideIcon;
   ariaLabel: string;
   className?: string;
+  /** @default "outline" */
+  variant?: ButtonProps["variant"];
 };
 
 export function TooltipButton({
   onClick,
+  variant = "outline",
   disabled,
   title,
   Icon,
   ariaLabel,
   className,
-}: ButtonProps) {
+}: TooltipButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant="outline"
+          variant={variant ?? "outline"}
           disabled={disabled}
           onClick={onClick}
           aria-label={ariaLabel}
