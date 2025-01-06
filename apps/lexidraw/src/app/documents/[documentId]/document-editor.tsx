@@ -13,6 +13,8 @@ import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { MarkNode } from "@lexical/mark";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
 // plugins
+import { ListPlugin } from "@lexical/react/LexicalListPlugin";
+import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
@@ -214,6 +216,8 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
 
                 <div className="relative size-full max-w-screen-lg mx-auto">
                   <LLMWidget />
+                  <ListPlugin />
+                  <CheckListPlugin />
                   <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
                   <CodeHighlightPlugin />
                   <TabIndentationPlugin />
