@@ -3,8 +3,6 @@
 import type { ReactNode } from "react";
 import { DndContext } from "@dnd-kit/core";
 
-// ----------------------------------------------------------------------
-
 type Props = {
   children: ReactNode;
 };
