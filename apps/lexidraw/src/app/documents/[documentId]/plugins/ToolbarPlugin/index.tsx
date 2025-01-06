@@ -103,11 +103,19 @@ import {
   Check,
   ChevronDownIcon,
   Code,
+  Heading1,
+  Heading2,
+  Heading3,
   Italic,
   Link,
+  List,
+  ListChecks,
+  ListOrdered,
   PaintBucket,
+  Pilcrow,
   Plus,
   Redo,
+  TextQuote,
   Underline,
   Undo,
 } from "lucide-react";
@@ -145,12 +153,13 @@ const blockTypeToBlockName = {
   number: "Numbered List",
   paragraph: "Normal",
   quote: "Quote",
-};
+} as const;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const rootTypeToRootName = {
   root: "Root",
   table: "Table",
-};
+} as const;
 
 function getCodeLanguageOptions(): [string, string][] {
   const options: [string, string][] = [];
@@ -335,66 +344,72 @@ function BlockFormatDropDown({
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "paragraph")}
+          className={
+            "gap-2 item " + dropDownActiveClass(blockType === "paragraph")
+          }
           onClick={formatParagraph}
         >
-          <i className="icon paragraph" />
+          <Pilcrow className="size-4" />
           <span className="text">Normal</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "h1")}
+          className={"gap-2 item " + dropDownActiveClass(blockType === "h1")}
           onClick={() => formatHeading("h1")}
         >
-          <i className="icon h1" />
+          <Heading1 className="size-4" />
           <span className="text">Heading 1</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "h2")}
+          className={"gap-2 item " + dropDownActiveClass(blockType === "h2")}
           onClick={() => formatHeading("h2")}
         >
-          <i className="icon h2" />
+          <Heading2 className="size-4" />
           <span className="text">Heading 2</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "h3")}
+          className={"gap-2 item " + dropDownActiveClass(blockType === "h3")}
           onClick={() => formatHeading("h3")}
         >
-          <i className="icon h3" />
+          <Heading3 className="size-4" />
           <span className="text">Heading 3</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "bullet")}
+          className={
+            "gap-2 item " + dropDownActiveClass(blockType === "bullet")
+          }
           onClick={formatBulletList}
         >
-          <i className="icon bullet-list" />
+          <List className="size-4" />
           <span className="text">Bullet List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "number")}
+          className={
+            "gap-2 item " + dropDownActiveClass(blockType === "number")
+          }
           onClick={formatNumberedList}
         >
-          <i className="icon numbered-list" />
+          <ListOrdered className="size-4" />
           <span className="text">Numbered List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "check")}
+          className={"gap-2 item " + dropDownActiveClass(blockType === "check")}
           onClick={formatCheckList}
         >
-          <i className="icon check-list" />
+          <ListChecks className="size-4" />
           <span className="text">Check List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "quote")}
+          className={"gap-2 item " + dropDownActiveClass(blockType === "quote")}
           onClick={formatQuote}
         >
-          <i className="icon quote" />
+          <TextQuote className="size-4" />
           <span className="text">Quote</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"item " + dropDownActiveClass(blockType === "code")}
+          className={"gap-2 item " + dropDownActiveClass(blockType === "code")}
           onClick={formatCode}
         >
-          <i className="icon code" />
+          <Code className="size-4" />
           <span className="text">Code Block</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -819,6 +834,7 @@ export default function ToolbarPlugin({
   }, [activeEditor]);
 
   useEffect(() => {
+    console.log("ToolbarPlugin useEffect");
     return editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       (_payload, newEditor) => {

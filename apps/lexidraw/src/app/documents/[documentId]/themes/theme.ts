@@ -1,7 +1,5 @@
 import { type EditorThemeClasses } from "lexical";
 import "./playground-theme.css";
-// import "./theme-default.css"
-// import "./theme-dracula.css"
 
 export const theme = {
   code: "rounded-md whitespace-pre block relative font-mono overflow-x-auto my-2 pl-8 py-4 bg-gray-100 dark:bg-gray-800 text-foreground",
@@ -64,10 +62,22 @@ export const theme = {
   image: "editor-image",
   link: "inline-flex items-center font-medium text-blue-600 dark:text-blue-400 hover:underline",
   list: {
+    checklist: "list-none pl-0",
     listitem: "mx-8 my-2 text-foreground",
+    listitemUnchecked:
+      "relative pl-8 before:content-['⬜'] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-4 before:cursor-pointer",
+    listitemChecked:
+      "relative pl-8 line-through text-muted-foreground before:content-['✅'] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-4 before:cursor-pointer",
     nested: {
-      listitem: "list-none text-foreground",
+      listitem: "pl-6 list-none",
     },
+    olDepth: [
+      "list-decimal pl-8",
+      "list-[upper-alpha] pl-8",
+      "list-[lower-alpha] pl-8",
+      "list-[upper-roman] pl-8",
+      "list-[lower-roman] pl-8",
+    ],
     ol: "list-decimal text-foreground",
     ul: "list-disc text-foreground",
   },
