@@ -95,18 +95,34 @@ export async function Dashboard({ directory, sortBy, sortOrder }: Props) {
       {/* Example: top bar for dropping back to the grandparent */}
       <div className="flex-1 md:container">
         <section className="w-full p-4">
-          <div className="hidden md:grid grid-cols-1 gap-4  md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 auto-rows-auto">
             <DndMonitor refetch={refetch}>
               {entities.map((entity) => (
-                <Drag entity={entity}>
+                <Drag entity={entity} key={entity.id}>
                   <Drop
-                    key={entity.id}
                     parentId={entity.id}
                     disabled={entity.entityType !== "directory"}
                   >
-                    <Card className="relative flex flex-col gap-2 rounded-lg p-4 shadow-md">
+                    <Card className="relative flex flex-row md:flex-col gap-4 rounded-lg p-4 hover:bg-muted/20 transition-colors duration-150 justify-between">
+                      <Link
+                        href={itemUrl(
+                          entity.entityType as EntityType,
+                          entity.id,
+                        )}
+                      >
+                        <div className="flex md:hidden flex-row items-center gap-4">
+                          <div className="size-10 min-w-10">
+                            <Suspense fallback={<ThumbnailFallback />}>
+                              <Thumbnail entity={entity} />
+                            </Suspense>
+                          </div>
+                          <span className="font-semibold line-clamp-1 w-full">
+                            {entity.title}
+                          </span>
+                        </div>
+                      </Link>
                       <div className="flex justify-between items-center gap-4">
-                        <span className="font-thin">
+                        <span className="text-sm text-muted-foreground hidden md:block">
                           {formatDistanceToNow(new Date(entity.updatedAt), {
                             addSuffix: true,
                           })}
@@ -117,19 +133,18 @@ export async function Dashboard({ directory, sortBy, sortOrder }: Props) {
                           revalidatePath={refetch}
                         />
                       </div>
-                      <div className="flex w-full justify-between gap-4">
+                      <div className="hidden md:flex flex-col items-center gap-4">
                         <EntityTitle entity={entity} revalidatePath={refetch} />
+                        <Suspense fallback={<ThumbnailFallback />}>
+                          <Thumbnail entity={entity} />
+                        </Suspense>
                       </div>
-                      <Suspense fallback={<ThumbnailFallback />}>
-                        <Thumbnail entity={entity} />
-                      </Suspense>
-                      <Button className="mt-2 w-full" asChild>
+                      <Button className="hidden md:block mt-2 w-full" asChild>
                         <Link
                           href={itemUrl(
                             entity.entityType as EntityType,
                             entity.id,
                           )}
-                          passHref
                         >
                           Open
                         </Link>
@@ -139,62 +154,6 @@ export async function Dashboard({ directory, sortBy, sortOrder }: Props) {
                 </Drag>
               ))}
             </DndMonitor>
-          </div>
-          <div className="md:hidden overflow-x-auto">
-            <table className="w-full rounded-lg border-collapse border-2 border-border overflow-hidden bg-muted shadow-md">
-              <thead className="bg-muted"></thead>
-              <tbody>
-                {entities.map((entity) => (
-                  <tr key={entity.id} className="border border-border">
-                    <td className="py-2 px-2 align-middle min-w-[60px] max-w-[60px]">
-                      <Link
-                        href={itemUrl(
-                          entity.entityType as EntityType,
-                          entity.id,
-                        )}
-                      >
-                        <Suspense fallback={<ThumbnailFallback />}>
-                          <Thumbnail entity={entity} />
-                        </Suspense>
-                      </Link>
-                    </td>
-                    <td className="py-3 px-4 max-w-[200px] truncate font-medium">
-                      <Link
-                        href={itemUrl(
-                          entity.entityType as EntityType,
-                          entity.id,
-                        )}
-                      >
-                        {entity.title}
-                      </Link>
-                    </td>
-                    {/* <td className="py-3 px-4 text-muted-foreground capitalize">
-                      {entity.entityType}
-                    </td> */}
-                    {/* <td className="py-3 px-4 text-muted-foreground">
-                      {formatDistanceToNow(new Date(entity.updatedAt), {
-                        addSuffix: true,
-                        includeSeconds: false,
-                      })
-                        .replace("about ", "")
-                        .replace("hours", "h")
-                        .replace("minutes", "m")
-                        .replace("seconds", "s")
-                        .replace("less than a minute", "<1m")
-                        .replace("day", "d")
-                        .replace("months", "mo")}
-                    </td> */}
-                    <td className="py-3 px-4 text-right">
-                      <MoreActions
-                        entity={entity}
-                        currentAccess={entity.publicAccess as PublicAccess}
-                        revalidatePath={refetch}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </section>
       </div>

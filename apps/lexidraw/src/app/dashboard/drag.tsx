@@ -18,9 +18,10 @@ type Props = {
 };
 
 export function Drag({ entity, children }: Props) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id: entity.id,
-  });
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: entity.id,
+    });
   const { onPointerDown, onKeyDown, ...otherListeners } =
     listeners as SyntheticListenerMap;
 
@@ -69,25 +70,37 @@ export function Drag({ entity, children }: Props) {
     onKeyDown?.(e);
   }
 
+  const dragStyle: CSSProperties = {
+    transform: transform
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+      : undefined,
+  };
+
   return (
     <div className="relative">
+      {/* Ghost (shadow) element */}
+
+      <div
+        className={cn(
+          "hidden relative opacity-0 inset-0 bg-muted pointer-events-none transition-opacity duration-500",
+          isDragging && "block relative md:absolute opacity-30",
+        )}
+      >
+        {children}
+      </div>
+
+      {/* Draggable element */}
       <div
         ref={setNodeRef}
         {...attributes}
         {...otherListeners}
         onPointerDown={handlePointerDown}
         onKeyDown={handleKeyDown}
-        style={
-          {
-            transform: transform
-              ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-              : undefined,
-          } satisfies CSSProperties
-        }
+        style={dragStyle}
         aria-describedby={undefined}
         className={cn(
           `relative cursor-grab`,
-          transform && `absolute pointer-events-none z-[9999]`,
+          isDragging && "absolute pointer-events-none z-[9999]",
         )}
       >
         {children}
