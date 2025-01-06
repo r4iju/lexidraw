@@ -123,9 +123,18 @@ export async function Dashboard({ directory, sortBy, sortOrder }: Props) {
                       </Link>
                       <div className="flex justify-between items-center gap-4">
                         <span className="text-sm text-muted-foreground hidden md:block">
-                          {formatDistanceToNow(new Date(entity.updatedAt), {
-                            addSuffix: true,
-                          })}
+                          {sortBy === "createdAt" ? "Created " : "Updated "}
+                          {/* default to updatedAt, unless sortBy is createdAt */}
+                          {formatDistanceToNow(
+                            new Date(
+                              sortBy === "createdAt"
+                                ? entity.createdAt
+                                : entity.updatedAt,
+                            ),
+                            {
+                              addSuffix: true,
+                            },
+                          )}
                         </span>
                         <MoreActions
                           entity={entity}
