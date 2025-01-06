@@ -13,7 +13,7 @@ export async function Thumbnail({ entity }: Props) {
     !entity.screenShotDark &&
     !entity.screenShotLight
   ) {
-    return <Folder className="size-full aspect-[4/3]" />;
+    return <Folder className="size-full aspect-[4/3] text-muted-foreground" />;
   }
   try {
     return (

@@ -15,14 +15,19 @@ import { Drag } from "./drag";
 import { Drop } from "./drop";
 import { RouterOutputs } from "~/trpc/shared";
 import { DndMonitor } from "./dnd-monitor";
+import { SortMenu } from "./sort-menu";
 
 type Props = {
   directory?: RouterOutputs["entities"]["getMetadata"];
+  sortBy?: "updatedAt" | "createdAt" | "title";
+  sortOrder?: "asc" | "desc";
 };
 
-export async function Dashboard({ directory }: Props) {
+export async function Dashboard({ directory, sortBy, sortOrder }: Props) {
   const entities = await api.entities.list.query({
     parentId: directory ? directory.id : null,
+    sortBy,
+    sortOrder,
   });
 
   const itemUrl = (kind: "drawing" | "document" | "directory", id: string) => {
@@ -32,7 +37,7 @@ export async function Dashboard({ directory }: Props) {
       case "document":
         return `/documents/${id}`;
       case "directory":
-        return `/dashboard/${id}`;
+        return `/dashboard/${id}?sortBy=${sortBy}&sortOrder=${sortOrder}`;
     }
   };
 
@@ -47,48 +52,50 @@ export async function Dashboard({ directory }: Props) {
   return (
     <main className="flex h-full flex-col overflow-auto pb-6">
       {/* Breadcrumb: each ancestor is droppable */}
-      <nav className="flex justify-between items-center space-x-2 px-4 md:px-8 py-2">
-        <div className="flex items-center space-x-2 truncate">
-          {directory && directory.ancestors?.length > 0 ? (
-            <>
-              {directory.ancestors.map((ancestor, index) => (
-                <div key={ancestor.id} className="flex items-center space-x-2 ">
-                  <Drop parentId={ancestor.id}>
-                    <Button
-                      asChild
-                      variant="link"
-                      size="icon"
-                      className="truncate text-left hover:underline w-[fit-content] max-w-[125px]"
-                    >
-                      <Link href={`/dashboard/${ancestor.id ?? ""}`}>
-                        {ancestor.title ?? "Untitled"}
-                      </Link>
-                    </Button>
-                  </Drop>
-                  {index < directory.ancestors.length && (
-                    <span className="text-muted-foreground">/</span>
-                  )}
-                </div>
-              ))}
-              <span className="font-semibold truncate">
-                {directory.title || "Untitled"}
-              </span>
-            </>
-          ) : (
-            <span>Root</span>
-          )}
+      <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-2 truncate">
+            {directory && directory.ancestors?.length > 0 ? (
+              <>
+                {directory.ancestors.map((ancestor, index) => (
+                  <div
+                    key={ancestor.id}
+                    className="flex items-center space-x-2 "
+                  >
+                    <Drop parentId={ancestor.id}>
+                      <Button
+                        asChild
+                        variant="link"
+                        size="icon"
+                        className="truncate text-left hover:underline w-[fit-content] max-w-[125px]"
+                      >
+                        <Link href={`/dashboard/${ancestor.id ?? ""}`}>
+                          {ancestor.title ?? "Untitled"}
+                        </Link>
+                      </Button>
+                    </Drop>
+                    {index < directory.ancestors.length && (
+                      <span className="text-muted-foreground">/</span>
+                    )}
+                  </div>
+                ))}
+                <span className="font-semibold truncate">
+                  {directory.title || "Untitled"}
+                </span>
+              </>
+            ) : (
+              <span>Root</span>
+            )}
+          </div>
+          <NewEntity parentId={directory ? directory.id : null} />
         </div>
-        <NewEntity parentId={directory ? directory.id : null} />
+        <SortMenu sortBy={sortBy} sortOrder={sortOrder} />
       </nav>
 
       {/* Example: top bar for dropping back to the grandparent */}
-      <div className="flex items-center justify-between p-4 lg:p-6"></div>
-      <div className="flex-1  md:container">
+      <div className="flex-1 md:container">
         <section className="w-full p-4">
-          <div
-            id="entities-grid"
-            className="grid grid-cols-1 gap-4  md:grid-cols-2 lg:grid-cols-3 "
-          >
+          <div className="hidden md:grid grid-cols-1 gap-4  md:grid-cols-2 lg:grid-cols-3">
             <DndMonitor refetch={refetch}>
               {entities.map((entity) => (
                 <Drag entity={entity}>
@@ -132,6 +139,62 @@ export async function Dashboard({ directory }: Props) {
                 </Drag>
               ))}
             </DndMonitor>
+          </div>
+          <div className="md:hidden overflow-x-auto">
+            <table className="w-full rounded-lg border-collapse border-2 border-border overflow-hidden bg-muted shadow-md">
+              <thead className="bg-muted"></thead>
+              <tbody>
+                {entities.map((entity) => (
+                  <tr key={entity.id} className="border border-border">
+                    <td className="py-2 px-2 align-middle min-w-[60px] max-w-[60px]">
+                      <Link
+                        href={itemUrl(
+                          entity.entityType as EntityType,
+                          entity.id,
+                        )}
+                      >
+                        <Suspense fallback={<ThumbnailFallback />}>
+                          <Thumbnail entity={entity} />
+                        </Suspense>
+                      </Link>
+                    </td>
+                    <td className="py-3 px-4 max-w-[200px] truncate font-medium">
+                      <Link
+                        href={itemUrl(
+                          entity.entityType as EntityType,
+                          entity.id,
+                        )}
+                      >
+                        {entity.title}
+                      </Link>
+                    </td>
+                    {/* <td className="py-3 px-4 text-muted-foreground capitalize">
+                      {entity.entityType}
+                    </td> */}
+                    {/* <td className="py-3 px-4 text-muted-foreground">
+                      {formatDistanceToNow(new Date(entity.updatedAt), {
+                        addSuffix: true,
+                        includeSeconds: false,
+                      })
+                        .replace("about ", "")
+                        .replace("hours", "h")
+                        .replace("minutes", "m")
+                        .replace("seconds", "s")
+                        .replace("less than a minute", "<1m")
+                        .replace("day", "d")
+                        .replace("months", "mo")}
+                    </td> */}
+                    <td className="py-3 px-4 text-right">
+                      <MoreActions
+                        entity={entity}
+                        currentAccess={entity.publicAccess as PublicAccess}
+                        revalidatePath={refetch}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
