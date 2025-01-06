@@ -7,7 +7,6 @@ import {
   type CSSProperties,
   type ReactNode,
   type KeyboardEvent,
-  useEffect,
 } from "react";
 import { cn } from "~/lib/utils";
 
@@ -87,7 +86,7 @@ export function Drag({ entity, children }: Props) {
         }
         aria-describedby={undefined}
         className={cn(
-          `relative cursor-grab bg-card rounded-lg`,
+          `relative cursor-grab`,
           transform && `absolute pointer-events-none z-[9999]`,
         )}
       >

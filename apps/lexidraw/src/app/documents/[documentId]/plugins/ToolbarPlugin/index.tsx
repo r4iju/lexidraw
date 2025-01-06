@@ -597,7 +597,7 @@ function LlmModelSelector() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="flex gap-2">
+        <Button variant="outline" className="flex gap-2 h-12 md:h-10">
           AI
           <ChevronDownIcon className="size-4" />
         </Button>
