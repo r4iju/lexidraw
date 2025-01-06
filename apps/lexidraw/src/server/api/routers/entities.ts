@@ -252,6 +252,8 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         parentId: z.string().nullable(),
+        sortBy: z.enum(["updatedAt", "createdAt", "title"]).optional(),
+        sortOrder: z.enum(["asc", "desc"]).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -291,6 +293,11 @@ export const entityRouter = createTRPCRouter({
         .orderBy(desc(schema.entities.updatedAt))
         .execute();
 
+      if (input.sortBy && input.sortOrder) {
+        drawings.sort((a, b) => {
+          return input.sortOrder === "asc" ? a[input.sortBy] - b[input.sortBy] : b[input.sortBy] - a[input.sortBy];
+        });
+      }
       return drawings;
     }),
   getSharedInfo: protectedProcedure
