@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 import type { Provider } from "@lexical/yjs";
 import type {
   EditorState,
@@ -78,59 +70,6 @@ import { cn } from "~/lib/utils";
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
 );
-
-function AddCommentBox({
-  anchorKey,
-  editor,
-  onAddComment,
-}: {
-  anchorKey: NodeKey;
-  editor: LexicalEditor;
-  onAddComment: () => void;
-}): JSX.Element {
-  const boxRef = useRef<HTMLDivElement>(null);
-
-  const updatePosition = useCallback(() => {
-    const boxElem = boxRef.current;
-    const rootElement = editor.getRootElement();
-    const anchorElement = editor.getElementByKey(anchorKey);
-
-    if (boxElem !== null && rootElement !== null && anchorElement !== null) {
-      const { right } = rootElement.getBoundingClientRect();
-      const { top } = anchorElement.getBoundingClientRect();
-      boxElem.style.left = `${right - 20}px`;
-      boxElem.style.top = `${top - 30}px`;
-    }
-  }, [anchorKey, editor]);
-
-  useEffect(() => {
-    window.addEventListener("resize", updatePosition);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [editor, updatePosition]);
-
-  useLayoutEffect(() => {
-    updatePosition();
-  }, [anchorKey, editor, updatePosition]);
-
-  return (
-    <div
-      className={cn(
-        "absolute w-64 min-h-20 bg-background shadow-lg rounded-md z-20 animate-in",
-        "before:content-[''] before:absolute before:w-0 before:h-0 before:ml-2 before:right-[-1em] before:top-0 before:left-[calc(50%+0.25em)]",
-        "before:border-8 before:border-transparent before:border-b-white before:border-l-white",
-        "before:origin-top-left before:rotate-[135deg] before:shadow-[calc(-3px_3px_3px_0_rgba(0,0,0,0.05))]",
-      )}
-      ref={boxRef}
-    >
-      <Button variant="outline" onClick={onAddComment}>
-        <MessageSquareText className="w-4 h-4" />
-      </Button>
-    </div>
-  );
-}
 
 function EscapeHandlerPlugin({
   onEscape,
@@ -262,6 +201,7 @@ function CommentInputBox({
           if (correctedLeft < 10) {
             correctedLeft = 10;
           }
+
           boxElem.style.left = `${correctedLeft}px`;
           boxElem.style.top = `${
             bottom +
@@ -270,12 +210,12 @@ function CommentInputBox({
           }px`;
           const selectionRectsLength = selectionRects.length;
           const { container } = selectionState;
-          const elements: Array<HTMLSpanElement> = selectionState.elements;
+          const elements: HTMLSpanElement[] = selectionState.elements;
           const elementsLength = elements.length;
 
           for (let i = 0; i < selectionRectsLength; i++) {
             const selectionRect = selectionRects[i];
-            let elem: HTMLSpanElement = elements[i];
+            let elem: HTMLSpanElement | undefined = elements[i];
             if (elem === undefined) {
               elem = document.createElement("span");
               elements[i] = elem;
@@ -351,10 +291,11 @@ function CommentInputBox({
 
   return (
     <div
+      id="comment-input-box"
       className={cn(
-        "block absolute w-64 min-h-20 bg-background shadow-lg rounded-md z-20 animate-in",
-        "before:content-[''] before:absolute before:w-0 before:h-0 before:ml-2 before:right-[-1em] before:top-0 before:left-[calc(50%+0.25em)]",
-        "before:border-[8px] before:border-transparent before:border-b-white before:border-l-white",
+        "absolute w-64 min-h-20 bg-background shadow-lg rounded-md z-20 animate-in",
+        "before:content-[''] before:absolute before:size-0 before:ml-2 before:right-[-1em] before:top-0 before:left-[calc(50%+0.25em)]",
+        "before:border-[8px] before:border-transparent before:border-b-secondary before:border-l-secondary",
         "before:transform origin-top-left before:rotate-[135deg] before:shadow-[calc(-3px_3px_3px_0_rgba(0,0,0,0.05))]",
       )}
       ref={boxRef}
@@ -516,6 +457,8 @@ function CommentsPanelListComment({
       {!comment.deleted && (
         <>
           <Button
+            variant="outline"
+            size="icon"
             onClick={() => {
               showModal("Delete Comment", (onClose) => (
                 <ShowDeleteCommentOrThreadDialog
@@ -986,17 +929,6 @@ export default function CommentPlugin({
             editor={editor}
             cancelAddComment={cancelAddComment}
             submitAddComment={submitAddComment}
-          />,
-          document.body,
-        )}
-      {activeAnchorKey !== null &&
-        activeAnchorKey !== undefined &&
-        !showCommentInput &&
-        createPortal(
-          <AddCommentBox
-            anchorKey={activeAnchorKey}
-            editor={editor}
-            onAddComment={onAddComment}
           />,
           document.body,
         )}
