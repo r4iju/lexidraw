@@ -28,9 +28,14 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { createDOMRange, createRectsFromDOMRange } from "@lexical/selection";
 import { $isRootTextContentEmpty, $rootTextContent } from "@lexical/text";
-import { mergeRegister, registerNestedElementResolver } from "@lexical/utils";
+import {
+  $dfs,
+  mergeRegister,
+  registerNestedElementResolver,
+} from "@lexical/utils";
 import {
   $getNodeByKey,
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
@@ -66,6 +71,12 @@ import { Button } from "~/components/ui/button";
 import ContentEditable from "~/components/ui/content-editable";
 import { MessageSquareText, Send, Trash } from "lucide-react";
 import { cn } from "~/lib/utils";
+import {
+  CommentNode,
+  ThreadNode,
+  $isCommentNode,
+  $isThreadNode,
+} from "../../nodes/CommentNode";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -334,7 +345,6 @@ function CommentsComposer({
   submitAddComment: (
     commentOrThread: Comment,
     isInlineComment: boolean,
-    // eslint-disable-next-line no-shadow
     thread?: Thread,
   ) => void;
   thread?: Thread;
@@ -699,8 +709,7 @@ export default function CommentPlugin({
   const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => {
     return new Map();
   }, []);
-  const [activeAnchorKey, setActiveAnchorKey] = useState<NodeKey | null>();
-  const [activeIDs, setActiveIDs] = useState<Array<string>>([]);
+  const [activeIDs, setActiveIDs] = useState<string[]>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const { yjsDocMap } = collabContext;
@@ -769,6 +778,18 @@ export default function CommentPlugin({
       selection?: RangeSelection | null,
     ) => {
       commentStore.addComment(commentOrThread, thread);
+      editor.update(() => {
+        const newNode =
+          commentOrThread.type === "comment"
+            ? new CommentNode(commentOrThread)
+            : new ThreadNode(commentOrThread);
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          const range = selection.clone();
+          range.insertNodes([newNode]);
+        }
+      });
+
       if (isInlineComment) {
         editor.update(() => {
           if ($isRangeSelection(selection)) {
@@ -869,7 +890,6 @@ export default function CommentPlugin({
         editorState.read(() => {
           const selection = $getSelection();
           let hasActiveIds = false;
-          let hasAnchorKey = false;
 
           if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
@@ -883,10 +903,6 @@ export default function CommentPlugin({
                 setActiveIDs(commentIDs);
                 hasActiveIds = true;
               }
-              if (!selection.isCollapsed()) {
-                setActiveAnchorKey(anchorNode.getKey());
-                hasAnchorKey = true;
-              }
             }
           }
           if (!hasActiveIds) {
@@ -894,9 +910,7 @@ export default function CommentPlugin({
               _activeIds.length === 0 ? _activeIds : [],
             );
           }
-          if (!hasAnchorKey) {
-            setActiveAnchorKey(null);
-          }
+
           if (!tags.has("collaboration") && $isRangeSelection(selection)) {
             setShowCommentInput(false);
           }
@@ -917,9 +931,42 @@ export default function CommentPlugin({
     );
   }, [editor, markNodeMap]);
 
-  const onAddComment = () => {
-    editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
-  };
+  useEffect(() => {
+    // If we’re not collaborating or you’re not using YJS provider
+    // we want to re-inject the store from the lexical state after load
+    editor.getEditorState().read(() => {
+      const root = $getRoot();
+
+      const existingIDs = new Set(
+        commentStore
+          .getComments()
+          .flatMap((item) =>
+            item.type === "thread"
+              ? [item.id, ...item.comments.map((c) => c.id)]
+              : [item.id],
+          ),
+      );
+
+      // Traverse the entire tree depth-first to catch nested nodes
+      const nodes = $dfs(root);
+
+      nodes.forEach(({ node }) => {
+        if ($isCommentNode(node) && !existingIDs.has(node.__comment.id)) {
+          commentStore.addComment(node.__comment);
+          existingIDs.add(node.__comment.id);
+        } else if ($isThreadNode(node) && !existingIDs.has(node.__thread.id)) {
+          node.__thread.comments.forEach((comment) => {
+            if (!existingIDs.has(comment.id)) {
+              commentStore.addComment(comment, node.__thread);
+              existingIDs.add(comment.id);
+            }
+          });
+          commentStore.addComment(node.__thread);
+          existingIDs.add(node.__thread.id);
+        }
+      });
+    });
+  }, [editor, commentStore]);
 
   return (
     <>
