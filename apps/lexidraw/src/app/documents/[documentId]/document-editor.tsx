@@ -36,7 +36,7 @@ import DraggableBlockPlugin from "./plugins/DraggableBlockPlugin";
 import ToolbarPlugin from "./plugins/ToolbarPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
-import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary";
+import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 // shadcnui
 // import { theme } from "./_themes/playground-theme";
@@ -90,6 +90,9 @@ import { CollapsibleTitleNode } from "./plugins/CollapsiblePlugin/CollapsibleTit
 import { LayoutContainerNode } from "./nodes/LayoutContainerNode";
 import { LayoutItemNode } from "./nodes/LayoutItemNode";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
+import TreeViewPlugin from "./plugins/TreeViewPlugin";
+import { createPortal } from "react-dom";
+import { CommentNode, ThreadNode } from "./nodes/CommentNode";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
@@ -108,6 +111,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {
     settings: {
+      showTreeView,
       isAutocomplete,
       showTableOfContents,
       shouldUseLexicalContextMenu,
@@ -125,10 +129,6 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
       setFloatingAnchorElem(_floatingAnchorElem);
     }
   };
-
-  useEffect(() => {
-    console.log("floatingAnchorElem", floatingAnchorElem);
-  }, [floatingAnchorElem]);
 
   const debouncedSendUpdateRef = useRef(
     debounce((parsedState: string) => {
@@ -308,8 +308,15 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
                   </>
                 )}
                 {isAutocomplete && <AutocompletePlugin />}
-                <div>{showTableOfContents && <TableOfContentsPlugin />}</div>
+                {showTableOfContents && <TableOfContentsPlugin />}
                 {shouldUseLexicalContextMenu && <ContextMenuPlugin />}
+                {showTreeView &&
+                  createPortal(
+                    <div className="absolute top-[60%] left-0 h-full w-full z-10 overflow-y-auto">
+                      <TreeViewPlugin />
+                    </div>,
+                    document.body,
+                  )}
               </div>
             </LLMProvider>
           </ToolbarContext>
@@ -343,6 +350,8 @@ export default function DocumentEditor({ entity, iceServers }: Props) {
           console.error("Error in LexicalComposer: ", error);
         },
         nodes: [
+          CommentNode,
+          ThreadNode,
           HeadingNode,
           QuoteNode,
           ListItemNode,
