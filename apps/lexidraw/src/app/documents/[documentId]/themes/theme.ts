@@ -64,19 +64,69 @@ export const theme = {
   list: {
     checklist: "list-none pl-0",
     listitem: "mx-8 my-2 text-foreground",
-    listitemUnchecked:
-      "relative pl-8 before:content-['⬜'] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-4 before:cursor-pointer",
-    listitemChecked:
-      "relative pl-8 line-through text-muted-foreground before:content-['✅'] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-4 before:cursor-pointer",
+    listitemUnchecked: `
+      relative 
+      p-0 
+      ml-2 mr-2 
+      pl-8 
+      pr-8 
+      list-none 
+      outline-none
+      before:absolute 
+      before:left-0 
+      before:top-1/2 
+      before:-translate-y-1/2 
+      before:w-5 
+      before:h-5 
+      before:border 
+      before:border-gray-400 
+      before:rounded 
+      before:bg-white 
+      before:content-['']
+      before:cursor-pointer
+    `,
+    listitemChecked: `
+      relative 
+      p-0 
+      ml-2 mr-2 
+      pl-8 
+      pr-8 
+      list-none 
+      outline-none
+      line-through 
+      text-muted-foreground 
+      before:absolute 
+      before:left-0 
+      before:top-1/2 
+      before:-translate-y-1/2 
+      before:w-5 
+      before:h-5 
+      before:border 
+      before:border-blue-500 
+      before:bg-blue-500 
+      before:rounded 
+      before:content-['']
+      before:cursor-pointer 
+      after:absolute 
+      after:left-[6px] 
+      after:top-1/2 
+      after:-translate-y-1/2
+      after:w-[6px] 
+      after:h-[10px] 
+      after:border-r-[2px] 
+      after:border-b-[2px] 
+      after:border-white 
+      after:rotate-45
+    `,
     nested: {
-      listitem: "pl-6 list-none",
+      listitem: "pl-2 list-none",
     },
     olDepth: [
-      "list-decimal pl-8",
-      "list-[upper-alpha] pl-8",
-      "list-[lower-alpha] pl-8",
-      "list-[upper-roman] pl-8",
-      "list-[lower-roman] pl-8",
+      "list-decimal pl-4",
+      "list-[upper-alpha] pl-4",
+      "list-[lower-alpha] pl-4",
+      "list-[upper-roman] pl-4",
+      "list-[lower-roman] pl-4",
     ],
     ol: "list-decimal text-foreground",
     ul: "list-disc text-foreground",
@@ -84,7 +134,7 @@ export const theme = {
   ltr: "text-left",
   paragraph: "m-0 relative text-foreground",
   placeholder:
-    "text-gray-500 dark:text-gray-400 top-4 left-3 absolute text-sm font-medium pointer-events-none inline-block",
+    "text-muted top-4 left-3 absolute text-sm font-medium pointer-events-none inline-block",
   quote: `m-0 ml-5 border-l-4 border-gray-200 dark:border-gray-700 px-5 py-3 text-foreground`,
   rtl: "text-right",
   text: {

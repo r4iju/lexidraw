@@ -4,6 +4,7 @@ import {
   CHECK_LIST,
   ELEMENT_TRANSFORMERS,
   ElementTransformer,
+  MULTILINE_ELEMENT_TRANSFORMERS,
   TEXT_FORMAT_TRANSFORMERS,
   TEXT_MATCH_TRANSFORMERS,
   TextMatchTransformer,
@@ -84,13 +85,10 @@ export const IMAGE: TextMatchTransformer = {
   regExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
   replace: (textNode, match) => {
     const [, altText, src] = match;
-    if (!src || !altText) {
-      return;
-    }
     const imageNode = $createImageNode({
-      altText,
+      altText: altText as string,
       maxWidth: 800,
-      src,
+      src: src as string,
     });
     textNode.replace(imageNode);
   },
@@ -102,7 +100,7 @@ export const EMOJI: TextMatchTransformer = {
   dependencies: [],
   export: () => null,
   importRegExp: /:([a-z0-9_]+):/,
-  regExp: /:([a-z0-9_]+):/,
+  regExp: /:([a-z0-9_]+):$/,
   replace: (textNode, [, name]) => {
     const emoji = emojiList.find((e) =>
       e.aliases.includes(name as string),
@@ -147,9 +145,6 @@ export const TWEET: ElementTransformer = {
   regExp: /<tweet id="([^"]+?)"\s?\/>\s?$/,
   replace: (textNode, _1, match) => {
     const [, id] = match;
-    if (!id) {
-      return;
-    }
     const tweetNode = $createTweetNode(id);
     textNode.replace(tweetNode);
   },
@@ -202,10 +197,7 @@ export const TABLE: ElementTransformer = {
   regExp: TABLE_ROW_REG_EXP,
   replace: (parentNode, _1, match) => {
     // Header row
-    if (!match[0]) {
-      return;
-    }
-    if (TABLE_ROW_DIVIDER_REG_EXP.test(match[0])) {
+    if (TABLE_ROW_DIVIDER_REG_EXP.test(match[0] as string)) {
       const table = parentNode.getPreviousSibling();
       if (!table || !$isTableNode(table)) {
         return;
@@ -222,7 +214,10 @@ export const TABLE: ElementTransformer = {
         if (!$isTableCellNode(cell)) {
           return;
         }
-        cell.toggleHeaderStyle(TableCellHeaderStates.ROW);
+        cell.setHeaderStyles(
+          TableCellHeaderStates.ROW,
+          TableCellHeaderStates.ROW,
+        );
       });
 
       // Remove line
@@ -230,7 +225,7 @@ export const TABLE: ElementTransformer = {
       return;
     }
 
-    const matchCells = mapToTableCells(match[0]);
+    const matchCells = mapToTableCells(match[0] as string);
 
     if (matchCells == null) {
       return;
@@ -326,6 +321,7 @@ export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
   TWEET,
   CHECK_LIST,
   ...ELEMENT_TRANSFORMERS,
+  ...MULTILINE_ELEMENT_TRANSFORMERS,
   ...TEXT_FORMAT_TRANSFORMERS,
   ...TEXT_MATCH_TRANSFORMERS,
 ];

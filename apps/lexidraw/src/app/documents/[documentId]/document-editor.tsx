@@ -15,7 +15,7 @@ import { CodeNode, CodeHighlightNode } from "@lexical/code";
 // plugins
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
-import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
+import MarkdownShortcutPlugin from "./plugins/MarkdownShortcutPlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
@@ -29,7 +29,6 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import LinkPlugin from "./plugins/LinkPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-// import ToolbarPlugin from "./_plugins/toolbar-plugin";
 import DraggableBlockPlugin from "./plugins/DraggableBlockPlugin";
 import ToolbarPlugin from "./plugins/ToolbarPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -218,7 +217,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
                   <LLMWidget />
                   <ListPlugin />
                   <CheckListPlugin />
-                  <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+                  <MarkdownShortcutPlugin />
                   <CodeHighlightPlugin />
                   <TabIndentationPlugin />
                   <AutocompletePlugin />
@@ -291,7 +290,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
 
 function Placeholder() {
   return (
-    <div className="absolute top-4 left-4 text-primary-foreground  select-none pointer-events-none">
+    <div className="absolute top-4 left-4 text-muted-foreground select-none pointer-events-none">
       Enter some rich text...
     </div>
   );
