@@ -60,10 +60,21 @@ export const theme = {
     h6: "text-sm font-semibold mb-0.5 text-foreground",
   },
   image: "editor-image",
-  link: "inline-flex items-center font-medium text-blue-600 dark:text-blue-400 hover:underline",
+  link: "inline-flex items-center font-medium text-primary hover:underline",
   list: {
-    checklist: "list-none pl-0",
-    listitem: "mx-8 my-2 text-foreground",
+    // For bullet-lists (top-level <ul>)
+    ul: "p-0 m-0 list-outside",
+
+    // For numeric-lists (top-level <ol>)
+    ol: "p-0 m-0 list-decimal list-outside",
+
+    // For checklists (top-level <ul> with type='check')
+    checklist: "p-0 m-0 list-none",
+
+    // Common <li> base styling
+    listitem: "mx-8",
+
+    // Checklists:
     listitemUnchecked: `
       relative 
       p-0 
@@ -79,7 +90,7 @@ export const theme = {
       before:w-5 
       before:h-5 
       before:border 
-      before:border-gray-400 
+      before:border-muted-foreground
       before:rounded 
       before:bg-white 
       before:content-['']
@@ -102,15 +113,15 @@ export const theme = {
       before:w-5 
       before:h-5 
       before:border 
-      before:border-blue-500 
-      before:bg-blue-500 
+      before:border-primary
+      before:bg-primary 
       before:rounded 
       before:content-['']
       before:cursor-pointer 
       after:absolute 
-      after:left-[6px] 
-      after:top-1/2 
-      after:-translate-y-1/2
+      after:left-[7px] 
+      after:top-[45%] 
+      after:-translate-y-[45%]
       after:w-[6px] 
       after:h-[10px] 
       after:border-r-[2px] 
@@ -119,18 +130,25 @@ export const theme = {
       after:rotate-45
     `,
     nested: {
-      listitem: "pl-2 list-none",
+      listitem: "list-none before:hidden after:hidden",
     },
+
+    // Depth-based arrays. For numeric lists:
     olDepth: [
-      "list-decimal pl-4",
-      "list-[upper-alpha] pl-4",
-      "list-[lower-alpha] pl-4",
-      "list-[upper-roman] pl-4",
-      "list-[lower-roman] pl-4",
+      "p-0 m-0 list-outside list-decimal", //   list-style-type: decimal;
+      "p-0 m-0 list-outside list-upper-alpha", //   list-style-type: upper-alpha;
+      "p-0 m-0 list-outside list-lower-alpha", //   list-style-type: lower-alpha;
+      "p-0 m-0 list-outside list-upper-roman", //   list-style-type: upper-roman;
+      "p-0 m-0 list-outside list-lower-roman", //   list-style-type: lower-roman;
     ],
-    ol: "list-decimal text-foreground",
-    ul: "list-disc text-foreground",
+
+    ulDepth: [
+      "list-disc", //   list-style-type: disc
+      "list-circle", // list-style-type: circle
+      "list-square", // list-style-type: square
+    ],
   },
+
   ltr: "text-left",
   paragraph: "m-0 relative text-foreground",
   placeholder:

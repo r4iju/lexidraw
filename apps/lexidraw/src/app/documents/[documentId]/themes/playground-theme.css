@@ -198,7 +198,7 @@
   background-position: center;
   background-repeat: no-repeat;
   display: block;
-  content: ' ';
+  content: " ";
   position: absolute;
   top: 0;
   left: 0;
@@ -226,7 +226,7 @@
   background-position: center;
   background-repeat: no-repeat;
   display: block;
-  content: ' ';
+  content: " ";
   position: absolute;
   top: 0;
   left: 0;
@@ -279,6 +279,23 @@
   display: inline;
   background-color: #ffbbbb !important;
 }
+.PlaygroundEditorTheme__ul {
+  padding: 0;
+  margin: 0;
+  list-style-position: outside;
+  list-style-type: disc; /* only for top-level */
+}
+.PlaygroundEditorTheme__ol {
+  padding: 0;
+  margin: 0;
+  list-style-position: outside;
+  list-style-type: decimal;
+}
+.PlaygroundEditorTheme__checklist {
+  padding: 0;
+  margin: 0;
+  list-style-type: none; /* no bullet */
+}
 .PlaygroundEditorTheme__ol1 {
   padding: 0;
   margin: 0;
@@ -313,6 +330,15 @@
   margin: 0;
   list-style-position: outside;
 }
+.PlaygroundEditorTheme__ul1 {
+  list-style-type: disc;
+}
+.PlaygroundEditorTheme__ul2 {
+  list-style-type: circle;
+}
+.PlaygroundEditorTheme__ul3 {
+  list-style-type: square;
+}
 .PlaygroundEditorTheme__listItem {
   margin: 0 32px;
 }
@@ -331,7 +357,7 @@
 }
 .PlaygroundEditorTheme__listItemUnchecked:before,
 .PlaygroundEditorTheme__listItemChecked:before {
-  content: '';
+  content: "";
   width: 16px;
   height: 16px;
   top: 2px;
@@ -341,8 +367,8 @@
   background-size: cover;
   position: absolute;
 }
-.PlaygroundEditorTheme__listItemUnchecked[dir='rtl']:before,
-.PlaygroundEditorTheme__listItemChecked[dir='rtl']:before {
+.PlaygroundEditorTheme__listItemUnchecked[dir="rtl"]:before,
+.PlaygroundEditorTheme__listItemChecked[dir="rtl"]:before {
   left: auto;
   right: 0;
 }
@@ -362,7 +388,7 @@
   background-repeat: no-repeat;
 }
 .PlaygroundEditorTheme__listItemChecked:after {
-  content: '';
+  content: "";
   cursor: pointer;
   border-color: #fff;
   border-style: solid;
@@ -449,7 +475,7 @@
   cursor: pointer;
 }
 .PlaygroundEditorTheme__hr:after {
-  content: '';
+  content: "";
   display: block;
   height: 2px;
   background-color: #ccc;

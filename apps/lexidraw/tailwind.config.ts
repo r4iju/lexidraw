@@ -1,12 +1,12 @@
-import type { Config } from "tailwindcss"
+import type { Config } from "tailwindcss";
 
 const config = {
   darkMode: ["class"],
   content: [
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    './app/**/*.{ts,tsx}',
-    './src/**/*.{ts,tsx}',
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
   ],
   prefix: "",
   theme: {
@@ -74,12 +74,23 @@ const config = {
       },
       fontFamily: {
         fredoka: ["var(--font-fredoka)"],
-        sans: ['var(--font-inter)'],
-        mono: ['var(--font-mono)'],
+        sans: ["var(--font-inter)"],
+        mono: ["var(--font-mono)"],
       },
+    },
+    listStyleType: {
+      decimal: "decimal",
+      none: "none",
+      disc: "disc",
+      circle: "circle",
+      square: "square",
+      "upper-alpha": "upper-alpha",
+      "lower-alpha": "lower-alpha",
+      "upper-roman": "upper-roman",
+      "lower-roman": "lower-roman",
     },
   },
   plugins: [require("tailwindcss-animate")],
-} satisfies Config
+} satisfies Config;
 
-export default config
+export default config;
