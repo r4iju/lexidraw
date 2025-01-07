@@ -177,11 +177,6 @@ function PlainTextEditor({
   };
 
   return (
-    /**
-     *   position: relative;
-          margin: 10px;
-          border-radius: 5px;
-     */
     <LexicalComposer initialConfig={initialConfig}>
       <div className="relative m-2 rounded-md">
         <PlainTextPlugin
