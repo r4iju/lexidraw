@@ -27,11 +27,13 @@ import {
   Code,
   Italic,
   Link,
+  MessageSquareText,
   Strikethrough,
   Subscript,
   Superscript,
   Underline,
 } from "lucide-react";
+import { INSERT_INLINE_COMMAND } from "../CommentPlugin";
 
 function TextFormatFloatingToolbar({
   editor,
@@ -62,6 +64,10 @@ function TextFormatFloatingToolbar({
       editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
     }
   }, [editor, isLink, setIsLinkEditMode]);
+
+  const insertComment = () => {
+    editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
+  };
 
   function mouseMoveListener(e: MouseEvent) {
     if (
@@ -257,6 +263,14 @@ function TextFormatFloatingToolbar({
             title="Link"
             Icon={Link}
             ariaLabel="Insert link"
+          />
+          <TooltipButton
+            onClick={insertComment}
+            className="w-10 md:w-8 h-12 md:h-10"
+            disabled={false}
+            title="Comment"
+            Icon={MessageSquareText}
+            ariaLabel="Insert comment"
           />
         </>
       )}

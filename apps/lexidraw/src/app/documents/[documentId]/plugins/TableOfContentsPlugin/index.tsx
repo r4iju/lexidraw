@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover";
 import { Button } from "~/components/ui/button";
+import { TableOfContents } from "lucide-react";
 
 const MARGIN_ABOVE_EDITOR = 624;
 const HEADING_WIDTH = 9;
@@ -163,9 +164,9 @@ function TableOfContentsList({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="fixed top-[75px] right-4 z-10 rounded-lg shadow-lg"
+          className="fixed top-[65px] right-20 z-10 rounded-lg shadow-lg"
         >
-          Table of Contents
+          <TableOfContents className="size-6" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="p-3  rounded-lg shadow-lg max-h-[80vh] overflow-y-auto">
