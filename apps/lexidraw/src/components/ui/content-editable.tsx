@@ -1,36 +1,33 @@
-/**
-.ContentEditable__root {
-  border: 0;
-  font-size: 15px;
-  display: block;
-  position: relative;
-  outline: 0;
-  padding: 8px 28px 40px;
-  min-height: 150px;
-}
-@media (max-width: 1025px) {
-  .ContentEditable__root {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-}
- */
-
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
-import * as React from "react";
+import type { JSX } from "react";
 import { cn } from "~/lib/utils";
 
 export default function LexicalContentEditable({
   className,
+  placeholder,
 }: {
   className?: string;
-}): React.JSX.Element {
+  placeholder?: string;
+}): JSX.Element {
+  const placeholderText = placeholder ?? "";
+
   return (
     <ContentEditable
       className={cn(
         "border-none font-medium block relative outline-none p-2",
         className,
       )}
+      placeholder={
+        placeholderText
+          ? (isEditable: boolean) =>
+              isEditable ? (
+                <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
+                  {placeholderText}
+                </div>
+              ) : null
+          : null
+      }
+      aria-placeholder={placeholderText ?? undefined}
     />
   );
 }

@@ -19,8 +19,7 @@ import {
   NodeKey,
   SerializedLexicalNode,
 } from "lexical";
-import * as React from "react";
-import { useCallback, useEffect } from "react";
+import { type JSX, useCallback, useEffect } from "react";
 
 export type SerializedPageBreakNode = SerializedLexicalNode;
 
