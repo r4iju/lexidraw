@@ -92,7 +92,8 @@ import { LayoutItemNode } from "./nodes/LayoutItemNode";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { createPortal } from "react-dom";
-import { CommentNode, ThreadNode } from "./nodes/CommentNode";
+import { CommentNode } from "./nodes/CommentNode";
+import { ThreadNode } from "./nodes/ThreadNode";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
