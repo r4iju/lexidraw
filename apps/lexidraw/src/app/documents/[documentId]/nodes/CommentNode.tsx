@@ -1,111 +1,94 @@
-import type { EditorConfig, LexicalNode, NodeKey } from "lexical";
-import { DecoratorNode } from "lexical";
-import * as React from "react";
-import type { Comment, Thread } from "../commenting";
+import {
+  DecoratorNode,
+  EditorConfig,
+  LexicalEditor,
+  LexicalNode,
+  SerializedLexicalNode,
+} from "lexical";
+import type { JSX } from "react";
 
-export class CommentNode extends DecoratorNode<React.JSX.Element> {
+import type { Comment } from "../commenting";
+
+export type SerializedCommentNode = {
+  type: "comment";
+  version: 1;
+  // original Lexical props
+  format: number;
+  indent: number;
+  direction: "ltr" | "rtl" | null;
+  children: SerializedLexicalNode[];
+  // our custom data
+  comment: Comment;
+} & SerializedLexicalNode;
+
+export class CommentNode extends DecoratorNode<JSX.Element> {
   __comment: Comment;
+  __format: number;
+  __indent: number;
+  __direction: "ltr" | "rtl" | null;
 
-  constructor(comment: Comment, key?: NodeKey) {
-    super(key); // pass key up to the parent
+  constructor(comment: Comment, key?: string) {
+    super(key);
     this.__comment = comment;
+    this.__format = 0;
+    this.__indent = 0;
+    this.__direction = null;
   }
 
-  static getType() {
-    return "comment" as const;
+  static getType(): string {
+    return "comment";
   }
 
-  static clone(node: CommentNode) {
+  static clone(node: CommentNode): CommentNode {
     return new CommentNode(node.__comment, node.__key);
   }
 
-  createDOM(config: EditorConfig): HTMLElement {
-    // Minimal DOM — or you can skip this if you really
-    // don't need a real DOM element. Usually for a DecoratorNode,
-    // you still want an empty container or span.
+  createDOM(_config: EditorConfig): HTMLElement {
     const div = document.createElement("div");
-    // Possibly add some styling if you want the DOM to hold a placeholder
-    // while React is hydrated. Or you can do nothing:
-    div.className = "sr-only";
+    div.className = "LexicalCommentNode";
     return div;
   }
 
   updateDOM(): false {
-    // We do not rely on the DOM updates here, so returning false
-    // means "don't reapply createDOM() if the node changes."
     return false;
   }
 
-  /**
-   * This is the critical method for DecoratorNodes in Lexical >= 0.22
-   * that must be implemented to avoid "base method not extended" errors.
-   */
-  decorate(): React.JSX.Element {
-    return <span className="sr-only">{this.__comment.content}</span>;
+  decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
+    // hidden since side panel does the heavy-lifting
+    return <div className="hidden" />;
   }
 
-  exportJSON() {
+  setFormat(format: number): void {
+    this.__format = format;
+  }
+
+  setIndent(indent: number): void {
+    this.__indent = indent;
+  }
+
+  exportJSON(): SerializedCommentNode {
     return {
-      type: CommentNode.getType(),
+      ...super.exportJSON(),
+      type: "comment",
       comment: this.__comment,
+      format: this.__format,
+      indent: this.__indent,
+      direction: this.__direction,
+      children: [],
       version: 1,
     };
   }
 
-  static importJSON(serializedNode: any): CommentNode {
-    const { comment } = serializedNode;
-    return new CommentNode(comment);
+  static importJSON(serializedNode: SerializedCommentNode): CommentNode {
+    const node = new CommentNode(serializedNode.comment);
+    node.setFormat(serializedNode.format);
+    node.setIndent(serializedNode.indent);
+    return node;
   }
 }
 
-export function $isCommentNode(node: LexicalNode | null): node is CommentNode {
-  return node?.getType() === "comment";
-}
-
-export class ThreadNode extends DecoratorNode<React.JSX.Element> {
-  __thread: Thread;
-
-  constructor(thread: Thread, key?: NodeKey) {
-    super(key);
-    this.__thread = thread;
-  }
-
-  static getType() {
-    return "thread" as const;
-  }
-
-  static clone(node: ThreadNode) {
-    return new ThreadNode(node.__thread, node.__key);
-  }
-
-  createDOM(config: EditorConfig): HTMLElement {
-    const div = document.createElement("div");
-    div.className = "sr-only";
-    return div;
-  }
-
-  updateDOM(): false {
-    return false;
-  }
-
-  decorate(): React.JSX.Element {
-    return <span className="sr-only">{this.__thread.quote}</span>;
-  }
-
-  exportJSON() {
-    return {
-      type: ThreadNode.getType(),
-      thread: this.__thread,
-      version: 1,
-    };
-  }
-
-  static importJSON(serializedNode: any): ThreadNode {
-    const { thread } = serializedNode;
-    return new ThreadNode(thread);
-  }
-}
-
-export function $isThreadNode(node: LexicalNode | null): node is ThreadNode {
-  return node?.getType() === "thread";
+export function $isCommentNode(
+  node: LexicalNode | null | undefined,
+): node is CommentNode {
+  return node?.getType?.() === "comment";
 }
