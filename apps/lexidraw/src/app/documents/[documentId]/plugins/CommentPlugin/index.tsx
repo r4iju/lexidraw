@@ -651,6 +651,8 @@ function CommentsPanel({
   submitAddComment,
   markNodeMap,
   isOpen,
+  setIsOpen,
+  isVisible,
   setIsVisible,
 }: {
   activeIDs: string[];
@@ -666,26 +668,59 @@ function CommentsPanel({
   ) => void;
   markNodeMap: Map<string, Set<NodeKey>>;
   isOpen: boolean;
-  setIsVisible: (isVisible: boolean) => void;
+  setIsOpen: (open: boolean) => void;
+  isVisible: boolean;
+  setIsVisible: (visible: boolean) => void;
 }) {
   const listRef = useRef<HTMLUListElement>(null);
   const isEmpty = comments.length === 0;
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  const handleAnimationEnd = useCallback(() => {
-    // if it's *not* open, we're finishing the "animate-out"
-    if (!isOpen) {
+  console.log(
+    "performance.now()",
+    performance.now(),
+    "isOpen",
+    isOpen,
+    "isVisible",
+    isVisible,
+  );
+
+  useEffect(() => {
+    // when the panel is opened, make it visible
+    if (isOpen) {
+      setIsVisible(true);
+      // when the panel is closed, make it invisible
+    } else {
       setIsVisible(false);
     }
   }, [isOpen, setIsVisible]);
 
+  useEffect(() => {
+    if (!isVisible) {
+      setIsOpen(false);
+    }
+  }, [isVisible, setIsOpen]);
+
+  const handleTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
+    // Only remove from DOM if we just finished the transform animation
+    // and isOpen is now false.
+    if (e.propertyName === "transform" && !isOpen) {
+      setIsVisible(false);
+    }
+  };
+
   return (
     <div
-      onAnimationEnd={handleAnimationEnd}
+      ref={panelRef}
+      onTransitionEnd={handleTransitionEnd}
       className={cn(
-        "fixed right-0 w-[300px] h-[calc(100%-100px)] top-[100px] bg-muted border-l border-border shadow-lg rounded-tl-lg z-50",
-        isOpen
-          ? "animate-in slide-in-from-right duration-300"
-          : "animate-out slide-out-to-right duration-300",
+        // Basic position & size
+        "fixed top-40 right-0 w-[300px] h-screen",
+        "bg-muted shadow-lg border-l border-border rounded-tl-lg z-50",
+        // Enable the transform property and set duration
+        "transform transition-transform duration-300 ease-in-out",
+        // Slide in/out depending on `isOpen`
+        isOpen ? "translate-x-0" : "translate-x-full",
       )}
     >
       <h2 className="text-lg font-medium text-muted-foreground px-4 py-3 border-b border-border">
@@ -729,20 +764,17 @@ export default function CommentPlugin({
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-
-  console.log("isOpen", isOpen);
-  console.log("isVisible", isVisible);
-
-  const toggleComments = useCallback(() => {
+  // toggle the comments panel
+  const toggleComments = () => {
     if (isOpen) {
-      setIsOpen(false);
+      // Start slide out
+      // child will trigger setIsOpen(false)
+      setIsVisible(false);
     } else {
-      setIsVisible(true);
-      requestAnimationFrame(() => {
-        setIsOpen(true);
-      });
+      // Make it visible, then slide in
+      setIsOpen(true);
     }
-  }, [isOpen]);
+  };
 
   // If we do have a providerFactory (YJS), let's register
   useEffect(() => {
@@ -1017,19 +1049,19 @@ export default function CommentPlugin({
         document.body,
       )}
       {/* The side panel */}
-      {isVisible &&
-        createPortal(
-          <CommentsPanel
-            isOpen={isOpen}
-            setIsVisible={setIsVisible}
-            activeIDs={activeIDs}
-            comments={comments}
-            markNodeMap={markNodeMap}
-            deleteCommentOrThread={deleteCommentOrThread}
-            submitAddComment={submitAddComment}
-          />,
-          document.body,
-        )}
+      createPortal(
+      <CommentsPanel
+        isOpen={isOpen}
+        setIsOpen={setIsOpen}
+        isVisible={isVisible}
+        setIsVisible={setIsVisible}
+        activeIDs={activeIDs}
+        comments={comments}
+        markNodeMap={markNodeMap}
+        deleteCommentOrThread={deleteCommentOrThread}
+        submitAddComment={submitAddComment}
+      />
+      , document.body, )
     </>
   );
 }
