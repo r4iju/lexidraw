@@ -22,8 +22,14 @@ export async function GET(request: NextRequest) {
   // query param to force the cron job to run
   const shouldForceUpdate =
     request.nextUrl.searchParams.get("force-update") !== null;
+  const updateSince = request.nextUrl.searchParams.get("update-since")
+    ? new Date(request.nextUrl.searchParams.get("update-since") ?? "")
+    : new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+
+  // 1 hour ago would be `new Date(Date.now() - 60 * 60 * 1000)`
 
   console.log("shouldForceUpdate", shouldForceUpdate);
+  console.log("updateSince", updateSince);
 
   let updatedCount = 0;
 
@@ -39,10 +45,7 @@ export async function GET(request: NextRequest) {
       .where(() =>
         shouldForceUpdate
           ? undefined
-          : lte(
-              schema.uploadedImages.updatedAt,
-              new Date(Date.now() - 24 * 60 * 60 * 1000),
-            ),
+          : lte(schema.uploadedImages.updatedAt, updateSince),
       )
       .orderBy(asc(schema.uploadedImages.entityId))
       .execute();

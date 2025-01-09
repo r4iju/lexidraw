@@ -1,10 +1,10 @@
-import { headers as reqHeaders } from "next/headers";
 import { NextResponse } from "next/server";
 import { s3 } from "~/server/s3";
 import { DeleteObjectsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import env from "@packages/env";
 import { count, drizzle, eq, schema } from "@packages/drizzle";
 import type { ServerRuntime } from "next";
+import { canRunCron } from "../cron-middleware";
 
 export const maxDuration = 120; // 2 minutes
 export const runtime: ServerRuntime = "edge";
@@ -12,16 +12,8 @@ export const runtime: ServerRuntime = "edge";
 export async function GET() {
   console.log("#".repeat(20), " Cron job started ", "#".repeat(20));
 
-  const headers = await reqHeaders();
-  if (
-    env.NODE_ENV === "production" &&
-    headers.get("Authorization") !== `Bearer ${env.CRON_SECRET}`
-  ) {
-    console.log(
-      "Unauthorized, expected: ",
-      `"Bearer ${env.CRON_SECRET}"`,
-      `got: ${headers.get("Authorization")}`,
-    );
+  const canRun = await canRunCron();
+  if (!canRun) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
