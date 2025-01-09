@@ -10,6 +10,8 @@ import { canRunCron } from "../cron-middleware";
 export const maxDuration = 120; // 2 minutes
 export const runtime: ServerRuntime = "edge";
 export const dynamic = "force-dynamic";
+// no cache
+export const cache = "force-no-store";
 
 export async function GET(request: NextRequest) {
   console.log("#".repeat(20), " Cron job started ", "#".repeat(20));
@@ -27,13 +29,9 @@ export async function GET(request: NextRequest) {
   const queryParamUpdateSince =
     request.nextUrl.searchParams.get("update-since");
 
+  // epoch time
   if (queryParamUpdateSince) {
-    const parsedDate = new Date(queryParamUpdateSince);
-    if (!isNaN(parsedDate.getTime())) {
-      updateSince = parsedDate;
-    } else {
-      console.warn(`Invalid update-since parameter: ${queryParamUpdateSince}`);
-    }
+    updateSince = new Date(parseInt(queryParamUpdateSince));
   }
 
   console.log("shouldForceUpdate", shouldForceUpdate);
@@ -129,10 +127,17 @@ export async function GET(request: NextRequest) {
 
         // Replace URLs in the entity's elements
         if (image.kind === "attachment") {
+          const filename = image.fileName.replace(
+            /[-[\]{}()*+?.,\\^$|#\s]/g,
+            "\\$&",
+          ); // Escape special regex characters in the filename
+          const regex = new RegExp(`https://\\S*${filename}\\S*GetObject`, "g");
+
           updatedElements = updatedElements.replaceAll(
-            image.signedDownloadUrl,
+            regex,
             signedDownloadUrl,
           );
+
           updatedCount += 1;
         }
         if (image.kind === "thumbnail") {
