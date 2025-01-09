@@ -650,6 +650,8 @@ function CommentsPanel({
   deleteCommentOrThread,
   submitAddComment,
   markNodeMap,
+  isOpen,
+  setIsVisible,
 }: {
   activeIDs: string[];
   comments: Comments;
@@ -663,12 +665,29 @@ function CommentsPanel({
     thread?: Thread,
   ) => void;
   markNodeMap: Map<string, Set<NodeKey>>;
+  isOpen: boolean;
+  setIsVisible: (isVisible: boolean) => void;
 }) {
   const listRef = useRef<HTMLUListElement>(null);
   const isEmpty = comments.length === 0;
 
+  const handleAnimationEnd = useCallback(() => {
+    // if it's *not* open, we're finishing the "animate-out"
+    if (!isOpen) {
+      setIsVisible(false);
+    }
+  }, [isOpen, setIsVisible]);
+
   return (
-    <div className="fixed right-0 w-[300px] h-[calc(100%-100px)] top-[100px] bg-muted border-l border-border shadow-lg rounded-tl-lg z-50 animate-fadeIn">
+    <div
+      onAnimationEnd={handleAnimationEnd}
+      className={cn(
+        "fixed right-0 w-[300px] h-[calc(100%-100px)] top-[100px] bg-muted border-l border-border shadow-lg rounded-tl-lg z-50",
+        isOpen
+          ? "animate-in slide-in-from-right duration-300"
+          : "animate-out slide-out-to-right duration-300",
+      )}
+    >
       <h2 className="text-lg font-medium text-muted-foreground px-4 py-3 border-b border-border">
         Comments
       </h2>
@@ -708,7 +727,22 @@ export default function CommentPlugin({
   const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => new Map(), []);
   const [activeIDs, setActiveIDs] = useState<string[]>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [showComments, setShowComments] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  console.log("isOpen", isOpen);
+  console.log("isVisible", isVisible);
+
+  const toggleComments = useCallback(() => {
+    if (isOpen) {
+      setIsOpen(false);
+    } else {
+      setIsVisible(true);
+      requestAnimationFrame(() => {
+        setIsOpen(true);
+      });
+    }
+  }, [isOpen]);
 
   // If we do have a providerFactory (YJS), let's register
   useEffect(() => {
@@ -974,18 +1008,20 @@ export default function CommentPlugin({
       {createPortal(
         <Button
           className="fixed top-[65px] right-4 z-10 rounded-lg shadow-lg"
-          variant={showComments ? "default" : "outline"}
-          title={showComments ? "Hide Comments" : "Show Comments"}
-          onClick={() => setShowComments((prev) => !prev)}
+          variant={isOpen ? "default" : "outline"}
+          title={isOpen ? "Hide Comments" : "Show Comments"}
+          onClick={toggleComments}
         >
           <MessageSquareText className="size-6" />
         </Button>,
         document.body,
       )}
       {/* The side panel */}
-      {showComments &&
+      {isVisible &&
         createPortal(
           <CommentsPanel
+            isOpen={isOpen}
+            setIsVisible={setIsVisible}
             activeIDs={activeIDs}
             comments={comments}
             markNodeMap={markNodeMap}
