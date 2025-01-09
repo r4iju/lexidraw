@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { s3 } from "~/server/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import env from "@packages/env";
-import { and, asc, drizzle, eq, lte, schema } from "@packages/drizzle";
+import { and, desc, drizzle, eq, lte, schema } from "@packages/drizzle";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { ServerRuntime } from "next";
 import { canRunCron } from "../cron-middleware";
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
           ? undefined
           : lte(schema.uploadedImages.updatedAt, updateSince),
       )
-      .orderBy(asc(schema.uploadedImages.entityId))
+      .orderBy(desc(schema.uploadedImages.updatedAt))
       .execute();
 
     console.log("Found images in table:", uploadedImages.length);
