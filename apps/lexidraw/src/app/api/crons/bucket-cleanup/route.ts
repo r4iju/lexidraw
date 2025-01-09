@@ -8,6 +8,7 @@ import { canRunCron } from "../cron-middleware";
 
 export const maxDuration = 120; // 2 minutes
 export const runtime: ServerRuntime = "edge";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   console.log("#".repeat(20), " Cron job started ", "#".repeat(20));
