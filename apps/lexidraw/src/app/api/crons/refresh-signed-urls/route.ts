@@ -22,11 +22,19 @@ export async function GET(request: NextRequest) {
   // query param to force the cron job to run
   const shouldForceUpdate =
     request.nextUrl.searchParams.get("force-update") !== null;
-  const updateSince = request.nextUrl.searchParams.get("update-since")
-    ? new Date(request.nextUrl.searchParams.get("update-since") ?? "")
-    : new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
 
-  // 1 hour ago would be `new Date(Date.now() - 60 * 60 * 1000)`
+  let updateSince = new Date(Date.now() - 24 * 60 * 60 * 1000); // Default: 24 hours ago
+  const queryParamUpdateSince =
+    request.nextUrl.searchParams.get("update-since");
+
+  if (queryParamUpdateSince) {
+    const parsedDate = new Date(queryParamUpdateSince);
+    if (!isNaN(parsedDate.getTime())) {
+      updateSince = parsedDate;
+    } else {
+      console.warn(`Invalid update-since parameter: ${queryParamUpdateSince}`);
+    }
+  }
 
   console.log("shouldForceUpdate", shouldForceUpdate);
   console.log("updateSince", updateSince);
