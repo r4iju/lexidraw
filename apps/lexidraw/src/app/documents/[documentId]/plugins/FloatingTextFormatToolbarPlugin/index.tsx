@@ -1,5 +1,3 @@
-import "./index.css";
-
 import { $isCodeHighlightNode } from "@lexical/code";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -40,6 +38,7 @@ import {
   Underline,
 } from "lucide-react";
 import { INSERT_INLINE_COMMAND } from "../CommentPlugin";
+import { cn } from "~/lib/utils";
 
 function TextFormatFloatingToolbar({
   editor,
@@ -188,7 +187,10 @@ function TextFormatFloatingToolbar({
   return (
     <div
       ref={popupCharStylesEditorRef}
-      className=" bg-background border p-1 align-middle absolute top-0 left-0 z-10 rounded-lg opacity-0 shadow-lg transition-all  flex flex-row gap-1"
+      className={cn(
+        "bg-background border p-1 align-middle absolute top-0 left-0 z-10 rounded-lg opacity-0 shadow-md flex flex-row gap-1 ",
+        "animate-in fade-in zoom-in duration-75 delay-100",
+      )}
     >
       {editor.isEditable() && (
         <>

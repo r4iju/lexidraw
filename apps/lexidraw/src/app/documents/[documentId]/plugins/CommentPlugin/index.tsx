@@ -309,15 +309,23 @@ function CommentInputBox({
 
   return (
     <div
-      className={cn(
-        "absolute w-64 min-h-20 bg-background shadow-lg rounded-md z-20 animate-in",
-        "before:content-[''] before:absolute before:w-0 before:h-0",
-        "before:border-[8px] before:border-transparent before:border-b-secondary before:border-l-secondary",
-        "before:transform origin-top-left before:rotate-[135deg]",
-      )}
+      className="absolute w-64 min-h-20 bg-muted shadow-lg rounded-md z-20 animate-in slide-in-from-right-5 border border-border"
       style={{ left: 0, top: 0 }}
       ref={boxRef}
     >
+      {/* arrow div */}
+      <div
+        className="
+          absolute
+          w-0 h-0
+          left-1/2
+          -top-2
+          -translate-x-1/2
+          border-l-[8px] border-l-transparent
+          border-r-[8px] border-r-transparent
+          border-b-[8px] border-b-muted
+        "
+      />
       <PlainTextEditor
         autoFocus
         className={cn(
@@ -681,36 +689,47 @@ function CommentsPanel({
   }, [isOpen, setIsOpen]);
 
   return (
-    <div
-      ref={panelRef}
-      className={cn(
-        // Basic position & size
-        "fixed top-32 right-0 w-[300px] h-screen",
-        "bg-muted shadow-lg border-l border-border rounded-tl-lg z-50",
-        // Enable the transform property and set duration
-        "transform transition-transform duration-300 ease-in-out",
-        // Slide in/out depending on `isOpen`
-        isOpen ? "translate-x-0" : "translate-x-full",
-      )}
-    >
-      <h2 className="text-lg font-medium text-muted-foreground px-4 py-3 border-b border-border">
-        Comments
-      </h2>
-      {isEmpty ? (
-        <div className="text-center text-sm text-muted-foreground py-8">
-          No Comments
-        </div>
-      ) : (
-        <CommentsPanelList
-          activeIDs={activeIDs}
-          comments={comments}
-          deleteCommentOrThread={deleteCommentOrThread}
-          submitAddComment={submitAddComment}
-          markNodeMap={markNodeMap}
-          listRef={listRef}
-        />
-      )}
-    </div>
+    <>
+      <div
+        className={cn(
+          "fixed z-20 top-0 left-0 w-full h-full",
+          isOpen ? "block md:hidden" : "hidden",
+        )}
+        onClick={() => setIsOpen(false)}
+      />
+      <div
+        ref={panelRef}
+        className={cn(
+          // Basic position & size
+          "fixed z-30 top-32 right-0 w-full md:w-[300px] h-[calc(100vh-8rem)]",
+          "bg-muted shadow-lg border-l border-border rounded-tl-lg z-50",
+          // Enable the transform property and set duration
+          "duration-200",
+          // Slide in/out depending on `isOpen`
+          isOpen
+            ? "animate-in slide-in-from-right "
+            : "animate-out slide-out-to-right right-[-100vw] md:right-[-300px]",
+        )}
+      >
+        <h2 className="text-lg font-medium text-muted-foreground px-4 py-3 border-b border-border">
+          Comments
+        </h2>
+        {isEmpty ? (
+          <div className="text-center text-sm text-muted-foreground py-8">
+            No Comments
+          </div>
+        ) : (
+          <CommentsPanelList
+            activeIDs={activeIDs}
+            comments={comments}
+            deleteCommentOrThread={deleteCommentOrThread}
+            submitAddComment={submitAddComment}
+            markNodeMap={markNodeMap}
+            listRef={listRef}
+          />
+        )}
+      </div>
+    </>
   );
 }
 
