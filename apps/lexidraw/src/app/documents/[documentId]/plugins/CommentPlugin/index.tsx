@@ -1038,17 +1038,18 @@ export default function CommentPlugin({
         document.body,
       )}
       {/* The side panel */}
-      createPortal(
-      <CommentsPanel
-        isOpen={isOpen}
-        setIsOpen={setIsOpen}
-        activeIDs={activeIDs}
-        comments={comments}
-        markNodeMap={markNodeMap}
-        deleteCommentOrThread={deleteCommentOrThread}
-        submitAddComment={submitAddComment}
-      />
-      , document.body, )
+      {createPortal(
+        <CommentsPanel
+          isOpen={isOpen}
+          setIsOpen={setIsOpen}
+          activeIDs={activeIDs}
+          comments={comments}
+          markNodeMap={markNodeMap}
+          deleteCommentOrThread={deleteCommentOrThread}
+          submitAddComment={submitAddComment}
+        />,
+        document.body,
+      )}
     </>
   );
 }
