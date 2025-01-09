@@ -652,8 +652,6 @@ function CommentsPanel({
   markNodeMap,
   isOpen,
   setIsOpen,
-  isVisible,
-  setIsVisible,
 }: {
   activeIDs: string[];
   comments: Comments;
@@ -669,53 +667,25 @@ function CommentsPanel({
   markNodeMap: Map<string, Set<NodeKey>>;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  isVisible: boolean;
-  setIsVisible: (visible: boolean) => void;
 }) {
   const listRef = useRef<HTMLUListElement>(null);
   const isEmpty = comments.length === 0;
   const panelRef = useRef<HTMLDivElement>(null);
 
-  console.log(
-    "performance.now()",
-    performance.now(),
-    "isOpen",
-    isOpen,
-    "isVisible",
-    isVisible,
-  );
-
   useEffect(() => {
-    // when the panel is opened, make it visible
     if (isOpen) {
-      setIsVisible(true);
-      // when the panel is closed, make it invisible
+      setIsOpen(true);
     } else {
-      setIsVisible(false);
-    }
-  }, [isOpen, setIsVisible]);
-
-  useEffect(() => {
-    if (!isVisible) {
       setIsOpen(false);
     }
-  }, [isVisible, setIsOpen]);
-
-  const handleTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
-    // Only remove from DOM if we just finished the transform animation
-    // and isOpen is now false.
-    if (e.propertyName === "transform" && !isOpen) {
-      setIsVisible(false);
-    }
-  };
+  }, [isOpen, setIsOpen]);
 
   return (
     <div
       ref={panelRef}
-      onTransitionEnd={handleTransitionEnd}
       className={cn(
         // Basic position & size
-        "fixed top-40 right-0 w-[300px] h-screen",
+        "fixed top-32 right-0 w-[300px] h-screen",
         "bg-muted shadow-lg border-l border-border rounded-tl-lg z-50",
         // Enable the transform property and set duration
         "transform transition-transform duration-300 ease-in-out",
@@ -763,13 +733,13 @@ export default function CommentPlugin({
   const [activeIDs, setActiveIDs] = useState<string[]>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
+
   // toggle the comments panel
   const toggleComments = () => {
     if (isOpen) {
       // Start slide out
       // child will trigger setIsOpen(false)
-      setIsVisible(false);
+      setIsOpen(false);
     } else {
       // Make it visible, then slide in
       setIsOpen(true);
@@ -1053,8 +1023,6 @@ export default function CommentPlugin({
       <CommentsPanel
         isOpen={isOpen}
         setIsOpen={setIsOpen}
-        isVisible={isVisible}
-        setIsVisible={setIsVisible}
         activeIDs={activeIDs}
         comments={comments}
         markNodeMap={markNodeMap}
