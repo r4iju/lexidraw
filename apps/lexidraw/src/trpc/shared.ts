@@ -1,4 +1,5 @@
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
+import { loggerLink as trpcLoggerLink } from "@trpc/client";
 import superjson from "superjson";
 
 import { type AppRouter } from "~/server/api/root";
@@ -13,6 +14,19 @@ function getBaseUrl() {
 
 export function getUrl() {
   return getBaseUrl() + "/api/trpc";
+}
+
+/**
+ * Logger link for the server and client.
+ */
+export function loggerLink() {
+  return trpcLoggerLink({
+    enabled: (_op) => {
+      return false;
+      // return process.env.NODE_ENV === "development" ||
+      // (_op.direction === "down" && _op.result instanceof Error),
+    },
+  });
 }
 
 /**
