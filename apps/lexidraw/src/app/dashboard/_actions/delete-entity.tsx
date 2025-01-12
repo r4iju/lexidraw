@@ -14,22 +14,17 @@ import {
 import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
+import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
-  revalidatePath: () => Promise<void>;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };
 
-export default function DeleteDrawing({
-  entity,
-  revalidatePath,
-  isOpen,
-  onOpenChange,
-}: Props) {
+export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
   const router = useRouter();
-  const { mutate: remove, isLoading } = api.entities.delete.useMutation();
+  const { mutate: remove, isPending } = api.entities.delete.useMutation();
   const { toast } = useToast();
 
   const handleDelete = () => {
@@ -38,7 +33,7 @@ export default function DeleteDrawing({
       {
         onSuccess: async () => {
           toast({ title: "Removed!" });
-          await revalidatePath();
+          await revalidateDashboard();
           router.refresh();
         },
         onError: (error) => {
@@ -71,7 +66,7 @@ export default function DeleteDrawing({
               variant="destructive"
               type="button"
               onClick={handleDelete}
-              disabled={isLoading}
+              disabled={isPending}
             >
               Delete
             </Button>

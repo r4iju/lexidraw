@@ -26,10 +26,9 @@ import RenameEntityModal from "./rename-modal";
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   currentAccess: PublicAccess;
-  revalidatePath: () => Promise<void>;
 };
 
-export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
+export function MoreActions({ entity, currentAccess }: Props) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
@@ -98,19 +97,16 @@ export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
       </DropdownMenu>
       <ShareEntity
         entity={entity}
-        revalidatePath={revalidatePath}
         isOpen={isShareDialogOpen}
         onOpenChange={setIsShareDialogOpen}
       />
       <DeleteDrawing
         entity={entity}
-        revalidatePath={revalidatePath}
         isOpen={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
       />
       <RenameEntityModal
         entity={entity}
-        revalidatePath={revalidatePath}
         isOpen={isRenameDialogOpen}
         onOpenChange={setIsRenameDialogOpen}
       />
