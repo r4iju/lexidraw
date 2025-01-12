@@ -21,8 +21,8 @@ import { useToast } from "~/components/ui/use-toast";
 import { api } from "~/trpc/react";
 import { type RouterOutputs } from "~/trpc/shared";
 import { Input } from "~/components/ui/input";
-import { useRouter } from "next/navigation";
-import { revalidateDashboard } from "../server-actions";
+import { useSearchParams } from "next/navigation";
+import { z } from "zod";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -42,127 +42,251 @@ const accessLevelLabel = {
 } as const;
 
 export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
-  const router = useRouter();
+  const utils = api.useUtils();
+  const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const { sortBy, sortOrder } = z
+    .object({
+      sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
+      sortOrder: z.enum(["asc", "desc"]).default("desc"),
+    })
+    .parse(Object.fromEntries(searchParams.entries()));
+
   const [shareWith, setShareWith] = useState<string>("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>(AccessLevel.READ);
   const [publicAccess, setPublicAccess] = useState<PublicAccess>(
     entity.publicAccess as PublicAccess,
   );
 
-  const { refetch, data: sharedWithUsers } =
-    api.entities.getSharedInfo.useQuery(
-      {
-        drawingId: entity.id,
-      },
-      {
-        enabled: isOpen,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-      },
-    );
-  const { mutate: publicShare, isPending: publicShareIsLoading } =
-    api.entities.update.useMutation();
-  const { mutate: shareWithUser, isPending: shareWithIsLoading } =
-    api.entities.share.useMutation();
-  const { mutate: changeAccessLevel, isPending: changeAccessLevelIsLoading } =
-    api.entities.changeAccessLevel.useMutation();
-  const { mutate: unshare, isPending: unshareIsLoading } =
-    api.entities.unShare.useMutation();
-  const { toast } = useToast();
+  /**
+   * -------------------------------------
+   * QUERY: GET SHARED USERS
+   * -------------------------------------
+   */
+  const { data: sharedWithUsers } = api.entities.getSharedInfo.useQuery(
+    { drawingId: entity.id },
+    {
+      enabled: isOpen,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
+  );
 
+  /**
+   * -------------------------------------
+   * MUTATION: PUBLIC SHARE
+   * -------------------------------------
+   */
+  const { mutate: publicShare, isPending: publicShareIsLoading } =
+    api.entities.update.useMutation({
+      async onMutate(newShare) {
+        // Cancel any ongoing fetches for the "list" query
+        const queryKey = {
+          parentId: entity.parentId ?? null,
+          sortBy,
+          sortOrder,
+        } as const;
+        await utils.entities.list.cancel(queryKey);
+
+        // Snapshot previous list for rollback
+        const previousData = utils.entities.list.getData(queryKey) ?? [];
+
+        // Optimistically update
+        utils.entities.list.setData(queryKey, (oldEntities) =>
+          oldEntities
+            ? oldEntities.map((item) =>
+                item.id === entity.id
+                  ? {
+                      ...item,
+                      publicAccess: newShare.publicAccess as PublicAccess,
+                    }
+                  : item,
+              )
+            : [],
+        );
+
+        return { queryKey, previousData };
+      },
+      onError(_error, _vars, context) {
+        // Rollback to previous data
+        if (!context) return;
+        utils.entities.list.setData(context.queryKey, context.previousData);
+      },
+      onSuccess(_res, _vars, context) {
+        // Invalidate the list query to refetch fresh data
+        if (!context) return;
+        utils.entities.list.invalidate(context.queryKey);
+      },
+    });
+
+  /**
+   * -------------------------------------
+   * MUTATION: SHARE WITH USER
+   * -------------------------------------
+   */
+  const { mutate: shareWithUser, isPending: shareWithIsLoading } =
+    api.entities.share.useMutation({
+      async onMutate(newShare) {
+        // Cancel any ongoing fetches for getSharedInfo
+        const queryKey = { drawingId: newShare.drawingId };
+        await utils.entities.getSharedInfo.cancel(queryKey);
+
+        // Snapshot previous data
+        const previousData =
+          utils.entities.getSharedInfo.getData(queryKey) ?? [];
+
+        // Clear the share input
+        const previousInput = shareWith.toString();
+        setShareWith("");
+
+        // Optimistically add the new user
+        utils.entities.getSharedInfo.setData(queryKey, (oldData) => [
+          ...(oldData || []),
+          {
+            userId: "temp-id",
+            name: newShare.userEmail,
+            accessLevel: newShare.accessLevel,
+            drawingId: newShare.drawingId,
+            email: newShare.userEmail,
+          },
+        ]);
+
+        return { queryKey, previousData, previousInput };
+      },
+      onError(_error, variables, context) {
+        // Rollback
+        if (!context) return;
+        utils.entities.getSharedInfo.setData(
+          context.queryKey,
+          context.previousData,
+        );
+        setShareWith(context.previousInput);
+        toast({
+          title: "Not found",
+          description: "Are you sure that email is valid?",
+          variant: "destructive",
+        });
+      },
+      onSuccess(_res, variables, context) {
+        // Invalidate to refetch fresh data
+        if (!context) return;
+        utils.entities.getSharedInfo.invalidate(context.queryKey);
+      },
+    });
+
+  /**
+   * -------------------------------------
+   * MUTATION: CHANGE ACCESS LEVEL
+   * -------------------------------------
+   */
+  const { mutate: changeAccessLevel, isPending: changeAccessLevelIsLoading } =
+    api.entities.changeAccessLevel.useMutation({
+      async onMutate({ drawingId, userId, accessLevel }) {
+        const queryKey = { drawingId };
+        await utils.entities.getSharedInfo.cancel(queryKey);
+
+        const previousData =
+          utils.entities.getSharedInfo.getData(queryKey) ?? [];
+
+        // Optimistically update this user's access level
+        utils.entities.getSharedInfo.setData(queryKey, (oldData) =>
+          oldData?.map((user) =>
+            user.userId === userId ? { ...user, accessLevel } : user,
+          ),
+        );
+
+        return { queryKey, previousData };
+      },
+      onError(_err, vars, context) {
+        if (!context) return;
+        utils.entities.getSharedInfo.setData(
+          context.queryKey,
+          context.previousData,
+        );
+      },
+      onSuccess(_res, vars, context) {
+        if (!context) return;
+        utils.entities.getSharedInfo.invalidate(context.queryKey);
+        toast({
+          title: "Saved",
+        });
+      },
+    });
+
+  /**
+   * -------------------------------------
+   * MUTATION: UNSHARE
+   * -------------------------------------
+   */
+  const { mutate: unshare, isPending: unshareIsLoading } =
+    api.entities.unShare.useMutation({
+      async onMutate({ drawingId, userId }) {
+        const queryKey = { drawingId };
+        await utils.entities.getSharedInfo.cancel(queryKey);
+
+        const previousData =
+          utils.entities.getSharedInfo.getData(queryKey) ?? [];
+
+        // Optimistically remove this user
+        utils.entities.getSharedInfo.setData(queryKey, (oldData) =>
+          oldData?.filter((user) => user.userId !== userId),
+        );
+
+        return { queryKey, previousData };
+      },
+      onError(_err, vars, context) {
+        if (!context) return;
+        utils.entities.getSharedInfo.setData(
+          context.queryKey,
+          context.previousData,
+        );
+        toast({
+          title: "Error",
+          description: "Something went wrong",
+          variant: "destructive",
+        });
+      },
+      onSuccess(_res, variables, context) {
+        if (!context) return;
+        utils.entities.getSharedInfo.invalidate(context.queryKey);
+      },
+    });
+
+  /**
+   * -------------------------------------
+   * Handlers
+   * -------------------------------------
+   */
   const handleShareWith = () => {
     if (!shareWith) return;
-    shareWithUser(
-      {
-        drawingId: entity.id,
-        userEmail: shareWith,
-        accessLevel: accessLevel,
-      },
-      {
-        onSuccess: async () => {
-          setShareWith("");
-          refetch();
-          await revalidateDashboard();
-          router.refresh();
-          toast({
-            title: "Shared!",
-          });
-        },
-        onError(error) {
-          toast({
-            title: "Something went wrong!",
-            description: error.message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
-
-  type ChangeAccessLevelProps = {
-    userId: string;
-    accessLevel: AccessLevel;
+    shareWithUser({
+      drawingId: entity.id,
+      userEmail: shareWith,
+      accessLevel,
+    });
   };
 
   const handleChangeAccessLevel = ({
     userId,
     accessLevel,
-  }: ChangeAccessLevelProps) => {
-    changeAccessLevel(
-      {
-        drawingId: entity.id,
-        userId: userId,
-        accessLevel: accessLevel,
-      },
-      {
-        onSuccess: async () => {
-          refetch();
-          await revalidateDashboard();
-          router.refresh();
-          toast({
-            title: "Access level changed!",
-          });
-        },
-      },
-    );
+  }: {
+    userId: string;
+    accessLevel: AccessLevel;
+  }) => {
+    changeAccessLevel({
+      drawingId: entity.id,
+      userId,
+      accessLevel,
+    });
   };
 
   const handleUnshare = (userId: string) => {
-    unshare(
-      { userId, drawingId: entity.id },
-      {
-        onSuccess: async () => {
-          refetch();
-          await revalidateDashboard();
-          router.refresh();
-          toast({
-            title: "Unshared!",
-          });
-        },
-      },
-    );
+    unshare({ userId, drawingId: entity.id });
   };
 
-  const handleChangePublicAccess = (publicAccess: PublicAccess) => {
-    setPublicAccess(publicAccess);
-    publicShare(
-      { id: entity.id, publicAccess: publicAccess },
-      {
-        onSuccess: async () => {
-          refetch();
-          await revalidateDashboard();
-          router.refresh();
-          toast({ title: "Saved!" });
-        },
-        onError: (error) => {
-          toast({
-            title: "Something went wrong!",
-            description: error.message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
+  const handleChangePublicAccess = (access: PublicAccess) => {
+    setPublicAccess(access);
+    publicShare({ id: entity.id, publicAccess: access });
   };
 
   return (
@@ -178,13 +302,15 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           Share settings for {entity.entityType}. You can adjust public access,
           share with specific users, or modify permissions for existing users.
         </div>
+
         <div className="flex flex-col gap-6 py-4">
+          {/* Public Link */}
           <div className="gap-2">
             <div className="text-md font-semibold">Public link</div>
-            <div>
+            <p>
               Please select the type of public access you want to give to this{" "}
               {entity.entityType}.
-            </div>
+            </p>
             <div className="flex full-w justify-end">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -196,7 +322,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                     {publicShareIsLoading && (
                       <ReloadIcon className="animate-spin w-4 mr-2" />
                     )}
-                    {publicAccessLevelLabel[publicAccess as PublicAccess]}{" "}
+                    {publicAccessLevelLabel[publicAccess as PublicAccess]}
                     <ChevronDownIcon />
                   </Button>
                 </DropdownMenuTrigger>
@@ -213,12 +339,12 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
               </DropdownMenu>
             </div>
           </div>
+
+          {/* Share with Specific Users */}
           <div className="gap-2">
             <div className="text-md font-semibold">Specific Users</div>
-            <div>
-              Share with individual users by entering their email address.
-            </div>
-            <div className="flex w-full flex-col  gap-y-2 space-x-2 pt-2">
+            <p>Share with individual users by entering their email address.</p>
+            <div className="flex w-full flex-col gap-y-2 space-x-2 pt-2">
               <Input
                 className="w-full"
                 placeholder="Email"
@@ -244,6 +370,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+
                 <Button disabled={shareWithIsLoading} onClick={handleShareWith}>
                   {shareWithIsLoading && (
                     <ReloadIcon className="animate-spin w-4 mr-2" />
@@ -253,11 +380,11 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Shared With */}
           <div className="gap-2">
             <div className="text-md font-semibold">Shared with</div>
-            <span>
-              The following users have access to this {entity.entityType}.
-            </span>
+            <p>The following users have access to this {entity.entityType}.</p>
             <div className="space-y-2">
               {sharedWithUsers?.map((sharedUser) => (
                 <div
@@ -304,19 +431,23 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
+
                     <Button
                       variant="destructive"
                       disabled={unshareIsLoading}
                       onClick={() => handleUnshare(sharedUser.userId)}
                     >
-                      {unshareIsLoading && (
-                        <ReloadIcon className="animate-spin w-4 mr-2" />
-                      )}
                       Unshare
                     </Button>
                   </div>
                 </div>
               ))}
+              {/* progress bar, when removing a user */}
+              {unshareIsLoading && (
+                <div className="w-full h-4 mt-2 animate-in slide-in-from-bottom-1">
+                  <div className="h-full w-full bg-muted-foreground rounded-sm animate-pulse"></div>
+                </div>
+              )}
             </div>
           </div>
         </div>
