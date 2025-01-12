@@ -1,17 +1,25 @@
 "use client";
 
+import { Folder } from "lucide-react";
 import Image from "next/image";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
+import { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
-  darkUrl: string;
-  lightUrl: string;
-  alt: string;
+  entity: RouterOutputs["entities"]["list"][number];
 };
 
-export function ThumbnailClient({ darkUrl, lightUrl, alt }: Props) {
+export function ThumbnailClient({ entity }: Props) {
   const isDarkTheme = useIsDarkTheme();
-  const src = isDarkTheme ? darkUrl : lightUrl;
+  const src = isDarkTheme ? entity.screenShotDark : entity.screenShotLight;
+
+  if (
+    entity.entityType === "directory" &&
+    !entity.screenShotDark &&
+    !entity.screenShotLight
+  ) {
+    return <Folder className="size-full aspect-[4/3] text-muted-foreground" />;
+  }
 
   if (src === "") {
     return <ThumbnailFallback />;
@@ -19,10 +27,10 @@ export function ThumbnailClient({ darkUrl, lightUrl, alt }: Props) {
 
   return (
     <>
-      <span className="sr-only">{`Thumbnail for ${alt}`}</span>
+      <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
       <Image
         src={src}
-        alt={alt.substring(0, 14)}
+        alt={entity.title.substring(0, 14)}
         width={400}
         height={300}
         crossOrigin="anonymous"
