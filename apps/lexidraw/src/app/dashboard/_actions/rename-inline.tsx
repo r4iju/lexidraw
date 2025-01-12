@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "~/trpc/react";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
@@ -49,6 +49,11 @@ const EntityTitle = ({ className, entity }: Props) => {
       },
     );
   };
+
+  // if server state changed
+  useEffect(() => {
+    setNewTitle(entity.title);
+  }, [entity.title]);
 
   return (
     <div className={cn("flex w-full gap-4", className)}>

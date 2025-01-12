@@ -397,7 +397,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                   className="flex items-center justify-between"
                 >
                   <div className="flex gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
                       {sharedUser.name ? sharedUser.name[0] : ""}
                     </span>
                     <span className="flex items-center">{sharedUser.name}</span>
