@@ -14,14 +14,14 @@ import { useToast } from "~/components/ui/use-toast";
 import { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
+import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   className?: string;
   entity: RouterOutputs["entities"]["list"][number];
-  revalidatePath: () => Promise<void>;
 };
 
-const EntityTitle = ({ className, entity, revalidatePath }: Props) => {
+const EntityTitle = ({ className, entity }: Props) => {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [newTitle, setNewTitle] = useState(entity.title);
@@ -35,7 +35,7 @@ const EntityTitle = ({ className, entity, revalidatePath }: Props) => {
       { id: entity.id, title: newTitle },
       {
         onSuccess: async () => {
-          await revalidatePath();
+          await revalidateDashboard();
           router.refresh();
           toast({ title: "Saved!", description: newTitle });
           setIsEditing(false);

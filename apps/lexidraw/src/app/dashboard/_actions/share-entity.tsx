@@ -22,10 +22,10 @@ import { api } from "~/trpc/react";
 import { type RouterOutputs } from "~/trpc/shared";
 import { Input } from "~/components/ui/input";
 import { useRouter } from "next/navigation";
+import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
-  revalidatePath: () => Promise<void>;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };
@@ -41,42 +41,32 @@ const accessLevelLabel = {
   [AccessLevel.READ]: "View",
 } as const;
 
-export default function ShareEntity({
-  entity,
-  revalidatePath,
-  isOpen,
-  onOpenChange,
-}: Props) {
+export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
   const router = useRouter();
   const [shareWith, setShareWith] = useState<string>("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>(AccessLevel.READ);
   const [publicAccess, setPublicAccess] = useState<PublicAccess>(
     entity.publicAccess as PublicAccess,
   );
-  const [sharedWithUsers, setSharedWithUsers] = useState<
-    RouterOutputs["entities"]["getSharedInfo"]
-  >([]);
 
-  const { refetch } = api.entities.getSharedInfo.useQuery(
-    {
-      drawingId: entity.id,
-    },
-    {
-      onSuccess: (data) => {
-        setSharedWithUsers(data);
+  const { refetch, data: sharedWithUsers } =
+    api.entities.getSharedInfo.useQuery(
+      {
+        drawingId: entity.id,
       },
-      enabled: isOpen,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-    },
-  );
-  const { mutate: publicShare, isLoading: publicShareIsLoading } =
+      {
+        enabled: isOpen,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+      },
+    );
+  const { mutate: publicShare, isPending: publicShareIsLoading } =
     api.entities.update.useMutation();
-  const { mutate: shareWithUser, isLoading: shareWithIsLoading } =
+  const { mutate: shareWithUser, isPending: shareWithIsLoading } =
     api.entities.share.useMutation();
-  const { mutate: changeAccessLevel, isLoading: changeAccessLevelIsLoading } =
+  const { mutate: changeAccessLevel, isPending: changeAccessLevelIsLoading } =
     api.entities.changeAccessLevel.useMutation();
-  const { mutate: unshare, isLoading: unshareIsLoading } =
+  const { mutate: unshare, isPending: unshareIsLoading } =
     api.entities.unShare.useMutation();
   const { toast } = useToast();
 
@@ -92,7 +82,7 @@ export default function ShareEntity({
         onSuccess: async () => {
           setShareWith("");
           refetch();
-          await revalidatePath();
+          await revalidateDashboard();
           router.refresh();
           toast({
             title: "Shared!",
@@ -118,11 +108,6 @@ export default function ShareEntity({
     userId,
     accessLevel,
   }: ChangeAccessLevelProps) => {
-    setSharedWithUsers((prev) =>
-      prev.map((user) =>
-        user.userId === userId ? { ...user, accessLevel } : user,
-      ),
-    );
     changeAccessLevel(
       {
         drawingId: entity.id,
@@ -132,7 +117,7 @@ export default function ShareEntity({
       {
         onSuccess: async () => {
           refetch();
-          await revalidatePath();
+          await revalidateDashboard();
           router.refresh();
           toast({
             title: "Access level changed!",
@@ -148,7 +133,7 @@ export default function ShareEntity({
       {
         onSuccess: async () => {
           refetch();
-          await revalidatePath();
+          await revalidateDashboard();
           router.refresh();
           toast({
             title: "Unshared!",
@@ -165,7 +150,7 @@ export default function ShareEntity({
       {
         onSuccess: async () => {
           refetch();
-          await revalidatePath();
+          await revalidateDashboard();
           router.refresh();
           toast({ title: "Saved!" });
         },
@@ -274,7 +259,7 @@ export default function ShareEntity({
               The following users have access to this {entity.entityType}.
             </span>
             <div className="space-y-2">
-              {sharedWithUsers.map((sharedUser) => (
+              {sharedWithUsers?.map((sharedUser) => (
                 <div
                   key={sharedUser.userId}
                   className="flex items-center justify-between"

@@ -18,18 +18,17 @@ import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";
 import { ReloadIcon } from "@radix-ui/react-icons";
 import { cn } from "~/lib/utils";
+import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   className?: string;
   entity: RouterOutputs["entities"]["list"][number];
-  revalidatePath: () => Promise<void>;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
 const RenameEntityModal = ({
   entity,
-  revalidatePath,
   isOpen,
   onOpenChange,
 }: Props) => {
@@ -45,7 +44,7 @@ const RenameEntityModal = ({
       { id: entity.id, title: newTitle },
       {
         onSuccess: async () => {
-          await revalidatePath();
+          await revalidateDashboard();
           router.refresh();
           toast({ title: "Saved!", description: newTitle });
           setIsLoading(false);

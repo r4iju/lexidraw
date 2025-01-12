@@ -3,13 +3,13 @@
 import { useDndMonitor } from "@dnd-kit/core";
 import type { ReactNode } from "react";
 import { api } from "~/trpc/react";
+import { revalidateDashboard } from "./server-actions";
 
 type Props = {
   children: ReactNode;
-  refetch: () => Promise<void>;
 };
 
-export function DndMonitor({ children, refetch }: Props) {
+export function DndMonitor({ children }: Props) {
   const { mutate: updateEntity } = api.entities.update.useMutation();
 
   // Monitor global drag end (drop) to update parent ID
@@ -22,8 +22,8 @@ export function DndMonitor({ children, refetch }: Props) {
       updateEntity(
         { id: active.id as string, parentId },
         {
-          onSuccess: () => {
-            refetch();
+          onSuccess: async () => {
+            await revalidateDashboard();
           },
         },
       );

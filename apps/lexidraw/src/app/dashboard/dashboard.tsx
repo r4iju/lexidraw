@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 import { EntityType, PublicAccess } from "@packages/types";
 import { api } from "~/trpc/server";
@@ -47,14 +46,6 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
       case "directory":
         return `/dashboard/${id}?${searchParams.toString()}`;
     }
-  };
-
-  const refetch = async () => {
-    "use server";
-    return await new Promise<void>((resolve) => {
-      revalidatePath("/dashboard", "page");
-      resolve();
-    });
   };
 
   const replaceSearchParam = (key: string, value: string) => {
@@ -136,13 +127,13 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
         <section className="w-full p-4">
           <div
             className={cn(
-              "grid gap-2 md:gap-4 auto-rows-auto",
+              "grid auto-rows-auto",
               flex === "flex-row" &&
-                "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
-              flex === "flex-col" && "grid-cols-1",
+                "gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+              flex === "flex-col" && "gap-2 grid-cols-1",
             )}
           >
-            <DndMonitor refetch={refetch}>
+            <DndMonitor>
               {entities.map((entity) => (
                 <Drag entity={entity} key={entity.id}>
                   <Drop
@@ -179,7 +170,13 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
                         </div>
                       </Link>
                       <div className="flex justify-between items-center gap-4">
-                        <span className="text-sm text-muted-foreground hidden md:block">
+                        <span
+                          className={cn(
+                            "text-sm text-muted-foreground hidden",
+                            flex === "flex-row" && "block",
+                            flex === "flex-col" && "md:block",
+                          )}
+                        >
                           {sortBy === "createdAt" ? "Created " : "Updated "}
                           {/* default to updatedAt, unless sortBy is createdAt */}
                           {formatDistanceToNow(
@@ -196,7 +193,6 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
                         <MoreActions
                           entity={entity}
                           currentAccess={entity.publicAccess as PublicAccess}
-                          revalidatePath={refetch}
                         />
                       </div>
                       <div
@@ -205,7 +201,7 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
                           flex === "flex-row" ? "flex flex-col" : "hidden",
                         )}
                       >
-                        <EntityTitle entity={entity} revalidatePath={refetch} />
+                        <EntityTitle entity={entity} />
                         <Suspense fallback={<ThumbnailFallback />}>
                           <Thumbnail entity={entity} />
                         </Suspense>
