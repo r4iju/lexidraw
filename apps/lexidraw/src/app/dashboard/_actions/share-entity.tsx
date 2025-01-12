@@ -23,6 +23,7 @@ import { type RouterOutputs } from "~/trpc/shared";
 import { Input } from "~/components/ui/input";
 import { useSearchParams } from "next/navigation";
 import { z } from "zod";
+import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -112,10 +113,11 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
         if (!context) return;
         utils.entities.list.setData(context.queryKey, context.previousData);
       },
-      onSuccess(_res, _vars, context) {
+      onSuccess: async (_res, _vars, context) => {
         // Invalidate the list query to refetch fresh data
         if (!context) return;
         utils.entities.list.invalidate(context.queryKey);
+        await revalidateDashboard();
       },
     });
 
@@ -167,10 +169,11 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           variant: "destructive",
         });
       },
-      onSuccess(_res, variables, context) {
+      onSuccess: async (_res, variables, context) => {
         // Invalidate to refetch fresh data
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
+        await revalidateDashboard();
       },
     });
 
@@ -204,12 +207,13 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           context.previousData,
         );
       },
-      onSuccess(_res, vars, context) {
+      onSuccess: async (_res, vars, context) => {
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
         toast({
           title: "Saved",
         });
+        await revalidateDashboard();
       },
     });
 
@@ -246,9 +250,10 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           variant: "destructive",
         });
       },
-      onSuccess(_res, variables, context) {
+      onSuccess: async (_res, variables, context) => {
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
+        await revalidateDashboard();
       },
     });
 
