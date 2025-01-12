@@ -9,6 +9,7 @@ export const runtime: ServerRuntime = "edge";
 const SearchParams = z.object({
   parentId: z.string().optional().nullable().default(null),
   new: z.literal("true").optional(),
+  flex: z.enum(["flex-row", "flex-col"]).default("flex-col"),
   sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
@@ -30,6 +31,7 @@ export default async function DashboardPage({ params, searchParams }: Props) {
     new: isNew,
     sortBy,
     sortOrder,
+    flex,
   } = SearchParams.parse(queryParams);
 
   if (isNew) {
@@ -47,6 +49,11 @@ export default async function DashboardPage({ params, searchParams }: Props) {
   const directory = await api.entities.getMetadata.query({ id: directoryId });
 
   return (
-    <Dashboard directory={directory} sortBy={sortBy} sortOrder={sortOrder} />
+    <Dashboard
+      directory={directory}
+      sortBy={sortBy}
+      sortOrder={sortOrder}
+      flex={flex}
+    />
   );
 }

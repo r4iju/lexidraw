@@ -11,6 +11,7 @@ import {
 import {
   DotsHorizontalIcon,
   Link1Icon,
+  Pencil1Icon,
   Share1Icon,
   TrashIcon,
 } from "@radix-ui/react-icons";
@@ -20,6 +21,7 @@ import { useToast } from "~/components/ui/use-toast";
 import ShareEntity from "./share-entity";
 import { PublicAccess } from "@packages/types";
 import { type RouterOutputs } from "~/trpc/shared";
+import RenameEntityModal from "./rename-modal";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -30,6 +32,7 @@ type Props = {
 export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const copyPublicLink = async () => {
@@ -73,6 +76,13 @@ export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
               <Share1Icon />
             </DropdownMenuItem>
             <DropdownMenuItem
+              onSelect={() => setIsRenameDialogOpen(true)}
+              className="justify-between"
+            >
+              Rename
+              <Pencil1Icon />
+            </DropdownMenuItem>
+            <DropdownMenuItem
               onSelect={copyPublicLink}
               disabled={
                 currentAccess === PublicAccess.PRIVATE &&
@@ -97,6 +107,12 @@ export function MoreActions({ entity, currentAccess, revalidatePath }: Props) {
         revalidatePath={revalidatePath}
         isOpen={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
+      />
+      <RenameEntityModal
+        entity={entity}
+        revalidatePath={revalidatePath}
+        isOpen={isRenameDialogOpen}
+        onOpenChange={setIsRenameDialogOpen}
       />
     </>
   );

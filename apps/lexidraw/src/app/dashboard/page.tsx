@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 const Sort = z.object({
   sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  flex: z.enum(["flex-row", "flex-col"]).default("flex-col"),
 });
 
 type Sort = z.infer<typeof Sort>;
@@ -26,6 +27,6 @@ type Props = {
 
 export default async function DashboardPage({ searchParams }: Props) {
   const queryParams = await searchParams;
-  const sort = Sort.parse(queryParams);
-  return <Dashboard {...sort} />;
+  const query = Sort.parse(queryParams);
+  return <Dashboard {...query} />;
 }
