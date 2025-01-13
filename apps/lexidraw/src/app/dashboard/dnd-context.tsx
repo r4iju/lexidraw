@@ -16,9 +16,10 @@ type Props = {
   children: ReactNode;
   flex: "flex-row" | "flex-col";
   sortBy: "updatedAt" | "createdAt" | "title";
+  sortOrder: "asc" | "desc";
 };
 
-export default function Context({ children, flex, sortBy }: Props) {
+export default function Context({ children, flex, sortBy, sortOrder }: Props) {
   const [activeEntity, setActiveEntity] = useState<
     RouterOutputs["entities"]["list"][number] | null
   >(null);
@@ -54,6 +55,7 @@ export default function Context({ children, flex, sortBy }: Props) {
         {activeEntity ? (
           <EntityCard
             sortBy={sortBy}
+            sortOrder={sortOrder}
             flex={flex}
             entity={activeEntity}
             isOverlay

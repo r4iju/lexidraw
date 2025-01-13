@@ -38,85 +38,85 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
   };
 
   return (
-    <main className="flex h-full flex-col overflow-auto pb-6">
-      {/* Breadcrumb: each ancestor is droppable */}
-      <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2 gap-y-4">
-        <div className="flex justify-between items-center ">
-          <div className="flex items-center space-x-2 truncate">
-            {directory && directory.ancestors?.length > 0 ? (
-              <>
-                {directory.ancestors.map((ancestor, index) => (
-                  <div
-                    key={ancestor.id}
-                    className="flex items-center space-x-2 "
-                  >
-                    <Drop parentId={ancestor.id}>
-                      <Button
-                        asChild
-                        variant="link"
-                        size="icon"
-                        className="truncate text-left hover:underline w-[fit-content] max-w-[125px]"
-                      >
-                        <Link
-                          href={`/dashboard/${ancestor.id ?? ""}${
-                            [...searchParams.entries()].length > 0
-                              ? `?${searchParams.toString()}`
-                              : ""
-                          }`}
+    <Context sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
+      <main className="flex h-full flex-col overflow-auto pb-6">
+        {/* Breadcrumb: each ancestor is droppable */}
+        <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2 gap-y-4">
+          <div className="flex justify-between items-center ">
+            <div className="flex items-center space-x-2 truncate">
+              {directory && directory.ancestors?.length > 0 ? (
+                <>
+                  {directory.ancestors.map((ancestor, index) => (
+                    <div
+                      key={ancestor.id}
+                      className="flex items-center space-x-2 "
+                    >
+                      <Drop parentId={ancestor.id}>
+                        <Button
+                          asChild
+                          variant="link"
+                          size="icon"
+                          className="truncate text-left hover:underline w-[fit-content] max-w-[125px] text-primary"
                         >
-                          {ancestor.title ?? "Untitled"}
-                        </Link>
-                      </Button>
-                    </Drop>
-                    {index < directory.ancestors.length && (
-                      <span className="text-muted-foreground">/</span>
-                    )}
-                  </div>
-                ))}
-                <span className="font-semibold truncate">
-                  {directory.title}
-                </span>
-              </>
-            ) : (
-              <span>Root</span>
-            )}
+                          <Link
+                            href={`/dashboard/${ancestor.id ?? ""}${
+                              [...searchParams.entries()].length > 0
+                                ? `?${searchParams.toString()}`
+                                : ""
+                            }`}
+                          >
+                            {ancestor.title ?? "Untitled"}
+                          </Link>
+                        </Button>
+                      </Drop>
+                      {index < directory.ancestors.length && (
+                        <span className="text-muted-foreground">/</span>
+                      )}
+                    </div>
+                  ))}
+                  <span className="font-semibold truncate">
+                    {directory.title}
+                  </span>
+                </>
+              ) : (
+                <span>Root</span>
+              )}
+            </div>
+            <NewEntity parentId={directory ? directory.id : null} />
           </div>
-          <NewEntity parentId={directory ? directory.id : null} />
-        </div>
-        <div className="flex justify-end space-x-2">
-          <Button
-            variant={flex === "flex-row" ? "secondary" : "outline"}
-            size="icon"
-            asChild
-          >
-            <Link href={replaceSearchParam("flex", "flex-row")}>
-              <LayoutGrid />
-            </Link>
-          </Button>
-          <Button
-            variant={flex === "flex-col" ? "secondary" : "outline"}
-            size="icon"
-            asChild
-          >
-            <Link href={replaceSearchParam("flex", "flex-col")}>
-              <Rows3 />
-            </Link>
-          </Button>
-          <SortMenu sortBy={sortBy} sortOrder={sortOrder} />
-        </div>
-      </nav>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant={flex === "flex-row" ? "secondary" : "outline"}
+              size="icon"
+              asChild
+            >
+              <Link href={replaceSearchParam("flex", "flex-row")}>
+                <LayoutGrid />
+              </Link>
+            </Button>
+            <Button
+              variant={flex === "flex-col" ? "secondary" : "outline"}
+              size="icon"
+              asChild
+            >
+              <Link href={replaceSearchParam("flex", "flex-col")}>
+                <Rows3 />
+              </Link>
+            </Button>
+            <SortMenu sortBy={sortBy} sortOrder={sortOrder} />
+          </div>
+        </nav>
 
-      <div className="flex-1 md:container">
-        <section className="w-full p-4">
-          <div
-            className={cn(
-              "grid auto-rows-auto",
-              flex === "flex-row" &&
-                "gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
-              flex === "flex-col" && "gap-2 grid-cols-1",
-            )}
-          >
-            <Context sortBy={sortBy} flex={flex}>
+        <div className="flex-1 md:container">
+          <section className="w-full p-4">
+            <div
+              className={cn(
+                "grid auto-rows-auto",
+                flex === "flex-row" &&
+                  "gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+                flex === "flex-col" && "gap-2 grid-cols-1",
+              )}
+            >
               {entities.map((entity) => (
                 <Drag entity={entity} key={entity.id} flex={flex}>
                   <Drop
@@ -127,10 +127,10 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
                   </Drop>
                 </Drag>
               ))}
-            </Context>
-          </div>
-        </section>
-      </div>
-    </main>
+            </div>
+          </section>
+        </div>
+      </main>
+    </Context>
   );
 }
