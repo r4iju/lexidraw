@@ -62,6 +62,7 @@ export function EntityCard({
 
   return (
     <Card
+      id={`entity-${entity.id}`}
       className={cn(
         "relative flex gap-4 rounded-lg p-4 justify-between",
         // "hover:bg-muted/20 transition-colors duration-150",
