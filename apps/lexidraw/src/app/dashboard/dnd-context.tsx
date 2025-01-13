@@ -28,36 +28,69 @@ export default function Context({ children, flex, sortBy, sortOrder }: Props) {
   const utils = api.useUtils();
 
   const { mutate: updateEntity } = api.entities.update.useMutation({
-    onMutate: async (movedEntity) => {
-      // Cancel any ongoing fetches for the "list" query
-      const queryKey = {
-        parentId: movedEntity.parentId ?? null,
+    onMutate: async (vars) => {
+      const element = document.getElementById(`entity-${vars.id}`);
+      if (!element) return;
+      element.classList.add("hidden");
+
+      const { id, parentId: newParentId, prevParentId: oldParentId } = vars;
+
+      // 1) Create React Query keys for both the old and new parent
+      const oldParentKey = {
+        parentId: oldParentId ?? null,
         sortBy,
         sortOrder,
       } as const;
-      await utils.entities.list.cancel(queryKey);
+      const newParentKey = {
+        parentId: newParentId ?? null,
+        sortBy,
+        sortOrder,
+      } as const;
 
-      // Snapshot previous list for rollback
-      const previousData = utils.entities.list.getData(queryKey) ?? [];
+      await utils.entities.list.cancel(oldParentKey);
+      await utils.entities.list.cancel(newParentKey);
 
-      // Optimistically update by removing the entity from the list
-      utils.entities.list.setData(queryKey, (oldEntities) =>
-        oldEntities
-          ? oldEntities.filter((item) => item.id !== movedEntity.id)
-          : [],
+      const oldParentData = utils.entities.list.getData(oldParentKey) ?? [];
+      const newParentData = utils.entities.list.getData(newParentKey) ?? [];
+
+      utils.entities.list.setData(oldParentKey, (current) =>
+        current ? current.filter((e) => e.id !== id) : [],
       );
 
-      return { queryKey, previousData };
+      utils.entities.list.setData(newParentKey, (current) => {
+        if (!current) return [];
+        // If you have the full entity object somewhere, use that
+        // or minimally:
+        const movedEntity = {
+          ...(activeEntity as RouterOutputs["entities"]["list"][number]),
+          id: id as string,
+          parentId: newParentId as string | null,
+        };
+        return [...current, movedEntity];
+      });
+
+      return {
+        oldParentKey,
+        newParentKey,
+        oldParentData,
+        newParentData,
+      };
     },
-    onError: (_error, _vars, context) => {
-      // Rollback to previous data
+    onError: (_error, vars, context) => {
+      console.log("rollback to previous data");
       if (!context) return;
-      utils.entities.list.setData(context.queryKey, context.previousData);
+      const element = document.getElementById(`entity-${vars.id}`);
+      if (!element) return;
+      element.classList.remove("hidden");
+
+      utils.entities.list.setData(context.oldParentKey, context.oldParentData);
+      utils.entities.list.setData(context.newParentKey, context.newParentData);
     },
     onSuccess: async (_res, _vars, context) => {
-      // Invalidate the list query to refetch fresh data
       if (!context) return;
-      utils.entities.list.invalidate(context.queryKey);
+      await utils.entities.list.invalidate(context.oldParentKey);
+      await utils.entities.list.invalidate(context.newParentKey);
+
       await revalidateDashboard();
     },
   });
@@ -76,7 +109,11 @@ export default function Context({ children, flex, sortBy, sortOrder }: Props) {
 
     if (active?.id && over?.id && active.id !== over.id) {
       const parentId = over.id === "null" ? null : (over.id as string);
-      updateEntity({ id: active.id as string, parentId });
+      updateEntity({
+        id: active.id as string,
+        parentId,
+        prevParentId: active.data.current?.entity.parentId,
+      });
     }
 
     setActiveEntity(null);

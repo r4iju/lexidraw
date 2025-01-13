@@ -8,7 +8,6 @@ export const documentRouter = createTRPCRouter({
   create: protectedProcedure
     .input(CreateDocument)
     .mutation(async ({ input, ctx }) => {
-      console.log(input);
       return await ctx.drizzle
         .insert(schema.entities)
         .values({

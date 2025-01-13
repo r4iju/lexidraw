@@ -201,7 +201,7 @@ export const entityRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id ?? "";
 
-      // 1) Fetch the current entity
+      // 1. fetch the current entity
       const entities = await ctx.drizzle
         .select({
           id: schema.entities.id,
@@ -243,7 +243,7 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
-      // 2) Recursively fetch all ancestors
+      // 2. recursively fetch all ancestors
       const ancestors: {
         id: string | null;
         title: string;
@@ -269,21 +269,19 @@ export const entityRouter = createTRPCRouter({
         currentParentId = parent.parentId;
       }
 
-      // Add the root entity
+      // add the root entity
       ancestors.push({
         id: null,
         title: "Root",
         parentId: null,
       });
 
-      // We typically want them in root->child order, so reverse
+      // root->child order, so reverse
       ancestors.reverse();
-
-      console.log("ancestors", ancestors);
 
       return {
         ...entity,
-        ancestors, // Return the entire chain of ancestors
+        ancestors,
       };
     }),
   list: protectedProcedure
@@ -334,8 +332,6 @@ export const entityRouter = createTRPCRouter({
         .orderBy(desc(schema.entities.updatedAt))
         .execute();
 
-      console.log(input);
-
       return sortArrOfObjects<
         (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
@@ -379,6 +375,7 @@ export const entityRouter = createTRPCRouter({
         id: z.string(),
         title: z.string().optional(),
         parentId: z.string().nullable().optional(),
+        prevParentId: z.string().nullable().optional(),
         publicAccess: z
           .enum([PublicAccess.READ, PublicAccess.EDIT, PublicAccess.PRIVATE])
           .optional(),
