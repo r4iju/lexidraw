@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
-import { PublicAccess } from "@packages/types";
+import { EntityType, PublicAccess } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -16,15 +16,44 @@ type Props = {
   entity: Entity;
   flex: "flex-row" | "flex-col";
   sortBy?: "updatedAt" | "createdAt" | "title";
+  sortOrder?: "asc" | "desc";
   isOverlay?: boolean;
+};
+
+const itemUrl = ({
+  id,
+  entityType,
+  searchParams,
+}: {
+  id: string;
+  entityType: EntityType;
+  searchParams: URLSearchParams;
+}) => {
+  switch (entityType) {
+    case EntityType.DIRECTORY:
+      return `/dashboard/${id}?${searchParams.toString()}`;
+    case EntityType.DRAWING:
+      return `/drawings/${id}`;
+    case EntityType.DOCUMENT:
+      return `/documents/${id}`;
+    default:
+      console.warn(`Unknown entity type: ${entityType satisfies never}`);
+      return `/dashboard/${id}?${searchParams.toString()}`;
+  }
 };
 
 export function EntityCard({
   entity,
   flex,
   sortBy = "updatedAt",
+  sortOrder = "desc",
   isOverlay = false,
 }: Props) {
+  const searchParams = new URLSearchParams({
+    ...(flex ? { flex } : {}),
+    ...(sortBy ? { sortBy } : {}),
+    ...(sortOrder ? { sortOrder } : {}),
+  });
   const updatedOrCreated = sortBy === "createdAt" ? "Created " : "Updated ";
   const dateString = formatDistanceToNow(
     new Date(sortBy === "createdAt" ? entity.createdAt : entity.updatedAt),
@@ -56,22 +85,38 @@ export function EntityCard({
         <div className="size-10 min-w-10">
           <ThumbnailClient entity={entity} />
         </div>
-        <span className="font-semibold line-clamp-1 w-full">
-          {entity.title}
-        </span>
+        <Link
+          href={itemUrl({
+            id: entity.id,
+            entityType: entity.entityType as EntityType,
+            searchParams,
+          })}
+        >
+          <span className="font-semibold line-clamp-1 w-full">
+            {entity.title}
+          </span>
+        </Link>
       </div>
 
       {/* middle: date + actions */}
       <div className="flex justify-between items-center gap-4">
-        <span
-          className={cn(
-            "text-sm text-muted-foreground",
-            flex === "flex-row" ? "block" : "md:block",
-          )}
+        <Link
+          href={itemUrl({
+            id: entity.id,
+            entityType: entity.entityType as EntityType,
+            searchParams,
+          })}
         >
-          {updatedOrCreated}
-          {dateString}
-        </span>
+          <span
+            className={cn(
+              "text-sm text-muted-foreground",
+              flex === "flex-row" ? "block" : "md:block",
+            )}
+          >
+            {updatedOrCreated}
+            {dateString}
+          </span>
+        </Link>
 
         {!isOverlay ? (
           <MoreActions
@@ -99,7 +144,15 @@ export function EntityCard({
       {/* "open" button if flex-row */}
       {flex === "flex-row" && (
         <Button className="mt-2 w-full" asChild>
-          <Link href={/* your itemUrl logic here */ `#`}>Open</Link>
+          <Link
+            href={itemUrl({
+              id: entity.id,
+              entityType: entity.entityType as EntityType,
+              searchParams,
+            })}
+          >
+            Open
+          </Link>
         </Button>
       )}
     </Card>
