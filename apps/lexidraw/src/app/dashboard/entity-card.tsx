@@ -8,6 +8,7 @@ import { Card } from "~/components/ui/card";
 import { MoreActions } from "./_actions/more-actions";
 import { ThumbnailClient } from "./thumbnail-client";
 import EntityTitle from "./_actions/rename-inline";
+import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 
 type Entity = RouterOutputs["entities"]["list"][number];
 
@@ -33,11 +34,17 @@ export function EntityCard({
   return (
     <Card
       className={cn(
-        "relative flex gap-4 rounded-lg p-4 hover:bg-muted/20 transition-colors duration-150 justify-between",
+        "relative flex gap-4 rounded-lg p-4 justify-between",
+        // "hover:bg-muted/20 transition-colors duration-150",
         flex === "flex-row" && "flex-col",
         flex === "flex-col" && "flex-row",
-        isOverlay && "cursor-grabbing bg-muted bg-opacity-100", // a visual cue
+        isOverlay && "cursor-grabbing bg-card bg-opacity-100", // a visual cue
       )}
+      style={{
+        ...(isOverlay && {
+          transform: "translate3d(0, 0, 0)",
+        }),
+      }}
     >
       {/* left side */}
       <div
@@ -66,10 +73,16 @@ export function EntityCard({
           {dateString}
         </span>
 
-        <MoreActions
-          entity={entity}
-          currentAccess={entity.publicAccess as PublicAccess}
-        />
+        {!isOverlay ? (
+          <MoreActions
+            entity={entity}
+            currentAccess={entity.publicAccess as PublicAccess}
+          />
+        ) : (
+          <Button variant="ghost" disabled>
+            <DotsHorizontalIcon className="size-5" />
+          </Button>
+        )}
       </div>
 
       {/* right side (if flex-row) */}
