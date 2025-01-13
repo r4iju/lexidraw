@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { EntityCard } from "./entity-card";
+import { revalidateDashboard } from "./server-actions";
 
 type Props = {
   children: ReactNode;
@@ -24,7 +25,42 @@ export default function Context({ children, flex, sortBy, sortOrder }: Props) {
     RouterOutputs["entities"]["list"][number] | null
   >(null);
 
-  const { mutate: updateEntity } = api.entities.update.useMutation();
+  const utils = api.useUtils();
+
+  const { mutate: updateEntity } = api.entities.update.useMutation({
+    onMutate: async (movedEntity) => {
+      // Cancel any ongoing fetches for the "list" query
+      const queryKey = {
+        parentId: movedEntity.parentId ?? null,
+        sortBy,
+        sortOrder,
+      } as const;
+      await utils.entities.list.cancel(queryKey);
+
+      // Snapshot previous list for rollback
+      const previousData = utils.entities.list.getData(queryKey) ?? [];
+
+      // Optimistically update by removing the entity from the list
+      utils.entities.list.setData(queryKey, (oldEntities) =>
+        oldEntities
+          ? oldEntities.filter((item) => item.id !== movedEntity.id)
+          : [],
+      );
+
+      return { queryKey, previousData };
+    },
+    onError: (_error, _vars, context) => {
+      // Rollback to previous data
+      if (!context) return;
+      utils.entities.list.setData(context.queryKey, context.previousData);
+    },
+    onSuccess: async (_res, _vars, context) => {
+      // Invalidate the list query to refetch fresh data
+      if (!context) return;
+      utils.entities.list.invalidate(context.queryKey);
+      await revalidateDashboard();
+    },
+  });
 
   const handleDragStart = (event: DragStartEvent) => {
     // The data for the dragged item is set in `useDraggable({ data: ... })`
