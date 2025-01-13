@@ -2,6 +2,7 @@
 
 import { Folder } from "lucide-react";
 import Image from "next/image";
+import { useDeferredValue, useMemo } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { RouterOutputs } from "~/trpc/shared";
 
@@ -11,38 +12,41 @@ type Props = {
 
 export function ThumbnailClient({ entity }: Props) {
   const isDarkTheme = useIsDarkTheme();
-  const src = isDarkTheme ? entity.screenShotDark : entity.screenShotLight;
-
-  if (
-    entity.entityType === "directory" &&
-    !entity.screenShotDark &&
-    !entity.screenShotLight
-  ) {
-    return <Folder className="size-full aspect-[4/3] text-muted-foreground" />;
-  }
-
-  if (src === "") {
-    return <ThumbnailFallback />;
-  }
+  const deferredIsDarkTheme = useDeferredValue(isDarkTheme);
+  const src = useMemo(
+    () =>
+      deferredIsDarkTheme ? entity.screenShotDark : entity.screenShotLight,
+    [deferredIsDarkTheme, entity.screenShotDark, entity.screenShotLight],
+  );
+  const isDefaultDirectory = entity.entityType === "directory" && !src;
 
   return (
-    <>
+    <div className="size-full aspect-[4/3] border border-border rounded-sm overflow-hidden ">
       <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
-      <Image
-        src={src}
-        alt={entity.title.substring(0, 14)}
-        width={400}
-        height={300}
-        crossOrigin="anonymous"
-        className="aspect-[4/3]"
-        style={{ width: "auto", height: "auto" }}
-      />
-    </>
+      {isDefaultDirectory && (
+        <Folder className="size-full text-muted-foreground" />
+      )}
+      {src && (
+        <Image
+          src={src}
+          alt={entity.title.substring(0, 14)}
+          width={200}
+          height={150}
+          crossOrigin="anonymous"
+          className="size-full aspect-[4/3] object-cover"
+          style={{ width: "auto", height: "auto" }}
+          quality={60}
+          sizes="(max-width: 200px) 50vw, 25vw"
+          loading="eager"
+        />
+      )}
+      {!src && !isDefaultDirectory && <ThumbnailFallback />}
+    </div>
   );
 }
 
 export function ThumbnailFallback() {
   return (
-    <div className="aspect-[4/3] min-h-[300px] bg-muted-foreground animate-pulse rounded-sm" />
+    <div className="aspect-[4/3] size-full bg-muted-foreground animate-pulse rounded-sm" />
   );
 }

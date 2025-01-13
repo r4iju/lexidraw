@@ -32,7 +32,6 @@ export default function Context({ children, flex, sortBy }: Props) {
     if (entity) {
       setActiveEntity(entity);
     }
-    console.log("active entity", activeEntity);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {

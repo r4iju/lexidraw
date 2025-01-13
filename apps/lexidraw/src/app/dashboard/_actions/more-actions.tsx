@@ -55,7 +55,7 @@ export function MoreActions({ entity, currentAccess }: Props) {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost">
-            <DotsHorizontalIcon className="h-5 w-5" />
+            <DotsHorizontalIcon className="size-5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
