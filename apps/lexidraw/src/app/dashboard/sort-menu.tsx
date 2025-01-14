@@ -1,8 +1,7 @@
 "use client";
 
 import { ArrowUp, ArrowDown } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
-import { Button } from "~/components/ui/button";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -11,24 +10,34 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { TooltipButton } from "~/components/ui/tooltip-button";
+import { replaceSearchParam } from "./utils";
 
-type Props = {
-  sortBy?: "updatedAt" | "createdAt" | "title";
-  sortOrder?: "asc" | "desc";
-};
-
-export function SortMenu({ sortBy, sortOrder }: Props) {
+export function SortMenu() {
+  const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
 
+  const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const sortBy = searchParams.get("sortBy") ?? "updatedAt";
+
   const handleSort = (value: string) => {
-    router.push(`${pathname}?sortBy=${value}&sortOrder=${sortOrder}`);
+    const newPath = replaceSearchParam({
+      pathname,
+      prevParams: searchParams,
+      key: "sortBy",
+      value,
+    });
+    router.push(newPath);
   };
 
   const handleSortOrder = () => {
-    router.push(
-      `${pathname}?sortBy=${sortBy}&sortOrder=${sortOrder === "asc" ? "desc" : "asc"}`,
-    );
+    const newPath = replaceSearchParam({
+      pathname,
+      prevParams: searchParams,
+      key: "sortOrder",
+      value: sortOrder === "asc" ? "desc" : "asc",
+    });
+    router.push(newPath);
   };
 
   const tooltipText = (() => {
@@ -36,7 +45,7 @@ export function SortMenu({ sortBy, sortOrder }: Props) {
       case "createdAt":
         return sortOrder === "asc" ? "Oldest first" : "Newest first";
       case "updatedAt":
-        return sortOrder === "asc" ? "Oldest first" : "Newest first";
+        return sortOrder === "asc" ? "Oldest first" : "Recent first";
       case "title":
         return sortOrder === "asc" ? "A → Z" : "Z → A";
       default:

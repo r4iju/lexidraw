@@ -11,6 +11,7 @@ import { SortMenu } from "./sort-menu";
 import { LayoutGrid, Rows3 } from "lucide-react";
 import Context from "./dnd-context";
 import { EntityCard } from "./entity-card";
+import { replaceSearchParam } from "./utils";
 
 type Props = {
   directory?: RouterOutputs["entities"]["getMetadata"];
@@ -30,12 +31,6 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
     sortBy,
     sortOrder,
   });
-
-  const replaceSearchParam = (key: string, value: string) => {
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set(key, value);
-    return `/dashboard${directory ? `/${directory.id}` : ""}?${newParams.toString()}`;
-  };
 
   return (
     <Context sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
@@ -60,7 +55,7 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
                         >
                           <Link
                             href={`/dashboard/${ancestor.id ?? ""}${
-                              [...searchParams.entries()].length > 0
+                              searchParams.size > 0
                                 ? `?${searchParams.toString()}`
                                 : ""
                             }`}
@@ -90,7 +85,14 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
               size="icon"
               asChild
             >
-              <Link href={replaceSearchParam("flex", "flex-row")}>
+              <Link
+                href={replaceSearchParam({
+                  pathname: `/dashboard/${directory?.id ?? ""}`,
+                  prevParams: searchParams,
+                  key: "flex",
+                  value: "flex-row",
+                })}
+              >
                 <LayoutGrid />
               </Link>
             </Button>
@@ -99,11 +101,18 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
               size="icon"
               asChild
             >
-              <Link href={replaceSearchParam("flex", "flex-col")}>
+              <Link
+                href={replaceSearchParam({
+                  pathname: `/dashboard/${directory?.id ?? ""}`,
+                  prevParams: searchParams,
+                  key: "flex",
+                  value: "flex-col",
+                })}
+              >
                 <Rows3 />
               </Link>
             </Button>
-            <SortMenu sortBy={sortBy} sortOrder={sortOrder} />
+            <SortMenu  />
           </div>
         </nav>
 

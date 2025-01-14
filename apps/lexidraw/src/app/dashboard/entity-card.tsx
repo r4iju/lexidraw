@@ -111,7 +111,7 @@ export function EntityCard({
           <span
             className={cn(
               "text-sm text-muted-foreground",
-              flex === "flex-row" ? "block" : "md:block",
+              flex === "flex-row" ? "block" : "hidden md:block",
             )}
           >
             {updatedOrCreated}
@@ -125,6 +125,7 @@ export function EntityCard({
             currentAccess={entity.publicAccess as PublicAccess}
           />
         ) : (
+          // only render a placeholder icon for the overlay
           <Button variant="ghost" disabled>
             <DotsHorizontalIcon className="size-5" />
           </Button>
