@@ -16,7 +16,7 @@ import {
   TrashIcon,
 } from "@radix-ui/react-icons";
 import DeleteDrawing from "./delete-entity";
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useToast } from "~/components/ui/use-toast";
 import ShareEntity from "./share-entity";
 import { PublicAccess } from "@packages/types";
@@ -28,88 +28,111 @@ type Props = {
   currentAccess: PublicAccess;
 };
 
-export function MoreActions({ entity, currentAccess }: Props) {
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
-  const { toast } = useToast();
+export const MoreActions = memo(
+  function MoreActions({ entity, currentAccess }: Props) {
+    const { toast } = useToast();
 
-  const copyPublicLink = async () => {
-    const url = `${window.location.origin}/${entity.entityType}s/${entity.id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({
-        title: "Link copied to clipboard!",
-      });
-    } catch (err) {
-      toast({
-        title: "Failed to copy link to clipboard!",
-        description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
-      });
-    }
-  };
+    const [openDialog, setOpenDialog] = useState<
+      null | "delete" | "share" | "rename"
+    >(null);
 
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost">
-            <DotsHorizontalIcon className="size-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          <DropdownMenuGroup>
-            <DropdownMenuItem
-              onSelect={() => setIsDeleteDialogOpen(true)}
-              className="justify-between"
-            >
-              Delete
-              <TrashIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setIsShareDialogOpen(true)}
-              className="justify-between"
-            >
-              Share {entity.entityType}
-              <Share1Icon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setIsRenameDialogOpen(true)}
-              className="justify-between"
-            >
-              Rename
-              <Pencil1Icon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={copyPublicLink}
-              disabled={
-                currentAccess === PublicAccess.PRIVATE &&
-                entity.sharedWithCount === 0
-              }
-              className="justify-between"
-            >
-              Copy link
-              <Link1Icon />
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <ShareEntity
-        entity={entity}
-        isOpen={isShareDialogOpen}
-        onOpenChange={setIsShareDialogOpen}
-      />
-      <DeleteDrawing
-        entity={entity}
-        isOpen={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-      />
-      <RenameEntityModal
-        entity={entity}
-        isOpen={isRenameDialogOpen}
-        onOpenChange={setIsRenameDialogOpen}
-      />
-    </>
-  );
-}
+    const handleOpenDelete = () => setOpenDialog("delete");
+    const handleOpenShare = () => setOpenDialog("share");
+    const handleOpenRename = () => setOpenDialog("rename");
+
+    const handleCloseDialog = () => setOpenDialog(null);
+
+    const copyPublicLink = async () => {
+      const url = `${window.location.origin}/${entity.entityType}s/${entity.id}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast({
+          title: "Link copied to clipboard!",
+        });
+      } catch (err) {
+        toast({
+          title: "Failed to copy link to clipboard!",
+          description: err instanceof Error ? err.message : String(err),
+          variant: "destructive",
+        });
+      }
+    };
+
+    return (
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost">
+              <DotsHorizontalIcon className="size-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56">
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onSelect={handleOpenDelete}
+                className="justify-between"
+              >
+                Delete
+                <TrashIcon />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={handleOpenShare}
+                className="justify-between"
+              >
+                Share {entity.entityType}
+                <Share1Icon />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={handleOpenRename}
+                className="justify-between"
+              >
+                Rename
+                <Pencil1Icon />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={copyPublicLink}
+                disabled={
+                  currentAccess === PublicAccess.PRIVATE &&
+                  entity.sharedWithCount === 0
+                }
+                className="justify-between"
+              >
+                Copy link
+                <Link1Icon />
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {openDialog === "delete" && (
+          <DeleteDrawing
+            entity={entity}
+            isOpen
+            onOpenChange={handleCloseDialog}
+          />
+        )}
+        {openDialog === "share" && (
+          <ShareEntity
+            entity={entity}
+            isOpen
+            onOpenChange={handleCloseDialog}
+          />
+        )}
+        {openDialog === "rename" && (
+          <RenameEntityModal
+            entity={entity}
+            isOpen
+            onOpenChange={handleCloseDialog}
+          />
+        )}
+      </>
+    );
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.currentAccess === nextProps.currentAccess &&
+      prevProps.entity.id === nextProps.entity.id &&
+      prevProps.entity.title === nextProps.entity.title &&
+      prevProps.entity.sharedWithCount === nextProps.entity.sharedWithCount
+    );
+  },
+);
