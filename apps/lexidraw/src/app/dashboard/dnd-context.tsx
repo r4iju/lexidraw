@@ -59,8 +59,7 @@ export default function Context({ children, flex, sortBy, sortOrder }: Props) {
 
       utils.entities.list.setData(newParentKey, (current) => {
         if (!current) return [];
-        // If you have the full entity object somewhere, use that
-        // or minimally:
+
         const movedEntity = {
           ...(activeEntity as RouterOutputs["entities"]["list"][number]),
           id: id as string,
