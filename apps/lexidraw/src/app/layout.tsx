@@ -65,10 +65,16 @@ type Props = {
 
 export default function RootLayout({ children }: Props) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      style={{
+        scrollbarGutter: "stable both-edges",
+      }}
+    >
       <body
         className={cn(
-          "min-h-screen size-full flex flex-col font-fredoka bg-background antialiased p-0",
+          "min-h-screen size-full flex flex-col font-fredoka bg-background antialiased p-0 ",
           fredoka.variable,
           inter.variable,
           mono.variable,
