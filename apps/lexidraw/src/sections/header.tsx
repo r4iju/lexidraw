@@ -16,10 +16,13 @@ export default async function Header() {
   const session = await auth();
   return (
     <header className="static top-0 left-0 w-full min-w-[100vw] h-14 z-50 flex border-b border-muted items-center justify-between bg-background shadow-md py-2 px-4 lg:px-6 overflow-hidden">
-      <Link href="/" className="flex items-center justify-center size-6">
-        <AppIcon className="size-full object-contain border-muted" />
-        <span className="sr-only">An Excalidraw Demo</span>
+      <Link href="/" passHref>
+        <AppIcon
+          className="size-6 object-contain border-muted hover:shadow-sm"
+          aria-label="Go to startpage"
+        />
       </Link>
+
       <nav>
         <ul className="flex items-center gap-4 sm:gap-6">
           <li>
