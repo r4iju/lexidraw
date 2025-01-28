@@ -1,6 +1,12 @@
 import "~/styles/globals.css";
 
-import { Fredoka, Inter, Anonymous_Pro } from "next/font/google";
+import {
+  Noto_Sans_JP,
+  Fredoka,
+  Inter,
+  Anonymous_Pro,
+  M_PLUS_Rounded_1c,
+} from "next/font/google";
 import { Toaster } from "~/components/ui/toaster";
 import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
@@ -25,6 +31,29 @@ const fredoka = Fredoka({
   variable: "--font-fredoka",
 });
 
+const mplus = M_PLUS_Rounded_1c({
+  weight: ["400", "700"],
+  subsets: [
+    "latin",
+    "latin-ext",
+    "cyrillic",
+    "cyrillic-ext",
+    "greek",
+    "greek-ext",
+    "hebrew",
+    "vietnamese",
+  ],
+  variable: "--font-mplus",
+  display: "swap",
+});
+
+const noto = Noto_Sans_JP({
+  weight: ["400", "700"],
+  subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
+  variable: "--font-noto",
+  display: "swap",
+});
+
 export const metadata = {
   title: "Lexidraw",
   description: "An Excalidraw demo app",
@@ -43,6 +72,8 @@ export default function RootLayout({ children }: Props) {
           fredoka.variable,
           inter.variable,
           mono.variable,
+          mplus.variable,
+          noto.variable,
         )}
       >
         <SessionProvider>
