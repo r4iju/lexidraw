@@ -34,7 +34,7 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
 
   return (
     <Context sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
-      <main className="flex h-full flex-col overflow-auto pb-6">
+      <main className="flex size-full min-h-[calc(100vh-56px-65px)] flex-col overflow-auto pb-6">
         {/* Breadcrumb: each ancestor is droppable */}
         <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2 gap-y-4">
           <div className="flex justify-between items-center ">
@@ -112,7 +112,7 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
                 <Rows3 />
               </Link>
             </Button>
-            <SortMenu  />
+            <SortMenu />
           </div>
         </nav>
 

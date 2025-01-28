@@ -68,7 +68,7 @@ export default function RootLayout({ children }: Props) {
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
-          "flex min-h-screen h-full flex-col font-fredoka bg-background antialiased p-0",
+          "min-h-screen size-full flex flex-col font-fredoka bg-background antialiased p-0",
           fredoka.variable,
           inter.variable,
           mono.variable,

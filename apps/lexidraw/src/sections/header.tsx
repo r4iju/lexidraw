@@ -15,9 +15,9 @@ import { auth } from "~/server/auth";
 export default async function Header() {
   const session = await auth();
   return (
-    <header className="sticky top-0 z-50 flex min-w-[100vw] h-14 border-b border-muted items-center justify-between bg-background py-2 px-4 shadow-md lg:px-6">
-      <Link href="/" className="flex items-center size-6 justify-center ">
-        <AppIcon className="size-full border-muted" />
+    <header className="static top-0 left-0 w-full min-w-[100vw] h-14 z-50 flex border-b border-muted items-center justify-between bg-background shadow-md py-2 px-4 lg:px-6 overflow-hidden">
+      <Link href="/" className="flex items-center justify-center size-6">
+        <AppIcon className="size-full object-contain border-muted" />
         <span className="sr-only">An Excalidraw Demo</span>
       </Link>
       <nav>
