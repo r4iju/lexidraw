@@ -5,36 +5,36 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {$createCodeNode} from '@lexical/code';
+import { $createCodeNode } from "@lexical/code";
 import {
   INSERT_CHECK_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
-} from '@lexical/list';
-import {$isDecoratorBlockNode} from '@lexical/react/LexicalDecoratorBlockNode';
+} from "@lexical/list";
+import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode";
 import {
   $createHeadingNode,
   $createQuoteNode,
   $isHeadingNode,
   $isQuoteNode,
   HeadingTagType,
-} from '@lexical/rich-text';
-import {$patchStyleText, $setBlocksType} from '@lexical/selection';
-import {$isTableSelection} from '@lexical/table';
-import {$getNearestBlockElementAncestorOrThrow} from '@lexical/utils';
+} from "@lexical/rich-text";
+import { $patchStyleText, $setBlocksType } from "@lexical/selection";
+import { $isTableSelection } from "@lexical/table";
+import { $getNearestBlockElementAncestorOrThrow } from "@lexical/utils";
 import {
   $createParagraphNode,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
   LexicalEditor,
-} from 'lexical';
+} from "lexical";
 
 import {
   DEFAULT_FONT_SIZE,
   MAX_ALLOWED_FONT_SIZE,
   MIN_ALLOWED_FONT_SIZE,
-} from '../../context/toolbar-context';
+} from "../../context/toolbar-context";
 
 // eslint-disable-next-line no-shadow
 export enum UpdateFontSizeType {
@@ -135,7 +135,7 @@ export const updateFontSizeInSelection = (
       const selection = $getSelection();
       if (selection !== null) {
         $patchStyleText(selection, {
-          'font-size': newFontSize || getNextFontSize,
+          "font-size": newFontSize || getNextFontSize,
         });
       }
     }
@@ -147,9 +147,9 @@ export const updateFontSize = (
   updateType: UpdateFontSizeType,
   inputValue: string,
 ) => {
-  if (inputValue !== '') {
+  if (inputValue !== "") {
     const nextFontSize = calculateNextFontSize(Number(inputValue), updateType);
-    updateFontSizeInSelection(editor, String(nextFontSize) + 'px', null);
+    updateFontSizeInSelection(editor, String(nextFontSize) + "px", null);
   } else {
     updateFontSizeInSelection(editor, null, updateType);
   }
@@ -178,7 +178,7 @@ export const formatHeading = (
 };
 
 export const formatBulletList = (editor: LexicalEditor, blockType: string) => {
-  if (blockType !== 'bullet') {
+  if (blockType !== "bullet") {
     editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
   } else {
     formatParagraph(editor);
@@ -186,7 +186,7 @@ export const formatBulletList = (editor: LexicalEditor, blockType: string) => {
 };
 
 export const formatCheckList = (editor: LexicalEditor, blockType: string) => {
-  if (blockType !== 'check') {
+  if (blockType !== "check") {
     editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined);
   } else {
     formatParagraph(editor);
@@ -197,7 +197,7 @@ export const formatNumberedList = (
   editor: LexicalEditor,
   blockType: string,
 ) => {
-  if (blockType !== 'number') {
+  if (blockType !== "number") {
     editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
   } else {
     formatParagraph(editor);
@@ -205,7 +205,7 @@ export const formatNumberedList = (
 };
 
 export const formatQuote = (editor: LexicalEditor, blockType: string) => {
-  if (blockType !== 'quote') {
+  if (blockType !== "quote") {
     editor.update(() => {
       const selection = $getSelection();
       $setBlocksType(selection, () => $createQuoteNode());
@@ -214,7 +214,7 @@ export const formatQuote = (editor: LexicalEditor, blockType: string) => {
 };
 
 export const formatCode = (editor: LexicalEditor, blockType: string) => {
-  if (blockType !== 'code') {
+  if (blockType !== "code") {
     editor.update(() => {
       let selection = $getSelection();
 
@@ -273,18 +273,18 @@ export const clearFormatting = (editor: LexicalEditor) => {
             textNode = extractedTextNode;
           }
 
-          if (textNode.__style !== '') {
-            textNode.setStyle('');
+          if (textNode.__style !== "") {
+            textNode.setStyle("");
           }
           if (textNode.__format !== 0) {
             textNode.setFormat(0);
-            $getNearestBlockElementAncestorOrThrow(textNode).setFormat('');
+            $getNearestBlockElementAncestorOrThrow(textNode).setFormat("");
           }
           node = textNode;
         } else if ($isHeadingNode(node) || $isQuoteNode(node)) {
           node.replace($createParagraphNode(), true);
         } else if ($isDecoratorBlockNode(node)) {
-          node.setFormat('');
+          node.setFormat("");
         }
       });
     }

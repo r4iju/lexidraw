@@ -177,6 +177,8 @@ const CODE_LANGUAGE_OPTIONS = getCodeLanguageOptions();
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Fredoka", "Fredoka"],
+  ["M PLUS Rounded 1c", "M PLUS Rounded 1c"],
+  ["Noto Sans JP", "Noto Sans JP"],
   ["Arial", "Arial"],
   ["Courier New", "Courier New"],
   ["Georgia", "Georgia"],
@@ -199,13 +201,14 @@ const FONT_SIZE_OPTIONS: [string, string][] = [
   ["20px", "20px"],
 ];
 
-const ELEMENT_FORMAT_OPTIONS: {
-  [key in Exclude<ElementFormatType, "">]: {
+const ELEMENT_FORMAT_OPTIONS: Record<
+  Exclude<ElementFormatType, "">,
+  {
     icon: string;
     iconRTL: string;
     name: string;
-  };
-} = {
+  }
+> = {
   center: {
     icon: "center-align",
     iconRTL: "center-align",

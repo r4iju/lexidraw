@@ -74,6 +74,8 @@ const config = {
       },
       fontFamily: {
         fredoka: ["var(--font-fredoka)"],
+        mplus: ["var(--font-mplus)"],
+        noto: ["var(--font-noto)"],
         sans: ["var(--font-inter)"],
         mono: ["var(--font-mono)"],
       },
