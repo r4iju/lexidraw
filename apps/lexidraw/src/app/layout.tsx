@@ -65,7 +65,7 @@ type Props = {
 
 export default function RootLayout({ children }: Props) {
   return (
-    <html lang="en" suppressHydrationWarning className="h-full">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
           "flex min-h-screen h-full flex-col font-fredoka bg-background antialiased p-0",
