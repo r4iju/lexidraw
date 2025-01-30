@@ -57,3 +57,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ensures iOS won't allow scrolling while dragging */
+.touch-none {
+  touch-action: none;
+}

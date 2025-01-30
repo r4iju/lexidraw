@@ -8,6 +8,7 @@ import React, {
   PointerEvent,
   KeyboardEvent,
   ReactNode,
+  useEffect,
 } from "react";
 import { cn } from "~/lib/utils";
 import { RouterOutputs } from "~/trpc/shared";
@@ -38,8 +39,10 @@ export function Drag({ entity, children, flex }: DragProps) {
     startX: 0,
     startY: 0,
     dragging: false,
-    timeoutId: null,
+    timeoutId: 0 as unknown as ReturnType<typeof setTimeout>,
   });
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const disableDrag = useCallback(() => {
     const active = document.activeElement;
@@ -67,22 +70,32 @@ export function Drag({ entity, children, flex }: DragProps) {
   const startDrag = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
       if (disableDrag()) return;
-
-      // mark as officially dragging
       pointerState.current.dragging = true;
-      // call dnd-kit’s internal pointer-down handler
+      if (containerRef.current) {
+        containerRef.current.classList.add("touch-none");
+      }
       onPointerDown?.(e);
     },
     [disableDrag, onPointerDown],
   );
 
+  const cancelDrag = useCallback(() => {
+    const ps = pointerState.current;
+    if (ps?.timeoutId) {
+      clearTimeout(ps.timeoutId);
+    }
+    ps.dragging = false;
+    ps.pointerId = 0;
+    if (containerRef.current) {
+      containerRef.current.classList.remove("touch-none");
+    }
+  }, []);
+
   /** won't call `startDrag` until thresholds are met. */
   const handlePointerDown = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
-      const target = e.target as HTMLElement;
       if (disableDrag()) return;
-
-      // ignore pointerDown on interactive elements
+      const target = e.target as HTMLElement;
       if (
         target.closest(
           "button, a, input, select, textarea, [contenteditable], .interactive-only, [role=menuitem]",
@@ -90,75 +103,54 @@ export function Drag({ entity, children, flex }: DragProps) {
       ) {
         return;
       }
-
-      // capture this pointer so we don't handle multi-touch incorrectly
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-
-      // store initial pointer details
-      pointerState.current.pointerId = e.pointerId;
-      pointerState.current.startX = e.clientX;
-      pointerState.current.startY = e.clientY;
-      pointerState.current.dragging = false;
-
-      // use a time threshold
-      pointerState.current.timeoutId = setTimeout(() => {
-        // If user hasn't moved beyond a distance threshold, start drag
-        if (!pointerState.current.dragging) {
-          startDrag(e);
-        }
-      }, 100);
+      const ps = pointerState.current;
+      ps.pointerId = e.pointerId;
+      ps.startX = e.clientX;
+      ps.startY = e.clientY;
+      ps.dragging = false;
+      ps.timeoutId = setTimeout(() => {
+        if (!ps.dragging) startDrag(e);
+      }, 120);
     },
     [disableDrag, startDrag],
   );
 
-  /** cancel any pending drag if the user moves outside a small threshold typically used to detect scrolling vs. drag. */
   const handlePointerMove = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
       const ps = pointerState.current;
-
-      // Only handle if it’s the same pointer
       if (ps.pointerId !== e.pointerId) return;
-
+      if (ps.dragging) {
+        // prevent scrolling once dragging
+        e.preventDefault();
+        return;
+      }
       const dx = Math.abs(e.clientX - ps.startX);
       const dy = Math.abs(e.clientY - ps.startY);
-      const distanceThreshold = 5; // px
-
-      // passed threshold and haven't yet started dragging:
-      if (!ps.dragging && (dx > distanceThreshold || dy > distanceThreshold)) {
-        // cancel the pending time-based drag
-        if (ps.timeoutId) clearTimeout(ps.timeoutId);
-        ps.timeoutId = null;
-        // could start drag immediately here:
-        // startDrag(e);
-        // or treat large movement as scrolling => do NOT start drag:
-        cancelPendingDrag();
-      }
+      if (dx > 5 || dy > 5) cancelDrag();
     },
-    [cancelPendingDrag],
+    [cancelDrag],
   );
 
   const handlePointerUp = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
-      const ps = pointerState.current;
-      if (ps.pointerId !== e.pointerId) return;
-
-      // cleanup
-      cancelPendingDrag();
-      // release pointer capture
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      if (pointerState.current.pointerId === e.pointerId) {
+        cancelDrag();
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      }
     },
-    [cancelPendingDrag],
+    [cancelDrag],
   );
 
   /** handle pointercancel (e.g., if the OS cancels the gesture) or performs a 2-finger gestures  */
   const handlePointerCancel = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
       if (pointerState.current.pointerId === e.pointerId) {
-        cancelPendingDrag();
+        cancelDrag();
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       }
     },
-    [cancelPendingDrag],
+    [cancelDrag],
   );
 
   /** cancel drag attempts for ESC or any keyboard-based approach conflicts. */
@@ -166,6 +158,17 @@ export function Drag({ entity, children, flex }: DragProps) {
     if (disableDrag()) return;
     onKeyDown?.(e);
   }
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const opts = { passive: false } as AddEventListenerOptions;
+    const moveListener = (ev: TouchEvent) => {
+      if (pointerState.current.dragging) ev.preventDefault();
+    };
+    el.addEventListener("touchmove", moveListener, opts);
+    return () => el.removeEventListener("touchmove", moveListener, opts);
+  }, []);
 
   return (
     <div
