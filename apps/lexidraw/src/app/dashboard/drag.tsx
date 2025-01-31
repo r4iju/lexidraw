@@ -24,18 +24,11 @@ export function Drag({ entity, children, flex }: DragProps) {
     id: entity.id as UniqueIdentifier,
     data: { entity, flex },
   });
-
   const { onPointerDown, onKeyDown, ...otherListeners } =
     (listeners as SyntheticListenerMap) || {};
 
-  const pointerState = useRef<{
-    pointerId: number | null;
-    startX: number;
-    startY: number;
-    dragging: boolean;
-    timeoutId: ReturnType<typeof setTimeout> | null;
-  }>({
-    pointerId: null,
+  const pointerState = useRef({
+    pointerId: 0,
     startX: 0,
     startY: 0,
     dragging: false,
@@ -45,25 +38,23 @@ export function Drag({ entity, children, flex }: DragProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const disableDrag = useCallback(() => {
-    const active = document.activeElement;
+    const el = document.activeElement;
     return (
-      !!active &&
-      active.getAttribute("aria-roledescription") !== "draggable" &&
-      (active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.tagName === "SELECT" ||
-        active.tagName === "BUTTON" ||
-        active.hasAttribute("contenteditable"))
+      (el &&
+        el.getAttribute("aria-roledescription") !== "draggable" &&
+        ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(el.tagName)) ||
+      el?.hasAttribute("contenteditable")
     );
   }, []);
 
-  /** cancel any pending drag if we move or release the pointer before meeting time/distance thresholds. */
-  const cancelPendingDrag = useCallback(() => {
+  const cancelDrag = useCallback(() => {
     const ps = pointerState.current;
-    if (ps.timeoutId) clearTimeout(ps.timeoutId);
-    ps.timeoutId = null;
+    clearTimeout(ps.timeoutId);
     ps.dragging = false;
-    ps.pointerId = null;
+    ps.pointerId = 0;
+    if (containerRef.current) {
+      containerRef.current.classList.remove("touch-none");
+    }
   }, []);
 
   /** manually invoke the underlying `onPointerDown` from dnd-kit once we decide the drag should really start. */
@@ -78,18 +69,6 @@ export function Drag({ entity, children, flex }: DragProps) {
     },
     [disableDrag, onPointerDown],
   );
-
-  const cancelDrag = useCallback(() => {
-    const ps = pointerState.current;
-    if (ps?.timeoutId) {
-      clearTimeout(ps.timeoutId);
-    }
-    ps.dragging = false;
-    ps.pointerId = 0;
-    if (containerRef.current) {
-      containerRef.current.classList.remove("touch-none");
-    }
-  }, []);
 
   /** won't call `startDrag` until thresholds are met. */
   const handlePointerDown = useCallback(
@@ -172,7 +151,10 @@ export function Drag({ entity, children, flex }: DragProps) {
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        containerRef.current = node;
+      }}
       {...attributes}
       {...otherListeners}
       onPointerDown={handlePointerDown}
@@ -181,7 +163,7 @@ export function Drag({ entity, children, flex }: DragProps) {
       onPointerCancel={handlePointerCancel}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative cursor-grab transition-opacity touch-manipulation",
+        "relative cursor-grab transition-opacity",
         isDragging && "opacity-50",
       )}
       aria-describedby={undefined}
