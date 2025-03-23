@@ -11,6 +11,7 @@
     "start": "next start --port 3100"
   },
   "dependencies": {
+    "@ai-sdk/google": "^1.2.1",
     "@auth/drizzle-adapter": "^1.8.0",
     "@aws-sdk/client-s3": "^3.772.0",
     "@aws-sdk/s3-request-presigner": "^3.772.0",
@@ -62,6 +63,7 @@
     "@trpc/react-query": "11.0.0-rc.682",
     "@trpc/server": "11.0.0-rc.682",
     "@vercel/functions": "^1.6.0",
+    "ai": "^4.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^0.2.1",

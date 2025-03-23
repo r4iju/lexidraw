@@ -75,6 +75,9 @@ export const users = sqliteTable(
       .notNull()
       .$defaultFn(() => createId()),
     name: text("name").notNull(),
+    config: text("config", { mode: "json" }).$type<{
+      llm?: { googleApiKey: string };
+    }>(),
     email: text("email"),
     password: text("password"),
     emailVerified: numeric("emailVerified"),

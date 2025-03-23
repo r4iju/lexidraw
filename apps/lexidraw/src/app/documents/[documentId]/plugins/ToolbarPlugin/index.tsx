@@ -156,10 +156,7 @@ const blockTypeToBlockName = {
 } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const rootTypeToRootName = {
-  root: "Root",
-  table: "Table",
-} as const;
+const rootTypeToRootName = { root: "Root", table: "Table" } as const;
 
 function getCodeLanguageOptions(): [string, string][] {
   const options: [string, string][] = [];
@@ -203,42 +200,22 @@ const FONT_SIZE_OPTIONS: [string, string][] = [
 
 const ELEMENT_FORMAT_OPTIONS: Record<
   Exclude<ElementFormatType, "">,
-  {
-    icon: string;
-    iconRTL: string;
-    name: string;
-  }
+  { icon: string; iconRTL: string; name: string }
 > = {
   center: {
     icon: "center-align",
     iconRTL: "center-align",
     name: "Center Align",
   },
-  end: {
-    icon: "right-align",
-    iconRTL: "left-align",
-    name: "End Align",
-  },
+  end: { icon: "right-align", iconRTL: "left-align", name: "End Align" },
   justify: {
     icon: "justify-align",
     iconRTL: "justify-align",
     name: "Justify Align",
   },
-  left: {
-    icon: "left-align",
-    iconRTL: "left-align",
-    name: "Left Align",
-  },
-  right: {
-    icon: "right-align",
-    iconRTL: "right-align",
-    name: "Right Align",
-  },
-  start: {
-    icon: "left-align",
-    iconRTL: "right-align",
-    name: "Start Align",
-  },
+  left: { icon: "left-align", iconRTL: "left-align", name: "Left Align" },
+  right: { icon: "right-align", iconRTL: "right-align", name: "Right Align" },
+  start: { icon: "left-align", iconRTL: "right-align", name: "Start Align" },
 };
 
 function dropDownActiveClass(active: boolean) {
@@ -440,9 +417,7 @@ function FontDropDown({
       editor.update(() => {
         const selection = $getSelection();
         if (selection !== null) {
-          $patchStyleText(selection, {
-            [style]: option,
-          });
+          $patchStyleText(selection, { [style]: option });
         }
       });
     },
