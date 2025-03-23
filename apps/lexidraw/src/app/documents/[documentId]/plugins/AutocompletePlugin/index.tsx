@@ -23,7 +23,7 @@ import {
   $createAutocompleteNode,
   AutocompleteNode,
 } from "../../nodes/AutocompleteNode";
-import { $findMatchingParent, mergeRegister } from "@lexical/utils";
+import { mergeRegister } from "@lexical/utils";
 import { $isAtNodeEnd } from "@lexical/selection";
 
 type CompletionRequest = {
@@ -102,14 +102,10 @@ function gatherEditorContext() {
   const headingChain = gatherHeadingChain(anchorNode);
   headingHierarchy = headingChain.join(" > ");
 
-  // 4) Get the block type from the anchorNode
-  //    For instance, “paragraph”, “bullet”, “code”, etc.
   blockType = anchorNode.getType();
 
-  // 5) Try to get the previous sibling’s text, if it’s a text node
   const prevSibling = anchorNode.getPreviousSibling();
   if (prevSibling) {
-    // If it’s a text or heading node, get text content
     previousSentence = prevSibling.getTextContent();
   }
 
@@ -122,7 +118,6 @@ export default function AutocompletePlugin() {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
 
-  // Debounced query
   const queryLLM = useLLMQuery();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
@@ -130,7 +125,6 @@ export default function AutocompletePlugin() {
   const lastSuggestion = useRef<string | null>(null);
   const completionRequest = useRef<CompletionRequest | null>(null);
 
-  /** Clears the current autocomplete suggestion. */
   const clearSuggestion = useCallback(() => {
     if (autocompleteNodeKey.current !== null) {
       const existingNode = $getNodeByKey(autocompleteNodeKey.current);
@@ -145,7 +139,6 @@ export default function AutocompletePlugin() {
     lastSuggestion.current = null;
   }, []);
 
-  /** Inserts a new suggestion into the editor */
   const insertSuggestion = useCallback(
     (suggestion: string) => {
       editor.update(() => {
@@ -155,7 +148,6 @@ export default function AutocompletePlugin() {
         const [hasMatch, match] = search(selection);
         if (!hasMatch || match !== lastWord.current) return;
 
-        // Insert the AutocompleteNode with the new suggestion
         const selectionClone = selection.clone();
         const node = $createAutocompleteNode(suggestion, UUID);
         autocompleteNodeKey.current = node.getKey();
@@ -167,10 +159,6 @@ export default function AutocompletePlugin() {
     [editor],
   );
 
-  /**
-   * Whenever the editor updates, we check if we have a new partial snippet,
-   * gather context from the editor, and pass that all to the LLM.
-   */
   const handleUpdate = useCallback(() => {
     editor.update(() => {
       const selection = $getSelection();
@@ -184,15 +172,11 @@ export default function AutocompletePlugin() {
         return;
       }
 
-      // Clear old suggestion
       clearSuggestion();
       lastWord.current = match;
 
-      // Gather context
       const { heading, blockType, previousSentence } = gatherEditorContext();
 
-      // Compose a more detailed prompt, or pass it as a separate argument.
-      // For example, let's just do something naive:
       const combinedPrompt = [
         `Context:`,
         `- Heading chain: "${heading}"`,
@@ -207,7 +191,6 @@ export default function AutocompletePlugin() {
 
       const finalPrompt = combinedPrompt.trim();
 
-      // Now we call queryLLM with our combined prompt
       const promise = queryLLM(finalPrompt)?.then((completion) => {
         if (!completion) return null;
         insertSuggestion(completion);
