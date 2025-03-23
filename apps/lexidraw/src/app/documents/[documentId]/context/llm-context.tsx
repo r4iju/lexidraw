@@ -65,7 +65,14 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
   // The main function that calls the LLM
   const sendQuery = useCallback(
-    async (textSnippet: string): Promise<string> => {
+    async (
+      partialSnippet: string,
+      editorContext?: {
+        heading: string;
+        blockType: string;
+        previousSentence: string;
+      },
+    ): Promise<string> => {
       // check for throttle
       const now = Date.now();
       const timeSinceLastRequest = now - lastRequestTimeRef.current;
@@ -76,10 +83,24 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       }
       lastRequestTimeRef.current = now;
 
+      const contextDescription = editorContext
+        ? `
+      The user is editing a "${editorContext.blockType}" block under heading: "${editorContext.heading}".
+      The previous sentence is: "${editorContext.previousSentence}"
+    `
+        : "";
+
+      const finalPrompt = [
+        contextDescription,
+        `They typed partial text: "${partialSnippet}"`,
+        `Complete the snippet without repeating the same words.`,
+        `Do not wrap the text in quotes.`,
+      ].join("\n");
+
       try {
         const result = await generateText({
           model: googleAi(llmState.model),
-          prompt: textSnippet,
+          prompt: finalPrompt,
           system: [
             `You are a helpful assistant, trying to complete the user's current sentence.`,
             `Don't repeat the words the user provided.`,
@@ -101,7 +122,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
           error: errorMsg,
         }));
 
-        
         return "";
       }
     },
