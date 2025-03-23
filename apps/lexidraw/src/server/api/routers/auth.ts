@@ -46,6 +46,7 @@ export const authRouter = createTRPCRouter({
         id: schema.users.id,
         email: schema.users.email,
         name: schema.users.name,
+        config: schema.users.config,
       })
       .from(schema.users)
       .where(eq(schema.users.id, ctx.session.user.id));
@@ -65,6 +66,10 @@ export const authRouter = createTRPCRouter({
         .set({
           name: input.name,
           email: input.email,
+          config: {
+            ...ctx.session.user.config,
+            llm: { googleApiKey: input.googleApiKey ?? "" },
+          },
         })
         .where(eq(schema.users.id, ctx.session.user.id));
       return;

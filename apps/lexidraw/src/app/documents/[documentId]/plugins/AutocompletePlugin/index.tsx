@@ -22,7 +22,7 @@ import {
 } from "../../nodes/AutocompleteNode";
 import { addSwipeRightListener } from "../../utils/swipe";
 import { useSettings } from "../../context/settings-context";
-import { useLLM, useLLMQuery } from "../../context/llm-context";
+import { useLLMQuery } from "../../context/llm-context";
 
 type CompletionRequest = {
   dismiss: () => void;
@@ -60,7 +60,6 @@ export default function AutocompletePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
   const queryLLM = useLLMQuery();
-  const { on } = useLLM();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
   const lastWord = useRef<string | null>(null);
@@ -87,41 +86,27 @@ export default function AutocompletePlugin(): JSX.Element | null {
   }, [completionRequest, lastWord, lastSuggestion]);
 
   /**
-   * Handles a new suggestion received from the LLM.
+   * Inserts a new suggestion into the editor
    */
-  const handleNewSuggestion = useCallback(
-    (data: { completion: string; requestId: string }) => {
-      const { completion } = data;
-      if (!completion) return;
-
-      // Insert the autocomplete suggestion into the editor
+  const insertSuggestion = useCallback(
+    (suggestion: string) => {
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
+
         const [hasMatch, match] = search(selection);
         if (!hasMatch || match !== lastWord.current) return;
 
-        // Insert an AutocompleteNode with the suggested text
+        // Insert the AutocompleteNode with the new suggestion
         const selectionClone = selection.clone();
-        const node = $createAutocompleteNode(completion, UUID);
+        const node = $createAutocompleteNode(suggestion, UUID);
         autocompleteNodeKey.current = node.getKey();
         selection.insertNodes([node]);
         $setSelection(selectionClone);
-        lastSuggestion.current = completion;
+        lastSuggestion.current = suggestion;
       });
     },
     [editor],
-  );
-
-  /**
-   * Handles errors received from the LLM.
-   */
-  const handleError = useCallback(
-    (data: { error: string; requestId?: string }) => {
-      console.error("Autocomplete error:", data.error);
-      // Optionally, display an error message to the user
-    },
-    [],
   );
 
   /**
@@ -133,7 +118,6 @@ export default function AutocompletePlugin(): JSX.Element | null {
       const [hasMatch, match] = search(selection);
       if (!hasMatch) {
         clearSuggestion();
-        console.log("Autocomplete no match, clearing suggestion");
         return;
       }
       if (match === lastWord.current) {
@@ -142,12 +126,19 @@ export default function AutocompletePlugin(): JSX.Element | null {
       }
       // Clear old suggestion
       clearSuggestion();
-      console.log("Autocomplete clearing old suggestion");
-      // Send query to LLM
-      queryLLM(match);
       lastWord.current = match;
+
+      // Call the LLM directly with promise handling
+      queryLLM(match)
+        ?.then((completion) => {
+          if (!completion) return;
+          insertSuggestion(completion);
+        })
+        .catch((error) => {
+          console.error("Autocomplete error:", error);
+        });
     });
-  }, [clearSuggestion, editor, queryLLM]);
+  }, [clearSuggestion, editor, insertSuggestion, queryLLM]);
 
   /**
    * Accepts the current autocomplete suggestion.
@@ -230,9 +221,6 @@ export default function AutocompletePlugin(): JSX.Element | null {
   useEffect(() => {
     if (!settings.isLlmEnabled) return;
 
-    const unsubscribeSuggestion = on("completion", handleNewSuggestion);
-    const unsubscribeError = on("error", handleError);
-
     const rootElem = editor.getRootElement();
 
     return mergeRegister(
@@ -240,7 +228,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
         AutocompleteNode,
         handleAutocompleteNodeTransform,
       ),
-      editor.registerUpdateListener(handleUpdate),
+      editor.registerUpdateListener(() => handleUpdate()),
       editor.registerCommand(
         KEY_TAB_COMMAND,
         handleKeypressCommand,
@@ -252,21 +240,16 @@ export default function AutocompletePlugin(): JSX.Element | null {
         COMMAND_PRIORITY_LOW,
       ),
       ...(rootElem ? [addSwipeRightListener(rootElem, handleSwipeRight)] : []),
-      unsubscribeSuggestion,
-      unsubscribeError,
       cleanup,
     );
   }, [
     editor,
     settings.isLlmEnabled,
-    on,
     cleanup,
     handleAutocompleteNodeTransform,
     handleKeypressCommand,
     handleSwipeRight,
     handleUpdate,
-    handleNewSuggestion,
-    handleError,
   ]);
 
   return null;

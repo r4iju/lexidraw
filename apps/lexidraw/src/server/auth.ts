@@ -1,14 +1,16 @@
-import NextAuth, { type DefaultSession } from "next-auth";
+import NextAuth, { Session, type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { drizzle } from "@packages/drizzle";
 import { SignInSchema } from "~/app/signin/schema";
 import env from "@packages/env";
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
+      config: { llm: { googleApiKey: string } };
     } & DefaultSession["user"];
   }
 }
@@ -37,10 +39,24 @@ export const {
         user: {
           ...session.user,
           id: token.sub,
+          config: token.config || { llm: { googleApiKey: "" } },
         },
       };
     },
-    jwt: ({ token }) => {
+    jwt: async ({ token, user, trigger }) => {
+      if (user) {
+        token.config = (user as Session["user"]).config || {
+          llm: { googleApiKey: "" },
+        };
+      }
+
+      if (trigger === "update") {
+        const dbUser = await drizzle.query.users.findFirst({
+          where: (users, { eq }) => eq(users.email, token.email as string),
+        });
+        token.config = dbUser?.config || { llm: { googleApiKey: "" } };
+      }
+
       return token;
     },
     signIn: () => {
@@ -54,9 +70,7 @@ export const {
     GitHubProvider({
       clientId: env.GITHUB_CLIENT_ID,
       clientSecret: env.GITHUB_CLIENT_SECRET,
-      authorization: {
-        params: { scope: "read:user user:email" },
-      },
+      authorization: { params: { scope: "read:user user:email" } },
     }),
     Credentials({
       credentials: {

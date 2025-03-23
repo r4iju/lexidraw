@@ -138,9 +138,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
         entityId: entity.id,
         userId,
         entityType: "document",
-        payload: {
-          elements: parsedState,
-        },
+        payload: { elements: parsedState },
       });
     }, 100),
   );
@@ -170,11 +168,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
 
   const { sendMessage, initializeConnection, closeConnection } =
     useWebRtcService(
-      {
-        drawingId: entity.id,
-        userId,
-        iceServers,
-      },
+      { drawingId: entity.id, userId, iceServers },
       {
         onMessage: applyUpdate,
         onConnectionClose: () => setIsCollaborating(false),
