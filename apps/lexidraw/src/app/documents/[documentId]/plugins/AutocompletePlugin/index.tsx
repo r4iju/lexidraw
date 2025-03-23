@@ -1,32 +1,34 @@
 "use client";
 
-import type { BaseSelection, NodeKey } from "lexical";
+import type { BaseSelection, LexicalNode, NodeKey } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $isAtNodeEnd } from "@lexical/selection";
-import { mergeRegister } from "@lexical/utils";
 import {
-  $createTextNode,
-  $getNodeByKey,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
+  $createTextNode,
+  $getNodeByKey,
   $setSelection,
+} from "lexical";
+import {
   COMMAND_PRIORITY_LOW,
   KEY_ARROW_RIGHT_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
-import { type JSX, useCallback, useEffect, useRef } from "react";
+import { useEffect, useCallback, useRef } from "react";
+import { addSwipeRightListener } from "../../utils/swipe";
+import { useSettings } from "../../context/settings-context";
+import { useLLMQuery } from "../../context/llm-context";
 import {
   $createAutocompleteNode,
   AutocompleteNode,
 } from "../../nodes/AutocompleteNode";
-import { addSwipeRightListener } from "../../utils/swipe";
-import { useSettings } from "../../context/settings-context";
-import { useLLMQuery } from "../../context/llm-context";
+import { $findMatchingParent, mergeRegister } from "@lexical/utils";
+import { $isAtNodeEnd } from "@lexical/selection";
 
 type CompletionRequest = {
   dismiss: () => void;
-  promise: Promise<null | string>;
+  promise: Promise<string | null>;
 };
 
 function generateId(): string {
@@ -38,6 +40,10 @@ function generateId(): string {
 
 export const UUID = generateId();
 
+/**
+ * This function checks if we are at the end of the current node
+ * and extracts the partial text snippet.
+ */
 function search(selection: null | BaseSelection): [boolean, string] {
   if (!$isRangeSelection(selection) || !selection.isCollapsed())
     return [false, ""];
@@ -49,16 +55,74 @@ function search(selection: null | BaseSelection): [boolean, string] {
   const text = node.getTextContent();
   let i = text.length - 1;
   const sentence: string[] = [];
-  while (i >= 0 && !["\n", ".", "!", "?"].includes(text[i] as string)) {
-    sentence.push(text[i--] as string);
+  while (i >= 0 && !["\n", ".", "!", "?"].includes(text[i] ?? "")) {
+    sentence.push(text[i--] ?? "");
   }
   if (!sentence.length) return [false, ""];
   return [true, sentence.reverse().join("")];
 }
 
-export default function AutocompletePlugin(): JSX.Element | null {
+/**
+ * Climb from the given node up to the root, collecting all headings.
+ * The result is an array of heading texts from outermost to innermost.
+ */
+function gatherHeadingChain(node: LexicalNode): string[] {
+  const headings: string[] = [];
+
+  let current: LexicalNode | null = node;
+  while (current !== null) {
+    // If you’re using @lexical/rich-text, you can do:
+    // if ($isHeadingNode(current)) { ... }
+    if (current.getType() === "heading") {
+      headings.push(current.getTextContent());
+    }
+    current = current.getParent();
+  }
+
+  // Because we accumulate from inside → out, let's reverse
+  // so the outermost heading is first, then next heading, etc.
+  headings.reverse();
+  return headings;
+}
+
+function gatherEditorContext() {
+  let blockType = "";
+  let previousSentence = "";
+  let headingHierarchy = "";
+
+  // 1) Get the current selection
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) {
+    // If no valid RangeSelection, bail out
+    return { heading: headingHierarchy, blockType, previousSentence };
+  }
+
+  const anchorNode = selection.anchor.getNode();
+
+  const headingChain = gatherHeadingChain(anchorNode);
+  headingHierarchy = headingChain.join(" > ");
+
+  // 4) Get the block type from the anchorNode
+  //    For instance, “paragraph”, “bullet”, “code”, etc.
+  blockType = anchorNode.getType();
+
+  // 5) Try to get the previous sibling’s text, if it’s a text node
+  const prevSibling = anchorNode.getPreviousSibling();
+  if (prevSibling) {
+    // If it’s a text or heading node, get text content
+    previousSentence = prevSibling.getTextContent();
+  }
+
+  return { heading: headingHierarchy, blockType, previousSentence };
+}
+
+export { gatherEditorContext };
+
+export default function AutocompletePlugin() {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
+
+  // Debounced query
   const queryLLM = useLLMQuery();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
@@ -66,9 +130,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
   const lastSuggestion = useRef<string | null>(null);
   const completionRequest = useRef<CompletionRequest | null>(null);
 
-  /**
-   * Clears the current autocomplete suggestion.
-   */
+  /** Clears the current autocomplete suggestion. */
   const clearSuggestion = useCallback(() => {
     if (autocompleteNodeKey.current !== null) {
       const existingNode = $getNodeByKey(autocompleteNodeKey.current);
@@ -77,17 +139,13 @@ export default function AutocompletePlugin(): JSX.Element | null {
       }
       autocompleteNodeKey.current = null;
     }
-    if (completionRequest.current) {
-      completionRequest.current.dismiss();
-      completionRequest.current = null;
-    }
+    completionRequest.current?.dismiss();
+    completionRequest.current = null;
     lastWord.current = null;
     lastSuggestion.current = null;
-  }, [completionRequest, lastWord, lastSuggestion]);
+  }, []);
 
-  /**
-   * Inserts a new suggestion into the editor
-   */
+  /** Inserts a new suggestion into the editor */
   const insertSuggestion = useCallback(
     (suggestion: string) => {
       editor.update(() => {
@@ -110,7 +168,8 @@ export default function AutocompletePlugin(): JSX.Element | null {
   );
 
   /**
-   * Monitors editor updates to trigger autocomplete suggestions.
+   * Whenever the editor updates, we check if we have a new partial snippet,
+   * gather context from the editor, and pass that all to the LLM.
    */
   const handleUpdate = useCallback(() => {
     editor.update(() => {
@@ -121,52 +180,71 @@ export default function AutocompletePlugin(): JSX.Element | null {
         return;
       }
       if (match === lastWord.current) {
-        // Same partial text, do nothing
+        // same partial text, do nothing
         return;
       }
+
       // Clear old suggestion
       clearSuggestion();
       lastWord.current = match;
 
-      // Call the LLM directly with promise handling
-      queryLLM(match)
-        ?.then((completion) => {
-          if (!completion) return;
-          insertSuggestion(completion);
-        })
-        .catch((error) => {
-          console.error("Autocomplete error:", error);
-        });
-    });
-  }, [clearSuggestion, editor, insertSuggestion, queryLLM]);
+      // Gather context
+      const { heading, blockType, previousSentence } = gatherEditorContext();
 
-  /**
-   * Accepts the current autocomplete suggestion.
-   */
+      // Compose a more detailed prompt, or pass it as a separate argument.
+      // For example, let's just do something naive:
+      const combinedPrompt = [
+        `Context:`,
+        `- Heading chain: "${heading}"`,
+        `- Block Type: "${blockType}"`,
+        `- Previous sentence: "${previousSentence}"`,
+        ``,
+        `Partial snippet: "${match}"`,
+        ``,
+        `Please **complete** the snippet in a helpful way,`,
+        `avoiding repetition of the user’s partial text.`,
+      ].join("\n");
+
+      const finalPrompt = combinedPrompt.trim();
+
+      // Now we call queryLLM with our combined prompt
+      const promise = queryLLM(finalPrompt)?.then((completion) => {
+        if (!completion) return null;
+        insertSuggestion(completion);
+        return completion;
+      });
+
+      if (promise) {
+        completionRequest.current = {
+          dismiss: () => {
+            completionRequest.current = null;
+          },
+          promise,
+        };
+      }
+    });
+  }, [editor, queryLLM, clearSuggestion, insertSuggestion]);
+
+  /** Accepts the current autocomplete suggestion. */
   const handleAcceptSuggestion = useCallback((): boolean => {
     if (!lastSuggestion.current || !autocompleteNodeKey.current) {
       return false;
     }
     const node = $getNodeByKey(autocompleteNodeKey.current);
-    if (!node) {
-      return false;
-    }
+    if (!node) return false;
+
     // Replace the node with plain text
     editor.update(() => {
-      if (!lastSuggestion.current) {
-        return false;
-      }
+      if (!lastSuggestion.current) return;
       const textNode = $createTextNode(lastSuggestion.current);
       node.replace(textNode);
       textNode.selectNext();
       clearSuggestion();
     });
     return true;
-  }, [clearSuggestion, editor, lastSuggestion, autocompleteNodeKey]);
+  }, [editor, clearSuggestion]);
 
-  /**
-   * Handles keypress commands to accept suggestions.
-   */
+  /** Keypress commands to accept the suggestion. */
   const handleKeypressCommand = useCallback(
     (e: Event) => {
       if (handleAcceptSuggestion()) {
@@ -178,9 +256,7 @@ export default function AutocompletePlugin(): JSX.Element | null {
     [handleAcceptSuggestion],
   );
 
-  /**
-   * Handles swipe right gestures to accept suggestions.
-   */
+  /** Swipe right gestures to accept suggestions. */
   const handleSwipeRight = useCallback(
     (_force: number, e: TouchEvent) => {
       editor.update(() => {
@@ -192,37 +268,29 @@ export default function AutocompletePlugin(): JSX.Element | null {
     [editor, handleAcceptSuggestion],
   );
 
-  /**
-   * Cleans up suggestions when necessary.
-   */
+  /** Cleanup suggestions on unmount or re-register. */
   const cleanup = useCallback(() => {
     editor.update(() => {
       clearSuggestion();
     });
   }, [editor, clearSuggestion]);
 
-  /**
-   * Transforms AutocompleteNode instances to ensure only one suggestion is active.
-   */
+  /** Ensure only one suggestion is active at a time. */
   const handleAutocompleteNodeTransform = useCallback(
     (node: AutocompleteNode) => {
       const key = node.getKey();
       if (node.__uuid === UUID && key !== autocompleteNodeKey.current) {
-        // Max one Autocomplete node per session
         clearSuggestion();
       }
     },
-    [autocompleteNodeKey, clearSuggestion],
+    [clearSuggestion],
   );
 
-  /**
-   * Sets up event listeners and command handlers.
-   */
+  /** Set up event handlers and command registrations. */
   useEffect(() => {
     if (!settings.isLlmEnabled) return;
 
     const rootElem = editor.getRootElement();
-
     return mergeRegister(
       editor.registerNodeTransform(
         AutocompleteNode,
@@ -247,9 +315,9 @@ export default function AutocompletePlugin(): JSX.Element | null {
     settings.isLlmEnabled,
     cleanup,
     handleAutocompleteNodeTransform,
+    handleUpdate,
     handleKeypressCommand,
     handleSwipeRight,
-    handleUpdate,
   ]);
 
   return null;
