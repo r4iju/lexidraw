@@ -5,9 +5,9 @@ import Link from "next/link";
 import type {
   AppState,
   ExcalidrawImperativeAPI,
-} from "@dwelle/excalidraw/dist/excalidraw/types";
+} from "@excalidraw/excalidraw/types";
 import { RefObject } from "react";
-import type { ExcalidrawElement } from "@dwelle/excalidraw/dist/excalidraw/element/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
@@ -21,9 +21,12 @@ import {
   LayoutDashboardIcon,
   RotateCcwIcon,
 } from "lucide-react";
-import { exportToBlob, exportToSvg, loadFromBlob } from "@dwelle/excalidraw";
-
-import { MainMenu } from "@dwelle/excalidraw";
+import {
+  exportToBlob,
+  exportToSvg,
+  loadFromBlob,
+  MainMenu,
+} from "@excalidraw/excalidraw";
 
 const CustomMenuItem = MainMenu.ItemCustom;
 
@@ -200,7 +203,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       files: null,
       // quality: 100,
       mimeType: "image/png",
-      getDimensions(width, height) {
+      getDimensions(width: number, height: number) {
         return { width: width * 3, height: height * 3, scale: 3 };
       },
     });

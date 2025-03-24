@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { z } from "zod";
-import type { AppState } from "@dwelle/excalidraw/dist/excalidraw/types";
-import type { ExcalidrawElement } from "@dwelle/excalidraw/dist/excalidraw/element/types";
+import type { AppState } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { AccessLevel } from "@packages/types";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";

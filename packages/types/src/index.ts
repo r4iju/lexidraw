@@ -1,18 +1,18 @@
 import { z } from "zod";
-import { type ExcalidrawElement } from "@dwelle/excalidraw/dist/excalidraw/element/types.js";
-import { type AppState } from "@dwelle/excalidraw/dist/excalidraw/types.js";
+import { type ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { type AppState } from "@excalidraw/excalidraw/types";
 export * from "./helpers.js";
 export * from "./enums.js";
 
 type DocumentPayload = {
   elements: string;
   appState?: null;
-}
+};
 
 type DrawingPayload = {
   elements: readonly ExcalidrawElement[];
   appState: AppState;
-}
+};
 
 const DocumentMessageStructure = z.object({
   type: z.literal("update"),
@@ -41,19 +41,20 @@ const DrawingMessageStructure = z.object({
   userId: z.string(),
   entityId: z.string(),
   payload: z.object({
-    elements: z.array(z.object({
-      type: z.string(),
-      id: z.string(),
-      x: z.number(),
-      y: z.number(),
-      width: z.number(),
-      height: z.number(),
-      version: z.number(),
-      isDeleted: z.boolean(),
-      baseline: z.number().optional(),
-    })),
-    appState: z.object({
-    }),
+    elements: z.array(
+      z.object({
+        type: z.string(),
+        id: z.string(),
+        x: z.number(),
+        y: z.number(),
+        width: z.number(),
+        height: z.number(),
+        version: z.number(),
+        isDeleted: z.boolean(),
+        baseline: z.number().optional(),
+      }),
+    ),
+    appState: z.object({}),
   }),
 });
 
@@ -66,34 +67,39 @@ export type DrawingMessageStructure = {
   payload: DrawingPayload;
 };
 
-export type MessageStructure = DocumentMessageStructure | DrawingMessageStructure;
+export type MessageStructure =
+  | DocumentMessageStructure
+  | DrawingMessageStructure;
 
-export const MessageStructure = z.union([DocumentMessageStructure, DrawingMessageStructure]);
+export const MessageStructure = z.union([
+  DocumentMessageStructure,
+  DrawingMessageStructure,
+]);
 
 export type WebRtcMessage =
   | {
-    type: 'join' | 'leave';
-    room: string;
-    from: string; // userId
-  }
+      type: "join" | "leave";
+      room: string;
+      from: string; // userId
+    }
   | {
-    type: 'offer';
-    room: string;
-    from: string; // userId
-    to: string; // userId
-    offer: string;
-  }
+      type: "offer";
+      room: string;
+      from: string; // userId
+      to: string; // userId
+      offer: string;
+    }
   | {
-    type: 'answer';
-    room: string;
-    from: string; // userId
-    to: string; // userId
-    answer: string;
-  }
+      type: "answer";
+      room: string;
+      from: string; // userId
+      to: string; // userId
+      answer: string;
+    }
   | {
-    type: 'iceCandidate';
-    room: string;
-    from: string; // userId
-    to: string; // userId
-    candidate: string;
-  };
+      type: "iceCandidate";
+      room: string;
+      from: string; // userId
+      to: string; // userId
+      candidate: string;
+    };

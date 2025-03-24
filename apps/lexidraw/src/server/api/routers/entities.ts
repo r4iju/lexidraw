@@ -4,7 +4,7 @@ import { CreateEntity, SaveEntity } from "./entities-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
-import { AppState } from "@dwelle/excalidraw/dist/excalidraw/types";
+import type { AppState } from "@excalidraw/excalidraw/types";
 import env from "@packages/env";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
