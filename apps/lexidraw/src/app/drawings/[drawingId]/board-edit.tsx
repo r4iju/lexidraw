@@ -1,12 +1,12 @@
 "use client";
 
-import "@dwelle/excalidraw/dist/dev/index.css";
+import "@excalidraw/excalidraw/index.css";
 
-import { Excalidraw, MainMenu } from "@dwelle/excalidraw";
+import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
-} from "@dwelle/excalidraw/dist/excalidraw/element/types";
+} from "@excalidraw/excalidraw/element/types";
 import type {
   AppState,
   SocketId,
@@ -14,7 +14,7 @@ import type {
   ExcalidrawProps,
   BinaryFiles,
   Collaborator,
-} from "@dwelle/excalidraw/dist/excalidraw/types";
+} from "@excalidraw/excalidraw/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";

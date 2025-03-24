@@ -1,10 +1,6 @@
 import type { ExcalidrawInitialElements } from "./ExcalidrawModal";
 import type { NodeKey } from "lexical";
 
-import type {
-  AppState,
-  BinaryFiles,
-} from "@dwelle/excalidraw/dist/excalidraw/types";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
@@ -24,6 +20,7 @@ import ImageResizer from "~/components/ui/image-resizer";
 import { $isExcalidrawNode } from ".";
 import ExcalidrawImage from "./ExcalidrawImage";
 import ExcalidrawModal from "./ExcalidrawModal";
+import type { BinaryFiles, AppState } from "@excalidraw/excalidraw/types";
 
 export default function ExcalidrawComponent({
   nodeKey,

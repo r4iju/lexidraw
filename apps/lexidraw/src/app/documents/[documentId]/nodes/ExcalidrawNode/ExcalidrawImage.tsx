@@ -1,16 +1,12 @@
 "use client";
 
-import { exportToSvg } from "@dwelle/excalidraw";
+import { exportToSvg } from "@excalidraw/excalidraw";
+import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import {
   ExcalidrawElement,
   NonDeleted,
-} from "@dwelle/excalidraw/dist/excalidraw/element/types";
-import {
-  AppState,
-  BinaryFiles,
-} from "@dwelle/excalidraw/dist/excalidraw/types";
-import * as React from "react";
-import { useEffect, useState } from "react";
+} from "@excalidraw/excalidraw/element/types";
+import { type JSX, useEffect, useState } from "react";
 
 type ImageType = "svg" | "canvas";
 

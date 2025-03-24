@@ -1,11 +1,11 @@
 import "./ExcalidrawModal.css";
-import { Excalidraw } from "@dwelle/excalidraw";
-import {
+import { Excalidraw } from "@excalidraw/excalidraw";
+import type {
   AppState,
   BinaryFiles,
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
-} from "@dwelle/excalidraw/dist/excalidraw/types";
+} from "@excalidraw/excalidraw/types";
 import * as React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";

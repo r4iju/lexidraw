@@ -1,6 +1,6 @@
 "use client";
 
-import { MainMenu } from "@dwelle/excalidraw";
+import { MainMenu } from "@excalidraw/excalidraw";
 
 type MainMenuProps = typeof MainMenu extends React.FC<infer P> ? P : never;
 
