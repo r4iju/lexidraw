@@ -579,9 +579,40 @@ function ElementFormatDropdown({
   );
 }
 
-const ModelList = prebuiltAppConfig.model_list.filter(
-  (model) => model.vram_required_MB && model.vram_required_MB < 2000,
-);
+const ModelList = [
+  {
+    modelId: "gpt-4o",
+    provider: "openai",
+    name: "GPT-4o",
+    description: "The latest and most powerful GPT model",
+  },
+  {
+    modelId: "gpt-4o-mini",
+    provider: "openai",
+    name: "GPT-4o Mini",
+    description: "The smaller and faster GPT model",
+  },
+  {
+    modelId: "gemini-2.0-flash-lite",
+    provider: "google",
+    name: "Gemini 2.0 Flash Lite",
+    description:
+      "A Gemini 2.0 Flash model optimized for cost efficiency and low latency",
+  },
+  {
+    modelId: "gemini-2.0-flash",
+    provider: "google",
+    name: "Gemini 2.0 Flash",
+    description:
+      "Next generation features, speed, thinking, realtime streaming, and multimodal generation",
+  },
+  {
+    modelId: "gemini-2.0-pro-exp-02-05",
+    provider: "google",
+    name: "Gemini 2.0 Pro Exp",
+    description: "The most powerful Gemini 2.0 model",
+  },
+];
 
 function LlmModelSelector() {
   const { settings, setOption } = useSettings();
@@ -640,21 +671,22 @@ function LlmModelSelector() {
             <CommandGroup>
               {ModelList.map((model) => (
                 <CommandItem
-                  key={model.model_id}
-                  value={model.model_id}
+                  key={model.modelId}
+                  value={model.modelId}
                   onSelect={() => {
-                    setLlmOption("model", model.model_id);
+                    setLlmOption("modelId", model.modelId);
+                    setLlmOption("provider", model.provider);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      model.model_id === llmState.model
+                      model.modelId === llmState.modelId
                         ? "opacity-100"
                         : "opacity-0",
                     )}
                   />
-                  {model.model_id}
+                  {model.modelId}
                 </CommandItem>
               ))}
             </CommandGroup>

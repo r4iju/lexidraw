@@ -68,7 +68,11 @@ export const authRouter = createTRPCRouter({
           email: input.email,
           config: {
             ...ctx.session.user.config,
-            llm: { googleApiKey: input.googleApiKey ?? "" },
+            llm: {
+              enabled: input.llmEnabled,
+              googleApiKey: input.googleApiKey ?? "",
+              openaiApiKey: input.openaiApiKey ?? "",
+            },
           },
         })
         .where(eq(schema.users.id, ctx.session.user.id));

@@ -12,12 +12,14 @@ import React, {
 
 import { generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import { debounce } from "@packages/lib";
 import { useSession } from "next-auth/react";
 
 /** Your shared LLM state */
 export type LLMState = {
-  model: string;
+  modelId: string;
+  provider: string;
   temperature: number;
   maxTokens: number;
   isError: boolean;
@@ -41,23 +43,36 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   // Optional: if you're using next-auth to store your API key
   const { data: session } = useSession();
 
-  // Create your custom Google provider if needed
-  const googleAi = useMemo(() => {
-    // If you prefer environment variables, you can skip this
-    return createGoogleGenerativeAI({
-      apiKey: session?.user.config.llm.googleApiKey,
-    });
-  }, [session]);
-
-  // Local LLM state
   const [llmState, setLlmState] = useState<LLMState>({
-    model: "gemini-2.0-flash-lite",
+    modelId: "gemini-2.0-flash-lite",
+    provider: "google",
     temperature: 0.3,
     maxTokens: 20,
     isError: false,
     text: "",
     error: null,
   });
+
+  const provider = useMemo(() => {
+    // If you prefer environment variables, you can skip this
+    if (llmState.provider === "google") {
+      return createGoogleGenerativeAI({
+        apiKey: session?.user.config.llm.googleApiKey,
+      });
+    } else if (llmState.provider === "openai") {
+      return createOpenAI({
+        apiKey: session?.user.config.llm.openaiApiKey,
+      });
+    } else {
+      throw new Error("Invalid provider");
+    }
+  }, [
+    llmState.provider,
+    session?.user.config.llm.googleApiKey,
+    session?.user.config.llm.openaiApiKey,
+  ]);
+
+  // Local LLM state
 
   // We can throttle queries if we like:
   const lastRequestTimeRef = useRef<number>(0);
@@ -99,11 +114,14 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
       try {
         const result = await generateText({
-          model: googleAi(llmState.model),
+          model: provider(llmState.modelId),
           prompt: finalPrompt,
           system: [
             `You are a helpful assistant, trying to complete the user's current sentence.`,
             `Don't repeat the words the user provided.`,
+            `Don't affirm the request or reply any meta-information.`,
+            `If you don't know the answer, The only acceptable response is a blank string; "".`,
+            `Also if you can't complete the sentence, The only acceptable response is a blank string; "".`,
           ].join("\n"),
           temperature: llmState.temperature,
           maxTokens: llmState.maxTokens,
@@ -125,7 +143,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         return "";
       }
     },
-    [googleAi, llmState.model, llmState.temperature, llmState.maxTokens],
+    [provider, llmState.modelId, llmState.temperature, llmState.maxTokens],
   );
 
   const setLlmOption = useCallback(

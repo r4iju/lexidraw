@@ -3,8 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ProfileSchema } from "./schema";
-import FormProvider from "~/components/hook-form";
-import { RHFTextField } from "~/components/hook-form";
+import FormProvider, { RHFSwitch, RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
 import { useToast } from "~/components/ui/use-toast";
@@ -26,6 +25,8 @@ export default function ProfileForm({ user }: Props) {
       email: user?.email ?? "",
       name: user?.name ?? "",
       googleApiKey: user?.config?.llm?.googleApiKey ?? "",
+      openaiApiKey: user?.config?.llm?.openaiApiKey ?? "",
+      llmEnabled: user?.config?.llm?.enabled ?? false,
     },
     mode: "onBlur",
   });
@@ -49,7 +50,10 @@ export default function ProfileForm({ user }: Props) {
             name: data.name,
             config: {
               ...session?.user.config,
-              llm: { googleApiKey: data.googleApiKey ?? "" },
+              llm: {
+                googleApiKey: data.googleApiKey ?? "",
+                openaiApiKey: data.openaiApiKey ?? "",
+              },
             },
           },
         });
@@ -81,10 +85,21 @@ export default function ProfileForm({ user }: Props) {
             type="name"
             //
           />
+          <RHFSwitch
+            label="LLM Enabled"
+            name="llmEnabled"
+            //
+          />
           <RHFTextField
             label="Google API Key"
             name="googleApiKey"
             type="googleApiKey"
+            //
+          />
+          <RHFTextField
+            label="OpenAI API Key"
+            name="openaiApiKey"
+            type="openaiApiKey"
             //
           />
         </div>

@@ -3,7 +3,9 @@ import { z } from "zod";
 export const ProfileSchema = z.object({
   name: z.string().min(1).default(""),
   email: z.string().min(1).email().default(""),
-  googleApiKey: z.string().min(1).optional(),
+  googleApiKey: z.string().min(0).optional(),
+  openaiApiKey: z.string().min(0).optional(),
+  llmEnabled: z.boolean().default(false),
 });
 
 export type ProfileSchema = z.infer<typeof ProfileSchema>;
