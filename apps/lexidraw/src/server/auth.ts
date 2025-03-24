@@ -10,7 +10,9 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-      config: { llm: { googleApiKey: string } };
+      config: {
+        llm: { googleApiKey: string; openaiApiKey: string };
+      };
     } & DefaultSession["user"];
   }
 }
