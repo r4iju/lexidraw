@@ -1,6 +1,7 @@
-// -------------------------------------------------------------
-// Types
-// -------------------------------------------------------------
+/**
+ * Basically a copy of lodash.debounce and lodash.throttle
+ */
+
 export interface DebounceOptions {
   leading?: boolean;
   maxWait?: number;

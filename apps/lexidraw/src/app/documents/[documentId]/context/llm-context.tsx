@@ -19,8 +19,6 @@ import { useSession } from "next-auth/react";
 /** Your shared LLM state */
 export type LLMState = {
   modelId: string;
-  name: string;
-  description: string;
   provider: string;
   temperature: number;
   maxTokens: number;
@@ -29,8 +27,15 @@ export type LLMState = {
   error: string | null;
 };
 
+export type LLMOptions = {
+  prompt: string;
+  system?: string;
+  temperature?: number;
+  maxTokens?: number;
+};
+
 type LLMContextValue = {
-  sendQuery: (textSnippet: string) => Promise<string>;
+  generate: (options: LLMOptions) => Promise<string>;
   llmState: LLMState;
   setLlmState: React.Dispatch<React.SetStateAction<LLMState>>;
   setLlmOption: (
@@ -79,23 +84,16 @@ export const LlmModelList = [
     name: "Gemini 2.5 Pro Exp",
     description: "The most powerful Gemini 2.5 model",
   },
-] as const satisfies Pick<
-  LLMState,
-  "modelId" | "provider" | "name" | "description"
->[];
+] as const;
 
 const LLMContext = createContext<LLMContextValue | null>(null);
 
 export function LLMProvider({ children }: PropsWithChildren<unknown>) {
-  // Optional: if you're using next-auth to store your API key
   const { data: session } = useSession();
 
   const [llmState, setLlmState] = useState<LLMState>({
     modelId: "gemini-2.0-flash-lite",
     provider: "google",
-    name: "Gemini 2.0 Flash Lite",
-    description:
-      "A Gemini 2.0 Flash model optimized for cost efficiency and low latency",
     temperature: 0.3,
     maxTokens: 20,
     isError: false,
@@ -122,71 +120,29 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     session?.user.config.llm.openaiApiKey,
   ]);
 
-  // We can throttle queries if we like:
-  const lastRequestTimeRef = useRef<number>(0);
-  const throttleDelay = 3000; // 3 seconds
-
   // The main function that calls the LLM
-  const sendQuery = useCallback(
-    async (
-      partialSnippet: string,
-      editorContext?: {
-        heading: string;
-        blockType: string;
-        previousSentence: string;
-      },
-    ): Promise<string> => {
-      // check for throttle
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastRequestTimeRef.current;
-      if (timeSinceLastRequest < throttleDelay) {
-        const waitSec = (throttleDelay - timeSinceLastRequest) / 1000;
-        console.log(`Request throttled. Please wait ${waitSec}s`);
-        return "";
-      }
-      lastRequestTimeRef.current = now;
-
-      const contextDescription = editorContext
-        ? [
-            `The user is editing a "${editorContext.blockType}" block under heading: "${editorContext.heading}".`,
-            `The previous sentence is: "${editorContext.previousSentence}"`,
-          ]
-            .join("\n")
-            .trim()
-        : "";
-
-      console.log("debug prompt...\n", {
-        blockType: editorContext?.blockType,
-        heading: editorContext?.heading,
-        previousSentence: editorContext?.previousSentence,
-        partialSnippet: partialSnippet,
-      });
-
-      const finalPrompt = [
-        contextDescription,
-        `The user typed the following partial text: "${partialSnippet}"`,
-        `Complete the snippet without repeating the same words.`,
-        `Do not wrap the text in quotes.`,
-      ]
-        .join("\n")
-        .trim();
-
+  const generate = useCallback(
+    async ({
+      prompt,
+      system = "",
+      temperature,
+      maxTokens,
+    }: LLMOptions): Promise<string> => {
       try {
         const result = await generateText({
           model: provider(llmState.modelId),
-          prompt: finalPrompt,
-          system: [
-            `You are a helpful assistant, trying to complete the user's current sentence.`,
-            `Don't repeat the words the user provided.`,
-            `Don't affirm the request or reply any meta-information.`,
-            `If you don't know the answer, The only acceptable response is a blank string; "".`,
-            `Also if you can't complete the sentence, The only acceptable response is a blank string; "".`,
-          ].join("\n"),
-          temperature: llmState.temperature,
-          maxTokens: llmState.maxTokens,
+          prompt,
+          system,
+          temperature: temperature ?? llmState.temperature,
+          maxTokens: maxTokens ?? llmState.maxTokens,
         });
 
-        setLlmState((prev) => ({ ...prev, isError: false, text: result.text }));
+        setLlmState((prev) => ({
+          ...prev,
+          isError: false,
+          text: result.text,
+          error: null,
+        }));
 
         return result.text;
       } catch (err: unknown) {
@@ -218,7 +174,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
   return (
     <LLMContext.Provider
-      value={{ sendQuery, llmState, setLlmState, setLlmOption, setLlmOptions }}
+      value={{ generate, llmState, setLlmState, setLlmOption, setLlmOptions }}
     >
       {children}
     </LLMContext.Provider>
@@ -233,13 +189,16 @@ export function useLLM() {
   return ctx;
 }
 
-/** debounced version for autocomplete */
-export function useLLMQuery() {
-  const { sendQuery } = useLLM();
+export function useDebouncedLlm({
+  debounceMs = 3000,
+}: {
+  debounceMs?: number;
+}) {
+  const { generate } = useLLM();
 
   const debouncedSendQuery = useMemo(() => {
-    return debounce(sendQuery, 250, { leading: false, trailing: true });
-  }, [sendQuery]);
+    return debounce(generate, debounceMs, { leading: false, trailing: true });
+  }, [generate]);
 
   return debouncedSendQuery;
 }
