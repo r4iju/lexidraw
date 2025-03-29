@@ -19,6 +19,8 @@ import { useSession } from "next-auth/react";
 /** Your shared LLM state */
 export type LLMState = {
   modelId: string;
+  name: string;
+  description: string;
   provider: string;
   temperature: number;
   maxTokens: number;
@@ -35,7 +37,52 @@ type LLMContextValue = {
     name: keyof LLMState,
     value: string | number | boolean,
   ) => void;
+  setLlmOptions: (options: Partial<LLMState>) => void;
 };
+
+export const LlmModelList = [
+  {
+    modelId: "gpt-4o",
+    provider: "openai",
+    name: "GPT-4o",
+    description: "The latest and most powerful GPT model",
+  },
+  {
+    modelId: "gpt-4o-mini",
+    provider: "openai",
+    name: "GPT-4o Mini",
+    description: "The smaller and faster GPT model",
+  },
+  {
+    modelId: "gemini-2.0-flash-lite",
+    provider: "google",
+    name: "Gemini 2.0 Flash Lite",
+    description:
+      "A Gemini 2.0 Flash model optimized for cost efficiency and low latency",
+  },
+  {
+    modelId: "gemini-2.0-flash",
+    provider: "google",
+    name: "Gemini 2.0 Flash",
+    description:
+      "Next generation features, speed, thinking, realtime streaming, and multimodal generation",
+  },
+  {
+    modelId: "gemini-2.0-pro-exp-02-05",
+    provider: "google",
+    name: "Gemini 2.0 Pro Exp",
+    description: "The most powerful Gemini 2.0 model",
+  },
+  {
+    modelId: "gemini-2.5-pro-exp-03-25",
+    provider: "google",
+    name: "Gemini 2.5 Pro Exp",
+    description: "The most powerful Gemini 2.5 model",
+  },
+] as const satisfies Pick<
+  LLMState,
+  "modelId" | "provider" | "name" | "description"
+>[];
 
 const LLMContext = createContext<LLMContextValue | null>(null);
 
@@ -46,6 +93,9 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const [llmState, setLlmState] = useState<LLMState>({
     modelId: "gemini-2.0-flash-lite",
     provider: "google",
+    name: "Gemini 2.0 Flash Lite",
+    description:
+      "A Gemini 2.0 Flash model optimized for cost efficiency and low latency",
     temperature: 0.3,
     maxTokens: 20,
     isError: false,
@@ -72,8 +122,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     session?.user.config.llm.openaiApiKey,
   ]);
 
-  // Local LLM state
-
   // We can throttle queries if we like:
   const lastRequestTimeRef = useRef<number>(0);
   const throttleDelay = 3000; // 3 seconds
@@ -99,18 +147,29 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       lastRequestTimeRef.current = now;
 
       const contextDescription = editorContext
-        ? `
-      The user is editing a "${editorContext.blockType}" block under heading: "${editorContext.heading}".
-      The previous sentence is: "${editorContext.previousSentence}"
-    `
+        ? [
+            `The user is editing a "${editorContext.blockType}" block under heading: "${editorContext.heading}".`,
+            `The previous sentence is: "${editorContext.previousSentence}"`,
+          ]
+            .join("\n")
+            .trim()
         : "";
+
+      console.log("debug prompt...\n", {
+        blockType: editorContext?.blockType,
+        heading: editorContext?.heading,
+        previousSentence: editorContext?.previousSentence,
+        partialSnippet: partialSnippet,
+      });
 
       const finalPrompt = [
         contextDescription,
-        `They typed partial text: "${partialSnippet}"`,
+        `The user typed the following partial text: "${partialSnippet}"`,
         `Complete the snippet without repeating the same words.`,
         `Do not wrap the text in quotes.`,
-      ].join("\n");
+      ]
+        .join("\n")
+        .trim();
 
       try {
         const result = await generateText({
@@ -153,9 +212,13 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     [],
   );
 
+  const setLlmOptions = useCallback((options: Partial<LLMState>) => {
+    setLlmState((prev) => ({ ...prev, ...options }));
+  }, []);
+
   return (
     <LLMContext.Provider
-      value={{ sendQuery, llmState, setLlmState, setLlmOption }}
+      value={{ sendQuery, llmState, setLlmState, setLlmOption, setLlmOptions }}
     >
       {children}
     </LLMContext.Provider>

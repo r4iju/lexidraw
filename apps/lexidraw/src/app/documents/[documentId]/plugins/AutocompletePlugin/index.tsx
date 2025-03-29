@@ -10,6 +10,7 @@ import {
   $getNodeByKey,
   $setSelection,
 } from "lexical";
+import { $isHeadingNode } from "@lexical/rich-text";
 import {
   COMMAND_PRIORITY_LOW,
   KEY_ARROW_RIGHT_COMMAND,
@@ -86,27 +87,37 @@ function gatherHeadingChain(node: LexicalNode): string[] {
 }
 
 function gatherEditorContext() {
+  let headingHierarchy = "";
   let blockType = "";
   let previousSentence = "";
-  let headingHierarchy = "";
 
-  // 1) Get the current selection
   const selection = $getSelection();
   if (!$isRangeSelection(selection)) {
-    // If no valid RangeSelection, bail out
     return { heading: headingHierarchy, blockType, previousSentence };
   }
 
   const anchorNode = selection.anchor.getNode();
 
-  const headingChain = gatherHeadingChain(anchorNode);
-  headingHierarchy = headingChain.join(" > ");
+  headingHierarchy = gatherHeadingChain(anchorNode).join(" > ");
 
-  blockType = anchorNode.getType();
+  const anchorElement = anchorNode.getTopLevelElementOrThrow();
+  blockType = anchorElement.getType();
 
-  const prevSibling = anchorNode.getPreviousSibling();
-  if (prevSibling) {
-    previousSentence = prevSibling.getTextContent();
+  const offset = selection.anchor.offset;
+  if ($isTextNode(anchorNode)) {
+    const textBeforeCursor = anchorNode.getTextContent().slice(0, offset);
+
+    // A quick approach: capture all complete sentences that end in punctuation.
+    // We'll use a global regex that finds segments like “Some text.”, “Another?” etc.
+    const fullSentences = textBeforeCursor.match(/[^.?!]+[.?!]+/g);
+
+    // The "previous sentence" is the last fully ended sentence,
+    // ignoring whatever fragment the user is still typing.
+    if (fullSentences && fullSentences.length > 0) {
+      previousSentence = fullSentences[fullSentences.length - 1]?.trim() ?? "";
+    } else {
+      previousSentence = "";
+    }
   }
 
   return { heading: headingHierarchy, blockType, previousSentence };

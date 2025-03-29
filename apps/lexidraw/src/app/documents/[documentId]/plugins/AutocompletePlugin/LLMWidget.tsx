@@ -23,18 +23,19 @@ export function LLMWidget() {
       className={cn(
         "fixed bottom-4 right-4 z-50 border bg-background w-full max-w-sm h-20 p-2 rounded-md shadow-md transition-transform duration-300 ease-in-out",
         hidden ? "translate-x-full opacity-0" : "translate-x-0 opacity-100",
+        {
+          "bg-destructive": isError,
+        },
       )}
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          {isError && <XCircleIcon className="size-6" />}
-          {/* close icon */}
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             asChild
             onClick={() => setHidden(true)}
-            className="h-6 cursor-pointer"
+            className="h-6 w-6 p-1 cursor-pointer"
           >
             <XIcon />
           </Button>
