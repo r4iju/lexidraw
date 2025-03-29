@@ -19,7 +19,10 @@ import {
 import { useEffect, useCallback, useRef } from "react";
 import { addSwipeRightListener } from "../../utils/swipe";
 import { useSettings } from "../../context/settings-context";
-import { useLLMQuery } from "../../context/llm-context";
+import {
+  type AutocompleteEditorContext,
+  useDebouncedAutocomplete,
+} from "./use-auto-complete";
 import {
   $createAutocompleteNode,
   AutocompleteNode,
@@ -86,7 +89,7 @@ function gatherHeadingChain(node: LexicalNode): string[] {
   return headings;
 }
 
-function gatherEditorContext() {
+function gatherEditorContext(): AutocompleteEditorContext {
   let headingHierarchy = "";
   let blockType = "";
   let previousSentence = "";
@@ -129,7 +132,7 @@ export default function AutocompletePlugin() {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
 
-  const queryLLM = useLLMQuery();
+  const queryLLM = useDebouncedAutocomplete();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
   const lastWord = useRef<string | null>(null);
@@ -186,23 +189,14 @@ export default function AutocompletePlugin() {
       clearSuggestion();
       lastWord.current = match;
 
+      const partialSnippet = match;
       const { heading, blockType, previousSentence } = gatherEditorContext();
 
-      const combinedPrompt = [
-        `Context:`,
-        `- Heading chain: "${heading}"`,
-        `- Block Type: "${blockType}"`,
-        `- Previous sentence: "${previousSentence}"`,
-        ``,
-        `Partial snippet: "${match}"`,
-        ``,
-        `Please **complete** the snippet in a helpful way,`,
-        `avoiding repetition of the user’s partial text.`,
-      ].join("\n");
-
-      const finalPrompt = combinedPrompt.trim();
-
-      const promise = queryLLM(finalPrompt)?.then((completion) => {
+      const promise = queryLLM(partialSnippet, {
+        heading,
+        blockType,
+        previousSentence,
+      })?.then((completion) => {
         if (!completion) return null;
         insertSuggestion(completion);
         return completion;

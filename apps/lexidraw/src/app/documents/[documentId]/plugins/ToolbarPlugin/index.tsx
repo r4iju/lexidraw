@@ -641,8 +641,6 @@ function LlmModelSelector() {
                     setLlmOptions({
                       modelId: model.modelId,
                       provider: model.provider,
-                      name: model.name,
-                      description: model.description,
                     });
                   }}
                 >
