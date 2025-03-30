@@ -150,15 +150,15 @@ export default function ImageComponent({
   caption,
   captionsEnabled,
 }: ImageComponentProps): React.JSX.Element {
-  const imageRef = useRef<null | HTMLImageElement>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
-  const [isResizing, setIsResizing] = useState<boolean>(false);
+  const [isResizing, setIsResizing] = useState(false);
   const [editor] = useLexicalComposerContext();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
   const activeEditorRef = useRef<LexicalEditor | null>(null);
-  const [isLoadError, setIsLoadError] = useState<boolean>(false);
+  const [isLoadError, setIsLoadError] = useState(false);
 
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
@@ -450,8 +450,8 @@ export default function ImageComponent({
             showCaption={showCaption}
             setShowCaption={setShowCaption}
             editor={editor}
-            buttonRef={buttonRef}
-            imageRef={imageRef}
+            buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
+            imageRef={imageRef as React.RefObject<HTMLImageElement>}
             maxWidth={maxWidth}
             onResizeStart={onResizeStart}
             onResizeEnd={onResizeEnd}

@@ -33,19 +33,25 @@ const buttonVariants = cva(
   },
 );
 
+// with ref
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonVariants> & { asChild?: boolean };
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean;
+    ref?: React.Ref<HTMLButtonElement>;
+  };
 
 const Button = ({
   className,
   variant,
   size,
   asChild = false,
+  ref,
   ...props
 }: ButtonProps) => {
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
+      ref={ref}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

@@ -554,9 +554,9 @@ function getPossibleQueryMatch(text: string): MenuTextMatch | null {
 
 class MentionTypeaheadOption extends MenuOption {
   name: string;
-  picture: JSX.Element;
+  picture: React.JSX.Element;
 
-  constructor(name: string, picture: JSX.Element) {
+  constructor(name: string, picture: React.JSX.Element) {
     super(name);
     this.name = name;
     this.picture = picture;
@@ -598,7 +598,7 @@ function MentionsTypeaheadMenuItem({
   );
 }
 
-export default function NewMentionsPlugin(): JSX.Element | null {
+export default function NewMentionsPlugin(): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
 
   const [queryString, setQueryString] = useState<string | null>(null);

@@ -25,7 +25,7 @@ import { Input } from "~/components/ui/input";
 
 interface PlaygroundEmbedConfig extends EmbedConfig {
   contentName: string;
-  icon?: JSX.Element;
+  icon?: React.JSX.Element;
   exampleUrl: string;
   keywords: string[];
   description?: string;
@@ -182,7 +182,7 @@ export function AutoEmbedDialog({
 }: {
   embedConfig: PlaygroundEmbedConfig;
   onClose: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const [text, setText] = useState("");
   const [editor] = useLexicalComposerContext();
   const [embedResult, setEmbedResult] = useState<EmbedMatchResult | null>(null);
@@ -243,7 +243,7 @@ export function AutoEmbedDialog({
   );
 }
 
-export default function AutoEmbedPlugin(): JSX.Element {
+export default function AutoEmbedPlugin(): React.JSX.Element {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentEmbedConfig, setCurrentEmbedConfig] =
     useState<PlaygroundEmbedConfig | null>(null);

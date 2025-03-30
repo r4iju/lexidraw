@@ -81,7 +81,7 @@ export default function ActionsPlugin({
 }: {
   isRichText: boolean;
   shouldPreserveNewLinesInMarkdown: boolean;
-}): JSX.Element {
+}): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [isEditable] = useState(() => editor.isEditable());
   const [isEditorEmpty, setIsEditorEmpty] = useState(true);
@@ -243,7 +243,7 @@ function ShowClearDialog({
 }: {
   editor: LexicalEditor;
   onClose: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <>
       Are you sure you want to clear the editor?

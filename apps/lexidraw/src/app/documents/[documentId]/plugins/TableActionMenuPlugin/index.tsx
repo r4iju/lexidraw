@@ -156,7 +156,7 @@ type TableCellActionMenuProps = Readonly<{
   setIsMenuOpen: (isOpen: boolean) => void;
   showColorPickerModal: (
     title: string,
-    showModal: (onClose: () => void) => JSX.Element,
+    showModal: (onClose: () => void) => React.JSX.Element,
   ) => void;
   tableCellNode: TableCellNode;
   cellMerge: boolean;
@@ -281,7 +281,7 @@ function TableActionMenu({
 
         const tableSelection = getTableObserverFromTableElement(tableElement);
         if (tableSelection !== null) {
-          tableSelection.clearHighlight();
+          tableSelection.$clearHighlight();
         }
 
         tableNode.markDirty();
@@ -486,7 +486,7 @@ function TableActionMenu({
     [editor],
   );
 
-  let mergeCellButton: null | JSX.Element = null;
+  let mergeCellButton: null | React.JSX.Element = null;
   if (cellMerge) {
     if (canMergeCells) {
       mergeCellButton = (
@@ -628,11 +628,11 @@ function TableCellActionMenuContainer({
 }: {
   anchorElem: HTMLElement;
   cellMerge: boolean;
-}): JSX.Element {
+}): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
 
-  const menuButtonRef = useRef(null);
-  const menuRootRef = useRef(null);
+  const menuButtonRef = useRef<HTMLDivElement>(null);
+  const menuRootRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [tableCellNode, setTableMenuCellNode] = useState<TableCellNode | null>(
@@ -693,7 +693,7 @@ function TableCellActionMenuContainer({
   });
 
   useEffect(() => {
-    const menuButtonDOM = menuButtonRef.current as HTMLButtonElement | null;
+    const menuButtonDOM = menuButtonRef.current as HTMLDivElement | null;
 
     if (menuButtonDOM != null && tableCellNode != null) {
       const tableCellNodeDOM = editor.getElementByKey(tableCellNode.getKey());

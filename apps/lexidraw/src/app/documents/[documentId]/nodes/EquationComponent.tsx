@@ -27,7 +27,7 @@ export default function EquationComponent({
   equation,
   inline,
   nodeKey,
-}: EquationComponentProps): JSX.Element {
+}: EquationComponentProps): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [equationValue, setEquationValue] = useState(equation);
   const [showEquationEditor, setShowEquationEditor] = useState<boolean>(false);

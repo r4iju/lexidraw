@@ -9,6 +9,7 @@ import type {
   UIAppState,
   ExcalidrawImperativeAPI,
   ExcalidrawProps,
+  SocketId,
 } from "@excalidraw/excalidraw/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
@@ -37,9 +38,8 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
       appState: appState
         ? ({
             ...appState,
-            collaborators: appState.collaborators
-              ? new Map(Object.entries(appState.collaborators))
-              : new Map<string, Collaborator>(),
+            collaborators:
+              appState.collaborators ?? new Map<SocketId, Collaborator>(),
           } satisfies UIAppState)
         : ({
             theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,

@@ -231,17 +231,12 @@ export default function InlineImageComponent({
   const [editor] = useLexicalComposerContext();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
 
-  // Node selection
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
 
-  // For some keydown logic
   const activeEditorRef = useRef<LexicalEditor | null>(null);
-
-  // We'll store a ref to the <div> from ResizableImage
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  // This is for focusing the "Edit" button
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const containerRef = useRef<HTMLImageElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Keydown logic
   const $onDelete = useCallback(
@@ -405,7 +400,7 @@ export default function InlineImageComponent({
             height={height}
             position={position}
             nodeKey={nodeKey}
-            containerRef={containerRef}
+            containerRef={containerRef as React.RefObject<HTMLDivElement>}
           />
           {/* “Edit” button on top */}
           <Button
@@ -420,9 +415,9 @@ export default function InlineImageComponent({
           {isSelected && (
             <ImageResizer
               // We pass the containerRef so the resizer can measure & update .style
-              imageRef={containerRef}
+              imageRef={containerRef as React.RefObject<HTMLImageElement>}
               editor={editor}
-              buttonRef={buttonRef}
+              buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
               showCaption={false}
               setShowCaption={() => {}}
               captionsEnabled={false}

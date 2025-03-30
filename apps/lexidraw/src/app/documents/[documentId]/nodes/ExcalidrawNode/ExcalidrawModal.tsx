@@ -136,7 +136,7 @@ export default function ExcalidrawModal({
     }
   };
 
-  function ShowDiscardDialog(): JSX.Element {
+  function ShowDiscardDialog(): React.JSX.Element {
     return (
       <Dialog open={discardModalOpen} onOpenChange={setDiscardModalOpen}>
         <DialogOverlay>

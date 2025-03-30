@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import * as React from "react";
-
 import {
   Dialog,
   DialogContent,
@@ -9,12 +8,15 @@ import {
 } from "~/components/ui/dialog";
 
 export default function useModal(): [
-  JSX.Element | null,
-  (title: string, showModal: (onClose: () => void) => JSX.Element) => void,
+  React.JSX.Element | null,
+  (
+    title: string,
+    showModal: (onClose: () => void) => React.JSX.Element,
+  ) => void,
 ] {
   const [modalContent, setModalContent] = useState<null | {
     closeOnClickOutside: boolean;
-    content: JSX.Element;
+    content: React.JSX.Element;
     title: string;
   }>(null);
 
@@ -62,8 +64,7 @@ export default function useModal(): [
   const showModal = useCallback(
     (
       title: string,
-
-      getContent: (onClose: () => void) => JSX.Element,
+      getContent: (onClose: () => void) => React.JSX.Element,
       closeOnClickOutside = false,
     ) => {
       setModalContent({

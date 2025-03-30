@@ -46,7 +46,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const userId = useUserIdOrGuestId();
 
   // excalidraw api
-  const excalidrawApi = useRef<ExcalidrawImperativeAPI | null>(null);
+  const excalidrawApi = useRef<ExcalidrawImperativeAPI>(null);
   // server state
   const { mutate: save } = api.entities.save.useMutation();
   // local state
@@ -182,7 +182,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           // elements.push(prevElement);
         }
       });
-      if (appState.isResizing || appState.draggingElement) {
+      if (appState.isResizing) {
         changesDetected = true;
       }
       if (changesDetected) {
@@ -301,7 +301,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           <DrawingBoardMenu
             isMenuOpen={isMenuOpen}
             drawing={drawing}
-            excalidrawApi={excalidrawApi}
+            excalidrawApi={
+              excalidrawApi as React.RefObject<ExcalidrawImperativeAPI>
+            }
           />
         </MainMenu>
       </Excalidraw>
