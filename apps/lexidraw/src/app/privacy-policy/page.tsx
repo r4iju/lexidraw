@@ -4,7 +4,7 @@ export const runtime: ServerRuntime = "edge";
 
 export default function TermsOfService() {
   return (
-    <div className="flex min-h-[90vh] flex-col">
+    <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">
       <main className="flex-1">
         <section
           id="terms-of-service"

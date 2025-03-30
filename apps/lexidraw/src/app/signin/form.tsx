@@ -10,6 +10,7 @@ import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { getDefaults } from "@packages/lib";
 import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
+import { cn } from "~/lib/utils";
 
 export default function SignInForm() {
   const methods = useForm<SignInSchema>({
@@ -78,16 +79,17 @@ export default function SignInForm() {
         </div>
         <Button disabled={isLoading} type="submit" className="w-full mt-6">
           <ReloadIcon
-            className={`animate-spin w-4 mr-2 ${isLoading ? "opacity-100" : "opacity-0"}`}
+            className={cn("animate-spin w-4 mr-2", {
+              "opacity-100": isLoading,
+              "opacity-0": !isLoading,
+            })}
           />
           Sign In
           <div className="w-4 ml-2 opacity-0" />
         </Button>
         {submitError && (
           <div className="text-center">
-            <span className="dark:text-red-300 text-red-600">
-              {submitError}
-            </span>
+            <span className="text-destructive">{submitError}</span>
           </div>
         )}
       </FormProvider>

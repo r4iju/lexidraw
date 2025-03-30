@@ -52,7 +52,7 @@ const config: NextConfig = {
   experimental: {
     reactCompiler: {
       compilationMode: "all",
-      panicThreshold: "NONE",
+      panicThreshold: "CRITICAL_ERRORS",
     },
     turbo: {
       resolveAlias: {
