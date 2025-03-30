@@ -4,7 +4,7 @@ export const runtime: ServerRuntime = "edge";
 
 export default function PrivacyPolicy() {
   return (
-    <div className="flex min-h-[90vh] flex-col">
+    <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">
       <main className="flex-1">
         <section id="privacy-policy" className="w-full pt-12 md:pt-24 lg:pt-32">
           <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
