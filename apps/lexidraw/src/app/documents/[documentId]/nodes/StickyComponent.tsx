@@ -1,20 +1,27 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
 import type { LexicalEditor, NodeKey } from "lexical";
+import type { JSX } from "react";
 
 import "./StickyNode.css";
 
+import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { calculateZoomLevel } from "@lexical/utils";
 import { $getNodeByKey } from "lexical";
 import * as React from "react";
-import { useEffect, useRef } from "react";
-import useLayoutEffect from "../shared/useLayoutEffect";
-import { useSharedHistoryContext } from "../context/shared-history-context";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import StickyEditorTheme from "../themes/sticky-editor-theme";
-import Placeholder from "~/components/ui/placeholder";
+
 import { $isStickyNode } from "./StickyNode";
 import LexicalContentEditable from "~/components/ui/content-editable";
 
@@ -39,6 +46,7 @@ function positionSticky(
   style.left = rectLeft + positioning.x + "px";
 }
 
+// 
 export default function StickyComponent({
   x,
   y,
@@ -51,7 +59,7 @@ export default function StickyComponent({
   nodeKey: NodeKey;
   x: number;
   y: number;
-}): React.JSX.Element {
+}): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const stickyContainerRef = useRef<null | HTMLDivElement>(null);
   const positioningRef = useRef<Positioning>({
@@ -62,6 +70,7 @@ export default function StickyComponent({
     x: 0,
     y: 0,
   });
+  const { isCollabActive } = useCollaborationContext();
 
   useEffect(() => {
     const position = positioningRef.current;
@@ -77,12 +86,8 @@ export default function StickyComponent({
   useLayoutEffect(() => {
     const position = positioningRef.current;
     const resizeObserver = new ResizeObserver((entries) => {
-      // eslint-disable-next-line @typescript-eslint/prefer-for-of
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        if (!entry) {
-          continue;
-        }
         const { target } = entry;
         position.rootElementRect = target.getBoundingClientRect();
         const stickyContainer = stickyContainerRef.current;
@@ -152,7 +157,7 @@ export default function StickyComponent({
     }
   };
 
-  const handlePointerUp = (_event: PointerEvent) => {
+  const handlePointerUp = (event: PointerEvent) => {
     const stickyContainer = stickyContainerRef.current;
     const positioning = positioningRef.current;
     if (stickyContainer !== null) {
@@ -186,8 +191,6 @@ export default function StickyComponent({
       }
     });
   };
-
-  const { historyState } = useSharedHistoryContext();
 
   return (
     <div ref={stickyContainerRef} className="sticky-note-container">
@@ -238,15 +241,13 @@ export default function StickyComponent({
           initialEditor={caption}
           initialTheme={StickyEditorTheme}
         >
-          <HistoryPlugin externalHistoryState={historyState} />
           <PlainTextPlugin
             contentEditable={
-              <LexicalContentEditable className="StickyNode__contentEditable" />
-            }
-            placeholder={
-              <Placeholder className="StickyNode__placeholder">
-                What's up?
-              </Placeholder>
+              <LexicalContentEditable
+                placeholder="What's up?"
+                placeholderClassName="StickyNode__placeholder"
+                className="StickyNode__contentEditable"
+              />
             }
             ErrorBoundary={LexicalErrorBoundary}
           />

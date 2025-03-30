@@ -101,9 +101,3 @@ export class ThreadNode extends DecoratorNode<JSX.Element> {
     return node;
   }
 }
-
-export function $isThreadNode(
-  node: LexicalNode | null | undefined,
-): node is ThreadNode {
-  return node?.getType?.() === "thread";
-}

@@ -70,7 +70,7 @@ import useModal from "~/hooks/useModal";
 import { $createStickyNode } from "../../nodes/StickyNode";
 // import DropDown, { DropDownItem } from "../../ui/DropDown";
 import { ColorPickerButton } from "~/components/ui/color-picker";
-import { getSelectedNode } from "../../utils/getSelectedNode";
+import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { sanitizeUrl } from "../../utils/url";
 import { EmbedConfigs } from "../AutoEmbedPlugin";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
@@ -156,20 +156,6 @@ const blockTypeToBlockName = {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const rootTypeToRootName = { root: "Root", table: "Table" } as const;
-
-function getCodeLanguageOptions(): [string, string][] {
-  const options: [string, string][] = [];
-
-  for (const [lang, friendlyName] of Object.entries(
-    CODE_LANGUAGE_FRIENDLY_NAME_MAP,
-  )) {
-    options.push([lang, friendlyName]);
-  }
-
-  return options;
-}
-
-const CODE_LANGUAGE_OPTIONS = getCodeLanguageOptions();
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Fredoka", "Fredoka"],
@@ -677,6 +663,7 @@ export default function ToolbarPlugin({
   const [selectedElementKey, setSelectedElementKey] = useState<NodeKey | null>(
     null,
   );
+  const getSelectedNode = useGetSelectedNode();
   const [fontSize, setFontSize] = useState<string>("15px");
   const [fontColor, setFontColor] = useState<string>("#000");
   const [bgColor, setBgColor] = useState<string>("#fff");
@@ -696,6 +683,18 @@ export default function ToolbarPlugin({
   const [isRTL, setIsRTL] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState<string>("");
   const [isEditable, setIsEditable] = useState(() => editor.isEditable());
+  const getCodeLanguageOptions = useCallback((): [string, string][] => {
+    const options: [string, string][] = [];
+
+    for (const [lang, friendlyName] of Object.entries(
+      CODE_LANGUAGE_FRIENDLY_NAME_MAP,
+    )) {
+      options.push([lang, friendlyName]);
+    }
+
+    return options;
+  }, []);
+  const CODE_LANGUAGE_OPTIONS = getCodeLanguageOptions();
 
   const $updateToolbar = useCallback(() => {
     const selection = $getSelection();

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import firestore from '~/server/firestore';
 import { doc, setDoc, onSnapshot, serverTimestamp, type Unsubscribe, } from "firebase/firestore";
 import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType } from './interface';
-import { useToast } from '~/components/ui/use-toast';
+import { useToast } from "~/components/ui/toast-provider";
 import { type MessageStructure } from '@packages/types';
 
 export const useFirestoreService = (

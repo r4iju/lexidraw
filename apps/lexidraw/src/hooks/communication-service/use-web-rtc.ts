@@ -3,7 +3,7 @@
 import { useCallback, useRef } from 'react';
 import type { ICommunicationOptions, ICommunicationProps, ICommunicationReturnType } from './interface';
 import type { WebRtcMessage, MessageStructure } from '@packages/types';
-import { useToast } from '~/components/ui/use-toast';
+import { useToast } from "~/components/ui/toast-provider";
 import env from '@packages/env';
 
 export function useWebRtcService(

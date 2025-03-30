@@ -4,7 +4,7 @@ import type { NodeKey } from "lexical";
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as React from "react";
 import {
   Popover,
@@ -17,31 +17,6 @@ import { TableOfContents } from "lucide-react";
 const MARGIN_ABOVE_EDITOR = 624;
 const HEADING_WIDTH = 9;
 
-function isHeadingAtTheTopOfThePage(element: HTMLElement): boolean {
-  const elementYPosition = element?.getClientRects()[0]?.y;
-  if (elementYPosition === undefined) {
-    return false;
-  }
-  return (
-    elementYPosition >= MARGIN_ABOVE_EDITOR &&
-    elementYPosition <= MARGIN_ABOVE_EDITOR + HEADING_WIDTH
-  );
-}
-function isHeadingAboveViewport(element: HTMLElement): boolean {
-  const elementYPosition = element?.getClientRects()[0]?.y;
-  if (elementYPosition === undefined) {
-    return false;
-  }
-  return elementYPosition < MARGIN_ABOVE_EDITOR;
-}
-function isHeadingBelowTheTopOfThePage(element: HTMLElement): boolean {
-  const elementYPosition = element?.getClientRects()[0]?.y;
-  if (elementYPosition === undefined) {
-    return false;
-  }
-  return elementYPosition >= MARGIN_ABOVE_EDITOR + HEADING_WIDTH;
-}
-
 function TableOfContentsList({
   tableOfContents,
 }: {
@@ -51,18 +26,57 @@ function TableOfContentsList({
   const selectedIndex = useRef(0);
   const [editor] = useLexicalComposerContext();
 
-  function scrollToNode(key: NodeKey, currIndex: number) {
-    editor.getEditorState().read(() => {
-      const domElement = editor.getElementByKey(key);
-      if (domElement !== null) {
-        domElement.scrollIntoView();
-        setSelectedKey(key);
-        selectedIndex.current = currIndex;
+  const isHeadingAtTheTopOfThePage = useCallback(
+    (element: HTMLElement): boolean => {
+      const elementYPosition = element?.getClientRects()[0]?.y;
+      if (elementYPosition === undefined) {
+        return false;
       }
-    });
-  }
+      return (
+        elementYPosition >= MARGIN_ABOVE_EDITOR &&
+        elementYPosition <= MARGIN_ABOVE_EDITOR + HEADING_WIDTH
+      );
+    },
+    [],
+  );
 
-  function headingToPadding(tag: HeadingTagType): number {
+  const isHeadingAboveViewport = useCallback(
+    (element: HTMLElement): boolean => {
+      const elementYPosition = element?.getClientRects()[0]?.y;
+      if (elementYPosition === undefined) {
+        return false;
+      }
+      return elementYPosition < MARGIN_ABOVE_EDITOR;
+    },
+    [],
+  );
+
+  const isHeadingBelowTheTopOfThePage = useCallback(
+    (element: HTMLElement): boolean => {
+      const elementYPosition = element?.getClientRects()[0]?.y;
+      if (elementYPosition === undefined) {
+        return false;
+      }
+      return elementYPosition >= MARGIN_ABOVE_EDITOR + HEADING_WIDTH;
+    },
+    [],
+  );
+
+  const scrollToNode = useCallback(
+    (key: NodeKey, currIndex: number) => {
+      editor.getEditorState().read(() => {
+        const domElement = editor.getElementByKey(key);
+        if (domElement !== null) {
+          domElement.scrollIntoView();
+          setSelectedKey(key);
+          selectedIndex.current = currIndex;
+        }
+      });
+    },
+    [editor],
+  );
+
+  const headingToPadding = useCallback((tag: HeadingTagType): number => {
     switch (tag) {
       case "h1":
         return 0;
@@ -79,7 +93,7 @@ function TableOfContentsList({
       default:
         return 0;
     }
-  }
+  }, []);
 
   useEffect(() => {
     function scrollCallback() {

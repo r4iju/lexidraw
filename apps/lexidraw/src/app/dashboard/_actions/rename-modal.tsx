@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogClose,
 } from "~/components/ui/dialog";
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";

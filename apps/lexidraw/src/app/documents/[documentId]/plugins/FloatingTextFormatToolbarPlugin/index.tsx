@@ -21,9 +21,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-
-import { getDOMRangeRect } from "../../utils/getDOMRangeRect";
-import { getSelectedNode } from "../../utils/getSelectedNode";
+import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { setFloatingElemPosition } from "../../utils/setFloatingElemPosition";
 import { TooltipButton } from "~/components/ui/tooltip-button";
 import {
@@ -110,6 +108,27 @@ function TextFormatFloatingToolbar({
       };
     }
   }, [popupCharStylesEditorRef]);
+
+  const getDOMRangeRect = useCallback(
+    (nativeSelection: Selection, rootElement: HTMLElement): DOMRect => {
+      const domRange = nativeSelection.getRangeAt(0);
+
+      let rect;
+
+      if (nativeSelection.anchorNode === rootElement) {
+        let inner = rootElement;
+        while (inner.firstElementChild != null) {
+          inner = inner.firstElementChild as HTMLElement;
+        }
+        rect = inner.getBoundingClientRect();
+      } else {
+        rect = domRange.getBoundingClientRect();
+      }
+
+      return rect;
+    },
+    [],
+  );
 
   const $updateTextFormatFloatingToolbar = useCallback(() => {
     const selection = $getSelection();
@@ -300,6 +319,7 @@ function useFloatingTextFormatToolbar(
   const [isSubscript, setIsSubscript] = useState(false);
   const [isSuperscript, setIsSuperscript] = useState(false);
   const [isCode, setIsCode] = useState(false);
+  const getSelectedNode = useGetSelectedNode();
 
   const updatePopup = useCallback(() => {
     editor.getEditorState().read(() => {

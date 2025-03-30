@@ -3,17 +3,15 @@ import tseslint from "typescript-eslint";
 import nextPlugin from "@next/eslint-plugin-next";
 import reactPlugin from "eslint-plugin-react";
 import hooksPlugin from "eslint-plugin-react-hooks";
-import pluginCompiler from "eslint-plugin-react-compiler";
+import reactCompiler from "eslint-plugin-react-compiler";
 
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strict,
   ...tseslint.configs.stylistic,
-  // react compiler - is it even working?
   {
-    name: "react-compiler/recommended",
     plugins: {
-      "react-compiler": pluginCompiler,
+      "react-compiler": reactCompiler,
     },
     rules: {
       "react-compiler/react-compiler": "error",
