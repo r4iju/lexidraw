@@ -21,10 +21,7 @@ import {
   type AutocompleteEditorContext,
   useDebouncedAutocomplete,
 } from "./use-auto-complete";
-import {
-  $createAutocompleteNode,
-  AutocompleteNode,
-} from "../../nodes/AutocompleteNode";
+import { AutocompleteNode } from "../../nodes/AutocompleteNode";
 import { mergeRegister } from "@lexical/utils";
 import { $isAtNodeEnd } from "@lexical/selection";
 import { useSessionUUID } from "./session-uuid-provider";
@@ -43,68 +40,6 @@ type ElementValues = {
   handleTouchend: (e: TouchEvent) => void;
 };
 
-/**
- * Climb from the given node up to the root, collecting all headings.
- * The result is an array of heading texts from outermost to innermost.
- */
-function gatherHeadingChain(node: LexicalNode): string[] {
-  const headings: string[] = [];
-
-  let current: LexicalNode | null = node;
-  while (current !== null) {
-    // If you’re using @lexical/rich-text, you can do:
-    // if ($isHeadingNode(current)) { ... }
-    if (current.getType() === "heading") {
-      headings.push(current.getTextContent());
-    }
-    current = current.getParent();
-  }
-
-  // Because we accumulate from inside → out, let's reverse
-  // so the outermost heading is first, then next heading, etc.
-  headings.reverse();
-  return headings;
-}
-
-function gatherEditorContext(): AutocompleteEditorContext {
-  let headingHierarchy = "";
-  let blockType = "";
-  let previousSentence = "";
-
-  const selection = $getSelection();
-  if (!$isRangeSelection(selection)) {
-    return { heading: headingHierarchy, blockType, previousSentence };
-  }
-
-  const anchorNode = selection.anchor.getNode();
-
-  headingHierarchy = gatherHeadingChain(anchorNode).join(" > ");
-
-  const anchorElement = anchorNode.getTopLevelElementOrThrow();
-  blockType = anchorElement.getType();
-
-  const offset = selection.anchor.offset;
-  if ($isTextNode(anchorNode)) {
-    const textBeforeCursor = anchorNode.getTextContent().slice(0, offset);
-
-    // A quick approach: capture all complete sentences that end in punctuation.
-    // We'll use a global regex that finds segments like “Some text.”, “Another?” etc.
-    const fullSentences = textBeforeCursor.match(/[^.?!]+[.?!]+/g);
-
-    // The "previous sentence" is the last fully ended sentence,
-    // ignoring whatever fragment the user is still typing.
-    if (fullSentences && fullSentences.length > 0) {
-      previousSentence = fullSentences[fullSentences.length - 1]?.trim() ?? "";
-    } else {
-      previousSentence = "";
-    }
-  }
-
-  return { heading: headingHierarchy, blockType, previousSentence };
-}
-
-export { gatherEditorContext };
-
 export default function AutocompletePlugin() {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
@@ -115,6 +50,67 @@ export default function AutocompletePlugin() {
   const lastWord = useRef<string | null>(null);
   const lastSuggestion = useRef<string | null>(null);
   const completionRequest = useRef<CompletionRequest | null>(null);
+
+  /**
+   * Climb from the given node up to the root, collecting all headings.
+   * The result is an array of heading texts from outermost to innermost.
+   */
+  const gatherHeadingChain = useCallback((node: LexicalNode): string[] => {
+    const headings: string[] = [];
+
+    let current: LexicalNode | null = node;
+    while (current !== null) {
+      // If you’re using @lexical/rich-text, you can do:
+      // if ($isHeadingNode(current)) { ... }
+      if (current.getType() === "heading") {
+        headings.push(current.getTextContent());
+      }
+      current = current.getParent();
+    }
+
+    // Because we accumulate from inside → out, let's reverse
+    // so the outermost heading is first, then next heading, etc.
+    headings.reverse();
+    return headings;
+  }, []);
+
+  const gatherEditorContext = useCallback((): AutocompleteEditorContext => {
+    let headingHierarchy = "";
+    let blockType = "";
+    let previousSentence = "";
+
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) {
+      return { heading: headingHierarchy, blockType, previousSentence };
+    }
+
+    const anchorNode = selection.anchor.getNode();
+
+    headingHierarchy = gatherHeadingChain(anchorNode).join(" > ");
+
+    const anchorElement = anchorNode.getTopLevelElementOrThrow();
+    blockType = anchorElement.getType();
+
+    const offset = selection.anchor.offset;
+    if ($isTextNode(anchorNode)) {
+      const textBeforeCursor = anchorNode.getTextContent().slice(0, offset);
+
+      // A quick approach: capture all complete sentences that end in punctuation.
+      // We'll use a global regex that finds segments like “Some text.”, “Another?” etc.
+      const fullSentences = textBeforeCursor.match(/[^.?!]+[.?!]+/g);
+
+      // The "previous sentence" is the last fully ended sentence,
+      // ignoring whatever fragment the user is still typing.
+      if (fullSentences && fullSentences.length > 0) {
+        previousSentence =
+          fullSentences[fullSentences.length - 1]?.trim() ?? "";
+      } else {
+        previousSentence = "";
+      }
+    }
+
+    return { heading: headingHierarchy, blockType, previousSentence };
+  }, []);
 
   /**
    * This function checks if we are at the end of the current node
@@ -165,7 +161,7 @@ export default function AutocompletePlugin() {
         if (!hasMatch || match !== lastWord.current) return;
 
         const selectionClone = selection.clone();
-        const node = $createAutocompleteNode(suggestion, UUID);
+        const node = new AutocompleteNode(suggestion, UUID);
         autocompleteNodeKey.current = node.getKey();
         selection.insertNodes([node]);
         $setSelection(selectionClone);

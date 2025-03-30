@@ -15,15 +15,15 @@ export class Point {
     return this._y;
   }
 
-  public equals({x, y}: Point): boolean {
+  public equals({ x, y }: Point): boolean {
     return this.x === x && this.y === y;
   }
 
-  public calcDeltaXTo({x}: Point): number {
+  public calcDeltaXTo({ x }: Point): number {
     return this.x - x;
   }
 
-  public calcDeltaYTo({y}: Point): number {
+  public calcDeltaYTo({ y }: Point): number {
     return this.y - y;
   }
 
@@ -41,8 +41,4 @@ export class Point {
         Math.pow(this.calcDeltaYTo(point), 2),
     );
   }
-}
-
-export function isPoint(x: unknown): x is Point {
-  return x instanceof Point;
 }
