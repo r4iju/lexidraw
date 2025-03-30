@@ -1,8 +1,6 @@
 import { TextNode, type EditorConfig, type NodeKey } from "lexical";
 import type { SerializedTextNode, Spread } from "lexical";
 
-import { UUID } from "../plugins/AutocompletePlugin";
-
 export type SerializedAutocompleteNode = Spread<
   {
     uuid: string;
@@ -58,13 +56,11 @@ export class AutocompleteNode extends TextNode {
   }
 
   createDOM(config: EditorConfig): HTMLElement {
-    // Create a span or text node
     const dom = super.createDOM(config);
     dom.classList.add(config.theme.autocomplete);
-    // Hide the suggestion if it's from another user/session
-    if (this.__uuid !== UUID) {
-      dom.style.display = "none";
-    }
+    // Instead of comparing to a module-level UUID,
+    // add the node's uuid as a data attribute.
+    dom.setAttribute("data-session-uuid", this.__uuid);
     return dom;
   }
 

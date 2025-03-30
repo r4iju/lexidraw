@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import { api } from "~/trpc/react";
 import { type RouterOutputs } from "~/trpc/shared";
 import { Input } from "~/components/ui/input";

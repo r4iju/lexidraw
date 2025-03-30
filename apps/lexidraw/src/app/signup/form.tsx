@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import FormProvider from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import { getDefaults } from "@packages/lib";
 import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { signIn } from "next-auth/react";

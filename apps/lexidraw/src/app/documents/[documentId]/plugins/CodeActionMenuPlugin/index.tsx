@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CopyButton } from "./components/CopyButton";
 import { canBePrettier, PrettierButton } from "./components/PrettierButton";
-import { useDebounce } from "./utils";
+import { useDebounce } from "~/lib/client-utils";
 
 const CODE_PADDING = 8;
 

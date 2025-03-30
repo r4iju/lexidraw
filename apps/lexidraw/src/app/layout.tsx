@@ -7,12 +7,13 @@ import {
   Anonymous_Pro,
   M_PLUS_Rounded_1c,
 } from "next/font/google";
-import { Toaster } from "~/components/ui/toaster";
+import { headers as nextHeaders } from "next/headers";
 import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "~/components/ui/tooltip";
+import { ToastProvider } from "~/components/ui/toast-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -63,7 +64,10 @@ type Props = {
   children: React.ReactNode;
 };
 
-export default function RootLayout({ children }: Props) {
+export default async function RootLayout({ children }: Props) {
+  const headersList = await nextHeaders();
+  const plainHeaders = new Map(headersList.entries());
+
   return (
     <html
       lang="en"
@@ -83,7 +87,7 @@ export default function RootLayout({ children }: Props) {
         )}
       >
         <SessionProvider>
-          <TRPCReactProvider>
+          <TRPCReactProvider headers={plainHeaders}>
             <ThemeProvider
               attribute="class"
               defaultTheme="system"
@@ -91,8 +95,7 @@ export default function RootLayout({ children }: Props) {
               disableTransitionOnChange
             >
               <TooltipProvider>
-                {children}
-                <Toaster />
+                <ToastProvider>{children}</ToastProvider>
               </TooltipProvider>
             </ThemeProvider>
           </TRPCReactProvider>

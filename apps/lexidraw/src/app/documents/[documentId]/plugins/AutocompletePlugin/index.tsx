@@ -10,14 +10,12 @@ import {
   $getNodeByKey,
   $setSelection,
 } from "lexical";
-import { $isHeadingNode } from "@lexical/rich-text";
 import {
   COMMAND_PRIORITY_LOW,
   KEY_ARROW_RIGHT_COMMAND,
   KEY_TAB_COMMAND,
 } from "lexical";
 import { useEffect, useCallback, useRef } from "react";
-import { addSwipeRightListener } from "../../utils/swipe";
 import { useSettings } from "../../context/settings-context";
 import {
   type AutocompleteEditorContext,
@@ -29,42 +27,21 @@ import {
 } from "../../nodes/AutocompleteNode";
 import { mergeRegister } from "@lexical/utils";
 import { $isAtNodeEnd } from "@lexical/selection";
+import { useSessionUUID } from "./session-uuid-provider";
 
 type CompletionRequest = {
   dismiss: () => void;
   promise: Promise<string | null>;
 };
 
-function generateId(): string {
-  return Math.random()
-    .toString(36)
-    .replace(/[^a-z]+/g, "")
-    .substring(2, 15);
-}
-
-export const UUID = generateId();
-
-/**
- * This function checks if we are at the end of the current node
- * and extracts the partial text snippet.
- */
-function search(selection: null | BaseSelection): [boolean, string] {
-  if (!$isRangeSelection(selection) || !selection.isCollapsed())
-    return [false, ""];
-  const node = selection.getNodes()[0];
-  const anchor = selection.anchor;
-  if (!$isTextNode(node) || !node.isSimpleText() || !$isAtNodeEnd(anchor))
-    return [false, ""];
-
-  const text = node.getTextContent();
-  let i = text.length - 1;
-  const sentence: string[] = [];
-  while (i >= 0 && !["\n", ".", "!", "?"].includes(text[i] ?? "")) {
-    sentence.push(text[i--] ?? "");
-  }
-  if (!sentence.length) return [false, ""];
-  return [true, sentence.reverse().join("")];
-}
+type Force = [number, number];
+type Listener = (force: Force, e: TouchEvent) => void;
+type ElementValues = {
+  start: null | Force;
+  listeners: Set<Listener>;
+  handleTouchstart: (e: TouchEvent) => void;
+  handleTouchend: (e: TouchEvent) => void;
+};
 
 /**
  * Climb from the given node up to the root, collecting all headings.
@@ -131,13 +108,38 @@ export { gatherEditorContext };
 export default function AutocompletePlugin() {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
-
+  const UUID = useSessionUUID();
   const queryLLM = useDebouncedAutocomplete();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
   const lastWord = useRef<string | null>(null);
   const lastSuggestion = useRef<string | null>(null);
   const completionRequest = useRef<CompletionRequest | null>(null);
+
+  /**
+   * This function checks if we are at the end of the current node
+   * and extracts the partial text snippet.
+   */
+  const search = useCallback(
+    (selection: null | BaseSelection): [boolean, string] => {
+      if (!$isRangeSelection(selection) || !selection.isCollapsed())
+        return [false, ""];
+      const node = selection.getNodes()[0];
+      const anchor = selection.anchor;
+      if (!$isTextNode(node) || !node.isSimpleText() || !$isAtNodeEnd(anchor))
+        return [false, ""];
+
+      const text = node.getTextContent();
+      let i = text.length - 1;
+      const sentence: string[] = [];
+      while (i >= 0 && !["\n", ".", "!", "?"].includes(text[i] ?? "")) {
+        sentence.push(text[i--] ?? "");
+      }
+      if (!sentence.length) return [false, ""];
+      return [true, sentence.reverse().join("")];
+    },
+    [],
+  );
 
   const clearSuggestion = useCallback(() => {
     if (autocompleteNodeKey.current !== null) {
@@ -170,7 +172,7 @@ export default function AutocompletePlugin() {
         lastSuggestion.current = suggestion;
       });
     },
-    [editor],
+    [editor, UUID],
   );
 
   const handleUpdate = useCallback(() => {
@@ -263,6 +265,8 @@ export default function AutocompletePlugin() {
     });
   }, [editor, clearSuggestion]);
 
+  const elements = new WeakMap<HTMLElement, ElementValues>();
+
   /** Ensure only one suggestion is active at a time. */
   const handleAutocompleteNodeTransform = useCallback(
     (node: AutocompleteNode) => {
@@ -272,6 +276,124 @@ export default function AutocompletePlugin() {
       }
     },
     [clearSuggestion],
+  );
+
+  function readTouch(e: TouchEvent): [number, number] | null {
+    const touch = e.changedTouches[0];
+    if (touch === undefined) {
+      return null;
+    }
+    return [touch.clientX, touch.clientY];
+  }
+
+  const addListener = useCallback(
+    (element: HTMLElement, cb: Listener): (() => void) => {
+      let elementValues = elements.get(element);
+      if (elementValues === undefined) {
+        const listeners = new Set<Listener>();
+        const handleTouchstart = (e: TouchEvent) => {
+          if (elementValues !== undefined) {
+            elementValues.start = readTouch(e);
+          }
+        };
+        const handleTouchend = (e: TouchEvent) => {
+          if (elementValues === undefined) {
+            return;
+          }
+          const start = elementValues.start;
+          if (start === null) {
+            return;
+          }
+          const end = readTouch(e);
+          for (const listener of listeners) {
+            if (end !== null) {
+              listener([end[0] - start[0], end[1] - start[1]], e);
+            }
+          }
+        };
+        element.addEventListener("touchstart", handleTouchstart);
+        element.addEventListener("touchend", handleTouchend);
+
+        elementValues = {
+          handleTouchend,
+          handleTouchstart,
+          listeners,
+          start: null,
+        };
+        elements.set(element, elementValues);
+      }
+      elementValues.listeners.add(cb);
+      return () => deleteListener(element, cb);
+    },
+    [],
+  );
+
+  const deleteListener = useCallback(
+    (element: HTMLElement, cb: Listener): void => {
+      const elementValues = elements.get(element);
+      if (elementValues === undefined) {
+        return;
+      }
+      const listeners = elementValues.listeners;
+      listeners.delete(cb);
+      if (listeners.size === 0) {
+        elements.delete(element);
+        element.removeEventListener(
+          "touchstart",
+          elementValues.handleTouchstart,
+        );
+        element.removeEventListener("touchend", elementValues.handleTouchend);
+      }
+    },
+    [],
+  );
+
+  const addSwipeLeftListener = useCallback(
+    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
+      return addListener(element, (force, e) => {
+        const [x, y] = force;
+        if (x < 0 && -x > Math.abs(y)) {
+          cb(x, e);
+        }
+      });
+    },
+    [],
+  );
+
+  const addSwipeRightListener = useCallback(
+    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
+      return addListener(element, (force, e) => {
+        const [x, y] = force;
+        if (x > 0 && x > Math.abs(y)) {
+          cb(x, e);
+        }
+      });
+    },
+    [],
+  );
+
+  const addSwipeUpListener = useCallback(
+    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
+      return addListener(element, (force, e) => {
+        const [x, y] = force;
+        if (y < 0 && -y > Math.abs(x)) {
+          cb(x, e);
+        }
+      });
+    },
+    [],
+  );
+
+  const addSwipeDownListener = useCallback(
+    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
+      return addListener(element, (force, e) => {
+        const [x, y] = force;
+        if (y > 0 && y > Math.abs(x)) {
+          cb(x, e);
+        }
+      });
+    },
+    [],
   );
 
   /** Set up event handlers and command registrations. */

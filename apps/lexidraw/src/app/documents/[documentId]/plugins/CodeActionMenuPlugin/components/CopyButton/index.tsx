@@ -7,8 +7,7 @@ import {
 } from "lexical";
 import * as React from "react";
 import { useState } from "react";
-
-import { useDebounce } from "../../utils";
+import { useDebounce } from "~/lib/client-utils";
 
 interface Props {
   editor: LexicalEditor;

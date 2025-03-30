@@ -17,7 +17,7 @@ import { api } from "~/trpc/react";
 import Link from "next/link";
 // import { exportLexicalAsSvg } from "./export-svg";
 import { Theme } from "@packages/types";
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import { useTheme } from "next-themes";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 // import { exportPng } from "./export-png";

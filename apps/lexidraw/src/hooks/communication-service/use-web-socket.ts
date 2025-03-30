@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { type ICommunicationOptions, type ICommunicationProps, type ICommunicationReturnType } from './interface';
-import { useToast } from '~/components/ui/use-toast';
+import { useToast } from "~/components/ui/toast-provider";
 import env from '@packages/env';
 import { type MessageStructure } from '@packages/types';
 

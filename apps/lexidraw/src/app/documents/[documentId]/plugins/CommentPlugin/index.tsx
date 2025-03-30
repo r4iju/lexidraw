@@ -6,6 +6,7 @@ import type {
   EditorState,
   LexicalCommand,
   LexicalEditor,
+  LexicalNode,
   NodeKey,
   RangeSelection,
 } from "lexical";
@@ -75,8 +76,8 @@ import CommentEditorTheme from "../../themes/CommentEditorTheme";
 import useLayoutEffect from "../../shared/useLayoutEffect";
 import useModal from "~/hooks/useModal";
 
-import { CommentNode, $isCommentNode } from "../../nodes/CommentNode";
-import { ThreadNode, $isThreadNode } from "../../nodes/ThreadNode";
+import { CommentNode } from "../../nodes/CommentNode";
+import { ThreadNode } from "../../nodes/ThreadNode";
 import { $rootTextContent } from "@lexical/text";
 import { createDOMRange } from "@lexical/selection";
 
@@ -783,6 +784,20 @@ export default function CommentPlugin({
     });
     setShowCommentInput(false);
   }, [editor]);
+
+  const $isCommentNode = useCallback(
+    (node: LexicalNode | null | undefined): node is CommentNode => {
+      return node?.getType?.() === "comment";
+    },
+    [],
+  );
+
+  const $isThreadNode = useCallback(
+    (node: LexicalNode | null | undefined): node is ThreadNode => {
+      return node?.getType?.() === "thread";
+    },
+    [],
+  );
 
   // called when user deletes a comment or thread
   const deleteCommentOrThread = useCallback(

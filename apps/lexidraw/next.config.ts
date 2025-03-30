@@ -40,16 +40,28 @@ const config: NextConfig = {
       },
     ];
 
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "~/*": ["./src/*"],
+    };
+
     return config;
   },
-
+  allowedDevOrigins: [env.VERCEL_URL],
   productionBrowserSourceMaps: true,
   experimental: {
-    reactCompiler: true,
+    reactCompiler: {
+      compilationMode: "all",
+      panicThreshold: "NONE",
+    },
     turbo: {
-      // minify: true,
+      resolveAlias: {
+        "~/*": ["./src/*"],
+      },
+      // minify: false,
       // treeShaking: true,
-      // unstablePersistentCaching: true,
+      // sourceMaps: true,
+      // unstablePersistentCaching: false,
     },
   },
   eslint: {

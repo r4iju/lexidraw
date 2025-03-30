@@ -12,7 +12,7 @@ import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import {
   DownloadIcon,
   FileCheck,

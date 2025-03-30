@@ -94,6 +94,7 @@ import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { createPortal } from "react-dom";
 import { CommentNode } from "./nodes/CommentNode";
 import { ThreadNode } from "./nodes/ThreadNode";
+import { SessionUUIDProvider } from "./plugins/AutocompletePlugin/session-uuid-provider";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
@@ -245,7 +246,9 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
                     <PollPlugin />
                     <CodeHighlightPlugin />
                     <TabIndentationPlugin />
-                    <AutocompletePlugin />
+                    <SessionUUIDProvider>
+                      <AutocompletePlugin />
+                    </SessionUUIDProvider>
                     <AutoEmbedPlugin />
                     <AutoLinkPlugin />
                     <HorizontalRulePlugin />

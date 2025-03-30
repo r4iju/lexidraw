@@ -17,7 +17,7 @@ import {
 } from "@radix-ui/react-icons";
 import DeleteDrawing from "./delete-entity";
 import { useState, memo } from "react";
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import ShareEntity from "./share-entity";
 import { PublicAccess } from "@packages/types";
 import { type RouterOutputs } from "~/trpc/shared";

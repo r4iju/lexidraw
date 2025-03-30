@@ -5,9 +5,11 @@ import { cn } from "~/lib/utils";
 export default function LexicalContentEditable({
   className,
   placeholder,
+  placeholderClassName,
 }: {
   className?: string;
   placeholder?: string;
+  placeholderClassName?: string;
 }): React.JSX.Element {
   const placeholderText = placeholder ?? "";
 
@@ -19,7 +21,12 @@ export default function LexicalContentEditable({
       )}
       placeholder={(isEditable: boolean) =>
         isEditable && placeholderText ? (
-          <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
+          <div
+            className={cn(
+              "absolute top-2 left-2 text-muted-foreground pointer-events-none",
+              placeholderClassName,
+            )}
+          >
             {placeholderText}
           </div>
         ) : null

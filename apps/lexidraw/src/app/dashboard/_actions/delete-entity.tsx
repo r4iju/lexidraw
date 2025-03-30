@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";

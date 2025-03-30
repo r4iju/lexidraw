@@ -6,7 +6,7 @@ import { ProfileSchema } from "./schema";
 import FormProvider, { RHFSwitch, RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
-import { useToast } from "~/components/ui/use-toast";
+import { useToast } from "~/components/ui/toast-provider";
 import { type RouterOutputs } from "~/trpc/shared";
 import { useSession } from "next-auth/react";
 import { ReloadIcon } from "@radix-ui/react-icons";
