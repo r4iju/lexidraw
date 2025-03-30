@@ -251,16 +251,18 @@ function CommentInputBox({
         }
         const span = elements[i];
         const style = `position:absolute;top:${
-          cRect.top + window.pageYOffset
-        }px;left:${cRect.left}px;height:${cRect.height}px;width:${
-          cRect.width
+          cRect?.top ?? 0 + window.pageYOffset
+        }px;left:${cRect?.left ?? 0}px;height:${cRect?.height ?? 0}px;width:${
+          cRect?.width ?? 0
         }px;background-color:rgba(${color},0.3);z-index:9999;pointer-events:none;`;
-        span.style.cssText = style;
+        if (span) {
+          span.style.cssText = style;
+        }
       }
       // Remove any extra highlights
       for (let i = selectionRects.length; i < elements.length; i++) {
         const leftover = elements[i];
-        leftover.remove();
+        leftover?.remove();
         elements.splice(i, 1);
       }
     });

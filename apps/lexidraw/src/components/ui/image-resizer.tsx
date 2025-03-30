@@ -20,7 +20,7 @@ type ImageResizerProps = {
   onResizeStart: () => void;
   onResizeEnd: (width: "inherit" | number, height: "inherit" | number) => void;
   buttonRef: React.RefObject<HTMLButtonElement>;
-  imageRef: React.RefObject<HTMLElement>;
+  imageRef: React.RefObject<HTMLImageElement>;
   maxWidth?: number;
   editor: LexicalEditor;
   showCaption: boolean;

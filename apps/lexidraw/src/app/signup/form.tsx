@@ -13,6 +13,7 @@ import { useToast } from "~/components/ui/use-toast";
 import { getDefaults } from "@packages/lib";
 import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { signIn } from "next-auth/react";
+import { cn } from "~/lib/utils";
 
 export default function SignUpForm() {
   const { toast } = useToast();
@@ -22,7 +23,7 @@ export default function SignUpForm() {
     mode: "onBlur",
   });
   const { handleSubmit } = methods;
-  const { mutate, isLoading } = api.auth.signUp.useMutation();
+  const { mutate, isPending } = api.auth.signUp.useMutation();
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -69,9 +70,12 @@ export default function SignUpForm() {
           <RHFTextField name="email" label="Email" type="email" />
           <RHFTextField name="password" label="Password" type="password" />
         </div>
-        <Button disabled={isLoading} type="submit" className="w-full mt-6">
+        <Button disabled={isPending} type="submit" className="w-full mt-6">
           <ReloadIcon
-            className={`animate-spin w-4 mr-2 ${isLoading ? "opacity-100" : "opacity-0"}`}
+            className={cn("animate-spin w-4 mr-2", {
+              "opacity-100": isPending,
+              "opacity-0": !isPending,
+            })}
           />
           Create account
           <div className="w-4 ml-2 opacity-0" />

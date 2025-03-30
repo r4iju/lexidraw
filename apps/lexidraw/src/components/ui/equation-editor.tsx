@@ -13,7 +13,7 @@ const EquationEditor = ({
   setEquation,
   inline,
   ref,
-}: BaseEquationEditorProps): JSX.Element => {
+}: BaseEquationEditorProps): React.JSX.Element => {
   const onChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {

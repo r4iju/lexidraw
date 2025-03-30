@@ -56,7 +56,7 @@ export function ColorPickerContent({
   color,
   onChange,
   className,
-}: Readonly<ColorPickerContentProps>): JSX.Element {
+}: Readonly<ColorPickerContentProps>): React.JSX.Element {
   const [selfColor, setSelfColor] = useState(transformColor("hex", color));
   const [inputColor, setInputColor] = useState(color);
   const innerDivRef = useRef(null);
@@ -203,7 +203,7 @@ export function ColorPickerButton({
   color,
   onChange,
   Icon,
-}: Readonly<ColorPickerButtonProps>): JSX.Element {
+}: Readonly<ColorPickerButtonProps>): React.JSX.Element {
   const [currentColor, setCurrentColor] = useState(color);
 
   const handleChange = (newColor: string, skipHistoryStack: boolean) => {
@@ -246,7 +246,7 @@ interface MoveWrapperProps {
   className?: string;
   style?: React.CSSProperties;
   onChange: (position: Position) => void;
-  children: JSX.Element;
+  children: React.ReactNode;
 }
 
 function MoveWrapper({

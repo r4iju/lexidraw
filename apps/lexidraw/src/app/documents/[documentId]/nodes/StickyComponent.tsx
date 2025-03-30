@@ -51,7 +51,7 @@ export default function StickyComponent({
   nodeKey: NodeKey;
   x: number;
   y: number;
-}): JSX.Element {
+}): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
   const stickyContainerRef = useRef<null | HTMLDivElement>(null);
   const positioningRef = useRef<Positioning>({

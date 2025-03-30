@@ -17,7 +17,7 @@
     /* not transpiling with TypeScript: */
     "noEmit": true,
     "moduleResolution": "Bundler",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "plugins": [
       {
         "name": "next"

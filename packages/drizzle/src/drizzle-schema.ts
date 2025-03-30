@@ -152,7 +152,7 @@ export const rolePermissions = sqliteTable("RolePermissions", {
 
 export const userRoles = sqliteTable("UserRoles", {
   id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
-  userId: integer("userId")
+  userId: text("userId")
     .references(() => users.id)
     .notNull(),
   roleId: integer("roleId")

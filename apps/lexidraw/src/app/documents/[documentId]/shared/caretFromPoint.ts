@@ -16,7 +16,6 @@ export default function caretFromPoint(
     };
     // @ts-expect-error - its fine
   } else if (document.caretPositionFromPoint !== "undefined") {
-    // @ts-expect-error - no types
     const range = document.caretPositionFromPoint(x, y);
     if (range === null) {
       return null;

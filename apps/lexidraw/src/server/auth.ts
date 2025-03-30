@@ -2,7 +2,7 @@ import NextAuth, { Session, type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { drizzle } from "@packages/drizzle";
+import { drizzle, schema } from "@packages/drizzle";
 import { SignInSchema } from "~/app/signin/schema";
 import env from "@packages/env";
 
@@ -21,9 +21,8 @@ export const {
   handlers: { GET, POST },
   auth,
 } = NextAuth({
-  // trustHost: true,
-  adapter: DrizzleAdapter(drizzle),
-  // basePath: '/',
+  // types dont match in current versions..
+  adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
   pages: {
     signIn: "/signin",
     newUser: "/signup",

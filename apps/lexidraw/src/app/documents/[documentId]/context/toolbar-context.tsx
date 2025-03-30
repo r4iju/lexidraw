@@ -7,7 +7,6 @@
  */
 import { ElementFormatType } from "lexical";
 import React, {
-  type JSX,
   createContext,
   ReactNode,
   useCallback,
@@ -91,7 +90,7 @@ export const ToolbarContext = ({
   children,
 }: {
   children: ReactNode;
-}): JSX.Element => {
+}): React.JSX.Element => {
   const [toolbarState, setToolbarState] = useState(INITIAL_TOOLBAR_STATE);
   const selectionFontSize = toolbarState.fontSize;
 
@@ -106,7 +105,10 @@ export const ToolbarContext = ({
   );
 
   useEffect(() => {
-    updateToolbarState("fontSizeInputValue", selectionFontSize.slice(0, -2));
+    updateToolbarState(
+      "fontSizeInputValue",
+      selectionFontSize.slice(0, -2) as ToolbarStateValue<"fontSizeInputValue">,
+    );
   }, [selectionFontSize, updateToolbarState]);
 
   const contextValue = useMemo(() => {

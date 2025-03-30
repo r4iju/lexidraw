@@ -39,7 +39,7 @@ export async function exportDomTracedSvg({ setTheme, restoreTheme }: Props): Pro
   setTheme()
 
   // Wait for the next animation frame so the layout updates
-  await new Promise<void>((resolve) => requestAnimationFrame(resolve));
+  await new Promise<number>((resolve) => requestAnimationFrame(resolve));
   performance.mark("resized_dom_element");
 
   // Capture element as PNG using html2canvas

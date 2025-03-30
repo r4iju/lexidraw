@@ -5,9 +5,12 @@ import html2canvas from "html2canvas";
 type Props = {
   setTheme: () => void;
   restoreTheme: () => void;
-}
+};
 
-export async function exportPng({ setTheme, restoreTheme }: Props): Promise<Blob> {
+export async function exportPng({
+  setTheme,
+  restoreTheme,
+}: Props): Promise<Blob> {
   const element = document.querySelector("#lexical-content") as HTMLElement;
   if (!element) {
     throw new Error("#lexical-content element not found");
@@ -36,10 +39,10 @@ export async function exportPng({ setTheme, restoreTheme }: Props): Promise<Blob
   hiddenContainer.appendChild(clonedElement);
   document.body.appendChild(hiddenContainer);
 
-  setTheme()
+  setTheme();
 
   // Wait for the next animation frame so the layout updates
-  await new Promise<void>((resolve) => requestAnimationFrame(resolve));
+  await new Promise<number>((resolve) => requestAnimationFrame(resolve));
   performance.mark("resized_dom_element");
 
   // Capture element as PNG using html2canvas
@@ -51,7 +54,7 @@ export async function exportPng({ setTheme, restoreTheme }: Props): Promise<Blob
   performance.mark("captured_canvas");
 
   // restore theme
-  restoreTheme()
+  restoreTheme();
 
   const ctx = canvas.getContext("2d");
   if (!ctx) {
@@ -66,7 +69,7 @@ export async function exportPng({ setTheme, restoreTheme }: Props): Promise<Blob
 
   // image data to blob
   const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob((blob) => resolve(blob), "image/png")
+    canvas.toBlob((blob) => resolve(blob), "image/png"),
   );
   if (!blob) {
     throw new Error("Failed to create blob");
@@ -75,15 +78,25 @@ export async function exportPng({ setTheme, restoreTheme }: Props): Promise<Blob
 
   // Measure all performance marks
   performance.measure("DOM Resizing", "start", "resized_dom_element");
-  performance.measure("Canvas Capture", "resized_dom_element", "captured_canvas");
-  performance.measure("Canvas Context Retrieval", "captured_canvas", "got_canvas_context");
+  performance.measure(
+    "Canvas Capture",
+    "resized_dom_element",
+    "captured_canvas",
+  );
+  performance.measure(
+    "Canvas Context Retrieval",
+    "captured_canvas",
+    "got_canvas_context",
+  );
   performance.measure("Cleanup", "got_canvas_context", "cleaned_up_clone");
   performance.measure("Blob Creation", "cleaned_up_clone", "blob_created");
 
   // Log performance results
-  performance.getEntriesByType("measure").forEach((entry) =>
-    console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`)
-  );
+  performance
+    .getEntriesByType("measure")
+    .forEach((entry) =>
+      console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`),
+    );
 
   // Clear performance marks and measures to avoid clutter
   performance.clearMarks();

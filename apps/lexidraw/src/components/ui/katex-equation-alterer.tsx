@@ -16,7 +16,7 @@ type Props = {
 export default function KatexEquationAlterer({
   onConfirm,
   initialEquation = "",
-}: Props): JSX.Element {
+}: Props): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [equation, setEquation] = useState<string>(initialEquation);
   const [inline, setInline] = useState<boolean>(true);

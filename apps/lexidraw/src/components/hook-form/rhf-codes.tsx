@@ -1,7 +1,7 @@
 "use client";
 
 // react
-import { useRef, type ChangeEvent, type FC } from "react";
+import { useRef, type ChangeEvent, type FC, type RefObject } from "react";
 // hooks
 import { useFormContext, Controller } from "react-hook-form";
 import useEventListener from "~/hooks/use-event-listener";
@@ -44,7 +44,7 @@ const RHFCodes: FC<Props> = ({ keyName = "", inputs = [], ...other }) => {
     event.preventDefault();
   };
 
-  useEventListener("paste", handlePaste, codesRef);
+  useEventListener("paste", handlePaste, codesRef as RefObject<HTMLElement>);
 
   return (
     <div className="flex justify-center space-x-2" ref={codesRef}>

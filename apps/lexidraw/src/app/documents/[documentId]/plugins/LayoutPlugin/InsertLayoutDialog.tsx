@@ -30,7 +30,7 @@ export default function InsertLayoutDialog({
 }: {
   activeEditor: LexicalEditor;
   onClose: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const [layout, setLayout] = useState<Layout>(LAYOUTS[0].value);
 
   const onClick = () => {

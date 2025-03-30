@@ -214,10 +214,10 @@ export default function ExcalidrawComponent({
           )}
           {(isSelected || isResizing) && (
             <ImageResizer
-              buttonRef={captionButtonRef}
+              buttonRef={captionButtonRef as React.RefObject<HTMLButtonElement>}
               showCaption={true}
               setShowCaption={() => null}
-              imageRef={imageContainerRef}
+              imageRef={imageContainerRef as React.RefObject<HTMLImageElement>}
               editor={editor}
               onResizeStart={onResizeStart}
               onResizeEnd={onResizeEnd}
