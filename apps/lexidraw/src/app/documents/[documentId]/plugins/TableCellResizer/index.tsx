@@ -42,7 +42,11 @@ type MouseDraggingDirection = "right" | "bottom";
 const MIN_ROW_HEIGHT = 33;
 const MIN_COLUMN_WIDTH = 50;
 
-function TableCellResizer({ editor }: { editor: LexicalEditor }): React.JSX.Element {
+function TableCellResizer({
+  editor,
+}: {
+  editor: LexicalEditor;
+}): React.JSX.Element {
   const targetRef = useRef<HTMLElement | null>(null);
   const resizerRef = useRef<HTMLDivElement | null>(null);
   const tableRectRef = useRef<ClientRect | null>(null);
@@ -50,6 +54,7 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): React.JSX.Elem
   const mouseStartPosRef = useRef<MousePosition | null>(null);
   const [mouseCurrentPos, updateMouseCurrentPos] =
     useState<MousePosition | null>(null);
+  const [tableRect, setTableRect] = useState<ClientRect | null>(null);
 
   const [activeCell, updateActiveCell] = useState<TableDOMCell | null>(null);
   const [isMouseDown, updateIsMouseDown] = useState<boolean>(false);
@@ -106,6 +111,7 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): React.JSX.Elem
 
               targetRef.current = target as HTMLElement;
               tableRectRef.current = tableElement.getBoundingClientRect();
+              setTableRect(tableElement.getBoundingClientRect());
               updateActiveCell(cell);
             });
           } else if (cell == null) {
@@ -371,8 +377,6 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): React.JSX.Elem
         },
       };
 
-      const tableRect = tableRectRef.current;
-
       if (draggingDirection && mouseCurrentPos && tableRect) {
         if (isHeightChanging(draggingDirection)) {
           styles[draggingDirection].left = `${
@@ -406,7 +410,7 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): React.JSX.Elem
       right: null,
       top: null,
     };
-  }, [activeCell, draggingDirection, mouseCurrentPos]);
+  }, [activeCell, draggingDirection, mouseCurrentPos, tableRect]);
 
   const resizerStyles = getResizers();
 

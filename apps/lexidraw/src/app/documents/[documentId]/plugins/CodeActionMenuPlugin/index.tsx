@@ -46,46 +46,47 @@ function CodeActionMenuContainer({
     return codeDOMNodeRef.current;
   }, []);
 
-  const debouncedOnMouseMove = useDebounce((event: MouseEvent) => {
-    const { codeDOMNode, isOutside } = getMouseInfo(event);
-    if (isOutside) {
-      setShown(false);
-      return;
-    }
-
-    if (!codeDOMNode) {
-      return;
-    }
-
-    let codeNode: CodeNode | null = null;
-    let _lang = "";
-
-    editor.update(() => {
-      const maybeCodeNode = $getNearestNodeFromDOMNode(codeDOMNode);
-      if ($isCodeNode(maybeCodeNode)) {
-        codeNode = maybeCodeNode;
-        _lang = codeNode.getLanguage() || "";
+  const { run: debouncedOnMouseMove, cancel: cancelDebouncedOnMouseMove } =
+    useDebounce((event: MouseEvent) => {
+      const { codeDOMNode, isOutside } = getMouseInfo(event);
+      if (isOutside) {
+        setShown(false);
+        return;
       }
-    });
 
-    if (codeNode) {
-      const { y: editorElemY, right: editorElemRight } =
-        anchorElem.getBoundingClientRect();
-      const { y, right } = codeDOMNode.getBoundingClientRect();
-      setLang(_lang);
-      setShown(true);
-      setPosition({
-        right: `${editorElemRight - right + CODE_PADDING}px`,
-        top: `${y - editorElemY}px`,
+      if (!codeDOMNode) {
+        return;
+      }
+
+      let codeNode: CodeNode | null = null;
+      let _lang = "";
+
+      editor.update(() => {
+        const maybeCodeNode = $getNearestNodeFromDOMNode(codeDOMNode);
+        if ($isCodeNode(maybeCodeNode)) {
+          codeNode = maybeCodeNode;
+          _lang = codeNode.getLanguage() || "";
+        }
       });
 
-      /**
-       * 2. Store the new node in the ref,
-       *    but don't read it in the render path.
-       */
-      codeDOMNodeRef.current = codeDOMNode;
-    }
-  }, 50);
+      if (codeNode) {
+        const { y: editorElemY, right: editorElemRight } =
+          anchorElem.getBoundingClientRect();
+        const { y, right } = codeDOMNode.getBoundingClientRect();
+        setLang(_lang);
+        setShown(true);
+        setPosition({
+          right: `${editorElemRight - right + CODE_PADDING}px`,
+          top: `${y - editorElemY}px`,
+        });
+
+        /**
+         * 2. Store the new node in the ref,
+         *    but don't read it in the render path.
+         */
+        codeDOMNodeRef.current = codeDOMNode;
+      }
+    }, 50);
 
   useEffect(() => {
     if (!shouldListenMouseMove) {
@@ -94,10 +95,10 @@ function CodeActionMenuContainer({
     document.addEventListener("mousemove", debouncedOnMouseMove);
     return () => {
       setShown(false);
-      debouncedOnMouseMove.cancel();
+      cancelDebouncedOnMouseMove();
       document.removeEventListener("mousemove", debouncedOnMouseMove);
     };
-  }, [shouldListenMouseMove, debouncedOnMouseMove]);
+  }, [shouldListenMouseMove, debouncedOnMouseMove, cancelDebouncedOnMouseMove]);
 
   // Register a mutation listener so we know when code nodes are added/removed
   useEffect(() => {

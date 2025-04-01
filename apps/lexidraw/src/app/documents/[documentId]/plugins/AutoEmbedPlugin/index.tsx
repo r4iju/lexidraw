@@ -166,15 +166,42 @@ function AutoEmbedMenu({
   );
 }
 
-const debounce = (callback: (text: string) => void, delay: number) => {
-  let timeoutId: number;
-  return (text: string) => {
-    window.clearTimeout(timeoutId);
-    timeoutId = window.setTimeout(() => {
-      callback(text);
-    }, delay);
-  };
-};
+import { useCallback, useEffect, useRef } from "react";
+
+/**
+ * Returns a stable debounced function that delays invoking `callback`
+ * until after `delay` milliseconds have elapsed since the last time it was called.
+ */
+export function useDebouncedCallback(
+  callback: (value: string) => void,
+  delay: number,
+) {
+  // Remember the latest callback:
+  const callbackRef = useRef(callback);
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  // Track the timeout ID in a ref so we can clear it
+  const timeoutRef = useRef<number | null>(null);
+
+  // Return a stable function reference:
+  const debouncedFn = useCallback(
+    (value: string) => {
+      if (timeoutRef.current != null) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = window.setTimeout(() => {
+        // call the latest callback
+        callbackRef.current(value);
+      }, delay);
+    },
+    [delay],
+  );
+
+  // Optionally expose a cancel method, etc.
+  return debouncedFn;
+}
 
 export function AutoEmbedDialog({
   embedConfig,
@@ -187,22 +214,16 @@ export function AutoEmbedDialog({
   const [editor] = useLexicalComposerContext();
   const [embedResult, setEmbedResult] = useState<EmbedMatchResult | null>(null);
 
-  const validateText = useMemo(
-    () =>
-      debounce((inputText: string) => {
-        const urlMatch = URL_MATCHER.exec(inputText);
-        if (embedConfig != null && inputText != null && urlMatch != null) {
-          Promise.resolve(embedConfig.parseUrl(inputText)).then(
-            (parseResult) => {
-              setEmbedResult(parseResult);
-            },
-          );
-        } else if (embedResult != null) {
-          setEmbedResult(null);
-        }
-      }, 200),
-    [embedConfig, embedResult],
-  );
+  const validateText = useDebouncedCallback((inputText: string) => {
+    const urlMatch = URL_MATCHER.exec(inputText);
+    if (embedConfig && inputText && urlMatch) {
+      Promise.resolve(embedConfig.parseUrl(inputText)).then((parseResult) => {
+        setEmbedResult(parseResult);
+      });
+    } else if (embedResult != null) {
+      setEmbedResult(null);
+    }
+  }, 200);
 
   const onClick = () => {
     if (embedResult != null) {

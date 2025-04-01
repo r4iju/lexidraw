@@ -228,6 +228,10 @@ export default function InlineImageComponent({
   position: Position;
 }): React.JSX.Element {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [currentDimensions, setCurrentDimensions] = useState({
+    width,
+    height,
+  });
   const [editor] = useLexicalComposerContext();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
 
@@ -384,6 +388,13 @@ export default function InlineImageComponent({
   // Highlight ring
   const isFocused = isSelected;
 
+  const onDimensionsChange = (dimensions: {
+    width: number | "inherit";
+    height: number | "inherit";
+  }) => {
+    setCurrentDimensions(dimensions);
+  };
+
   return (
     <Suspense fallback={null}>
       <>
@@ -396,8 +407,8 @@ export default function InlineImageComponent({
             className={isFocused ? "ring-1 ring-muted-foreground" : ""}
             src={src}
             altText={altText}
-            width={width}
-            height={height}
+            width={currentDimensions.width}
+            height={currentDimensions.height}
             position={position}
             nodeKey={nodeKey}
             containerRef={containerRef as React.RefObject<HTMLDivElement>}
@@ -414,14 +425,11 @@ export default function InlineImageComponent({
 
           {isSelected && (
             <ImageResizer
-              // We pass the containerRef so the resizer can measure & update .style
               imageRef={containerRef as React.RefObject<HTMLImageElement>}
               editor={editor}
               buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
               showCaption={false}
-              setShowCaption={() => {}}
               captionsEnabled={false}
-              onResizeStart={() => {}}
               onResizeEnd={(newWidth, newHeight) => {
                 editor.update(() => {
                   const node = $getNodeByKey(nodeKey);
@@ -430,6 +438,7 @@ export default function InlineImageComponent({
                   }
                 });
               }}
+              onDimensionsChange={onDimensionsChange}
             />
           )}
         </span>

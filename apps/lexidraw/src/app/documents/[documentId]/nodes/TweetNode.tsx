@@ -44,8 +44,6 @@ function $convertTweetElement(
   return null;
 }
 
-let isTwitterScriptLoading = true;
-
 function TweetComponent({
   className,
   format,
@@ -59,6 +57,7 @@ function TweetComponent({
 
   const previousTweetIDRef = useRef<string>("");
   const [isTweetLoading, setIsTweetLoading] = useState(false);
+  const [isTwitterScriptLoading, setIsTwitterScriptLoading] = useState(true);
 
   const createTweet = useCallback(async () => {
     try {
@@ -66,7 +65,7 @@ function TweetComponent({
       await window.twttr.widgets.createTweet(tweetID, containerRef.current);
 
       setIsTweetLoading(false);
-      isTwitterScriptLoading = false;
+      setIsTwitterScriptLoading(false);
 
       if (onLoad) {
         onLoad();

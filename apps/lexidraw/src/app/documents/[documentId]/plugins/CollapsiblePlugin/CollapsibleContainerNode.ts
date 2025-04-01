@@ -12,7 +12,6 @@ import {
   Spread,
 } from "lexical";
 
-import { setDomHiddenUntilFound } from "./CollapsibleUtils";
 import { IS_CHROME } from "@lexical/utils";
 import invariant from "../../shared/invariant";
 
@@ -49,8 +48,16 @@ export class CollapsibleContainerNode extends ElementNode {
     return new CollapsibleContainerNode(node.__open, node.__key);
   }
 
+  private setDomHiddenUntilFound(dom: HTMLElement): void {
+    // @ts-expect-error it's probably fine
+    dom.hidden = "until-found";
+  }
+
+  private domOnBeforeMatch(dom: HTMLElement, callback: () => void): void {
+    // @ts-expect-error it's probably fine
+    dom.onbeforematch = callback;
+  }
   createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    // details is not well supported in Chrome #5582
     let dom: HTMLElement;
     if (IS_CHROME) {
       dom = document.createElement("div");
@@ -90,7 +97,7 @@ export class CollapsibleContainerNode extends ElementNode {
           contentDom.hidden = false;
         } else {
           dom.removeAttribute("open");
-          setDomHiddenUntilFound(contentDom as HTMLElement);
+          this.setDomHiddenUntilFound(contentDom as HTMLElement);
         }
       } else {
         dom.open = this.__open;

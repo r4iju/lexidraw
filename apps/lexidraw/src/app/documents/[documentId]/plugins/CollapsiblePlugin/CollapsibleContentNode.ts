@@ -10,7 +10,6 @@ import {
 } from "lexical";
 
 import { $isCollapsibleContainerNode } from "./CollapsibleContainerNode";
-import { domOnBeforeMatch, setDomHiddenUntilFound } from "./CollapsibleUtils";
 import { IS_CHROME } from "@lexical/utils";
 import invariant from "../../shared/invariant";
 
@@ -34,6 +33,16 @@ export class CollapsibleContentNode extends ElementNode {
     return new CollapsibleContentNode(node.__key);
   }
 
+  private setDomHiddenUntilFound(dom: HTMLElement): void {
+    // @ts-expect-error it's probably fine
+    dom.hidden = "until-found";
+  }
+
+  private domOnBeforeMatch(dom: HTMLElement, callback: () => void): void {
+    // @ts-expect-error it's probably fine
+    dom.onbeforematch = callback;
+  }
+
   createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
     const dom = document.createElement("div");
     dom.classList.add("Collapsible__content");
@@ -45,10 +54,10 @@ export class CollapsibleContentNode extends ElementNode {
           "Expected parent node to be a CollapsibleContainerNode",
         );
         if (!containerNode.__open) {
-          setDomHiddenUntilFound(dom);
+          this.setDomHiddenUntilFound(dom);
         }
       });
-      domOnBeforeMatch(dom, () => {
+      this.domOnBeforeMatch(dom, () => {
         editor.update(() => {
           const containerNode = this.getParentOrThrow().getLatest();
           invariant(

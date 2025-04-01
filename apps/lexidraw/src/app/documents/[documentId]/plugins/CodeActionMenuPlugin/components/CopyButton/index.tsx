@@ -17,7 +17,7 @@ interface Props {
 export function CopyButton({ editor, getCodeDOMNode }: Props) {
   const [isCopyCompleted, setCopyCompleted] = useState<boolean>(false);
 
-  const removeSuccessIcon = useDebounce(() => {
+  const { run: removeSuccessIcon } = useDebounce(() => {
     setCopyCompleted(false);
   }, 1000);
 
