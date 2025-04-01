@@ -22,7 +22,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { setFloatingElemPosition } from "../../utils/setFloatingElemPosition";
 import { TooltipButton } from "~/components/ui/tooltip-button";
 import {
   Bold,
@@ -130,6 +129,55 @@ function TextFormatFloatingToolbar({
     [],
   );
 
+  const VERTICAL_GAP = 10;
+  const HORIZONTAL_OFFSET = 5;
+
+  const setFloatingElemPosition = useCallback(
+    (
+      targetRect: DOMRect | null,
+      floatingElem: HTMLElement,
+      anchorElem: HTMLElement,
+      isLink = false,
+      verticalGap: number = VERTICAL_GAP,
+      horizontalOffset: number = HORIZONTAL_OFFSET,
+    ): void => {
+      const scrollerElem = anchorElem.parentElement;
+
+      if (targetRect === null || !scrollerElem) {
+        floatingElem.style.opacity = "0";
+        floatingElem.style.transform = "translate(-10000px, -10000px)";
+        return;
+      }
+
+      const floatingElemRect = floatingElem.getBoundingClientRect();
+      const anchorElementRect = anchorElem.getBoundingClientRect();
+      const editorScrollerRect = scrollerElem.getBoundingClientRect();
+
+      let top = targetRect.top - floatingElemRect.height - verticalGap;
+      let left = targetRect.left - horizontalOffset;
+
+      if (top < editorScrollerRect.top) {
+        // adjusted height for link element if the element is at top
+        top +=
+          floatingElemRect.height +
+          targetRect.height +
+          verticalGap * (isLink ? 9 : 2);
+      }
+
+      if (left + floatingElemRect.width > editorScrollerRect.right) {
+        left =
+          editorScrollerRect.right - floatingElemRect.width - horizontalOffset;
+      }
+
+      top -= anchorElementRect.top;
+      left -= anchorElementRect.left;
+
+      floatingElem.style.opacity = "1";
+      floatingElem.style.transform = `translate(${left}px, ${top}px)`;
+    },
+    [],
+  );
+
   const $updateTextFormatFloatingToolbar = useCallback(() => {
     const selection = $getSelection();
 
@@ -157,7 +205,7 @@ function TextFormatFloatingToolbar({
         isLink,
       );
     }
-  }, [editor, anchorElem, isLink]);
+  }, [editor, getDOMRangeRect, setFloatingElemPosition, anchorElem, isLink]);
 
   useEffect(() => {
     const scrollerElem = anchorElem.parentElement;

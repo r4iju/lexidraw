@@ -17,15 +17,19 @@ const Direction = {
 };
 
 type ImageResizerProps = {
-  onResizeStart: () => void;
+  onResizeStart?: () => void;
   onResizeEnd: (width: "inherit" | number, height: "inherit" | number) => void;
   buttonRef: React.RefObject<HTMLButtonElement>;
   imageRef: React.RefObject<HTMLImageElement>;
   maxWidth?: number;
   editor: LexicalEditor;
   showCaption: boolean;
-  setShowCaption: (show: boolean) => void;
+  setShowCaption?: (show: boolean) => void;
   captionsEnabled: boolean;
+  onDimensionsChange?: (dimensions: {
+    width: number | "inherit";
+    height: number | "inherit";
+  }) => void;
 };
 
 export default function ImageResizer({
@@ -38,9 +42,10 @@ export default function ImageResizer({
   showCaption,
   setShowCaption,
   captionsEnabled,
+  onDimensionsChange,
 }: ImageResizerProps): React.JSX.Element {
   const controlWrapperRef = useRef<HTMLDivElement>(null);
-  const [isResizingState, setIsResizingState] = React.useState(false);
+  const [, setIsResizing] = React.useState(false);
 
   const userSelect = useRef({
     priority: "",
@@ -163,12 +168,10 @@ export default function ImageResizer({
       positioning.direction = direction;
 
       setStartCursor(direction);
-      onResizeStart();
-      setIsResizingState(true);
+      onResizeStart?.();
+      onDimensionsChange?.({ width, height });
 
       controlWrapper.classList.add("image-control-wrapper--resizing");
-      image.style.height = `${height}px`;
-      image.style.width = `${width}px`;
 
       document.addEventListener("pointermove", handlePointerMove);
       document.addEventListener("pointerup", handlePointerUp);
@@ -186,47 +189,45 @@ export default function ImageResizer({
 
     if (image !== null && positioning.isResizing) {
       const zoom = calculateZoomLevel(image);
+      let newWidth = positioning.currentWidth;
+      let newHeight = positioning.currentHeight;
+
       // Corner cursor
       if (isHorizontal && isVertical) {
         let diff = Math.floor(positioning.startX - event.clientX / zoom);
         diff = positioning.direction & Direction.east ? -diff : diff;
 
-        const width = clamp(
+        newWidth = clamp(
           positioning.startWidth + diff,
           minWidth,
           maxWidthContainer,
         );
 
-        const height = width / positioning.ratio;
-        image.style.width = `${width}px`;
-        image.style.height = `${height}px`;
-        positioning.currentHeight = height;
-        positioning.currentWidth = width;
+        newHeight = newWidth / positioning.ratio;
       } else if (isVertical) {
         let diff = Math.floor(positioning.startY - event.clientY / zoom);
         diff = positioning.direction & Direction.south ? -diff : diff;
 
-        const height = clamp(
+        newHeight = clamp(
           positioning.startHeight + diff,
           minHeight,
           maxHeightContainer,
         );
-
-        image.style.height = `${height}px`;
-        positioning.currentHeight = height;
       } else {
         let diff = Math.floor(positioning.startX - event.clientX / zoom);
         diff = positioning.direction & Direction.east ? -diff : diff;
 
-        const width = clamp(
+        newWidth = clamp(
           positioning.startWidth + diff,
           minWidth,
           maxWidthContainer,
         );
-
-        image.style.width = `${width}px`;
-        positioning.currentWidth = width;
       }
+
+      const newDimensions = { width: newWidth, height: newHeight };
+      onDimensionsChange?.(newDimensions);
+      positioning.currentHeight = newHeight;
+      positioning.currentWidth = newWidth;
     }
   };
 
@@ -250,7 +251,8 @@ export default function ImageResizer({
 
       setEndCursor();
       onResizeEnd(width, height);
-      setIsResizingState(false);
+      setIsResizing(false);
+      onDimensionsChange?.({ width: 0, height: 0 });
 
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
@@ -270,7 +272,7 @@ export default function ImageResizer({
           className="absolute bottom-0 right-1/2 translate-x-1/2 z-50 m-2 pointer-events-auto"
           ref={buttonRef}
           onClick={() => {
-            setShowCaption(!showCaption);
+            setShowCaption?.(!showCaption);
           }}
         >
           Add Caption

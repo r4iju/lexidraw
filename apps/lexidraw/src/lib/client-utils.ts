@@ -1,57 +1,44 @@
 "use client";
-
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 /**
- * Creates a debounced version of a function.
- *
- * This implementation defers updating ref values until after render so that
- * we don’t access ref.current during render.
+ * A debounced function that won’t call `fn` until
+ * `delay` ms have passed since its last invocation.
+ * Returns an object with { run, cancel } so we avoid
+ * mutating a function object.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useDebounce<T extends (...args: any[]) => void>(
   fn: T,
   delay: number,
 ) {
-  // These refs hold mutable values.
-  const timeoutRef = useRef<number | null>(null);
-  const funcRef = useRef(fn);
-
-  // Hold the debounced function in state.
-  const [debouncedFn, setDebouncedFn] = useState<T & { cancel: () => void }>(
-    () => {
-      // Initial dummy function; it shouldn’t be called before effects run.
-      const noop = ((..._args: any[]) => {}) as T & { cancel: () => void };
-      noop.cancel = () => {};
-      return noop;
-    },
-  );
-
-  // Update the function ref after render.
+  // Keep track of latest fn in a ref to avoid stale closures
+  const fnRef = useRef(fn);
   useEffect(() => {
-    funcRef.current = fn;
+    fnRef.current = fn;
   }, [fn]);
 
-  // Create (or recreate) the debounced function when the delay changes.
-  useEffect(() => {
-    const newDebounced = ((...args: Parameters<T>) => {
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = window.setTimeout(() => {
-        // This is safe because it runs after render.
-        funcRef.current(...args);
-      }, delay);
-    }) as T & { cancel: () => void };
+  // Track timeout ID
+  const timeoutRef = useRef<number | null>(null);
 
-    newDebounced.cancel = () => {
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
+  // The “run” method calls the latest fn, debounced
+  const run = (...args: Parameters<T>) => {
+    if (timeoutRef.current != null) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = window.setTimeout(() => {
+      fnRef.current(...args);
+    }, delay);
+  };
 
-    setDebouncedFn(() => newDebounced);
-  }, [delay]);
+  // The “cancel” method clears any pending timeout
+  const cancel = () => {
+    if (timeoutRef.current != null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
 
-  return debouncedFn;
+  // Return both methods in an object
+  return { run, cancel };
 }

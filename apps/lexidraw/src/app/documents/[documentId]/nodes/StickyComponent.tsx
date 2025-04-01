@@ -11,7 +11,6 @@ import type { JSX } from "react";
 
 import "./StickyNode.css";
 
-import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
@@ -34,22 +33,9 @@ type Positioning = {
   y: number;
 };
 
-function positionSticky(
-  stickyElem: HTMLElement,
-  positioning: Positioning,
-): void {
-  const style = stickyElem.style;
-  const rootElementRect = positioning.rootElementRect;
-  const rectLeft = rootElementRect !== null ? rootElementRect.left : 0;
-  const rectTop = rootElementRect !== null ? rootElementRect.top : 0;
-  style.top = rectTop + positioning.y + "px";
-  style.left = rectLeft + positioning.x + "px";
-}
-
-//
 export default function StickyComponent({
-  x,
-  y,
+  x: propX,
+  y: propY,
   nodeKey,
   color,
   caption,
@@ -70,18 +56,32 @@ export default function StickyComponent({
     x: 0,
     y: 0,
   });
-  const { isCollabActive } = useCollaborationContext();
+
+  const positionSticky = (): void => {
+    const rootElementRect = positioningRef.current.rootElementRect;
+    const rectLeft = rootElementRect !== null ? rootElementRect.left : 0;
+    const rectTop = rootElementRect !== null ? rootElementRect.top : 0;
+    if (stickyContainerRef.current) {
+      stickyContainerRef.current.style.top =
+        rectTop + positioningRef.current.y + "px";
+      stickyContainerRef.current.style.left =
+        rectLeft + positioningRef.current.x + "px";
+    }
+  };
 
   useEffect(() => {
+    const xLocal = propX;
+    const yLocal = propY;
+
     const position = positioningRef.current;
-    position.x = x;
-    position.y = y;
+    position.x = xLocal;
+    position.y = yLocal;
 
     const stickyContainer = stickyContainerRef.current;
     if (stickyContainer !== null) {
-      positionSticky(stickyContainer, position);
+      positionSticky();
     }
-  }, [x, y]);
+  }, [propX, propY]);
 
   useLayoutEffect(() => {
     const position = positioningRef.current;
@@ -91,7 +91,7 @@ export default function StickyComponent({
         position.rootElementRect = target.getBoundingClientRect();
         const stickyContainer = stickyContainerRef.current;
         if (stickyContainer !== null) {
-          positionSticky(stickyContainer, position);
+          positionSticky();
         }
       }
     });
@@ -112,7 +112,7 @@ export default function StickyComponent({
       const stickyContainer = stickyContainerRef.current;
       if (rootElement !== null && stickyContainer !== null) {
         position.rootElementRect = rootElement.getBoundingClientRect();
-        positionSticky(stickyContainer, position);
+        positionSticky();
       }
     };
 
@@ -152,11 +152,11 @@ export default function StickyComponent({
         event.pageX / zoom - positioning.offsetX - rootElementRect.left;
       positioning.y =
         event.pageY / zoom - positioning.offsetY - rootElementRect.top;
-      positionSticky(stickyContainer, positioning);
+      positionSticky();
     }
   };
 
-  const handlePointerUp = (event: PointerEvent) => {
+  const handlePointerUp = () => {
     const stickyContainer = stickyContainerRef.current;
     const positioning = positioningRef.current;
     if (stickyContainer !== null) {

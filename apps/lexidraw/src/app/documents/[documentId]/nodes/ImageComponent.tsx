@@ -159,6 +159,10 @@ export default function ImageComponent({
   const [selection, setSelection] = useState<BaseSelection | null>(null);
   const activeEditorRef = useRef<LexicalEditor | null>(null);
   const [isLoadError, setIsLoadError] = useState(false);
+  const [currentDimensions, setCurrentDimensions] = useState({
+    width,
+    height,
+  });
 
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
@@ -377,6 +381,13 @@ export default function ImageComponent({
     setIsResizing(true);
   };
 
+  const onDimensionsChange = (dimensions: {
+    width: number | "inherit";
+    height: number | "inherit";
+  }) => {
+    setCurrentDimensions(dimensions);
+  };
+
   const { historyState } = useSharedHistoryContext();
   const {
     settings: { showNestedEditorTreeView },
@@ -399,8 +410,8 @@ export default function ImageComponent({
             src={src}
             altText={altText}
             imageRef={imageRef}
-            width={width}
-            height={height}
+            width={currentDimensions.width}
+            height={currentDimensions.height}
             maxWidth={maxWidth}
             onError={() => setIsLoadError(true)}
           />
@@ -456,6 +467,7 @@ export default function ImageComponent({
             onResizeStart={onResizeStart}
             onResizeEnd={onResizeEnd}
             captionsEnabled={!isLoadError && captionsEnabled}
+            onDimensionsChange={onDimensionsChange}
           />
         )}
       </div>
