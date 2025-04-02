@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { debounce } from "@packages/lib";
+import { throttle } from "@packages/lib";
 import { useLLM } from "../../context/llm-context";
 
 export type AutocompleteEditorContext = {
@@ -55,12 +55,12 @@ function useAutocompleteLLM() {
   return autocomplete;
 }
 
-export function useDebouncedAutocomplete() {
+export function useThrottledAutocomplete() {
   const autocomplete = useAutocompleteLLM();
 
   return useMemo(
     () =>
-      debounce(
+      throttle(
         async (snippet: string, editorContext?: AutocompleteEditorContext) =>
           autocomplete(snippet, editorContext),
         3000,

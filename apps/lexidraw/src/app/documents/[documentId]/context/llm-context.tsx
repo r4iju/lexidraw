@@ -4,7 +4,6 @@ import React, {
   createContext,
   useMemo,
   useState,
-  useRef,
   useContext,
   useCallback,
   type PropsWithChildren,
@@ -13,7 +12,7 @@ import React, {
 import { generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { debounce } from "@packages/lib";
+import { throttle } from "@packages/lib";
 import { useSession } from "next-auth/react";
 
 /** Your shared LLM state */
@@ -92,10 +91,10 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const { data: session } = useSession();
 
   const [llmState, setLlmState] = useState<LLMState>({
-    modelId: "gemini-2.0-flash-lite",
+    modelId: "gemini-2.0-flash",
     provider: "google",
     temperature: 0.3,
-    maxTokens: 20,
+    maxTokens: 50,
     isError: false,
     text: "",
     error: null,
@@ -189,16 +188,12 @@ export function useLLM() {
   return ctx;
 }
 
-export function useDebouncedLlm({
-  debounceMs = 3000,
-}: {
-  debounceMs?: number;
-}) {
+export function useThrottledLlm({ trottleMs = 3000 }: { trottleMs?: number }) {
   const { generate } = useLLM();
 
-  const debouncedSendQuery = useMemo(() => {
-    return debounce(generate, debounceMs, { leading: false, trailing: true });
-  }, [generate]);
+  const throttledSendQuery = useMemo(() => {
+    return throttle(generate, trottleMs, { leading: false, trailing: true });
+  }, [trottleMs, generate]);
 
-  return debouncedSendQuery;
+  return throttledSendQuery;
 }

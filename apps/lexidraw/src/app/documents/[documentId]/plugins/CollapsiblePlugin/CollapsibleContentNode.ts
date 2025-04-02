@@ -9,7 +9,7 @@ import {
   SerializedElementNode,
 } from "lexical";
 
-import { $isCollapsibleContainerNode } from "./CollapsibleContainerNode";
+import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
 import { IS_CHROME } from "@lexical/utils";
 import invariant from "../../shared/invariant";
 
@@ -50,7 +50,7 @@ export class CollapsibleContentNode extends ElementNode {
       editor.getEditorState().read(() => {
         const containerNode = this.getParentOrThrow();
         invariant(
-          $isCollapsibleContainerNode(containerNode),
+          CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode),
           "Expected parent node to be a CollapsibleContainerNode",
         );
         if (!containerNode.__open) {
@@ -61,7 +61,7 @@ export class CollapsibleContentNode extends ElementNode {
         editor.update(() => {
           const containerNode = this.getParentOrThrow().getLatest();
           invariant(
-            $isCollapsibleContainerNode(containerNode),
+            CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode),
             "Expected parent node to be a CollapsibleContainerNode",
           );
           if (!containerNode.__open) {
