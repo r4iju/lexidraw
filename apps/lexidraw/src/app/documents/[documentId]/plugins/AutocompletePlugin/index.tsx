@@ -19,7 +19,7 @@ import { useEffect, useCallback, useRef } from "react";
 import { useSettings } from "../../context/settings-context";
 import {
   type AutocompleteEditorContext,
-  useDebouncedAutocomplete,
+  useThrottledAutocomplete,
 } from "./use-auto-complete";
 import { AutocompleteNode } from "../../nodes/AutocompleteNode";
 import { mergeRegister } from "@lexical/utils";
@@ -44,7 +44,7 @@ export default function AutocompletePlugin() {
   const [editor] = useLexicalComposerContext();
   const { settings } = useSettings();
   const UUID = useSessionUUID();
-  const queryLLM = useDebouncedAutocomplete();
+  const queryLLM = useThrottledAutocomplete();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
   const lastWord = useRef<string | null>(null);
@@ -110,7 +110,7 @@ export default function AutocompletePlugin() {
     }
 
     return { heading: headingHierarchy, blockType, previousSentence };
-  }, []);
+  }, [gatherHeadingChain]);
 
   /**
    * This function checks if we are at the end of the current node
@@ -168,7 +168,7 @@ export default function AutocompletePlugin() {
         lastSuggestion.current = suggestion;
       });
     },
-    [editor, UUID],
+    [editor, search, UUID],
   );
 
   const handleUpdate = useCallback(() => {
@@ -209,7 +209,14 @@ export default function AutocompletePlugin() {
         };
       }
     });
-  }, [editor, queryLLM, clearSuggestion, insertSuggestion]);
+  }, [
+    editor,
+    search,
+    clearSuggestion,
+    gatherEditorContext,
+    queryLLM,
+    insertSuggestion,
+  ]);
 
   /** Accepts the current autocomplete suggestion. */
   const handleAcceptSuggestion = useCallback((): boolean => {
@@ -261,7 +268,7 @@ export default function AutocompletePlugin() {
     });
   }, [editor, clearSuggestion]);
 
-  const elements = new WeakMap<HTMLElement, ElementValues>();
+  const elements = useRef<WeakMap<HTMLElement, ElementValues>>(new WeakMap());
 
   /** Ensure only one suggestion is active at a time. */
   const handleAutocompleteNodeTransform = useCallback(
@@ -271,7 +278,7 @@ export default function AutocompletePlugin() {
         clearSuggestion();
       }
     },
-    [clearSuggestion],
+    [UUID, clearSuggestion],
   );
 
   function readTouch(e: TouchEvent): [number, number] | null {
@@ -282,9 +289,29 @@ export default function AutocompletePlugin() {
     return [touch.clientX, touch.clientY];
   }
 
+  const deleteListener = useCallback(
+    (element: HTMLElement, cb: Listener): void => {
+      const elementValues = elements.current.get(element);
+      if (elementValues === undefined) {
+        return;
+      }
+      const listeners = elementValues.listeners;
+      listeners.delete(cb);
+      if (listeners.size === 0) {
+        elements.current.delete(element);
+        element.removeEventListener(
+          "touchstart",
+          elementValues.handleTouchstart,
+        );
+        element.removeEventListener("touchend", elementValues.handleTouchend);
+      }
+    },
+    [elements],
+  );
+
   const addListener = useCallback(
     (element: HTMLElement, cb: Listener): (() => void) => {
-      let elementValues = elements.get(element);
+      let elementValues = elements.current.get(element);
       if (elementValues === undefined) {
         const listeners = new Set<Listener>();
         const handleTouchstart = (e: TouchEvent) => {
@@ -316,34 +343,15 @@ export default function AutocompletePlugin() {
           listeners,
           start: null,
         };
-        elements.set(element, elementValues);
+        elements.current.set(element, elementValues);
       }
       elementValues.listeners.add(cb);
       return () => deleteListener(element, cb);
     },
-    [],
+    [deleteListener, elements],
   );
 
-  const deleteListener = useCallback(
-    (element: HTMLElement, cb: Listener): void => {
-      const elementValues = elements.get(element);
-      if (elementValues === undefined) {
-        return;
-      }
-      const listeners = elementValues.listeners;
-      listeners.delete(cb);
-      if (listeners.size === 0) {
-        elements.delete(element);
-        element.removeEventListener(
-          "touchstart",
-          elementValues.handleTouchstart,
-        );
-        element.removeEventListener("touchend", elementValues.handleTouchend);
-      }
-    },
-    [],
-  );
-
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const addSwipeLeftListener = useCallback(
     (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
       return addListener(element, (force, e) => {
@@ -353,7 +361,7 @@ export default function AutocompletePlugin() {
         }
       });
     },
-    [],
+    [addListener],
   );
 
   const addSwipeRightListener = useCallback(
@@ -365,9 +373,10 @@ export default function AutocompletePlugin() {
         }
       });
     },
-    [],
+    [addListener],
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const addSwipeUpListener = useCallback(
     (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
       return addListener(element, (force, e) => {
@@ -377,9 +386,10 @@ export default function AutocompletePlugin() {
         }
       });
     },
-    [],
+    [addListener],
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const addSwipeDownListener = useCallback(
     (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
       return addListener(element, (force, e) => {
@@ -389,7 +399,7 @@ export default function AutocompletePlugin() {
         }
       });
     },
-    [],
+    [addListener],
   );
 
   /** Set up event handlers and command registrations. */
@@ -424,6 +434,7 @@ export default function AutocompletePlugin() {
     handleUpdate,
     handleKeypressCommand,
     handleSwipeRight,
+    addSwipeRightListener,
   ]);
 
   return null;

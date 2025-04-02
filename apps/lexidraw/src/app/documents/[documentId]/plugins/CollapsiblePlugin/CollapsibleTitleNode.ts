@@ -11,7 +11,7 @@ import {
   SerializedElementNode,
 } from "lexical";
 
-import { $isCollapsibleContainerNode } from "./CollapsibleContainerNode";
+import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
 import { $isCollapsibleContentNode } from "./CollapsibleContentNode";
 import { IS_CHROME } from "@lexical/utils";
 import invariant from "../../shared/invariant";
@@ -21,7 +21,7 @@ type SerializedCollapsibleTitleNode = SerializedElementNode;
 export function $convertSummaryElement(
   _domNode: HTMLElement,
 ): DOMConversionOutput | null {
-  const node = $createCollapsibleTitleNode();
+  const node = CollapsibleTitleNode.$createCollapsibleTitleNode();
   return {
     node,
   };
@@ -44,7 +44,9 @@ export class CollapsibleTitleNode extends ElementNode {
         editor.update(() => {
           const collapsibleContainer = this.getLatest().getParentOrThrow();
           invariant(
-            $isCollapsibleContainerNode(collapsibleContainer),
+            CollapsibleContainerNode.$isCollapsibleContainerNode(
+              collapsibleContainer,
+            ),
             "Expected parent node to be a CollapsibleContainerNode",
           );
           collapsibleContainer.toggleOpen();
@@ -72,7 +74,17 @@ export class CollapsibleTitleNode extends ElementNode {
   static importJSON(
     _serializedNode: SerializedCollapsibleTitleNode,
   ): CollapsibleTitleNode {
-    return $createCollapsibleTitleNode();
+    return CollapsibleTitleNode.$createCollapsibleTitleNode();
+  }
+
+  static $isCollapsibleTitleNode(
+    node: LexicalNode | null | undefined,
+  ): node is CollapsibleTitleNode {
+    return node instanceof CollapsibleTitleNode;
+  }
+
+  static $createCollapsibleTitleNode(): CollapsibleTitleNode {
+    return new CollapsibleTitleNode();
   }
 
   exportJSON(): SerializedCollapsibleTitleNode {
@@ -91,7 +103,10 @@ export class CollapsibleTitleNode extends ElementNode {
   insertNewAfter(_: RangeSelection, restoreSelection = true): ElementNode {
     const containerNode = this.getParentOrThrow();
 
-    if (!$isCollapsibleContainerNode(containerNode)) {
+    if (
+      containerNode !== null &&
+      !CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode)
+    ) {
       throw new Error(
         "CollapsibleTitleNode expects to be child of CollapsibleContainerNode",
       );
@@ -119,14 +134,4 @@ export class CollapsibleTitleNode extends ElementNode {
       return paragraph;
     }
   }
-}
-
-export function $createCollapsibleTitleNode(): CollapsibleTitleNode {
-  return new CollapsibleTitleNode();
-}
-
-export function $isCollapsibleTitleNode(
-  node: LexicalNode | null | undefined,
-): node is CollapsibleTitleNode {
-  return node instanceof CollapsibleTitleNode;
 }

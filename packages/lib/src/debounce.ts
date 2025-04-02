@@ -36,6 +36,7 @@ export interface ThrottleOptions {
 // -------------------------------------------------------------
 // Debounce
 // -------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number,
@@ -46,10 +47,10 @@ export function debounce<T extends (...args: any[]) => any>(
   const nativeMax = Math.max;
 
   // Extract debounce options
-  let leading = !!options.leading;
+  const leading = !!options.leading;
   let maxing = false;
   let maxWait = 0;
-  let trailing = options.trailing !== undefined ? !!options.trailing : true;
+  const trailing = options.trailing !== undefined ? !!options.trailing : true;
 
   if (typeof func !== "function") {
     throw new TypeError("Expected a function");
@@ -188,13 +189,14 @@ export function debounce<T extends (...args: any[]) => any>(
 // -------------------------------------------------------------
 // Throttle
 // -------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function throttle<T extends (...args: any[]) => any>(
   func: T,
   wait: number,
   options: ThrottleOptions = {},
 ): DebouncedFunc<T> {
-  let leading = options.leading !== undefined ? !!options.leading : true;
-  let trailing = options.trailing !== undefined ? !!options.trailing : true;
+  const leading = options.leading !== undefined ? !!options.leading : true;
+  const trailing = options.trailing !== undefined ? !!options.trailing : true;
 
   if (typeof func !== "function") {
     throw new TypeError("Expected a function");

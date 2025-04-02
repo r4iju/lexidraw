@@ -26,7 +26,7 @@ export function $convertDetailsElement(
   domNode: HTMLDetailsElement,
 ): DOMConversionOutput | null {
   const isOpen = domNode.open !== undefined ? domNode.open : true;
-  const node = $createCollapsibleContainerNode(isOpen);
+  const node = CollapsibleContainerNode.$createCollapsibleContainerNode(isOpen);
   return {
     node,
   };
@@ -46,6 +46,12 @@ export class CollapsibleContainerNode extends ElementNode {
 
   static clone(node: CollapsibleContainerNode): CollapsibleContainerNode {
     return new CollapsibleContainerNode(node.__open, node.__key);
+  }
+
+  static $isCollapsibleContainerNode(
+    node: LexicalNode | null | undefined,
+  ): node is CollapsibleContainerNode {
+    return node instanceof CollapsibleContainerNode;
   }
 
   private setDomHiddenUntilFound(dom: HTMLElement): void {
@@ -118,10 +124,18 @@ export class CollapsibleContainerNode extends ElementNode {
     };
   }
 
+  static $createCollapsibleContainerNode(
+    isOpen: boolean,
+  ): CollapsibleContainerNode {
+    return new CollapsibleContainerNode(isOpen);
+  }
+
   static importJSON(
     serializedNode: SerializedCollapsibleContainerNode,
   ): CollapsibleContainerNode {
-    const node = $createCollapsibleContainerNode(serializedNode.open);
+    const node = CollapsibleContainerNode.$createCollapsibleContainerNode(
+      serializedNode.open,
+    );
     return node;
   }
 
@@ -153,16 +167,4 @@ export class CollapsibleContainerNode extends ElementNode {
   toggleOpen(): void {
     this.setOpen(!this.getOpen());
   }
-}
-
-export function $createCollapsibleContainerNode(
-  isOpen: boolean,
-): CollapsibleContainerNode {
-  return new CollapsibleContainerNode(isOpen);
-}
-
-export function $isCollapsibleContainerNode(
-  node: LexicalNode | null | undefined,
-): node is CollapsibleContainerNode {
-  return node instanceof CollapsibleContainerNode;
 }

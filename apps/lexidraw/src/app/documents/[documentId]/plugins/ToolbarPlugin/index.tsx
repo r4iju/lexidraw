@@ -806,7 +806,7 @@ export default function ToolbarPlugin({
         $getSelectionStyleValueForProperty(selection, "font-size", "15px"),
       );
     }
-  }, [activeEditor]);
+  }, [activeEditor, getSelectedNode]);
 
   useEffect(() => {
     console.log("ToolbarPlugin useEffect");
