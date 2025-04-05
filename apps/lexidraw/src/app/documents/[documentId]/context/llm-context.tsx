@@ -105,7 +105,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     }),
   );
 
-  // The main function that calls the LLM
   const generate = useCallback(
     async ({
       prompt,
@@ -150,30 +149,23 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     [provider, llmState.modelId, llmState.temperature, llmState.maxTokens],
   );
 
-  const setLlmOptions = useCallback(
-    (options: Partial<LLMState>) => {
-      if (options.provider && options.provider !== llmState.provider) {
-        switch (options.provider) {
-          case "google":
-            provider.current = createGoogleGenerativeAI({
-              apiKey: session?.user.config.llm.googleApiKey,
-            });
-            break;
-          case "openai":
-            provider.current = createOpenAI({
-              apiKey: session?.user.config.llm.openaiApiKey,
-            });
-            break;
-        }
+  const setLlmOptions = (options: Partial<LLMState>) => {
+    if (options.provider && options.provider !== llmState.provider) {
+      switch (options.provider) {
+        case "google":
+          provider.current = createGoogleGenerativeAI({
+            apiKey: session?.user.config.llm.googleApiKey,
+          });
+          break;
+        case "openai":
+          provider.current = createOpenAI({
+            apiKey: session?.user.config.llm.openaiApiKey,
+          });
+          break;
       }
-      setLlmState((prev) => ({ ...prev, ...options }));
-    },
-    [
-      llmState.provider,
-      session?.user.config.llm.googleApiKey,
-      session?.user.config.llm.openaiApiKey,
-    ],
-  );
+    }
+    setLlmState((prev) => ({ ...prev, ...options }));
+  };
 
   return (
     <LLMContext.Provider
