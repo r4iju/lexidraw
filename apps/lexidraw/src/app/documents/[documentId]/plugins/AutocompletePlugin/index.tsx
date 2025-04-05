@@ -14,6 +14,7 @@ import {
   COMMAND_PRIORITY_LOW,
   KEY_ARROW_RIGHT_COMMAND,
   KEY_TAB_COMMAND,
+  KEY_ESCAPE_COMMAND,
 } from "lexical";
 import { useEffect, useCallback, useRef } from "react";
 import { useSettings } from "../../context/settings-context";
@@ -50,6 +51,7 @@ export default function AutocompletePlugin() {
   const lastWord = useRef<string | null>(null);
   const lastSuggestion = useRef<string | null>(null);
   const completionRequest = useRef<CompletionRequest | null>(null);
+  const controllerRef = useRef<AbortController | null>(null);
 
   /**
    * Climb from the given node up to the root, collecting all headings.
@@ -60,7 +62,7 @@ export default function AutocompletePlugin() {
 
     let current: LexicalNode | null = node;
     while (current !== null) {
-      // If you’re using @lexical/rich-text, you can do:
+      // If you're using @lexical/rich-text, you can do:
       // if ($isHeadingNode(current)) { ... }
       if (current.getType() === "heading") {
         headings.push(current.getTextContent());
@@ -96,7 +98,7 @@ export default function AutocompletePlugin() {
       const textBeforeCursor = anchorNode.getTextContent().slice(0, offset);
 
       // A quick approach: capture all complete sentences that end in punctuation.
-      // We'll use a global regex that finds segments like “Some text.”, “Another?” etc.
+      // We'll use a global regex that finds segments like "Some text.","Another?" etc.
       const fullSentences = textBeforeCursor.match(/[^.?!]+[.?!]+/g);
 
       // The "previous sentence" is the last fully ended sentence,
@@ -145,8 +147,15 @@ export default function AutocompletePlugin() {
       }
       autocompleteNodeKey.current = null;
     }
+
+    if (controllerRef.current) {
+      controllerRef.current.abort();
+      controllerRef.current = null;
+    }
+
     completionRequest.current?.dismiss();
     completionRequest.current = null;
+
     lastWord.current = null;
     lastSuggestion.current = null;
   }, []);
@@ -175,39 +184,47 @@ export default function AutocompletePlugin() {
     editor.update(() => {
       const selection = $getSelection();
       const [hasMatch, match] = search(selection);
+
       if (!hasMatch) {
         clearSuggestion();
         return;
       }
       if (match === lastWord.current) {
-        // same partial text, do nothing
         return;
       }
 
       clearSuggestion();
       lastWord.current = match;
 
-      const partialSnippet = match;
+      const controller = new AbortController();
+      controllerRef.current = controller;
+
       const { heading, blockType, previousSentence } = gatherEditorContext();
 
-      const promise = queryLLM(partialSnippet, {
-        heading,
-        blockType,
-        previousSentence,
-      })?.then((completion) => {
-        if (!completion) return null;
-        insertSuggestion(completion);
-        return completion;
-      });
+      const promise = queryLLM(
+        match,
+        { heading, blockType, previousSentence },
+        controller.signal,
+      )
+        ?.then((completion) => {
+          if (!completion) return null;
+          insertSuggestion(completion);
+          return completion;
+        })
+        .catch((err) => {
+          if (err instanceof Error && err.name === "AbortError") {
+            return null;
+          }
+          console.error(err);
+          return null;
+        });
 
-      if (promise) {
-        completionRequest.current = {
-          dismiss: () => {
-            completionRequest.current = null;
-          },
-          promise,
-        };
-      }
+      completionRequest.current = {
+        dismiss: () => {
+          completionRequest.current = null;
+        },
+        promise: promise ?? Promise.resolve(null),
+      };
     });
   }, [
     editor,
@@ -218,6 +235,21 @@ export default function AutocompletePlugin() {
     insertSuggestion,
   ]);
 
+  /**
+   * If user hits ESC, we cancel the suggestion + request
+   */
+  const handleEscapeCommand = useCallback(
+    (e: KeyboardEvent) => {
+      if (autocompleteNodeKey.current !== null) {
+        clearSuggestion();
+        e.preventDefault();
+        return true;
+      }
+      return false;
+    },
+    [clearSuggestion],
+  );
+
   /** Accepts the current autocomplete suggestion. */
   const handleAcceptSuggestion = useCallback((): boolean => {
     if (!lastSuggestion.current || !autocompleteNodeKey.current) {
@@ -226,14 +258,16 @@ export default function AutocompletePlugin() {
     const node = $getNodeByKey(autocompleteNodeKey.current);
     if (!node) return false;
 
-    // Replace the node with plain text
     editor.update(() => {
-      if (!lastSuggestion.current) return;
+      // Insert the suggested text
+      if (!lastSuggestion.current) return false;
       const textNode = $createTextNode(lastSuggestion.current);
       node.replace(textNode);
       textNode.selectNext();
+
       clearSuggestion();
     });
+
     return true;
   }, [editor, clearSuggestion]);
 
@@ -351,50 +385,24 @@ export default function AutocompletePlugin() {
     [deleteListener, elements],
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const addSwipeLeftListener = useCallback(
-    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
+  const addSwipeListener = useCallback(
+    (
+      direction: "up" | "down" | "left" | "right",
+      element: HTMLElement,
+      cb: (_force: number, e: TouchEvent) => void,
+    ) => {
       return addListener(element, (force, e) => {
         const [x, y] = force;
-        if (x < 0 && -x > Math.abs(y)) {
+        if (direction === "up" && y < 0 && -y > Math.abs(x)) {
           cb(x, e);
         }
-      });
-    },
-    [addListener],
-  );
-
-  const addSwipeRightListener = useCallback(
-    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
-      return addListener(element, (force, e) => {
-        const [x, y] = force;
-        if (x > 0 && x > Math.abs(y)) {
+        if (direction === "down" && y > 0 && y > Math.abs(x)) {
           cb(x, e);
         }
-      });
-    },
-    [addListener],
-  );
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const addSwipeUpListener = useCallback(
-    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
-      return addListener(element, (force, e) => {
-        const [x, y] = force;
-        if (y < 0 && -y > Math.abs(x)) {
+        if (direction === "left" && x < 0 && -x > Math.abs(y)) {
           cb(x, e);
         }
-      });
-    },
-    [addListener],
-  );
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const addSwipeDownListener = useCallback(
-    (element: HTMLElement, cb: (_force: number, e: TouchEvent) => void) => {
-      return addListener(element, (force, e) => {
-        const [x, y] = force;
-        if (y > 0 && y > Math.abs(x)) {
+        if (direction === "right" && x > 0 && x > Math.abs(y)) {
           cb(x, e);
         }
       });
@@ -423,7 +431,14 @@ export default function AutocompletePlugin() {
         handleKeypressCommand,
         COMMAND_PRIORITY_LOW,
       ),
-      ...(rootElem ? [addSwipeRightListener(rootElem, handleSwipeRight)] : []),
+      editor.registerCommand(
+        KEY_ESCAPE_COMMAND,
+        handleEscapeCommand,
+        COMMAND_PRIORITY_LOW,
+      ),
+      ...(rootElem
+        ? [addSwipeListener("right", rootElem, handleSwipeRight)]
+        : []),
       cleanup,
     );
   }, [
@@ -433,8 +448,9 @@ export default function AutocompletePlugin() {
     handleAutocompleteNodeTransform,
     handleUpdate,
     handleKeypressCommand,
+    handleEscapeCommand,
     handleSwipeRight,
-    addSwipeRightListener,
+    addSwipeListener,
   ]);
 
   return null;

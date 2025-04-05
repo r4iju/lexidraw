@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
 import { throttle } from "@packages/lib";
 import { useLLM } from "../../context/llm-context";
 
@@ -10,47 +9,93 @@ export type AutocompleteEditorContext = {
   previousSentence: string;
 };
 
+type SuggestionCache = {
+  add: (suggestion: string) => void;
+  has: (suggestion: string) => boolean;
+  clear: () => void;
+};
+
+const CACHE_SIZE_LIMIT = 10;
+
+function useSuggestionCache(maxSize: number = CACHE_SIZE_LIMIT) {
+  const createSuggestionCache = (
+    maxSize: number = CACHE_SIZE_LIMIT,
+  ): SuggestionCache => {
+    const suggestions = new Set<string>();
+
+    return {
+      add: (suggestion: string) => {
+        if (suggestions.size >= maxSize) {
+          const oldest = suggestions.values().next().value;
+          if (oldest && typeof oldest === "string") {
+            suggestions.delete(oldest);
+          }
+        }
+        suggestions.add(suggestion);
+      },
+      has: (suggestion: string) => suggestions.has(suggestion),
+      clear: () => suggestions.clear(),
+    };
+  };
+
+  return createSuggestionCache(maxSize);
+}
+
 function useAutocompleteLLM() {
   const { generate } = useLLM();
+  const suggestionCache = useSuggestionCache();
 
-  const autocomplete = useCallback(
-    async (
-      partialSnippet: string,
-      editorContext?: AutocompleteEditorContext,
-    ): Promise<string> => {
-      console.log({ partialSnippet, editorContext });
-      const prompt = [
-        `Complete the snippet without repeating those words.`,
-        `Do not wrap in quotes.`,
-        `User typed partial snippet: "${partialSnippet}"`,
-        `The following context may be relevant to understand the context of the snippet.`,
-        ...(editorContext?.heading
-          ? [`The nearest heading is: ${editorContext.heading}`]
-          : []),
-        ...(editorContext?.blockType
-          ? [`The current snippet is a ${editorContext.blockType} block.`]
-          : []),
-        ...(editorContext?.previousSentence
-          ? [`The previous sentence is: ${editorContext.previousSentence}`]
-          : []),
-      ]
-        .join("\n")
-        .trim();
+  const validateAndProcessResult = (result: unknown): string => {
+    if (!result || typeof result !== "string") {
+      return "";
+    }
 
-      const system = [
-        `You are a helpful autocomplete assistant.`,
-        `Don't repeat the exact words the user already typed.`,
-        `Don't add meta-information like "Sure" or "Here you go."`,
-        `If you cannot provide a suitable completion, return an empty string "".`,
-      ].join("\n");
+    if (suggestionCache.has(result)) {
+      return "";
+    }
 
-      return generate({
-        prompt,
-        system,
-      });
-    },
-    [generate],
-  );
+    suggestionCache.add(result);
+    return result;
+  };
+
+  const autocomplete = async (
+    partialSnippet: string,
+    editorContext?: AutocompleteEditorContext,
+    signal?: AbortSignal,
+  ): Promise<string> => {
+    console.log("autocomplete request: ", { partialSnippet, editorContext });
+    const prompt = [
+      `Complete the snippet without repeating those words.`,
+      `Do not wrap in quotes.`,
+      `Do not add any list markers or other formatting.`,
+      `User typed partial snippet: "${partialSnippet}"`,
+      `The following context may be relevant:`,
+      ...(editorContext?.heading
+        ? [`Nearest heading: ${editorContext.heading}`]
+        : []),
+      ...(editorContext?.blockType
+        ? [`Block type: ${editorContext.blockType}`]
+        : []),
+      ...(editorContext?.previousSentence
+        ? [`Previous sentence: ${editorContext.previousSentence}`]
+        : []),
+    ].join("\n");
+
+    const system = [
+      `You are a helpful autocomplete assistant.`,
+      `Do not repeat the words the user already typed.`,
+      `Avoid meta-information like "Sure" or "Here you go."`,
+      `If you cannot provide a suitable completion, return an empty string "".`,
+    ].join("\n");
+
+    const result = await generate({
+      prompt,
+      system,
+      signal,
+    });
+
+    return validateAndProcessResult(result);
+  };
 
   return autocomplete;
 }
@@ -58,13 +103,14 @@ function useAutocompleteLLM() {
 export function useThrottledAutocomplete() {
   const autocomplete = useAutocompleteLLM();
 
-  return useMemo(
-    () =>
-      throttle(
-        async (snippet: string, editorContext?: AutocompleteEditorContext) =>
-          autocomplete(snippet, editorContext),
-        3000,
-      ),
-    [autocomplete],
+  return throttle(
+    async (
+      snippet: string,
+      editorContext?: AutocompleteEditorContext,
+      signal?: AbortSignal,
+    ) => {
+      return autocomplete(snippet, editorContext, signal);
+    },
+    3000,
   );
 }

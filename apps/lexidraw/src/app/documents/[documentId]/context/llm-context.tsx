@@ -3,9 +3,9 @@
 import React, {
   createContext,
   useMemo,
+  useCallback,
   useState,
   useContext,
-  useCallback,
   type PropsWithChildren,
 } from "react";
 
@@ -31,6 +31,8 @@ export type LLMOptions = {
   system?: string;
   temperature?: number;
   maxTokens?: number;
+  /** If you wish to support request cancellation, include this. */
+  signal?: AbortSignal;
 };
 
 type LLMContextValue = {
@@ -126,6 +128,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       system = "",
       temperature,
       maxTokens,
+      signal,
     }: LLMOptions): Promise<string> => {
       try {
         const result = await generateText({
@@ -134,6 +137,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
           system,
           temperature: temperature ?? llmState.temperature,
           maxTokens: maxTokens ?? llmState.maxTokens,
+          abortSignal: signal,
         });
 
         setLlmState((prev) => ({
@@ -145,15 +149,19 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
         return result.text;
       } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
+        // Check if aborted
+        if (err instanceof Error && err.name === "AbortError") {
+          // Request was canceled by the user, or via .abort()
+          return "";
+        }
 
+        const errorMsg = err instanceof Error ? err.message : String(err);
         setLlmState((prev) => ({
           ...prev,
           isError: true,
           text: "",
           error: errorMsg,
         }));
-
         return "";
       }
     },
