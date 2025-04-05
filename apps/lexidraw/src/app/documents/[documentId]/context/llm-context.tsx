@@ -2,11 +2,11 @@
 
 import React, {
   createContext,
-  useMemo,
   useCallback,
   useState,
   useContext,
   type PropsWithChildren,
+  useRef,
 } from "react";
 
 import { generateText } from "ai";
@@ -15,7 +15,6 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { throttle } from "@packages/lib";
 import { useSession } from "next-auth/react";
 
-/** Your shared LLM state */
 export type LLMState = {
   modelId: string;
   provider: string;
@@ -31,7 +30,6 @@ export type LLMOptions = {
   system?: string;
   temperature?: number;
   maxTokens?: number;
-  /** If you wish to support request cancellation, include this. */
   signal?: AbortSignal;
 };
 
@@ -39,10 +37,6 @@ type LLMContextValue = {
   generate: (options: LLMOptions) => Promise<string>;
   llmState: LLMState;
   setLlmState: React.Dispatch<React.SetStateAction<LLMState>>;
-  setLlmOption: (
-    name: keyof LLMState,
-    value: string | number | boolean,
-  ) => void;
   setLlmOptions: (options: Partial<LLMState>) => void;
 };
 
@@ -102,24 +96,14 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     error: null,
   });
 
-  const provider = useMemo(() => {
-    // If you prefer environment variables, you can skip this
-    if (llmState.provider === "google") {
-      return createGoogleGenerativeAI({
-        apiKey: session?.user.config.llm.googleApiKey,
-      });
-    } else if (llmState.provider === "openai") {
-      return createOpenAI({
-        apiKey: session?.user.config.llm.openaiApiKey,
-      });
-    } else {
-      throw new Error("Invalid provider");
-    }
-  }, [
-    llmState.provider,
-    session?.user.config.llm.googleApiKey,
-    session?.user.config.llm.openaiApiKey,
-  ]);
+  const provider = useRef<
+    | ReturnType<typeof createGoogleGenerativeAI>
+    | ReturnType<typeof createOpenAI>
+  >(
+    createGoogleGenerativeAI({
+      apiKey: session?.user.config.llm.googleApiKey,
+    }),
+  );
 
   // The main function that calls the LLM
   const generate = useCallback(
@@ -132,7 +116,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     }: LLMOptions): Promise<string> => {
       try {
         const result = await generateText({
-          model: provider(llmState.modelId),
+          model: provider.current(llmState.modelId),
           prompt,
           system,
           temperature: temperature ?? llmState.temperature,
@@ -149,9 +133,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
         return result.text;
       } catch (err: unknown) {
-        // Check if aborted
         if (err instanceof Error && err.name === "AbortError") {
-          // Request was canceled by the user, or via .abort()
           return "";
         }
 
@@ -168,20 +150,34 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     [provider, llmState.modelId, llmState.temperature, llmState.maxTokens],
   );
 
-  const setLlmOption = useCallback(
-    (name: keyof LLMState, value: string | number | boolean) => {
-      setLlmState((prev) => ({ ...prev, [name]: value }));
+  const setLlmOptions = useCallback(
+    (options: Partial<LLMState>) => {
+      if (options.provider && options.provider !== llmState.provider) {
+        switch (options.provider) {
+          case "google":
+            provider.current = createGoogleGenerativeAI({
+              apiKey: session?.user.config.llm.googleApiKey,
+            });
+            break;
+          case "openai":
+            provider.current = createOpenAI({
+              apiKey: session?.user.config.llm.openaiApiKey,
+            });
+            break;
+        }
+      }
+      setLlmState((prev) => ({ ...prev, ...options }));
     },
-    [],
+    [
+      llmState.provider,
+      session?.user.config.llm.googleApiKey,
+      session?.user.config.llm.openaiApiKey,
+    ],
   );
-
-  const setLlmOptions = useCallback((options: Partial<LLMState>) => {
-    setLlmState((prev) => ({ ...prev, ...options }));
-  }, []);
 
   return (
     <LLMContext.Provider
-      value={{ generate, llmState, setLlmState, setLlmOption, setLlmOptions }}
+      value={{ generate, llmState, setLlmState, setLlmOptions }}
     >
       {children}
     </LLMContext.Provider>
@@ -199,9 +195,10 @@ export function useLLM() {
 export function useThrottledLlm({ trottleMs = 3000 }: { trottleMs?: number }) {
   const { generate } = useLLM();
 
-  const throttledSendQuery = useMemo(() => {
-    return throttle(generate, trottleMs, { leading: false, trailing: true });
-  }, [trottleMs, generate]);
+  const throttledSendQuery = throttle(generate, trottleMs, {
+    leading: false,
+    trailing: true,
+  });
 
   return throttledSendQuery;
 }

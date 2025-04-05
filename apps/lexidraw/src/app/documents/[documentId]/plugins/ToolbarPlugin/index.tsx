@@ -566,7 +566,7 @@ function ElementFormatDropdown({
 
 function LlmModelSelector() {
   const { settings, setOption } = useSettings();
-  const { llmState, setLlmOption, setLlmOptions } = useLLM();
+  const { llmState, setLlmOptions } = useLLM();
 
   return (
     <DropdownMenu>
@@ -596,7 +596,7 @@ function LlmModelSelector() {
           max={1}
           step={0.01}
           value={llmState.temperature.toString()}
-          onChange={(e) => setLlmOption("temperature", Number(e.target.value))}
+          onChange={(e) => setLlmOptions({ temperature: Number(e.target.value) })}
         />
         <DropdownMenuSeparator />
 
@@ -607,7 +607,7 @@ function LlmModelSelector() {
           min={0}
           max={1000}
           value={llmState.maxTokens.toString()}
-          onChange={(e) => setLlmOption("maxTokens", Number(e.target.value))}
+          onChange={(e) => setLlmOptions({ maxTokens: Number(e.target.value) })}
         />
         <DropdownMenuSeparator />
 
