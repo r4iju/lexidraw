@@ -1,8 +1,9 @@
-import { z } from 'zod';
+import { z } from "zod";
+import { useCallback } from "react";
 
 export function getDefaults<T extends z.ZodTypeAny>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  schema: z.AnyZodObject | z.ZodEffects<any>
+  schema: z.AnyZodObject | z.ZodEffects<any>,
 ): z.infer<T> {
   // Check if it's a ZodEffect
   if (schema instanceof z.ZodEffects) {
@@ -18,18 +19,27 @@ export function getDefaults<T extends z.ZodTypeAny>(
     // return an empty array if it is
     if (schema instanceof z.ZodArray) return [];
     // return an empty string if it is
-    if (schema instanceof z.ZodString) return '';
+    if (schema instanceof z.ZodString) return "";
     // return an content of object recursivly
     if (schema instanceof z.ZodObject) return getDefaults(schema);
 
-    if (!('innerType' in schema._def)) return undefined;
+    if (!("innerType" in schema._def)) return undefined;
     return getDefaultValue(schema._def.innerType);
   }
 
   return Object.fromEntries(
     Object.entries(schema.shape).map(([key, value]) => {
-
       return [key, getDefaultValue(value as z.ZodTypeAny)];
-    })
+    }),
+  );
+}
+
+/** just to return the function */
+export function useGetDefaults() {
+  return useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <T extends z.ZodTypeAny>(schema: z.AnyZodObject | z.ZodEffects<any>) =>
+      getDefaults<T>(schema),
+    [],
   );
 }

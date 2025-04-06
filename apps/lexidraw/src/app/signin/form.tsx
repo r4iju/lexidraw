@@ -4,7 +4,7 @@ import { signIn } from "next-auth/react";
 import React, { useState } from "react";
 import { type FieldValues, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { SignInSchema } from "./schema";
+import { getSignInSchema } from "./schema";
 import FormProvider from "~/components/hook-form";
 import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
@@ -13,9 +13,11 @@ import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { cn } from "~/lib/utils";
 
 export default function SignInForm() {
-  const methods = useForm<SignInSchema>({
-    resolver: zodResolver(SignInSchema),
-    defaultValues: getDefaults(SignInSchema) as SignInSchema,
+  const schema = getSignInSchema();
+
+  const methods = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: getDefaults(schema),
     mode: "onBlur",
   });
   const [submitError, setSubmitError] = useState<string | null>(null);

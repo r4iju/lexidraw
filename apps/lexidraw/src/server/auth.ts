@@ -2,8 +2,8 @@ import NextAuth, { Session, type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { drizzle, schema } from "@packages/drizzle";
-import { SignInSchema } from "~/app/signin/schema";
+import { drizzle } from "@packages/drizzle";
+import { getSignInSchema } from "~/app/signin/schema";
 import env from "@packages/env";
 
 declare module "next-auth" {
@@ -84,6 +84,7 @@ export const {
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
+        const SignInSchema = getSignInSchema();
         const parsedCredentials = SignInSchema.parse(credentials);
 
         const dbUser = await drizzle.query.users.findFirst({
