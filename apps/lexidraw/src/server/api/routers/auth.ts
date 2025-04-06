@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { SignUpSchema } from "~/app/signup/schema";
+import { getSignUpSchema } from "~/app/signup/schema";
 import { ProfileSchema } from "~/app/profile/schema";
 import env from "@packages/env";
 import {
@@ -12,7 +12,7 @@ import { eq } from "@packages/drizzle";
 
 export const authRouter = createTRPCRouter({
   signUp: publicProcedure
-    .input(SignUpSchema)
+    .input(getSignUpSchema())
     .mutation(async ({ ctx, input }) => {
       try {
         // create user
