@@ -1,8 +1,7 @@
 "use client";
 
-import { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import { HamburgerMenuIcon } from "@radix-ui/react-icons";
-
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -15,18 +14,16 @@ import {
 import { EditorState } from "lexical";
 import { api } from "~/trpc/react";
 import Link from "next/link";
-// import { exportLexicalAsSvg } from "./export-svg";
 import { Theme } from "@packages/types";
 import { useToast } from "~/components/ui/toast-provider";
 import { useTheme } from "next-themes";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-// import { exportPng } from "./export-png";
 import { useExportWebp } from "./export-webp";
 
 type Props = {
   className?: string;
   documentId: string;
-  state: MutableRefObject<EditorState | undefined>;
+  state: RefObject<EditorState | undefined>;
 };
 
 export default function OptionsDropdown({
