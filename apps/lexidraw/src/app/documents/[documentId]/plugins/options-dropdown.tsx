@@ -21,33 +21,13 @@ import { useToast } from "~/components/ui/toast-provider";
 import { useTheme } from "next-themes";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 // import { exportPng } from "./export-png";
-import { exportWebp } from "./export-webp";
+import { useExportWebp } from "./export-webp";
 
 type Props = {
   className?: string;
   documentId: string;
   state: MutableRefObject<EditorState | undefined>;
 };
-
-async function uploadToS3({
-  uploadUrl,
-  file: blob,
-}: {
-  uploadUrl: string;
-  file: Blob;
-}) {
-  try {
-    await fetch(uploadUrl, {
-      method: "PUT",
-      body: blob, // File object from input
-      headers: {
-        "Content-Type": blob.type,
-      },
-    });
-  } catch (error) {
-    console.error("Error uploading to S3", error);
-  }
-}
 
 export default function OptionsDropdown({
   className,
@@ -61,6 +41,28 @@ export default function OptionsDropdown({
   const { mutate: generateUploadUrls } =
     api.snapshot.generateUploadUrls.useMutation();
 
+  const { exportWebp } = useExportWebp();
+
+  const uploadToS3 = async ({
+    uploadUrl,
+    file: blob,
+  }: {
+    uploadUrl: string;
+    file: Blob;
+  }) => {
+    try {
+      await fetch(uploadUrl, {
+        method: "PUT",
+        body: blob,
+        headers: {
+          "Content-Type": blob.type,
+        },
+      });
+    } catch (error) {
+      console.error("Error uploading to S3", error);
+    }
+  };
+
   const exportDocumentAsImage = async () => {
     generateUploadUrls(
       {
@@ -70,7 +72,7 @@ export default function OptionsDropdown({
       {
         onSuccess: async (uploadParams) => {
           const nextTheme = isDarkTheme ? Theme.DARK : Theme.LIGHT;
-          console.log("uploadParams", uploadParams);
+          console.log({ uploadParams });
           const promises = [];
           for (const uploadParam of uploadParams) {
             // setTheme(uploadParam.theme);
