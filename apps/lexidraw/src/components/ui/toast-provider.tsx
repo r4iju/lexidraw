@@ -3,6 +3,7 @@
 import * as React from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { ToastActionElement, ToastProps } from "./toast";
+import * as ToastPrimitives from "@radix-ui/react-toast";
 
 const TOAST_LIMIT = 1;
 
@@ -78,9 +79,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = React.useReducer(toastReducer, { toasts: [] });
 
   return (
-    <ToastContext.Provider value={{ state, dispatch }}>
-      {children}
-    </ToastContext.Provider>
+    <ToastPrimitives.Provider>
+      <ToastContext.Provider value={{ state, dispatch }}>
+        {children}
+      </ToastContext.Provider>
+    </ToastPrimitives.Provider>
   );
 }
 
@@ -91,7 +94,6 @@ export function useToast() {
   }
   const { state, dispatch } = context;
 
-  // Instead of a global "memoryState = ...", we do local “toast()” that dispatches
   function toast(props: Omit<ToasterToast, "id">) {
     const id = uuidv4();
 
