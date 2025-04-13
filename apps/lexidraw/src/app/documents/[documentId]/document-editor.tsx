@@ -1,17 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-// packages
 import { debounce } from "@packages/lib";
-import { MessageStructure } from "@packages/types";
-// nodes
+import { MessageStructure, PublicAccess } from "@packages/types";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { MarkNode } from "@lexical/mark";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
-// plugins
 import CommentPlugin from "./plugins/CommentPlugin";
 import { LayoutPlugin } from "./plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "./plugins/CollapsiblePlugin";
@@ -38,8 +35,6 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-// shadcnui
-// import { theme } from "./_themes/playground-theme";
 import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
@@ -104,7 +99,8 @@ type EditorProps = {
 function EditorHandler({ entity, iceServers }: EditorProps) {
   const editorStateRef = useRef<EditorState>(undefined);
   const canCollaborate =
-    entity.sharedWith.length > 0 || entity.publicAccess !== "private";
+    entity.sharedWith.length > 0 ||
+    entity.publicAccess !== PublicAccess.PRIVATE;
   const userId = useUserIdOrGuestId();
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
