@@ -9,6 +9,7 @@ import { MoreActions } from "./_actions/more-actions";
 import { ThumbnailClient } from "./thumbnail-client";
 import EntityTitle from "./_actions/rename-inline";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
+import { TagTooltip } from "./entity-card-tag-tooltip";
 
 type Entity = RouterOutputs["entities"]["list"][number];
 
@@ -68,7 +69,7 @@ export function EntityCard({
         // "hover:bg-muted/20 transition-colors duration-150",
         flex === "flex-row" && "flex-col",
         flex === "flex-col" && "flex-row",
-        isOverlay && "cursor-grabbing bg-card bg-opacity-100", // a visual cue
+        isOverlay && "cursor-grabbing bg-card bg-opacity-100",
       )}
       style={{
         ...(isOverlay && {
@@ -119,14 +120,17 @@ export function EntityCard({
           </span>
         </Link>
 
-        {!isOverlay ? (
-          <MoreActions entity={entity} currentAccess={entity.publicAccess} />
-        ) : (
-          // only render a placeholder icon for the overlay
-          <Button variant="ghost" disabled>
-            <DotsHorizontalIcon className="size-5" />
-          </Button>
-        )}
+        <div className="hidden md:block">
+          <TagTooltip entity={entity} />
+
+          {!isOverlay ? (
+            <MoreActions entity={entity} currentAccess={entity.publicAccess} />
+          ) : (
+            <Button variant="ghost" disabled>
+              <DotsHorizontalIcon className="size-5" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* right side (if flex-row) */}
