@@ -16,7 +16,7 @@ const createSingleton = () => {
   });
   return drizzle<Schema>(turso, {
     schema,
-    logger: false,
+    logger: true,
   });
 };
 

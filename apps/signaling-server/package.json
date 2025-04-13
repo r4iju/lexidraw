@@ -21,9 +21,9 @@
   },
   "devDependencies": {
     "@packages/types": "workspace:*",
-    "@types/ws": "^8.18.0",
+    "@types/ws": "^8.18.1",
     "artillery": "^2.0.22",
-    "typescript": "^5.8.2",
+    "typescript": "^5.8.3",
     "vitest": "^1.6.1"
   }
 }

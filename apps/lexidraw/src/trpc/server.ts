@@ -14,7 +14,6 @@ import { loggerLink } from "@trpc/client";
 const createContext = cache(async () => {
   const heads = new Headers(await headers());
   heads.set("x-trpc-source", "rsc");
-
   return createTRPCContext({
     headers: heads,
   });
@@ -22,7 +21,13 @@ const createContext = cache(async () => {
 
 export const api = createTRPCClient<AppRouter>({
   links: [
-    loggerLink(),
+    loggerLink({
+      enabled: (opts) => {
+        return (
+          process.env.NODE_ENV === "development" || opts.direction === "down"
+        );
+      },
+    }),
     /**
      * Custom RSC link that lets us invoke procedures without using http requests. Since Server
      * Components always run on the server, we can just call the procedure as a function.
@@ -30,6 +35,11 @@ export const api = createTRPCClient<AppRouter>({
     () =>
       ({ op }) =>
         observable((observer) => {
+          console.log(`[tRPC] Starting procedure: ${op.path}`, {
+            input: op.input,
+            type: op.type,
+          });
+
           createContext()
             .then((ctx) => {
               const caller = appRouter.createCaller(ctx);
@@ -44,10 +54,19 @@ export const api = createTRPCClient<AppRouter>({
               }
             })
             .then((data) => {
+              console.log(`[tRPC] Success for procedure: ${op.path}`, {
+                result: data,
+              });
               observer.next({ result: { data } });
               observer.complete();
             })
             .catch((cause) => {
+              console.error(`[tRPC] Error in procedure: ${op.path}`, {
+                error: cause,
+                input: op.input,
+                stack: cause.stack,
+                cause: cause.cause,
+              });
               observer.error(TRPCClientError.from(cause));
             });
 

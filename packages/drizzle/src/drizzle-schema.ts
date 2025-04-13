@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
-
+import type { PublicAccess } from "@packages/types";
 export const accounts = sqliteTable(
   "Accounts",
   {
@@ -253,7 +253,7 @@ export const entities = sqliteTable(
     userId: text("userId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
-    publicAccess: text("publicAccess").notNull(),
+    publicAccess: text("publicAccess").$type<PublicAccess>().notNull(),
   },
   (table) => [
     index("Entity_userId_idx").on(table.userId),
@@ -261,6 +261,57 @@ export const entities = sqliteTable(
     uniqueIndex("Entity_unique_directory_name")
       .on(table.title, table.parentId)
       .where(sql`entityType = 'directory'`),
+  ],
+);
+
+export const tags = sqliteTable(
+  "Tags",
+  {
+    id: text("id").primaryKey().notNull(),
+    name: text("name").notNull().unique(), // Make tag names globally unique
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+  },
+  (table) => [uniqueIndex("Tag_name_unique").on(table.name)],
+);
+
+export const entityTags = sqliteTable(
+  "EntityTags",
+  {
+    entityId: text("entityId")
+      .notNull()
+      .references(() => entities.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    tagId: text("tagId")
+      .notNull()
+      .references(() => tags.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    userId: text("userId") // Move userId to the junction table
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("EntityTag_entityId_tagId_userId_key").on(
+      table.entityId,
+      table.tagId,
+      table.userId,
+    ),
   ],
 );
 

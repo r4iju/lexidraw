@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
-import { EntityType, PublicAccess } from "@packages/types";
+import { EntityType } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -20,28 +20,6 @@ type Props = {
   isOverlay?: boolean;
 };
 
-const itemUrl = ({
-  id,
-  entityType,
-  searchParams,
-}: {
-  id: string;
-  entityType: EntityType;
-  searchParams: URLSearchParams;
-}) => {
-  switch (entityType) {
-    case EntityType.DIRECTORY:
-      return `/dashboard/${id}?${searchParams.toString()}`;
-    case EntityType.DRAWING:
-      return `/drawings/${id}`;
-    case EntityType.DOCUMENT:
-      return `/documents/${id}`;
-    default:
-      console.warn(`Unknown entity type: ${entityType satisfies never}`);
-      return `/dashboard/${id}?${searchParams.toString()}`;
-  }
-};
-
 export function EntityCard({
   entity,
   flex,
@@ -59,6 +37,28 @@ export function EntityCard({
     new Date(sortBy === "createdAt" ? entity.createdAt : entity.updatedAt),
     { addSuffix: true },
   );
+
+  const itemUrl = ({
+    id,
+    entityType,
+    searchParams,
+  }: {
+    id: string;
+    entityType: EntityType;
+    searchParams: URLSearchParams;
+  }) => {
+    switch (entityType) {
+      case EntityType.DIRECTORY:
+        return `/dashboard/${id}?${searchParams.toString()}`;
+      case EntityType.DRAWING:
+        return `/drawings/${id}`;
+      case EntityType.DOCUMENT:
+        return `/documents/${id}`;
+      default:
+        console.warn(`Unknown entity type: ${entityType satisfies never}`);
+        return `/dashboard/${id}?${searchParams.toString()}`;
+    }
+  };
 
   return (
     <Card
@@ -120,10 +120,7 @@ export function EntityCard({
         </Link>
 
         {!isOverlay ? (
-          <MoreActions
-            entity={entity}
-            currentAccess={entity.publicAccess as PublicAccess}
-          />
+          <MoreActions entity={entity} currentAccess={entity.publicAccess} />
         ) : (
           // only render a placeholder icon for the overlay
           <Button variant="ghost" disabled>

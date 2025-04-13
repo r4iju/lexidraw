@@ -3,7 +3,17 @@ import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateEntity, SaveEntity } from "./entities-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, isNull, ne, or, schema, sql } from "@packages/drizzle";
+import {
+  and,
+  desc,
+  eq,
+  isNull,
+  ne,
+  or,
+  schema,
+  sql,
+  inArray,
+} from "@packages/drizzle";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import env from "@packages/env";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -309,6 +319,7 @@ export const entityRouter = createTRPCRouter({
           publicAccess: schema.entities.publicAccess,
           parentId: schema.entities.parentId,
           sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
+          tags: sql<string>`group_concat(${schema.tags.name}, ',')`,
         })
         .from(schema.entities)
         .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
@@ -316,6 +327,11 @@ export const entityRouter = createTRPCRouter({
           schema.sharedEntities,
           eq(schema.entities.id, schema.sharedEntities.entityId),
         )
+        .leftJoin(
+          schema.entityTags,
+          eq(schema.entities.id, schema.entityTags.entityId),
+        )
+        .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
         .where(
           and(
             or(
@@ -335,7 +351,129 @@ export const entityRouter = createTRPCRouter({
       return sortArrOfObjects<
         (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
-      >(entities, input.sortOrder, input.sortBy);
+      >(entities, input.sortOrder, input.sortBy).map((entity) => ({
+        ...entity,
+        tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
+      }));
+    }),
+  getUserTags: protectedProcedure.query(async ({ ctx }) => {
+    const tags = await ctx.drizzle
+      .select({
+        tagId: schema.entityTags.tagId,
+        name: schema.tags.name,
+      })
+      .from(schema.entityTags)
+      .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+      .where(eq(schema.entityTags.userId, ctx.session.user.id))
+      .execute();
+
+    return tags;
+  }),
+  getEntityTags: protectedProcedure
+    .input(z.object({ entityId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const tags = await ctx.drizzle
+        .select({
+          tagId: schema.entityTags.tagId,
+          name: schema.tags.name,
+        })
+        .from(schema.entityTags)
+        .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+        .where(eq(schema.entityTags.entityId, input.entityId))
+        .execute();
+
+      return tags;
+    }),
+  updateEntityTags: protectedProcedure
+    .input(z.object({ entityId: z.string(), tagNames: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      // If no tagNames provided, simply delete all associations
+      if (input.tagNames.length === 0) {
+        await ctx.drizzle
+          .delete(schema.entityTags)
+          .where(eq(schema.entityTags.entityId, input.entityId))
+          .execute();
+        return;
+      }
+
+      await ctx.drizzle.transaction(async (tx) => {
+        // new tags
+        await tx
+          .insert(schema.tags)
+          .values(
+            input.tagNames.map((tagName) => ({
+              id: uuidV4(),
+              name: tagName,
+            })),
+          )
+          .onConflictDoNothing()
+          .execute();
+
+        // get all tags
+        const allTags = await tx
+          .select({ id: schema.tags.id, name: schema.tags.name })
+          .from(schema.tags)
+          .where(inArray(schema.tags.name, input.tagNames))
+          .execute();
+
+        const tagNameToId = new Map<string, string>();
+        for (const tag of allTags) {
+          tagNameToId.set(tag.name, tag.id);
+        }
+
+        const newTagIds = input.tagNames.map((tagName) => {
+          const tagId = tagNameToId.get(tagName);
+          if (!tagId) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: `Failed to find tag ID for tag name: ${tagName}`,
+            });
+          }
+          return tagId;
+        });
+
+        // get current associations
+        const currentAssociations = await tx
+          .select({ tagId: schema.entityTags.tagId })
+          .from(schema.entityTags)
+          .where(eq(schema.entityTags.entityId, input.entityId))
+          .execute();
+        const currentTagIds = new Set(
+          currentAssociations.map((assoc) => assoc.tagId),
+        );
+
+        // calculate differences
+        const tagsToAdd = newTagIds.filter(
+          (tagId) => !currentTagIds.has(tagId),
+        );
+        const tagsToRemove = [...currentTagIds].filter(
+          (tagId) => !newTagIds.includes(tagId),
+        );
+
+        if (tagsToRemove.length > 0) {
+          await tx
+            .delete(schema.entityTags)
+            .where(
+              and(
+                eq(schema.entityTags.entityId, input.entityId),
+                inArray(schema.entityTags.tagId, tagsToRemove),
+              ),
+            )
+            .execute();
+        }
+        if (tagsToAdd.length > 0) {
+          await tx
+            .insert(schema.entityTags)
+            .values(
+              tagsToAdd.map((tagId) => ({
+                entityId: input.entityId,
+                tagId,
+                userId: ctx.session.user.id,
+              })),
+            )
+            .execute();
+        }
+      });
     }),
   getSharedInfo: protectedProcedure
     .input(z.object({ drawingId: z.string() }))
