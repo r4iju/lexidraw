@@ -8,9 +8,9 @@ import type { ServerRuntime } from "next";
 
 export const runtime: ServerRuntime = "nodejs";
 
-const createContext = async (_req: NextRequest) => {
+const createContext = async () => {
   return createTRPCContext({
-    headers: await headers()
+    headers: await headers(),
   });
 };
 
@@ -19,14 +19,14 @@ const handler = (req: NextRequest) =>
     endpoint: "/api/trpc",
     req,
     router: appRouter,
-    createContext: () => createContext(req),
+    createContext,
     onError:
       env.NODE_ENV === "development"
         ? ({ path, error }) => {
-          console.error(
-            `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`
-          );
-        }
+            console.error(
+              `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
+            );
+          }
         : undefined,
   });
 
