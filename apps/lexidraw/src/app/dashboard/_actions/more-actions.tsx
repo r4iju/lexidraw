@@ -64,7 +64,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost">
+          <Button size="icon" variant="ghost">
             <DotsHorizontalIcon className="size-5" />
           </Button>
         </DropdownMenuTrigger>
