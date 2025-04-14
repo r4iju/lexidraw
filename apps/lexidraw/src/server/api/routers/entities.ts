@@ -298,6 +298,7 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         parentId: z.string().nullable(),
+        tagNames: z.array(z.string()).optional(),
         sortBy: z
           .enum(["updatedAt", "createdAt", "title"])
           .optional()
@@ -306,6 +307,26 @@ export const entityRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      // Step 1: Get matching entity IDs if tag names are provided
+      let tagFilteredEntityIds: string[] | undefined;
+
+      if (input.tagNames?.length) {
+        const matchingEntityTags = await ctx.drizzle
+          .select({ entityId: schema.entityTags.entityId })
+          .from(schema.entityTags)
+          .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+          .where(inArray(schema.tags.name, input.tagNames))
+          .execute();
+
+        tagFilteredEntityIds = matchingEntityTags.map((row) => row.entityId);
+
+        // If no entities match the given tag names, return an empty array immediately
+        if (!tagFilteredEntityIds.length) {
+          return [];
+        }
+      }
+
+      // Step 2: Main query with tag filtering
       const entities = await ctx.drizzle
         .select({
           id: schema.entities.id,
@@ -342,12 +363,17 @@ export const entityRouter = createTRPCRouter({
             input.parentId
               ? eq(schema.entities.parentId, input.parentId)
               : isNull(schema.entities.parentId),
+            // Include the tag filter if tag names were provided
+            tagFilteredEntityIds
+              ? inArray(schema.entities.id, tagFilteredEntityIds)
+              : undefined,
           ),
         )
         .groupBy(schema.entities.id)
         .orderBy(desc(schema.entities.updatedAt))
         .execute();
 
+      // Step 3: Sort and format the output
       return sortArrOfObjects<
         (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
@@ -359,15 +385,18 @@ export const entityRouter = createTRPCRouter({
   getUserTags: protectedProcedure.query(async ({ ctx }) => {
     const tags = await ctx.drizzle
       .select({
-        tagId: schema.entityTags.tagId,
         name: schema.tags.name,
       })
       .from(schema.entityTags)
       .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-      .where(eq(schema.entityTags.userId, ctx.session.user.id))
+      // also filter orphan tags (tags that are not associated with any entity  )
+      .where(and(eq(schema.entityTags.userId, ctx.session.user.id)))
       .execute();
 
-    return tags;
+    return tags
+      .map((tag) => tag.name)
+      .filter((tag, index, self) => self.indexOf(tag) === index && tag !== null)
+      .sort() as string[];
   }),
   getEntityTags: protectedProcedure
     .input(z.object({ entityId: z.string() }))

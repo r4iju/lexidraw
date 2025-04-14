@@ -20,7 +20,7 @@ type Props = {
   sortOrder: "asc" | "desc";
 };
 
-export default function Context({ children, flex, sortBy, sortOrder }: Props) {
+export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
   const [activeEntity, setActiveEntity] = useState<
     RouterOutputs["entities"]["list"][number] | null
   >(null);

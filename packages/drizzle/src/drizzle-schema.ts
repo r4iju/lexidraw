@@ -268,14 +268,13 @@ export const tags = sqliteTable(
   "Tags",
   {
     id: text("id").primaryKey().notNull(),
-    name: text("name").notNull().unique(), // Make tag names globally unique
+    name: text("name").notNull().unique(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
     updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
-    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [uniqueIndex("Tag_name_unique").on(table.name)],
 );
@@ -304,7 +303,6 @@ export const entityTags = sqliteTable(
     updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
-    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [
     uniqueIndex("EntityTag_entityId_tagId_userId_key").on(
