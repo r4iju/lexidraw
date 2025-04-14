@@ -101,7 +101,7 @@ export function EntityCard({
       </div>
 
       {/* middle: date + actions */}
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex justify-between items-center gap-0">
         <Link
           href={itemUrl({
             id: entity.id,
@@ -120,13 +120,13 @@ export function EntityCard({
           </span>
         </Link>
 
-        <div className="hidden md:block">
+        <div className="flex items-center gap-0">
           <TagTooltip entity={entity} />
 
           {!isOverlay ? (
             <MoreActions entity={entity} currentAccess={entity.publicAccess} />
           ) : (
-            <Button variant="ghost" disabled>
+            <Button size="icon" variant="ghost" disabled>
               <DotsHorizontalIcon className="size-5" />
             </Button>
           )}
