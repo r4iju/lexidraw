@@ -90,7 +90,7 @@ export function Drag({ entity, children, flex }: DragProps) {
       ps.dragging = false;
       ps.timeoutId = setTimeout(() => {
         if (!ps.dragging) startDrag(e);
-      }, 120);
+      }, 50);
     },
     [disableDrag, startDrag],
   );
