@@ -2,6 +2,8 @@
   "repository": "https://github.com/r4iju/lexidraw",
   "license": "MIT",
   "private": true,
+  "name": "lexidraw",
+  "version": "1.0.0",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -34,6 +36,5 @@
     "turbo": "^2.5.0",
     "typescript-eslint": "^8.29.1"
   },
-  "packageManager": "bun@1.2.9",
-  "name": "excalifork"
+  "packageManager": "bun@1.2.9"
 }
