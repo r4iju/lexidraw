@@ -14,14 +14,25 @@ import { Button } from "~/components/ui/button";
 
 type Entity = RouterOutputs["entities"]["list"][number];
 
-export const TagTooltip = ({ entity }: { entity: Entity }) => {
+export const TagTooltip = ({
+  entity,
+  className,
+}: {
+  entity: Entity;
+  className?: string;
+}) => {
   const [open, setOpen] = useState(false);
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(true)}
+            className={className}
+          >
             <TagsIcon className="size-5" />
           </Button>
         </TooltipTrigger>

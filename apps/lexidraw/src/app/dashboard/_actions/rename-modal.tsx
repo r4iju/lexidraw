@@ -27,11 +27,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-const RenameEntityModal = ({
-  entity,
-  isOpen,
-  onOpenChange,
-}: Props) => {
+const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const router = useRouter();
   const [newTitle, setNewTitle] = useState(entity.title);
   const { toast } = useToast();
@@ -77,7 +73,7 @@ const RenameEntityModal = ({
             />
           </div>
         </div>
-        <DialogFooter className="flex justify-end">
+        <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
