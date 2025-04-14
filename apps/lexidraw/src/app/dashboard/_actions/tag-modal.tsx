@@ -77,7 +77,7 @@ const TagEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
             </div>
           </div>
         </div>
-        <DialogFooter className="flex justify-end">
+        <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>

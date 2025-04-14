@@ -121,7 +121,7 @@ export function EntityCard({
         </Link>
 
         <div className="flex items-center">
-          <TagTooltip entity={entity} />
+          <TagTooltip entity={entity} className="hidden md:block" />
 
           {!isOverlay ? (
             <MoreActions entity={entity} currentAccess={entity.publicAccess} />

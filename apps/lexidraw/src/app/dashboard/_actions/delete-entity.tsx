@@ -57,7 +57,7 @@ export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
             action cannot be undone.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="flex justify-end space-x-4">
+        <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
