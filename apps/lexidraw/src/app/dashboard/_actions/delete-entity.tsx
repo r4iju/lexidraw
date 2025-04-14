@@ -49,7 +49,7 @@ export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="min-w-72 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Confirm Deletion</DialogTitle>
           <DialogDescription>

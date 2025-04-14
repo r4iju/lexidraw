@@ -58,7 +58,7 @@ const TagEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg min-w-72">
         <DialogHeader>
           <DialogTitle>Edit tags</DialogTitle>
         </DialogHeader>
