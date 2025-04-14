@@ -44,6 +44,7 @@ const env = createEnv({
         ]),
       ),
     ),
+    ANALYZE: z.preprocess((val) => val === "true", z.boolean()),
   },
   client: {
     NEXT_PUBLIC_NODE_ENV: z.enum(["development", "test", "production"]),
@@ -56,6 +57,7 @@ const env = createEnv({
     NEXT_PUBLIC_FIRESTORE_APP_ID: z.string().min(1),
   },
   runtimeEnv: {
+    ANALYZE: process.env.ANALYZE,
     NEXT_PUBLIC_NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_WS_SERVER: process.env.NEXT_PUBLIC_WS_SERVER,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
