@@ -1,0 +1,1 @@
+rm ./node_modules/@libsql/hrana-client/LICENSE

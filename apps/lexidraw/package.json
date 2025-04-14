@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "ANALYZE=true next build",
+    "build": "ANALYZE=true next build --turbopack",
     "dev": "next dev --port 3100 --turbo",
     "lint": "eslint './**/*.{ts,tsx}'",
     "test:ts": "tsc --noEmit",
