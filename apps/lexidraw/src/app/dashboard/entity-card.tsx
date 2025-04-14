@@ -101,7 +101,7 @@ export function EntityCard({
       </div>
 
       {/* middle: date + actions */}
-      <div className="flex justify-between items-center gap-0">
+      <div className="flex justify-between items-center">
         <Link
           href={itemUrl({
             id: entity.id,
@@ -120,7 +120,7 @@ export function EntityCard({
           </span>
         </Link>
 
-        <div className="flex items-center gap-0">
+        <div className="flex items-center">
           <TagTooltip entity={entity} />
 
           {!isOverlay ? (
