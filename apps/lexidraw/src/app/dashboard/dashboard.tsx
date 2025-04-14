@@ -9,31 +9,43 @@ import { Drag } from "./drag";
 import { Drop } from "./drop";
 import { SortMenu } from "./sort-menu";
 import { LayoutGrid, Rows3 } from "lucide-react";
-import Context from "./dnd-context";
+import { DraggingContext } from "./dnd-context";
 import { EntityCard } from "./entity-card";
 import { replaceSearchParam } from "./utils";
+import { FilterByTags } from "./filter-by-tags";
 
 type Props = {
   directory?: RouterOutputs["entities"]["getMetadata"];
   sortBy: "updatedAt" | "createdAt" | "title";
   sortOrder: "asc" | "desc";
   flex: "flex-row" | "flex-col";
+  tags?: string;
 };
 
-export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
+export async function Dashboard({
+  directory,
+  sortBy,
+  sortOrder,
+  flex,
+  tags,
+}: Props) {
   const searchParams = new URLSearchParams({
     ...(flex ? { flex } : {}),
     ...(sortBy ? { sortBy } : {}),
     ...(sortOrder ? { sortOrder } : {}),
+    ...(tags ? { tags } : {}),
   });
   const entities = await api.entities.list.query({
     parentId: directory ? directory.id : null,
     sortBy,
     sortOrder,
+    tagNames: tags ? tags.split(",").filter(Boolean) : [],
   });
 
+  const allTags = await api.entities.getUserTags.query();
+
   return (
-    <Context sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
+    <DraggingContext sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
       <main className="flex size-full min-h-[calc(100vh-56px-65px)] flex-col overflow-auto pb-6">
         {/* Breadcrumb: each ancestor is droppable */}
         <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2 gap-y-4">
@@ -80,6 +92,10 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
             <NewEntity parentId={directory ? directory.id : null} />
           </div>
           <div className="flex justify-end space-x-2">
+            {/* filter by tags */}
+
+            <FilterByTags options={allTags} />
+
             <Button
               variant={flex === "flex-row" ? "secondary" : "outline"}
               size="icon"
@@ -140,6 +156,6 @@ export async function Dashboard({ directory, sortBy, sortOrder, flex }: Props) {
           </section>
         </div>
       </main>
-    </Context>
+    </DraggingContext>
   );
 }

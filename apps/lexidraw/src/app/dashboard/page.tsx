@@ -17,6 +17,7 @@ const Sort = z.object({
   sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   flex: z.enum(["flex-row", "flex-col"]).default("flex-col"),
+  tags: z.string().optional(),
 });
 
 type Sort = z.infer<typeof Sort>;
