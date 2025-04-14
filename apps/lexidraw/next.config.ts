@@ -54,15 +54,15 @@ const config: NextConfig = {
       compilationMode: "all",
       panicThreshold: "CRITICAL_ERRORS",
     },
-    turbo: {
-      resolveAlias: {
-        "~/*": ["./src/*"],
-      },
-      // minify: false,
-      // treeShaking: true,
-      // sourceMaps: true,
-      // unstablePersistentCaching: false,
+  },
+  turbopack: {
+    resolveAlias: {
+      "~/*": ["./src/*"],
     },
+    // minify: false,
+    // treeShaking: true,
+    // sourceMaps: true,
+    // unstablePersistentCaching: false,
   },
   eslint: {
     ignoreDuringBuilds: true,

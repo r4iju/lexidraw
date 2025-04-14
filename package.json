@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun dotenv -e .env.production -- turbo run build",
+    "build": "./build.sh; bun dotenv -e .env.production -- turbo run build",
     "dev": "bun dotenv -e .env.development -- turbo run dev",
     "start": "bun dotenv -e .env.production -- turbo run start",
     "clean": "turbo run clean && rm -rf node_modules && rm -f bun.lockb && rm -rf .turbo",
@@ -34,6 +34,6 @@
     "turbo": "^2.5.0",
     "typescript-eslint": "^8.29.1"
   },
-  "packageManager": "bun@1.2.1",
+  "packageManager": "bun@1.2.9",
   "name": "excalifork"
 }
