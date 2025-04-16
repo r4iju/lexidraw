@@ -39,7 +39,12 @@ export interface UpdateInlineImagePayload {
 function $convertInlineImageElement(domNode: Node): null | DOMConversionOutput {
   if (domNode instanceof HTMLImageElement) {
     const { alt: altText, src, width, height } = domNode;
-    const node = $createInlineImageNode({ altText, height, src, width });
+    const node = InlineImageNode.$createInlineImageNode({
+      altText,
+      height,
+      src,
+      width,
+    });
     return { node };
   }
   return null;
@@ -89,7 +94,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
   ): InlineImageNode {
     const { altText, height, width, caption, src, showCaption, position } =
       serializedNode;
-    const node = $createInlineImageNode({
+    const node = InlineImageNode.$createInlineImageNode({
       altText,
       height,
       position,
@@ -253,34 +258,34 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
       </Suspense>
     );
   }
-}
 
-export function $createInlineImageNode({
-  altText,
-  position,
-  height,
-  src,
-  width,
-  showCaption,
-  caption,
-  key,
-}: InlineImagePayload): InlineImageNode {
-  return $applyNodeReplacement(
-    new InlineImageNode(
-      src,
-      altText,
-      position,
-      width,
-      height,
-      showCaption,
-      caption,
-      key,
-    ),
-  );
-}
+  static $createInlineImageNode({
+    altText,
+    position,
+    height,
+    src,
+    width,
+    showCaption,
+    caption,
+    key,
+  }: InlineImagePayload): InlineImageNode {
+    return $applyNodeReplacement(
+      new InlineImageNode(
+        src,
+        altText,
+        position,
+        width,
+        height,
+        showCaption,
+        caption,
+        key,
+      ),
+    );
+  }
 
-export function $isInlineImageNode(
-  node: LexicalNode | null | undefined,
-): node is InlineImageNode {
-  return node instanceof InlineImageNode;
+  static $isInlineImageNode(
+    node: LexicalNode | null | undefined,
+  ): node is InlineImageNode {
+    return node instanceof InlineImageNode;
+  }
 }

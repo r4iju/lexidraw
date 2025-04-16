@@ -6,7 +6,8 @@ import type {
   ExcalidrawElement,
   NonDeleted,
 } from "@excalidraw/excalidraw/element/types";
-import { type JSX, useEffect, useState } from "react";
+import { type JSX, useEffect, useRef, useState } from "react";
+import { cn } from "~/lib/utils";
 
 type ImageType = "svg" | "canvas";
 
@@ -60,7 +61,8 @@ export default function ExcalidrawImage({
   appState,
   rootClassName = null,
 }: Props): JSX.Element {
-  const [Svg, setSvg] = useState<SVGElement | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     const setContent = async () => {
@@ -76,16 +78,40 @@ export default function ExcalidrawImage({
       svg.setAttribute("height", "100%");
       svg.setAttribute("display", "block");
 
-      setSvg(svg);
+      const url = URL.createObjectURL(
+        new Blob([svg.outerHTML], { type: "image/svg+xml" }),
+      );
+      console.log("url", url);
+      setUrl(url);
+
+      const image = new Image();
+      image.src = url;
+      image.alt = "Excalidraw";
+      image.style.width = "100%";
+      image.style.height = "100%";
+      image.style.objectFit = "contain";
+      imageRef.current = image;
+      console.log("imageRef.current", imageRef.current);
     };
+
     setContent();
   }, [elements, files, appState]);
 
   return (
-    <div
-      ref={imageContainerRef}
-      className={rootClassName ?? ""}
-      dangerouslySetInnerHTML={{ __html: Svg?.outerHTML ?? "" }}
-    />
+    <div className={`relative inline-block cursor-move`} draggable={true}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url ?? ""}
+        alt="Excalidraw"
+        style={{
+          width: "200px",
+          height: "200px",
+          objectFit: "contain",
+        }}
+        draggable={true}
+        className={cn("rounded-xs", rootClassName)}
+        ref={imageContainerRef as React.RefObject<HTMLImageElement>}
+      />
+    </div>
   );
 }

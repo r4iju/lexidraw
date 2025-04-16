@@ -18,7 +18,7 @@ import {
   LexicalCommand,
   LexicalEditor,
 } from "lexical";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as React from "react";
 import { ImageNode, ImagePayload } from "../../nodes/ImageNode";
 import { Button } from "~/components/ui/button";
@@ -199,6 +199,149 @@ export default function ImagesPlugin({
 }): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
 
+  const $getImageNodeInSelection = useCallback((): ImageNode | null => {
+    const selection = $getSelection();
+    if (!$isNodeSelection(selection)) {
+      return null;
+    }
+    const nodes = selection.getNodes();
+    const node = nodes[0];
+    return ImageNode.$isImageNode(node) ? node : null;
+  }, []);
+
+  const canDropImage = useCallback((event: DragEvent): boolean => {
+    const target = event.target;
+    return !!(
+      target &&
+      target instanceof HTMLElement &&
+      !target.closest("code, span.editor-image") &&
+      target.parentElement &&
+      target.parentElement.closest("div.ContentEditable__root")
+    );
+  }, []);
+
+  const getDragImageData = useCallback(
+    (event: DragEvent): null | InsertImagePayload => {
+      const dragData = event.dataTransfer?.getData(
+        "application/x-lexical-drag",
+      );
+      if (!dragData) {
+        return null;
+      }
+      const { type, data } = JSON.parse(dragData);
+      if (type !== "image") {
+        return null;
+      }
+
+      return data;
+    },
+    [],
+  );
+
+  const getDragSelection = useCallback(
+    (event: DragEvent): Range | null | undefined => {
+      let range;
+      const target = event.target as null | Element | Document;
+      const targetWindow =
+        target == null
+          ? null
+          : target.nodeType === 9
+            ? (target as Document).defaultView
+            : (target as Element).ownerDocument.defaultView;
+      const domSelection = getDOMSelection(targetWindow);
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(event.clientX, event.clientY);
+      } else if (event.rangeParent && domSelection !== null) {
+        domSelection.collapse(event.rangeParent, event.rangeOffset || 0);
+        range = domSelection.getRangeAt(0);
+      } else {
+        throw Error(`Cannot get the selection when dragging`);
+      }
+
+      return range;
+    },
+    [],
+  );
+
+  const $onDragStart = useCallback(
+    (event: DragEvent): boolean => {
+      const node = $getImageNodeInSelection();
+      if (!node) {
+        return false;
+      }
+      const dataTransfer = event.dataTransfer;
+      if (!dataTransfer) {
+        return false;
+      }
+      dataTransfer.setData("text/plain", "_");
+      dataTransfer.setDragImage(img, 0, 0);
+      dataTransfer.setData(
+        "application/x-lexical-drag",
+        JSON.stringify({
+          data: {
+            altText: node.__altText,
+            caption: node.__caption,
+            height: node.__height,
+            key: node.getKey(),
+            maxWidth: node.__maxWidth,
+            showCaption: node.__showCaption,
+            src: node.__src,
+            width: node.__width,
+          },
+          type: "image",
+        }),
+      );
+
+      return true;
+    },
+    [$getImageNodeInSelection],
+  );
+
+  const $onDragover = useCallback(
+    (event: DragEvent): boolean => {
+      const node = $getImageNodeInSelection();
+      if (!node) {
+        return false;
+      }
+      if (!canDropImage(event)) {
+        event.preventDefault();
+      }
+      return true;
+    },
+    [$getImageNodeInSelection, canDropImage],
+  );
+
+  const $onDrop = useCallback(
+    (event: DragEvent, editor: LexicalEditor): boolean => {
+      const node = $getImageNodeInSelection();
+      if (!node) {
+        return false;
+      }
+      const data = getDragImageData(event);
+      if (!data) {
+        return false;
+      }
+      event.preventDefault();
+      if (canDropImage(event)) {
+        const range = getDragSelection(event);
+        node.remove();
+        const rangeSelection = $createRangeSelection();
+        if (range !== null && range !== undefined) {
+          rangeSelection.applyDOMRange(range);
+        }
+        $setSelection(rangeSelection);
+        editor.dispatchCommand(INSERT_IMAGE_COMMAND, data);
+      }
+      return true;
+    },
+    [
+      $getImageNodeInSelection,
+      canDropImage,
+      getDragImageData,
+      getDragSelection,
+    ],
+  );
+
   useEffect(() => {
     if (!editor.hasNodes([ImageNode])) {
       throw new Error("ImagesPlugin: ImageNode not registered on editor");
@@ -240,7 +383,7 @@ export default function ImagesPlugin({
         COMMAND_PRIORITY_HIGH,
       ),
     );
-  }, [captionsEnabled, editor]);
+  }, [$onDragStart, $onDragover, $onDrop, captionsEnabled, editor]);
 
   return null;
 }
@@ -250,130 +393,9 @@ const TRANSPARENT_IMAGE =
 const img = document.createElement("img");
 img.src = TRANSPARENT_IMAGE;
 
-function $onDragStart(event: DragEvent): boolean {
-  const node = $getImageNodeInSelection();
-  if (!node) {
-    return false;
-  }
-  const dataTransfer = event.dataTransfer;
-  if (!dataTransfer) {
-    return false;
-  }
-  dataTransfer.setData("text/plain", "_");
-  dataTransfer.setDragImage(img, 0, 0);
-  dataTransfer.setData(
-    "application/x-lexical-drag",
-    JSON.stringify({
-      data: {
-        altText: node.__altText,
-        caption: node.__caption,
-        height: node.__height,
-        key: node.getKey(),
-        maxWidth: node.__maxWidth,
-        showCaption: node.__showCaption,
-        src: node.__src,
-        width: node.__width,
-      },
-      type: "image",
-    }),
-  );
-
-  return true;
-}
-
-function $onDragover(event: DragEvent): boolean {
-  const node = $getImageNodeInSelection();
-  if (!node) {
-    return false;
-  }
-  if (!canDropImage(event)) {
-    event.preventDefault();
-  }
-  return true;
-}
-
-function $onDrop(event: DragEvent, editor: LexicalEditor): boolean {
-  const node = $getImageNodeInSelection();
-  if (!node) {
-    return false;
-  }
-  const data = getDragImageData(event);
-  if (!data) {
-    return false;
-  }
-  event.preventDefault();
-  if (canDropImage(event)) {
-    const range = getDragSelection(event);
-    node.remove();
-    const rangeSelection = $createRangeSelection();
-    if (range !== null && range !== undefined) {
-      rangeSelection.applyDOMRange(range);
-    }
-    $setSelection(rangeSelection);
-    editor.dispatchCommand(INSERT_IMAGE_COMMAND, data);
-  }
-  return true;
-}
-
-function $getImageNodeInSelection(): ImageNode | null {
-  const selection = $getSelection();
-  if (!$isNodeSelection(selection)) {
-    return null;
-  }
-  const nodes = selection.getNodes();
-  const node = nodes[0];
-  return ImageNode.$isImageNode(node) ? node : null;
-}
-
-function getDragImageData(event: DragEvent): null | InsertImagePayload {
-  const dragData = event.dataTransfer?.getData("application/x-lexical-drag");
-  if (!dragData) {
-    return null;
-  }
-  const { type, data } = JSON.parse(dragData);
-  if (type !== "image") {
-    return null;
-  }
-
-  return data;
-}
-
 declare global {
   interface DragEvent {
     rangeOffset?: number;
     rangeParent?: Node;
   }
-}
-
-function canDropImage(event: DragEvent): boolean {
-  const target = event.target;
-  return !!(
-    target &&
-    target instanceof HTMLElement &&
-    !target.closest("code, span.editor-image") &&
-    target.parentElement &&
-    target.parentElement.closest("div.ContentEditable__root")
-  );
-}
-
-function getDragSelection(event: DragEvent): Range | null | undefined {
-  let range;
-  const target = event.target as null | Element | Document;
-  const targetWindow =
-    target == null
-      ? null
-      : target.nodeType === 9
-        ? (target as Document).defaultView
-        : (target as Element).ownerDocument.defaultView;
-  const domSelection = getDOMSelection(targetWindow);
-  if (document.caretRangeFromPoint) {
-    range = document.caretRangeFromPoint(event.clientX, event.clientY);
-  } else if (event.rangeParent && domSelection !== null) {
-    domSelection.collapse(event.rangeParent, event.rangeOffset || 0);
-    range = domSelection.getRangeAt(0);
-  } else {
-    throw Error(`Cannot get the selection when dragging`);
-  }
-
-  return range;
 }
