@@ -32,8 +32,7 @@ export function ThumbnailClient({ entity }: Props) {
           alt={entity.title.substring(0, 14)}
           fill
           crossOrigin="anonymous"
-          quality={60}
-          sizes="(max-width: 500px) 50vw, 25vw"
+          quality={75}
           loading="eager"
           className="object-cover"
         />
