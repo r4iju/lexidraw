@@ -20,12 +20,7 @@ import {
 } from "lexical";
 import { useEffect, useRef, useState } from "react";
 import * as React from "react";
-import {
-  $createImageNode,
-  $isImageNode,
-  ImageNode,
-  ImagePayload,
-} from "../../nodes/ImageNode";
+import { ImageNode, ImagePayload } from "../../nodes/ImageNode";
 import { Button } from "~/components/ui/button";
 import { DialogFooter } from "~/components/ui/dialog";
 import FileInput from "~/components/ui/file-input";
@@ -213,7 +208,7 @@ export default function ImagesPlugin({
       editor.registerCommand<InsertImagePayload>(
         INSERT_IMAGE_COMMAND,
         (payload) => {
-          const imageNode = $createImageNode(payload);
+          const imageNode = ImageNode.$createImageNode(payload);
           $insertNodes([imageNode]);
           if ($isRootOrShadowRoot(imageNode.getParentOrThrow())) {
             $wrapNodeInElement(imageNode, $createParagraphNode).selectEnd();
@@ -327,7 +322,7 @@ function $getImageNodeInSelection(): ImageNode | null {
   }
   const nodes = selection.getNodes();
   const node = nodes[0];
-  return $isImageNode(node) ? node : null;
+  return ImageNode.$isImageNode(node) ? node : null;
 }
 
 function getDragImageData(event: DragEvent): null | InsertImagePayload {

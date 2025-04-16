@@ -21,6 +21,7 @@ export const {
   handlers: { GET, POST },
   auth,
 } = NextAuth({
+  ...(process.env.TRUST_HOST ? { trustHost: true } : {}),
   // types dont match in current versions..
   adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
   pages: {

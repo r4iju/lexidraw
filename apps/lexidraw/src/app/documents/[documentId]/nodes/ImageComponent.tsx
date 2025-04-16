@@ -49,7 +49,7 @@ import ContentEditable from "~/components/ui/content-editable";
 import ImageResizer from "~/components/ui/image-resizer";
 import Placeholder from "~/components/ui/placeholder";
 import { EmojiNode } from "./EmojiNode";
-import { $isImageNode } from "./ImageNode";
+import { ImageNode } from "./ImageNode";
 import { KeywordNode } from "./KeywordNode";
 import NextImage from "next/image";
 import { ErrorBoundary } from "react-error-boundary";
@@ -170,7 +170,7 @@ export default function ImageComponent({
         const event: KeyboardEvent = payload;
         event.preventDefault();
         const node = $getNodeByKey(nodeKey);
-        if ($isImageNode(node)) {
+        if (ImageNode.$isImageNode(node)) {
           node.remove();
           return true;
         }
@@ -354,7 +354,7 @@ export default function ImageComponent({
   const setShowCaption = () => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
-      if ($isImageNode(node)) {
+      if (ImageNode.$isImageNode(node)) {
         node.setShowCaption(true);
       }
     });
@@ -371,7 +371,7 @@ export default function ImageComponent({
 
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
-      if ($isImageNode(node)) {
+      if (ImageNode.$isImageNode(node)) {
         node.setWidthAndHeight(nextWidth, nextHeight);
       }
     });

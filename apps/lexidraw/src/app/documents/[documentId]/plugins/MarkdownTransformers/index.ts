@@ -39,11 +39,7 @@ import {
   $isEquationNode,
   EquationNode,
 } from "../../nodes/EquationNode";
-import {
-  $createImageNode,
-  $isImageNode,
-  ImageNode,
-} from "../../nodes/ImageNode";
+import { ImageNode } from "../../nodes/ImageNode";
 import {
   $createTweetNode,
   $isTweetNode,
@@ -75,7 +71,7 @@ export const HR: ElementTransformer = {
 export const IMAGE: TextMatchTransformer = {
   dependencies: [ImageNode],
   export: (node) => {
-    if (!$isImageNode(node)) {
+    if (!ImageNode.$isImageNode(node)) {
       return null;
     }
 
@@ -85,7 +81,7 @@ export const IMAGE: TextMatchTransformer = {
   regExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
   replace: (textNode, match) => {
     const [, altText, src] = match;
-    const imageNode = $createImageNode({
+    const imageNode = ImageNode.$createImageNode({
       altText: altText as string,
       maxWidth: 800,
       src: src as string,
