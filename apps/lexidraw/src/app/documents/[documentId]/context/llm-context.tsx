@@ -105,10 +105,10 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const { data: session } = useSession();
 
   const [llmState, setLlmState] = useState<LLMState>({
-    modelId: "gemini-2.0-flash",
-    provider: "google",
+    modelId: "gpt-4o-mini",
+    provider: "openai",
     temperature: 0.3,
-    maxTokens: 50,
+    maxTokens: 200,
     isError: false,
     text: "",
     error: null,
