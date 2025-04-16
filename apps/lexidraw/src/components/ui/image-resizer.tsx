@@ -5,17 +5,6 @@ import { useRef } from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "./button";
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-const Direction = {
-  east: 1 << 0,
-  north: 1 << 3,
-  south: 1 << 1,
-  west: 1 << 2,
-};
-
 type ImageResizerProps = {
   onResizeStart?: () => void;
   onResizeEnd: (width: "inherit" | number, height: "inherit" | number) => void;
@@ -73,6 +62,17 @@ export default function ImageResizer({
     startX: 0,
     startY: 0,
   });
+
+  const clamp = (value: number, min: number, max: number) => {
+    return Math.min(Math.max(value, min), max);
+  };
+
+  const Direction = {
+    east: 1 << 0,
+    north: 1 << 3,
+    south: 1 << 1,
+    west: 1 << 2,
+  };
 
   const editorRootElement = editor.getRootElement();
   // Find max width, accounting for editor padding.
@@ -252,8 +252,6 @@ export default function ImageResizer({
       setEndCursor();
       onResizeEnd(width, height);
       setIsResizing(false);
-      onDimensionsChange?.({ width: 0, height: 0 });
-
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
     }
