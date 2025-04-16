@@ -11,6 +11,7 @@ import TagEntityModal from "./_actions/tag-modal";
 import { useState } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 type Entity = RouterOutputs["entities"]["list"][number];
 
@@ -31,7 +32,7 @@ export const TagTooltip = ({
             variant="ghost"
             size="icon"
             onClick={() => setOpen(true)}
-            className={className}
+            className={cn(className, "items-center justify-center")}
           >
             <TagsIcon className="size-5" />
           </Button>
