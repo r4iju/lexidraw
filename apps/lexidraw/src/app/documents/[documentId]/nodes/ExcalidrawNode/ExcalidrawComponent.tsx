@@ -17,10 +17,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 
 import ImageResizer from "~/components/ui/image-resizer";
-import { $isExcalidrawNode } from ".";
+import { ExcalidrawNode } from "./index";
 import ExcalidrawImage from "./ExcalidrawImage";
-import ExcalidrawModal from "./ExcalidrawModal";
 import type { BinaryFiles, AppState } from "@excalidraw/excalidraw/types";
+import ExcalidrawModal from "./ExcalidrawModal";
 
 export default function ExcalidrawComponent({
   nodeKey,
@@ -46,7 +46,7 @@ export default function ExcalidrawComponent({
         event.preventDefault();
         editor.update(() => {
           const node = $getNodeByKey(nodeKey);
-          if ($isExcalidrawNode(node)) {
+          if (ExcalidrawNode.$isExcalidrawNode(node)) {
             node.remove();
             return true;
           }
@@ -110,7 +110,7 @@ export default function ExcalidrawComponent({
     setModalOpen(false);
     return editor.update(() => {
       const node = $getNodeByKey(nodeKey);
-      if ($isExcalidrawNode(node)) {
+      if (ExcalidrawNode.$isExcalidrawNode(node)) {
         node.remove();
       }
     });
@@ -126,7 +126,7 @@ export default function ExcalidrawComponent({
     }
     return editor.update(() => {
       const node = $getNodeByKey(nodeKey);
-      if ($isExcalidrawNode(node)) {
+      if (ExcalidrawNode.$isExcalidrawNode(node)) {
         if ((els && els.length > 0) || Object.keys(fls).length > 0) {
           node.setData(
             JSON.stringify({
@@ -158,7 +158,7 @@ export default function ExcalidrawComponent({
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
 
-      if ($isExcalidrawNode(node)) {
+      if (ExcalidrawNode.$isExcalidrawNode(node)) {
         node.setWidth(nextWidth);
         node.setHeight(nextHeight);
       }

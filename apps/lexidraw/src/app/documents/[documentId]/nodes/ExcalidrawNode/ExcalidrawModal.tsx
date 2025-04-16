@@ -1,4 +1,3 @@
-import "./ExcalidrawModal.css";
 import { Excalidraw } from "@excalidraw/excalidraw";
 import type {
   AppState,
@@ -18,6 +17,9 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
+import { useIsDarkTheme } from "~/components/theme/theme-provider";
+import { Theme } from "@packages/types";
+import ModeToggle from "~/components/theme/dark-mode-toggle";
 
 export type ExcalidrawInitialElements = ExcalidrawInitialDataState["elements"];
 
@@ -36,16 +38,6 @@ type Props = {
   ) => void;
 };
 
-export const useCallbackRefState = () => {
-  const [refValue, setRefValue] =
-    React.useState<ExcalidrawImperativeAPI | null>(null);
-  const refCallback = React.useCallback(
-    (value: ExcalidrawImperativeAPI | null) => setRefValue(value),
-    [],
-  );
-  return [refValue, refCallback] as const;
-};
-
 export default function ExcalidrawModal({
   closeOnClickOutside = false,
   onSave,
@@ -57,11 +49,21 @@ export default function ExcalidrawModal({
   onClose,
 }: Props): React.ReactPortal | null {
   const excaliDrawModelRef = useRef<HTMLDivElement | null>(null);
-  const [excalidrawAPI, excalidrawAPIRefCallback] = useCallbackRefState();
+  // excalidraw api
+  const excalidrawApi = useRef<ExcalidrawImperativeAPI>(null);
+
+  const isDarkTheme = useIsDarkTheme();
+
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [elements, setElements] =
     useState<ExcalidrawInitialElements>(initialElements);
   const [files, setFiles] = useState<BinaryFiles>(initialFiles);
+
+  useEffect(() => {
+    console.log("initialElements", initialElements);
+    console.log("initialAppState", initialAppState);
+    console.log("initialFiles", initialFiles);
+  }, [initialElements, initialAppState, initialFiles]);
 
   useEffect(() => {
     if (excaliDrawModelRef.current !== null) {
@@ -108,11 +110,11 @@ export default function ExcalidrawModal({
 
   const save = () => {
     if (elements && elements.filter((el) => !el.isDeleted).length > 0) {
-      const appState = excalidrawAPI?.getAppState();
+      const appState = excalidrawApi.current?.getAppState();
       const partialState: Partial<AppState> = {
         exportBackground: appState?.exportBackground,
         exportScale: appState?.exportScale,
-        exportWithDarkMode: appState?.theme === "dark",
+        exportWithDarkMode: appState?.theme === Theme.DARK,
         isBindingEnabled: appState?.isBindingEnabled,
         isLoading: appState?.isLoading,
         name: appState?.name,
@@ -170,38 +172,67 @@ export default function ExcalidrawModal({
     );
   }
 
+  const options = React.useMemo(
+    () => ({
+      initialData: {
+        appState: {
+          ...initialAppState,
+          theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
+          exportWithDarkMode: false,
+          exportBackground: false,
+        },
+        elements: elements ?? [],
+        files: files ?? {},
+      },
+      UIOptions: {
+        canvasActions: {
+          toggleTheme: false,
+        },
+      },
+      onChange: (
+        els: ExcalidrawInitialElements,
+        _state: AppState,
+        fls: BinaryFiles,
+      ) => {
+        setElements(els);
+        setFiles(fls);
+      },
+    }),
+    [initialAppState, elements, files, isDarkTheme],
+  );
+
+  // Update theme on theme change
+  useEffect(() => {
+    excalidrawApi.current?.updateScene({
+      appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
+    });
+  }, [isDarkTheme]);
+
   if (!isShown) {
     return null;
   }
 
-  const onChange = (
-    els: ExcalidrawInitialElements,
-    _: AppState,
-    fls: BinaryFiles,
-  ) => {
-    setElements(els);
-    setFiles(fls);
-  };
-
   return createPortal(
-    <div className="ExcalidrawModal__overlay" role="dialog">
+    <div
+      className="fixed inset-0 flex flex-col items-center z-[100] bg-background/60"
+      role="dialog"
+    >
       <div
-        className="ExcalidrawModal__modal"
+        className="relative z-10 top-[50px] left-0 flex justify-center items-center rounded-lg bg-card"
         ref={excaliDrawModelRef}
         tabIndex={-1}
       >
-        <div className="ExcalidrawModal__row">
+        <div className="relative p-[40px_5px_5px] w-[70vw] h-[70vh] max-w-[1200px] max-h-[800px] rounded-lg shadow-[0_12px_28px_0_rgba(0,0,0,0.2),0_2px_4px_0_rgba(0,0,0,0.1),inset_0_0_0_1px_rgba(255,255,255,0.5)] border border-border">
           {discardModalOpen && <ShowDiscardDialog />}
           <Excalidraw
-            onChange={onChange}
-            excalidrawAPI={excalidrawAPIRefCallback}
-            initialData={{
-              appState: initialAppState || { isLoading: false },
-              elements: initialElements,
-              files: initialFiles,
+            {...options}
+            excalidrawAPI={(api) => {
+              excalidrawApi.current = api;
+              console.log("excalidraw api set");
             }}
           />
-          <div className="ExcalidrawModal__actions">
+          <div className="absolute right-[5px] top-[5px] z-10 text-end flex gap-2">
+            <ModeToggle className="hidden md:flex" />
             <Button variant="outline" onClick={discard}>
               Discard
             </Button>

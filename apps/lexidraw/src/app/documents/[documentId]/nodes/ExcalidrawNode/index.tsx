@@ -11,12 +11,11 @@ import type {
 } from "lexical";
 
 import { DecoratorNode } from "lexical";
+import ExcalidrawComponent from "./ExcalidrawComponent";
 import * as React from "react";
 import { Suspense } from "react";
 
 type Dimension = number | "inherit";
-
-const ExcalidrawComponent = React.lazy(() => import("./ExcalidrawComponent"));
 
 export type SerializedExcalidrawNode = Spread<
   {
@@ -26,30 +25,6 @@ export type SerializedExcalidrawNode = Spread<
   },
   SerializedLexicalNode
 >;
-
-function $convertExcalidrawElement(
-  domNode: HTMLElement,
-): DOMConversionOutput | null {
-  const excalidrawData = domNode.getAttribute("data-lexical-excalidraw-json");
-  const styleAttributes = window.getComputedStyle(domNode);
-  const heightStr = styleAttributes.getPropertyValue("height");
-  const widthStr = styleAttributes.getPropertyValue("width");
-  const height =
-    !heightStr || heightStr === "inherit" ? "inherit" : parseInt(heightStr, 10);
-  const width =
-    !widthStr || widthStr === "inherit" ? "inherit" : parseInt(widthStr, 10);
-
-  if (excalidrawData) {
-    const node = $createExcalidrawNode();
-    node.__data = excalidrawData;
-    node.__height = height;
-    node.__width = width;
-    return {
-      node,
-    };
-  }
-  return null;
-}
 
 export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
   __data: string;
@@ -127,7 +102,7 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
           return null;
         }
         return {
-          conversion: $convertExcalidrawElement,
+          conversion: ExcalidrawNode.$convertExcalidrawElement,
           priority: 1,
         };
       },
@@ -178,14 +153,39 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
       </Suspense>
     );
   }
-}
 
-export function $createExcalidrawNode(): ExcalidrawNode {
-  return new ExcalidrawNode();
-}
+  static $createExcalidrawNode(): ExcalidrawNode {
+    console.log("createExcalidrawNode");
+    return new ExcalidrawNode();
+  }
 
-export function $isExcalidrawNode(
-  node: LexicalNode | null,
-): node is ExcalidrawNode {
-  return node instanceof ExcalidrawNode;
+  static $isExcalidrawNode(node: LexicalNode | null): node is ExcalidrawNode {
+    return node instanceof ExcalidrawNode;
+  }
+
+  static $convertExcalidrawElement(
+    domNode: HTMLElement,
+  ): DOMConversionOutput | null {
+    const excalidrawData = domNode.getAttribute("data-lexical-excalidraw-json");
+    const styleAttributes = window.getComputedStyle(domNode);
+    const heightStr = styleAttributes.getPropertyValue("height");
+    const widthStr = styleAttributes.getPropertyValue("width");
+    const height =
+      !heightStr || heightStr === "inherit"
+        ? "inherit"
+        : parseInt(heightStr, 10);
+    const width =
+      !widthStr || widthStr === "inherit" ? "inherit" : parseInt(widthStr, 10);
+
+    if (excalidrawData) {
+      const node = ExcalidrawNode.$createExcalidrawNode();
+      node.__data = excalidrawData;
+      node.__height = height;
+      node.__width = width;
+      return {
+        node,
+      };
+    }
+    return null;
+  }
 }
