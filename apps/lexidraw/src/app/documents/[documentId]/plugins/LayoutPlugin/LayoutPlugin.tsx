@@ -26,11 +26,7 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 
-import {
-  $createLayoutContainerNode,
-  $isLayoutContainerNode,
-  LayoutContainerNode,
-} from "../../nodes/LayoutContainerNode";
+import { LayoutContainerNode } from "../../nodes/LayoutContainerNode";
 import {
   $createLayoutItemNode,
   $isLayoutItemNode,
@@ -63,10 +59,10 @@ export function LayoutPlugin(): null {
       ) {
         const container = $findMatchingParent(
           selection.anchor.getNode(),
-          $isLayoutContainerNode,
+          LayoutContainerNode.$isLayoutContainerNode,
         );
 
-        if ($isLayoutContainerNode(container)) {
+        if (LayoutContainerNode.$isLayoutContainerNode(container)) {
           const parent = container.getParent<ElementNode>();
           const child =
             parent &&
@@ -127,7 +123,8 @@ export function LayoutPlugin(): null {
         INSERT_LAYOUT_COMMAND,
         (template) => {
           editor.update(() => {
-            const container = $createLayoutContainerNode(template);
+            const container =
+              LayoutContainerNode.$createLayoutContainerNode(template);
             const itemsCount = getItemsCountFromTemplate(template);
 
             for (let i = 0; i < itemsCount; i++) {
@@ -150,7 +147,7 @@ export function LayoutPlugin(): null {
           editor.update(() => {
             const container = $getNodeByKey<LexicalNode>(nodeKey);
 
-            if (!$isLayoutContainerNode(container)) {
+            if (!LayoutContainerNode.$isLayoutContainerNode(container)) {
               return;
             }
 
@@ -188,7 +185,7 @@ export function LayoutPlugin(): null {
       // to regular content.
       editor.registerNodeTransform(LayoutItemNode, (node) => {
         const parent = node.getParent<ElementNode>();
-        if (!$isLayoutContainerNode(parent)) {
+        if (!LayoutContainerNode.$isLayoutContainerNode(parent)) {
           const children = node.getChildren<LexicalNode>();
           for (const child of children) {
             node.insertBefore(child);

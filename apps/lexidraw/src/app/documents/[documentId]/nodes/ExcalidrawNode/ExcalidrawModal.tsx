@@ -19,7 +19,6 @@ import {
 import { Button } from "~/components/ui/button";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
-import ModeToggle from "~/components/theme/dark-mode-toggle";
 
 export type ExcalidrawInitialElements = ExcalidrawInitialDataState["elements"];
 
@@ -232,7 +231,6 @@ export default function ExcalidrawModal({
             }}
           />
           <div className="absolute right-[5px] top-[5px] z-10 text-end flex gap-2">
-            <ModeToggle className="hidden md:flex" />
             <Button variant="outline" onClick={discard}>
               Discard
             </Button>

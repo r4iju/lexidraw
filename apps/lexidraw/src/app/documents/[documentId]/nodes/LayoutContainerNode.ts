@@ -27,7 +27,7 @@ function $convertLayoutContainerElement(
     "grid-template-columns",
   );
   if (templateColumns) {
-    const node = $createLayoutContainerNode(templateColumns);
+    const node = LayoutContainerNode.$createLayoutContainerNode(templateColumns);
     return { node };
   }
   return null;
@@ -87,7 +87,7 @@ export class LayoutContainerNode extends ElementNode {
   }
 
   static importJSON(json: SerializedLayoutContainerNode): LayoutContainerNode {
-    return $createLayoutContainerNode(json.templateColumns);
+    return LayoutContainerNode.$createLayoutContainerNode(json.templateColumns);
   }
 
   isShadowRoot(): boolean {
@@ -114,16 +114,15 @@ export class LayoutContainerNode extends ElementNode {
   setTemplateColumns(templateColumns: string) {
     this.getWritable().__templateColumns = templateColumns;
   }
-}
+  static $createLayoutContainerNode(
+    templateColumns: string,
+  ): LayoutContainerNode {
+    return new LayoutContainerNode(templateColumns);
+  }
 
-export function $createLayoutContainerNode(
-  templateColumns: string,
-): LayoutContainerNode {
-  return new LayoutContainerNode(templateColumns);
-}
-
-export function $isLayoutContainerNode(
-  node: LexicalNode | null | undefined,
-): node is LayoutContainerNode {
-  return node instanceof LayoutContainerNode;
+  static $isLayoutContainerNode(
+    node: LexicalNode | null | undefined,
+  ): node is LayoutContainerNode {
+    return node instanceof LayoutContainerNode;
+  }
 }

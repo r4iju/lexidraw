@@ -35,7 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { $isInlineImageNode, InlineImageNode } from "./InlineImageNode";
+import { InlineImageNode } from "./InlineImageNode";
 import { Button } from "~/components/ui/button";
 import LexicalContentEditable from "~/components/ui/content-editable";
 import Placeholder from "~/components/ui/placeholder";
@@ -248,7 +248,7 @@ export default function InlineImageComponent({
       if (isSelected && $isNodeSelection($getSelection())) {
         payload.preventDefault();
         const node = $getNodeByKey(nodeKey);
-        if ($isInlineImageNode(node)) {
+        if (InlineImageNode.$isInlineImageNode(node)) {
           node.remove();
           return true;
         }
@@ -433,7 +433,7 @@ export default function InlineImageComponent({
               onResizeEnd={(newWidth, newHeight) => {
                 editor.update(() => {
                   const node = $getNodeByKey(nodeKey);
-                  if ($isInlineImageNode(node)) {
+                  if (InlineImageNode.$isInlineImageNode(node)) {
                     node.setWidthAndHeight(newWidth, newHeight);
                   }
                 });
