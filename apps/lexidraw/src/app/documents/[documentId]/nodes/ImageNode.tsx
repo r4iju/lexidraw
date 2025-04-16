@@ -29,25 +29,6 @@ export interface ImagePayload {
   captionsEnabled?: boolean;
 }
 
-function isGoogleDocCheckboxImg(img: HTMLImageElement): boolean {
-  return (
-    img.parentElement != null &&
-    img.parentElement.tagName === "LI" &&
-    img.previousSibling === null &&
-    img.getAttribute("aria-roledescription") === "checkbox"
-  );
-}
-
-function $convertImageElement(domNode: Node): null | DOMConversionOutput {
-  const img = domNode as HTMLImageElement;
-  if (img.src.startsWith("file:///") || isGoogleDocCheckboxImg(img)) {
-    return null;
-  }
-  const { alt: altText, src, width, height } = img;
-  const node = $createImageNode({ altText, height, src, width });
-  return { node };
-}
-
 export type SerializedImageNode = Spread<
   {
     altText: string;
@@ -90,10 +71,62 @@ export class ImageNode extends DecoratorNode<React.JSX.Element> {
     );
   }
 
+  static isGoogleDocCheckboxImg(img: HTMLImageElement): boolean {
+    return (
+      img.parentElement != null &&
+      img.parentElement.tagName === "LI" &&
+      img.previousSibling === null &&
+      img.getAttribute("aria-roledescription") === "checkbox"
+    );
+  }
+
+  static $convertImageElement(domNode: Node): null | DOMConversionOutput {
+    const img = domNode as HTMLImageElement;
+    if (
+      img.src.startsWith("file:///") ||
+      ImageNode.isGoogleDocCheckboxImg(img)
+    ) {
+      return null;
+    }
+    const { alt: altText, src, width, height } = img;
+    const node = ImageNode.$createImageNode({ altText, height, src, width });
+    return { node };
+  }
+
+  static $createImageNode({
+    altText,
+    height,
+    maxWidth = 500,
+    captionsEnabled,
+    src,
+    width,
+    showCaption,
+    caption,
+    key,
+  }: ImagePayload): ImageNode {
+    return $applyNodeReplacement(
+      new ImageNode(
+        src,
+        altText,
+        maxWidth,
+        width,
+        height,
+        showCaption,
+        caption,
+        captionsEnabled,
+        key,
+      ),
+    );
+  }
+
+  static $isImageNode(node: LexicalNode | null | undefined): node is ImageNode {
+    return node instanceof ImageNode;
+  }
+
   static importJSON(serializedNode: SerializedImageNode): ImageNode {
     const { altText, height, width, maxWidth, caption, src, showCaption } =
       serializedNode;
-    const node = $createImageNode({
+    const node = ImageNode.$createImageNode({
       altText,
       height,
       maxWidth,
@@ -121,7 +154,7 @@ export class ImageNode extends DecoratorNode<React.JSX.Element> {
   static importDOM(): DOMConversionMap | null {
     return {
       img: (_node: Node) => ({
-        conversion: $convertImageElement,
+        conversion: ImageNode.$convertImageElement,
         priority: 0,
       }),
     };
@@ -223,36 +256,4 @@ export class ImageNode extends DecoratorNode<React.JSX.Element> {
       </Suspense>
     );
   }
-}
-
-export function $createImageNode({
-  altText,
-  height,
-  maxWidth = 500,
-  captionsEnabled,
-  src,
-  width,
-  showCaption,
-  caption,
-  key,
-}: ImagePayload): ImageNode {
-  return $applyNodeReplacement(
-    new ImageNode(
-      src,
-      altText,
-      maxWidth,
-      width,
-      height,
-      showCaption,
-      caption,
-      captionsEnabled,
-      key,
-    ),
-  );
-}
-
-export function $isImageNode(
-  node: LexicalNode | null | undefined,
-): node is ImageNode {
-  return node instanceof ImageNode;
 }
