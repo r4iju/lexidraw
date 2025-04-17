@@ -1,4 +1,4 @@
-import { Excalidraw } from "@excalidraw/excalidraw";
+import "@excalidraw/excalidraw/index.css";
 import type {
   AppState,
   BinaryFiles,
@@ -6,8 +6,7 @@ import type {
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
 import * as React from "react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Dialog,
@@ -19,11 +18,18 @@ import {
 import { Button } from "~/components/ui/button";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
+import { ErrorBoundary } from "next/dist/client/components/error-boundary";
+import { Loader2 } from "lucide-react";
+
+const Excalidraw = React.lazy(() =>
+  import("@excalidraw/excalidraw").then((module) => ({
+    default: module.Excalidraw,
+  })),
+);
 
 export type ExcalidrawInitialElements = ExcalidrawInitialDataState["elements"];
 
 type Props = {
-  closeOnClickOutside?: boolean;
   initialElements: ExcalidrawInitialElements;
   initialAppState: AppState;
   initialFiles: BinaryFiles;
@@ -38,7 +44,6 @@ type Props = {
 };
 
 export default function ExcalidrawModal({
-  closeOnClickOutside = false,
   onSave,
   initialElements,
   initialAppState,
@@ -46,66 +51,20 @@ export default function ExcalidrawModal({
   isShown = false,
   onDelete,
   onClose,
-}: Props): React.ReactPortal | null {
+}: Props) {
   const excaliDrawModelRef = useRef<HTMLDivElement | null>(null);
-  // excalidraw api
   const excalidrawApi = useRef<ExcalidrawImperativeAPI>(null);
-
   const isDarkTheme = useIsDarkTheme();
-
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [elements, setElements] =
     useState<ExcalidrawInitialElements>(initialElements);
   const [files, setFiles] = useState<BinaryFiles>(initialFiles);
 
   useEffect(() => {
-    console.log("initialElements", initialElements);
-    console.log("initialAppState", initialAppState);
-    console.log("initialFiles", initialFiles);
-  }, [initialElements, initialAppState, initialFiles]);
-
-  useEffect(() => {
     if (excaliDrawModelRef.current !== null) {
       excaliDrawModelRef.current.focus();
     }
   }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        excaliDrawModelRef.current &&
-        !excaliDrawModelRef.current.contains(event.target as Node) &&
-        closeOnClickOutside
-      ) {
-        onDelete();
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [closeOnClickOutside, onDelete]);
-
-  useLayoutEffect(() => {
-    const currentModalRef = excaliDrawModelRef.current;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onDelete();
-      }
-    };
-
-    if (currentModalRef !== null) {
-      currentModalRef.addEventListener("keydown", onKeyDown);
-    }
-
-    return () => {
-      if (currentModalRef !== null) {
-        currentModalRef.removeEventListener("keydown", onKeyDown);
-      }
-    };
-  }, [onDelete]);
 
   const save = () => {
     if (elements && elements.filter((el) => !el.isDeleted).length > 0) {
@@ -130,46 +89,12 @@ export default function ExcalidrawModal({
   };
 
   const discard = () => {
-    if (elements && elements.filter((el) => !el.isDeleted).length === 0) {
-      onDelete();
+    if (JSON.stringify(elements) === JSON.stringify(initialElements)) {
+      onClose();
     } else {
       setDiscardModalOpen(true);
     }
   };
-
-  function ShowDiscardDialog(): React.JSX.Element {
-    return (
-      <Dialog open={discardModalOpen} onOpenChange={setDiscardModalOpen}>
-        <DialogOverlay>
-          <DialogContent className="z-[150]">
-            <DialogHeader>
-              <DialogTitle>Discard</DialogTitle>
-            </DialogHeader>
-            Are you sure you want to discard the changes?
-            <div className="flex justify-between">
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDiscardModalOpen(false);
-                  onClose();
-                }}
-              >
-                Discard
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDiscardModalOpen(false);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </DialogContent>
-        </DialogOverlay>
-      </Dialog>
-    );
-  }
 
   const options = React.useMemo(
     () => ({
@@ -200,47 +125,107 @@ export default function ExcalidrawModal({
     [initialAppState, elements, files, isDarkTheme],
   );
 
-  // Update theme on theme change
+  // update theme on theme change
   useEffect(() => {
     excalidrawApi.current?.updateScene({
       appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
     });
   }, [isDarkTheme]);
 
-  if (!isShown) {
-    return null;
-  }
+  return (
+    <Dialog open={isShown} onOpenChange={discard}>
+      <DialogOverlay onClick={(e) => e.preventDefault()}>
+        <DialogContent
+          className="p-0 m-0 bg-transparent rounded-lg border-none shadow-none max-w-[100vw] max-h-[100vh] w-[90vw] h-[90vh] "
+          onInteractOutside={(e) => {
+            e.preventDefault();
+            discard();
+          }}
+        >
+          <div
+            ref={excaliDrawModelRef}
+            tabIndex={-1}
+            className="relative flex justify-center rounded-lg items-center bg-card w-full h-full"
+          >
+            <DiscardDialog
+              discardModalOpen={discardModalOpen}
+              setDiscardModalOpen={setDiscardModalOpen}
+              onDiscardConfirmed={() => {
+                setElements(initialElements);
+                setFiles(initialFiles);
+                setDiscardModalOpen(false);
+                onClose();
+              }}
+            />
 
-  return createPortal(
-    <div
-      className="fixed inset-0 flex flex-col items-center z-[100] bg-background/60"
-      role="dialog"
-    >
-      <div
-        className="relative z-10 top-[50px] left-0 flex justify-center items-center rounded-lg bg-card"
-        ref={excaliDrawModelRef}
-        tabIndex={-1}
-      >
-        <div className="relative p-[40px_5px_5px] w-[70vw] h-[70vh] max-w-[1200px] max-h-[800px] rounded-lg shadow-[0_12px_28px_0_rgba(0,0,0,0.2),0_2px_4px_0_rgba(0,0,0,0.1),inset_0_0_0_1px_rgba(255,255,255,0.5)] border border-border">
-          {discardModalOpen && <ShowDiscardDialog />}
-          <Excalidraw
-            {...options}
-            excalidrawAPI={(api) => {
-              excalidrawApi.current = api;
-              console.log("excalidraw api set");
-            }}
-          />
-          <div className="absolute right-[5px] top-[5px] z-10 text-end flex gap-2">
-            <Button variant="outline" onClick={discard}>
-              Discard
-            </Button>
-            <Button variant="outline" onClick={save}>
-              Save
-            </Button>
+            <ErrorBoundary
+              errorComponent={({ error }) => (
+                <div>Error loading Excalidraw: {error.message}</div>
+              )}
+            >
+              <React.Suspense
+                fallback={
+                  <div className="w-full h-full flex justify-center items-center">
+                    <Loader2 className="size-5 animate-spin" />
+                  </div>
+                }
+              >
+                <Excalidraw
+                  {...options}
+                  excalidrawAPI={(api) => {
+                    excalidrawApi.current = api;
+                  }}
+                />
+              </React.Suspense>
+            </ErrorBoundary>
+
+            <div className="absolute right-[5px] top-[-45px] z-10 text-end flex gap-2">
+              <Button variant="destructive" onClick={discard}>
+                Discard
+              </Button>
+              <Button variant="outline" onClick={save}>
+                Save
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>,
-    document.body,
+        </DialogContent>
+      </DialogOverlay>
+    </Dialog>
   );
 }
+
+const DiscardDialog = ({
+  discardModalOpen,
+  setDiscardModalOpen,
+  onDiscardConfirmed,
+}: {
+  discardModalOpen: boolean;
+  setDiscardModalOpen: (open: boolean) => void;
+  onDiscardConfirmed: () => void;
+}): React.JSX.Element => {
+  return (
+    <Dialog open={discardModalOpen} onOpenChange={setDiscardModalOpen}>
+      <DialogOverlay onClick={(e) => e.preventDefault()}>
+        <DialogContent className="z-[150]">
+          <DialogHeader>
+            <DialogTitle>Discard</DialogTitle>
+          </DialogHeader>
+          Are you sure you want to discard the changes?
+          <div className="flex justify-between">
+            <Button variant="destructive" onClick={onDiscardConfirmed}>
+              Discard
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDiscardModalOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </DialogOverlay>
+    </Dialog>
+  );
+};
