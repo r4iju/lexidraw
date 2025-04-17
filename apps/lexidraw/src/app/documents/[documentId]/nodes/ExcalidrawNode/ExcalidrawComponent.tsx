@@ -189,7 +189,6 @@ export default function ExcalidrawComponent({
           setData(els, aps, fls);
           setModalOpen(false);
         }}
-        closeOnClickOutside={false}
       />
       {elements.length > 0 && (
         <button
