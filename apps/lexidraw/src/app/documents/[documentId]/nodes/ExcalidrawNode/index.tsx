@@ -91,7 +91,15 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
     return span;
   }
 
-  updateDOM(): false {
+  updateDOM(prev: ExcalidrawNode, dom: HTMLElement): boolean {
+    if (this.__width !== prev.__width) {
+      dom.style.width =
+        this.__width === "inherit" ? "inherit" : `${this.__width}px`;
+    }
+    if (this.__height !== prev.__height) {
+      dom.style.height =
+        this.__height === "inherit" ? "inherit" : `${this.__height}px`;
+    }
     return false;
   }
 
@@ -146,10 +154,28 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
     self.__height = height;
   }
 
+  // ——— getters ———————————————————————————————
+  getWidth(): Dimension {
+    return this.getLatest().__width;
+  }
+
+  getHeight(): Dimension {
+    return this.getLatest().__height;
+  }
+
+  getData(): string {
+    return this.getLatest().__data;
+  }
+
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return (
       <Suspense fallback={null}>
-        <ExcalidrawComponent nodeKey={this.getKey()} data={this.__data} />
+        <ExcalidrawComponent
+          nodeKey={this.getKey()}
+          data={this.__data}
+          width={this.__width}
+          height={this.__height}
+        />
       </Suspense>
     );
   }
