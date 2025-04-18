@@ -21,13 +21,18 @@ import { ExcalidrawNode } from "./index";
 import ExcalidrawImage from "./ExcalidrawImage";
 import type { BinaryFiles, AppState } from "@excalidraw/excalidraw/types";
 import ExcalidrawModal from "./ExcalidrawModal";
+import { cn } from "~/lib/utils";
 
 export default function ExcalidrawComponent({
   nodeKey,
   data,
+  width,
+  height,
 }: {
   data: string;
   nodeKey: NodeKey;
+  width: number | "inherit";
+  height: number | "inherit";
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [isModalOpen, setModalOpen] = useState<boolean>(
@@ -165,6 +170,26 @@ export default function ExcalidrawComponent({
     });
   };
 
+  // Live-resize handler: update the <img> style directly during drag
+  const handleDimensionsChange = useCallback(
+    ({
+      width,
+      height,
+    }: {
+      width: number | "inherit";
+      height: number | "inherit";
+    }) => {
+      const img = imageContainerRef.current;
+      if (img) {
+        img.style.width =
+          width === "inherit" ? "inherit" : `${Math.round(Number(width))}px`;
+        img.style.height =
+          height === "inherit" ? "inherit" : `${Math.round(Number(height))}px`;
+      }
+    },
+    [],
+  );
+
   const openModal = useCallback(() => {
     setModalOpen(true);
   }, []);
@@ -173,7 +198,11 @@ export default function ExcalidrawComponent({
     elements = [],
     files = {},
     appState = {},
-  } = useMemo(() => JSON.parse(data), [data]);
+  } = useMemo(() => {
+    const parsed = JSON.parse(data);
+    console.log("Parsed data:", parsed);
+    return parsed;
+  }, [data]);
 
   return (
     <>
@@ -191,17 +220,40 @@ export default function ExcalidrawComponent({
         }}
       />
       {elements.length > 0 && (
-        <button
-          ref={buttonRef}
-          className={`excalidraw-button ${isSelected ? "selected" : ""}`}
-        >
+        <button ref={buttonRef} className={cn("", { selected: isSelected })}>
           <ExcalidrawImage
-            imageContainerRef={imageContainerRef}
-            className="image"
+            imageContainerRef={
+              imageContainerRef as React.RefObject<HTMLDivElement>
+            }
+            className={
+              isSelected || isResizing
+                ? "ring-1 ring-muted-foreground"
+                : undefined
+            }
             elements={elements}
             files={files}
             appState={appState}
-          />
+            width={width}
+            height={height}
+          >
+            {(isSelected || isResizing) && (
+              <ImageResizer
+                buttonRef={
+                  captionButtonRef as React.RefObject<HTMLButtonElement>
+                }
+                showCaption={true}
+                setShowCaption={() => null}
+                imageRef={
+                  imageContainerRef as React.RefObject<HTMLImageElement>
+                }
+                editor={editor}
+                onResizeStart={onResizeStart}
+                onResizeEnd={onResizeEnd}
+                onDimensionsChange={handleDimensionsChange}
+                captionsEnabled={true}
+              />
+            )}
+          </ExcalidrawImage>
           {isSelected && (
             <div
               className="image-edit-button"
@@ -209,18 +261,6 @@ export default function ExcalidrawComponent({
               tabIndex={0}
               onMouseDown={(event) => event.preventDefault()}
               onClick={openModal}
-            />
-          )}
-          {(isSelected || isResizing) && (
-            <ImageResizer
-              buttonRef={captionButtonRef as React.RefObject<HTMLButtonElement>}
-              showCaption={true}
-              setShowCaption={() => null}
-              imageRef={imageContainerRef as React.RefObject<HTMLImageElement>}
-              editor={editor}
-              onResizeStart={onResizeStart}
-              onResizeEnd={onResizeEnd}
-              captionsEnabled={true}
             />
           )}
         </button>

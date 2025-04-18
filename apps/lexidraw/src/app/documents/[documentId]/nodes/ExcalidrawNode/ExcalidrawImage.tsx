@@ -6,48 +6,33 @@ import type {
   ExcalidrawElement,
   NonDeleted,
 } from "@excalidraw/excalidraw/element/types";
-import { type JSX, useEffect, useRef, useState } from "react";
+import { type JSX, RefObject, useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
+import { Theme } from "@packages/types/enums";
+import { useIsDarkTheme } from "~/components/theme/theme-provider";
 
 type ImageType = "svg" | "canvas";
 
 type Props = {
-  /**
-   * Configures the export setting for SVG/Canvas
-   */
+  /* Configures the export setting for SVG/Canvas */
   appState: AppState;
-  /**
-   * The css class applied to image to be rendered
-   */
+  /* The css class applied to image to be rendered */
   className?: string;
-  /**
-   * The Excalidraw elements to be rendered as an image
-   */
+  /* The Excalidraw elements to be rendered as an image */
   elements: NonDeleted<ExcalidrawElement>[];
-  /**
-   * The Excalidraw elements to be rendered as an image
-   */
+  /* The Excalidraw files to be rendered as an image */
   files: BinaryFiles;
-  /**
-   * The height of the image to be rendered
-   */
-  height?: number | null;
-  /**
-   * The ref object to be used to render the image
-   */
+  /* The ref object to be used to render the image */
   imageContainerRef: { current: null | HTMLDivElement };
-  /**
-   * The type of image to be rendered
-   */
+  /* The type of image to be rendered */
   imageType?: ImageType;
-  /**
-   * The css class applied to the root element of this component
-   */
+  /* The width of the image to be rendered */
   rootClassName?: string | null;
-  /**
-   * The width of the image to be rendered
-   */
-  width?: number | null;
+  /* The width of the image to be rendered */
+  width?: number | null | "inherit";
+  /* The height of the image to be rendered */
+  height?: number | null | "inherit";
+  children?: React.ReactNode;
 };
 
 /**
@@ -59,59 +44,60 @@ export default function ExcalidrawImage({
   files,
   imageContainerRef,
   appState,
+  width,
+  height,
   rootClassName = null,
+  children,
 }: Props): JSX.Element {
   const [url, setUrl] = useState<string | null>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+
+  const isDarkTheme = useIsDarkTheme();
 
   useEffect(() => {
     const setContent = async () => {
-      const svg: SVGElement = await exportToSvg({
-        data: {
-          appState,
-          elements,
-          files,
+      const svg = await exportToSvg({
+        elements,
+        appState: {
+          ...appState,
+          theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
+          exportWithDarkMode: isDarkTheme,
+        },
+        files: null,
+        config: {
+          padding: 10,
+          renderEmbeddables: true,
         },
       });
+
+      const svgString = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([svgString], { type: "image/svg+xml" });
 
       svg.setAttribute("width", "100%");
       svg.setAttribute("height", "100%");
       svg.setAttribute("display", "block");
 
-      const url = URL.createObjectURL(
-        new Blob([svg.outerHTML], { type: "image/svg+xml" }),
-      );
-      console.log("url", url);
-      setUrl(url);
-
-      const image = new Image();
-      image.src = url;
-      image.alt = "Excalidraw";
-      image.style.width = "100%";
-      image.style.height = "100%";
-      image.style.objectFit = "contain";
-      imageRef.current = image;
-      console.log("imageRef.current", imageRef.current);
+      const tempUrl = URL.createObjectURL(blob);
+      setUrl(tempUrl);
     };
 
     setContent();
-  }, [elements, files, appState]);
+  }, [elements, files, appState, isDarkTheme]);
 
   return (
-    <div className={`relative inline-block cursor-move`} draggable={true}>
+    <div className={`relative inline-block cursor-pointer`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url ?? ""}
         alt="Excalidraw"
         style={{
-          width: "200px",
-          height: "200px",
-          objectFit: "contain",
+          width: width === "inherit" ? "inherit" : `${width}px`,
+          height: height === "inherit" ? "inherit" : `${height}px`,
+          objectFit: "fill",
         }}
-        draggable={true}
         className={cn("rounded-xs", rootClassName)}
-        ref={imageContainerRef as React.RefObject<HTMLImageElement>}
+        ref={imageContainerRef as RefObject<HTMLImageElement>}
       />
+      {children}
     </div>
   );
 }
