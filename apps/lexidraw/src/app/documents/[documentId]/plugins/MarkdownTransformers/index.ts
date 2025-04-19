@@ -34,17 +34,9 @@ import {
   LexicalNode,
 } from "lexical";
 
-import {
-  $createEquationNode,
-  $isEquationNode,
-  EquationNode,
-} from "../../nodes/EquationNode";
+import { EquationNode } from "../../nodes/EquationNode";
 import { ImageNode } from "../../nodes/ImageNode";
-import {
-  $createTweetNode,
-  $isTweetNode,
-  TweetNode,
-} from "../../nodes/TweetNode";
+import { TweetNode } from "../../nodes/TweetNode";
 import emojiList from "../../utils/emoji-list";
 
 export const HR: ElementTransformer = {
@@ -112,7 +104,7 @@ export const EMOJI: TextMatchTransformer = {
 export const EQUATION: TextMatchTransformer = {
   dependencies: [EquationNode],
   export: (node) => {
-    if (!$isEquationNode(node)) {
+    if (!EquationNode.$isEquationNode(node)) {
       return null;
     }
 
@@ -122,7 +114,7 @@ export const EQUATION: TextMatchTransformer = {
   regExp: /\$([^$]+?)\$$/,
   replace: (textNode, match) => {
     const [, equation] = match;
-    const equationNode = $createEquationNode(equation, true);
+    const equationNode = EquationNode.$createEquationNode(equation, true);
     textNode.replace(equationNode);
   },
   trigger: "$",
@@ -132,7 +124,7 @@ export const EQUATION: TextMatchTransformer = {
 export const TWEET: ElementTransformer = {
   dependencies: [TweetNode],
   export: (node) => {
-    if (!$isTweetNode(node)) {
+    if (!TweetNode.$isTweetNode(node)) {
       return null;
     }
 
@@ -142,7 +134,7 @@ export const TWEET: ElementTransformer = {
   replace: (textNode, _1, match) => {
     const [, id] = match;
     if (!id) return;
-    const tweetNode = $createTweetNode(id);
+    const tweetNode = TweetNode.$createTweetNode(id);
     textNode.replace(tweetNode);
   },
   type: "element",

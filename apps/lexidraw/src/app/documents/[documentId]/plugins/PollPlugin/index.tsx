@@ -11,11 +11,7 @@ import {
 } from "lexical";
 import { type JSX, useEffect, useState } from "react";
 
-import {
-  $createPollNode,
-  createPollOption,
-  PollNode,
-} from "../../nodes/PollNode";
+import { PollNode } from "../../nodes/PollNode";
 import { DialogFooter } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -62,9 +58,9 @@ export default function PollPlugin(): JSX.Element | null {
     return editor.registerCommand<string>(
       INSERT_POLL_COMMAND,
       (payload) => {
-        const pollNode = $createPollNode(payload, [
-          createPollOption(),
-          createPollOption(),
+        const pollNode = PollNode.$createPollNode(payload, [
+          PollNode.createPollOption(),
+          PollNode.createPollOption(),
         ]);
         $insertNodes([pollNode]);
         if ($isRootOrShadowRoot(pollNode.getParentOrThrow())) {

@@ -25,11 +25,7 @@ import {
 import { useEffect } from "react";
 
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
-import {
-  $createCollapsibleContentNode,
-  $isCollapsibleContentNode,
-  CollapsibleContentNode,
-} from "./CollapsibleContentNode";
+import { CollapsibleContentNode } from "./CollapsibleContentNode";
 import { CollapsibleTitleNode } from "./CollapsibleTitleNode";
 
 export const INSERT_COLLAPSIBLE_COMMAND = createCommand<undefined>();
@@ -150,7 +146,7 @@ export default function CollapsiblePlugin(): null {
         if (
           children.length !== 2 ||
           !CollapsibleTitleNode.$isCollapsibleTitleNode(children[0]) ||
-          !$isCollapsibleContentNode(children[1])
+          !CollapsibleContentNode.$isCollapsibleContentNode(children[1])
         ) {
           for (const child of children) {
             node.insertBefore(child);
@@ -268,7 +264,9 @@ export default function CollapsiblePlugin(): null {
                 true,
               ).append(
                 title.append(paragraph),
-                $createCollapsibleContentNode().append($createParagraphNode()),
+                CollapsibleContentNode.$createCollapsibleContentNode().append(
+                  $createParagraphNode(),
+                ),
               ),
             );
             paragraph.select();

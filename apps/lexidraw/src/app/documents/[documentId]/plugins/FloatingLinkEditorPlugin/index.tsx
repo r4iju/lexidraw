@@ -26,7 +26,10 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { sanitizeUrl } from "../../utils/url";
+import { useSanitizeUrl } from "../../utils/url";
+import { Button } from "~/components/ui/button";
+import { PencilIcon, TrashIcon } from "lucide-react";
+import Link from "next/link";
 
 function FloatingLinkEditor({
   editor,
@@ -51,6 +54,7 @@ function FloatingLinkEditor({
     null,
   );
   const getSelectedNode = useGetSelectedNode();
+  const sanitizeUrl = useSanitizeUrl();
 
   const VERTICAL_GAP = 10;
   const HORIZONTAL_OFFSET = 5;
@@ -295,33 +299,44 @@ function FloatingLinkEditor({
           </div>
         </>
       ) : (
-        <div className="link-view">
-          <a
-            href={sanitizeUrl(linkUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {linkUrl}
-          </a>
-          <div
-            className="link-edit"
-            role="button"
-            tabIndex={0}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              setEditedLinkUrl(linkUrl);
-              setIsLinkEditMode(true);
-            }}
-          />
-          <div
-            className="link-trash"
-            role="button"
-            tabIndex={0}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
-            }}
-          />
+        <div className="flex items-center w-full justify-between pl-4 pr-2 py-2">
+          <Button variant="link" asChild rel="noopener noreferrer">
+            <Link
+              className="text-sm pl-0 pr-0"
+              target="_blank"
+              href={sanitizeUrl(linkUrl)}
+            >
+              {linkUrl}
+            </Link>
+          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              role="button"
+              tabIndex={0}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setEditedLinkUrl(linkUrl);
+                setIsLinkEditMode(true);
+              }}
+            >
+              <PencilIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              role="button"
+              tabIndex={0}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+              }}
+            >
+              <TrashIcon className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -404,7 +419,7 @@ function useFloatingLinkEditorToolbar(
         COMMAND_PRIORITY_LOW,
       ),
     );
-  }, [editor]);
+  }, [editor, getSelectedNode]);
 
   return createPortal(
     <FloatingLinkEditor

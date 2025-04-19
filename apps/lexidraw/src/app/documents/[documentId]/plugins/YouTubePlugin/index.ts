@@ -7,7 +7,7 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 
-import { $createYouTubeNode, YouTubeNode } from "../../nodes/YouTubeNode";
+import { YouTubeNode } from "../../nodes/YouTubeNode";
 
 export const INSERT_YOUTUBE_COMMAND: LexicalCommand<string> = createCommand(
   "INSERT_YOUTUBE_COMMAND",
@@ -24,7 +24,7 @@ export default function YouTubePlugin(): React.JSX.Element | null {
     return editor.registerCommand<string>(
       INSERT_YOUTUBE_COMMAND,
       (payload) => {
-        const youTubeNode = $createYouTubeNode(payload);
+        const youTubeNode = YouTubeNode.$createYouTubeNode(payload);
         $insertNodeToNearestRoot(youTubeNode);
 
         return true;

@@ -31,7 +31,7 @@ function $convertEquationElement(
   // Decode the equation from base64
   equation = atob(equation || "");
   if (equation) {
-    const node = $createEquationNode(equation, inline);
+    const node = EquationNode.$createEquationNode(equation, inline);
     return { node };
   }
 
@@ -57,7 +57,7 @@ export class EquationNode extends DecoratorNode<React.JSX.Element> {
   }
 
   static importJSON(serializedNode: SerializedEquationNode): EquationNode {
-    const node = $createEquationNode(
+    const node = EquationNode.$createEquationNode(
       serializedNode.equation,
       serializedNode.inline,
     );
@@ -149,18 +149,15 @@ export class EquationNode extends DecoratorNode<React.JSX.Element> {
       </Suspense>
     );
   }
-}
 
-export function $createEquationNode(
-  equation = "",
-  inline = false,
-): EquationNode {
-  const equationNode = new EquationNode(equation, inline);
-  return $applyNodeReplacement(equationNode);
-}
+  static $createEquationNode(equation = "", inline = false): EquationNode {
+    const equationNode = new EquationNode(equation, inline);
+    return $applyNodeReplacement(equationNode);
+  }
 
-export function $isEquationNode(
-  node: LexicalNode | null | undefined,
-): node is EquationNode {
-  return node instanceof EquationNode;
+  static $isEquationNode(
+    node: LexicalNode | null | undefined,
+  ): node is EquationNode {
+    return node instanceof EquationNode;
+  }
 }

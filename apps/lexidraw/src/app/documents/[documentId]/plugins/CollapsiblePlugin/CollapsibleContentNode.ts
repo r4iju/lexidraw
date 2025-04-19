@@ -18,7 +18,7 @@ type SerializedCollapsibleContentNode = SerializedElementNode;
 export function $convertCollapsibleContentElement(
   _domNode: HTMLElement,
 ): DOMConversionOutput | null {
-  const node = $createCollapsibleContentNode();
+  const node = CollapsibleContentNode.$createCollapsibleContentNode();
   return {
     node,
   };
@@ -101,7 +101,7 @@ export class CollapsibleContentNode extends ElementNode {
   static importJSON(
     _serializedNode: SerializedCollapsibleContentNode,
   ): CollapsibleContentNode {
-    return $createCollapsibleContentNode();
+    return CollapsibleContentNode.$createCollapsibleContentNode();
   }
 
   isShadowRoot(): boolean {
@@ -115,14 +115,13 @@ export class CollapsibleContentNode extends ElementNode {
       version: 1,
     };
   }
-}
+  static $createCollapsibleContentNode(): CollapsibleContentNode {
+    return new CollapsibleContentNode();
+  }
 
-export function $createCollapsibleContentNode(): CollapsibleContentNode {
-  return new CollapsibleContentNode();
-}
-
-export function $isCollapsibleContentNode(
-  node: LexicalNode | null | undefined,
-): node is CollapsibleContentNode {
-  return node instanceof CollapsibleContentNode;
+  static $isCollapsibleContentNode(
+    node: LexicalNode | null | undefined,
+  ): node is CollapsibleContentNode {
+    return node instanceof CollapsibleContentNode;
+  }
 }

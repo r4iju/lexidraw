@@ -20,7 +20,7 @@ import {
 import { Dispatch, useEffect } from "react";
 
 import { useToolbarState } from "../../context/toolbar-context";
-import { sanitizeUrl } from "../../utils/url";
+import { useSanitizeUrl } from "../../utils/url";
 import {
   clearFormatting,
   formatBulletList,
@@ -69,6 +69,8 @@ export default function ShortcutsPlugin({
     isSuperscript,
     isUppercase,
   } = useShortcuts();
+
+  const sanitizeUrl = useSanitizeUrl();
 
   useEffect(() => {
     const keyboardShortcutsHandler = (payload: KeyboardEvent) => {
@@ -175,6 +177,31 @@ export default function ShortcutsPlugin({
     toolbarState.blockType,
     toolbarState.fontSizeInputValue,
     setIsLinkEditMode,
+    isFormatParagraph,
+    isFormatHeading,
+    isFormatBulletList,
+    isFormatNumberedList,
+    isFormatCheckList,
+    isFormatCode,
+    isFormatQuote,
+    isStrikeThrough,
+    isLowercase,
+    isUppercase,
+    isCapitalize,
+    isIndent,
+    isOutdent,
+    isCenterAlign,
+    isLeftAlign,
+    isRightAlign,
+    isJustifyAlign,
+    isSubscript,
+    isSuperscript,
+    isInsertCodeBlock,
+    isIncreaseFontSize,
+    isDecreaseFontSize,
+    isClearFormatting,
+    isInsertLink,
+    sanitizeUrl,
   ]);
 
   return null;

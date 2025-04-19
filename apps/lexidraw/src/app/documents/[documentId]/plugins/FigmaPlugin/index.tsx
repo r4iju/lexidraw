@@ -7,7 +7,7 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 
-import { $createFigmaNode, FigmaNode } from "../../nodes/FigmaNode";
+import { FigmaNode } from "../../nodes/FigmaNode";
 
 export const INSERT_FIGMA_COMMAND: LexicalCommand<string> = createCommand(
   "INSERT_FIGMA_COMMAND",
@@ -24,7 +24,7 @@ export default function FigmaPlugin(): React.JSX.Element | null {
     return editor.registerCommand<string>(
       INSERT_FIGMA_COMMAND,
       (payload) => {
-        const figmaNode = $createFigmaNode(payload);
+        const figmaNode = FigmaNode.$createFigmaNode(payload);
         $insertNodeToNearestRoot(figmaNode);
         return true;
       },

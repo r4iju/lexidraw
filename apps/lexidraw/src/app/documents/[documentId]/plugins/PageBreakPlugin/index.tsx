@@ -9,7 +9,7 @@ import {
 } from "lexical";
 import { type JSX, useEffect } from "react";
 
-import { $createPageBreakNode, PageBreakNode } from "../../nodes/PageBreakNode";
+import { PageBreakNode } from "../../nodes/PageBreakNode";
 
 export const INSERT_PAGE_BREAK: LexicalCommand<undefined> = createCommand();
 
@@ -35,7 +35,7 @@ export default function PageBreakPlugin(): JSX.Element | null {
 
           const focusNode = selection.focus.getNode();
           if (focusNode !== null) {
-            const pgBreak = $createPageBreakNode();
+            const pgBreak = PageBreakNode.$createPageBreakNode();
             $insertNodeToNearestRoot(pgBreak);
           }
 

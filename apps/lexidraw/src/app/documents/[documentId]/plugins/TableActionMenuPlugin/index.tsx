@@ -4,15 +4,15 @@ import type { ElementNode, LexicalEditor } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import {
-  $deleteTableColumn__EXPERIMENTAL,
-  $deleteTableRow__EXPERIMENTAL,
+  $deleteTableColumnAtSelection,
+  $deleteTableRowAtSelection,
   $getNodeTriplet,
   $getTableCellNodeFromLexicalNode,
   $getTableColumnIndexFromTableCellNode,
   $getTableNodeFromLexicalNodeOrThrow,
   $getTableRowIndexFromTableCellNode,
-  $insertTableColumn__EXPERIMENTAL,
-  $insertTableRow__EXPERIMENTAL,
+  $insertTableColumnAtSelection,
+  $insertTableRowAtSelection,
   $isTableCellNode,
   $isTableRowNode,
   $isTableSelection,
@@ -38,7 +38,6 @@ import { ReactPortal, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import useModal from "~/hooks/useModal";
-import invariant from "../../shared/invariant";
 import { ColorPickerContent } from "~/components/ui/color-picker";
 import { ChevronDown } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -48,107 +47,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-
-function computeSelectionCount(selection: TableSelection): {
-  columns: number;
-  rows: number;
-} {
-  const selectionShape = selection.getShape();
-  return {
-    columns: selectionShape.toX - selectionShape.fromX + 1,
-    rows: selectionShape.toY - selectionShape.fromY + 1,
-  };
-}
-
-// This is important when merging cells as there is no good way to re-merge weird shapes (a result
-// of selecting merged cells and non-merged)
-function isTableSelectionRectangular(selection: TableSelection): boolean {
-  const nodes = selection.getNodes();
-  const currentRows: number[] = [];
-  let currentRow = null;
-  let expectedColumns = null;
-  let currentColumns = 0;
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-    if ($isTableCellNode(node)) {
-      const row = node.getParentOrThrow();
-      invariant(
-        $isTableRowNode(row),
-        "Expected CellNode to have a RowNode parent",
-      );
-      if (currentRow !== row) {
-        if (expectedColumns !== null && currentColumns !== expectedColumns) {
-          return false;
-        }
-        if (currentRow !== null) {
-          expectedColumns = currentColumns;
-        }
-        currentRow = row;
-        currentColumns = 0;
-      }
-      const colSpan = node.__colSpan;
-      for (let j = 0; j < colSpan; j++) {
-        if (currentRows[currentColumns + j] === undefined) {
-          currentRows[currentColumns + j] = 0;
-        }
-        (currentRows[currentColumns + j] as number) += node.__rowSpan;
-      }
-      currentColumns += colSpan;
-    }
-  }
-  return (
-    (expectedColumns === null || currentColumns === expectedColumns) &&
-    currentRows.every((v) => v === currentRows[0])
-  );
-}
-
-function $canUnmerge(): boolean {
-  const selection = $getSelection();
-  if (
-    ($isRangeSelection(selection) && !selection.isCollapsed()) ||
-    ($isTableSelection(selection) && !selection.anchor.is(selection.focus)) ||
-    (!$isRangeSelection(selection) && !$isTableSelection(selection))
-  ) {
-    return false;
-  }
-  const [cell] = $getNodeTriplet(selection.anchor);
-  return cell.__colSpan > 1 || cell.__rowSpan > 1;
-}
-
-function $cellContainsEmptyParagraph(cell: TableCellNode): boolean {
-  if (cell.getChildrenSize() !== 1) {
-    return false;
-  }
-  const firstChild = cell.getFirstChildOrThrow();
-  if (!$isParagraphNode(firstChild) || !firstChild.isEmpty()) {
-    return false;
-  }
-  return true;
-}
-
-function $selectLastDescendant(node: ElementNode): void {
-  const lastDescendant = node.getLastDescendant();
-  if ($isTextNode(lastDescendant)) {
-    lastDescendant.select();
-  } else if ($isElementNode(lastDescendant)) {
-    lastDescendant.selectEnd();
-  } else if (lastDescendant !== null) {
-    lastDescendant.selectNext();
-  }
-}
-
-function currentCellBackgroundColor(editor: LexicalEditor): null | string {
-  return editor.getEditorState().read(() => {
-    const selection = $getSelection();
-    if ($isRangeSelection(selection) || $isTableSelection(selection)) {
-      const [cell] = $getNodeTriplet(selection.anchor);
-      if ($isTableCellNode(cell)) {
-        return cell.getBackgroundColor();
-      }
-    }
-    return null;
-  });
-}
 
 type TableCellActionMenuProps = Readonly<{
   contextRef: { current: null | HTMLElement };
@@ -179,8 +77,117 @@ function TableActionMenu({
   });
   const [canMergeCells, setCanMergeCells] = useState(false);
   const [canUnmergeCell, setCanUnmergeCell] = useState(false);
+
+  const currentCellBackgroundColor = useCallback(
+    (editor: LexicalEditor): null | string => {
+      return editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        if ($isRangeSelection(selection) || $isTableSelection(selection)) {
+          const [cell] = $getNodeTriplet(selection.anchor);
+          if ($isTableCellNode(cell)) {
+            return cell.getBackgroundColor();
+          }
+        }
+        return null;
+      });
+    },
+    [],
+  );
+
   const [backgroundColor, setBackgroundColor] = useState(
     () => currentCellBackgroundColor(editor) || "",
+  );
+
+  // This is important when merging cells as there is no good way to re-merge weird shapes (a result
+  // of selecting merged cells and non-merged)
+  const isTableSelectionRectangular = (selection: TableSelection): boolean => {
+    const nodes = selection.getNodes();
+    const currentRows: number[] = [];
+    let currentRow = null;
+    let expectedColumns = null;
+    let currentColumns = 0;
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if ($isTableCellNode(node)) {
+        const row = node.getParentOrThrow();
+        if (!$isTableRowNode(row)) {
+          throw new Error("Expected CellNode to have a RowNode parent");
+        }
+        if (currentRow !== row) {
+          if (expectedColumns !== null && currentColumns !== expectedColumns) {
+            return false;
+          }
+          if (currentRow !== null) {
+            expectedColumns = currentColumns;
+          }
+          currentRow = row;
+          currentColumns = 0;
+        }
+        const colSpan = node.__colSpan;
+        for (let j = 0; j < colSpan; j++) {
+          if (currentRows[currentColumns + j] === undefined) {
+            currentRows[currentColumns + j] = 0;
+          }
+          (currentRows[currentColumns + j] as number) += node.__rowSpan;
+        }
+        currentColumns += colSpan;
+      }
+    }
+    return (
+      (expectedColumns === null || currentColumns === expectedColumns) &&
+      currentRows.every((v) => v === currentRows[0])
+    );
+  };
+
+  const $canUnmerge = (): boolean => {
+    const selection = $getSelection();
+    if (
+      ($isRangeSelection(selection) && !selection.isCollapsed()) ||
+      ($isTableSelection(selection) && !selection.anchor.is(selection.focus)) ||
+      (!$isRangeSelection(selection) && !$isTableSelection(selection))
+    ) {
+      return false;
+    }
+    const [cell] = $getNodeTriplet(selection.anchor);
+    return cell.__colSpan > 1 || cell.__rowSpan > 1;
+  };
+
+  const $cellContainsEmptyParagraph = (cell: TableCellNode): boolean => {
+    if (cell.getChildrenSize() !== 1) {
+      return false;
+    }
+    const firstChild = cell.getFirstChildOrThrow();
+    if (!$isParagraphNode(firstChild) || !firstChild.isEmpty()) {
+      return false;
+    }
+    return true;
+  };
+
+  const $selectLastDescendant = (node: ElementNode): void => {
+    const lastDescendant = node.getLastDescendant();
+    if ($isTextNode(lastDescendant)) {
+      lastDescendant.select();
+    } else if ($isElementNode(lastDescendant)) {
+      lastDescendant.selectEnd();
+    } else if (lastDescendant !== null) {
+      lastDescendant.selectNext();
+    }
+  };
+
+  const computeSelectionCount = useCallback(
+    (
+      selection: TableSelection,
+    ): {
+      columns: number;
+      rows: number;
+    } => {
+      const selectionShape = selection.getShape();
+      return {
+        columns: selectionShape.toX - selectionShape.fromX + 1,
+        rows: selectionShape.toY - selectionShape.fromY + 1,
+      };
+    },
+    [],
   );
 
   useEffect(() => {
@@ -195,7 +202,7 @@ function TableActionMenu({
         setBackgroundColor(currentCellBackgroundColor(editor) || "");
       }
     });
-  }, [editor, tableCellNode]);
+  }, [currentCellBackgroundColor, editor, tableCellNode]);
 
   useEffect(() => {
     editor.getEditorState().read(() => {
@@ -213,7 +220,7 @@ function TableActionMenu({
       // Unmerge cell
       setCanUnmergeCell($canUnmerge());
     });
-  }, [editor]);
+  }, [computeSelectionCount, editor]);
 
   useEffect(() => {
     const menuButtonElement = contextRef.current;
@@ -343,7 +350,7 @@ function TableActionMenu({
   const insertTableRowAtSelection = useCallback(
     (shouldInsertAfter: boolean) => {
       editor.update(() => {
-        $insertTableRow__EXPERIMENTAL(shouldInsertAfter);
+        $insertTableRowAtSelection(shouldInsertAfter);
         onClose();
       });
     },
@@ -354,7 +361,7 @@ function TableActionMenu({
     (shouldInsertAfter: boolean) => {
       editor.update(() => {
         for (let i = 0; i < selectionCounts.columns; i++) {
-          $insertTableColumn__EXPERIMENTAL(shouldInsertAfter);
+          $insertTableColumnAtSelection(shouldInsertAfter);
         }
         onClose();
       });
@@ -364,7 +371,7 @@ function TableActionMenu({
 
   const deleteTableRowAtSelection = useCallback(() => {
     editor.update(() => {
-      $deleteTableRow__EXPERIMENTAL();
+      $deleteTableRowAtSelection();
       onClose();
     });
   }, [editor, onClose]);
@@ -381,7 +388,7 @@ function TableActionMenu({
 
   const deleteTableColumnAtSelection = useCallback(() => {
     editor.update(() => {
-      $deleteTableColumn__EXPERIMENTAL();
+      $deleteTableColumnAtSelection();
       onClose();
     });
   }, [editor, onClose]);

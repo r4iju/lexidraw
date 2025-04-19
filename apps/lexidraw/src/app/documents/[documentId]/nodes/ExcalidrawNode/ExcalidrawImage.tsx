@@ -49,7 +49,7 @@ export default function ExcalidrawImage({
   rootClassName = null,
   children,
 }: Props): JSX.Element {
-  const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | undefined>(undefined);
 
   const isDarkTheme = useIsDarkTheme();
 
@@ -87,7 +87,7 @@ export default function ExcalidrawImage({
     <div className={`relative inline-block cursor-pointer`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={url ?? ""}
+        src={url}
         alt="Excalidraw"
         style={{
           width: width === "inherit" ? "inherit" : `${width}px`,

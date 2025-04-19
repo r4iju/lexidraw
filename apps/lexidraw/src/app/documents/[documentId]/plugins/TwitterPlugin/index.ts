@@ -7,7 +7,7 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 
-import { $createTweetNode, TweetNode } from "../../nodes/TweetNode";
+import { TweetNode } from "../../nodes/TweetNode";
 
 export const INSERT_TWEET_COMMAND: LexicalCommand<string> = createCommand(
   "INSERT_TWEET_COMMAND",
@@ -24,7 +24,7 @@ export default function TwitterPlugin(): React.JSX.Element | null {
     return editor.registerCommand<string>(
       INSERT_TWEET_COMMAND,
       (payload) => {
-        const tweetNode = $createTweetNode(payload);
+        const tweetNode = TweetNode.$createTweetNode(payload);
         $insertNodeToNearestRoot(tweetNode);
 
         return true;

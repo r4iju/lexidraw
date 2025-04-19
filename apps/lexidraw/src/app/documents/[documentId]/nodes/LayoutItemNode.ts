@@ -36,7 +36,7 @@ export class LayoutItemNode extends ElementNode {
   }
 
   static importJSON(): LayoutItemNode {
-    return $createLayoutItemNode();
+    return LayoutItemNode.$createLayoutItemNode();
   }
 
   isShadowRoot(): boolean {
@@ -50,14 +50,14 @@ export class LayoutItemNode extends ElementNode {
       version: 1,
     };
   }
-}
 
-export function $createLayoutItemNode(): LayoutItemNode {
-  return new LayoutItemNode();
-}
+  static $createLayoutItemNode(): LayoutItemNode {
+    return new LayoutItemNode();
+  }
 
-export function $isLayoutItemNode(
-  node: LexicalNode | null | undefined,
-): node is LayoutItemNode {
-  return node instanceof LayoutItemNode;
+  static $isLayoutItemNode(
+    node: LexicalNode | null | undefined,
+  ): node is LayoutItemNode {
+    return node instanceof LayoutItemNode;
+  }
 }

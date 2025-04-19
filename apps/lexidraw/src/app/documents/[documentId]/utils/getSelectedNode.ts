@@ -1,6 +1,6 @@
 import { $isAtNodeEnd } from "@lexical/selection";
 import { ElementNode, RangeSelection, TextNode } from "lexical";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 export function useGetSelectedNode(): (
   selection: RangeSelection,

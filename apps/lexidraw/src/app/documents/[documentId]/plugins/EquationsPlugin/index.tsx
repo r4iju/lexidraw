@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect } from "react";
 import * as React from "react";
 
-import { $createEquationNode, EquationNode } from "../../nodes/EquationNode";
+import { EquationNode } from "../../nodes/EquationNode";
 import KatexEquationAlterer from "~/components/ui/katex-equation-alterer";
 
 type CommandPayload = {
@@ -60,7 +60,7 @@ export default function EquationsPlugin(): React.JSX.Element | null {
       INSERT_EQUATION_COMMAND,
       (payload) => {
         const { equation, inline } = payload;
-        const equationNode = $createEquationNode(equation, inline);
+        const equationNode = EquationNode.$createEquationNode(equation, inline);
 
         $insertNodes([equationNode]);
         if ($isRootOrShadowRoot(equationNode.getParentOrThrow())) {

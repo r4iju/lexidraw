@@ -7,7 +7,7 @@ import {
   URL_MATCHER,
 } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 import {
@@ -31,77 +31,83 @@ interface PlaygroundEmbedConfig extends EmbedConfig {
   description?: string;
 }
 
-export const YoutubeEmbedConfig: PlaygroundEmbedConfig = {
-  contentName: "Youtube Video",
-  exampleUrl: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-  icon: <i className="icon youtube" />,
-  insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
-    editor.dispatchCommand(INSERT_YOUTUBE_COMMAND, result.id);
-  },
-  keywords: ["youtube", "video"],
-  parseUrl: async (url: string) => {
-    const match =
-      /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/.exec(url);
-    const id = match
-      ? (match?.[2] as string).length === 11
-        ? match[2]
-        : null
-      : null;
-    if (id != null) {
-      return { id, url };
-    }
-    return null;
-  },
-  type: "youtube-video",
-};
+export const useEmbedConfigs = () => {
+  const YoutubeEmbedConfig: PlaygroundEmbedConfig = {
+    contentName: "Youtube Video",
+    exampleUrl: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    icon: <i className="icon youtube" />,
+    insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
+      editor.dispatchCommand(INSERT_YOUTUBE_COMMAND, result.id);
+    },
+    keywords: ["youtube", "video"],
+    parseUrl: async (url: string) => {
+      const match =
+        /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/.exec(
+          url,
+        );
+      const id = match
+        ? (match?.[2] as string).length === 11
+          ? match[2]
+          : null
+        : null;
+      if (id != null) {
+        return { id, url };
+      }
+      return null;
+    },
+    type: "youtube-video",
+  };
 
-export const TwitterEmbedConfig: PlaygroundEmbedConfig = {
-  contentName: "Tweet",
-  exampleUrl: "https://twitter.com/jack/status/20",
-  icon: <i className="icon tweet" />,
-  insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
-    editor.dispatchCommand(INSERT_TWEET_COMMAND, result.id);
-  },
-  keywords: ["tweet", "twitter"],
-  parseUrl: (text: string) => {
-    const match =
-      /^https:\/\/(twitter|x)\.com\/(#!\/)?(\w+)\/status(es)*\/(\d+)/.exec(
-        text,
-      );
-    if (match != null) {
-      return { id: match[5] as string, url: match[1] as string };
-    }
-    return null;
-  },
-  type: "tweet",
-};
+  const TwitterEmbedConfig: PlaygroundEmbedConfig = {
+    contentName: "Tweet",
+    exampleUrl: "https://twitter.com/jack/status/20",
+    icon: <i className="icon tweet" />,
+    insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
+      editor.dispatchCommand(INSERT_TWEET_COMMAND, result.id);
+    },
+    keywords: ["tweet", "twitter", "x"],
+    parseUrl: (text: string) => {
+      const match =
+        /^https:\/\/(twitter|x)\.com\/(#!\/)?(\w+)\/status(es)*\/(\d+)/.exec(
+          text,
+        );
+      if (match != null) {
+        return { id: match[5] as string, url: match[1] as string };
+      }
+      return null;
+    },
+    type: "tweet",
+  };
 
-export const FigmaEmbedConfig: PlaygroundEmbedConfig = {
-  contentName: "Figma Document",
-  exampleUrl: "https://www.figma.com/file/LKQ4FJ4bTnCSjedbRpk931/Sample-File",
-  icon: <i className="icon figma" />,
-  insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
-    editor.dispatchCommand(INSERT_FIGMA_COMMAND, result.id);
-  },
-  keywords: ["figma", "figma.com", "mock-up"],
-  parseUrl: (text: string) => {
-    const match =
-      /https:\/\/([\w.-]+\.)?figma.com\/(file|proto)\/([0-9a-zA-Z]{22,128})(?:\/.*)?$/.exec(
-        text,
-      );
-    if (match != null) {
-      return { id: match[3] as string, url: match[0] as string };
-    }
-    return null;
-  },
-  type: "figma",
-};
+  const FigmaEmbedConfig: PlaygroundEmbedConfig = {
+    contentName: "Figma Document",
+    exampleUrl: "https://www.figma.com/file/LKQ4FJ4bTnCSjedbRpk931/Sample-File",
+    icon: <i className="icon figma" />,
+    insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
+      editor.dispatchCommand(INSERT_FIGMA_COMMAND, result.id);
+    },
+    keywords: ["figma", "figma.com", "mock-up"],
+    parseUrl: (text: string) => {
+      const match =
+        /https:\/\/([\w.-]+\.)?figma.com\/(file|proto)\/([0-9a-zA-Z]{22,128})(?:\/.*)?$/.exec(
+          text,
+        );
+      if (match != null) {
+        return { id: match[3] as string, url: match[0] as string };
+      }
+      return null;
+    },
+    type: "figma",
+  };
 
-export const EmbedConfigs = [
-  TwitterEmbedConfig,
-  YoutubeEmbedConfig,
-  FigmaEmbedConfig,
-];
+  const EmbedConfigs = [
+    TwitterEmbedConfig,
+    YoutubeEmbedConfig,
+    FigmaEmbedConfig,
+  ];
+
+  return EmbedConfigs;
+};
 
 function AutoEmbedMenuItem({
   index,
@@ -273,6 +279,8 @@ export default function AutoEmbedPlugin(): React.JSX.Element {
     setCurrentEmbedConfig(embedConfig);
     setIsDialogOpen(true);
   };
+
+  const EmbedConfigs = useEmbedConfigs();
 
   const getMenuOptions = (
     activeEmbedConfig: PlaygroundEmbedConfig,
