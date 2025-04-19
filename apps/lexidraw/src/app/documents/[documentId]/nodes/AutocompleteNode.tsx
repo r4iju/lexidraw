@@ -30,7 +30,7 @@ export class AutocompleteNode extends TextNode {
   static importJSON(
     serializedNode: SerializedAutocompleteNode,
   ): AutocompleteNode {
-    const node = $createAutocompleteNode(
+    const node = AutocompleteNode.$createAutocompleteNode(
       serializedNode.text,
       serializedNode.uuid,
     );
@@ -72,13 +72,10 @@ export class AutocompleteNode extends TextNode {
   excludeFromCopy() {
     return true;
   }
-}
 
-export function $createAutocompleteNode(
-  text: string,
-  uuid: string,
-): AutocompleteNode {
-  // We set the node to 'token' mode (read-only, basically),
-  // so user can't directly edit it.
-  return new AutocompleteNode(text, uuid).setMode("token");
+  static $createAutocompleteNode(text: string, uuid: string): AutocompleteNode {
+    // We set the node to 'token' mode (read-only, basically),
+    // so user can't directly edit it.
+    return new AutocompleteNode(text, uuid).setMode("token");
+  }
 }
