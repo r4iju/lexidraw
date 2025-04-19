@@ -42,18 +42,6 @@ type LLMContextValue = {
 
 export const LlmModelList = [
   {
-    modelId: "gpt-4o",
-    provider: "openai",
-    name: "GPT-4o",
-    description: "A fast and powerful GPT model",
-  },
-  {
-    modelId: "gpt-4o-mini",
-    provider: "openai",
-    name: "GPT-4o Mini",
-    description: "The smaller and faster GPT model",
-  },
-  {
     modelId: "gpt-4.1-nano",
     provider: "openai",
     name: "GPT-4.1 Nano",
@@ -105,7 +93,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const { data: session } = useSession();
 
   const [llmState, setLlmState] = useState<LLMState>({
-    modelId: "gpt-4o-mini",
+    modelId: "gpt-4.1-nano",
     provider: "openai",
     temperature: 0.3,
     maxTokens: 200,
@@ -118,8 +106,8 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     | ReturnType<typeof createGoogleGenerativeAI>
     | ReturnType<typeof createOpenAI>
   >(
-    createGoogleGenerativeAI({
-      apiKey: session?.user.config.llm.googleApiKey,
+    createOpenAI({
+      apiKey: session?.user.config.llm.openaiApiKey,
     }),
   );
 
