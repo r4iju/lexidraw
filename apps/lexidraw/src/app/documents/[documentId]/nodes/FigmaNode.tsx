@@ -66,7 +66,7 @@ export class FigmaNode extends DecoratorBlockNode {
   }
 
   static importJSON(serializedNode: SerializedFigmaNode): FigmaNode {
-    const node = $createFigmaNode(serializedNode.documentID);
+    const node = FigmaNode.$createFigmaNode(serializedNode.documentID);
     node.setFormat(serializedNode.format);
     return node;
   }
@@ -115,14 +115,14 @@ export class FigmaNode extends DecoratorBlockNode {
       />
     );
   }
-}
 
-export function $createFigmaNode(documentID: string): FigmaNode {
-  return new FigmaNode(documentID);
-}
+  static $createFigmaNode(documentID: string): FigmaNode {
+    return new FigmaNode(documentID);
+  }
 
-export function $isFigmaNode(
-  node: FigmaNode | LexicalNode | null | undefined,
-): node is FigmaNode {
-  return node instanceof FigmaNode;
+  static $isFigmaNode(
+    node: FigmaNode | LexicalNode | null | undefined,
+  ): node is FigmaNode {
+    return node instanceof FigmaNode;
+  }
 }

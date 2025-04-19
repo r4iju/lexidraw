@@ -200,7 +200,6 @@ export default function ExcalidrawComponent({
     appState = {},
   } = useMemo(() => {
     const parsed = JSON.parse(data);
-    console.log("Parsed data:", parsed);
     return parsed;
   }, [data]);
 

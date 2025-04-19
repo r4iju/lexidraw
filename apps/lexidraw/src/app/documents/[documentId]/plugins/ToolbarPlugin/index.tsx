@@ -71,8 +71,8 @@ import { $createStickyNode } from "../../nodes/StickyNode";
 // import DropDown, { DropDownItem } from "../../ui/DropDown";
 import { ColorPickerButton } from "~/components/ui/color-picker";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { sanitizeUrl } from "../../utils/url";
-import { EmbedConfigs } from "../AutoEmbedPlugin";
+import { useSanitizeUrl } from "../../utils/url";
+import { useEmbedConfigs } from "../AutoEmbedPlugin";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
 import { InsertEquationDialog } from "../EquationsPlugin";
 import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
@@ -596,7 +596,9 @@ function LlmModelSelector() {
           max={1}
           step={0.01}
           value={llmState.temperature.toString()}
-          onChange={(e) => setLlmOptions({ temperature: Number(e.target.value) })}
+          onChange={(e) =>
+            setLlmOptions({ temperature: Number(e.target.value) })
+          }
         />
         <DropdownMenuSeparator />
 
@@ -695,6 +697,8 @@ export default function ToolbarPlugin({
     return options;
   }, []);
   const CODE_LANGUAGE_OPTIONS = getCodeLanguageOptions();
+  const sanitizeUrl = useSanitizeUrl();
+  const EmbedConfigs = useEmbedConfigs();
 
   const $updateToolbar = useCallback(() => {
     const selection = $getSelection();
@@ -873,7 +877,7 @@ export default function ToolbarPlugin({
       },
       COMMAND_PRIORITY_NORMAL,
     );
-  }, [activeEditor, isLink, setIsLinkEditMode]);
+  }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
   const applyStyleText = useCallback(
     (styles: Record<string, string>, skipHistoryStack?: boolean) => {
@@ -968,7 +972,7 @@ export default function ToolbarPlugin({
       setIsLinkEditMode(false);
       editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
     }
-  }, [editor, isLink, setIsLinkEditMode]);
+  }, [editor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
   const onCodeLanguageSelect = useCallback(
     (value: string) => {

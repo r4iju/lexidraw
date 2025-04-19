@@ -15,7 +15,7 @@ import { ErrorBoundary } from "react-error-boundary";
 
 import EquationEditor from "~/components/ui/equation-editor";
 import KatexRenderer from "~/components/ui/katex-renderer";
-import { $isEquationNode } from "./EquationNode";
+import { EquationNode } from "./EquationNode";
 
 type EquationComponentProps = {
   equation: string;
@@ -38,7 +38,7 @@ export default function EquationComponent({
       setShowEquationEditor(false);
       editor.update(() => {
         const node = $getNodeByKey(nodeKey);
-        if ($isEquationNode(node)) {
+        if (EquationNode.$isEquationNode(node)) {
           node.setEquation(equationValue);
           if (restoreSelection) {
             node.selectNext(0, 0);

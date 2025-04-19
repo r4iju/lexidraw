@@ -18,7 +18,6 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as React from "react";
 
 import { DialogFooter } from "~/components/ui/dialog";
-import invariant from "../shared/invariant";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -152,7 +151,7 @@ export function TablePlugin({
 
   useEffect(() => {
     if (!editor.hasNodes([TableNode])) {
-      invariant(false, "TablePlugin: TableNode is not registered on editor");
+      throw new Error("TablePlugin: TableNode is not registered on editor");
     }
 
     cellContext.set(cellEditorConfig, children);

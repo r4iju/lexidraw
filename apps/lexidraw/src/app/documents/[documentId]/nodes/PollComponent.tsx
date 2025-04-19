@@ -1,4 +1,5 @@
-import type { Option, Options, PollNode } from "./PollNode";
+import type { Option, Options } from "./PollNode";
+import { PollNode } from "./PollNode";
 
 import "./PollNode.css";
 
@@ -21,7 +22,6 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import joinClasses from "../utils/joinClasses";
-import { $isPollNode, createPollOption } from "./PollNode";
 import { Button } from "~/components/ui/button";
 
 function getTotalVotes(options: Options): number {
@@ -143,7 +143,7 @@ export default function PollComponent({
         const event: KeyboardEvent = payload;
         event.preventDefault();
         const node = $getNodeByKey(nodeKey);
-        if ($isPollNode(node)) {
+        if (PollNode.$isPollNode(node)) {
           node.remove();
           return true;
         }
@@ -195,7 +195,7 @@ export default function PollComponent({
     editor.update(
       () => {
         const node = $getNodeByKey(nodeKey);
-        if ($isPollNode(node)) {
+        if (PollNode.$isPollNode(node)) {
           cb(node);
         }
       },
@@ -205,7 +205,7 @@ export default function PollComponent({
 
   const addOption = () => {
     withPollNode((node) => {
-      node.addOption(createPollOption());
+      node.addOption(PollNode.createPollOption());
     });
   };
 

@@ -14,12 +14,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
 import { ErrorBoundary } from "next/dist/client/components/error-boundary";
 import { Loader2 } from "lucide-react";
+import { VisuallyHidden } from "~/components/ui/visually-hidden";
 
 const Excalidraw = React.lazy(() =>
   import("@excalidraw/excalidraw").then((module) => ({
@@ -142,6 +144,9 @@ export default function ExcalidrawModal({
             discard();
           }}
         >
+          <VisuallyHidden>
+            <DialogTitle>Excalidraw</DialogTitle>
+          </VisuallyHidden>
           <div
             ref={excaliDrawModelRef}
             tabIndex={-1}
@@ -206,11 +211,13 @@ const DiscardDialog = ({
   return (
     <Dialog open={discardModalOpen} onOpenChange={setDiscardModalOpen}>
       <DialogOverlay onClick={(e) => e.preventDefault()}>
-        <DialogContent className="z-[150]">
+        <DialogContent aria-describedby="discard-dialog-description">
           <DialogHeader>
             <DialogTitle>Discard</DialogTitle>
           </DialogHeader>
-          Are you sure you want to discard the changes?
+          <DialogDescription id="discard-dialog-description">
+            Are you sure you want to discard the changes?
+          </DialogDescription>
           <div className="flex justify-between">
             <Button variant="destructive" onClick={onDiscardConfirmed}>
               Discard

@@ -33,7 +33,7 @@ function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
       event.preventDefault();
       if (isSelected && $isNodeSelection($getSelection())) {
         const node = $getNodeByKey(nodeKey);
-        if ($isPageBreakNode(node)) {
+        if (PageBreakNode.$isPageBreakNode(node)) {
           node.remove();
           return true;
         }
@@ -95,7 +95,7 @@ export class PageBreakNode extends DecoratorNode<JSX.Element> {
   }
 
   static importJSON(_serializedNode: SerializedPageBreakNode): PageBreakNode {
-    return $createPageBreakNode();
+    return PageBreakNode.$createPageBreakNode();
   }
 
   static importDOM(): DOMConversionMap | null {
@@ -107,7 +107,7 @@ export class PageBreakNode extends DecoratorNode<JSX.Element> {
         }
 
         return {
-          conversion: $convertPageBreakElement,
+          conversion: PageBreakNode.$convertPageBreakElement,
           priority: COMMAND_PRIORITY_HIGH,
         };
       },
@@ -143,18 +143,18 @@ export class PageBreakNode extends DecoratorNode<JSX.Element> {
   decorate(): JSX.Element {
     return <PageBreakComponent nodeKey={this.__key} />;
   }
-}
 
-function $convertPageBreakElement(): DOMConversionOutput {
-  return { node: $createPageBreakNode() };
-}
+  static $convertPageBreakElement(): DOMConversionOutput {
+    return { node: PageBreakNode.$createPageBreakNode() };
+  }
 
-export function $createPageBreakNode(): PageBreakNode {
-  return new PageBreakNode();
-}
+  static $createPageBreakNode(): PageBreakNode {
+    return new PageBreakNode();
+  }
 
-export function $isPageBreakNode(
-  node: LexicalNode | null | undefined,
-): node is PageBreakNode {
-  return node instanceof PageBreakNode;
+  static $isPageBreakNode(
+    node: LexicalNode | null | undefined,
+  ): node is PageBreakNode {
+    return node instanceof PageBreakNode;
+  }
 }

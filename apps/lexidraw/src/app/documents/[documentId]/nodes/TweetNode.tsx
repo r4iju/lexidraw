@@ -38,7 +38,7 @@ function $convertTweetElement(
 ): DOMConversionOutput | null {
   const id = domNode.getAttribute("data-lexical-tweet-id");
   if (id) {
-    const node = $createTweetNode(id);
+    const node = TweetNode.$createTweetNode(id);
     return { node };
   }
   return null;
@@ -98,7 +98,7 @@ function TweetComponent({
         previousTweetIDRef.current = tweetID;
       }
     }
-  }, [createTweet, onError, tweetID]);
+  }, [createTweet, isTwitterScriptLoading, onError, tweetID]);
 
   return (
     <BlockWithAlignableContents
@@ -134,7 +134,7 @@ export class TweetNode extends DecoratorBlockNode {
   }
 
   static importJSON(serializedNode: SerializedTweetNode): TweetNode {
-    const node = $createTweetNode(serializedNode.id);
+    const node = TweetNode.$createTweetNode(serializedNode.id);
     node.setFormat(serializedNode.format);
     return node;
   }
@@ -202,14 +202,14 @@ export class TweetNode extends DecoratorBlockNode {
       />
     );
   }
-}
 
-export function $createTweetNode(tweetID: string): TweetNode {
-  return new TweetNode(tweetID);
-}
+  static $createTweetNode(tweetID: string): TweetNode {
+    return new TweetNode(tweetID);
+  }
 
-export function $isTweetNode(
-  node: TweetNode | LexicalNode | null | undefined,
-): node is TweetNode {
-  return node instanceof TweetNode;
+  static $isTweetNode(
+    node: TweetNode | LexicalNode | null | undefined,
+  ): node is TweetNode {
+    return node instanceof TweetNode;
+  }
 }

@@ -27,11 +27,7 @@ import {
 import { useEffect } from "react";
 
 import { LayoutContainerNode } from "../../nodes/LayoutContainerNode";
-import {
-  $createLayoutItemNode,
-  $isLayoutItemNode,
-  LayoutItemNode,
-} from "../../nodes/LayoutItemNode";
+import { LayoutItemNode } from "../../nodes/LayoutItemNode";
 
 export const INSERT_LAYOUT_COMMAND: LexicalCommand<string> =
   createCommand<string>();
@@ -43,6 +39,11 @@ export const UPDATE_LAYOUT_COMMAND: LexicalCommand<{
 
 export function LayoutPlugin(): null {
   const [editor] = useLexicalComposerContext();
+
+  const getItemsCountFromTemplate = (template: string): number => {
+    return template.trim().split(/\s+/).length;
+  };
+
   useEffect(() => {
     if (!editor.hasNodes([LayoutContainerNode, LayoutItemNode])) {
       throw new Error(
@@ -129,7 +130,7 @@ export function LayoutPlugin(): null {
 
             for (let i = 0; i < itemsCount; i++) {
               container.append(
-                $createLayoutItemNode().append($createParagraphNode()),
+                LayoutItemNode.$createLayoutItemNode().append($createParagraphNode()),
               );
             }
 
@@ -160,14 +161,14 @@ export function LayoutPlugin(): null {
             if (itemsCount > prevItemsCount) {
               for (let i = prevItemsCount; i < itemsCount; i++) {
                 container.append(
-                  $createLayoutItemNode().append($createParagraphNode()),
+                  LayoutItemNode.$createLayoutItemNode().append($createParagraphNode()),
                 );
               }
             } else if (itemsCount < prevItemsCount) {
               for (let i = prevItemsCount - 1; i >= itemsCount; i--) {
                 const layoutItem = container.getChildAtIndex<LexicalNode>(i);
 
-                if ($isLayoutItemNode(layoutItem)) {
+                if (LayoutItemNode.$isLayoutItemNode(layoutItem)) {
                   layoutItem.remove();
                 }
               }
@@ -195,7 +196,7 @@ export function LayoutPlugin(): null {
       }),
       editor.registerNodeTransform(LayoutContainerNode, (node) => {
         const children = node.getChildren<LexicalNode>();
-        if (!children.every($isLayoutItemNode)) {
+        if (!children.every(LayoutItemNode.$isLayoutItemNode)) {
           for (const child of children) {
             node.insertBefore(child);
           }
@@ -206,8 +207,4 @@ export function LayoutPlugin(): null {
   }, [editor]);
 
   return null;
-}
-
-function getItemsCountFromTemplate(template: string): number {
-  return template.trim().split(/\s+/).length;
 }

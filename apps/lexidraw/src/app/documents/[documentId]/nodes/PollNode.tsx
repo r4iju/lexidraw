@@ -21,29 +21,6 @@ export type Option = Readonly<{
 
 const PollComponent = React.lazy(() => import("./PollComponent"));
 
-function createUID(): string {
-  return Math.random()
-    .toString(36)
-    .replace(/[^a-z]+/g, "")
-    .substr(0, 5);
-}
-
-export function createPollOption(text = ""): Option {
-  return {
-    text,
-    uid: createUID(),
-    votes: [],
-  };
-}
-
-function cloneOption(option: Option, text: string, votes?: number[]): Option {
-  return {
-    text,
-    uid: option.uid,
-    votes: votes || Array.from(option.votes),
-  };
-}
-
 export type SerializedPollNode = Spread<
   {
     question: string;
@@ -51,16 +28,6 @@ export type SerializedPollNode = Spread<
   },
   SerializedLexicalNode
 >;
-
-function $convertPollElement(domNode: HTMLElement): DOMConversionOutput | null {
-  const question = domNode.getAttribute("data-lexical-poll-question");
-  const options = domNode.getAttribute("data-lexical-poll-options");
-  if (question !== null && options !== null) {
-    const node = $createPollNode(question, JSON.parse(options));
-    return { node };
-  }
-  return null;
-}
 
 export class PollNode extends DecoratorNode<React.JSX.Element> {
   __question: string;
@@ -70,12 +37,30 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
     return "poll";
   }
 
+  static $convertPollElement(domNode: HTMLElement): DOMConversionOutput | null {
+    const question = domNode.getAttribute("data-lexical-poll-question");
+    const options = domNode.getAttribute("data-lexical-poll-options");
+    if (question !== null && options !== null) {
+      const node = PollNode.$createPollNode(question, JSON.parse(options));
+      return { node };
+    }
+    return null;
+  }
+
+  static cloneOption(option: Option, text: string, votes?: number[]): Option {
+    return {
+      text,
+      uid: option.uid,
+      votes: votes || Array.from(option.votes),
+    };
+  }
+
   static clone(node: PollNode): PollNode {
     return new PollNode(node.__question, node.__options, node.__key);
   }
 
   static importJSON(serializedNode: SerializedPollNode): PollNode {
-    const node = $createPollNode(
+    const node = PollNode.$createPollNode(
       serializedNode.question,
       serializedNode.options,
     );
@@ -115,7 +100,7 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
 
   setOptionText(option: Option, text: string): void {
     const self = this.getWritable();
-    const clonedOption = cloneOption(option, text);
+    const clonedOption = PollNode.cloneOption(option, text);
     const options = Array.from(self.__options);
     const index = options.indexOf(option);
     options[index] = clonedOption;
@@ -132,7 +117,7 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
     } else {
       votesClone.splice(voteIndex, 1);
     }
-    const clonedOption = cloneOption(option, option.text, votesClone);
+    const clonedOption = PollNode.cloneOption(option, option.text, votesClone);
     const options = Array.from(self.__options);
     const index = options.indexOf(option);
     options[index] = clonedOption;
@@ -146,7 +131,7 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
           return null;
         }
         return {
-          conversion: $convertPollElement,
+          conversion: PollNode.$convertPollElement,
           priority: 2,
         };
       },
@@ -184,14 +169,27 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
       </Suspense>
     );
   }
-}
 
-export function $createPollNode(question: string, options: Options): PollNode {
-  return new PollNode(question, options);
-}
+  static createUID(): string {
+    return Math.random()
+      .toString(36)
+      .replace(/[^a-z]+/g, "")
+      .substr(0, 5);
+  }
 
-export function $isPollNode(
-  node: LexicalNode | null | undefined,
-): node is PollNode {
-  return node instanceof PollNode;
+  static createPollOption(text = ""): Option {
+    return {
+      text,
+      uid: PollNode.createUID(),
+      votes: [],
+    };
+  }
+
+  static $createPollNode(question: string, options: Options): PollNode {
+    return new PollNode(question, options);
+  }
+
+  static $isPollNode(node: LexicalNode | null | undefined): node is PollNode {
+    return node instanceof PollNode;
+  }
 }

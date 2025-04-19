@@ -12,7 +12,7 @@ import {
 } from "lexical";
 
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
-import { $isCollapsibleContentNode } from "./CollapsibleContentNode";
+import { CollapsibleContentNode } from "./CollapsibleContentNode";
 import { IS_CHROME } from "@lexical/utils";
 import invariant from "../../shared/invariant";
 
@@ -114,7 +114,7 @@ export class CollapsibleTitleNode extends ElementNode {
 
     if (containerNode.getOpen()) {
       const contentNode = this.getNextSibling();
-      if (!$isCollapsibleContentNode(contentNode)) {
+      if (!CollapsibleContentNode.$isCollapsibleContentNode(contentNode)) {
         throw new Error(
           "CollapsibleTitleNode expects to have CollapsibleContentNode sibling",
         );
