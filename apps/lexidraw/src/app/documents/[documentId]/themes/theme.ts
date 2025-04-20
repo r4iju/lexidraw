@@ -2,7 +2,34 @@ import { type EditorThemeClasses } from "lexical";
 import "./playground-theme.css";
 
 export const theme = {
-  code: "rounded-md whitespace-pre block relative font-mono overflow-x-auto my-2 pl-8 py-4 bg-gray-100 dark:bg-gray-800 text-foreground",
+  code: `
+  bg-input
+  dark:bg-muted
+  font-mono
+  block
+  overflow-x-auto
+  my-2
+  px-2
+  pl-[52px]
+  py-2
+  text-[13px]
+  leading-[1.53]
+  relative
+  tab-size-[2]
+
+  before:absolute
+  before:content-[attr(data-gutter)]
+  before:left-0
+  before:top-0
+  before:bg-gray-200 dark:before:bg-gray-800
+  before:border-r
+  before:border-gray-300 dark:before:border-gray-700
+  before:p-2
+  before:text-gray-500 dark:before:text-gray-400
+  before:whitespace-pre-wrap
+  before:text-right
+  before:min-w-[25px]
+`,
   codeHighlight: {
     atrule: "text-indigo-600 dark:text-indigo-400",
     attr: "text-blue-600 dark:text-blue-400",
@@ -170,4 +197,10 @@ export const theme = {
     underline: "underline text-foreground",
     underlineStrikethrough: "underline line-through text-foreground",
   },
+  layoutContainer: "grid gap-2 my-2",
+  layoutItem: "border border-dashed border-muted p-2",
+  codeBlock:
+    "bg-muted font-mono block px-2 pl-13 py-2 leading-[1.53] text-[13px] my-2 overflow-x-auto relative tab-size-[2]",
+  codeGutter:
+    "absolute bg-accent left-0 top-0 border-r border-muted px-2 text-muted-foreground whitespace-pre-wrap text-right min-w-[25px]",
 } satisfies EditorThemeClasses;

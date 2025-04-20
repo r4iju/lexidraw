@@ -1,4 +1,3 @@
-import "./index.css";
 import {
   $isCodeNode,
   CodeNode,
@@ -10,8 +9,9 @@ import { $getNearestNodeFromDOMNode } from "lexical";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CopyButton } from "./components/CopyButton";
-import { canBePrettier, PrettierButton } from "./components/PrettierButton";
+import { PrettierButton } from "./components/PrettierButton";
 import { useDebounce } from "~/lib/client-utils";
+import type { Options } from "prettier";
 
 const CODE_PADDING = 8;
 
@@ -45,6 +45,27 @@ function CodeActionMenuContainer({
   const getCodeDOMNode = useCallback(() => {
     return codeDOMNodeRef.current;
   }, []);
+
+  const getMouseInfo = useCallback(
+    (
+      event: MouseEvent,
+    ): {
+      codeDOMNode: HTMLElement | null;
+      isOutside: boolean;
+    } => {
+      const target = event.target;
+      if (target && target instanceof HTMLElement) {
+        const codeDOMNode = target.closest<HTMLElement>("code");
+        const isOutside = !(
+          codeDOMNode || target.closest<HTMLElement>("[data-code-action-menu]")
+        );
+        return { codeDOMNode, isOutside };
+      } else {
+        return { codeDOMNode: null, isOutside: true };
+      }
+    },
+    [],
+  );
 
   const { run: debouncedOnMouseMove, cancel: cancelDebouncedOnMouseMove } =
     useDebounce((event: MouseEvent) => {
@@ -122,22 +143,38 @@ function CodeActionMenuContainer({
     });
   }, [editor]);
 
+  const PRETTIER_OPTIONS_BY_LANG: Record<string, Options> = {
+    css: { parser: "css" },
+    html: { parser: "html" },
+    js: { parser: "babel" },
+    markdown: { parser: "markdown" },
+    typescript: { parser: "typescript" },
+  };
+
+  const LANG_CAN_BE_PRETTIER = Object.keys(PRETTIER_OPTIONS_BY_LANG);
+
+  const canBePrettier = (lang: string): boolean => {
+    return LANG_CAN_BE_PRETTIER.includes(lang);
+  };
+
   const normalizedLang = normalizeCodeLang(lang);
   const codeFriendlyName = getLanguageFriendlyName(lang);
 
   return (
     <>
       {isShown ? (
-        <div className="code-action-menu-container" style={{ ...position }}>
-          <div className="code-highlight-language">{codeFriendlyName}</div>
-
+        <div
+          className="absolute flex flex-row items-center select-none h-[35.8px] text-[10px] text-muted-foreground z-50"
+          style={{ ...position }}
+          data-code-action-menu
+        >
+          <div className="mr-1 code-highlight-language">{codeFriendlyName}</div>
           {/**
            * 3. Instead of passing a DOM node directly (or a ref),
            *    we pass getCodeDOMNode, a stable callback,
            *    which will only be called inside an event handler in the children.
            */}
           <CopyButton editor={editor} getCodeDOMNode={getCodeDOMNode} />
-
           {canBePrettier(normalizedLang) ? (
             <PrettierButton
               editor={editor}
@@ -149,25 +186,6 @@ function CodeActionMenuContainer({
       ) : null}
     </>
   );
-}
-
-function getMouseInfo(event: MouseEvent): {
-  codeDOMNode: HTMLElement | null;
-  isOutside: boolean;
-} {
-  const target = event.target;
-  if (target && target instanceof HTMLElement) {
-    const codeDOMNode = target.closest<HTMLElement>(
-      "code.PlaygroundEditorTheme__code",
-    );
-    const isOutside = !(
-      codeDOMNode ||
-      target.closest<HTMLElement>("div.code-action-menu-container")
-    );
-    return { codeDOMNode, isOutside };
-  } else {
-    return { codeDOMNode: null, isOutside: true };
-  }
 }
 
 export default function CodeActionMenuPlugin({

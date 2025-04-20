@@ -5,8 +5,10 @@ import {
   $setSelection,
   LexicalEditor,
 } from "lexical";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";
 import { useState } from "react";
+import { Button } from "~/components/ui/button";
 import { useDebounce } from "~/lib/client-utils";
 
 interface Props {
@@ -50,12 +52,12 @@ export function CopyButton({ editor, getCodeDOMNode }: Props) {
   }
 
   return (
-    <button className="menu-item" onClick={handleClick} aria-label="copy">
+    <Button variant="ghost" onClick={handleClick} aria-label="copy">
       {isCopyCompleted ? (
-        <i className="format success" />
+        <CheckIcon className="size-4" />
       ) : (
-        <i className="format copy" />
+        <CopyIcon className="size-4" />
       )}
-    </button>
+    </Button>
   );
 }
