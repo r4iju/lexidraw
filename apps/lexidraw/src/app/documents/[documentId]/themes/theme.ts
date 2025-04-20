@@ -36,21 +36,29 @@ export const theme = {
     variable: "text-indigo-600 dark:text-indigo-400",
   },
   autocomplete: "text-muted-foreground",
-  table: "PlaygroundEditorTheme__table",
-  tableAddColumns: "PlaygroundEditorTheme__tableAddColumns",
-  tableAddRows: "PlaygroundEditorTheme__tableAddRows",
-  tableCell: "PlaygroundEditorTheme__tableCell",
-  tableCellActionButton: "PlaygroundEditorTheme__tableCellActionButton",
-  tableCellActionButtonContainer:
-    "PlaygroundEditorTheme__tableCellActionButtonContainer",
-  tableCellEditing: "PlaygroundEditorTheme__tableCellEditing",
-  tableCellHeader: "PlaygroundEditorTheme__tableCellHeader",
-  tableCellPrimarySelected: "PlaygroundEditorTheme__tableCellPrimarySelected",
-  tableCellResizer: "PlaygroundEditorTheme__tableCellResizer",
-  tableCellSelected: "PlaygroundEditorTheme__tableCellSelected",
-  tableCellSortedIndicator: "PlaygroundEditorTheme__tableCellSortedIndicator",
-  tableResizeRuler: "PlaygroundEditorTheme__tableCellResizeRuler",
-  tableSelected: "PlaygroundEditorTheme__tableSelected",
+  table:
+    "border-collapse border-spacing-0 overflow-x-auto overflow-y-auto table-fixed w-max my-8 rounded-md",
+  tableAddColumns:
+    "absolute top-0 right-[-25px] w-5 h-full bg-muted hover:bg-accent transition",
+  tableAddRows:
+    "absolute left-0 bottom-[-25px] h-5 w-[calc(100%-25px)] bg-muted hover:bg-accent transition",
+  tableCell:
+    "relative outline-none border border-border align-top text-start min-w-[75px] w-[75px] p-2",
+  tableCellHeader: "font-semibold",
+  tableCellSelected: "bg-primary/10",
+  tableCellPrimarySelected:
+    "absolute inset-0 border-2 border-primary pointer-events-none",
+  tableCellEditing: "shadow-md",
+  tableCellSortedIndicator:
+    "absolute bottom-0 left-0 w-full h-1 opacity-50 bg-muted-foreground",
+  tableCellActionButtonContainer: "absolute top-[6px] right-[5px] z-10",
+  tableCellActionButton:
+    "w-5 h-5 rounded-full bg-muted hover:bg-muted cursor-pointer",
+  tableCellResizer:
+    "absolute right-[-4px] top-0 h-full w-2 cursor-ew-resize z-10",
+  tableResizeRuler: "absolute top-0 h-full w-px bg-primary",
+  tableSelection: "",
+  tableSelected: "outline outline-2 outline-primary",
   heading: {
     h1: "text-3xl font-semibold mb-2 text-foreground",
     h2: "text-2xl font-semibold mb-2 text-foreground",
