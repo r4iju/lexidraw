@@ -72,11 +72,11 @@ export const theme = {
     checklist: "p-0 m-0 list-none",
 
     // Common <li> base styling
-    listitem: "mx-8",
+    listitem: "mx-8 my-1",
 
     // Checklists:
     listitemUnchecked: `
-      relative 
+      relative
       p-0 
       ml-2 mr-2 
       pl-8 
@@ -87,8 +87,7 @@ export const theme = {
       before:left-0 
       before:top-1/2 
       before:-translate-y-1/2 
-      before:w-5 
-      before:h-5 
+      before:size-5
       before:border 
       before:border-muted-foreground
       before:rounded 
@@ -110,8 +109,7 @@ export const theme = {
       before:left-0 
       before:top-1/2 
       before:-translate-y-1/2 
-      before:w-5 
-      before:h-5 
+      before:size-5
       before:border 
       before:border-primary
       before:bg-primary 
@@ -119,11 +117,11 @@ export const theme = {
       before:content-['']
       before:cursor-pointer 
       after:absolute 
-      after:left-[7px] 
-      after:top-[45%] 
+      after:left-[7px]
+      after:top-[45%]
       after:-translate-y-[45%]
-      after:w-[6px] 
-      after:h-[10px] 
+      after:w-[6px]
+      after:h-[10px]
       after:border-r-[2px] 
       after:border-b-[2px] 
       after:border-white 
