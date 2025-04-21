@@ -71,7 +71,6 @@ import { LLMProvider } from "./context/llm-context";
 import ContextMenuPlugin from "./plugins/ContextMenuPlugin";
 import TableOfContentsPlugin from "./plugins/TableOfContentsPlugin";
 import { LLMWidget } from "./plugins/AutocompletePlugin/LLMWidget";
-import { revalidate } from "./actions";
 import { ToolbarContext } from "./context/toolbar-context";
 import ListMaxIndentLevelPlugin from "./plugins/ListMaxIndentLevelPlugin";
 import PageBreakPlugin from "./plugins/PageBreakPlugin";
@@ -91,6 +90,10 @@ import { CommentNode } from "./nodes/CommentNode";
 import { ThreadNode } from "./nodes/ThreadNode";
 import { SessionUUIDProvider } from "./plugins/AutocompletePlugin/session-uuid-provider";
 import { DisableChecklistSpacebarPlugin } from "./plugins/list-spacebar-plugin";
+import {
+  UnsavedChangesProvider,
+  useUnsavedChanges,
+} from "./use-unsaved-changes";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
@@ -123,6 +126,8 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null);
 
+  const { markDirty } = useUnsavedChanges();
+
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
     if (_floatingAnchorElem !== null) {
       setFloatingAnchorElem(_floatingAnchorElem);
@@ -147,6 +152,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
     }
+    markDirty();
     editorStateRef.current = editorState;
     debouncedSendUpdateRef.current(parsedState);
   };
@@ -164,15 +170,14 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
     [editor],
   );
 
-  const { sendMessage, initializeConnection, closeConnection } =
-    useWebRtcService(
-      { drawingId: entity.id, userId, iceServers },
-      {
-        onMessage: applyUpdate,
-        onConnectionClose: () => setIsCollaborating(false),
-        onConnectionOpen: () => setIsCollaborating(true),
-      },
-    );
+  const { sendMessage, initializeConnection } = useWebRtcService(
+    { drawingId: entity.id, userId, iceServers },
+    {
+      onMessage: applyUpdate,
+      onConnectionClose: () => setIsCollaborating(false),
+      onConnectionOpen: () => setIsCollaborating(true),
+    },
+  );
 
   useEffect(() => {
     if (!isCollaborating && canCollaborate) {
@@ -185,14 +190,6 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
         });
     }
   }, [canCollaborate, initializeConnection, isCollaborating]);
-
-  // cleanup on unmount
-  useEffect(() => {
-    return () => {
-      revalidate(entity.id);
-      closeConnection();
-    };
-  }, [entity.id, closeConnection]);
 
   return (
     <SettingsContext>
@@ -381,7 +378,9 @@ export default function DocumentEditor({ entity, iceServers }: Props) {
         theme: theme,
       }}
     >
-      <EditorHandler entity={entity} iceServers={iceServers} />
+      <UnsavedChangesProvider>
+        <EditorHandler entity={entity} iceServers={iceServers} />
+      </UnsavedChangesProvider>
     </LexicalComposer>
   );
 }
