@@ -1,10 +1,11 @@
 import { $isCodeNode } from "@lexical/code";
 import { $getNearestNodeFromDOMNode, LexicalEditor } from "lexical";
-import { AlertTriangleIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckIcon } from "lucide-react";
 import type { Options } from "prettier";
 import * as React from "react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
+import { useDebounce } from "~/lib/client-utils";
 
 type Props = {
   lang: string;
@@ -15,6 +16,10 @@ type Props = {
 export function PrettierButton({ lang, editor, getCodeDOMNode }: Props) {
   const [syntaxError, setSyntaxError] = useState<string>("");
   const [tipsVisible, setTipsVisible] = useState<boolean>(false);
+  const [isFormatCompleted, setFormatCompleted] = useState<boolean>(false);
+  const { run: removeFormatSuccess } = useDebounce(() => {
+    setFormatCompleted(false);
+  }, 1000);
 
   const PRETTIER_PARSER_MODULES = {
     css: [() => import("prettier/parser-postcss")],
@@ -97,6 +102,8 @@ export function PrettierButton({ lang, editor, getCodeDOMNode }: Props) {
           selection.insertText(formattedCode);
           setSyntaxError("");
           setTipsVisible(false);
+          setFormatCompleted(true);
+          removeFormatSuccess();
         }
       });
     } catch (error: unknown) {
@@ -128,13 +135,17 @@ export function PrettierButton({ lang, editor, getCodeDOMNode }: Props) {
   return (
     <div className="relative">
       <Button
-        variant="ghost"
+        variant="outline"
+        size="icon"
+        className="bg-transparent border-muted-foreground size-8 rounded-sm"
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         aria-label="prettier"
       >
-        {syntaxError ? (
+        {isFormatCompleted ? (
+          <CheckIcon className="size-4" />
+        ) : syntaxError ? (
           <AlertTriangleIcon className="size-4" />
         ) : (
           <span className="text-xs font-bold uppercase">P</span>

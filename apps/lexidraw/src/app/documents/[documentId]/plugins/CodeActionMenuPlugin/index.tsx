@@ -8,8 +8,8 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $getNearestNodeFromDOMNode } from "lexical";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CopyButton } from "./components/CopyButton";
-import { PrettierButton } from "./components/PrettierButton";
+import { CopyButton } from "./copy-button";
+import { PrettierButton } from "./prettier-button";
 import { useDebounce } from "~/lib/client-utils";
 import type { Options } from "prettier";
 
@@ -54,15 +54,22 @@ function CodeActionMenuContainer({
       isOutside: boolean;
     } => {
       const target = event.target;
-      if (target && target instanceof HTMLElement) {
-        const codeDOMNode = target.closest<HTMLElement>("code");
-        const isOutside = !(
-          codeDOMNode || target.closest<HTMLElement>("[data-code-action-menu]")
-        );
-        return { codeDOMNode, isOutside };
-      } else {
+
+      if (!(target instanceof Element)) {
         return { codeDOMNode: null, isOutside: true };
       }
+
+      const menuElem = (target as Element).closest<HTMLElement>(
+        "[data-code-action-menu]",
+      );
+
+      let codeDOMNode = (target as Element).closest<HTMLElement>("code");
+      if (menuElem) {
+        codeDOMNode = codeDOMNodeRef.current;
+      }
+
+      const isOutside = !codeDOMNode;
+      return { codeDOMNode, isOutside };
     },
     [],
   );
@@ -70,6 +77,7 @@ function CodeActionMenuContainer({
   const { run: debouncedOnMouseMove, cancel: cancelDebouncedOnMouseMove } =
     useDebounce((event: MouseEvent) => {
       const { codeDOMNode, isOutside } = getMouseInfo(event);
+
       if (isOutside) {
         setShown(false);
         return;
@@ -164,16 +172,11 @@ function CodeActionMenuContainer({
     <>
       {isShown ? (
         <div
-          className="absolute flex flex-row items-center select-none h-[35.8px] text-[10px] text-muted-foreground z-50"
+          className="absolute flex flex-row items-center gap-2 mt-1 select-none h-9 text-muted-foreground"
           style={{ ...position }}
           data-code-action-menu
         >
-          <div className="mr-1 code-highlight-language">{codeFriendlyName}</div>
-          {/**
-           * 3. Instead of passing a DOM node directly (or a ref),
-           *    we pass getCodeDOMNode, a stable callback,
-           *    which will only be called inside an event handler in the children.
-           */}
+          <div className="text-xs">{codeFriendlyName}</div>
           <CopyButton editor={editor} getCodeDOMNode={getCodeDOMNode} />
           {canBePrettier(normalizedLang) ? (
             <PrettierButton
