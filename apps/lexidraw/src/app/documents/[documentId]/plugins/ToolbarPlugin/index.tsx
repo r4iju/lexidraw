@@ -159,7 +159,7 @@ const rootTypeToRootName = { root: "Root", table: "Table" } as const;
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Fredoka", "Fredoka"],
-  ["M PLUS Rounded 1c", "M PLUS Rounded 1c"],
+  ["'M PLUS Rounded 1c'", "'M PLUS Rounded 1c'"],
   ["Noto Sans JP", "Noto Sans JP"],
   ["Arial", "Arial"],
   ["Courier New", "Courier New"],
@@ -167,6 +167,9 @@ const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Times New Roman", "Times New Roman"],
   ["Trebuchet MS", "Trebuchet MS"],
   ["Verdana", "Verdana"],
+  ["Yusei Magic", "Yusei Magic"],
+  ["Kosugi Maru", "Kosugi Maru"],
+  ["Sawarabi Mincho", "Sawarabi Mincho"],
 ];
 
 const FONT_SIZE_OPTIONS: [string, string][] = [
@@ -423,7 +426,7 @@ function FontDropDown({
           disabled={disabled}
           aria-label={buttonAriaLabel}
         >
-          {value}
+          {value.replace(/'/g, "")}
           <ChevronDownIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -439,7 +442,7 @@ function FontDropDown({
             onClick={() => handleClick(option)}
             key={option}
           >
-            <span className="text">{text}</span>
+            <span className="text">{text.replace(/'/g, "")}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

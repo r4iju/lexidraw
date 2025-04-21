@@ -6,6 +6,9 @@ import {
   Inter,
   Anonymous_Pro,
   M_PLUS_Rounded_1c,
+  Yusei_Magic,
+  Kosugi_Maru,
+  Sawarabi_Mincho,
 } from "next/font/google";
 import { headers as nextHeaders } from "next/headers";
 import { TRPCReactProvider } from "~/trpc/react";
@@ -56,6 +59,27 @@ const noto = Noto_Sans_JP({
   display: "swap",
 });
 
+const yusei = Yusei_Magic({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-yusei",
+  display: "swap",
+});
+
+const kosugi = Kosugi_Maru({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-kosugi",
+  display: "swap",
+});
+
+const sawarabi = Sawarabi_Mincho({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-sawarabi",
+  display: "swap",
+});
+
 export const metadata = {
   title: "Lexidraw",
   description: "An Excalidraw demo app",
@@ -85,6 +109,9 @@ export default async function RootLayout({ children }: Props) {
           mono.variable,
           mplus.variable,
           noto.variable,
+          yusei.variable,
+          kosugi.variable,
+          sawarabi.variable,
         )}
       >
         <SessionProvider>
