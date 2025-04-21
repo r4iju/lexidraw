@@ -61,8 +61,9 @@ import {
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
+  LexicalNode,
 } from "lexical";
-import { Dispatch, useCallback, useEffect, useState } from "react";
+import { Dispatch, useCallback, useEffect, useState, useMemo } from "react";
 import type { JSX } from "react";
 import { IS_APPLE } from "../../shared/environment";
 
@@ -138,6 +139,7 @@ import {
   CommandList,
 } from "~/components/ui/command";
 import { cn } from "~/lib/utils";
+import { Label } from "~/components/ui/label";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
@@ -389,6 +391,62 @@ function Divider(): JSX.Element {
   return <div className="divider" />;
 }
 
+function FontImportModal({
+  onClose,
+  onImport,
+}: {
+  onClose: () => void;
+  onImport: (fontName: string) => void;
+}) {
+  const [fontName, setFontName] = useState("");
+  const [error, setError] = useState("");
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!fontName.trim()) {
+          setError("Font name required");
+          return;
+        }
+        onImport(fontName);
+        onClose();
+      }}
+      className="flex flex-col gap-2"
+    >
+      <Button variant="link" asChild rel="noopener noreferrer">
+        <Link
+          className="text-sm pl-0 pr-0"
+          target="_blank"
+          href="https://fonts.google.com/"
+        >
+          Find a font on Google Fonts
+        </Link>
+      </Button>
+      <Label className="font-medium">Google Font Name</Label>
+
+      <Input
+        value={fontName}
+        onChange={(e) => {
+          setFontName(e.target.value);
+          setError("");
+        }}
+        placeholder="e.g. Indie Flower"
+        autoFocus
+      />
+      {error && <Label className="text-xs text-destructive">{error}</Label>}
+      <Button type="submit" className="mt-2">
+        Import
+      </Button>
+    </form>
+  );
+}
+
+function getFontLabel(value: string, options: [string, string][]) {
+  const found = options.find(([val]) => val === value);
+  return found ? found[1] : value;
+}
+
 function FontDropDown({
   editor,
   value,
@@ -400,6 +458,9 @@ function FontDropDown({
   style: string;
   disabled?: boolean;
 }): JSX.Element {
+  const [modal, showModal] = useModal();
+  const [customFonts, setCustomFonts] = useState<[string, string][]>([]);
+
   const handleClick = useCallback(
     (option: string) => {
       editor.update(() => {
@@ -412,41 +473,158 @@ function FontDropDown({
     [editor, style],
   );
 
+  const handleAddFont = useCallback(() => {
+    showModal("Import a custom Font", (onClose) => (
+      <FontImportModal
+        onClose={onClose}
+        onImport={(fontName) => {
+          const fontVar = `--font-${fontName.trim().toLowerCase().replace(/\\s+/g, "-")}`;
+          const fontValue = `'${fontName.trim()}'`;
+          const fontLabel = fontName.trim();
+
+          if (!document.getElementById(fontVar)) {
+            // Inject the Google Fonts link
+            const link = document.createElement("link");
+            link.id = fontVar;
+            link.rel = "stylesheet";
+            link.href = `https://fonts.googleapis.com/css2?family=${fontName.trim().replace(/\\s+/g, "+")}:wght@400&display=swap`;
+            document.head.appendChild(link);
+
+            // Inject the CSS variable
+            const style = document.createElement("style");
+            style.id = `style-${fontVar}`;
+            style.innerHTML = `:root { ${fontVar}: '${fontLabel}', cursive; }`;
+            document.head.appendChild(style);
+          }
+          setCustomFonts((prev) => [...prev, [fontValue, fontLabel]]);
+        }}
+      />
+    ));
+  }, [showModal]);
+
+  useEffect(() => {
+    editor.getEditorState().read(() => {
+      const usedFonts = new Set<string>();
+      function hasGetChildren(
+        node: LexicalNode,
+      ): node is LexicalNode & { getChildren: () => LexicalNode[] } {
+        return (
+          typeof (node as LexicalNode & { getChildren?: unknown })
+            .getChildren === "function"
+        );
+      }
+      function walk(node: LexicalNode) {
+        if ($isTextNode(node)) {
+          const style = node.getStyle?.();
+          if (typeof style === "string") {
+            const match = /font-family:\s*([^;]+)/.exec(style);
+            if (match) {
+              let fontFamily = match[1]?.trim();
+              if (fontFamily) {
+                fontFamily = fontFamily.replace(/^['"]|['"]$/g, "");
+                if (
+                  !FONT_FAMILY_OPTIONS.some(
+                    ([val]) => val.replace(/^['"]|['"]$/g, "") === fontFamily,
+                  )
+                ) {
+                  usedFonts.add(fontFamily);
+                }
+              }
+            }
+          }
+        }
+        if (hasGetChildren(node)) {
+          const children = node.getChildren();
+          if (children && Array.isArray(children)) {
+            children.forEach(walk);
+          }
+        }
+      }
+      const rootChildren: LexicalNode[] = $getRoot().getChildren?.() ?? [];
+      rootChildren.forEach(walk);
+      const newCustomFonts: [string, string][] = [];
+      usedFonts.forEach((fontName) => {
+        const fontVar = `--font-${fontName.trim().toLowerCase().replace(/\s+/g, "-")}`;
+        const fontValue = `'${fontName.trim()}'`;
+        const fontLabel = fontName.trim();
+        if (!document.getElementById(fontVar)) {
+          const link = document.createElement("link");
+          link.id = fontVar;
+          link.rel = "stylesheet";
+          link.href = `https://fonts.googleapis.com/css2?family=${fontLabel.replace(/\s+/g, "+")}:wght@400&display=swap`;
+          document.head.appendChild(link);
+          const style = document.createElement("style");
+          style.id = `style-${fontVar}`;
+          style.innerHTML = `:root { ${fontVar}: '${fontLabel}', cursive; }`;
+          document.head.appendChild(style);
+        }
+        newCustomFonts.push([fontValue, fontLabel]);
+      });
+      setCustomFonts((prev) => {
+        const all = [...prev];
+        newCustomFonts.forEach(([val, label]) => {
+          if (!all.some(([v]) => v === val)) {
+            all.push([val, label]);
+          }
+        });
+        return all;
+      });
+    });
+  }, [editor]);
+
   const buttonAriaLabel =
     style === "font-family"
       ? "Formatting options for font family"
       : "Formatting options for font size";
 
+  const allFontOptions = useMemo(
+    () => [...FONT_FAMILY_OPTIONS, ...customFonts],
+    [customFonts],
+  );
+
+  const options = style === "font-family" ? allFontOptions : FONT_SIZE_OPTIONS;
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className="flex gap-1 h-12 md:h-10"
-          variant="outline"
-          disabled={disabled}
-          aria-label={buttonAriaLabel}
-        >
-          {value.replace(/'/g, "")}
-          <ChevronDownIcon className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        {(style === "font-family"
-          ? FONT_FAMILY_OPTIONS
-          : FONT_SIZE_OPTIONS
-        ).map(([option, text]) => (
-          <DropdownMenuItem
-            className={`item ${dropDownActiveClass(value === option)} ${
-              style === "font-size" ? "fontsize-item" : ""
-            }`}
-            onClick={() => handleClick(option)}
-            key={option}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            className="flex gap-1 h-12 md:h-10"
+            variant="outline"
+            disabled={disabled}
+            aria-label={buttonAriaLabel}
           >
-            <span className="text">{text.replace(/'/g, "")}</span>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            {getFontLabel(value, options)}
+            <ChevronDownIcon className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          {options.map(([option, text]: [string, string]) => (
+            <DropdownMenuItem
+              className={`item ${dropDownActiveClass(value === option)} ${
+                style === "font-size" ? "fontsize-item" : ""
+              }`}
+              onClick={() => handleClick(option)}
+              key={option}
+            >
+              <span className="text">{text.replace(/'/g, "")}</span>
+            </DropdownMenuItem>
+          ))}
+          {style === "font-family" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleAddFont}
+                className="item font-semibold text-primary"
+              >
+                + Import Google Font…
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {modal}
+    </>
   );
 }
 
