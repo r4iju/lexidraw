@@ -4,12 +4,8 @@ import FormSkeleton from "./skeleton";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/server";
-import type { ServerRuntime } from "next";
 
-export const dynamic = "force-dynamic";
-export const runtime: ServerRuntime = "edge";
-
-export default async function SignInPage() {
+export default async function ProfilePage() {
   const user = await api.auth.getProfile.query();
 
   return (

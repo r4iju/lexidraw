@@ -1,10 +1,7 @@
 import { api } from "~/trpc/server";
 import { Dashboard } from "../dashboard";
 import { redirect } from "next/navigation";
-import type { ServerRuntime } from "next/types";
 import { z } from "zod";
-
-export const runtime: ServerRuntime = "edge";
 
 const SearchParams = z.object({
   parentId: z.string().optional().nullable().default(null),
@@ -32,7 +29,7 @@ export default async function DashboardPage({ params, searchParams }: Props) {
     new: isNew,
     sortBy,
     sortOrder,
-    flex, 
+    flex,
     tags,
   } = SearchParams.parse(queryParams);
 
