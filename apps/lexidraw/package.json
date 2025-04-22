@@ -18,7 +18,7 @@
     "@aws-sdk/s3-request-presigner": "^3.787.0",
     "@dnd-kit/core": "^6.3.1",
     "@excalidraw/excalidraw": "^0.18.0",
-    "@hookform/resolvers": "^3.10.0",
+    "@hookform/resolvers": "^5.0.1",
     "@lexical/code": "^0.30.0",
     "@lexical/file": "^0.30.0",
     "@lexical/hashtag": "^0.30.0",
@@ -94,7 +94,7 @@
     "tailwind-merge": "^2.6.0",
     "typescript": "^5.8.3",
     "uuid": "^9.0.1",
-    "zod": "^3.24.2"
+    "zod": "^4.0.0-beta.20250420T053007"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^15.3.0",
