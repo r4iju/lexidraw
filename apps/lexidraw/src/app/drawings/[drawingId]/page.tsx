@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import EditBoard from "./board-edit-client";
 import ViewBoard from "./board-view-client";
 import { redirect } from "next/navigation";
+import { UnsavedChangesProvider } from "~/hooks/use-unsaved-changes";
 
 export const runtime: ServerRuntime = "edge";
 export const fetchCache = "force-no-store";
@@ -90,13 +91,15 @@ export default async function DrawingBoard(props: Props) {
     return (
       <div className="flex w-full items-center justify-center">
         {drawing.accessLevel === AccessLevel.EDIT && (
-          <EditBoard
-            revalidate={revalidate}
-            drawing={drawing}
-            elements={parsedElements}
-            appState={parsedAppState}
-            iceServers={iceServers}
-          />
+          <UnsavedChangesProvider>
+            <EditBoard
+              revalidate={revalidate}
+              drawing={drawing}
+              elements={parsedElements}
+              appState={parsedAppState}
+              iceServers={iceServers}
+            />
+          </UnsavedChangesProvider>
         )}
         {drawing.accessLevel === AccessLevel.READ && (
           <ViewBoard
@@ -109,6 +112,7 @@ export default async function DrawingBoard(props: Props) {
       </div>
     );
   } catch (error) {
+    console.error(error);
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-4">
         <p className="text-lg">Something went wrong</p>
