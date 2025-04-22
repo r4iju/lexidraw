@@ -1,4 +1,4 @@
-import type { Metadata, ServerRuntime } from "next";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
@@ -15,7 +15,6 @@ export const metadata: Metadata = {
   },
 };
 
-export const runtime: ServerRuntime = "edge"; // some plugins like code+formatter with prettier are quite large
 export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 

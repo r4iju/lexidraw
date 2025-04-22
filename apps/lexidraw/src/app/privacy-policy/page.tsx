@@ -1,7 +1,3 @@
-import type { ServerRuntime } from "next";
-
-export const runtime: ServerRuntime = "edge";
-
 export default function TermsOfService() {
   return (
     <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">

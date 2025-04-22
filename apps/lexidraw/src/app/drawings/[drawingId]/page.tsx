@@ -5,14 +5,13 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { AccessLevel } from "@packages/types";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
-import type { Metadata, ServerRuntime } from "next";
+import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 import EditBoard from "./board-edit-client";
 import ViewBoard from "./board-view-client";
 import { redirect } from "next/navigation";
 import { UnsavedChangesProvider } from "~/hooks/use-unsaved-changes";
 
-export const runtime: ServerRuntime = "edge";
 export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 
