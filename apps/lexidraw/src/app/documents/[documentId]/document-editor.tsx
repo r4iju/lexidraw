@@ -93,7 +93,7 @@ import { DisableChecklistSpacebarPlugin } from "./plugins/list-spacebar-plugin";
 import {
   UnsavedChangesProvider,
   useUnsavedChanges,
-} from "./use-unsaved-changes";
+} from "../../../hooks/use-unsaved-changes";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];

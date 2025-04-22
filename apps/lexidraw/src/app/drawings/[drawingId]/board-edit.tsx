@@ -25,6 +25,7 @@ import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { Theme, type MessageStructure } from "@packages/types";
 import DrawingBoardMenu from "./dropdown";
+import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 
 type Props = {
   revalidate: () => void;
@@ -41,15 +42,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   elements,
   iceServers,
 }) => {
-  // hooks
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
-
-  // excalidraw api
   const excalidrawApi = useRef<ExcalidrawImperativeAPI>(null);
-  // server state
   const { mutate: save } = api.entities.save.useMutation();
-  // local state
   const [isMenuOpen] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const canCollaborate = useMemo(() => {
@@ -59,6 +55,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
+  const { markDirty, markPristine } = useUnsavedChanges();
 
   const updateElementsRef = useCallback(
     (currentElements: Map<string, ExcalidrawElement>) => {
@@ -66,6 +63,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
     [],
   );
+  const stableRevalidateRef = useRef(revalidate);
 
   const applyUpdate = useCallback(
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {
@@ -162,7 +160,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           elements: JSON.stringify(elements as ExcalidrawElement[]), // readonly... hmm
         },
         {
-          onSuccess: () => console.log("auto save success"),
+          onSuccess: () => {
+            markPristine();
+            console.log("auto save success");
+          },
           onError: (err) => console.error("auto save failed: ", err),
         },
       );
@@ -199,6 +200,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       state: AppState,
       _: BinaryFiles,
     ) => {
+      markDirty();
       debouncedSaveRef.current({ elements, appState: state });
       if (isRemoteUpdate) {
         console.log("remote update detected");
@@ -219,6 +221,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       setIsRemoteUpdate,
       isCollaborating,
       sendUpdateIfNeeded,
+      markDirty,
     ],
   );
 
@@ -275,12 +278,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   // // cleanup on unmount
   useEffect(() => {
+    const stableRevalidate = stableRevalidateRef.current;
     console.log("call useEffect for cleanup");
     return () => {
-      revalidate();
+      stableRevalidate();
       closeConnection(true);
     };
-  }, []);
+  }, [closeConnection]);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>

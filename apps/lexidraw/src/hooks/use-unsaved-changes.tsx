@@ -66,14 +66,17 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
   const guardedRouter = useRouterGuard(dirty, confirm);
 
+  const markDirty = useCallback(() => (dirty.current = true), []);
+  const markPristine = useCallback(() => (dirty.current = false), []);
+
   const value = useMemo<Ctx>(
     () => ({
-      markDirty: () => (dirty.current = true),
-      markPristine: () => (dirty.current = false),
+      markDirty,
+      markPristine,
       dirty,
       router: guardedRouter,
     }),
-    [guardedRouter],
+    [guardedRouter, markDirty, markPristine],
   );
 
   return (
@@ -174,7 +177,11 @@ function useRouterGuard(
 export function GuardedLink({
   onClick,
   ...props
-}: LinkProps & { children: ReactNode; onClick?: (e: MouseEvent) => void }) {
+}: LinkProps & {
+  children: ReactNode;
+  onClick?: (e: MouseEvent) => void;
+  style?: React.CSSProperties;
+}) {
   const {
     router: { push },
   } = useUnsavedChanges();
@@ -185,5 +192,5 @@ export function GuardedLink({
     push(props.href);
   };
 
-  return <Link {...props} onClick={handle} />;
+  return <Link {...props} onClick={handle} style={props.style} />;
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "~/components/ui/button";
-import Link from "next/link";
 import type {
   AppState,
   ExcalidrawImperativeAPI,
@@ -27,6 +26,7 @@ import {
   loadFromBlob,
   MainMenu,
 } from "@excalidraw/excalidraw";
+import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 
 const CustomMenuItem = MainMenu.ItemCustom;
 
@@ -62,6 +62,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: generateUploadUrls } =
     api.snapshot.generateUploadUrls.useMutation();
+  const { markPristine } = useUnsavedChanges();
 
   const saveToBackend = async () => {
     if (!excalidrawApi.current) return;
@@ -81,6 +82,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       },
       {
         onSuccess: async () => {
+          markPristine();
           toast({
             title: "Saved!",
           });
@@ -262,7 +264,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           variant="ghost"
           className="w-full justify-start gap-2 h-8 py-0 px-3 cursor-pointer"
         >
-          <Link
+          <GuardedLink
             href="/dashboard"
             style={{
               textDecoration: "none",
@@ -274,7 +276,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
             {" "}
             <LayoutDashboardIcon size={14} strokeWidth={2} />
             Go to dashboard
-          </Link>
+          </GuardedLink>
         </Button>
       </CustomMenuItem>
       <CustomMenuItem

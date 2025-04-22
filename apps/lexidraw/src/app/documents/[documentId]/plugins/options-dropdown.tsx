@@ -18,7 +18,7 @@ import { useToast } from "~/components/ui/toast-provider";
 import { useTheme } from "next-themes";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useExportWebp } from "./export-webp";
-import { GuardedLink } from "../use-unsaved-changes";
+import { GuardedLink } from "../../../../hooks/use-unsaved-changes";
 
 type Props = {
   className?: string;
