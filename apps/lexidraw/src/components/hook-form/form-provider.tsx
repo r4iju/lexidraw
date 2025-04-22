@@ -7,8 +7,6 @@ import {
   type FieldValues,
 } from "react-hook-form";
 
-// ----------------------------------------------------------------------
-
 type Props<T extends FieldValues> = {
   children: React.ReactNode;
   methods: UseFormReturn<T>;

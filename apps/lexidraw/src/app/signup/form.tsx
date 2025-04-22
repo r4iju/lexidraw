@@ -18,7 +18,7 @@ import { cn } from "~/lib/utils";
 export default function SignUpForm() {
   const schema = getSignUpSchema();
   const { toast } = useToast();
-  const methods = useForm({
+  const methods = useForm<SignUpSchema>({
     resolver: zodResolver(schema),
     defaultValues: { ...getDefaults(schema) },
     mode: "onBlur",
