@@ -13,12 +13,12 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { EditorState } from "lexical";
 import { api } from "~/trpc/react";
-import Link from "next/link";
 import { Theme } from "@packages/types";
 import { useToast } from "~/components/ui/toast-provider";
 import { useTheme } from "next-themes";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useExportWebp } from "./export-webp";
+import { GuardedLink } from "../use-unsaved-changes";
 
 type Props = {
   className?: string;
@@ -148,7 +148,7 @@ export default function OptionsDropdown({
       <DropdownMenuContent align="start">
         <DropdownMenuGroup title="App">
           <DropdownMenuItem asChild>
-            <Link href="/dashboard">Go to dashboard</Link>
+            <GuardedLink href="/dashboard">Go to dashboard</GuardedLink>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
