@@ -24,7 +24,7 @@ import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { Theme, type MessageStructure } from "@packages/types";
-import DrawingBoardMenu from "./dropdown";
+import { DrawingBoardMenu } from "./dropdown";
 import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 
 type Props = {
@@ -46,7 +46,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const userId = useUserIdOrGuestId();
   const excalidrawApi = useRef<ExcalidrawImperativeAPI>(null);
   const { mutate: save } = api.entities.save.useMutation();
-  const [isMenuOpen] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const canCollaborate = useMemo(() => {
     return drawing.publicAccess !== "PRIVATE" || drawing.sharedWith.length > 0;
@@ -303,7 +302,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       >
         <MainMenu>
           <DrawingBoardMenu
-            isMenuOpen={isMenuOpen}
             drawing={drawing}
             excalidrawApi={
               excalidrawApi as React.RefObject<ExcalidrawImperativeAPI>

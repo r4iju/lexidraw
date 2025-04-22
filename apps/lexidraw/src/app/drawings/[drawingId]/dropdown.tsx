@@ -28,41 +28,50 @@ import {
 } from "@excalidraw/excalidraw";
 import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 
-const CustomMenuItem = MainMenu.ItemCustom;
-
-async function uploadToS3({
-  uploadUrl,
-  file: blob,
-}: {
-  uploadUrl: string;
-  file: Blob;
-}) {
-  try {
-    await fetch(uploadUrl, {
-      method: "PUT",
-      body: blob, // File object from input
-      headers: {
-        "Content-Type": blob.type,
-      },
-    });
-  } catch (error) {
-    console.error("Error uploading to S3", error);
-  }
-}
-
 type Props = {
-  isMenuOpen: boolean;
   drawing: RouterOutputs["entities"]["load"];
   excalidrawApi: RefObject<ExcalidrawImperativeAPI>;
 };
 
-const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
+export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const isDarkTheme = useIsDarkTheme();
   const { toast } = useToast();
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: generateUploadUrls } =
     api.snapshot.generateUploadUrls.useMutation();
   const { markPristine } = useUnsavedChanges();
+
+  const CustomMenuItem = MainMenu.ItemCustom;
+
+  const uploadToS3 = async ({
+    uploadUrl,
+    file: blob,
+  }: {
+    uploadUrl: string;
+    file: Blob;
+  }) => {
+    try {
+      await fetch(uploadUrl, {
+        method: "PUT",
+        body: blob, // File object from input
+        headers: {
+          "Content-Type": blob.type,
+        },
+      });
+    } catch (error) {
+      console.error("Error uploading to S3", error);
+    }
+  };
+
+  const closeMenu = () => {
+    excalidrawApi.current?.updateScene({
+      elements: excalidrawApi.current?.getSceneElements(),
+      appState: {
+        ...excalidrawApi.current?.getAppState(),
+        openMenu: null,
+      },
+    });
+  };
 
   const saveToBackend = async () => {
     if (!excalidrawApi.current) return;
@@ -87,6 +96,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
             title: "Saved!",
           });
           await exportDrawingAsSvg({ elements: elements, appState });
+          closeMenu();
         },
         onError: (err) => {
           toast({
@@ -171,6 +181,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
         return;
       }
       excalidrawApi.current?.updateScene(scene);
+      closeMenu();
     };
     input.click();
   };
@@ -195,6 +206,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     a.click();
     URL.revokeObjectURL(url);
     document.body.removeChild(a);
+    closeMenu();
   };
 
   const handleExportAsPng = async () => {
@@ -217,6 +229,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     a.click();
     URL.revokeObjectURL(url);
     document.body.removeChild(a);
+    closeMenu();
   };
 
   const handleExportAsSvg = async () => {
@@ -239,6 +252,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     a.click();
     URL.revokeObjectURL(url);
     document.body.removeChild(a);
+    closeMenu();
   };
 
   const handleReset = () => {
@@ -249,6 +263,7 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
         ...excalidrawApi.current.getAppState(),
       },
     });
+    closeMenu();
   };
 
   return (
@@ -376,5 +391,3 @@ const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     </>
   );
 };
-
-export default DrawingBoardMenu;
