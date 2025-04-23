@@ -62,8 +62,6 @@ import {
   Comment,
   Comments,
   CommentStore,
-  createComment,
-  createThread,
   Thread,
   useCommentStore,
 } from "../../commenting";
@@ -296,7 +294,7 @@ function CommentInputBox({
     [cancelAddComment],
   );
 
-  // cctually submitting
+  // actually submitting
   const doSubmit = useCallback(() => {
     if (!canSubmit) return;
     let quote = editor.getEditorState().read(() => {
@@ -306,14 +304,15 @@ function CommentInputBox({
     if (quote.length > 100) {
       quote = quote.slice(0, 99) + "…";
     }
-    const newThread = createThread(quote, [createComment(content, author)]);
+    const newThread = CommentStore.createThread(quote, [
+      CommentStore.createComment(content, author),
+    ]);
     submitAddComment(newThread, true, undefined, selectionRef.current || null);
   }, [canSubmit, editor, content, author, submitAddComment]);
 
   return (
     <div
-      className="absolute w-64 min-h-20 bg-muted shadow-lg rounded-md z-20 animate-in slide-in-from-right-5 border border-border"
-      style={{ left: 0, top: 0 }}
+      className="absolute w-64 min-h-20 left-0 top-0 bg-muted shadow-lg rounded-md z-20 animate-in slide-in-from-right-5 border border-border"
       ref={boxRef}
     >
       {/* arrow div */}
@@ -377,7 +376,11 @@ function CommentsComposer({
   const onChange = useOnChange(setContent, setCanSubmit);
   const doSubmit = useCallback(() => {
     if (!canSubmit) return;
-    submitAddComment(createComment(content, author), false, thread);
+    submitAddComment(
+      CommentStore.createComment(content, author),
+      false,
+      thread,
+    );
     // Clear sub-editor
     if (editorRef.current) {
       editorRef.current.dispatchCommand(CLEAR_EDITOR_COMMAND, undefined);
@@ -853,7 +856,7 @@ export default function CommentPlugin({
         }, 0);
       }
     },
-    [editor, commentStore, markNodeMap],
+    [commentStore, markNodeMap, editor, $isCommentNode, $isThreadNode],
   );
 
   // called when user “submits” a new comment or thread
@@ -912,7 +915,7 @@ export default function CommentPlugin({
         setShowCommentInput(false);
       }
     },
-    [editor, commentStore],
+    [commentStore, editor, $isThreadNode],
   );
 
   // listen for active MarkIDs
@@ -1029,7 +1032,7 @@ export default function CommentPlugin({
         }
       }
     });
-  }, [editor, commentStore]);
+  }, [editor, commentStore, $isCommentNode, $isThreadNode]);
 
   return (
     <>
