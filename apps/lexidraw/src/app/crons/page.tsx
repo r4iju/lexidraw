@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/server";
+import type { ServerRuntime } from "next";
 import { parseExpression } from "cron-parser";
 import {
   Table,
@@ -12,7 +13,10 @@ import {
 } from "~/components/ui/table";
 import { ClientButton } from "./client-button";
 
-export default async function CronsPage() {
+export const dynamic = "force-dynamic";
+export const runtime: ServerRuntime = "edge";
+
+export default async function SignInPage() {
   const crons = await api.crons.list.query();
 
   const nextRun = (schedule: string) => {

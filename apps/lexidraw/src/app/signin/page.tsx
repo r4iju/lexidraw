@@ -5,6 +5,9 @@ import FormSkeleton from "./skeleton";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import SignInForm from "./form";
+import type { ServerRuntime } from "next";
+
+export const runtime: ServerRuntime = "edge";
 
 export default async function SignInPage() {
   const session = await auth();
