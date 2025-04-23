@@ -78,6 +78,13 @@ import { CommentNode } from "../../nodes/CommentNode";
 import { ThreadNode } from "../../nodes/ThreadNode";
 import { $rootTextContent } from "@lexical/text";
 import { createDOMRange } from "@lexical/selection";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import Ellipsis from "~/components/icons/ellipsis";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -472,37 +479,48 @@ function CommentsPanelListComment({
   const [modal, showModal] = useModal();
 
   return (
-    <li className="py-3 px-4 border-b border-border relative transition-all">
+    <li className="py-2 pl-2 pr-2 border-b border-border relative transition-all">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span className="font-medium">{comment.author}</span>
-        <span>
-          · {seconds > -10 ? "Just now" : rtf.format(safeMinutes, "minute")}
-        </span>
+        <div className="flex items-center gap-2">
+          <span>
+            · {seconds > -10 ? "Just now" : rtf.format(safeMinutes, "minute")}
+          </span>
+          {!comment.deleted && (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Ellipsis className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    className="flex items-center gap-2"
+                    onClick={() => {
+                      showModal("Delete Comment", (onClose) => (
+                        <ShowDeleteCommentOrThreadDialog
+                          commentOrThread={comment}
+                          deleteCommentOrThread={deleteComment}
+                          thread={thread}
+                          onClose={onClose}
+                        />
+                      ));
+                    }}
+                  >
+                    <Trash className="size-4" />
+                    Delete Comment
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {modal}
+            </>
+          )}
+        </div>
       </div>
       <p className={cn(comment.deleted && "text-muted opacity-60 italic")}>
         {comment.content}
       </p>
-      {!comment.deleted && (
-        <>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              showModal("Delete Comment", (onClose) => (
-                <ShowDeleteCommentOrThreadDialog
-                  commentOrThread={comment}
-                  deleteCommentOrThread={deleteComment}
-                  thread={thread}
-                  onClose={onClose}
-                />
-              ));
-            }}
-          >
-            <Trash className="size-4" />
-          </Button>
-          {modal}
-        </>
-      )}
     </li>
   );
 }
@@ -534,7 +552,7 @@ function CommentsPanelList({
   const [, setCounter] = useState(0);
   const [modal, showModal] = useModal();
 
-  // For “Just now” -> “1 minute ago” updates every X seconds
+  // For "Just now" -> "1 minute ago" updates every X seconds
   const rtf = useMemo(
     () =>
       new Intl.RelativeTimeFormat("en", {
@@ -596,32 +614,49 @@ function CommentsPanelList({
                   "bg-background border-l-4 border-border",
               )}
             >
-              <div className="pt-2 text-muted-foreground block">
-                <blockquote className="mx-2 my-0">
-                  {"> "}
-                  <span className="bg-muted text-muted-foreground inline font-bold leading-4">
+              {/* Main container for the quote section */}
+              <div className="flex items-start p-2 text-muted-foreground">
+                {/* Left side: the ">" symbol */}
+                <div className="w-4 text-center pt-1 pr-1">{">"}</div>
+
+                {/* Middle: the quote text */}
+                <div className="flex-1 min-w-0">
+                  <span className="inline font-bold leading-tight break-words text-sm line-clamp-2">
                     {commentOrThread.quote}
                   </span>
-                </blockquote>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="absolute top-2 right-2"
-                  onClick={() => {
-                    showModal("Delete Thread", (onClose) => (
-                      <ShowDeleteCommentOrThreadDialog
-                        commentOrThread={commentOrThread}
-                        deleteCommentOrThread={deleteCommentOrThread}
-                        onClose={onClose}
-                      />
-                    ));
-                  }}
-                >
-                  <Trash className="size-4" />
-                </Button>
-                {modal}
+                </div>
+
+                {/* Right side: the delete button */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Ellipsis className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem
+                      className="flex items-center gap-2"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent click from bubbling to the li
+                        showModal("Delete Thread", (onClose) => (
+                          <ShowDeleteCommentOrThreadDialog
+                            commentOrThread={commentOrThread}
+                            deleteCommentOrThread={deleteCommentOrThread}
+                            onClose={onClose}
+                            thread={commentOrThread}
+                          />
+                        ));
+                      }}
+                    >
+                      <Trash className="size-4" />
+                      Delete Thread
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              <ul className="CommentPlugin_CommentsPanel_List_Thread_Comments">
+              <ul className="CommentPlugin_CommentsPanel_List_Thread_Comments ml-4">
+                {" "}
+                {/* Indent replies */}
                 {commentOrThread.comments.map((cmt) => (
                   <CommentsPanelListComment
                     key={cmt.id}
@@ -642,7 +677,7 @@ function CommentsPanelList({
             </li>
           );
         } else {
-          // single “comment” node (not in a thread)
+          // single "comment" node (not in a thread)
           return (
             <CommentsPanelListComment
               key={nodeId}
@@ -653,6 +688,8 @@ function CommentsPanelList({
           );
         }
       })}
+      {/* Need this for the delete thread modal */}
+      {modal}
     </ul>
   );
 }
@@ -859,7 +896,7 @@ export default function CommentPlugin({
     [commentStore, markNodeMap, editor, $isCommentNode, $isThreadNode],
   );
 
-  // called when user “submits” a new comment or thread
+  // called when user "submits" a new comment or thread
   const submitAddComment = useCallback(
     (
       item: Comment | Thread,
