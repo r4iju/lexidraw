@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 import type { LexicalEditor } from "lexical";
 
 import { Provider, TOGGLE_CONNECT_COMMAND } from "@lexical/yjs";
@@ -36,73 +28,6 @@ export type Thread = {
 };
 
 export type Comments = (Thread | Comment)[];
-
-function createUID(): string {
-  return Math.random()
-    .toString(36)
-    .replace(/[^a-z]+/g, "")
-    .substring(0, 5);
-}
-
-export function createComment(
-  content: string,
-  author: string,
-  id?: string,
-  timeStamp?: number,
-  deleted?: boolean,
-): Comment {
-  return {
-    author,
-    content,
-    deleted: deleted === undefined ? false : deleted,
-    id: id === undefined ? createUID() : id,
-    timeStamp:
-      timeStamp === undefined
-        ? performance.timeOrigin + performance.now()
-        : timeStamp,
-    type: "comment",
-  };
-}
-
-export function createThread(
-  quote: string,
-  comments: Comment[],
-  id?: string,
-): Thread {
-  return {
-    comments,
-    id: id === undefined ? createUID() : id,
-    quote,
-    type: "thread",
-  };
-}
-
-function cloneThread(thread: Thread): Thread {
-  return {
-    comments: Array.from(thread.comments),
-    id: thread.id,
-    quote: thread.quote,
-    type: "thread",
-  };
-}
-
-function markDeleted(comment: Comment): Comment {
-  return {
-    author: comment.author,
-    content: "[Deleted Comment]",
-    deleted: true,
-    id: comment.id,
-    timeStamp: comment.timeStamp,
-    type: "comment",
-  };
-}
-
-function triggerOnChange(commentStore: CommentStore): void {
-  const listeners = commentStore._changeListeners;
-  for (const listener of listeners) {
-    listener();
-  }
-}
 
 export class CommentStore {
   _editor: LexicalEditor;
@@ -139,7 +64,7 @@ export class CommentStore {
       for (let i = 0; i < nextComments.length; i++) {
         const comment = nextComments[i];
         if (comment?.type === "thread" && comment.id === thread.id) {
-          const newThread = cloneThread(comment);
+          const newThread = CommentStore.cloneThread(comment);
           nextComments.splice(i, 1, newThread);
           const insertOffset =
             offset !== undefined ? offset : newThread.comments.length;
@@ -167,7 +92,7 @@ export class CommentStore {
       nextComments.splice(insertOffset, 0, commentOrThread);
     }
     this._comments = nextComments;
-    triggerOnChange(this);
+    CommentStore.triggerOnChange(this);
   }
 
   deleteCommentOrThread(
@@ -184,7 +109,7 @@ export class CommentStore {
       for (let i = 0; i < nextComments.length; i++) {
         const nextComment = nextComments[i];
         if (nextComment?.type === "thread" && nextComment.id === thread.id) {
-          const newThread = cloneThread(nextComment);
+          const newThread = CommentStore.cloneThread(nextComment);
           nextComments.splice(i, 1, newThread);
           const threadComments = newThread.comments;
           commentIndex = threadComments.indexOf(commentOrThread as Comment);
@@ -210,12 +135,12 @@ export class CommentStore {
       nextComments.splice(commentIndex, 1);
     }
     this._comments = nextComments;
-    triggerOnChange(this);
+    CommentStore.triggerOnChange(this);
 
     if (commentOrThread.type === "comment") {
       return {
         index: commentIndex as number,
-        markedComment: markDeleted(commentOrThread as Comment),
+        markedComment: CommentStore.markDeleted(commentOrThread as Comment),
       };
     }
 
@@ -296,8 +221,8 @@ export class CommentStore {
     const disconnect = () => {
       try {
         provider.disconnect();
-      } catch (e) {
-        // Do nothing
+      } catch (_) {
+        return _;
       }
     };
 
@@ -308,11 +233,9 @@ export class CommentStore {
           const shouldConnect = payload;
 
           if (shouldConnect) {
-            // eslint-disable-next-line no-console
             console.log("Comments connected!");
             connect();
           } else {
-            // eslint-disable-next-line no-console
             console.log("Comments disconnected!");
             disconnect();
           }
@@ -360,7 +283,7 @@ export class CommentStore {
 
                     const commentOrThread =
                       type === "thread"
-                        ? createThread(
+                        ? CommentStore.createThread(
                             map.get("quote"),
                             map
                               .get("comments")
@@ -372,7 +295,7 @@ export class CommentStore {
                                     string | number | boolean
                                   >,
                                 ) =>
-                                  createComment(
+                                  CommentStore.createComment(
                                     innerComment.get("content") as string,
                                     innerComment.get("author") as string,
                                     innerComment.get("id") as string,
@@ -382,7 +305,7 @@ export class CommentStore {
                               ),
                             id,
                           )
-                        : createComment(
+                        : CommentStore.createComment(
                             map.get("content"),
                             map.get("author"),
                             id,
@@ -433,6 +356,69 @@ export class CommentStore {
       unsubscribe();
       this._collabProvider = null;
     };
+  }
+
+  static createUID(): string {
+    return Math.random()
+      .toString(36)
+      .replace(/[^a-z]+/g, "")
+      .substring(0, 5);
+  }
+
+  static createComment(
+    content: string,
+    author: string,
+    id?: string,
+    timeStamp?: number,
+    deleted?: boolean,
+  ): Comment {
+    return {
+      author,
+      content,
+      deleted: deleted === undefined ? false : deleted,
+      id: id === undefined ? CommentStore.createUID() : id,
+      timeStamp:
+        timeStamp === undefined
+          ? performance.timeOrigin + performance.now()
+          : timeStamp,
+      type: "comment",
+    };
+  }
+
+  static createThread(quote: string, comments: Comment[], id?: string): Thread {
+    return {
+      comments,
+      id: id === undefined ? CommentStore.createUID() : id,
+      quote,
+      type: "thread",
+    };
+  }
+
+  static cloneThread(thread: Thread): Thread {
+    return {
+      comments: Array.from(thread.comments),
+      id: thread.id,
+      quote: thread.quote,
+      type: "thread",
+    };
+  }
+
+  static markDeleted(comment: Comment): Comment {
+    return {
+      author: comment.author,
+      content: "[Deleted Comment]",
+      deleted: true,
+      id: comment.id,
+      timeStamp: comment.timeStamp,
+      type: "comment",
+    };
+  }
+
+  static triggerOnChange(commentStore: CommentStore): void {
+    const listeners = commentStore._changeListeners;
+    for (const listener of listeners) {
+      listener();
+    }
   }
 }
 
