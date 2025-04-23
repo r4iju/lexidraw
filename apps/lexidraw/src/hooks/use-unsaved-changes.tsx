@@ -114,6 +114,8 @@ function usePopstateGuard(
   dirty: React.RefObject<boolean>,
   confirm: () => Promise<boolean>,
 ) {
+  const router = useRouter();
+
   useLayoutEffect(() => {
     const KEY = `__guard_${Date.now()}`;
 
@@ -134,14 +136,18 @@ function usePopstateGuard(
       }
 
       window.removeEventListener("popstate", onPop);
-      history.back();
+
+      // silly but it works
+      router.back();
+      router.back();
     };
 
     window.addEventListener("popstate", onPop);
+
     return () => {
       window.removeEventListener("popstate", onPop);
     };
-  }, [dirty, confirm]);
+  }, [dirty, confirm, router]);
 }
 
 function useRouterGuard(
