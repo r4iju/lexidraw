@@ -999,7 +999,6 @@ export default function ToolbarPlugin({
   }, [activeEditor, getSelectedNode]);
 
   useEffect(() => {
-    console.log("ToolbarPlugin useEffect");
     return editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       (_payload, newEditor) => {

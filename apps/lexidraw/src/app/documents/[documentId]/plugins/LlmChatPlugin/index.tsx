@@ -1,104 +1,46 @@
 "use client";
 
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import {
-  COMMAND_PRIORITY_LOW,
-  KEY_MODIFIER_COMMAND,
-  COMMAND_PRIORITY_HIGH,
-  $getSelection,
-  $isRangeSelection,
-} from "lexical";
 import React, { useEffect } from "react";
 import { Sidebar } from "./ui/sidebar";
-import { LlmChatProvider, useLlmChat } from "./store";
-import {
-  SEND_SELECTION_TO_LLM_COMMAND,
-  TOGGLE_LLM_CHAT_COMMAND,
-  EXECUTE_LLM_TOOL_CALL_COMMAND,
-} from "./llm-tool-calls";
-import { useToolcall } from "./tool-executor";
+import { LlmChatProvider, useChatDispatch } from "./context/LlmChatContext";
+import { useRegisterKeybindings } from "./keybindings/useRegisterKeybindings";
+import { createCommand, type LexicalCommand } from "lexical";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
-export { TOGGLE_LLM_CHAT_COMMAND, useLlmChat };
-
-function LlmChatController() {
+const ChatPluginCore = (): React.ReactElement => {
+  useRegisterKeybindings();
+  const dispatch = useChatDispatch();
   const [editor] = useLexicalComposerContext();
-  const { sendQuery, toggleSidebar } = useLlmChat();
-  const { executeEditorToolCall } = useToolcall();
+
+  // Effect to register the command listener
   useEffect(() => {
-    const unregisterKeyCommand = editor.registerCommand(
-      KEY_MODIFIER_COMMAND,
-      (event) => {
-        if (event.metaKey && event.altKey && event.key === "Enter") {
-          const selection = editor.getEditorState().read(() => $getSelection());
-          let selectionHtml: string | undefined = undefined;
-          if ($isRangeSelection(selection)) {
-            selectionHtml = selection.getTextContent().substring(0, 100);
-            console.log("Selection for LLM:", selectionHtml);
-          }
-          sendQuery({ prompt: "Explain this selection", selectionHtml });
-          event.preventDefault();
-          return true;
-        }
-        return false;
-      },
-      COMMAND_PRIORITY_HIGH,
-    );
-
-    const unregisterSendSelectionCommand = editor.registerCommand(
-      SEND_SELECTION_TO_LLM_COMMAND,
-      (payload) => {
-        const currentSelectionHtml = editor.getEditorState().read(() => {
-          const selection = $getSelection();
-          if ($isRangeSelection(selection)) {
-            return selection.getTextContent().substring(0, 100);
-          }
-          return undefined;
-        });
-        sendQuery({
-          prompt: payload.prompt,
-          selectionHtml: payload.selectionHtml ?? currentSelectionHtml,
-        });
-        return true;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
-
-    const unregisterToggleCommand = editor.registerCommand(
+    // Register listener for the toggle command
+    return editor.registerCommand(
       TOGGLE_LLM_CHAT_COMMAND,
       () => {
-        toggleSidebar();
+        console.log("TOGGLE_LLM_CHAT_COMMAND received");
+        dispatch({ type: "toggleSidebar" });
         return true;
       },
-      COMMAND_PRIORITY_LOW,
+      1,
     );
+  }, [editor, dispatch]);
 
-    const unregisterExecuteToolCall = editor.registerCommand(
-      EXECUTE_LLM_TOOL_CALL_COMMAND,
-      (payload) => {
-        editor.update(() => {
-          executeEditorToolCall(editor, payload);
-        });
-        return true;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
+  return <Sidebar />;
+};
 
-    return () => {
-      unregisterKeyCommand();
-      unregisterSendSelectionCommand();
-      unregisterToggleCommand();
-      unregisterExecuteToolCall();
-    };
-  }, [editor, executeEditorToolCall, sendQuery, toggleSidebar]);
-
-  return null;
-}
-
-export function LlmChatPlugin() {
+/**
+ * Main component for the LLM Chat Plugin.
+ * It sets up the context provider, which then renders the core logic and UI.
+ */
+export function LlmChatPlugin(): React.ReactElement {
   return (
     <LlmChatProvider>
-      <LlmChatController />
-      <Sidebar />
+      <ChatPluginCore />
     </LlmChatProvider>
   );
 }
+
+export const TOGGLE_LLM_CHAT_COMMAND: LexicalCommand<void> = createCommand(
+  "TOGGLE_LLM_CHAT_COMMAND",
+);
