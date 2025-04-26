@@ -7,13 +7,21 @@ import React, {
   useContext,
   type PropsWithChildren,
   useRef,
+  useEffect,
 } from "react";
 
-import { generateText } from "ai";
+import { streamText, tool, type Tool } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { throttle } from "@packages/lib";
 import { useSession } from "next-auth/react";
+import { z } from "zod";
+
+export type AppToolCall = {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+};
 
 export type LLMState = {
   modelId: string;
@@ -33,8 +41,39 @@ export type LLMOptions = {
   signal?: AbortSignal;
 };
 
+// --- Custom Hook for Tool Definitions ---
+function useLlmTools() {
+  // Define tools inside the hook
+  const tools = {
+    editText: tool({
+      description:
+        "Edit the document based on user instructions. Provide the *entire* modified document state as a JSON string in the newStateJson argument.",
+      parameters: z.object({
+        newStateJson: z
+          .string()
+          .describe(
+            "The complete, modified Lexical editor state as a valid JSON string.",
+          ),
+        instructions: z
+          .string()
+          .describe(
+            "Specific instructions used for the edit (e.g., fix grammar, shorten, expand). Optional reference.",
+          )
+          .optional(),
+      }),
+    }),
+  } satisfies Record<string, Tool>;
+  return tools;
+}
+// ---------------------------------------
+
+export type GenerateResult = {
+  text: string;
+  toolCalls?: AppToolCall[];
+};
+
 type LLMContextValue = {
-  generate: (options: LLMOptions) => Promise<string>;
+  generate: (options: LLMOptions) => Promise<GenerateResult>;
   llmState: LLMState;
   setLlmState: React.Dispatch<React.SetStateAction<LLMState>>;
   setLlmOptions: (options: Partial<LLMState>) => void;
@@ -93,10 +132,10 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const { data: session } = useSession();
 
   const [llmState, setLlmState] = useState<LLMState>({
-    modelId: "gpt-4.1-nano",
-    provider: "openai",
+    modelId: "gemini-2.0-flash",
+    provider: "google",
     temperature: 0.3,
-    maxTokens: 200,
+    maxTokens: 10240,
     isError: false,
     text: "",
     error: null,
@@ -105,11 +144,10 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const provider = useRef<
     | ReturnType<typeof createGoogleGenerativeAI>
     | ReturnType<typeof createOpenAI>
-  >(
-    createOpenAI({
-      apiKey: session?.user.config.llm.openaiApiKey,
-    }),
-  );
+  >(null);
+
+  // Use the custom hook to get tools
+  const llmTools = useLlmTools();
 
   const generate = useCallback(
     async ({
@@ -118,28 +156,59 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       temperature,
       maxTokens,
       signal,
-    }: LLMOptions): Promise<string> => {
+    }: LLMOptions): Promise<GenerateResult> => {
+      let accumulatedText = "";
+      const capturedToolCalls: AppToolCall[] = [];
+
       try {
-        const result = await generateText({
+        if (!provider.current) {
+          throw new Error("Provider not initialized");
+        }
+        const result = await streamText({
           model: provider.current(llmState.modelId),
           prompt,
           system,
           temperature: temperature ?? llmState.temperature,
           maxTokens: maxTokens ?? llmState.maxTokens,
           abortSignal: signal,
+          tools: llmTools, // Use tools from the hook
         });
+
+        for await (const part of result.fullStream) {
+          switch (part.type) {
+            case "text-delta":
+              accumulatedText += part.textDelta;
+              break;
+            case "tool-call":
+              capturedToolCalls.push({
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                args: part.args,
+              });
+              break;
+            case "error":
+              console.error("Streaming error:", part.error);
+              throw part.error;
+            case "finish":
+              console.log("Stream finished:", part.finishReason);
+              break;
+          }
+        }
+
+        const finalToolCalls =
+          capturedToolCalls.length > 0 ? capturedToolCalls : undefined;
 
         setLlmState((prev) => ({
           ...prev,
           isError: false,
-          text: result.text,
+          text: accumulatedText,
           error: null,
         }));
 
-        return result.text;
+        return { text: accumulatedText, toolCalls: finalToolCalls };
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
-          return "";
+          return { text: "", toolCalls: undefined };
         }
 
         const errorMsg = err instanceof Error ? err.message : String(err);
@@ -149,10 +218,16 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
           text: "",
           error: errorMsg,
         }));
-        return "";
+        return { text: "", toolCalls: undefined };
       }
     },
-    [provider, llmState.modelId, llmState.temperature, llmState.maxTokens],
+    [
+      provider,
+      llmState.modelId,
+      llmState.temperature,
+      llmState.maxTokens,
+      llmTools,
+    ],
   );
 
   const setLlmOptions = (options: Partial<LLMState>) => {
@@ -172,6 +247,27 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     }
     setLlmState((prev) => ({ ...prev, ...options }));
   };
+
+  useEffect(() => {
+    switch (llmState.provider) {
+      case "google":
+        provider.current = createGoogleGenerativeAI({
+          apiKey: session?.user.config.llm.googleApiKey,
+        });
+        break;
+      case "openai":
+        provider.current = createOpenAI({
+          apiKey: session?.user.config.llm.openaiApiKey,
+        });
+        break;
+      default:
+        console.error("Invalid provider:", llmState.provider);
+    }
+  }, [
+    llmState.provider,
+    session?.user.config.llm.googleApiKey,
+    session?.user.config.llm.openaiApiKey,
+  ]);
 
   return (
     <LLMContext.Provider

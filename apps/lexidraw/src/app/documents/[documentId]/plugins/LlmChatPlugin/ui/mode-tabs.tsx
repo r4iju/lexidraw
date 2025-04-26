@@ -9,12 +9,12 @@ export const ModeTabs: React.FC = () => {
     <Tabs
       value={mode}
       onValueChange={(v) => setMode(v as ChatMode)}
-      className="border-b px-4 py-2"
+      className="p-2"
     >
-      <TabsList>
-        {(["chat", "edit", "agent"] satisfies ChatMode[]).map((m) => (
-          <TabsTrigger key={m} value={m}>
-            {m}
+      <TabsList className="w-full rounded-sm">
+        {(["chat", "agent"] satisfies ChatMode[]).map((m) => (
+          <TabsTrigger key={m} value={m} className="flex-1">
+            <span className="text-xs capitalize">{m}</span>
           </TabsTrigger>
         ))}
       </TabsList>

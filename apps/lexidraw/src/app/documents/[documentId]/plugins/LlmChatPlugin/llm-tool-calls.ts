@@ -1,46 +1,17 @@
-import {
-  createCommand,
-  $getSelection,
-  $isRangeSelection,
-  $createParagraphNode,
-  $createTextNode,
-  LexicalEditor,
-} from "lexical";
+import { createCommand } from "lexical";
+import { type ChatToolCall } from "./store";
 
 export const SEND_SELECTION_TO_LLM_COMMAND = createCommand<{
   prompt: string;
   selectionHtml?: string;
-}>();
+}>("SEND_SELECTION_TO_LLM_COMMAND");
 
-export const TOGGLE_LLM_CHAT_COMMAND = createCommand();
+export const TOGGLE_LLM_CHAT_COMMAND = createCommand<undefined>(
+  "TOGGLE_LLM_CHAT_COMMAND",
+);
 
-type ToolCall =
-  | {
-      name: "insert_text";
-      args: { text: string; position: "before" | "after" | "replace" };
-    }
-  | {
-      name: "delete_range";
-      args: { from: string; to: string };
-    };
-
-export function applyToolCall(editor: LexicalEditor, call: ToolCall) {
-  switch (call.name) {
-    case "insert_text":
-      editor.update(() => {
-        const sel = $getSelection();
-        if ($isRangeSelection(sel)) {
-          const textNode = $createTextNode(call.args.text);
-          const para = $createParagraphNode().append(textNode);
-          sel.insertNodes([para]);
-        }
-      });
-      break;
-
-    case "delete_range":
-      editor.update(() => {
-        console.warn("`delete_range` tool not implemented yet.", call.args);
-      });
-      break;
-  }
-}
+export type ExecuteLlmToolCallPayload = {
+  toolCall: ChatToolCall;
+};
+export const EXECUTE_LLM_TOOL_CALL_COMMAND =
+  createCommand<ExecuteLlmToolCallPayload>("EXECUTE_LLM_TOOL_CALL_COMMAND");
