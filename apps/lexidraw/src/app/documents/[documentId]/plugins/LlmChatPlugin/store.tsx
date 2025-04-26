@@ -5,19 +5,21 @@ import React, {
   useCallback,
   PropsWithChildren,
 } from "react";
-import { useLLM } from "../../context/llm-context";
+import { useLLM, type AppToolCall } from "../../context/llm-context";
 
-type ToolCall = {
-  name: string;
-  args: Record<string, unknown>;
-};
+export type ChatToolCall = AppToolCall;
 
 export type ChatMessage =
   | { id: string; role: "user"; content: string }
-  | { id: string; role: "assistant"; content: string; toolCalls?: ToolCall[] }
+  | {
+      id: string;
+      role: "assistant";
+      content: string;
+      toolCalls?: ChatToolCall[];
+    }
   | { id: string; role: "system"; content: string };
 
-export type ChatMode = "chat" | "edit" | "agent";
+export type ChatMode = "chat" | "agent";
 
 interface LlmChatContextType {
   messages: ChatMessage[];
@@ -29,30 +31,12 @@ interface LlmChatContextType {
   sendQuery: (payload: {
     prompt: string;
     selectionHtml?: string;
-  }) => Promise<void>;
+  }) => Promise<ChatToolCall[] | undefined>;
   appendStreaming: (chunk: string) => void;
-  finishStreaming: (fullText: string, calls?: ToolCall[]) => void;
+  finishStreaming: (fullText: string, calls?: ChatToolCall[]) => void;
 }
 
 const LlmChatContext = createContext<LlmChatContextType | null>(null);
-
-const buildContext = (selectionHtml: string | undefined): string => {
-  console.log("Building context with selection:", selectionHtml);
-  return selectionHtml
-    ? `Context based on: ${selectionHtml.substring(0, 100)}...`
-    : "";
-};
-
-const buildPrompt = (args: {
-  prompt: string;
-  ctx: string;
-  mode: ChatMode;
-}): string => {
-  console.log("Building prompt with args:", args);
-  return `${args.prompt}
-
-${args.ctx}`;
-};
 
 export const LlmChatProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -65,6 +49,92 @@ export const LlmChatProvider: React.FC<PropsWithChildren> = ({ children }) => {
     setIsSidebarOpen((prev) => !prev);
   }, []);
 
+  const buildContext = useCallback(
+    (lexicalJsonStateString: string | undefined): string => {
+      console.log(
+        "Building context with Lexical JSON state preview:",
+        lexicalJsonStateString
+          ? `${lexicalJsonStateString.substring(0, 100)}...`
+          : "(none)",
+      );
+      return lexicalJsonStateString
+        ? `Context:\n---\nLexical JSON State:\n${lexicalJsonStateString}\n---`
+        : "Context: (No editor state provided)";
+    },
+    [],
+  );
+
+  const buildPrompt = useCallback(
+    (args: { prompt: string; ctx: string; mode: ChatMode }): string => {
+      return `${args.prompt}\n\n${args.ctx}`;
+    },
+    [],
+  );
+
+  const getEditedText = useCallback(
+    async (
+      instructions: string,
+      originalJsonState: string,
+    ): Promise<string | null> => {
+      console.log("Performing second LLM call for structured edit...", {
+        instructions,
+      });
+      try {
+        const systemPrompt =
+          "You are an editor assistant. You will be given instructions and a Lexical editor state represented as a JSON string. " +
+          "Apply the instructions to modify the editor state. " +
+          "Output *only* the complete, modified Lexical editor state as a valid JSON string, enclosed in a single JSON code block. " +
+          "Do not include any other explanatory text, preamble, or markdown formatting outside the JSON code block.";
+
+        const promptForEdit = `${instructions}\n\nLexical JSON State to Edit:\n\`\`\`json\n${originalJsonState}\n\`\`\`\n\n${systemPrompt}`;
+
+        const editResult = await generate({
+          prompt: promptForEdit,
+          system: systemPrompt,
+        });
+
+        let modifiedJsonState: string | null = null;
+        const jsonMatch = editResult.text?.match(/```json\n(.*)\n```/s);
+        if (jsonMatch && jsonMatch[1]) {
+          modifiedJsonState = jsonMatch[1].trim();
+          try {
+            JSON.parse(modifiedJsonState);
+            console.log("Second LLM call successful, valid JSON received.");
+            return modifiedJsonState;
+          } catch (parseError) {
+            console.error(
+              "Second LLM call returned text in JSON block, but failed to parse:",
+              parseError,
+              modifiedJsonState,
+            );
+            return null;
+          }
+        } else {
+          console.warn(
+            "Second LLM call did not return expected JSON block format.",
+            editResult.text,
+          );
+          try {
+            if (editResult.text) {
+              JSON.parse(editResult.text);
+              console.log(
+                "Second LLM call successful, parsed entire response as JSON.",
+              );
+              return editResult.text;
+            }
+          } catch {
+            /* Ignore if parsing whole text fails */
+          }
+          return null;
+        }
+      } catch (error) {
+        console.error("Error during getEditedText structured LLM call:", error);
+        return null;
+      }
+    },
+    [generate],
+  );
+
   const sendQuery = useCallback(
     async ({
       prompt,
@@ -72,7 +142,7 @@ export const LlmChatProvider: React.FC<PropsWithChildren> = ({ children }) => {
     }: {
       prompt: string;
       selectionHtml?: string;
-    }) => {
+    }): Promise<ChatToolCall[] | undefined> => {
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
@@ -81,18 +151,62 @@ export const LlmChatProvider: React.FC<PropsWithChildren> = ({ children }) => {
       setMessages((prevMessages) => [...prevMessages, userMsg]);
       setIsStreaming(true);
 
+      let finalToolCalls: ChatToolCall[] | undefined = undefined;
+
       try {
         const ctx = buildContext(selectionHtml);
         const fullPrompt = buildPrompt({ prompt, ctx, mode });
-        const result = await generate({
+
+        const initialResult = await generate({
           prompt: fullPrompt,
         });
+
+        const assistantText = initialResult.text;
+        let originalToolCalls = initialResult.toolCalls;
+
+        const contextJsonState = selectionHtml;
+
+        const editTextCalls =
+          originalToolCalls?.filter((c) => c.toolName === "editText") || [];
+
+        if (editTextCalls.length > 0 && contextJsonState) {
+          console.log("Detected editText calls, attempting consolidation...");
+          const correctedJsonState = await getEditedText(
+            prompt,
+            contextJsonState,
+          );
+
+          if (correctedJsonState !== null) {
+            console.log(
+              "Consolidated edit successful. Creating single replace command.",
+            );
+            finalToolCalls = [
+              {
+                toolCallId: `consolidated-${crypto.randomUUID()}`,
+                toolName: "editText",
+                args: {
+                  newStateJson: correctedJsonState,
+                  instructions: prompt,
+                },
+              },
+            ];
+            originalToolCalls = undefined;
+          } else {
+            console.warn(
+              "Consolidated edit failed. Discarding original tool calls.",
+            );
+            finalToolCalls = undefined;
+            originalToolCalls = undefined;
+          }
+        } else {
+          finalToolCalls = originalToolCalls;
+        }
 
         const assistantMsg: ChatMessage = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: result, // Assuming result is string content
-          // TODO: Parse tool calls from result if applicable
+          content: assistantText,
+          toolCalls: finalToolCalls,
         };
         setMessages((prevMessages) => [...prevMessages, assistantMsg]);
       } catch (error) {
@@ -106,8 +220,10 @@ export const LlmChatProvider: React.FC<PropsWithChildren> = ({ children }) => {
       } finally {
         setIsStreaming(false);
       }
+
+      return finalToolCalls;
     },
-    [generate, mode],
+    [generate, mode, getEditedText, buildContext, buildPrompt],
   );
 
   const appendStreaming = useCallback((chunk: string) => {
@@ -130,27 +246,27 @@ export const LlmChatProvider: React.FC<PropsWithChildren> = ({ children }) => {
   }, []);
 
   const finishStreaming = useCallback(
-    (fullText: string, calls?: ToolCall[]) => {
+    (fullText: string, calls?: ChatToolCall[]) => {
       setMessages((prevMessages) => {
         const last = prevMessages.at(-1);
         if (!last || last.role !== "assistant") {
           console.warn(
             "finishStreaming called but last message is not assistant.",
           );
-          return prevMessages; // Or handle error appropriately
+          return prevMessages;
         }
         const updatedMessages = [...prevMessages];
         updatedMessages[updatedMessages.length - 1] = {
           ...last,
           content: fullText,
-          toolCalls: calls, // Add tool calls
+          toolCalls: calls,
         };
         return updatedMessages;
       });
-      setIsStreaming(false); // Ensure streaming is set to false
+      setIsStreaming(false);
     },
     [],
-  ); // No dependencies
+  );
 
   const contextValue: LlmChatContextType = {
     messages,
@@ -171,7 +287,6 @@ export const LlmChatProvider: React.FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-// Custom hook to use the context
 export const useLlmChat = (): LlmChatContextType => {
   const context = useContext(LlmChatContext);
   if (!context) {

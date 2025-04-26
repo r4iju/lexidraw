@@ -14,14 +14,16 @@ import { LlmChatProvider, useLlmChat } from "./store";
 import {
   SEND_SELECTION_TO_LLM_COMMAND,
   TOGGLE_LLM_CHAT_COMMAND,
+  EXECUTE_LLM_TOOL_CALL_COMMAND,
 } from "./llm-tool-calls";
+import { useToolcall } from "./tool-executor";
 
 export { TOGGLE_LLM_CHAT_COMMAND, useLlmChat };
 
 function LlmChatController() {
   const [editor] = useLexicalComposerContext();
   const { sendQuery, toggleSidebar } = useLlmChat();
-
+  const { executeEditorToolCall } = useToolcall();
   useEffect(() => {
     const unregisterKeyCommand = editor.registerCommand(
       KEY_MODIFIER_COMMAND,
@@ -70,12 +72,24 @@ function LlmChatController() {
       COMMAND_PRIORITY_LOW,
     );
 
+    const unregisterExecuteToolCall = editor.registerCommand(
+      EXECUTE_LLM_TOOL_CALL_COMMAND,
+      (payload) => {
+        editor.update(() => {
+          executeEditorToolCall(editor, payload);
+        });
+        return true;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+
     return () => {
       unregisterKeyCommand();
       unregisterSendSelectionCommand();
       unregisterToggleCommand();
+      unregisterExecuteToolCall();
     };
-  }, [editor, sendQuery, toggleSidebar]);
+  }, [editor, executeEditorToolCall, sendQuery, toggleSidebar]);
 
   return null;
 }

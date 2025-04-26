@@ -99,20 +99,17 @@ function TableOfContentsList({
         selectedIndex.current < tableOfContents.length - 1
       ) {
         let currentHeading = editor.getElementByKey(
-          // @ts-expect-error this is fine
-          tableOfContents[selectedIndex.current][0],
+          tableOfContents[selectedIndex.current]?.[0] ?? "",
         );
         if (currentHeading !== null) {
           if (isHeadingBelowTheTopOfThePage(currentHeading)) {
-            //On natural scroll, user is scrolling up
             while (
               currentHeading !== null &&
               isHeadingBelowTheTopOfThePage(currentHeading) &&
               selectedIndex.current > 0
             ) {
               const prevHeading = editor.getElementByKey(
-                // @ts-expect-error this is fine
-                tableOfContents[selectedIndex.current - 1][0],
+                tableOfContents[selectedIndex.current - 1]?.[0] ?? "",
               );
               if (
                 prevHeading !== null &&
@@ -123,19 +120,17 @@ function TableOfContentsList({
               }
               currentHeading = prevHeading;
             }
-            // @ts-expect-error this is fine
-            const prevHeadingKey = tableOfContents[selectedIndex.current][0];
+            const prevHeadingKey =
+              tableOfContents[selectedIndex.current]?.[0] ?? "";
             setSelectedKey(prevHeadingKey);
           } else if (isHeadingAboveViewport(currentHeading)) {
-            //On natural scroll, user is scrolling down
             while (
               currentHeading !== null &&
               isHeadingAboveViewport(currentHeading) &&
               selectedIndex.current < tableOfContents.length - 1
             ) {
               const nextHeading = editor.getElementByKey(
-                // @ts-expect-error this is fine
-                tableOfContents[selectedIndex.current + 1][0],
+                tableOfContents[selectedIndex.current + 1]?.[0] ?? "",
               );
               if (
                 nextHeading !== null &&
@@ -146,8 +141,8 @@ function TableOfContentsList({
               }
               currentHeading = nextHeading;
             }
-            // @ts-expect-error this is fine
-            const nextHeadingKey = tableOfContents[selectedIndex.current][0];
+            const nextHeadingKey =
+              tableOfContents[selectedIndex.current]?.[0] ?? "";
             setSelectedKey(nextHeadingKey);
           }
         }
@@ -181,14 +176,13 @@ function TableOfContentsList({
       isOpen={isTocOpen}
       onClose={toggleToc}
       title="Table of Contents"
-      widthClass="w-[300px]"
     >
       {tableOfContents.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic -m-4">
+        <p className="text-sm text-muted-foreground italic">
           No headings found.
         </p>
       ) : (
-        <ul className="-m-4">
+        <ul className="p-4">
           {tableOfContents.map(([key, text, tag], index) => (
             <li
               key={key}
