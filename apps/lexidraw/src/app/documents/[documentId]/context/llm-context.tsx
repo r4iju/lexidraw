@@ -243,11 +243,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       maxTokens,
       signal,
     }: LLMOptions): Promise<string> => {
-      console.log("[LLMContext] generateAutocomplete called.");
-      console.log(
-        "[LLMContext] Autocomplete provider exists:",
-        !!autocompleteProvider.current,
-      );
       if (!autocompleteProvider.current) {
         console.error("[LLMContext] Autocomplete provider not initialized");
         setAutocompleteState((prev) => ({
@@ -260,9 +255,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       }
 
       if (signal?.aborted) {
-        console.warn(
-          "[LLMContext] generateAutocomplete called with an already aborted signal. Skipping API call.",
-        );
         return "";
       }
 
@@ -273,10 +265,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         error: null,
       }));
       try {
-        console.log(
-          "[LLMContext] Calling generateText with model:",
-          autocompleteState.modelId,
-        );
         const result = await generateText({
           model: autocompleteProvider.current(autocompleteState.modelId),
           prompt,
@@ -285,11 +273,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
           maxTokens: maxTokens ?? autocompleteState.maxTokens,
           abortSignal: signal,
         });
-
-        console.log(
-          "[LLMContext] generateText successful, result:",
-          result.text,
-        );
 
         setAutocompleteState((prev) => ({
           ...prev,
@@ -301,7 +284,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
         return result.text;
       } catch (err: unknown) {
-        console.error("[LLMContext] Error in generateAutocomplete:", err);
         if (err instanceof Error && err.name === "AbortError") {
           setAutocompleteState((prev) => ({ ...prev, isLoading: false }));
           return "";

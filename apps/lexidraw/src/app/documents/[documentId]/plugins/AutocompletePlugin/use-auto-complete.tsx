@@ -63,13 +63,8 @@ function useAutocompleteLLM() {
     editorContext?: AutocompleteEditorContext,
     signal?: AbortSignal,
   ): Promise<string> => {
-    console.log("[useAutocompleteLLM] autocomplete called with:", {
-      partialSnippet,
-      editorContext,
-    });
-
     console.log("autocomplete request: ", { partialSnippet, editorContext });
-    // Keep prompt/system construction here
+
     const prompt = [
       `Complete the snippet without repeating those words.`,
       `Do not wrap in quotes.`,
@@ -94,16 +89,11 @@ function useAutocompleteLLM() {
       `If you cannot provide a suitable completion, return an empty string "".`,
     ].join("\n");
 
-    console.log(
-      "[useAutocompleteLLM] Calling generateAutocomplete from context...",
-    );
     const result = await generateAutocomplete({
       prompt,
       system,
       signal,
     });
-
-    console.log("[useAutocompleteLLM] Received result from context:", result);
 
     return validateAndProcessResult(result);
   };
@@ -120,7 +110,7 @@ export function useThrottledAutocomplete() {
       editorContext?: AutocompleteEditorContext,
       signal?: AbortSignal,
     ) => {
-      console.log("[useThrottledAutocomplete] Throttled function executing...");
+      // console.log("[useThrottledAutocomplete] Throttled function executing...");
       return autocomplete(snippet, editorContext, signal);
     },
     3000,
