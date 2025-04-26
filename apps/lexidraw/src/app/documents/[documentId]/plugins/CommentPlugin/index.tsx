@@ -1,7 +1,3 @@
-// --------------------------------------------------------------------------
-// CommentPlugin.tsx
-// --------------------------------------------------------------------------
-import type { Provider } from "@lexical/yjs";
 import type {
   EditorState,
   LexicalCommand,
@@ -10,7 +6,6 @@ import type {
   NodeKey,
   RangeSelection,
 } from "lexical";
-import type { Doc } from "yjs";
 
 import {
   $createMarkNode,
@@ -43,6 +38,7 @@ import {
   $isTextNode,
   CLEAR_EDITOR_COMMAND,
   COMMAND_PRIORITY_EDITOR,
+  COMMAND_PRIORITY_LOW,
   createCommand,
   getDOMSelection,
   KEY_ESCAPE_COMMAND,
@@ -56,7 +52,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Trash, MessageSquareText, Send } from "lucide-react";
+import { Trash, Send } from "lucide-react";
 
 import {
   Comment,
@@ -85,6 +81,11 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
+import {
+  useCommentsContext,
+  TOGGLE_COMMENTS_COMMAND,
+} from "../../context/comment-context";
+import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -532,7 +533,6 @@ function CommentsPanelList({
   deleteCommentOrThread,
   submitAddComment,
   markNodeMap,
-  listRef,
 }: {
   activeIDs: string[];
   comments: Comments;
@@ -546,7 +546,6 @@ function CommentsPanelList({
     thread?: Thread,
   ) => void;
   markNodeMap: Map<string, Set<NodeKey>>;
-  listRef: { current: HTMLUListElement | null };
 }) {
   const [editor] = useLexicalComposerContext();
   const [, setCounter] = useState(0);
@@ -568,10 +567,7 @@ function CommentsPanelList({
   }, []);
 
   return (
-    <ul
-      className="list-none p-0 w-full absolute top-11 overflow-y-auto h-[calc(100%-45px)]"
-      ref={listRef}
-    >
+    <ul className="list-none p-0 w-full absolute top-11 overflow-y-auto h-[calc(100%-45px)]">
       {comments.map((commentOrThread) => {
         const nodeId = commentOrThread.id;
 
@@ -701,8 +697,6 @@ function CommentsPanel({
   deleteCommentOrThread,
   submitAddComment,
   markNodeMap,
-  isOpen,
-  setIsOpen,
 }: {
   activeIDs: string[];
   comments: Comments;
@@ -716,107 +710,54 @@ function CommentsPanel({
     thread?: Thread,
   ) => void;
   markNodeMap: Map<string, Set<NodeKey>>;
-  isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
 }) {
-  const listRef = useRef<HTMLUListElement>(null);
+  const { isCommentPanelOpen, toggleCommentPanel } = useCommentsContext();
   const isEmpty = comments.length === 0;
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
-  }, [isOpen, setIsOpen]);
 
   return (
-    <>
-      <div
-        className={cn(
-          "fixed z-20 top-0 left-0 w-full h-full",
-          isOpen ? "block md:hidden" : "hidden",
-        )}
-        onClick={() => setIsOpen(false)}
-      />
-      <div
-        ref={panelRef}
-        className={cn(
-          // Basic position & size
-          "fixed z-30 top-32 right-0 w-full md:w-[300px] h-[calc(100vh-8rem)]",
-          "bg-muted shadow-lg border-l border-border rounded-tl-lg z-50",
-          // Enable the transform property and set duration
-          "duration-200",
-          // Slide in/out depending on `isOpen`
-          isOpen
-            ? "animate-in slide-in-from-right "
-            : "animate-out slide-out-to-right right-[-100vw] md:right-[-300px]",
-        )}
-      >
-        <h2 className="text-lg font-medium text-muted-foreground px-4 py-3 border-b border-border">
-          Comments
-        </h2>
-        {isEmpty ? (
-          <div className="text-center text-sm text-muted-foreground py-8">
-            No Comments
-          </div>
-        ) : (
-          <CommentsPanelList
-            activeIDs={activeIDs}
-            comments={comments}
-            deleteCommentOrThread={deleteCommentOrThread}
-            submitAddComment={submitAddComment}
-            markNodeMap={markNodeMap}
-            listRef={listRef}
-          />
-        )}
-      </div>
-    </>
+    <SidebarWrapper
+      isOpen={isCommentPanelOpen}
+      onClose={toggleCommentPanel}
+      title="Comments"
+      widthClass="w-[300px]"
+    >
+      {isEmpty ? (
+        <div className="text-center text-sm text-muted-foreground pt-8 -m-4">
+          No Comments
+        </div>
+      ) : (
+        <CommentsPanelList
+          activeIDs={activeIDs}
+          comments={comments}
+          deleteCommentOrThread={deleteCommentOrThread}
+          submitAddComment={submitAddComment}
+          markNodeMap={markNodeMap}
+        />
+      )}
+    </SidebarWrapper>
   );
 }
 
-export default function CommentPlugin({
-  providerFactory,
-}: {
-  providerFactory?: (id: string, yjsDocMap: Map<string, Doc>) => Provider;
-}): JSX.Element {
-  const collabContext = useCollaborationContext();
-  const { yjsDocMap } = collabContext;
+export default function CommentPlugin(): JSX.Element {
   const [editor] = useLexicalComposerContext();
-
-  // keeping the old store for transitions / YJS logic, but eventually
-  // should remove it to rely purely on Lexical nodes
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const comments = useCommentStore(commentStore);
-
-  // ID -> set of MarkNode keys
   const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => new Map(), []);
   const [activeIDs, setActiveIDs] = useState<string[]>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const { toggleCommentPanel } = useCommentsContext();
 
-  // toggle the comments panel
-  const toggleComments = () => {
-    if (isOpen) {
-      // Start slide out
-      // child will trigger setIsOpen(false)
-      setIsOpen(false);
-    } else {
-      // Make it visible, then slide in
-      setIsOpen(true);
-    }
-  };
-
-  // If we do have a providerFactory (YJS), let's register
   useEffect(() => {
-    if (providerFactory) {
-      const provider = providerFactory("comments", yjsDocMap);
-      return commentStore.registerCollaboration(provider);
-    }
-  }, [commentStore, providerFactory, yjsDocMap]);
+    return editor.registerCommand(
+      TOGGLE_COMMENTS_COMMAND,
+      () => {
+        toggleCommentPanel();
+        return true;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+  }, [editor, toggleCommentPanel]);
 
-  // Called when user cancels the inline comment input
   const cancelAddComment = useCallback(() => {
     editor.update(() => {
       const sel = $getSelection();
@@ -839,21 +780,14 @@ export default function CommentPlugin({
     [],
   );
 
-  // called when user deletes a comment or thread
   const deleteCommentOrThread = useCallback(
     (thing: Comment | Thread, parentThread?: Thread) => {
-      // step 1: remove from store (so YJS can do its thing)
       const info = commentStore.deleteCommentOrThread(thing, parentThread);
       console.log("info about to be deleted", info);
+
       if (thing.type === "comment") {
-        // optional logic
-      }
-      // step 2: also remove the corresponding node(s) from Lexical tree
-      if (thing.type === "comment") {
-        // Maybe find & remove a matching CommentNode
         const commentId = thing.id;
         editor.update(() => {
-          // We can do a $dfs to find the comment node
           const root = $getRoot();
           const dfsNodes = $dfs(root);
           for (const { node } of dfsNodes) {
@@ -863,7 +797,6 @@ export default function CommentPlugin({
           }
         });
       } else {
-        // it's a thread -> remove the ThreadNode
         const threadId = thing.id;
         editor.update(() => {
           const root = $getRoot();
@@ -875,7 +808,7 @@ export default function CommentPlugin({
           }
         });
       }
-      // also handle removing any MarkNode references:
+
       const markNodeKeys = markNodeMap.get(thing.id);
       if (markNodeKeys) {
         setTimeout(() => {
@@ -896,7 +829,6 @@ export default function CommentPlugin({
     [commentStore, markNodeMap, editor, $isCommentNode, $isThreadNode],
   );
 
-  // called when user "submits" a new comment or thread
   const submitAddComment = useCallback(
     (
       item: Comment | Thread,
@@ -904,17 +836,12 @@ export default function CommentPlugin({
       parentThread?: Thread,
       sel?: RangeSelection | null,
     ) => {
-      // insert into store:
-      // TODO: remove this
       commentStore.addComment(item, parentThread);
-      // also insert the actual Lexical node
       editor.update(() => {
         if (item.type === "comment") {
           const node = new CommentNode(item);
-          // if we want to append somewhere, e.g. to the root
-          // or inside a ThreadNode:
+
           if (parentThread) {
-            // find the ThreadNode
             const root = $getRoot();
             const allNodes = $dfs(root);
             for (const { node: maybeThread } of allNodes) {
@@ -927,20 +854,18 @@ export default function CommentPlugin({
               }
             }
           } else {
-            // direct to root
             $getRoot().append(node);
           }
         } else {
           const node = new ThreadNode(item);
           $getRoot().append(node);
-          // also insert child CommentNodes
           item.comments.forEach((cmt) => {
             const cnode = new CommentNode(cmt);
             node.append(cnode);
           });
         }
       });
-      // Wrap in MarkNode if inline
+
       if (isInlineComment && sel) {
         editor.update(() => {
           if ($isRangeSelection(sel)) {
@@ -955,7 +880,6 @@ export default function CommentPlugin({
     [commentStore, editor, $isThreadNode],
   );
 
-  // listen for active MarkIDs
   useEffect(() => {
     const markKeysToIDs = new Map<NodeKey, string[]>();
     return mergeRegister(
@@ -1082,28 +1006,13 @@ export default function CommentPlugin({
           />,
           document.body,
         )}
-      {/* the "toggle" button to show/hide the side panel */}
-      {createPortal(
-        <Button
-          className="fixed top-[65px] right-4 z-10 rounded-lg shadow-lg"
-          variant={isOpen ? "default" : "outline"}
-          title={isOpen ? "Hide Comments" : "Show Comments"}
-          onClick={toggleComments}
-        >
-          <MessageSquareText className="size-6" />
-        </Button>,
-        document.body,
-      )}
-      {/* The side panel */}
       {createPortal(
         <CommentsPanel
-          isOpen={isOpen}
-          setIsOpen={setIsOpen}
           activeIDs={activeIDs}
-          comments={comments}
-          markNodeMap={markNodeMap}
           deleteCommentOrThread={deleteCommentOrThread}
+          comments={comments}
           submitAddComment={submitAddComment}
+          markNodeMap={markNodeMap}
         />,
         document.body,
       )}

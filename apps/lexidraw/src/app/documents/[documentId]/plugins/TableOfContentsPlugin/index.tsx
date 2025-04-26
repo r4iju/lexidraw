@@ -1,18 +1,14 @@
 import type { TableOfContentsEntry } from "@lexical/react/LexicalTableOfContentsPlugin";
 import type { HeadingTagType } from "@lexical/rich-text";
 import type { NodeKey } from "lexical";
-
+import { COMMAND_PRIORITY_LOW } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as React from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "~/components/ui/popover";
 import { Button } from "~/components/ui/button";
-import { TableOfContents } from "lucide-react";
+import { useTocContext, TOGGLE_TOC_COMMAND } from "../../context/toc-context";
+import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 
 const MARGIN_ABOVE_EDITOR = 624;
 const HEADING_WIDTH = 9;
@@ -25,6 +21,7 @@ function TableOfContentsList({
   const [selectedKey, setSelectedKey] = useState("");
   const selectedIndex = useRef(0);
   const [editor] = useLexicalComposerContext();
+  const { isTocOpen, toggleToc } = useTocContext();
 
   const isHeadingAtTheTopOfThePage = useCallback(
     (element: HTMLElement): boolean => {
@@ -171,45 +168,67 @@ function TableOfContentsList({
 
     document.addEventListener("scroll", onScroll);
     return () => document.removeEventListener("scroll", onScroll);
-  }, [tableOfContents, editor]);
+  }, [
+    tableOfContents,
+    editor,
+    isHeadingBelowTheTopOfThePage,
+    isHeadingAboveViewport,
+    isHeadingAtTheTopOfThePage,
+  ]);
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="fixed top-[65px] right-20 z-10 rounded-lg shadow-lg"
-        >
-          <TableOfContents className="size-6" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="p-3  rounded-lg shadow-lg max-h-[80vh] overflow-y-auto">
-        <ul>
+    <SidebarWrapper
+      isOpen={isTocOpen}
+      onClose={toggleToc}
+      title="Table of Contents"
+      widthClass="w-[300px]"
+    >
+      {tableOfContents.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic -m-4">
+          No headings found.
+        </p>
+      ) : (
+        <ul className="-m-4">
           {tableOfContents.map(([key, text, tag], index) => (
             <li
               key={key}
-              className={`relative pl-${headingToPadding(tag)} 
-              
-              `}
+              className={`relative pl-${headingToPadding(tag)} pr-4 py-1`}
             >
               <Button
                 variant="link"
                 onClick={() => scrollToNode(key, index)}
-                className="py-0 text-foreground"
+                className="p-0 text-foreground h-auto whitespace-normal text-left text-sm leading-snug hover:underline"
+                title={text}
               >
-                <span className={`${selectedKey === key ? " underline" : ""}`}>
-                  {text.length > 27 ? `${text.substring(0, 27)}...` : text}
+                <span
+                  className={`${selectedKey === key ? "font-semibold" : ""}`}
+                >
+                  {text.length > 35 ? `${text.substring(0, 35)}...` : text}
                 </span>
               </Button>
             </li>
           ))}
         </ul>
-      </PopoverContent>
-    </Popover>
+      )}
+    </SidebarWrapper>
   );
 }
 
-export default function TableOfContentsPlugin() {
+function TocPluginWrapper() {
+  const [editor] = useLexicalComposerContext();
+  const { toggleToc } = useTocContext();
+
+  useEffect(() => {
+    return editor.registerCommand(
+      TOGGLE_TOC_COMMAND,
+      () => {
+        toggleToc();
+        return true;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+  }, [editor, toggleToc]);
+
   return (
     <LexicalTableOfContentsPlugin>
       {(tableOfContents) => {
@@ -218,3 +237,5 @@ export default function TableOfContentsPlugin() {
     </LexicalTableOfContentsPlugin>
   );
 }
+
+export default TocPluginWrapper;
