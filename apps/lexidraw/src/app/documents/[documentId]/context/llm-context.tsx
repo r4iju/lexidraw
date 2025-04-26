@@ -10,12 +10,15 @@ import React, {
   useEffect,
 } from "react";
 
-import { streamText, tool, type Tool } from "ai";
+import { generateText, streamText, tool, type Tool } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { throttle } from "@packages/lib";
+
 import { useSession } from "next-auth/react";
 import { z } from "zod";
+
+// Define types for different LLM modes
+export type LlmMode = "autocomplete" | "chat";
 
 export type AppToolCall = {
   toolCallId: string;
@@ -23,14 +26,29 @@ export type AppToolCall = {
   args: Record<string, unknown>;
 };
 
-export type LLMState = {
+// Base state common to both modes
+export type LLMBaseState = {
   modelId: string;
   provider: string;
   temperature: number;
   maxTokens: number;
+};
+
+// Specific state for chat mode (includes streaming/tool state)
+export type ChatLLMState = LLMBaseState & {
   isError: boolean;
-  text: string;
+  text: string; // Accumulated text from stream
   error: string | null;
+  toolCalls?: AppToolCall[]; // Store tool calls from stream
+  isStreaming: boolean; // Track if currently streaming
+};
+
+// Specific state for autocomplete mode
+export type AutocompleteLLMState = LLMBaseState & {
+  isError: boolean;
+  text: string; // Generated text (non-streamed)
+  error: string | null;
+  isLoading: boolean; // Track if generation is in progress
 };
 
 export type LLMOptions = {
@@ -41,7 +59,7 @@ export type LLMOptions = {
   signal?: AbortSignal;
 };
 
-// --- Custom Hook for Tool Definitions ---
+// --- Custom Hook for Tool Definitions (Chat Only) ---
 function useLlmTools() {
   // Define tools inside the hook
   const tools = {
@@ -67,16 +85,24 @@ function useLlmTools() {
 }
 // ---------------------------------------
 
-export type GenerateResult = {
+export type GenerateChatResult = {
   text: string;
   toolCalls?: AppToolCall[];
 };
 
 type LLMContextValue = {
-  generate: (options: LLMOptions) => Promise<GenerateResult>;
-  llmState: LLMState;
-  setLlmState: React.Dispatch<React.SetStateAction<LLMState>>;
-  setLlmOptions: (options: Partial<LLMState>) => void;
+  // Autocomplete specific
+  generateAutocomplete: (options: LLMOptions) => Promise<string>;
+  autocompleteState: AutocompleteLLMState;
+  setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
+
+  // Chat specific
+  generateChatStream: (options: LLMOptions) => Promise<GenerateChatResult>;
+  chatState: ChatLLMState;
+  setChatLlmOptions: (options: Partial<LLMBaseState>) => void;
+
+  // Shared
+  availableModels: typeof LlmModelList;
 };
 
 export const LlmModelList = [
@@ -131,53 +157,223 @@ const LLMContext = createContext<LLMContextValue | null>(null);
 export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   const { data: session } = useSession();
 
-  const [llmState, setLlmState] = useState<LLMState>({
-    modelId: "gemini-2.0-flash",
+  // State for Autocomplete
+  const [autocompleteState, setAutocompleteState] =
+    useState<AutocompleteLLMState>({
+      modelId: "gpt-4.1-nano", // Fast model for autocomplete
+      provider: "openai",
+      temperature: 0.3,
+      maxTokens: 200,
+      isError: false,
+      text: "",
+      error: null,
+      isLoading: false,
+    });
+
+  // State for Chat
+  const [chatState, setChatState] = useState<ChatLLMState>({
+    modelId: "gemini-2.0-flash", // More capable model for chat
     provider: "google",
-    temperature: 0.3,
-    maxTokens: 10240,
+    temperature: 0.7, // Higher temp for more creative chat
+    maxTokens: 4096, // Larger context for chat
     isError: false,
     text: "",
     error: null,
+    isStreaming: false,
+    toolCalls: undefined,
   });
 
-  const provider = useRef<
+  // Separate refs for providers
+  const autocompleteProvider = useRef<
     | ReturnType<typeof createGoogleGenerativeAI>
     | ReturnType<typeof createOpenAI>
+    | null
+  >(null);
+  const chatProvider = useRef<
+    | ReturnType<typeof createGoogleGenerativeAI>
+    | ReturnType<typeof createOpenAI>
+    | null
   >(null);
 
-  // Use the custom hook to get tools
+  const createProviderInstance = useCallback(
+    (providerName: string, session: ReturnType<typeof useSession>["data"]) => {
+      switch (providerName) {
+        case "google":
+          return createGoogleGenerativeAI({
+            apiKey: session?.user.config.llm.googleApiKey,
+          });
+        case "openai":
+          return createOpenAI({
+            apiKey: session?.user.config.llm.openaiApiKey,
+          });
+        default:
+          console.warn("Unsupported LLM provider:", providerName);
+          return null; // Or throw an error
+      }
+    },
+    [],
+  );
+
+  // Initialize providers based on initial state
+  useEffect(() => {
+    if (session) {
+      autocompleteProvider.current = createProviderInstance(
+        autocompleteState.provider,
+        session,
+      );
+      chatProvider.current = createProviderInstance(
+        chatState.provider,
+        session,
+      );
+    }
+  }, [
+    session,
+    autocompleteState.provider,
+    chatState.provider,
+    createProviderInstance,
+  ]);
+
   const llmTools = useLlmTools();
 
-  const generate = useCallback(
+  const generateAutocomplete = useCallback(
     async ({
       prompt,
       system = "",
       temperature,
       maxTokens,
       signal,
-    }: LLMOptions): Promise<GenerateResult> => {
+    }: LLMOptions): Promise<string> => {
+      console.log("[LLMContext] generateAutocomplete called.");
+      console.log(
+        "[LLMContext] Autocomplete provider exists:",
+        !!autocompleteProvider.current,
+      );
+      if (!autocompleteProvider.current) {
+        console.error("[LLMContext] Autocomplete provider not initialized");
+        setAutocompleteState((prev) => ({
+          ...prev,
+          isError: true,
+          error: "Autocomplete provider not initialized",
+          isLoading: false,
+        }));
+        return "";
+      }
+
+      if (signal?.aborted) {
+        console.warn(
+          "[LLMContext] generateAutocomplete called with an already aborted signal. Skipping API call.",
+        );
+        return "";
+      }
+
+      setAutocompleteState((prev) => ({
+        ...prev,
+        isLoading: true,
+        isError: false,
+        error: null,
+      }));
+      try {
+        console.log(
+          "[LLMContext] Calling generateText with model:",
+          autocompleteState.modelId,
+        );
+        const result = await generateText({
+          model: autocompleteProvider.current(autocompleteState.modelId),
+          prompt,
+          system,
+          temperature: temperature ?? autocompleteState.temperature,
+          maxTokens: maxTokens ?? autocompleteState.maxTokens,
+          abortSignal: signal,
+        });
+
+        console.log(
+          "[LLMContext] generateText successful, result:",
+          result.text,
+        );
+
+        setAutocompleteState((prev) => ({
+          ...prev,
+          isError: false,
+          text: result.text,
+          error: null,
+          isLoading: false,
+        }));
+
+        return result.text;
+      } catch (err: unknown) {
+        console.error("[LLMContext] Error in generateAutocomplete:", err);
+        if (err instanceof Error && err.name === "AbortError") {
+          setAutocompleteState((prev) => ({ ...prev, isLoading: false }));
+          return "";
+        }
+
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setAutocompleteState((prev) => ({
+          ...prev,
+          isError: true,
+          text: "",
+          error: errorMsg,
+          isLoading: false,
+        }));
+        return "";
+      }
+    },
+    [
+      autocompleteProvider,
+      autocompleteState.modelId,
+      autocompleteState.temperature,
+      autocompleteState.maxTokens,
+    ],
+  );
+
+  const generateChatStream = useCallback(
+    async ({
+      prompt,
+      system = "",
+      temperature,
+      maxTokens,
+      signal,
+    }: LLMOptions): Promise<GenerateChatResult> => {
       let accumulatedText = "";
       const capturedToolCalls: AppToolCall[] = [];
 
+      if (!chatProvider.current) {
+        console.error("Chat provider not initialized");
+        setChatState((prev) => ({
+          ...prev,
+          isError: true,
+          error: "Chat provider not initialized",
+          isStreaming: false,
+        }));
+        return { text: "", toolCalls: undefined };
+      }
+
+      setChatState((prev) => ({
+        ...prev,
+        isStreaming: true,
+        isError: false,
+        error: null,
+        text: "", // Reset text on new stream
+        toolCalls: undefined,
+      }));
+
       try {
-        if (!provider.current) {
-          throw new Error("Provider not initialized");
-        }
         const result = await streamText({
-          model: provider.current(llmState.modelId),
+          model: chatProvider.current(chatState.modelId),
           prompt,
           system,
-          temperature: temperature ?? llmState.temperature,
-          maxTokens: maxTokens ?? llmState.maxTokens,
+          temperature: temperature ?? chatState.temperature,
+          maxTokens: maxTokens ?? chatState.maxTokens,
           abortSignal: signal,
-          tools: llmTools, // Use tools from the hook
+          tools: llmTools, // Use tools for chat
         });
 
         for await (const part of result.fullStream) {
           switch (part.type) {
             case "text-delta":
               accumulatedText += part.textDelta;
+              // Update state incrementally for streaming effect
+              setChatState((prev) => ({ ...prev, text: accumulatedText }));
               break;
             case "tool-call":
               capturedToolCalls.push({
@@ -188,7 +384,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
               break;
             case "error":
               console.error("Streaming error:", part.error);
-              throw part.error;
+              throw part.error; // Propagate error to catch block
             case "finish":
               console.log("Stream finished:", part.finishReason);
               break;
@@ -198,80 +394,95 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         const finalToolCalls =
           capturedToolCalls.length > 0 ? capturedToolCalls : undefined;
 
-        setLlmState((prev) => ({
+        setChatState((prev) => ({
           ...prev,
           isError: false,
           text: accumulatedText,
           error: null,
+          toolCalls: finalToolCalls,
+          isStreaming: false,
         }));
 
         return { text: accumulatedText, toolCalls: finalToolCalls };
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
-          return { text: "", toolCalls: undefined };
+          setChatState((prev) => ({ ...prev, isStreaming: false }));
+          return { text: accumulatedText, toolCalls: undefined }; // Return accumulated text up to abort
         }
 
         const errorMsg = err instanceof Error ? err.message : String(err);
-        setLlmState((prev) => ({
+        setChatState((prev) => ({
           ...prev,
           isError: true,
-          text: "",
+          text: accumulatedText, // Keep accumulated text on error
           error: errorMsg,
+          isStreaming: false,
         }));
-        return { text: "", toolCalls: undefined };
+        // Decide if you want to return partial results on error
+        return { text: accumulatedText, toolCalls: undefined };
       }
     },
-    [
-      provider,
-      llmState.modelId,
-      llmState.temperature,
-      llmState.maxTokens,
-      llmTools,
-    ],
+    [chatProvider, chatState, llmTools],
   );
 
-  const setLlmOptions = (options: Partial<LLMState>) => {
-    if (options.provider && options.provider !== llmState.provider) {
-      switch (options.provider) {
-        case "google":
-          provider.current = createGoogleGenerativeAI({
-            apiKey: session?.user.config.llm.googleApiKey,
-          });
-          break;
-        case "openai":
-          provider.current = createOpenAI({
-            apiKey: session?.user.config.llm.openaiApiKey,
-          });
-          break;
+  // --- Setters for Options ---
+  const setAutocompleteLlmOptions = useCallback(
+    (options: Partial<LLMBaseState>) => {
+      // Check if provider needs to change
+      if (
+        session &&
+        options.provider &&
+        options.provider !== autocompleteState.provider
+      ) {
+        autocompleteProvider.current = createProviderInstance(
+          options.provider,
+          session,
+        );
       }
-    }
-    setLlmState((prev) => ({ ...prev, ...options }));
-  };
+      setAutocompleteState((prev) => ({
+        ...prev,
+        ...options,
+        isError: false,
+        error: null,
+      })); // Reset error state on option change
+    },
+    [session, autocompleteState.provider, createProviderInstance],
+  );
 
-  useEffect(() => {
-    switch (llmState.provider) {
-      case "google":
-        provider.current = createGoogleGenerativeAI({
-          apiKey: session?.user.config.llm.googleApiKey,
-        });
-        break;
-      case "openai":
-        provider.current = createOpenAI({
-          apiKey: session?.user.config.llm.openaiApiKey,
-        });
-        break;
-      default:
-        console.error("Invalid provider:", llmState.provider);
-    }
-  }, [
-    llmState.provider,
-    session?.user.config.llm.googleApiKey,
-    session?.user.config.llm.openaiApiKey,
-  ]);
+  const setChatLlmOptions = useCallback(
+    (options: Partial<LLMBaseState>) => {
+      // Check if provider needs to change
+      if (
+        session &&
+        options.provider &&
+        options.provider !== chatState.provider
+      ) {
+        chatProvider.current = createProviderInstance(
+          options.provider,
+          session,
+        );
+      }
+      setChatState((prev) => ({
+        ...prev,
+        ...options,
+        isError: false,
+        error: null,
+      })); // Reset error state on option change
+    },
+    [session, chatState.provider, createProviderInstance],
+  );
 
   return (
     <LLMContext.Provider
-      value={{ generate, llmState, setLlmState, setLlmOptions }}
+      value={{
+        generateAutocomplete,
+        autocompleteState,
+        setAutocompleteLlmOptions,
+        generateChatStream,
+        chatState,
+        setChatLlmOptions,
+        availableModels: LlmModelList,
+      }}
     >
       {children}
     </LLMContext.Provider>
@@ -284,15 +495,4 @@ export function useLLM() {
     throw new Error("useLLM must be used inside an <LLMProvider />");
   }
   return ctx;
-}
-
-export function useThrottledLlm({ trottleMs = 3000 }: { trottleMs?: number }) {
-  const { generate } = useLLM();
-
-  const throttledSendQuery = throttle(generate, trottleMs, {
-    leading: false,
-    trailing: true,
-  });
-
-  return throttledSendQuery;
 }

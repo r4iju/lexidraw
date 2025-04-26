@@ -93,7 +93,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
@@ -130,7 +129,7 @@ import {
 } from "~/components/ui/tooltip";
 import { useSettings } from "../../context/settings-context";
 import { Input } from "~/components/ui/input";
-import { LlmModelList, useLLM } from "../../context/llm-context";
+import { useLLM } from "../../context/llm-context";
 import {
   Command,
   CommandEmpty,
@@ -145,6 +144,7 @@ import { TOGGLE_LLM_CHAT_COMMAND } from "../LlmChatPlugin";
 import { TOGGLE_COMMENTS_COMMAND } from "../../context/comment-context";
 import { TOGGLE_TOC_COMMAND } from "../../context/toc-context";
 import { MessageSquareText, ListTree } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
@@ -752,67 +752,107 @@ function ElementFormatDropdown({
 
 function LlmModelSelector() {
   const { settings, setOption } = useSettings();
-  const { llmState, setLlmOptions } = useLLM();
+  const {
+    chatState,
+    setChatLlmOptions,
+    autocompleteState,
+    setAutocompleteLlmOptions,
+    availableModels,
+  } = useLLM();
+
+  const [selectedMode, setSelectedMode] = useState<"chat" | "autocomplete">(
+    "chat",
+  );
+
+  const currentState = selectedMode === "chat" ? chatState : autocompleteState;
+  const currentSetter =
+    selectedMode === "chat" ? setChatLlmOptions : setAutocompleteLlmOptions;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="flex gap-2 h-12 md:h-10">
-          AI
+          AI Config
           <ChevronDownIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-[280px]">
-        <DropdownMenuItem>
-          Enable LLM
+      <DropdownMenuContent className="w-[280px] p-2">
+        <div className="flex items-center justify-between mb-2">
+          <Label>Enable LLM Features</Label>
           <DropdownMenuCheckboxItem
+            className="p-0 m-0"
             checked={settings.isLlmEnabled}
             onCheckedChange={(checked) => {
               setOption("isLlmEnabled", checked);
             }}
           />
-        </DropdownMenuItem>
+        </div>
         <DropdownMenuSeparator />
 
-        {/* Temperature Control */}
-        <DropdownMenuLabel>Temperature</DropdownMenuLabel>
-        <Input
-          type="number"
-          min={0}
-          max={1}
-          step={0.01}
-          value={llmState.temperature.toString()}
-          onChange={(e) =>
-            setLlmOptions({ temperature: Number(e.target.value) })
-          }
-        />
-        <DropdownMenuSeparator />
+        <Label className="mb-1 block">Configure:</Label>
+        <Tabs
+          value={selectedMode}
+          onValueChange={(value) => {
+            if (value === "chat" || value === "autocomplete") {
+              setSelectedMode(value);
+            }
+          }}
+          className="mb-3"
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="autocomplete">Autocomplete</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        {/* Max Tokens Control */}
-        <DropdownMenuLabel>Max Tokens</DropdownMenuLabel>
-        <Input
-          type="number"
-          min={0}
-          max={1000}
-          value={llmState.maxTokens.toString()}
-          onChange={(e) => setLlmOptions({ maxTokens: Number(e.target.value) })}
-        />
-        <DropdownMenuSeparator />
+        <div className="mb-2">
+          <Label>Temperature</Label>
+          <Input
+            type="number"
+            min={0}
+            max={1}
+            step={0.01}
+            value={currentState.temperature.toString()}
+            onChange={(e) =>
+              currentSetter({ temperature: Number(e.target.value) })
+            }
+            disabled={!settings.isLlmEnabled}
+          />
+        </div>
 
-        {/* Model Selection */}
-        <DropdownMenuLabel>Select Model</DropdownMenuLabel>
+        <div className="mb-2">
+          <Label>Max Tokens</Label>
+          <Input
+            type="number"
+            min={0}
+            max={selectedMode === "chat" ? 8192 : 1024}
+            value={currentState.maxTokens.toString()}
+            onChange={(e) =>
+              currentSetter({ maxTokens: Number(e.target.value) })
+            }
+            disabled={!settings.isLlmEnabled}
+          />
+        </div>
 
+        <DropdownMenuSeparator className="my-2" />
+
+        <Label>Select Model</Label>
         <Command>
-          <CommandInput placeholder="Search model..." />
+          <CommandInput
+            placeholder="Search model..."
+            disabled={!settings.isLlmEnabled}
+          />
           <CommandList>
             <CommandEmpty>No model found.</CommandEmpty>
             <CommandGroup>
-              {LlmModelList.map((model) => (
+              {availableModels.map((model) => (
                 <CommandItem
                   key={model.modelId}
                   value={model.modelId}
+                  disabled={!settings.isLlmEnabled}
                   onSelect={() => {
-                    setLlmOptions({
+                    if (!settings.isLlmEnabled) return;
+                    currentSetter({
                       modelId: model.modelId,
                       provider: model.provider,
                     });
@@ -821,12 +861,12 @@ function LlmModelSelector() {
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      model.modelId === llmState.modelId
+                      model.modelId === currentState.modelId
                         ? "opacity-100"
                         : "opacity-0",
                     )}
                   />
-                  {model.modelId}
+                  {model.name} ({model.provider})
                 </CommandItem>
               ))}
             </CommandGroup>
