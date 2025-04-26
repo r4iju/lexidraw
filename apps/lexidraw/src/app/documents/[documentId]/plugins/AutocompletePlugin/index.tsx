@@ -140,14 +140,6 @@ export default function AutocompletePlugin() {
   );
 
   const clearSuggestion = useCallback(() => {
-    if (autocompleteNodeKey.current !== null) {
-      const existingNode = $getNodeByKey(autocompleteNodeKey.current);
-      if (existingNode?.isAttached()) {
-        existingNode.remove();
-      }
-      autocompleteNodeKey.current = null;
-    }
-
     if (controllerRef.current) {
       controllerRef.current.abort();
       controllerRef.current = null;
@@ -158,6 +150,14 @@ export default function AutocompletePlugin() {
 
     lastWord.current = null;
     lastSuggestion.current = null;
+
+    if (autocompleteNodeKey.current !== null) {
+      const existingNode = $getNodeByKey(autocompleteNodeKey.current);
+      if (existingNode?.isAttached()) {
+        existingNode.remove();
+      }
+      autocompleteNodeKey.current = null;
+    }
   }, []);
 
   const insertSuggestion = useCallback(
@@ -199,13 +199,9 @@ export default function AutocompletePlugin() {
       const controller = new AbortController();
       controllerRef.current = controller;
 
-      const { heading, blockType, previousSentence } = gatherEditorContext();
+      const editorContext = gatherEditorContext();
 
-      const promise = queryLLM(
-        match,
-        { heading, blockType, previousSentence },
-        controller.signal,
-      )
+      const promise = queryLLM(match, editorContext, controller.signal)
         ?.then((completion) => {
           if (!completion) return null;
           insertSuggestion(completion);
