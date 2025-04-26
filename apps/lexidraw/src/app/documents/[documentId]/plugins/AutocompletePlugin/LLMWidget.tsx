@@ -1,16 +1,21 @@
 "use client";
 
-import { XCircleIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { useLLM } from "../../context/llm-context";
 import { useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 
 export function LLMWidget() {
-  const {
-    llmState: { isError, error },
-  } = useLLM();
+  const { autocompleteState, chatState } = useLLM();
   const [hidden, setHidden] = useState(true);
+
+  const isError = autocompleteState.isError || chatState.isError;
+  const error = isError
+    ? autocompleteState.isError
+      ? autocompleteState.error
+      : chatState.error
+    : null;
 
   useEffect(() => {
     if (isError) {

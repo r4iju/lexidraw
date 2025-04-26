@@ -64,6 +64,7 @@
     "@trpc/react-query": "11.1.0",
     "@trpc/server": "11.1.0",
     "@vercel/functions": "^1.6.0",
+    "@zod/mini": "^4.0.0-beta.20250420T053007",
     "ai": "^4.3.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -93,8 +94,7 @@
     "superjson": "^2.2.2",
     "tailwind-merge": "^2.6.0",
     "typescript": "^5.8.3",
-    "uuid": "^9.0.1",
-    "@zod/mini": "^4.0.0-beta.20250420T053007"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^15.3.0",

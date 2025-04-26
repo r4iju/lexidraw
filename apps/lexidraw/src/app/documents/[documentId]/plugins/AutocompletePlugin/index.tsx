@@ -18,6 +18,7 @@ import {
 } from "lexical";
 import { useEffect, useCallback, useRef } from "react";
 import { useSettings } from "../../context/settings-context";
+import { useSessionUUID } from "./session-uuid-provider";
 import {
   type AutocompleteEditorContext,
   useThrottledAutocomplete,
@@ -25,7 +26,6 @@ import {
 import { AutocompleteNode } from "../../nodes/AutocompleteNode";
 import { mergeRegister } from "@lexical/utils";
 import { $isAtNodeEnd } from "@lexical/selection";
-import { useSessionUUID } from "./session-uuid-provider";
 
 type CompletionRequest = {
   dismiss: () => void;

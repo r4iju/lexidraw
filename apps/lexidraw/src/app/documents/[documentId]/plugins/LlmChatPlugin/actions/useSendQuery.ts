@@ -7,7 +7,7 @@ import type { AppToolCall } from "../../../context/llm-context";
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
-  const { generate, llmState } = useLLM();
+  const { generateChatStream, chatState } = useLLM();
   const [editor] = useLexicalComposerContext();
   const { dispatchToolCalls } = useDispatchToolCalls(editor);
 
@@ -29,10 +29,10 @@ export const useSendQuery = () => {
         const ctx = editorStateJson ? `JSON_STATE:\n${editorStateJson}` : "";
         const fullPrompt = ctx ? `${prompt}\n\n${ctx}` : prompt;
 
-        const { text, toolCalls } = await generate({
+        const { text, toolCalls } = await generateChatStream({
           prompt: fullPrompt,
-          temperature: llmState.temperature,
-          maxTokens: llmState.maxTokens,
+          temperature: chatState.temperature,
+          maxTokens: chatState.maxTokens,
         });
 
         const assistantMessageId = crypto.randomUUID();
@@ -71,9 +71,9 @@ export const useSendQuery = () => {
     },
     [
       dispatch,
-      generate,
-      llmState.temperature,
-      llmState.maxTokens,
+      generateChatStream,
+      chatState.temperature,
+      chatState.maxTokens,
       dispatchToolCalls,
     ],
   );
