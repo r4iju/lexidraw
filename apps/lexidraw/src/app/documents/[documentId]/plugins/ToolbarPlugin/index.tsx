@@ -112,6 +112,7 @@ import {
   List,
   ListChecks,
   ListOrdered,
+  MessageSquare,
   PaintBucket,
   Pilcrow,
   Plus,
@@ -120,7 +121,7 @@ import {
   Underline,
   Undo,
 } from "lucide-react";
-import { TooltipButton } from "../../../../../components/ui/tooltip-button";
+import { TooltipButton } from "~/components/ui/tooltip-button";
 import Ellipsis from "~/components/icons/ellipsis";
 import {
   Tooltip,
@@ -140,6 +141,10 @@ import {
 } from "~/components/ui/command";
 import { cn } from "~/lib/utils";
 import { Label } from "~/components/ui/label";
+import { TOGGLE_LLM_CHAT_COMMAND } from "../LlmChatPlugin";
+import { TOGGLE_COMMENTS_COMMAND } from "../../context/comment-context";
+import { TOGGLE_TOC_COMMAND } from "../../context/toc-context";
+import { MessageSquareText, ListTree } from "lucide-react";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
@@ -1579,6 +1584,34 @@ export default function ToolbarPlugin({
         isRTL={isRTL}
       />
       <LlmModelSelector />
+
+      <TooltipButton
+        disabled={!isEditable}
+        onClick={() =>
+          editor.dispatchCommand(TOGGLE_COMMENTS_COMMAND, undefined)
+        }
+        ariaLabel="Toggle Comments"
+        title="Show/Hide Comments Panel"
+        Icon={MessageSquareText}
+      />
+
+      <TooltipButton
+        disabled={!isEditable}
+        onClick={() => editor.dispatchCommand(TOGGLE_TOC_COMMAND, undefined)}
+        ariaLabel="Toggle Table of Contents"
+        title="Show/Hide Table of Contents"
+        Icon={ListTree}
+      />
+
+      <TooltipButton
+        disabled={!isEditable}
+        onClick={() =>
+          editor.dispatchCommand(TOGGLE_LLM_CHAT_COMMAND, undefined)
+        }
+        ariaLabel="Toggle LLM Chat"
+        title="Toggle LLM Assistant Sidebar"
+        Icon={MessageSquare}
+      />
 
       {modal}
     </div>
