@@ -25,6 +25,7 @@ export const useToolExecutors = (editor: LexicalEditor) => {
     const parseResult = EditTextArgsSchema.safeParse(args);
     if (!parseResult.success) {
       console.error("Invalid args for editText:", parseResult.error.errors);
+      console.log("args:", args);
       return;
     }
     const { newStateJson } = parseResult.data;
