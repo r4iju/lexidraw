@@ -2,8 +2,8 @@
 
 import React, { useEffect } from "react";
 import { Sidebar } from "./ui/sidebar";
-import { LlmChatProvider, useChatDispatch } from "./context/LlmChatContext";
-import { useRegisterKeybindings } from "./keybindings/useRegisterKeybindings";
+import { LlmChatProvider, useChatDispatch } from "./context/llm-chat-context";
+import { useRegisterKeybindings } from "./keybindings/use-register-keybindings";
 import { createCommand, type LexicalCommand } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 

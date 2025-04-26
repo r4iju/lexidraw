@@ -18,14 +18,13 @@ export type ChatState = {
   mode: "chat" | "agent";
 };
 
-// Action type remains the same
 type Action =
   | { type: "push"; msg: ChatState["messages"][number] }
   | { type: "setStreaming"; flag: boolean }
   | { type: "toggleSidebar" }
-  | { type: "setMode"; mode: ChatState["mode"] };
+  | { type: "setMode"; mode: ChatState["mode"] }
+  | { type: "reset" };
 
-// Initial state remains the same
 const initial: ChatState = {
   messages: [],
   streaming: false,
@@ -33,14 +32,10 @@ const initial: ChatState = {
   mode: "chat",
 };
 
-// Context definitions (ChatStateCtx and ChatDispatchCtx remain)
 export const ChatStateCtx = createContext<ChatState | undefined>(undefined);
 export const ChatDispatchCtx = createContext<
   React.Dispatch<Action> | undefined
 >(undefined);
-
-// Removed ChatServiceCtx
-// export const ChatServiceCtx = createContext<LlmClient | undefined>(undefined);
 
 export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   children,
@@ -63,6 +58,12 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
           return s;
         }
         return { ...s, mode: a.mode };
+      case "reset":
+        return {
+          ...initial,
+          sidebarOpen: s.sidebarOpen,
+          messages: [],
+        };
       default: {
         // Scope the declaration within the case block
         const unhandledAction = a as Action;

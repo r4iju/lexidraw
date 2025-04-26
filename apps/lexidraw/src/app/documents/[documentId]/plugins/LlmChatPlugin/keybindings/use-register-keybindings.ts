@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useSendQuery } from "../actions/useSendQuery";
+import { useSendQuery } from "../actions/use-send-query";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   COMMAND_PRIORITY_HIGH,
@@ -35,7 +35,7 @@ export function useRegisterKeybindings() {
               if ($isRangeSelection(selection) && !selection.isCollapsed()) {
                 promptText = `Explain this text: "${selection.getTextContent()}"`;
               } else {
-                // If no selection, send entire editor state
+                // no selection, send entire editor state
                 promptText = "Explain the current content";
                 stateJson = JSON.stringify(editor.getEditorState().toJSON());
               }

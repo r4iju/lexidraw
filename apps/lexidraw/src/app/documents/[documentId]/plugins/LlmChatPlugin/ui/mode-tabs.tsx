@@ -1,21 +1,19 @@
 import React from "react";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { useChatState, useChatDispatch } from "../context/LlmChatContext";
-import type { ChatState } from "../context/LlmChatContext"; // Import ChatState type
+import { useChatState, useChatDispatch } from "../context/llm-chat-context";
+import type { ChatState } from "../context/llm-chat-context";
 
 export const ModeTabs: React.FC = () => {
   const { mode } = useChatState();
   const dispatch = useChatDispatch();
 
-  // Type assertion for safety, although reducer should handle validation
   const handleValueChange = (value: string) => {
     dispatch({ type: "setMode", mode: value as ChatState["mode"] });
   };
 
   return (
-    <Tabs value={mode} onValueChange={handleValueChange} className="p-2">
+    <Tabs value={mode} onValueChange={handleValueChange} className="w-full">
       <TabsList className="w-full rounded-sm">
-        {/* Use 'as const' for literal types */}
         {(["chat", "agent"] as const).map((m) => (
           <TabsTrigger
             key={m}
