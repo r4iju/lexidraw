@@ -1,12 +1,12 @@
 import React, { createContext, useCallback, useReducer } from "react";
-import type { AppToolCall } from "../../../context/llm-context"; // Import shared type
+import type { AppToolCall } from "../../../context/llm-context";
 
 export type ChatState = {
   messages: {
     id: string;
     role: "user" | "assistant" | "system";
     content: string;
-    toolCalls?: AppToolCall[]; // Use shared type
+    toolCalls?: AppToolCall[];
   }[];
   streaming: boolean;
   sidebarOpen: boolean;
@@ -24,7 +24,7 @@ const initial: ChatState = {
   messages: [],
   streaming: false,
   sidebarOpen: false,
-  mode: "chat",
+  mode: "agent",
 };
 
 export const ChatStateCtx = createContext<ChatState | undefined>(undefined);
@@ -38,6 +38,7 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   const reducer = useCallback((s: ChatState, a: Action): ChatState => {
     switch (a.type) {
       case "push":
+        // prevent duplicates
         if (s.messages.some((m) => m.id === a.msg.id)) {
           console.warn("Attempted to push duplicate message:", a.msg);
           return s;
@@ -48,6 +49,7 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
       case "toggleSidebar":
         return { ...s, sidebarOpen: !s.sidebarOpen };
       case "setMode":
+        // ensure valid mode
         if (a.mode !== "chat" && a.mode !== "agent") {
           console.warn("Invalid mode set:", a.mode);
           return s;
@@ -56,11 +58,11 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
       case "reset":
         return {
           ...initial,
-          sidebarOpen: s.sidebarOpen,
+          sidebarOpen: s.sidebarOpen, // keep sidebar state on reset
           messages: [],
         };
       default: {
-        // Scope the declaration within the case block
+        // default case for type safety
         const unhandledAction = a as Action;
         console.warn("Unhandled action type:", unhandledAction?.type);
         return s;

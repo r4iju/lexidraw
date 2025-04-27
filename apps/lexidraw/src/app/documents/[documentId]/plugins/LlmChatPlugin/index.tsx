@@ -12,9 +12,8 @@ const ChatPluginCore = (): React.ReactElement => {
   const dispatch = useChatDispatch();
   const [editor] = useLexicalComposerContext();
 
-  // Effect to register the command listener
+  // register command listener
   useEffect(() => {
-    // Register listener for the toggle command
     return editor.registerCommand(
       TOGGLE_LLM_CHAT_COMMAND,
       () => {
@@ -22,17 +21,13 @@ const ChatPluginCore = (): React.ReactElement => {
         dispatch({ type: "toggleSidebar" });
         return true;
       },
-      1,
+      1, // low priority
     );
   }, [editor, dispatch]);
 
   return <Sidebar />;
 };
 
-/**
- * Main component for the LLM Chat Plugin.
- * It sets up the context provider, which then renders the core logic and UI.
- */
 export function LlmChatPlugin(): React.ReactElement {
   return (
     <LlmChatProvider>

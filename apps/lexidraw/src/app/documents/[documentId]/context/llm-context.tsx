@@ -10,7 +10,13 @@ import React, {
   useEffect,
 } from "react";
 
-import { generateText, streamText, type Tool } from "ai";
+import {
+  generateText,
+  streamText,
+  ToolCallRepairFunction,
+  ToolSet,
+  type Tool,
+} from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 
@@ -71,12 +77,22 @@ type LLMContextValue = {
   setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
 
   // Chat specific
-  generateChatStream: (options: LLMOptions) => Promise<GenerateChatResult>;
+  generateChatStream: (
+    options: LLMOptions & {
+      experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
+    },
+  ) => Promise<GenerateChatResult>;
   chatState: ChatLLMState;
   setChatLlmOptions: (options: Partial<LLMBaseState>) => void;
 
   // Shared
   availableModels: typeof LlmModelList;
+  getProviderInstance: (
+    providerName: string,
+  ) =>
+    | ReturnType<typeof createGoogleGenerativeAI>
+    | ReturnType<typeof createOpenAI>
+    | null;
 };
 
 export const LlmModelList = [
@@ -134,10 +150,10 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
   // State for Autocomplete
   const [autocompleteState, setAutocompleteState] =
     useState<AutocompleteLLMState>({
-      modelId: "gpt-4.1-nano", // Fast model for autocomplete
-      provider: "openai",
+      modelId: "gemini-2.0-flash-lite",
+      provider: "google",
       temperature: 0.3,
-      maxTokens: 200,
+      maxTokens: 500,
       isError: false,
       text: "",
       error: null,
@@ -146,10 +162,10 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
   // State for Chat
   const [chatState, setChatState] = useState<ChatLLMState>({
-    modelId: "gemini-2.0-flash", // More capable model for chat
+    modelId: "gemini-2.0-flash",
     provider: "google",
-    temperature: 0.7, // Higher temp for more creative chat
-    maxTokens: 4096, // Larger context for chat
+    temperature: 0.7,
+    maxTokens: 100_000,
     isError: false,
     text: "",
     error: null,
@@ -157,54 +173,86 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     toolCalls: undefined,
   });
 
-  // Separate refs for providers
-  const autocompleteProvider = useRef<
-    | ReturnType<typeof createGoogleGenerativeAI>
-    | ReturnType<typeof createOpenAI>
-    | null
-  >(null);
-  const chatProvider = useRef<
-    | ReturnType<typeof createGoogleGenerativeAI>
-    | ReturnType<typeof createOpenAI>
-    | null
-  >(null);
+  // Store provider instances in refs to avoid re-creation
+  const providerInstances = useRef<
+    Record<
+      string,
+      ReturnType<typeof createGoogleGenerativeAI | typeof createOpenAI>
+    >
+  >({});
 
-  const createProviderInstance = useCallback(
-    (providerName: string, session: ReturnType<typeof useSession>["data"]) => {
+  const createProviderInstanceInternal = useCallback(
+    (providerName: string) => {
+      if (!session) {
+        console.error(
+          "[LLMContext] Session not available for provider creation.",
+        );
+        return null;
+      }
+      // Return cached instance if available
+      if (providerInstances.current[providerName]) {
+        return providerInstances.current[providerName];
+      }
+
+      let instance: ReturnType<
+        typeof createGoogleGenerativeAI | typeof createOpenAI
+      > | null = null;
       switch (providerName) {
         case "google":
-          return createGoogleGenerativeAI({
+          instance = createGoogleGenerativeAI({
             apiKey: session?.user.config.llm.googleApiKey,
           });
+          break;
         case "openai":
-          return createOpenAI({
+          instance = createOpenAI({
             apiKey: session?.user.config.llm.openaiApiKey,
           });
+          break;
         default:
           console.warn("Unsupported LLM provider:", providerName);
-          return null; // Or throw an error
+          return null;
       }
+
+      if (instance) {
+        providerInstances.current[providerName] = instance; // Cache the instance
+      }
+      return instance;
     },
-    [],
+    [session], // Depend only on session
   );
 
-  // Initialize providers based on initial state
+  // Expose the function to get providers
+  const getProviderInstance = useCallback(
+    (providerName: string) => {
+      return createProviderInstanceInternal(providerName);
+    },
+    [createProviderInstanceInternal],
+  );
+
+  // Use the internal creator for the default providers
+  const autocompleteProvider =
+    useRef<ReturnType<typeof createProviderInstanceInternal>>(null);
+  const chatProvider =
+    useRef<ReturnType<typeof createProviderInstanceInternal>>(null);
+
   useEffect(() => {
-    if (session) {
-      autocompleteProvider.current = createProviderInstance(
-        autocompleteState.provider,
-        session,
-      );
-      chatProvider.current = createProviderInstance(
-        chatState.provider,
-        session,
-      );
+    // Check if provider exists before assigning
+    const createdAutocompleteProvider = createProviderInstanceInternal(
+      autocompleteState.provider,
+    );
+    if (createdAutocompleteProvider) {
+      autocompleteProvider.current = createdAutocompleteProvider;
+    }
+    const createdChatProvider = createProviderInstanceInternal(
+      chatState.provider,
+    );
+    if (createdChatProvider) {
+      chatProvider.current = createdChatProvider;
     }
   }, [
-    session,
+    createProviderInstanceInternal,
     autocompleteState.provider,
     chatState.provider,
-    createProviderInstance,
   ]);
 
   const generateAutocomplete = useCallback(
@@ -288,7 +336,10 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       maxTokens,
       signal,
       tools,
-    }: LLMOptions): Promise<GenerateChatResult> => {
+    }: Omit<
+      LLMOptions,
+      "experimental_repairToolCall"
+    >): Promise<GenerateChatResult> => {
       let accumulatedText = "";
       const capturedToolCalls: AppToolCall[] = [];
 
@@ -321,6 +372,15 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
           maxTokens: maxTokens ?? chatState.maxTokens,
           abortSignal: signal,
           tools: tools,
+          experimental_repairToolCall: async (options) => {
+            console.warn("[LLMContext] Attempting tool call repair:", {
+              toolCall: options.toolCall,
+              error: options.error,
+            });
+            // Basic repair attempt: return the original tool call data.
+            // More sophisticated repair (e.g., JSON fixing) could be added here.
+            return options.toolCall; // Return directly, implicitly wrapped in Promise
+          },
         });
 
         for await (const part of result.fullStream) {
@@ -377,7 +437,12 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         return { text: accumulatedText, toolCalls: undefined };
       }
     },
-    [chatProvider, chatState],
+    [
+      chatProvider,
+      chatState.modelId,
+      chatState.temperature,
+      chatState.maxTokens,
+    ],
   );
 
   // --- Setters for Options ---
@@ -389,9 +454,8 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         options.provider &&
         options.provider !== autocompleteState.provider
       ) {
-        autocompleteProvider.current = createProviderInstance(
+        autocompleteProvider.current = createProviderInstanceInternal(
           options.provider,
-          session,
         );
       }
       setAutocompleteState((prev) => ({
@@ -401,7 +465,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         error: null,
       })); // Reset error state on option change
     },
-    [session, autocompleteState.provider, createProviderInstance],
+    [session, autocompleteState.provider, createProviderInstanceInternal],
   );
 
   const setChatLlmOptions = useCallback(
@@ -412,10 +476,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         options.provider &&
         options.provider !== chatState.provider
       ) {
-        chatProvider.current = createProviderInstance(
-          options.provider,
-          session,
-        );
+        chatProvider.current = createProviderInstanceInternal(options.provider);
       }
       setChatState((prev) => ({
         ...prev,
@@ -424,7 +485,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         error: null,
       })); // Reset error state on option change
     },
-    [session, chatState.provider, createProviderInstance],
+    [session, chatState.provider, createProviderInstanceInternal],
   );
 
   return (
@@ -437,6 +498,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         chatState,
         setChatLlmOptions,
         availableModels: LlmModelList,
+        getProviderInstance,
       }}
     >
       {children}
