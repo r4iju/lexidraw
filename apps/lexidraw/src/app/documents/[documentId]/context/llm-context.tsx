@@ -27,7 +27,6 @@ import type {
 } from "~/server/api/routers/config";
 import { type z } from "zod";
 
-// Define types for different LLM modes
 export type LlmMode = "autocomplete" | "chat";
 
 export type AppToolCall = {
@@ -36,24 +35,21 @@ export type AppToolCall = {
   args: Record<string, unknown>;
 };
 
-// Base state common to both modes
 export type LLMBaseState = z.infer<typeof LlmBaseConfigSchema>;
 
-// Specific state for chat mode (includes streaming/tool state)
 export type ChatLLMState = LLMBaseState & {
   isError: boolean;
-  text: string; // Accumulated text from stream
+  text: string;
   error: string | null;
-  toolCalls?: AppToolCall[]; // Store tool calls from stream
-  isStreaming: boolean; // Track if currently streaming
+  toolCalls?: AppToolCall[];
+  isStreaming: boolean;
 };
 
-// Specific state for autocomplete mode
 export type AutocompleteLLMState = LLMBaseState & {
   isError: boolean;
-  text: string; // Generated text (non-streamed)
+  text: string;
   error: string | null;
-  isLoading: boolean; // Track if generation is in progress
+  isLoading: boolean;
 };
 
 export type LLMOptions = {
@@ -144,8 +140,6 @@ type LLMProviderProps = PropsWithChildren<{
 }>;
 
 export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
-  const loadedConfig = initialConfig; // Use prop directly
-
   const updateLlmConfigMutation = api.config.updateLlmConfig.useMutation({
     onSuccess: async (updatedConfig) => {
       console.log(
@@ -185,22 +179,22 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
   });
 
   useEffect(() => {
-    if (loadedConfig) {
-      console.log("[LLMContext] Applying initial config:", loadedConfig);
-      if (loadedConfig.autocomplete) {
+    if (initialConfig) {
+      console.log("[LLMContext] Applying initial config:", initialConfig);
+      if (initialConfig.autocomplete) {
         setAutocompleteState((prev) => ({
           ...prev,
-          ...loadedConfig.autocomplete,
+          ...initialConfig.autocomplete,
         }));
       }
-      if (loadedConfig.chat) {
+      if (initialConfig.chat) {
         setChatState((prev) => ({
           ...prev,
-          ...loadedConfig.chat,
+          ...initialConfig.chat,
         }));
       }
     }
-  }, [loadedConfig]);
+  }, [initialConfig]);
 
   const providerInstances = useRef<
     Record<
@@ -211,12 +205,12 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   const createProviderInstanceInternal = useCallback(
     (providerName: string) => {
-      if (!loadedConfig) {
+      if (!initialConfig) {
         console.error("[LLMContext] Config not loaded for API key access.");
         return null;
       }
-      const googleApiKey = loadedConfig.googleApiKey;
-      const openaiApiKey = loadedConfig.openaiApiKey;
+      const googleApiKey = initialConfig.googleApiKey;
+      const openaiApiKey = initialConfig.openaiApiKey;
 
       if (providerInstances.current[providerName]) {
         return providerInstances.current[providerName];
@@ -250,7 +244,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }
       return instance;
     },
-    [loadedConfig],
+    [initialConfig],
   );
 
   const getProviderInstance = useCallback(
@@ -442,22 +436,14 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
       if (updatedConfig.chatConfig) {
         payload.chat = {
-          enabled: chatState.enabled,
-          modelId: chatState.modelId,
-          provider: chatState.provider,
-          temperature: chatState.temperature,
-          maxTokens: chatState.maxTokens,
+          ...chatState,
           ...updatedConfig.chatConfig,
         };
       }
 
       if (updatedConfig.autocompleteConfig) {
         payload.autocomplete = {
-          enabled: autocompleteState.enabled,
-          modelId: autocompleteState.modelId,
-          provider: autocompleteState.provider,
-          temperature: autocompleteState.temperature,
-          maxTokens: autocompleteState.maxTokens,
+          ...autocompleteState,
           ...updatedConfig.autocompleteConfig,
         };
       }
