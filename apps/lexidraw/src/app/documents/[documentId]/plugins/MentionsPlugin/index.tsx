@@ -522,36 +522,6 @@ function useMentionLookupService(mentionString: string | null) {
   return results;
 }
 
-function checkForAtSignMentions(
-  text: string,
-  minMatchLength: number,
-): MenuTextMatch | null {
-  let match = AtSignMentionsRegex.exec(text);
-
-  if (match === null) {
-    match = AtSignMentionsRegexAliasRegex.exec(text);
-  }
-  if (match !== null) {
-    // The strategy ignores leading whitespace but we need to know it's
-    // length to add it to the leadOffset
-    const maybeLeadingWhitespace = match[1] as string;
-
-    const matchingString = match[3] as string;
-    if (matchingString.length >= minMatchLength) {
-      return {
-        leadOffset: match.index + maybeLeadingWhitespace.length,
-        matchingString,
-        replaceableString: match[2] as string,
-      };
-    }
-  }
-  return null;
-}
-
-function getPossibleQueryMatch(text: string): MenuTextMatch | null {
-  return checkForAtSignMentions(text, 1);
-}
-
 class MentionTypeaheadOption extends MenuOption {
   name: string;
   picture: React.JSX.Element;
@@ -638,6 +608,39 @@ export default function NewMentionsPlugin(): React.JSX.Element | null {
     [editor],
   );
 
+  const checkForAtSignMentions = useCallback(
+    (text: string, minMatchLength: number): MenuTextMatch | null => {
+      let match = AtSignMentionsRegex.exec(text);
+
+      if (match === null) {
+        match = AtSignMentionsRegexAliasRegex.exec(text);
+      }
+      if (match !== null) {
+        // The strategy ignores leading whitespace but we need to know it's
+        // length to add it to the leadOffset
+        const maybeLeadingWhitespace = match[1] as string;
+
+        const matchingString = match[3] as string;
+        if (matchingString.length >= minMatchLength) {
+          return {
+            leadOffset: match.index + maybeLeadingWhitespace.length,
+            matchingString,
+            replaceableString: match[2] as string,
+          };
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
+  const getPossibleQueryMatch = useCallback(
+    (text: string): MenuTextMatch | null => {
+      return checkForAtSignMentions(text, 1);
+    },
+    [checkForAtSignMentions],
+  );
+
   const checkForMentionMatch = useCallback(
     (text: string) => {
       const slashMatch = checkForSlashTriggerMatch(text, editor);
@@ -646,7 +649,7 @@ export default function NewMentionsPlugin(): React.JSX.Element | null {
       }
       return getPossibleQueryMatch(text);
     },
-    [checkForSlashTriggerMatch, editor],
+    [checkForSlashTriggerMatch, editor, getPossibleQueryMatch],
   );
 
   return (

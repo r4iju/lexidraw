@@ -3,13 +3,15 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useChatDispatch, useChatState } from "../context/llm-chat-context";
 import { useLLM } from "../../../context/llm-context";
 import { useLexicalTools } from "../lexical/tool-executors";
+import { useImageInsertion } from "~/hooks/use-image-insertion";
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
   const { mode, messages } = useChatState();
   const { generateChatStream, chatState } = useLLM();
   const [editor] = useLexicalComposerContext();
-  const { lexicalLlmTools } = useLexicalTools(editor);
+  const { searchAndInsertImage } = useImageInsertion();
+  const { lexicalLlmTools } = useLexicalTools(editor, searchAndInsertImage);
 
   return useCallback(
     async (prompt: string, editorStateJson?: string) => {
