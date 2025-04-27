@@ -822,10 +822,6 @@ function LlmModelSelector() {
             checked={settings.isLlmEnabled}
             onCheckedChange={(checked) => {
               setOption("isLlmEnabled", checked);
-              // Also update the enabled state via the config mutation
-              // Need to decide if 'enabled' is saved via setOption or currentSetter
-              // Assuming currentSetter should handle all LLM config saves:
-              currentSetter({ enabled: !!checked });
             }}
           />
         </div>
