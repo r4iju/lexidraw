@@ -69,7 +69,6 @@ import { IS_APPLE } from "../../shared/environment";
 
 import useModal from "~/hooks/useModal";
 import { $createStickyNode } from "../../nodes/StickyNode";
-// import DropDown, { DropDownItem } from "../../ui/DropDown";
 import { ColorPickerButton } from "~/components/ui/color-picker";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { useSanitizeUrl } from "../../utils/url";
@@ -90,7 +89,6 @@ import { InsertTableDialog } from "../TablePlugin";
 import FontSize from "./font-size";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -127,7 +125,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
-import { useSettings } from "../../context/settings-context";
 import { Input } from "~/components/ui/input";
 import { useLLM } from "../../context/llm-context";
 import {
@@ -145,6 +142,8 @@ import { TOGGLE_COMMENTS_COMMAND } from "../../context/comment-context";
 import { TOGGLE_TOC_COMMAND } from "../../context/toc-context";
 import { MessageSquareText, ListTree } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { api } from "~/trpc/react";
+import { Switch } from "~/components/ui/switch";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
@@ -751,7 +750,6 @@ function ElementFormatDropdown({
 }
 
 function LlmModelSelector() {
-  const { settings, setOption } = useSettings();
   const {
     chatState,
     setChatLlmOptions,
@@ -759,6 +757,25 @@ function LlmModelSelector() {
     setAutocompleteLlmOptions,
     availableModels,
   } = useLLM();
+  const utils = api.useUtils();
+
+  // Fetch the config to get enabled states
+  const { data: llmConfig, isLoading: isLoadingConfig } =
+    api.config.getConfig.useQuery(
+      undefined,
+      { staleTime: 5 * 60 * 1000 }, // Fetch occasionally
+    );
+
+  // Mutation to update config
+  const updateLlmConfigMutation = api.config.updateLlmConfig.useMutation({
+    onSuccess: async () => {
+      await utils.config.getConfig.invalidate(); // Refetch config after update
+    },
+    onError: (error) => {
+      console.error("Failed to update LLM config:", error);
+      // TODO: Add user feedback
+    },
+  });
 
   const [selectedMode, setSelectedMode] = useState<"chat" | "autocomplete">(
     "chat",
@@ -768,14 +785,17 @@ function LlmModelSelector() {
   const currentSetter =
     selectedMode === "chat" ? setChatLlmOptions : setAutocompleteLlmOptions;
 
-  // Local state for input fields
+  const isCurrentModeEnabled =
+    selectedMode === "chat"
+      ? (llmConfig?.chat?.enabled ?? false)
+      : (llmConfig?.autocomplete?.enabled ?? false);
+
   const [localTemperature, setLocalTemperature] = useState<string>("0");
   const [localMaxTokens, setLocalMaxTokens] = useState<string>("0");
 
-  // Sync local state with context state when mode or context state changes
   useEffect(() => {
     setLocalTemperature(currentState.temperature.toString());
-    setLocalMaxTokens(currentState.maxTokens.toLocaleString()); // Format for display
+    setLocalMaxTokens(currentState.maxTokens.toLocaleString());
   }, [currentState, selectedMode]);
 
   const handleTemperatureBlur = () => {
@@ -788,7 +808,6 @@ function LlmModelSelector() {
       setLocalTemperature(currentState.temperature.toString());
     }
   };
-
   const handleMaxTokensBlur = () => {
     const numValue = parseInt(localMaxTokens.replace(/\D/g, ""), 10);
     if (!isNaN(numValue) && numValue >= 0) {
@@ -809,19 +828,6 @@ function LlmModelSelector() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-[280px] p-2">
-        <div className="flex items-center justify-between mb-2">
-          <Label>Enable LLM Features</Label>
-          <DropdownMenuCheckboxItem
-            className="p-0 m-0"
-            checked={settings.isLlmEnabled}
-            onCheckedChange={(checked) => {
-              setOption("isLlmEnabled", checked);
-            }}
-          />
-        </div>
-        <DropdownMenuSeparator />
-
-        <Label className="mb-1 block">Configure:</Label>
         <Tabs
           value={selectedMode}
           onValueChange={(value) => {
@@ -837,6 +843,37 @@ function LlmModelSelector() {
           </TabsList>
         </Tabs>
 
+        <DropdownMenuItem
+          className="flex items-center justify-between mb-1 pr-2"
+          onSelect={(e) => e.preventDefault()}
+        >
+          <Label
+            htmlFor={`enable-${selectedMode}`}
+            className="font-normal cursor-pointer"
+          >
+            Enable {selectedMode === "chat" ? "Chat" : "Autocomplete"}
+          </Label>
+          <Switch
+            id={`enable-${selectedMode}`}
+            checked={isCurrentModeEnabled}
+            disabled={isLoadingConfig}
+            onCheckedChange={(checked: boolean | string) => {
+              const isEnabled = checked === true;
+              if (selectedMode === "chat") {
+                updateLlmConfigMutation.mutate({
+                  chat: { enabled: isEnabled },
+                });
+              } else {
+                updateLlmConfigMutation.mutate({
+                  autocomplete: { enabled: isEnabled },
+                });
+              }
+            }}
+          />
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator className="my-2" />
+
         <div className="mb-2">
           <Label>Temperature</Label>
           <Input
@@ -847,10 +884,9 @@ function LlmModelSelector() {
             value={localTemperature}
             onChange={(e) => setLocalTemperature(e.target.value)}
             onBlur={handleTemperatureBlur}
-            disabled={!settings.isLlmEnabled}
+            disabled={isLoadingConfig || !isCurrentModeEnabled}
           />
         </div>
-
         <div className="mb-2">
           <Label>Max Tokens</Label>
           <Input
@@ -862,17 +898,16 @@ function LlmModelSelector() {
               setLocalMaxTokens(value);
             }}
             onBlur={handleMaxTokensBlur}
-            disabled={!settings.isLlmEnabled}
+            disabled={isLoadingConfig || !isCurrentModeEnabled}
           />
         </div>
-
         <DropdownMenuSeparator className="my-2" />
 
         <Label>Select Model</Label>
         <Command>
           <CommandInput
             placeholder="Search model..."
-            disabled={!settings.isLlmEnabled}
+            disabled={isLoadingConfig || !isCurrentModeEnabled}
           />
           <CommandList>
             <CommandEmpty>No model found.</CommandEmpty>
@@ -881,9 +916,9 @@ function LlmModelSelector() {
                 <CommandItem
                   key={model.modelId}
                   value={model.modelId}
-                  disabled={!settings.isLlmEnabled}
+                  disabled={isLoadingConfig || !isCurrentModeEnabled}
                   onSelect={() => {
-                    if (!settings.isLlmEnabled) return;
+                    if (isLoadingConfig || !isCurrentModeEnabled) return;
                     if (
                       model.modelId !== currentState.modelId ||
                       model.provider !== currentState.provider
