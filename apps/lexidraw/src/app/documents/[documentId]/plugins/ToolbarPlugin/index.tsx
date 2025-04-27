@@ -782,12 +782,9 @@ function LlmModelSelector() {
     const tempValue = parseFloat(localTemperature);
     if (!isNaN(tempValue) && tempValue >= 0 && tempValue <= 1) {
       if (tempValue !== currentState.temperature) {
-        // Only save if changed
-        console.log("Saving temperature:", tempValue);
         currentSetter({ temperature: tempValue });
       }
     } else {
-      // Reset local state if invalid
       setLocalTemperature(currentState.temperature.toString());
     }
   };
@@ -796,12 +793,9 @@ function LlmModelSelector() {
     const numValue = parseInt(localMaxTokens.replace(/\D/g, ""), 10);
     if (!isNaN(numValue) && numValue >= 0) {
       if (numValue !== currentState.maxTokens) {
-        // Only save if changed
-        console.log("Saving maxTokens:", numValue);
         currentSetter({ maxTokens: numValue });
       }
     } else {
-      // Reset local state if invalid
       setLocalMaxTokens(currentState.maxTokens.toLocaleString());
     }
   };
@@ -894,11 +888,6 @@ function LlmModelSelector() {
                       model.modelId !== currentState.modelId ||
                       model.provider !== currentState.provider
                     ) {
-                      console.log(
-                        "Saving model/provider:",
-                        model.modelId,
-                        model.provider,
-                      );
                       currentSetter({
                         modelId: model.modelId,
                         provider: model.provider,
