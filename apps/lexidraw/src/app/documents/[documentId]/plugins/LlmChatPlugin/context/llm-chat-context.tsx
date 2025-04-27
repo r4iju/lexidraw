@@ -1,17 +1,12 @@
 import React, { createContext, useCallback, useReducer } from "react";
-
-export type ToolCall = {
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-};
+import type { AppToolCall } from "../../../context/llm-context"; // Import shared type
 
 export type ChatState = {
   messages: {
     id: string;
     role: "user" | "assistant" | "system";
     content: string;
-    toolCalls?: ToolCall[];
+    toolCalls?: AppToolCall[]; // Use shared type
   }[];
   streaming: boolean;
   sidebarOpen: boolean;

@@ -10,12 +10,11 @@ import React, {
   useEffect,
 } from "react";
 
-import { generateText, streamText, tool, type Tool } from "ai";
+import { generateText, streamText, type Tool } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 
 import { useSession } from "next-auth/react";
-import { z } from "zod";
 
 // Define types for different LLM modes
 export type LlmMode = "autocomplete" | "chat";
@@ -57,33 +56,8 @@ export type LLMOptions = {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  tools?: Record<string, Tool>;
 };
-
-// --- Custom Hook for Tool Definitions (Chat Only) ---
-function useLlmTools() {
-  // Define tools inside the hook
-  const tools = {
-    editText: tool({
-      description:
-        "Edit the document based on user instructions. Provide the *entire* modified document state as a JSON string in the newStateJson argument.",
-      parameters: z.object({
-        newStateJson: z
-          .string()
-          .describe(
-            "The complete, modified Lexical editor state as a valid JSON string.",
-          ),
-        instructions: z
-          .string()
-          .describe(
-            "Specific instructions used for the edit (e.g., fix grammar, shorten, expand). Optional reference.",
-          )
-          .optional(),
-      }),
-    }),
-  } satisfies Record<string, Tool>;
-  return tools;
-}
-// ---------------------------------------
 
 export type GenerateChatResult = {
   text: string;
@@ -233,8 +207,6 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     createProviderInstance,
   ]);
 
-  const llmTools = useLlmTools();
-
   const generateAutocomplete = useCallback(
     async ({
       prompt,
@@ -315,6 +287,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       temperature,
       maxTokens,
       signal,
+      tools,
     }: LLMOptions): Promise<GenerateChatResult> => {
       let accumulatedText = "";
       const capturedToolCalls: AppToolCall[] = [];
@@ -347,7 +320,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
           temperature: temperature ?? chatState.temperature,
           maxTokens: maxTokens ?? chatState.maxTokens,
           abortSignal: signal,
-          tools: llmTools, // Use tools for chat
+          tools: tools,
         });
 
         for await (const part of result.fullStream) {
@@ -404,7 +377,7 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
         return { text: accumulatedText, toolCalls: undefined };
       }
     },
-    [chatProvider, chatState, llmTools],
+    [chatProvider, chatState],
   );
 
   // --- Setters for Options ---
