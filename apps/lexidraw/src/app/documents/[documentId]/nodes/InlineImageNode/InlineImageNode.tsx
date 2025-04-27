@@ -11,7 +11,15 @@ import type {
   Spread,
 } from "lexical";
 
-import { $applyNodeReplacement, createEditor, DecoratorNode } from "lexical";
+import {
+  $applyNodeReplacement,
+  createEditor,
+  DecoratorNode,
+  ParagraphNode,
+  TextNode,
+  LineBreakNode,
+} from "lexical";
+import { LinkNode } from "@lexical/link";
 import * as React from "react";
 import { Suspense } from "react";
 
@@ -135,7 +143,11 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
     this.__width = width || "inherit";
     this.__height = height || "inherit";
     this.__showCaption = showCaption || false;
-    this.__caption = caption || createEditor();
+    this.__caption =
+      caption ||
+      createEditor({
+        nodes: [ParagraphNode, TextNode, LineBreakNode, LinkNode],
+      });
     this.__position = position;
   }
 
