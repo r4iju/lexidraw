@@ -6,15 +6,38 @@ import { drizzle } from "@packages/drizzle";
 import { getSignInSchema } from "~/app/signin/schema";
 import env from "@packages/env";
 
+// Define the structure for LLM config based on schema
+type LlmBaseConfig = {
+  modelId: string;
+  provider: string;
+  temperature: number;
+  maxTokens: number;
+};
+
+type LlmConfig = {
+  enabled: boolean;
+  googleApiKey?: string;
+  openaiApiKey?: string;
+  chat?: LlmBaseConfig;
+  autocomplete?: LlmBaseConfig;
+};
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-      config: {
-        llm: { googleApiKey: string; openaiApiKey: string };
+      // Update the config type here
+      config?: {
+        llm?: Partial<LlmConfig>; // Use the defined LlmConfig type, make it partial
       };
     } & DefaultSession["user"];
   }
+  // If you are also augmenting the User type, update it here as well
+  // interface User {
+  //   config?: {
+  //     llm?: Partial<LlmConfig>;
+  //   };
+  // }
 }
 
 export const {
@@ -41,22 +64,35 @@ export const {
         user: {
           ...session.user,
           id: token.sub,
-          config: token.config || { llm: { googleApiKey: "" } },
+          config: token.config, // Pass the potentially complex config object
         },
       };
     },
-    jwt: async ({ token, user, trigger }) => {
+    jwt: async ({ token, user, trigger, session }) => {
+      // Add session to params if using update
+      // Initial sign in or user object available
       if (user) {
-        token.config = (user as Session["user"]).config || {
-          llm: { googleApiKey: "" },
-        };
+        // Explicitly type user to access custom fields safely
+        const typedUser = user as Session["user"];
+        token.config = typedUser.config;
       }
 
-      if (trigger === "update") {
+      // Handle session updates (e.g., after profile update)
+      if (trigger === "update" && session) {
+        console.log("[Auth] JWT update trigger fired with session:", session);
+        // Refetch the user from DB to get the latest config
+        // Note: Ensure session data passed via update() call includes the necessary fields
+        // or fetch fresh data here.
         const dbUser = await drizzle.query.users.findFirst({
-          where: (users, { eq }) => eq(users.email, token.email as string),
+          // Use token.sub (user id) for fetching, assuming email might not be unique or stable
+          where: (users, { eq }) => eq(users.id, token.sub as string),
         });
-        token.config = dbUser?.config || { llm: { googleApiKey: "" } };
+        console.log("[Auth] Fetched user for JWT update:", dbUser);
+        token.config = dbUser?.config; // Update token config from DB
+        // Propagate other potential updates from session if needed
+        token.name = session.user.name;
+        token.email = session.user.email;
+        token.picture = session.user.image;
       }
 
       return token;

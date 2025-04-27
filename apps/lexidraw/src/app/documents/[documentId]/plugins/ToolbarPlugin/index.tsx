@@ -768,6 +768,44 @@ function LlmModelSelector() {
   const currentSetter =
     selectedMode === "chat" ? setChatLlmOptions : setAutocompleteLlmOptions;
 
+  // Local state for input fields
+  const [localTemperature, setLocalTemperature] = useState<string>("0");
+  const [localMaxTokens, setLocalMaxTokens] = useState<string>("0");
+
+  // Sync local state with context state when mode or context state changes
+  useEffect(() => {
+    setLocalTemperature(currentState.temperature.toString());
+    setLocalMaxTokens(currentState.maxTokens.toLocaleString()); // Format for display
+  }, [currentState, selectedMode]);
+
+  const handleTemperatureBlur = () => {
+    const tempValue = parseFloat(localTemperature);
+    if (!isNaN(tempValue) && tempValue >= 0 && tempValue <= 1) {
+      if (tempValue !== currentState.temperature) {
+        // Only save if changed
+        console.log("Saving temperature:", tempValue);
+        currentSetter({ temperature: tempValue });
+      }
+    } else {
+      // Reset local state if invalid
+      setLocalTemperature(currentState.temperature.toString());
+    }
+  };
+
+  const handleMaxTokensBlur = () => {
+    const numValue = parseInt(localMaxTokens.replace(/\D/g, ""), 10);
+    if (!isNaN(numValue) && numValue >= 0) {
+      if (numValue !== currentState.maxTokens) {
+        // Only save if changed
+        console.log("Saving maxTokens:", numValue);
+        currentSetter({ maxTokens: numValue });
+      }
+    } else {
+      // Reset local state if invalid
+      setLocalMaxTokens(currentState.maxTokens.toLocaleString());
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -784,6 +822,10 @@ function LlmModelSelector() {
             checked={settings.isLlmEnabled}
             onCheckedChange={(checked) => {
               setOption("isLlmEnabled", checked);
+              // Also update the enabled state via the config mutation
+              // Need to decide if 'enabled' is saved via setOption or currentSetter
+              // Assuming currentSetter should handle all LLM config saves:
+              currentSetter({ enabled: !!checked });
             }}
           />
         </div>
@@ -812,10 +854,9 @@ function LlmModelSelector() {
             min={0}
             max={1}
             step={0.01}
-            value={currentState.temperature.toString()}
-            onChange={(e) =>
-              currentSetter({ temperature: Number(e.target.value) })
-            }
+            value={localTemperature}
+            onChange={(e) => setLocalTemperature(e.target.value)}
+            onBlur={handleTemperatureBlur}
             disabled={!settings.isLlmEnabled}
           />
         </div>
@@ -825,15 +866,12 @@ function LlmModelSelector() {
           <Input
             type="text"
             inputMode="numeric"
-            min={0}
-            value={currentState.maxTokens.toLocaleString()}
+            value={localMaxTokens}
             onChange={(e) => {
-              const value = e.target.value.replace(/\D/g, "");
-              const numValue = parseInt(value, 10);
-              currentSetter({
-                maxTokens: isNaN(numValue) ? 0 : numValue,
-              });
+              const value = e.target.value.replace(/[^\d,]/g, "");
+              setLocalMaxTokens(value);
             }}
+            onBlur={handleMaxTokensBlur}
             disabled={!settings.isLlmEnabled}
           />
         </div>
@@ -856,10 +894,20 @@ function LlmModelSelector() {
                   disabled={!settings.isLlmEnabled}
                   onSelect={() => {
                     if (!settings.isLlmEnabled) return;
-                    currentSetter({
-                      modelId: model.modelId,
-                      provider: model.provider,
-                    });
+                    if (
+                      model.modelId !== currentState.modelId ||
+                      model.provider !== currentState.provider
+                    ) {
+                      console.log(
+                        "Saving model/provider:",
+                        model.modelId,
+                        model.provider,
+                      );
+                      currentSetter({
+                        modelId: model.modelId,
+                        provider: model.provider,
+                      });
+                    }
                   }}
                 >
                   <Check

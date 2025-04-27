@@ -47,12 +47,21 @@ export default async function DocumentPage(props: Props) {
     return redirect(`/documents/${documentId}`);
   }
 
-  const document = await api.entities.load.query({ id: documentId });
-  const iceServers = await api.auth.iceServers.query();
+  const [document, iceServers, initialLlmConfig] = await Promise.all([
+    api.entities.load.query({ id: documentId }),
+    api.auth.iceServers.query(),
+    api.config.getConfig.query(),
+  ]);
   if (!document) throw new Error("Document not found");
 
   try {
-    return <DocumentEditor entity={document} iceServers={iceServers} />;
+    return (
+      <DocumentEditor
+        entity={document}
+        iceServers={iceServers}
+        initialLlmConfig={initialLlmConfig}
+      />
+    );
   } catch (error) {
     console.error("Error loading document:", error);
     return redirect("/dashboard");
