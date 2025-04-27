@@ -340,8 +340,10 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       signal,
       tools,
       experimental_repairToolCall,
+      maxSteps,
     }: Omit<LLMOptions, "experimental_repairToolCall"> & {
       experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
+      maxSteps?: number;
     }): Promise<GenerateChatResult> => {
       if (!chatState.enabled || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
@@ -367,6 +369,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           temperature: temperature ?? chatState.temperature,
           maxTokens: maxTokens ?? chatState.maxTokens,
           abortSignal: signal,
+          maxSteps: maxSteps ?? 5,
           tools: tools,
           experimental_repairToolCall: experimental_repairToolCall,
         });
@@ -400,17 +403,26 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
         const finalToolCalls =
           capturedToolCalls.length > 0 ? capturedToolCalls : undefined;
+
+        const finalText = accumulatedText.trim();
+
         setChatState((prev) => ({
           ...prev,
           isError: false,
-          text: accumulatedText,
+          text: finalText,
           error: null,
           toolCalls: finalToolCalls,
           isStreaming: false,
         }));
-        return { text: accumulatedText, toolCalls: finalToolCalls };
+
+        return { text: finalText, toolCalls: finalToolCalls };
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
+          setChatState((prev) => ({
+            ...prev,
+            text: accumulatedText,
+            isStreaming: false,
+          }));
           return { text: accumulatedText, toolCalls: undefined };
         }
         const errorMsg = err instanceof Error ? err.message : String(err);

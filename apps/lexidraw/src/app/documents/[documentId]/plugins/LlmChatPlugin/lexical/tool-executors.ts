@@ -25,27 +25,59 @@ type ExecuteResult = Promise<{
   details?: unknown;
 }>;
 
-// Define the type for the passed-in function
 type SearchAndInsertFunc = (
   query: string,
   insertAs?: "block" | "inline",
 ) => Promise<void>;
 
-// Schema for the image search tool parameters
-const SearchAndInsertImageParamsSchema = z.object({
-  query: z.string().describe("The search query to find an image on Unsplash."),
-  // Optional: Add insertAs parameter if you want the LLM to specify block/inline
-  // insertAs: z.enum(["block", "inline"]).optional().describe("Insert as block (default) or inline image.")
-});
-
 export const useLexicalTools = (
   editor: LexicalEditor,
-  // Accept the function as an argument
   searchAndInsertImageFunc: SearchAndInsertFunc,
 ) => {
+  const SearchAndInsertImageParamsSchema = z.object({
+    query: z
+      .string()
+      .describe("The search query to find an image on Unsplash."),
+  });
+
   const ListTypeEnum = z.enum(["bullet", "number", "check"]);
-  // type alias for clarity
   type ListType = z.infer<typeof ListTypeEnum>;
+
+  const BaseFormatBlockSchema = z.object({
+    operation: z.literal("formatBlock"),
+    anchorText: z
+      .string()
+      .describe("Text content within the block to identify it."),
+    formatAs: z.enum(["paragraph", "heading", "list"]),
+    headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
+    listType: ListTypeEnum.optional(),
+  });
+
+  const BaseInsertBlockSchema = z.object({
+    operation: z.literal("insertBlock"),
+    text: z.string(),
+    blockType: z.enum(["paragraph", "heading", "list"]),
+    headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
+    listType: ListTypeEnum.optional(),
+    relation: z.enum(["before", "after", "appendRoot"]),
+    anchorText: z.string().optional(),
+  });
+
+  const DeleteBlockSchema = z.object({
+    operation: z.literal("deleteBlock"),
+    anchorText: z.string(),
+  });
+
+  const SemanticInstructionSchema = z.discriminatedUnion("operation", [
+    BaseFormatBlockSchema,
+    BaseInsertBlockSchema,
+    DeleteBlockSchema,
+  ]);
+
+  const UpdateDocumentParamsSchema = z.object({
+    instructions: z.array(SemanticInstructionSchema),
+    reason: z.string().optional(),
+  });
 
   function $findFirstBlockNodeByText(text: string): ElementNode | null {
     const root = $getRoot();
@@ -83,42 +115,6 @@ export const useLexicalTools = (
     return null;
   }
 
-  const BaseFormatBlockSchema = z.object({
-    operation: z.literal("formatBlock"),
-    anchorText: z
-      .string()
-      .describe("Text content within the block to identify it."),
-    formatAs: z.enum(["paragraph", "heading", "list"]), // keep list support
-    headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
-    listType: ListTypeEnum.optional(),
-  });
-
-  const BaseInsertBlockSchema = z.object({
-    operation: z.literal("insertBlock"),
-    text: z.string(),
-    blockType: z.enum(["paragraph", "heading", "list"]), // keep list support
-    headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
-    listType: ListTypeEnum.optional(),
-    relation: z.enum(["before", "after", "appendRoot"]),
-    anchorText: z.string().optional(),
-  });
-
-  const DeleteBlockSchema = z.object({
-    operation: z.literal("deleteBlock"),
-    anchorText: z.string(),
-  });
-
-  const SemanticInstructionSchema = z.discriminatedUnion("operation", [
-    BaseFormatBlockSchema,
-    BaseInsertBlockSchema,
-    DeleteBlockSchema,
-  ]);
-
-  const UpdateDocumentParamsSchema = z.object({
-    instructions: z.array(SemanticInstructionSchema),
-    reason: z.string().optional(),
-  });
-
   const lexicalLlmTools = {
     updateDocumentSemantically: tool({
       description:
@@ -144,7 +140,6 @@ export const useLexicalTools = (
                       instruction.anchorText,
                     );
                     if (!targetNode) {
-                      // fail gracefully if anchor not found for format/delete
                       if (
                         instruction.operation === "formatBlock" ||
                         instruction.operation === "deleteBlock"
@@ -154,7 +149,6 @@ export const useLexicalTools = (
                         );
                         return; // skip instruction
                       } else {
-                        // insert relative needs the anchor
                         throw new Error(
                           `Could not find block containing anchor text: "${instruction.anchorText}"`,
                         );
@@ -165,7 +159,6 @@ export const useLexicalTools = (
 
                 switch (instruction.operation) {
                   case "formatBlock": {
-                    // validation checks are necessary
                     if (
                       instruction.formatAs === "heading" &&
                       !instruction.headingTag
@@ -181,15 +174,11 @@ export const useLexicalTools = (
                     if (!targetNode) {
                       throw new Error(`Target node not found for formatBlock.`);
                     }
-
                     console.log(
                       `Formatting block (key: ${targetNode.getKey()}, anchor: "${instruction.anchorText}")`,
                     );
-
-                    // direct replace logic
                     let replacementNode: ElementNode | ListNode;
                     const originalText = targetNode.getTextContent();
-
                     if (instruction.formatAs === "paragraph") {
                       replacementNode = $createParagraphNode().append(
                         $createTextNode(originalText),
@@ -199,7 +188,6 @@ export const useLexicalTools = (
                         instruction.headingTag as HeadingTagType,
                       ).append($createTextNode(originalText));
                     } else {
-                      // list
                       const listType = instruction.listType as ListType;
                       const listItem = $createListItemNode(
                         listType === "check" ? false : undefined,
@@ -208,16 +196,13 @@ export const useLexicalTools = (
                       listWrapper.append(listItem);
                       replacementNode = listWrapper;
                     }
-
                     console.log(
                       ` -> Replacing node with ${replacementNode.getType()}`,
                     );
                     targetNode.replace(replacementNode);
                     break;
                   }
-
                   case "insertBlock": {
-                    // validation checks are necessary
                     if (
                       (instruction.relation === "before" ||
                         instruction.relation === "after") &&
@@ -242,7 +227,6 @@ export const useLexicalTools = (
                         `Target node not found for relative insert.`,
                       );
                     }
-
                     let newNode: ElementNode | ListItemNode;
                     let finalNodeToInsert: ElementNode | ListNode;
                     let requiresListWrapper = false;
@@ -250,8 +234,6 @@ export const useLexicalTools = (
                       instruction.blockType === "list"
                         ? (instruction.listType as ListType)
                         : undefined;
-
-                    // create the core node
                     if (instruction.blockType === "paragraph") {
                       newNode = $createParagraphNode().append(
                         $createTextNode(instruction.text),
@@ -263,7 +245,6 @@ export const useLexicalTools = (
                       ).append($createTextNode(instruction.text));
                       finalNodeToInsert = newNode;
                     } else {
-                      // list
                       newNode = $createListItemNode(
                         listType === "check" ? false : undefined,
                       ).append($createTextNode(instruction.text));
@@ -272,16 +253,13 @@ export const useLexicalTools = (
                       listWrapper.append(newNode);
                       finalNodeToInsert = listWrapper;
                     }
-
                     console.log(
                       `Preparing to insert ${instruction.blockType} "${instruction.text.substring(0, 20)}..."`,
                     );
-
                     if (instruction.relation === "appendRoot") {
                       console.log(` -> Appending to root.`);
                       $getRoot().append(finalNodeToInsert);
                     } else {
-                      // before/after targetNode
                       if (!targetNode) {
                         throw new Error(
                           `Target node unexpectedly null for relative insert.`,
@@ -290,8 +268,6 @@ export const useLexicalTools = (
                       console.log(
                         ` -> Relation: ${instruction.relation} anchor "${instruction.anchorText}"`,
                       );
-
-                      // refinement for list item insertion
                       if (
                         requiresListWrapper &&
                         listType &&
@@ -305,22 +281,18 @@ export const useLexicalTools = (
                           console.log(
                             ` -> Inserting list item directly into existing compatible list ${parent.getKey()}`,
                           );
-                          finalNodeToInsert = newNode as ListItemNode; // Insert the item, not the wrapper
+                          finalNodeToInsert = newNode as ListItemNode;
                         }
                       }
-
                       if (instruction.relation === "before") {
                         targetNode.insertBefore(finalNodeToInsert);
                       } else {
-                        // after
                         targetNode.insertAfter(finalNodeToInsert);
                       }
                     }
                     break;
                   }
-
                   case "deleteBlock": {
-                    // validation / find target
                     if (!instruction.anchorText) {
                       throw new Error("Anchor text required for deleteBlock.");
                     }
@@ -333,7 +305,6 @@ export const useLexicalTools = (
                     console.log(
                       `Deleting block (anchor: "${instruction.anchorText}", key: ${targetNode.getKey()})`,
                     );
-                    // handle removing parent list if last item
                     if ($isListItemNode(targetNode)) {
                       const parentList = targetNode.getParent();
                       if (
@@ -389,7 +360,19 @@ export const useLexicalTools = (
 
         if (overallSuccess) {
           console.log("updateDocumentSemantically finished successfully.");
-          return { success: true };
+          const summary = instructions
+            .map(
+              (instr) =>
+                `${instr.operation} for anchor '${instr.anchorText ?? "N/A"}'`,
+            )
+            .join(", ");
+          return {
+            success: true,
+            details: {
+              message: "Document updates applied successfully.",
+              summary: `Applied ${instructions.length} change(s): ${summary}`,
+            },
+          };
         } else {
           return {
             success: false,
@@ -403,31 +386,30 @@ export const useLexicalTools = (
       description:
         "Searches for an image using the provided query on Unsplash and inserts the first result into the document (defaults to block).",
       parameters: SearchAndInsertImageParamsSchema,
-      // Use the passed-in function in the execute method
-      execute: async ({ query /*, insertAs */ }): ExecuteResult => {
+      execute: async ({ query }): ExecuteResult => {
         console.log(
-          `Executing searchAndInsertImage tool with query: "${query}"`, // Optional: Add insertAs here if using
+          `Executing searchAndInsertImage tool with query: "${query}"`,
         );
         try {
-          // Call the function provided by useImageInsertion hook
-          // Pass insertAs if you added it to the schema and want LLM control
-          await searchAndInsertImageFunc(query /*, insertAs */);
-
+          await searchAndInsertImageFunc(query);
           return {
             success: true,
             details: {
               query: query,
-              message: "Called function to search and insert image.",
+              status: "Success",
+              summary: `Successfully inserted an image related to '${query}'.`,
             },
           };
         } catch (error) {
           console.error("Error calling searchAndInsertImage function:", error);
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unknown error occurred during image search/insertion.";
           return {
             success: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Unknown error occurred during image search/insertion.",
+            error: message,
+            details: { query: query, status: "Failed", errorMessage: message },
           };
         }
       },
