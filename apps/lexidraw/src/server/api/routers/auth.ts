@@ -10,6 +10,25 @@ import {
 import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
 
+// Define the type for the LLM config part based on the schema
+type LlmConfig = {
+  enabled: boolean;
+  googleApiKey?: string;
+  openaiApiKey?: string;
+  chat?: {
+    modelId: string;
+    provider: string;
+    temperature: number;
+    maxTokens: number;
+  };
+  autocomplete?: {
+    modelId: string;
+    provider: string;
+    temperature: number;
+    maxTokens: number;
+  };
+};
+
 export const authRouter = createTRPCRouter({
   signUp: publicProcedure
     .input(getSignUpSchema())
@@ -61,17 +80,31 @@ export const authRouter = createTRPCRouter({
   updateProfile: protectedProcedure
     .input(ProfileSchema)
     .mutation(async ({ ctx, input }) => {
+      const currentUser = await ctx.drizzle
+        .select({ config: schema.users.config })
+        .from(schema.users)
+        .where(eq(schema.users.id, ctx.session.user.id))
+        .limit(1);
+
+      const currentConfig = currentUser[0]?.config ?? {};
+      // Explicitly type currentLlmConfig or provide a default object structure
+      const currentLlmConfig: Partial<LlmConfig> = currentConfig.llm ?? {};
+
       await ctx.drizzle
         .update(schema.users)
         .set({
           name: input.name,
           email: input.email,
           config: {
-            ...ctx.session.user.config,
+            ...currentConfig,
             llm: {
+              // Merge new LLM settings, using defaults from currentLlmConfig if properties are missing
               enabled: input.llmEnabled,
-              googleApiKey: input.googleApiKey ?? "",
-              openaiApiKey: input.openaiApiKey ?? "",
+              googleApiKey: input.googleApiKey ?? currentLlmConfig.googleApiKey,
+              openaiApiKey: input.openaiApiKey ?? currentLlmConfig.openaiApiKey,
+              chat: input.chatConfig ?? currentLlmConfig.chat,
+              autocomplete:
+                input.autocompleteConfig ?? currentLlmConfig.autocomplete,
             },
           },
         })

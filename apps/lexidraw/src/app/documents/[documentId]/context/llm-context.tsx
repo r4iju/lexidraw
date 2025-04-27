@@ -19,8 +19,9 @@ import {
 } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-
-import { useSession } from "next-auth/react";
+import { api } from "~/trpc/react";
+import { type LlmConfigSchema } from "~/server/api/routers/config";
+import { type z } from "zod";
 
 // Define types for different LLM modes
 export type LlmMode = "autocomplete" | "chat";
@@ -69,6 +70,8 @@ export type GenerateChatResult = {
   text: string;
   toolCalls?: AppToolCall[];
 };
+
+type PartialLlmConfig = z.infer<ReturnType<typeof LlmConfigSchema.partial>>;
 
 type LLMContextValue = {
   // Autocomplete specific
@@ -144,28 +147,63 @@ export const LlmModelList = [
 
 const LLMContext = createContext<LLMContextValue | null>(null);
 
-export function LLMProvider({ children }: PropsWithChildren<unknown>) {
-  const { data: session } = useSession();
+// Sensible defaults if config is not yet saved in DB
+const defaultAutocompleteConfig: LLMBaseState = {
+  modelId: "gemini-2.0-flash-lite",
+  provider: "google",
+  temperature: 0.3,
+  maxTokens: 500,
+};
 
-  // State for Autocomplete
+const defaultChatConfig: LLMBaseState = {
+  modelId: "gemini-2.0-flash",
+  provider: "google",
+  temperature: 0.7,
+  maxTokens: 100_000,
+};
+
+// Update Props type for LLMProvider
+type LLMProviderProps = PropsWithChildren<{
+  initialConfig: PartialLlmConfig; // Accept initial config as prop
+}>;
+
+export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
+  // Use initialConfig directly
+  const loadedConfig = initialConfig;
+
+  const updateLlmConfigMutation = api.config.updateLlmConfig.useMutation({
+    onSuccess: async (updatedConfig) => {
+      console.log("[LLMContext] Config updated successfully:", updatedConfig);
+      // Invalidate the getConfig query on the *server* if necessary,
+      // but primarily rely on updating local state for immediate feedback.
+      // await utils.config.getConfig.invalidate();
+      // Update local state directly with the returned updatedConfig
+      setAutocompleteState((prev) => ({
+        ...prev,
+        ...(updatedConfig.autocomplete ?? {}),
+      }));
+      setChatState((prev) => ({
+        ...prev,
+        ...(updatedConfig.chat ?? {}),
+      }));
+    },
+    onError: (error) => {
+      console.error("Failed to update LLM config:", error);
+    },
+  });
+
+  // Initialize state using defaults first
   const [autocompleteState, setAutocompleteState] =
     useState<AutocompleteLLMState>({
-      modelId: "gemini-2.0-flash-lite",
-      provider: "google",
-      temperature: 0.3,
-      maxTokens: 500,
+      ...defaultAutocompleteConfig,
       isError: false,
       text: "",
       error: null,
       isLoading: false,
     });
 
-  // State for Chat
   const [chatState, setChatState] = useState<ChatLLMState>({
-    modelId: "gemini-2.0-flash",
-    provider: "google",
-    temperature: 0.7,
-    maxTokens: 100_000,
+    ...defaultChatConfig,
     isError: false,
     text: "",
     error: null,
@@ -173,7 +211,24 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     toolCalls: undefined,
   });
 
-  // Store provider instances in refs to avoid re-creation
+  // Effect to update state from the initialConfig prop
+  useEffect(() => {
+    if (loadedConfig) {
+      console.log("[LLMContext] Using initial config:", loadedConfig);
+      if (loadedConfig.autocomplete) {
+        setAutocompleteState((prev) => ({
+          ...prev,
+          ...loadedConfig.autocomplete,
+        }));
+      }
+      if (loadedConfig.chat) {
+        setChatState((prev) => ({ ...prev, ...loadedConfig.chat }));
+      }
+    }
+    // Run only once when initialConfig is first received (or changes, though unlikely)
+  }, [loadedConfig]);
+
+  // --- Provider Instantiation Logic ---
   const providerInstances = useRef<
     Record<
       string,
@@ -183,13 +238,14 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
 
   const createProviderInstanceInternal = useCallback(
     (providerName: string) => {
-      if (!session) {
-        console.error(
-          "[LLMContext] Session not available for provider creation.",
-        );
+      // Use loadedConfig for API keys
+      if (!loadedConfig) {
+        console.error("[LLMContext] Config not available for API key access.");
         return null;
       }
-      // Return cached instance if available
+      const googleApiKey = loadedConfig.googleApiKey;
+      const openaiApiKey = loadedConfig.openaiApiKey;
+
       if (providerInstances.current[providerName]) {
         return providerInstances.current[providerName];
       }
@@ -199,14 +255,18 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       > | null = null;
       switch (providerName) {
         case "google":
-          instance = createGoogleGenerativeAI({
-            apiKey: session?.user.config.llm.googleApiKey,
-          });
+          if (!googleApiKey) {
+            console.warn("[LLMContext] Google API key not configured.");
+            return null;
+          }
+          instance = createGoogleGenerativeAI({ apiKey: googleApiKey });
           break;
         case "openai":
-          instance = createOpenAI({
-            apiKey: session?.user.config.llm.openaiApiKey,
-          });
+          if (!openaiApiKey) {
+            console.warn("[LLMContext] OpenAI API key not configured.");
+            return null;
+          }
+          instance = createOpenAI({ apiKey: openaiApiKey });
           break;
         default:
           console.warn("Unsupported LLM provider:", providerName);
@@ -214,14 +274,13 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
       }
 
       if (instance) {
-        providerInstances.current[providerName] = instance; // Cache the instance
+        providerInstances.current[providerName] = instance;
       }
       return instance;
     },
-    [session], // Depend only on session
+    [loadedConfig], // Depend on loadedConfig for API keys
   );
 
-  // Expose the function to get providers
   const getProviderInstance = useCallback(
     (providerName: string) => {
       return createProviderInstanceInternal(providerName);
@@ -229,14 +288,12 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     [createProviderInstanceInternal],
   );
 
-  // Use the internal creator for the default providers
   const autocompleteProvider =
     useRef<ReturnType<typeof createProviderInstanceInternal>>(null);
   const chatProvider =
     useRef<ReturnType<typeof createProviderInstanceInternal>>(null);
 
   useEffect(() => {
-    // Check if provider exists before assigning
     const createdAutocompleteProvider = createProviderInstanceInternal(
       autocompleteState.provider,
     );
@@ -445,12 +502,46 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
     ],
   );
 
+  // ... saveConfiguration helper (depends on loadedConfig now) ...
+  const saveConfiguration = useCallback(
+    (updatedConfig: {
+      chatConfig?: LLMBaseState;
+      autocompleteConfig?: LLMBaseState;
+    }) => {
+      const payload: Partial<
+        Parameters<typeof updateLlmConfigMutation.mutate>[0]
+      > = {};
+      if (updatedConfig.chatConfig) payload.chat = updatedConfig.chatConfig;
+      if (updatedConfig.autocompleteConfig)
+        payload.autocomplete = updatedConfig.autocompleteConfig;
+
+      // Include 'enabled' status from the loaded config
+      payload.enabled = loadedConfig?.enabled ?? false;
+
+      // Include API keys if they are part of the config mutation's input
+      // payload.googleApiKey = loadedConfig?.googleApiKey;
+      // payload.openaiApiKey = loadedConfig?.openaiApiKey;
+
+      if (Object.keys(payload).length > 1) {
+        // Ensure we save more than just 'enabled'
+        console.log("[LLMContext] Saving LLM configuration:", payload);
+        updateLlmConfigMutation.mutate(payload);
+      } else if (
+        payload.enabled !== undefined &&
+        Object.keys(payload).length === 1
+      ) {
+        console.log("[LLMContext] Saving only LLM enabled status:", payload);
+        updateLlmConfigMutation.mutate(payload);
+      }
+    },
+    [updateLlmConfigMutation, loadedConfig],
+  );
+
   // --- Setters for Options ---
   const setAutocompleteLlmOptions = useCallback(
     (options: Partial<LLMBaseState>) => {
-      // Check if provider needs to change
       if (
-        session &&
+        loadedConfig &&
         options.provider &&
         options.provider !== autocompleteState.provider
       ) {
@@ -458,34 +549,51 @@ export function LLMProvider({ children }: PropsWithChildren<unknown>) {
           options.provider,
         );
       }
-      setAutocompleteState((prev) => ({
-        ...prev,
-        ...options,
-        isError: false,
-        error: null,
-      })); // Reset error state on option change
+
+      let newConfig: LLMBaseState | null = null;
+      setAutocompleteState((prev) => {
+        newConfig = { ...prev, ...options };
+        return { ...prev, ...options, isError: false, error: null };
+      });
+
+      if (newConfig) {
+        saveConfiguration({ autocompleteConfig: newConfig });
+      }
     },
-    [session, autocompleteState.provider, createProviderInstanceInternal],
+    [
+      loadedConfig,
+      autocompleteState.provider,
+      createProviderInstanceInternal,
+      saveConfiguration,
+    ],
   );
 
   const setChatLlmOptions = useCallback(
     (options: Partial<LLMBaseState>) => {
-      // Check if provider needs to change
       if (
-        session &&
+        loadedConfig &&
         options.provider &&
         options.provider !== chatState.provider
       ) {
         chatProvider.current = createProviderInstanceInternal(options.provider);
       }
-      setChatState((prev) => ({
-        ...prev,
-        ...options,
-        isError: false,
-        error: null,
-      })); // Reset error state on option change
+
+      let newConfig: LLMBaseState | null = null;
+      setChatState((prev) => {
+        newConfig = { ...prev, ...options };
+        return { ...prev, ...options, isError: false, error: null };
+      });
+
+      if (newConfig) {
+        saveConfiguration({ chatConfig: newConfig });
+      }
     },
-    [session, chatState.provider, createProviderInstanceInternal],
+    [
+      loadedConfig,
+      chatState.provider,
+      createProviderInstanceInternal,
+      saveConfiguration,
+    ],
   );
 
   return (

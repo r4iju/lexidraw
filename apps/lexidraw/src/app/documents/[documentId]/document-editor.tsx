@@ -98,13 +98,16 @@ import { TooltipProvider } from "~/components/ui/tooltip";
 import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
 import { CommentProvider } from "./context/comment-context";
 import { TocProvider } from "./context/toc-context";
+import { type z } from "zod";
+import { LlmConfigSchema } from "~/server/api/routers/config";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
+  initialLlmConfig: z.infer<ReturnType<typeof LlmConfigSchema.partial>>;
 };
 
-function EditorHandler({ entity, iceServers }: EditorProps) {
+function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
   const editorStateRef = useRef<EditorState>(undefined);
   const canCollaborate =
     entity.sharedWith.length > 0 ||
@@ -199,7 +202,7 @@ function EditorHandler({ entity, iceServers }: EditorProps) {
       <FlashMessageContext>
         <TableContext>
           <ToolbarContext>
-            <LLMProvider>
+            <LLMProvider initialConfig={initialLlmConfig}>
               <CommentProvider>
                 <TocProvider>
                   <div className="flex flex-col size-full">
@@ -342,9 +345,14 @@ function Placeholder() {
 type Props = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
+  initialLlmConfig: z.infer<ReturnType<typeof LlmConfigSchema.partial>>;
 };
 
-export default function DocumentEditor({ entity, iceServers }: Props) {
+export default function DocumentEditor({
+  entity,
+  iceServers,
+  initialLlmConfig,
+}: Props) {
   "use memo";
   return (
     <LexicalComposer
@@ -391,7 +399,11 @@ export default function DocumentEditor({ entity, iceServers }: Props) {
       }}
     >
       <UnsavedChangesProvider>
-        <EditorHandler entity={entity} iceServers={iceServers} />
+        <EditorHandler
+          entity={entity}
+          iceServers={iceServers}
+          initialLlmConfig={initialLlmConfig}
+        />
       </UnsavedChangesProvider>
     </LexicalComposer>
   );

@@ -78,8 +78,20 @@ export const users = sqliteTable(
     config: text("config", { mode: "json" }).$type<{
       llm?: {
         enabled: boolean;
-        googleApiKey: string;
-        openaiApiKey: string;
+        googleApiKey?: string;
+        openaiApiKey?: string;
+        chat?: {
+          modelId: string;
+          provider: string;
+          temperature: number;
+          maxTokens: number;
+        };
+        autocomplete?: {
+          modelId: string;
+          provider: string;
+          temperature: number;
+          maxTokens: number;
+        };
       };
     }>(),
     email: text("email"),

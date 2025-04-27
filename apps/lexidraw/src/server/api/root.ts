@@ -4,6 +4,7 @@ import { entityRouter } from "./routers/entities";
 import { snapshotRouter } from "./routers/snapshot";
 import { webRtcRouter } from "./routers/web-rtc";
 import { cronRouter } from "./routers/crons";
+import { configRouter } from "./routers/config";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -11,6 +12,7 @@ export const appRouter = createTRPCRouter({
   entities: entityRouter,
   snapshot: snapshotRouter,
   webRtc: webRtcRouter,
+  config: configRouter,
 });
 
 // export type definition of API
