@@ -1,16 +1,15 @@
 import { useCallback } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useDispatchToolCalls } from "../lexical/commandBus";
 import { useChatDispatch, useChatState } from "../context/llm-chat-context";
 import { useLLM } from "../../../context/llm-context";
-import type { AppToolCall } from "../../../context/llm-context";
+import { useLexicalTools } from "../lexical/tool-executors";
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
   const { mode } = useChatState();
   const { generateChatStream, chatState } = useLLM();
   const [editor] = useLexicalComposerContext();
-  const { dispatchToolCalls } = useDispatchToolCalls(editor);
+  const { lexicalLlmTools } = useLexicalTools(editor);
 
   return useCallback(
     async (prompt: string, editorStateJson?: string) => {
@@ -31,7 +30,11 @@ export const useSendQuery = () => {
         if (editorStateJson) {
           systemPrompt += `\n\nThe user has provided the current document state as a JSON object below the main prompt, labeled 'JSON_STATE:'.`;
           if (mode === "agent") {
-            systemPrompt += `\nWhen you need to modify the document, use the 'editText' tool. This tool requires you to provide the *entire*, updated document state as a single JSON string argument named 'newStateJson'. Ensure the JSON is valid and represents the complete desired state of the document after your edits.`;
+            systemPrompt += `\nWhen you need to modify the document, use the 'editText' tool.`;
+            systemPrompt += `\nProvide the *entire*, updated document state as **a single, valid JSON string** in the 'newStateJson' argument.`;
+            systemPrompt += `\n**Important:** The value MUST be a string containing ONLY the stringified JSON for the complete Lexical editor state object (starting with '{"root":...}' and ending with the corresponding closing brace '}').`;
+            systemPrompt += `\nDo NOT include any extra characters, commas, keys, text, or explanations before the opening '{' or after the final closing '}' of the main root object.`;
+            systemPrompt += `\nEnsure the JSON string itself is perfectly valid according to JSON syntax rules.`;
           }
         }
 
@@ -43,6 +46,7 @@ export const useSendQuery = () => {
           system: systemPrompt,
           temperature: chatState.temperature,
           maxTokens: chatState.maxTokens,
+          tools: mode === "agent" ? lexicalLlmTools : undefined,
         });
 
         const assistantMessageId = crypto.randomUUID();
@@ -52,16 +56,14 @@ export const useSendQuery = () => {
             id: assistantMessageId,
             role: "assistant",
             content: text,
-            toolCalls: toolCalls as AppToolCall[] | undefined,
+            toolCalls: toolCalls,
           },
         });
 
-        if (toolCalls && toolCalls.length > 0) {
-          console.log("Dispatching tool calls from useSendQuery:", toolCalls);
-          dispatchToolCalls(toolCalls as AppToolCall[]);
-        } else {
-          console.log("No tool calls to dispatch.");
-        }
+        console.log(
+          "Tool calls returned by generateChatStream (execution handled by SDK):",
+          toolCalls,
+        );
       } catch (error) {
         console.error(
           "Error in useSendQuery during LLM call or tool dispatch:",
@@ -81,11 +83,11 @@ export const useSendQuery = () => {
     },
     [
       dispatch,
-      mode,
       generateChatStream,
       chatState.temperature,
       chatState.maxTokens,
-      dispatchToolCalls,
+      mode,
+      lexicalLlmTools,
     ],
   );
 };
