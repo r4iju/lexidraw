@@ -20,7 +20,11 @@ import {
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { api } from "~/trpc/react";
-import { type LlmConfigSchema } from "~/server/api/routers/config";
+import type {
+  LlmBaseConfigSchema,
+  StoredLlmConfig,
+  PartialLlmConfig,
+} from "~/server/api/routers/config";
 import { type z } from "zod";
 
 // Define types for different LLM modes
@@ -33,12 +37,7 @@ export type AppToolCall = {
 };
 
 // Base state common to both modes
-export type LLMBaseState = {
-  modelId: string;
-  provider: string;
-  temperature: number;
-  maxTokens: number;
-};
+export type LLMBaseState = z.infer<typeof LlmBaseConfigSchema>;
 
 // Specific state for chat mode (includes streaming/tool state)
 export type ChatLLMState = LLMBaseState & {
@@ -69,33 +68,6 @@ export type LLMOptions = {
 export type GenerateChatResult = {
   text: string;
   toolCalls?: AppToolCall[];
-};
-
-type PartialLlmConfig = z.infer<ReturnType<typeof LlmConfigSchema.partial>>;
-
-type LLMContextValue = {
-  // Autocomplete specific
-  generateAutocomplete: (options: LLMOptions) => Promise<string>;
-  autocompleteState: AutocompleteLLMState;
-  setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
-
-  // Chat specific
-  generateChatStream: (
-    options: LLMOptions & {
-      experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
-    },
-  ) => Promise<GenerateChatResult>;
-  chatState: ChatLLMState;
-  setChatLlmOptions: (options: Partial<LLMBaseState>) => void;
-
-  // Shared
-  availableModels: typeof LlmModelList;
-  getProviderInstance: (
-    providerName: string,
-  ) =>
-    | ReturnType<typeof createGoogleGenerativeAI>
-    | ReturnType<typeof createOpenAI>
-    | null;
 };
 
 export const LlmModelList = [
@@ -145,46 +117,48 @@ export const LlmModelList = [
   },
 ] as const;
 
+type LLMContextValue = {
+  generateAutocomplete: (options: LLMOptions) => Promise<string>;
+  autocompleteState: AutocompleteLLMState;
+  setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
+  generateChatStream: (
+    options: LLMOptions & {
+      experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
+    },
+  ) => Promise<GenerateChatResult>;
+  chatState: ChatLLMState;
+  setChatLlmOptions: (options: Partial<LLMBaseState>) => void;
+  availableModels: typeof LlmModelList;
+  getProviderInstance: (
+    providerName: string,
+  ) =>
+    | ReturnType<typeof createGoogleGenerativeAI>
+    | ReturnType<typeof createOpenAI>
+    | null;
+};
+
 const LLMContext = createContext<LLMContextValue | null>(null);
 
-// Sensible defaults if config is not yet saved in DB
-const defaultAutocompleteConfig: LLMBaseState = {
-  modelId: "gemini-2.0-flash-lite",
-  provider: "google",
-  temperature: 0.3,
-  maxTokens: 500,
-};
-
-const defaultChatConfig: LLMBaseState = {
-  modelId: "gemini-2.0-flash",
-  provider: "google",
-  temperature: 0.7,
-  maxTokens: 100_000,
-};
-
-// Update Props type for LLMProvider
 type LLMProviderProps = PropsWithChildren<{
-  initialConfig: PartialLlmConfig; // Accept initial config as prop
+  initialConfig: StoredLlmConfig;
 }>;
 
 export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
-  // Use initialConfig directly
-  const loadedConfig = initialConfig;
+  const loadedConfig = initialConfig; // Use prop directly
 
   const updateLlmConfigMutation = api.config.updateLlmConfig.useMutation({
     onSuccess: async (updatedConfig) => {
-      console.log("[LLMContext] Config updated successfully:", updatedConfig);
-      // Invalidate the getConfig query on the *server* if necessary,
-      // but primarily rely on updating local state for immediate feedback.
-      // await utils.config.getConfig.invalidate();
-      // Update local state directly with the returned updatedConfig
+      console.log(
+        "[LLMContext] Config updated successfully (mutation):",
+        updatedConfig,
+      );
       setAutocompleteState((prev) => ({
         ...prev,
-        ...(updatedConfig.autocomplete ?? {}),
+        ...(updatedConfig.autocomplete ?? initialConfig.autocomplete),
       }));
       setChatState((prev) => ({
         ...prev,
-        ...(updatedConfig.chat ?? {}),
+        ...(updatedConfig.chat ?? initialConfig.chat),
       }));
     },
     onError: (error) => {
@@ -192,10 +166,9 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     },
   });
 
-  // Initialize state using defaults first
   const [autocompleteState, setAutocompleteState] =
     useState<AutocompleteLLMState>({
-      ...defaultAutocompleteConfig,
+      ...initialConfig.autocomplete,
       isError: false,
       text: "",
       error: null,
@@ -203,7 +176,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     });
 
   const [chatState, setChatState] = useState<ChatLLMState>({
-    ...defaultChatConfig,
+    ...initialConfig.chat,
     isError: false,
     text: "",
     error: null,
@@ -211,10 +184,9 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     toolCalls: undefined,
   });
 
-  // Effect to update state from the initialConfig prop
   useEffect(() => {
     if (loadedConfig) {
-      console.log("[LLMContext] Using initial config:", loadedConfig);
+      console.log("[LLMContext] Applying initial config:", loadedConfig);
       if (loadedConfig.autocomplete) {
         setAutocompleteState((prev) => ({
           ...prev,
@@ -222,13 +194,14 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         }));
       }
       if (loadedConfig.chat) {
-        setChatState((prev) => ({ ...prev, ...loadedConfig.chat }));
+        setChatState((prev) => ({
+          ...prev,
+          ...loadedConfig.chat,
+        }));
       }
     }
-    // Run only once when initialConfig is first received (or changes, though unlikely)
   }, [loadedConfig]);
 
-  // --- Provider Instantiation Logic ---
   const providerInstances = useRef<
     Record<
       string,
@@ -238,9 +211,8 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   const createProviderInstanceInternal = useCallback(
     (providerName: string) => {
-      // Use loadedConfig for API keys
       if (!loadedConfig) {
-        console.error("[LLMContext] Config not available for API key access.");
+        console.error("[LLMContext] Config not loaded for API key access.");
         return null;
       }
       const googleApiKey = loadedConfig.googleApiKey;
@@ -278,7 +250,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }
       return instance;
     },
-    [loadedConfig], // Depend on loadedConfig for API keys
+    [loadedConfig],
   );
 
   const getProviderInstance = useCallback(
@@ -311,7 +283,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     autocompleteState.provider,
     chatState.provider,
   ]);
-
   const generateAutocomplete = useCallback(
     async ({
       prompt,
@@ -320,21 +291,11 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       maxTokens,
       signal,
     }: LLMOptions): Promise<string> => {
-      if (!autocompleteProvider.current) {
-        console.error("[LLMContext] Autocomplete provider not initialized");
-        setAutocompleteState((prev) => ({
-          ...prev,
-          isError: true,
-          error: "Autocomplete provider not initialized",
-          isLoading: false,
-        }));
+      if (!autocompleteState.enabled || !autocompleteProvider.current) {
+        console.warn("[LLMContext] Autocomplete provider not loaded.");
         return "";
       }
-
-      if (signal?.aborted) {
-        return "";
-      }
-
+      if (signal?.aborted) return "";
       setAutocompleteState((prev) => ({
         ...prev,
         isLoading: true,
@@ -350,7 +311,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           maxTokens: maxTokens ?? autocompleteState.maxTokens,
           abortSignal: signal,
         });
-
         setAutocompleteState((prev) => ({
           ...prev,
           isError: false,
@@ -358,14 +318,11 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           error: null,
           isLoading: false,
         }));
-
         return result.text;
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
-          setAutocompleteState((prev) => ({ ...prev, isLoading: false }));
           return "";
         }
-
         const errorMsg = err instanceof Error ? err.message : String(err);
         setAutocompleteState((prev) => ({
           ...prev,
@@ -377,12 +334,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return "";
       }
     },
-    [
-      autocompleteProvider,
-      autocompleteState.modelId,
-      autocompleteState.temperature,
-      autocompleteState.maxTokens,
-    ],
+    [autocompleteProvider, autocompleteState],
   );
 
   const generateChatStream = useCallback(
@@ -393,30 +345,23 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       maxTokens,
       signal,
       tools,
-    }: Omit<
-      LLMOptions,
-      "experimental_repairToolCall"
-    >): Promise<GenerateChatResult> => {
-      let accumulatedText = "";
-      const capturedToolCalls: AppToolCall[] = [];
-
-      if (!chatProvider.current) {
-        console.error("Chat provider not initialized");
-        setChatState((prev) => ({
-          ...prev,
-          isError: true,
-          error: "Chat provider not initialized",
-          isStreaming: false,
-        }));
+      experimental_repairToolCall,
+    }: Omit<LLMOptions, "experimental_repairToolCall"> & {
+      experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
+    }): Promise<GenerateChatResult> => {
+      if (!chatState.enabled || !chatProvider.current) {
+        console.warn("[LLMContext] Chat provider not loaded.");
         return { text: "", toolCalls: undefined };
       }
 
+      let accumulatedText = "";
+      const capturedToolCalls: AppToolCall[] = [];
       setChatState((prev) => ({
         ...prev,
         isStreaming: true,
         isError: false,
         error: null,
-        text: "", // Reset text on new stream
+        text: "",
         toolCalls: undefined,
       }));
 
@@ -429,22 +374,13 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           maxTokens: maxTokens ?? chatState.maxTokens,
           abortSignal: signal,
           tools: tools,
-          experimental_repairToolCall: async (options) => {
-            console.warn("[LLMContext] Attempting tool call repair:", {
-              toolCall: options.toolCall,
-              error: options.error,
-            });
-            // Basic repair attempt: return the original tool call data.
-            // More sophisticated repair (e.g., JSON fixing) could be added here.
-            return options.toolCall; // Return directly, implicitly wrapped in Promise
-          },
+          experimental_repairToolCall: experimental_repairToolCall,
         });
 
         for await (const part of result.fullStream) {
           switch (part.type) {
             case "text-delta":
               accumulatedText += part.textDelta;
-              // Update state incrementally for streaming effect
               setChatState((prev) => ({ ...prev, text: accumulatedText }));
               break;
             case "tool-call":
@@ -456,16 +392,20 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
               break;
             case "error":
               console.error("Streaming error:", part.error);
-              throw part.error; // Propagate error to catch block
+              throw part.error;
             case "finish":
-              console.log("Stream finished:", part.finishReason);
+              console.log(
+                "Stream finished:",
+                part.finishReason,
+                "Usage:",
+                part.usage,
+              );
               break;
           }
         }
 
         const finalToolCalls =
           capturedToolCalls.length > 0 ? capturedToolCalls : undefined;
-
         setChatState((prev) => ({
           ...prev,
           isError: false,
@@ -474,94 +414,80 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           toolCalls: finalToolCalls,
           isStreaming: false,
         }));
-
         return { text: accumulatedText, toolCalls: finalToolCalls };
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
-          setChatState((prev) => ({ ...prev, isStreaming: false }));
-          return { text: accumulatedText, toolCalls: undefined }; // Return accumulated text up to abort
+          return { text: accumulatedText, toolCalls: undefined };
         }
-
         const errorMsg = err instanceof Error ? err.message : String(err);
         setChatState((prev) => ({
           ...prev,
           isError: true,
-          text: accumulatedText, // Keep accumulated text on error
+          text: accumulatedText,
           error: errorMsg,
           isStreaming: false,
         }));
-        // Decide if you want to return partial results on error
         return { text: accumulatedText, toolCalls: undefined };
       }
     },
-    [
-      chatProvider,
-      chatState.modelId,
-      chatState.temperature,
-      chatState.maxTokens,
-    ],
+    [chatProvider, chatState],
   );
 
-  // ... saveConfiguration helper (depends on loadedConfig now) ...
   const saveConfiguration = useCallback(
     (updatedConfig: {
-      chatConfig?: LLMBaseState;
-      autocompleteConfig?: LLMBaseState;
+      chatConfig?: Partial<LLMBaseState>;
+      autocompleteConfig?: Partial<LLMBaseState>;
     }) => {
-      const payload: Partial<
-        Parameters<typeof updateLlmConfigMutation.mutate>[0]
-      > = {};
-      if (updatedConfig.chatConfig) payload.chat = updatedConfig.chatConfig;
-      if (updatedConfig.autocompleteConfig)
-        payload.autocomplete = updatedConfig.autocompleteConfig;
+      const payload: PartialLlmConfig = {};
 
-      // Include 'enabled' status from the loaded config
-      payload.enabled = loadedConfig?.enabled ?? false;
+      if (updatedConfig.chatConfig) {
+        payload.chat = {
+          enabled: chatState.enabled,
+          modelId: chatState.modelId,
+          provider: chatState.provider,
+          temperature: chatState.temperature,
+          maxTokens: chatState.maxTokens,
+          ...updatedConfig.chatConfig,
+        };
+      }
 
-      // Include API keys if they are part of the config mutation's input
-      // payload.googleApiKey = loadedConfig?.googleApiKey;
-      // payload.openaiApiKey = loadedConfig?.openaiApiKey;
+      if (updatedConfig.autocompleteConfig) {
+        payload.autocomplete = {
+          enabled: autocompleteState.enabled,
+          modelId: autocompleteState.modelId,
+          provider: autocompleteState.provider,
+          temperature: autocompleteState.temperature,
+          maxTokens: autocompleteState.maxTokens,
+          ...updatedConfig.autocompleteConfig,
+        };
+      }
 
-      if (Object.keys(payload).length > 1) {
-        // Ensure we save more than just 'enabled'
-        console.log("[LLMContext] Saving LLM configuration:", payload);
-        updateLlmConfigMutation.mutate(payload);
-      } else if (
-        payload.enabled !== undefined &&
-        Object.keys(payload).length === 1
-      ) {
-        console.log("[LLMContext] Saving only LLM enabled status:", payload);
+      if (Object.keys(payload).length > 0) {
+        console.log("[LLMContext] Saving LLM configuration update:", payload);
         updateLlmConfigMutation.mutate(payload);
       }
     },
-    [updateLlmConfigMutation, loadedConfig],
+    [updateLlmConfigMutation, chatState, autocompleteState],
   );
 
-  // --- Setters for Options ---
   const setAutocompleteLlmOptions = useCallback(
     (options: Partial<LLMBaseState>) => {
-      if (
-        loadedConfig &&
-        options.provider &&
-        options.provider !== autocompleteState.provider
-      ) {
+      if (options.provider && options.provider !== autocompleteState.provider) {
         autocompleteProvider.current = createProviderInstanceInternal(
           options.provider,
         );
       }
 
-      let newConfig: LLMBaseState | null = null;
-      setAutocompleteState((prev) => {
-        newConfig = { ...prev, ...options };
-        return { ...prev, ...options, isError: false, error: null };
-      });
+      setAutocompleteState((prev) => ({
+        ...prev,
+        ...options,
+        isError: false,
+        error: null,
+      }));
 
-      if (newConfig) {
-        saveConfiguration({ autocompleteConfig: newConfig });
-      }
+      saveConfiguration({ autocompleteConfig: options });
     },
     [
-      loadedConfig,
       autocompleteState.provider,
       createProviderInstanceInternal,
       saveConfiguration,
@@ -570,30 +496,20 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   const setChatLlmOptions = useCallback(
     (options: Partial<LLMBaseState>) => {
-      if (
-        loadedConfig &&
-        options.provider &&
-        options.provider !== chatState.provider
-      ) {
+      if (options.provider && options.provider !== chatState.provider) {
         chatProvider.current = createProviderInstanceInternal(options.provider);
       }
 
-      let newConfig: LLMBaseState | null = null;
-      setChatState((prev) => {
-        newConfig = { ...prev, ...options };
-        return { ...prev, ...options, isError: false, error: null };
-      });
+      setChatState((prev) => ({
+        ...prev,
+        ...options,
+        isError: false,
+        error: null,
+      }));
 
-      if (newConfig) {
-        saveConfiguration({ chatConfig: newConfig });
-      }
+      saveConfiguration({ chatConfig: options });
     },
-    [
-      loadedConfig,
-      chatState.provider,
-      createProviderInstanceInternal,
-      saveConfiguration,
-    ],
+    [chatState.provider, createProviderInstanceInternal, saveConfiguration],
   );
 
   return (
