@@ -17,7 +17,6 @@ const ChatPluginCore = (): React.ReactElement => {
     return editor.registerCommand(
       TOGGLE_LLM_CHAT_COMMAND,
       () => {
-        console.log("TOGGLE_LLM_CHAT_COMMAND received");
         dispatch({ type: "toggleSidebar" });
         return true;
       },

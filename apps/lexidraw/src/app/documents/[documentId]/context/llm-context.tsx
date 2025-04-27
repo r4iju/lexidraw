@@ -180,7 +180,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   useEffect(() => {
     if (initialConfig) {
-      console.log("[LLMContext] Applying initial config:", initialConfig);
       if (initialConfig.autocomplete) {
         setAutocompleteState((prev) => ({
           ...prev,
