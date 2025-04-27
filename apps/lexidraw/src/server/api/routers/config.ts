@@ -30,7 +30,7 @@ export type PartialLlmConfig = z.infer<typeof PatchSchema>;
 
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
-  enabled: false,
+  enabled: true,
   modelId: "gemini-2.0-flash",
   provider: "google",
   temperature: 0.7,
