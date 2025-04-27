@@ -823,13 +823,17 @@ function LlmModelSelector() {
         <div className="mb-2">
           <Label>Max Tokens</Label>
           <Input
-            type="number"
+            type="text"
+            inputMode="numeric"
             min={0}
-            max={selectedMode === "chat" ? 8192 : 1024}
-            value={currentState.maxTokens.toString()}
-            onChange={(e) =>
-              currentSetter({ maxTokens: Number(e.target.value) })
-            }
+            value={currentState.maxTokens.toLocaleString()}
+            onChange={(e) => {
+              const value = e.target.value.replace(/\D/g, "");
+              const numValue = parseInt(value, 10);
+              currentSetter({
+                maxTokens: isNaN(numValue) ? 0 : numValue,
+              });
+            }}
             disabled={!settings.isLlmEnabled}
           />
         </div>

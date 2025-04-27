@@ -1,36 +1,149 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { useSendQuery } from "../actions/use-send-query";
 import { useChatState } from "../context/llm-chat-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
+import {
+  $getRoot,
+  $isElementNode,
+  $isTextNode,
+  type EditorState,
+  type LexicalNode,
+  type NodeKey,
+} from "lexical";
+import { $isHeadingNode } from "@lexical/rich-text";
+
+interface SerializedNodeWithKey {
+  type: string;
+  key: NodeKey;
+  // version: number; // Removed version
+  // TextNode specific
+  text?: string;
+  detail?: number;
+  format?: number;
+  mode?: string; // TextModeType is string literal union
+  style?: string;
+  // ElementNode specific
+  direction?: "ltr" | "rtl" | null;
+  indent?: number;
+  // ElementNode specific type tags (add more as needed)
+  tag?: string; // For HeadingNode, etc.
+  listType?: string; // For ListNode
+  // Children
+  children?: SerializedNodeWithKey[];
+}
+
+const useSerializeEditorState = () => {
+  function serializeNodeWithKeys(
+    node: LexicalNode,
+  ): SerializedNodeWithKey | null {
+    if (!node) {
+      return null;
+    }
+    const serializedNode: Partial<SerializedNodeWithKey> = {
+      type: node.getType(),
+      key: node.getKey(),
+    };
+
+    if ($isTextNode(node)) {
+      serializedNode.text = node.getTextContent();
+      serializedNode.detail = node.getDetail();
+      serializedNode.format = node.getFormat();
+      serializedNode.mode = node.getMode();
+      serializedNode.style = node.getStyle();
+    } else if ($isElementNode(node)) {
+      serializedNode.direction = node.getDirection();
+      serializedNode.format = node.getFormat();
+      serializedNode.indent = node.getIndent();
+      const children = node.getChildren();
+      serializedNode.children = children
+        .map(serializeNodeWithKeys)
+        .filter((child): child is SerializedNodeWithKey => child !== null);
+
+      if ($isHeadingNode(node)) {
+        serializedNode.tag = node.getTag();
+      }
+      // Example: Add check for ListNode (import $isListNode and ListNode from @lexical/list)
+      // if ($isListNode(node)) {
+      //   serializedNode.listType = node.getListType();
+      //   serializedNode.start = node.getStart();
+      // }
+    }
+    return serializedNode as SerializedNodeWithKey;
+  }
+
+  function serializeEditorStateWithKeys(editorState: EditorState): {
+    root: SerializedNodeWithKey;
+  } {
+    let serializedRoot: SerializedNodeWithKey | null = null;
+    editorState.read(() => {
+      const rootNode = $getRoot();
+      serializedRoot = serializeNodeWithKeys(rootNode);
+    });
+
+    const fallbackRoot: Partial<SerializedNodeWithKey> = {
+      type: "root",
+      key: "root",
+      children: [],
+      direction: null,
+      format: 0,
+      indent: 0,
+    };
+    return { root: (serializedRoot ?? fallbackRoot) as SerializedNodeWithKey };
+  }
+
+  return { serializeEditorStateWithKeys };
+};
+
 export const MessageInput: React.FC = () => {
   const [text, setText] = useState("");
   const sendQuery = useSendQuery();
   const { streaming, mode } = useChatState();
   const [editor] = useLexicalComposerContext();
+  const { serializeEditorStateWithKeys } = useSerializeEditorState();
+  const handleSubmit = useCallback(
+    async (event?: React.FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      const trimmedText = text.trim();
+      if (!trimmedText || streaming) return;
 
-  const handleSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
-    const trimmedText = text.trim();
-    if (!trimmedText || streaming) return;
+      let editorJson: string | undefined;
+      let editorStateObject: { root: SerializedNodeWithKey } | undefined;
 
-    let editorJson: string | undefined;
+      try {
+        const editorState = editor.getEditorState();
+        editorStateObject = serializeEditorStateWithKeys(editorState);
+        console.log(
+          "Inspecting CUSTOM editor state serialization:",
+          editorStateObject,
+        );
+        editorJson = JSON.stringify(editorStateObject);
+      } catch (error) {
+        console.error(
+          "Failed to serialize editor state in MessageInput:",
+          error,
+        );
+        if (editorStateObject) {
+          console.log("Object that failed to stringify:", editorStateObject);
+        }
+      }
 
-    try {
-      editorJson = JSON.stringify(editor.getEditorState().toJSON());
-    } catch (error) {
-      console.error("Failed to serialize editor state in MessageInput:", error);
-    }
+      if (editorJson === undefined) {
+        console.error("Could not generate editorStateJson to send query.");
+        return;
+      }
 
-    try {
-      await sendQuery(trimmedText, editorJson);
-      setText("");
-    } catch (error) {
-      console.error("Error sending query from MessageInput:", error);
-    }
-  };
+      try {
+        await sendQuery(trimmedText, editorJson);
+        setText("");
+      } catch (error) {
+        console.error("Error sending query from MessageInput:", error);
+      }
+    },
+    [editor, sendQuery, serializeEditorStateWithKeys, streaming, text],
+  ); // Added dependencies for useCallback
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
