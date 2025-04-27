@@ -121,7 +121,6 @@ export const useLexicalTools = (
         "Update the document based on a list of semantic instructions (format, insert, delete blocks, including lists). Anchor changes using text content.",
       parameters: UpdateDocumentParamsSchema,
       execute: async ({ instructions }): ExecuteResult => {
-        console.log("Executing updateDocumentSemantically:", instructions);
         let overallSuccess = true;
         const errors: { index: number; error: string; details?: unknown }[] =
           [];
@@ -174,9 +173,6 @@ export const useLexicalTools = (
                     if (!targetNode) {
                       throw new Error(`Target node not found for formatBlock.`);
                     }
-                    console.log(
-                      `Formatting block (key: ${targetNode.getKey()}, anchor: "${instruction.anchorText}")`,
-                    );
                     let replacementNode: ElementNode | ListNode;
                     const originalText = targetNode.getTextContent();
                     if (instruction.formatAs === "paragraph") {
@@ -196,9 +192,6 @@ export const useLexicalTools = (
                       listWrapper.append(listItem);
                       replacementNode = listWrapper;
                     }
-                    console.log(
-                      ` -> Replacing node with ${replacementNode.getType()}`,
-                    );
                     targetNode.replace(replacementNode);
                     break;
                   }
@@ -253,11 +246,8 @@ export const useLexicalTools = (
                       listWrapper.append(newNode);
                       finalNodeToInsert = listWrapper;
                     }
-                    console.log(
-                      `Preparing to insert ${instruction.blockType} "${instruction.text.substring(0, 20)}..."`,
-                    );
+
                     if (instruction.relation === "appendRoot") {
-                      console.log(` -> Appending to root.`);
                       $getRoot().append(finalNodeToInsert);
                     } else {
                       if (!targetNode) {
@@ -265,9 +255,7 @@ export const useLexicalTools = (
                           `Target node unexpectedly null for relative insert.`,
                         );
                       }
-                      console.log(
-                        ` -> Relation: ${instruction.relation} anchor "${instruction.anchorText}"`,
-                      );
+
                       if (
                         requiresListWrapper &&
                         listType &&
@@ -278,9 +266,6 @@ export const useLexicalTools = (
                           $isListNode(parent) &&
                           parent.getListType() === listType
                         ) {
-                          console.log(
-                            ` -> Inserting list item directly into existing compatible list ${parent.getKey()}`,
-                          );
                           finalNodeToInsert = newNode as ListItemNode;
                         }
                       }
@@ -302,18 +287,12 @@ export const useLexicalTools = (
                       );
                       return;
                     }
-                    console.log(
-                      `Deleting block (anchor: "${instruction.anchorText}", key: ${targetNode.getKey()})`,
-                    );
                     if ($isListItemNode(targetNode)) {
                       const parentList = targetNode.getParent();
                       if (
                         $isListNode(parentList) &&
                         parentList.getChildrenSize() === 1
                       ) {
-                        console.log(
-                          ` -> Removing parent list ${parentList.getKey()} as it was the last item.`,
-                        );
                         parentList.remove();
                       } else {
                         targetNode.remove();
@@ -359,7 +338,6 @@ export const useLexicalTools = (
         }
 
         if (overallSuccess) {
-          console.log("updateDocumentSemantically finished successfully.");
           const summary = instructions
             .map(
               (instr) =>
@@ -387,9 +365,6 @@ export const useLexicalTools = (
         "Searches for an image using the provided query on Unsplash and inserts the first result into the document (defaults to block).",
       parameters: SearchAndInsertImageParamsSchema,
       execute: async ({ query }): ExecuteResult => {
-        console.log(
-          `Executing searchAndInsertImage tool with query: "${query}"`,
-        );
         try {
           await searchAndInsertImageFunc(query);
           return {

@@ -13,7 +13,7 @@ import { CODE_LANGUAGE_MAP, CodeNode as OriginalCodeNode } from "@lexical/code";
 
 function SelectLanguage() {
   const handleSelect = (language: string) => {
-    console.log("Language selected: ", language);
+    console.warn("TODO handle language selection: ", language);
   };
   return (
     <DropdownMenu>

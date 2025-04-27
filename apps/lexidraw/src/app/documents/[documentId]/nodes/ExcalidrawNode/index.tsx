@@ -181,7 +181,6 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
   }
 
   static $createExcalidrawNode(): ExcalidrawNode {
-    console.log("createExcalidrawNode");
     return new ExcalidrawNode();
   }
 

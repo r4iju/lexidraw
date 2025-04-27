@@ -103,11 +103,6 @@ export const useSendQuery = () => {
           fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
         }
 
-        console.log("--- Sending to generateChatStream ---");
-        console.log("System Prompt:", systemPrompt);
-        console.log("Full Prompt:", fullPrompt);
-        console.log("Tools:", mode === "agent" ? lexicalLlmTools : undefined);
-
         const { text, toolCalls } = await generateChatStream({
           prompt: fullPrompt,
           system: systemPrompt,
@@ -115,10 +110,6 @@ export const useSendQuery = () => {
           maxTokens: chatState.maxTokens,
           tools: mode === "agent" ? lexicalLlmTools : undefined,
         });
-
-        console.log("--- Received from generateChatStream ---");
-        console.log("Final text response:", text);
-        console.log("Tool calls returned:", toolCalls);
 
         const assistantMessageId = crypto.randomUUID();
         dispatch({
