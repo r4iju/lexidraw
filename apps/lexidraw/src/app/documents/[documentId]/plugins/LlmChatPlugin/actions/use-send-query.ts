@@ -73,9 +73,11 @@ export const useSendQuery = () => {
 
             systemPrompt += `\n\n**CRITICAL RESPONSE REQUIREMENT:**`;
             systemPrompt += `\n  - When the user asks for modifications to the document that require using the 'updateDocumentSemantically' tool:`;
-            systemPrompt += `\n    - You MUST invoke the 'updateDocumentSemantically' tool.`;
-            systemPrompt += `\n    - Your response MUST contain ONLY the tool call invocation.`;
-            systemPrompt += `\n    - Do NOT include any conversational text, explanations, or the JSON structure itself as plain text in your response. The ONLY valid output is the tool call.`;
+            systemPrompt += `\n    - Your initial response requesting the tool MUST contain ONLY the tool call invocation.`;
+            systemPrompt += `\n    - Do NOT include any conversational text, explanations, or the JSON structure itself as plain text in that initial response. The ONLY valid output is the tool call.`;
+            systemPrompt += `\n    - (After the tool executes successfully, follow the IMPORTANT instruction below to confirm).`;
+
+            systemPrompt += `\n\n**IMPORTANT:** After ANY tool executes successfully (you will receive the result with details/summary), ALWAYS respond with a brief confirmation message to the user summarizing what action you took. Do NOT just return an empty response.`;
           }
         }
 
@@ -101,6 +103,11 @@ export const useSendQuery = () => {
           fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
         }
 
+        console.log("--- Sending to generateChatStream ---");
+        console.log("System Prompt:", systemPrompt);
+        console.log("Full Prompt:", fullPrompt);
+        console.log("Tools:", mode === "agent" ? lexicalLlmTools : undefined);
+
         const { text, toolCalls } = await generateChatStream({
           prompt: fullPrompt,
           system: systemPrompt,
@@ -108,6 +115,10 @@ export const useSendQuery = () => {
           maxTokens: chatState.maxTokens,
           tools: mode === "agent" ? lexicalLlmTools : undefined,
         });
+
+        console.log("--- Received from generateChatStream ---");
+        console.log("Final text response:", text);
+        console.log("Tool calls returned:", toolCalls);
 
         const assistantMessageId = crypto.randomUUID();
         dispatch({
@@ -119,8 +130,6 @@ export const useSendQuery = () => {
             toolCalls: toolCalls,
           },
         });
-
-        console.log("Tool calls returned by generateChatStream:", toolCalls);
       } catch (error) {
         console.error(
           "Error in useSendQuery during LLM call or tool processing:",
