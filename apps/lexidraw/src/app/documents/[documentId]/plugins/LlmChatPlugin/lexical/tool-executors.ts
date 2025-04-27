@@ -25,7 +25,24 @@ type ExecuteResult = Promise<{
   details?: unknown;
 }>;
 
-export const useLexicalTools = (editor: LexicalEditor) => {
+// Define the type for the passed-in function
+type SearchAndInsertFunc = (
+  query: string,
+  insertAs?: "block" | "inline",
+) => Promise<void>;
+
+// Schema for the image search tool parameters
+const SearchAndInsertImageParamsSchema = z.object({
+  query: z.string().describe("The search query to find an image on Unsplash."),
+  // Optional: Add insertAs parameter if you want the LLM to specify block/inline
+  // insertAs: z.enum(["block", "inline"]).optional().describe("Insert as block (default) or inline image.")
+});
+
+export const useLexicalTools = (
+  editor: LexicalEditor,
+  // Accept the function as an argument
+  searchAndInsertImageFunc: SearchAndInsertFunc,
+) => {
   const ListTypeEnum = z.enum(["bullet", "number", "check"]);
   // type alias for clarity
   type ListType = z.infer<typeof ListTypeEnum>;
@@ -378,6 +395,39 @@ export const useLexicalTools = (editor: LexicalEditor) => {
             success: false,
             error: "One or more semantic instructions failed during execution.",
             details: errors,
+          };
+        }
+      },
+    }),
+    searchAndInsertImage: tool({
+      description:
+        "Searches for an image using the provided query on Unsplash and inserts the first result into the document (defaults to block).",
+      parameters: SearchAndInsertImageParamsSchema,
+      // Use the passed-in function in the execute method
+      execute: async ({ query /*, insertAs */ }): ExecuteResult => {
+        console.log(
+          `Executing searchAndInsertImage tool with query: "${query}"`, // Optional: Add insertAs here if using
+        );
+        try {
+          // Call the function provided by useImageInsertion hook
+          // Pass insertAs if you added it to the schema and want LLM control
+          await searchAndInsertImageFunc(query /*, insertAs */);
+
+          return {
+            success: true,
+            details: {
+              query: query,
+              message: "Called function to search and insert image.",
+            },
+          };
+        } catch (error) {
+          console.error("Error calling searchAndInsertImage function:", error);
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unknown error occurred during image search/insertion.",
           };
         }
       },

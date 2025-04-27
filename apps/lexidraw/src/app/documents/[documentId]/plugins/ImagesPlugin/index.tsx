@@ -11,11 +11,9 @@ import {
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
-  createCommand,
   DRAGOVER_COMMAND,
   DRAGSTART_COMMAND,
   DROP_COMMAND,
-  LexicalCommand,
   LexicalEditor,
 } from "lexical";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -28,14 +26,12 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { useUploader } from "~/hooks/use-uploader";
 import { useEntityId } from "~/hooks/use-entity-id";
+import { INSERT_IMAGE_COMMAND } from "./commands";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
 
 const getDOMSelection = (targetWindow: Window | null): Selection | null =>
   CAN_USE_DOM ? (targetWindow || window).getSelection() : null;
-
-export const INSERT_IMAGE_COMMAND: LexicalCommand<InsertImagePayload> =
-  createCommand("INSERT_IMAGE_COMMAND");
 
 export function InsertImageUriDialogBody({
   onClick,

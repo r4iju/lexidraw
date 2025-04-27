@@ -76,11 +76,7 @@ import { useEmbedConfigs } from "../AutoEmbedPlugin";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
 import { InsertEquationDialog } from "../EquationsPlugin";
 import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
-import {
-  INSERT_IMAGE_COMMAND,
-  InsertImageDialog,
-  InsertImagePayload,
-} from "../ImagesPlugin";
+import { InsertImageDialog, InsertImagePayload } from "../ImagesPlugin";
 import { InsertInlineImageDialog } from "../InlineImagePlugin";
 import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
 import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
@@ -144,6 +140,7 @@ import { MessageSquareText, ListTree } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { api } from "~/trpc/react";
 import { Switch } from "~/components/ui/switch";
+import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin/commands";
 
 const blockTypeToBlockName = {
   bullet: "Bulleted List",
