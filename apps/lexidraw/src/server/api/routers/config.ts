@@ -3,7 +3,6 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
 
-// Export the base schema
 export const LlmBaseConfigSchema = z.object({
   enabled: z.boolean().default(false),
   modelId: z.string(),
@@ -83,61 +82,24 @@ export const configRouter = createTRPCRouter({
         },
       });
 
-      const currentConfig = currentUser?.config ?? {};
-      const currentLlmConfig: Partial<StoredLlmConfig> =
-        currentConfig.llm ?? {};
-
-      const ensureBaseConfigDefaults = (
-        cfg: Partial<z.infer<typeof LlmBaseConfigSchema>> | undefined,
-        mode: "chat" | "autocomplete",
-      ): z.infer<typeof LlmBaseConfigSchema> => {
-        const defaults =
-          mode === "chat"
-            ? defaultChatBaseConfig
-            : defaultAutocompleteBaseConfig;
-        return {
-          enabled: cfg?.enabled ?? defaults.enabled,
-          modelId: cfg?.modelId ?? defaults.modelId,
-          provider: cfg?.provider ?? defaults.provider,
-          temperature: cfg?.temperature ?? defaults.temperature,
-          maxTokens: cfg?.maxTokens ?? defaults.maxTokens,
-        };
-      };
-
-      const mergedLlmConfig: Partial<StoredLlmConfig> = {
-        ...currentLlmConfig,
-        chat:
-          input.chat || currentLlmConfig.chat
-            ? ensureBaseConfigDefaults(
-                {
-                  ...currentLlmConfig.chat,
-                  ...input.chat,
-                },
-                "chat",
-              )
-            : currentLlmConfig.chat,
-        autocomplete:
-          input.autocomplete || currentLlmConfig.autocomplete
-            ? ensureBaseConfigDefaults(
-                {
-                  ...currentLlmConfig.autocomplete,
-                  ...input.autocomplete,
-                },
-                "autocomplete",
-              )
-            : currentLlmConfig.autocomplete,
-        googleApiKey: input.googleApiKey ?? currentLlmConfig.googleApiKey,
-        openaiApiKey: input.openaiApiKey ?? currentLlmConfig.openaiApiKey,
-      };
-
-      // Parse against full schema before saving
-      const newLlmConfigToSave = LlmConfigSchema.parse(mergedLlmConfig);
+      const newLlmConfigToSave = LlmConfigSchema.parse({
+        ...currentUser?.config?.llm,
+        chat: {
+          ...defaultChatBaseConfig,
+          ...currentUser?.config?.llm?.chat,
+          ...input.chat,
+        },
+        autocomplete: {
+          ...defaultAutocompleteBaseConfig,
+          ...currentUser?.config?.llm?.autocomplete,
+          ...input.autocomplete,
+        },
+      });
 
       await ctx.drizzle
         .update(schema.users)
         .set({
           config: {
-            ...currentConfig,
             llm: newLlmConfigToSave,
           },
         })
