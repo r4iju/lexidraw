@@ -119,7 +119,6 @@ export function InsertTableDialog({
         placeholder={"# of rows (1-500)"}
         onChange={(e) => setRows(e.target.value)}
         value={rows}
-        data-test-id="table-modal-rows"
         type="number"
       />
       <Label>Columns</Label>
@@ -127,10 +126,9 @@ export function InsertTableDialog({
         placeholder={"# of columns (1-50)"}
         onChange={(e) => setColumns(e.target.value)}
         value={columns}
-        data-test-id="table-modal-columns"
         type="number"
       />
-      <DialogFooter data-test-id="table-model-confirm-insert">
+      <DialogFooter>
         <Button disabled={isDisabled} onClick={onClick}>
           Confirm
         </Button>

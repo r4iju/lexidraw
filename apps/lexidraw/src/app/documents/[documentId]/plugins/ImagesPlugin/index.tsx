@@ -1,37 +1,54 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $wrapNodeInElement, CAN_USE_DOM, mergeRegister } from "@lexical/utils";
+import { $wrapNodeInElement } from "@lexical/utils";
 import {
   $createParagraphNode,
-  $createRangeSelection,
-  $getSelection,
+  $createTextNode,
+  $getRoot,
   $insertNodes,
-  $isNodeSelection,
   $isRootOrShadowRoot,
-  $setSelection,
   COMMAND_PRIORITY_EDITOR,
-  COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
-  DRAGOVER_COMMAND,
-  DRAGSTART_COMMAND,
-  DROP_COMMAND,
+  createEditor,
   LexicalEditor,
+  PASTE_COMMAND,
+  ParagraphNode,
+  TextNode,
 } from "lexical";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as React from "react";
 import { ImageNode, ImagePayload } from "../../nodes/ImageNode";
 import { Button } from "~/components/ui/button";
-import { DialogFooter } from "~/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "~/components/ui/dialog";
 import FileInput from "~/components/ui/file-input";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { useUploader } from "~/hooks/use-uploader";
 import { useEntityId } from "~/hooks/use-entity-id";
-import { INSERT_IMAGE_COMMAND } from "./commands";
+import {
+  INSERT_IMAGE_COMMAND,
+  SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND,
+} from "./commands";
+import type { inferProcedureOutput } from "@trpc/server";
+import type { TRPCClientErrorLike } from "@trpc/client";
+import type { AppRouter } from "~/server/api/root";
+import { api } from "~/trpc/react";
+import { useToast } from "~/components/ui/toast-provider";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { LinkNode, $createLinkNode } from "@lexical/link";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
 
-const getDOMSelection = (targetWindow: Window | null): Selection | null =>
-  CAN_USE_DOM ? (targetWindow || window).getSelection() : null;
+type SearchUnsplashOutput = inferProcedureOutput<
+  AppRouter["image"]["searchUnsplash"]
+>;
+
+type UnsplashImageResult = SearchUnsplashOutput["results"][number];
 
 export function InsertImageUriDialogBody({
   onClick,
@@ -50,21 +67,15 @@ export function InsertImageUriDialogBody({
         placeholder="https://picsum.photos/200/300.jpg"
         onChange={(e) => setSrc(e.target.value)}
         value={src}
-        data-test-id="image-modal-url-input"
       />
       <Label>Alt Text</Label>
       <Input
         placeholder="Random unsplash image"
         onChange={(e) => setAltText(e.target.value)}
         value={altText}
-        data-test-id="image-modal-alt-text-input"
       />
       <DialogFooter>
-        <Button
-          data-test-id="image-modal-confirm-btn"
-          disabled={isDisabled}
-          onClick={() => onClick({ altText, src })}
-        >
+        <Button disabled={isDisabled} onClick={() => onClick({ altText, src })}>
           Confirm
         </Button>
       </DialogFooter>
@@ -93,28 +104,175 @@ export function InsertImageUploadedDialogBody({
 
   return (
     <>
-      <FileInput
-        label="Image Upload"
-        onChange={onChange}
-        accept="image/*"
-        data-test-id="image-modal-file-upload"
-      />
+      <FileInput label="Image Upload" onChange={onChange} accept="image/*" />
       <Label htmlFor="alt-text">Alt Text</Label>
       <Input
         placeholder="Descriptive alternative text"
         onChange={(e) => setAltText(e.target.value)}
         value={altText}
-        data-test-id="image-modal-alt-text-input"
       />
       <DialogFooter>
-        <Button
-          data-test-id="image-modal-file-upload-btn"
-          disabled={isDisabled}
-          onClick={() => onClick({ altText, src })}
-        >
+        <Button disabled={isDisabled} onClick={() => onClick({ altText, src })}>
           Confirm
         </Button>
       </DialogFooter>
+    </>
+  );
+}
+
+const PER_PAGE = 9;
+
+export function InsertImageUnsplashDialogBody({
+  onImageSelect,
+}: {
+  onImageSelect: (image: UnsplashImageResult) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const { toast } = useToast();
+  const searchMutation = api.image.searchUnsplash.useMutation();
+  const [results, setResults] = useState<UnsplashImageResult[]>([]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [query]);
+
+  useEffect(() => {
+    if (debouncedQuery.trim() === "") {
+      setResults([]);
+      setTotalPages(0);
+      return;
+    }
+
+    console.log(`Searching page ${currentPage} for: ${debouncedQuery}`);
+    const mutate = searchMutation.mutate;
+    mutate(
+      { query: debouncedQuery, page: currentPage, perPage: PER_PAGE },
+      {
+        onSuccess: (data: SearchUnsplashOutput) => {
+          console.log("Unsplash search success:", data);
+          setResults(data.results);
+          setTotalPages(data.totalPages);
+          if (data.results.length === 0 && currentPage === 1) {
+            toast({
+              title: "No Results",
+              description: `No images found for "${debouncedQuery}". Try a different term.`,
+            });
+          }
+        },
+        onError: (error) => {
+          console.error("Unsplash search error:", error);
+          toast({
+            title: "Unsplash Search Failed",
+            description: error.message || "Could not fetch images.",
+            variant: "destructive",
+          });
+          setResults([]);
+          setTotalPages(0);
+        },
+      },
+    );
+  }, [debouncedQuery, currentPage, searchMutation.mutate, toast]);
+
+  useEffect(() => {
+    if (debouncedQuery.trim() !== "") {
+      setCurrentPage(1);
+    }
+  }, [debouncedQuery]);
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage((prev) => prev - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage((prev) => prev + 1);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex gap-2 mb-4">
+        <Input
+          id="unsplash-query"
+          placeholder="Search Unsplash..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="flex-grow"
+        />
+      </div>
+
+      <div className="min-h-[200px]">
+        {searchMutation.isPending && (
+          <div className="flex justify-center items-center h-full">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        )}
+        {!searchMutation.isPending && results.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            {results.map((image) => (
+              <button
+                key={image.id}
+                onClick={() => onImageSelect(image)}
+                className="aspect-square focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded overflow-hidden group"
+                title={`Select image by ${image.attribution.authorName}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={image.thumbUrl}
+                  alt={image.altText ?? query}
+                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+        {!searchMutation.isPending &&
+          results.length === 0 &&
+          debouncedQuery.trim() !== "" && (
+            <div className="flex justify-center items-center h-full">
+              <p className="text-center text-sm text-muted-foreground">
+                No results found for "{debouncedQuery}".
+              </p>
+            </div>
+          )}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handlePrevPage}
+            disabled={currentPage <= 1 || searchMutation.isPending}
+            aria-label="Previous Page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleNextPage}
+            disabled={currentPage >= totalPages || searchMutation.isPending}
+            aria-label="Next Page"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </>
   );
 }
@@ -126,8 +284,16 @@ export function InsertImageDialog({
   activeEditor: LexicalEditor;
   onClose: () => void;
 }): React.JSX.Element {
-  const [mode, setMode] = useState<null | "url" | "file">(null);
+  const [mode, setMode] = useState<null | "url" | "file" | "unsplash">(null);
   const hasModifier = useRef(false);
+
+  const handleUnsplashImageSelect = useCallback(
+    (image: UnsplashImageResult) => {
+      activeEditor.dispatchCommand(SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND, image);
+      onClose();
+    },
+    [activeEditor, onClose],
+  );
 
   useEffect(() => {
     hasModifier.current = false;
@@ -140,50 +306,32 @@ export function InsertImageDialog({
     };
   }, [activeEditor]);
 
-  const onClick = (payload: InsertImagePayload) => {
-    activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
-    onClose();
-  };
+  const insertImage = useCallback(
+    (payload: InsertImagePayload) => {
+      activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
+      onClose();
+    },
+    [activeEditor, onClose],
+  );
 
   return (
     <>
       {!mode && (
-        <>
-          <Button
-            data-test-id="image-modal-option-sample"
-            onClick={() =>
-              onClick(
-                hasModifier.current
-                  ? {
-                      altText:
-                        "Daylight fir trees forest glacier green high ice landscape",
-                      src: "/images/landscape.jpg",
-                    }
-                  : {
-                      altText: "Yellow flower in tilt shift lens",
-                      src: "/images/yellow-flower.jpg",
-                    },
-              )
-            }
-          >
-            Sample
-          </Button>
-          <Button
-            data-test-id="image-modal-option-url"
-            onClick={() => setMode("url")}
-          >
-            URL
-          </Button>
-          <Button
-            data-test-id="image-modal-option-file"
-            onClick={() => setMode("file")}
-          >
-            File
-          </Button>
-        </>
+        <div className="flex flex-col gap-2">
+          <Button onClick={() => setMode("url")}>URL</Button>
+          <Button onClick={() => setMode("file")}>File</Button>
+          <Button onClick={() => setMode("unsplash")}>Unsplash</Button>
+        </div>
       )}
-      {mode === "url" && <InsertImageUriDialogBody onClick={onClick} />}
-      {mode === "file" && <InsertImageUploadedDialogBody onClick={onClick} />}
+      {mode === "url" && <InsertImageUriDialogBody onClick={insertImage} />}
+      {mode === "file" && (
+        <InsertImageUploadedDialogBody onClick={insertImage} />
+      )}
+      {mode === "unsplash" && (
+        <InsertImageUnsplashDialogBody
+          onImageSelect={handleUnsplashImageSelect}
+        />
+      )}
     </>
   );
 }
@@ -194,194 +342,149 @@ export default function ImagesPlugin({
   captionsEnabled?: boolean;
 }): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-
-  const $getImageNodeInSelection = useCallback((): ImageNode | null => {
-    const selection = $getSelection();
-    if (!$isNodeSelection(selection)) {
-      return null;
-    }
-    const nodes = selection.getNodes();
-    const node = nodes[0];
-    return ImageNode.$isImageNode(node) ? node : null;
-  }, []);
-
-  const canDropImage = useCallback((event: DragEvent): boolean => {
-    const target = event.target;
-    return !!(
-      target &&
-      target instanceof HTMLElement &&
-      !target.closest("code, span.editor-image") &&
-      target.parentElement &&
-      target.parentElement.closest("div.ContentEditable__root")
-    );
-  }, []);
-
-  const getDragImageData = useCallback(
-    (event: DragEvent): null | InsertImagePayload => {
-      const dragData = event.dataTransfer?.getData(
-        "application/x-lexical-drag",
-      );
-      if (!dragData) {
-        return null;
-      }
-      const { type, data } = JSON.parse(dragData);
-      if (type !== "image") {
-        return null;
-      }
-
-      return data;
-    },
-    [],
-  );
-
-  const getDragSelection = useCallback(
-    (event: DragEvent): Range | null | undefined => {
-      let range;
-      const target = event.target as null | Element | Document;
-      const targetWindow =
-        target == null
-          ? null
-          : target.nodeType === 9
-            ? (target as Document).defaultView
-            : (target as Element).ownerDocument.defaultView;
-      const domSelection = getDOMSelection(targetWindow);
-      if (document.caretRangeFromPoint) {
-        range = document.caretRangeFromPoint(event.clientX, event.clientY);
-      } else if (event.rangeParent && domSelection !== null) {
-        domSelection.collapse(event.rangeParent, event.rangeOffset || 0);
-        range = domSelection.getRangeAt(0);
-      } else {
-        throw Error(`Cannot get the selection when dragging`);
-      }
-
-      return range;
-    },
-    [],
-  );
-
-  const $onDragStart = useCallback(
-    (event: DragEvent): boolean => {
-      const node = $getImageNodeInSelection();
-      if (!node) {
-        return false;
-      }
-      const dataTransfer = event.dataTransfer;
-      if (!dataTransfer) {
-        return false;
-      }
-      dataTransfer.setData("text/plain", "_");
-      dataTransfer.setDragImage(img, 0, 0);
-      dataTransfer.setData(
-        "application/x-lexical-drag",
-        JSON.stringify({
-          data: {
-            altText: node.__altText,
-            caption: node.__caption,
-            height: node.__height,
-            key: node.getKey(),
-            maxWidth: node.__maxWidth,
-            showCaption: node.__showCaption,
-            src: node.__src,
-            width: node.__width,
-          },
-          type: "image",
-        }),
-      );
-
-      return true;
-    },
-    [$getImageNodeInSelection],
-  );
-
-  const $onDragover = useCallback(
-    (event: DragEvent): boolean => {
-      const node = $getImageNodeInSelection();
-      if (!node) {
-        return false;
-      }
-      if (!canDropImage(event)) {
-        event.preventDefault();
-      }
-      return true;
-    },
-    [$getImageNodeInSelection, canDropImage],
-  );
-
-  const $onDrop = useCallback(
-    (event: DragEvent, editor: LexicalEditor): boolean => {
-      const node = $getImageNodeInSelection();
-      if (!node) {
-        return false;
-      }
-      const data = getDragImageData(event);
-      if (!data) {
-        return false;
-      }
-      event.preventDefault();
-      if (canDropImage(event)) {
-        const range = getDragSelection(event);
-        node.remove();
-        const rangeSelection = $createRangeSelection();
-        if (range !== null && range !== undefined) {
-          rangeSelection.applyDOMRange(range);
-        }
-        $setSelection(rangeSelection);
-        editor.dispatchCommand(INSERT_IMAGE_COMMAND, data);
-      }
-      return true;
-    },
-    [
-      $getImageNodeInSelection,
-      canDropImage,
-      getDragImageData,
-      getDragSelection,
-    ],
-  );
+  const { toast } = useToast();
+  const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
+  const modalOnCloseRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    modalOnCloseRef.current = () => setIsModalOpen(false);
+
     if (!editor.hasNodes([ImageNode])) {
       throw new Error("ImagesPlugin: ImageNode not registered on editor");
     }
+    if (!editor.hasNodes([LinkNode])) {
+      console.warn(
+        "ImagesPlugin: LinkNode might not be registered on main editor. Captions with links may not work correctly.",
+      );
+    }
 
-    return mergeRegister(
-      editor.registerCommand<InsertImagePayload>(
-        INSERT_IMAGE_COMMAND,
-        (payload) => {
-          const imageNode = ImageNode.$createImageNode(payload);
+    const unregisterInsert = editor.registerCommand<InsertImagePayload>(
+      INSERT_IMAGE_COMMAND,
+      (payload) => {
+        editor.update(() => {
+          const imageNode = ImageNode.$createImageNode({
+            ...payload,
+            captionsEnabled,
+          });
           $insertNodes([imageNode]);
           if ($isRootOrShadowRoot(imageNode.getParentOrThrow())) {
             $wrapNodeInElement(imageNode, $createParagraphNode).selectEnd();
           }
+        });
+        return true;
+      },
+      COMMAND_PRIORITY_EDITOR,
+    );
 
+    const unregisterSearchUnsplash =
+      editor.registerCommand<UnsplashImageResult>(
+        SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND,
+        (selectedImage) => {
+          const captionEditor = createEditor({
+            nodes: [ParagraphNode, TextNode, LinkNode],
+          });
+          const attribution = selectedImage.attribution;
+
+          captionEditor.update(() => {
+            const root = $getRoot();
+            const paragraph = $createParagraphNode();
+            paragraph.append(
+              $createTextNode("Photo by "),
+              $createLinkNode(attribution.authorUrl).append(
+                $createTextNode(attribution.authorName),
+              ),
+              $createTextNode(" on Unsplash"),
+            );
+            root.clear();
+            root.append(paragraph);
+          });
+
+          const insertPayload: InsertImagePayload = {
+            altText: selectedImage.altText,
+            src: selectedImage.url,
+            caption: captionEditor,
+            showCaption: true,
+          };
+
+          editor.dispatchCommand(INSERT_IMAGE_COMMAND, insertPayload);
+
+          trackDownloadMutation.mutate(
+            { downloadLocation: selectedImage.downloadLocation },
+            {
+              onSuccess: () =>
+                console.log(
+                  `Successfully tracked download: ${selectedImage.downloadLocation}`,
+                ),
+              onError: (error: TRPCClientErrorLike<AppRouter>) =>
+                console.error(
+                  `Failed to track download ${selectedImage.downloadLocation}:`,
+                  error,
+                ),
+            },
+          );
+
+          modalOnCloseRef.current?.();
           return true;
         },
         COMMAND_PRIORITY_EDITOR,
-      ),
-      editor.registerCommand<DragEvent>(
-        DRAGSTART_COMMAND,
-        (event) => {
-          return $onDragStart(event);
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
-      editor.registerCommand<DragEvent>(
-        DRAGOVER_COMMAND,
-        (event) => {
-          return $onDragover(event);
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
-      editor.registerCommand<DragEvent>(
-        DROP_COMMAND,
-        (event) => {
-          return $onDrop(event, editor);
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
-    );
-  }, [$onDragStart, $onDragover, $onDrop, captionsEnabled, editor]);
+      );
 
-  return null;
+    const unregisterPaste = editor.registerCommand<ClipboardEvent>(
+      PASTE_COMMAND,
+      (event) => {
+        const clipboardData = event.clipboardData;
+        if (!clipboardData) {
+          return false;
+        }
+        const items = clipboardData.items;
+        if (items) {
+          for (const item of items) {
+            if (item && item.type.startsWith("image/")) {
+              const file = item.getAsFile();
+              if (file) {
+                console.log("Pasted image file:", file);
+                toast({
+                  title: "Image Pasted",
+                  description:
+                    "Pasted image handling needs implementation (upload & insert).",
+                });
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+
+    return () => {
+      unregisterInsert();
+      unregisterSearchUnsplash();
+      unregisterPaste();
+    };
+  }, [editor, captionsEnabled, trackDownloadMutation, toast]);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
+  useEffect(() => {
+    modalOnCloseRef.current = closeModal;
+  }, [closeModal]);
+
+  return isModalOpen ? (
+    <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Insert Image</DialogTitle>
+        </DialogHeader>
+        <InsertImageDialog activeEditor={editor} onClose={closeModal} />
+      </DialogContent>
+    </Dialog>
+  ) : null;
 }
 
 const TRANSPARENT_IMAGE =

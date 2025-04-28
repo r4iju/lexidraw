@@ -35,7 +35,7 @@ export const useImageInsertion = () => {
   const searchImage = useCallback(
     async (query: string): Promise<ImageInsertionResult | null> => {
       try {
-        const imageData = await utils.image.searchUnsplash.fetch({ query });
+        const imageData = await utils.image.imLuckyUnsplash.fetch({ query });
         if (imageData) {
           return imageData; // Contains id, url, altText, attribution
         } else {
@@ -58,7 +58,7 @@ export const useImageInsertion = () => {
         return null;
       }
     },
-    [utils.image.searchUnsplash, toast],
+    [utils.image.imLuckyUnsplash, toast],
   );
 
   // Function to insert a regular ImageNode

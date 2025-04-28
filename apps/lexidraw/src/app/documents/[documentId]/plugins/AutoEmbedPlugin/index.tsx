@@ -249,7 +249,6 @@ export function AutoEmbedDialog({
           className=""
           placeholder={embedConfig.exampleUrl}
           value={text}
-          data-test-id={`${embedConfig.type}-embed-modal-url`}
           onChange={(e) => {
             const { value } = e.target;
             setText(value);
@@ -258,11 +257,7 @@ export function AutoEmbedDialog({
         />
       </div>
       <DialogFooter>
-        <Button
-          disabled={!embedResult}
-          onClick={onClick}
-          data-test-id={`${embedConfig.type}-embed-modal-submit-btn`}
-        >
+        <Button disabled={!embedResult} onClick={onClick}>
           Embed
         </Button>
       </DialogFooter>
