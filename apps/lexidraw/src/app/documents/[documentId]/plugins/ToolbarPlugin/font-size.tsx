@@ -6,6 +6,7 @@ import * as React from "react";
 import { TooltipButton } from "../../../../../components/ui/tooltip-button";
 import { Minus, Plus } from "lucide-react";
 import { Input } from "~/components/ui/input";
+import { cn } from "~/lib/utils";
 
 const MIN_ALLOWED_FONT_SIZE = 8;
 const MAX_ALLOWED_FONT_SIZE = 72;
@@ -20,10 +21,12 @@ export default function FontSize({
   selectionFontSize,
   disabled,
   editor,
+  className,
 }: {
   selectionFontSize: string;
   disabled: boolean;
   editor: LexicalEditor;
+  className?: string;
 }) {
   const [inputValue, setInputValue] = React.useState<string>(selectionFontSize);
   const [inputChangeFlag, setInputChangeFlag] = React.useState<boolean>(false);
@@ -183,7 +186,10 @@ export default function FontSize({
     <>
       <TooltipButton
         onClick={() => handleButtonClick(updateFontSizeType.decrement)}
-        className="w-12 md:w-8 h-12 md:h-10"
+        className={cn(
+          "w-12 md:w-8 h-12 md:h-10 rounded-l-md rounded-r-none border-r-0",
+          className,
+        )}
         disabled={
           disabled ||
           (selectionFontSize !== "" &&
@@ -198,7 +204,7 @@ export default function FontSize({
         type="number"
         value={inputValue}
         disabled={disabled}
-        className="max-w-fit min-w-10 h-12 md:h-10"
+        className="max-w-fit min-w-10 h-12 md:h-10 rounded-none border-x-0"
         min={MIN_ALLOWED_FONT_SIZE}
         max={MAX_ALLOWED_FONT_SIZE}
         onChange={(e) => setInputValue(e.target.value)}
@@ -208,7 +214,7 @@ export default function FontSize({
 
       <TooltipButton
         onClick={() => handleButtonClick(updateFontSizeType.increment)}
-        className="w-12 md:w-8 h-12 md:h-10"
+        className="w-12 md:w-8 h-12 md:h-10 rounded-none border-x-0"
         disabled={
           disabled ||
           (selectionFontSize !== "" &&
