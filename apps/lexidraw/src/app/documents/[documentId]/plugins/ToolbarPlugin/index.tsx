@@ -1,9 +1,4 @@
-import {
-  $isCodeNode,
-  CODE_LANGUAGE_FRIENDLY_NAME_MAP,
-  CODE_LANGUAGE_MAP,
-  getLanguageFriendlyName,
-} from "@lexical/code";
+import { $isCodeNode, CODE_LANGUAGE_MAP } from "@lexical/code";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $isListNode, ListNode } from "@lexical/list";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
@@ -25,7 +20,6 @@ import {
 } from "@lexical/utils";
 import {
   $createParagraphNode,
-  $getNodeByKey,
   $getRoot,
   $getSelection,
   $isElementNode,
@@ -73,7 +67,6 @@ import { Button } from "~/components/ui/button";
 import {
   Baseline,
   Bold,
-  ChevronDownIcon,
   Code,
   Italic,
   Link,
@@ -102,10 +95,8 @@ import {
 import { BlockFormatDropDown } from "./block-format";
 import { LlmModelSelector } from "./llm-config";
 import { ElementFormatDropdown } from "./element-format";
-
-function Divider(): JSX.Element {
-  return <div className="divider" />;
-}
+import { Divider } from "./divider";
+import { CodeSelector } from "./code-selector";
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
@@ -142,18 +133,7 @@ export default function ToolbarPlugin({
   const [isRTL, setIsRTL] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState<string>("");
   const [isEditable, setIsEditable] = useState(() => editor.isEditable());
-  const getCodeLanguageOptions = useCallback((): [string, string][] => {
-    const options: [string, string][] = [];
 
-    for (const [lang, friendlyName] of Object.entries(
-      CODE_LANGUAGE_FRIENDLY_NAME_MAP,
-    )) {
-      options.push([lang, friendlyName]);
-    }
-
-    return options;
-  }, []);
-  const CODE_LANGUAGE_OPTIONS = getCodeLanguageOptions();
   const sanitizeUrl = useSanitizeUrl();
   const EmbedConfigs = useEmbedConfigs();
 
@@ -430,20 +410,6 @@ export default function ToolbarPlugin({
     }
   }, [editor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
-  const onCodeLanguageSelect = useCallback(
-    (value: string) => {
-      activeEditor.update(() => {
-        if (selectedElementKey !== null) {
-          const node = $getNodeByKey(selectedElementKey);
-          if ($isCodeNode(node)) {
-            node.setLanguage(value);
-          }
-        }
-      });
-    },
-    [activeEditor, selectedElementKey],
-  );
-
   const insertGifOnClick = (payload: InsertImagePayload) => {
     activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
   };
@@ -478,34 +444,12 @@ export default function ToolbarPlugin({
 
       {blockType === "code" ? (
         <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                disabled={!isEditable}
-                className="flex gap-1 h-12 md:h-10"
-                aria-label="Select language"
-              >
-                {getLanguageFriendlyName(codeLanguage)}
-                <ChevronDownIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              {CODE_LANGUAGE_OPTIONS.map(([value, name]) => {
-                return (
-                  <DropdownMenuItem
-                    className={`item ${dropDownActiveClass(
-                      value === codeLanguage,
-                    )}`}
-                    onClick={() => onCodeLanguageSelect(value)}
-                    key={value}
-                  >
-                    <span className="text">{name}</span>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <CodeSelector
+            activeEditor={activeEditor}
+            selectedElementKey={selectedElementKey}
+            isEditable={isEditable}
+            codeLanguage={codeLanguage}
+          />
           <Divider />
         </>
       ) : (
