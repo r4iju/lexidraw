@@ -497,19 +497,13 @@ function TableActionMenu({
   if (cellMerge) {
     if (canMergeCells) {
       mergeCellButton = (
-        <DropdownMenuItem
-          onClick={() => mergeTableCellsAtSelection()}
-          data-test-id="table-merge-cells"
-        >
+        <DropdownMenuItem onClick={() => mergeTableCellsAtSelection()}>
           Merge cells
         </DropdownMenuItem>
       );
     } else if (canUnmergeCell) {
       mergeCellButton = (
-        <DropdownMenuItem
-          onClick={() => unmergeTableCellsAtSelection()}
-          data-test-id="table-unmerge-cells"
-        >
+        <DropdownMenuItem onClick={() => unmergeTableCellsAtSelection()}>
           Unmerge cells
         </DropdownMenuItem>
       );
@@ -538,20 +532,14 @@ function TableActionMenu({
         <span className="text">Background color</span>
       </DropdownMenuItem>
       <hr />
-      <DropdownMenuItem
-        onClick={() => insertTableRowAtSelection(false)}
-        data-test-id="table-insert-row-above"
-      >
+      <DropdownMenuItem onClick={() => insertTableRowAtSelection(false)}>
         <span className="text">
           Insert{" "}
           {selectionCounts.rows === 1 ? "row" : `${selectionCounts.rows} rows`}{" "}
           above
         </span>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => insertTableRowAtSelection(true)}
-        data-test-id="table-insert-row-below"
-      >
+      <DropdownMenuItem onClick={() => insertTableRowAtSelection(true)}>
         <span className="text">
           Insert{" "}
           {selectionCounts.rows === 1 ? "row" : `${selectionCounts.rows} rows`}{" "}
@@ -559,10 +547,7 @@ function TableActionMenu({
         </span>
       </DropdownMenuItem>
       <hr />
-      <DropdownMenuItem
-        onClick={() => insertTableColumnAtSelection(false)}
-        data-test-id="table-insert-column-before"
-      >
+      <DropdownMenuItem onClick={() => insertTableColumnAtSelection(false)}>
         <span className="text">
           Insert{" "}
           {selectionCounts.columns === 1
@@ -571,10 +556,7 @@ function TableActionMenu({
           left
         </span>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => insertTableColumnAtSelection(true)}
-        data-test-id="table-insert-column-after"
-      >
+      <DropdownMenuItem onClick={() => insertTableColumnAtSelection(true)}>
         <span className="text">
           Insert{" "}
           {selectionCounts.columns === 1
@@ -584,22 +566,13 @@ function TableActionMenu({
         </span>
       </DropdownMenuItem>
       <hr />
-      <DropdownMenuItem
-        onClick={() => deleteTableColumnAtSelection()}
-        data-test-id="table-delete-columns"
-      >
+      <DropdownMenuItem onClick={() => deleteTableColumnAtSelection()}>
         <span className="text">Delete column</span>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => deleteTableRowAtSelection()}
-        data-test-id="table-delete-rows"
-      >
+      <DropdownMenuItem onClick={() => deleteTableRowAtSelection()}>
         <span className="text">Delete row</span>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => deleteTableAtSelection()}
-        data-test-id="table-delete"
-      >
+      <DropdownMenuItem onClick={() => deleteTableAtSelection()}>
         <span className="text">Delete table</span>
       </DropdownMenuItem>
       <hr />
@@ -612,10 +585,7 @@ function TableActionMenu({
           row header
         </span>
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => toggleTableColumnIsHeader()}
-        data-test-id="table-column-header"
-      >
+      <DropdownMenuItem onClick={() => toggleTableColumnIsHeader()}>
         <span className="text">
           {(tableCellNode.__headerState & TableCellHeaderStates.COLUMN) ===
           TableCellHeaderStates.COLUMN

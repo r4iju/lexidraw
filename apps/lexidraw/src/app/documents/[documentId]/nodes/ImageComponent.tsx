@@ -395,9 +395,9 @@ export default function ImageComponent({
 
   const draggable = isSelected && $isNodeSelection(selection) && !isResizing;
   const isFocused = isSelected || isResizing;
+
   return (
     <Suspense fallback={null}>
-      {/* Common parent with relative positioning */}
       <div
         className={`relative inline-block cursor-pointer ${draggable ? "cursor-move" : ""}`}
         draggable={draggable}
@@ -441,7 +441,6 @@ export default function ImageComponent({
               <HistoryPlugin externalHistoryState={historyState} />
               <RichTextPlugin
                 contentEditable={
-                  // slightly blurred
                   <ContentEditable className="border border-muted-foreground bg-muted/50 backdrop-blur-md p-2 text-sm w-full" />
                 }
                 placeholder={

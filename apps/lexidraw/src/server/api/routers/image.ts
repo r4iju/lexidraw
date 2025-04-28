@@ -1,23 +1,34 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { unsplash } from "~/server/unsplash";
+import { TRPCError } from "@trpc/server";
 
 // Input schema for tracking download
 const TrackDownloadInput = z.object({
   downloadLocation: z.string().url(),
 });
 
+// Updated input schema for search to include pagination
+const SearchUnsplashInput = z.object({
+  query: z.string().min(1),
+  page: z.number().int().min(1).optional().default(1),
+  perPage: z.number().int().min(1).max(30).optional().default(10), // Max 30 per Unsplash guidelines
+});
+
 export const imageRouter = createTRPCRouter({
-  searchUnsplash: protectedProcedure
+  imLuckyUnsplash: protectedProcedure
     .input(z.object({ query: z.string().min(1) }))
     .query(async ({ input }) => {
-      console.log(`Searching Unsplash for: ${input.query}`);
+      console.log(`I'm lucky search for: ${input.query}`);
 
       if (!unsplash) {
         console.error(
           "Unsplash client is not initialized. Check server setup and UNSPLASH_ACCESS_KEY.",
         );
-        throw new Error("Image search service is unavailable.");
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Image search service is unavailable.",
+        });
       }
 
       try {
@@ -33,13 +44,19 @@ export const imageRouter = createTRPCRouter({
           result.response.results.length === 0
         ) {
           console.error("Error fetching from Unsplash:", result.errors);
-          throw new Error(`No images found for "${input.query}" on Unsplash.`);
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `No images found for "${input.query}" on Unsplash.`,
+          });
         }
 
         const firstImage = result.response.results[0];
 
         if (!firstImage) {
-          throw new Error(`No images found for "${input.query}" on Unsplash.`);
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `No images found for "${input.query}" on Unsplash.`,
+          });
         }
 
         console.log("Unsplash result:", firstImage);
@@ -57,15 +74,77 @@ export const imageRouter = createTRPCRouter({
         };
       } catch (error) {
         console.error("Unsplash API Error:", error);
-        if (error instanceof Error) {
-          if (error.message.includes("No images found")) {
-            throw error;
-          }
-          throw new Error(
-            `Failed to search images on Unsplash: ${error.message}`,
-          );
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "An unknown error occurred while searching images.",
+          cause: error,
+        });
+      }
+    }),
+
+  // Updated searchUnsplash mutation for pagination
+  searchUnsplash: protectedProcedure
+    .input(SearchUnsplashInput)
+    .mutation(async ({ input }) => {
+      const { query, page, perPage } = input;
+      console.log(
+        `Searching Unsplash for: ${query}, page: ${page}, perPage: ${perPage}`,
+      );
+
+      if (!unsplash) {
+        console.error(
+          "Unsplash client is not initialized. Check server setup and UNSPLASH_ACCESS_KEY.",
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Image search service is unavailable.",
+        });
+      }
+
+      try {
+        const result = await unsplash.search.getPhotos({
+          query: query,
+          page: page,
+          perPage: perPage,
+        });
+
+        if (result.errors || !result.response) {
+          console.error("Error fetching from Unsplash:", result.errors);
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Error fetching images from Unsplash: ${result.errors?.join(", ")}`,
+          });
         }
-        throw new Error("An unknown error occurred while searching images.");
+
+        // Map results to include attribution
+        const resultsWithAttribution = result.response.results.map((img) => ({
+          id: img.id,
+          url: img.urls.regular,
+          thumbUrl: img.urls.thumb,
+          altText: img.alt_description ?? img.description ?? query,
+          downloadLocation: img.links.download_location,
+          attribution: {
+            authorName: img.user.name,
+            authorUrl: img.user.links.html,
+          },
+          // Include other fields if needed directly by the client
+          // width: img.width,
+          // height: img.height,
+        }));
+
+        return {
+          results: resultsWithAttribution, // Return mapped results
+          totalPages: result.response.total_pages,
+        };
+      } catch (error) {
+        console.error("Unsplash API search error:", error);
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "An unknown error occurred while searching Unsplash.",
+          cause: error,
+        });
       }
     }),
 

@@ -1,5 +1,17 @@
 import { createCommand, LexicalCommand } from "lexical";
-import { InsertImagePayload } from ".";
+import { ImagePayload } from "../../nodes/ImageNode";
 
-export const INSERT_IMAGE_COMMAND: LexicalCommand<InsertImagePayload> =
-  createCommand("INSERT_IMAGE_COMMAND");
+interface UnsplashImagePayload {
+  id: string;
+  url: string;
+  thumbUrl: string;
+  altText: string | null;
+  downloadLocation: string;
+}
+
+export const INSERT_IMAGE_COMMAND: LexicalCommand<ImagePayload> = createCommand(
+  "INSERT_IMAGE_COMMAND",
+);
+
+export const SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND: LexicalCommand<UnsplashImagePayload> =
+  createCommand("SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND");

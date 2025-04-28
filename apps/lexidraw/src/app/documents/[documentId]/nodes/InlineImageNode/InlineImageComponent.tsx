@@ -159,7 +159,6 @@ export function UpdateInlineImageDialog({
           placeholder="Descriptive alternative text"
           onChange={handleAltTextChange}
           value={altText}
-          data-test-id="image-modal-alt-text-input"
         />
       </div>
 

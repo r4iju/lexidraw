@@ -98,12 +98,7 @@ export function InsertInlineImageDialog({
   return (
     <>
       <div className="">
-        <FileInput
-          label="Image Upload"
-          onChange={onChange}
-          accept="image/*"
-          data-test-id="image-modal-file-upload"
-        />
+        <FileInput label="Image Upload" onChange={onChange} accept="image/*" />
       </div>
       <div style={{ marginBottom: "1em" }}>
         <Label htmlFor="alt-text">Alt Text</Label>
@@ -144,11 +139,7 @@ export function InsertInlineImageDialog({
       </div>
 
       <DialogFooter className="justify-end">
-        <Button
-          data-test-id="image-modal-file-upload-btn"
-          disabled={isDisabled}
-          onClick={() => handleOnClick()}
-        >
+        <Button disabled={isDisabled} onClick={() => handleOnClick()}>
           Confirm
         </Button>
       </DialogFooter>
