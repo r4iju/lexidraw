@@ -41,7 +41,7 @@ export function useRegisterKeybindings() {
               }
             });
 
-            void sendQuery(promptText, stateJson);
+            void sendQuery({ prompt: promptText, editorStateJson: stateJson });
             return true; // command handled
           }
           return false; // command not handled
