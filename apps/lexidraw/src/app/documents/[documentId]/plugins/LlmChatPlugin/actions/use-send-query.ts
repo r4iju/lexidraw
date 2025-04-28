@@ -14,7 +14,15 @@ export const useSendQuery = () => {
   const { lexicalLlmTools } = useLexicalTools(editor, searchAndInsertImage);
 
   return useCallback(
-    async (prompt: string, editorStateJson?: string) => {
+    async ({
+      prompt,
+      editorStateMarkdown,
+      editorStateJson,
+    }: {
+      prompt: string;
+      editorStateJson?: string;
+      editorStateMarkdown?: string;
+    }) => {
       if (!prompt?.trim()) {
         console.warn("attempted to send empty query.");
         return;
@@ -29,10 +37,12 @@ export const useSendQuery = () => {
 
       try {
         let systemPrompt = "You are a helpful assistant.";
-        if (editorStateJson) {
-          systemPrompt += `\n\nThe user has provided the current document state as a JSON object below the main prompt, labeled 'JSON_STATE:'.`;
-          systemPrompt += `\nThe chat history leading up to the current request is also provided below, labeled 'CHAT_HISTORY:'.`;
-          if (mode === "agent") {
+        systemPrompt += `\n\nThe user may provide the current document state below the main prompt.`;
+        systemPrompt += `\nThe chat history leading up to the current request may also be provided below, labeled 'CHAT_HISTORY:'.`;
+
+        switch (mode) {
+          case "agent":
+            systemPrompt += `\n\nThe document state is provided as a JSON object labeled 'JSON_STATE:'.`;
             systemPrompt += `\n\n**Critical Instruction:** To modify the document content based on the user's request and the provided JSON_STATE, you MUST call the 'updateDocumentSemantically' tool.`;
             systemPrompt += `\nDo NOT output the JSON changes as plain text in your response. You MUST invoke the tool.`;
             systemPrompt += `\nThe 'updateDocumentSemantically' tool requires an 'instructions' argument, which is an array of semantic instruction objects executed in order.`;
@@ -78,7 +88,13 @@ export const useSendQuery = () => {
             systemPrompt += `\n    - (After the tool executes successfully, follow the IMPORTANT instruction below to confirm).`;
 
             systemPrompt += `\n\n**IMPORTANT:** After ANY tool executes successfully (you will receive the result with details/summary), ALWAYS respond with a brief confirmation message to the user summarizing what action you took. Do NOT just return an empty response.`;
-          }
+            break;
+          case "chat":
+            systemPrompt += `\n\nThe document state is provided as Markdown labeled 'DOCUMENT_STATE:'.`;
+            break;
+          default:
+            console.warn("Invalid mode in useSendQuery:", mode);
+            break;
         }
 
         const historyToInclude = messages
@@ -99,8 +115,11 @@ export const useSendQuery = () => {
           fullPrompt += `CHAT_HISTORY:\n${historyToInclude}\n\n`;
         }
         fullPrompt += `USER_PROMPT:\n${prompt}`;
-        if (editorStateJson) {
+        if (mode === "agent" && editorStateJson) {
           fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
+        }
+        if (mode === "chat" && editorStateMarkdown) {
+          fullPrompt += `\n\nDOCUMENT_STATE:\n${editorStateMarkdown}`;
         }
 
         const { text, toolCalls } = await generateChatStream({

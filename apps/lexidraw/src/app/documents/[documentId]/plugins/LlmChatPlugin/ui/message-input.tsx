@@ -14,6 +14,7 @@ import {
   type NodeKey,
 } from "lexical";
 import { $isHeadingNode } from "@lexical/rich-text";
+import { $convertToMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 
 interface SerializedNodeWithKey {
   type: string;
@@ -110,6 +111,7 @@ export const MessageInput: React.FC = () => {
       if (!trimmedText || streaming) return;
 
       let editorJson: string | undefined;
+      let editorMarkdown: string | undefined;
       let editorStateObject: { root: SerializedNodeWithKey } | undefined;
 
       try {
@@ -120,6 +122,10 @@ export const MessageInput: React.FC = () => {
           editorStateObject,
         );
         editorJson = JSON.stringify(editorStateObject);
+
+        editorState.read(() => {
+          editorMarkdown = $convertToMarkdownString(TRANSFORMERS);
+        });
       } catch (error) {
         console.error(
           "Failed to serialize editor state in MessageInput:",
@@ -130,20 +136,19 @@ export const MessageInput: React.FC = () => {
         }
       }
 
-      if (editorJson === undefined) {
-        console.error("Could not generate editorStateJson to send query.");
-        return;
-      }
-
       try {
-        await sendQuery(trimmedText, editorJson);
+        await sendQuery({
+          prompt: trimmedText,
+          editorStateJson: editorJson,
+          editorStateMarkdown: editorMarkdown,
+        });
         setText("");
       } catch (error) {
         console.error("Error sending query from MessageInput:", error);
       }
     },
     [editor, sendQuery, serializeEditorStateWithKeys, streaming, text],
-  ); // Added dependencies for useCallback
+  );
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
