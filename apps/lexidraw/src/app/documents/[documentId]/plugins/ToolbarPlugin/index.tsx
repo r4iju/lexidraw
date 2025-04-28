@@ -1,10 +1,8 @@
 import { $isCodeNode, CODE_LANGUAGE_MAP } from "@lexical/code";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $isListNode, ListNode } from "@lexical/list";
-import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode";
-import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";
 import {
   $getSelectionStyleValueForProperty,
@@ -20,7 +18,6 @@ import {
 } from "@lexical/utils";
 import {
   $createParagraphNode,
-  $getRoot,
   $getSelection,
   $isElementNode,
   $isRangeSelection,
@@ -41,21 +38,9 @@ import {
 import { Dispatch, useCallback, useEffect, useState } from "react";
 import type { JSX } from "react";
 import { IS_APPLE } from "../../shared/environment";
-import useModal from "~/hooks/useModal";
-import { $createStickyNode } from "../../nodes/StickyNode";
 import { ColorPickerButton } from "~/components/ui/color-picker";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { useSanitizeUrl } from "../../utils/url";
-import { useEmbedConfigs } from "../AutoEmbedPlugin";
-import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
-import { InsertEquationDialog } from "../EquationsPlugin";
-import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
-import { InsertImageDialog, InsertImagePayload } from "../ImagesPlugin";
-import { InsertInlineImageDialog } from "../InlineImagePlugin";
-import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
-import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
-import { InsertPollDialog } from "../PollPlugin";
-import { InsertTableDialog } from "../TablePlugin";
 import FontSize from "./font-size";
 import {
   DropdownMenu,
@@ -72,7 +57,6 @@ import {
   Link,
   MessageSquare,
   PaintBucket,
-  Plus,
   Redo,
   Underline,
   Undo,
@@ -85,18 +69,18 @@ import { TOGGLE_LLM_CHAT_COMMAND } from "../LlmChatPlugin";
 import { TOGGLE_COMMENTS_COMMAND } from "../../context/comment-context";
 import { TOGGLE_TOC_COMMAND } from "../../context/toc-context";
 import { MessageSquareText, ListTree } from "lucide-react";
-import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin/commands";
 import { useToolbarUtils } from "./utils";
 import { FontDropDown } from "./font";
 import {
   blockTypeToBlockName,
   rootTypeToRootName,
 } from "../../context/toolbar-context";
-import { BlockFormatDropDown } from "./block-format";
+import { BlockFormatDropDown, BlockType } from "./block-format";
 import { LlmModelSelector } from "./llm-config";
 import { ElementFormatDropdown } from "./element-format";
 import { Divider } from "./divider";
 import { CodeSelector } from "./code-selector";
+import { InsertItem } from "./insert-item";
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
@@ -105,8 +89,7 @@ export default function ToolbarPlugin({
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [activeEditor, setActiveEditor] = useState(editor);
-  const [blockType, setBlockType] =
-    useState<keyof typeof blockTypeToBlockName>("paragraph");
+  const [blockType, setBlockType] = useState<BlockType>("paragraph");
   const [rootType, setRootType] =
     useState<keyof typeof rootTypeToRootName>("root");
   const [selectedElementKey, setSelectedElementKey] = useState<NodeKey | null>(
@@ -129,13 +112,11 @@ export default function ToolbarPlugin({
   const [isCode, setIsCode] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  const [modal, showModal] = useModal();
   const [isRTL, setIsRTL] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState<string>("");
   const [isEditable, setIsEditable] = useState(() => editor.isEditable());
 
   const sanitizeUrl = useSanitizeUrl();
-  const EmbedConfigs = useEmbedConfigs();
 
   const $updateToolbar = useCallback(() => {
     const selection = $getSelection();
@@ -198,7 +179,7 @@ export default function ToolbarPlugin({
             ? element.getTag()
             : element.getType();
           if (type in blockTypeToBlockName) {
-            setBlockType(type as keyof typeof blockTypeToBlockName);
+            setBlockType(type as BlockType);
           }
           if ($isCodeNode(element)) {
             const language =
@@ -410,10 +391,6 @@ export default function ToolbarPlugin({
     }
   }, [editor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
-  const insertGifOnClick = (payload: InsertImagePayload) => {
-    activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
-  };
-
   return (
     <div className="flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible top-0">
       {/* Undo/Redo */}
@@ -557,7 +534,7 @@ export default function ToolbarPlugin({
                       variant="outline"
                       disabled={!isEditable}
                       aria-label="Formatting options for additional text styles"
-                      className="px-0.5 h-12 md:h-10 rounded-l-none rounded-r-md border-l-0"
+                      className="w-10 md:w-8 h-12 md:h-10 p-1 rounded-l-none rounded-r-md border-l-0"
                     >
                       <Ellipsis className="size-4" />
                     </Button>
@@ -622,190 +599,7 @@ export default function ToolbarPlugin({
           <Divider />
 
           <div className="flex gap-0 h-12 md:h-10">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  disabled={!isEditable}
-                  variant="outline"
-                  className="flex gap-1 h-12 md:h-10 rounded-r-none border-r-0"
-                  aria-label="Insert specialized editor node"
-                >
-                  Insert
-                  <Plus className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  onClick={() => {
-                    activeEditor.dispatchCommand(
-                      INSERT_HORIZONTAL_RULE_COMMAND,
-                      undefined,
-                    );
-                  }}
-                  className="item"
-                >
-                  <i className="icon horizontal-rule" />
-                  <span className="text">Horizontal Rule</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    activeEditor.dispatchCommand(INSERT_PAGE_BREAK, undefined);
-                  }}
-                  className="item"
-                >
-                  <i className="icon page-break" />
-                  <span className="text">Page Break</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    showModal("Insert Image", (onClose) => (
-                      <InsertImageDialog
-                        activeEditor={activeEditor}
-                        onClose={onClose}
-                      />
-                    ));
-                  }}
-                  className="item"
-                >
-                  <i className="icon image" />
-                  <span className="text">Image</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    showModal("Insert Inline Image", (onClose) => (
-                      <InsertInlineImageDialog
-                        activeEditor={activeEditor}
-                        onClose={onClose}
-                      />
-                    ));
-                  }}
-                  className="item"
-                >
-                  Inline Image
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    insertGifOnClick({
-                      altText: "Cat typing on a laptop",
-                      src: "/images/cat-typing.gif",
-                    })
-                  }
-                  className="item"
-                >
-                  <i className="icon gif" />
-                  <span className="text">GIF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    activeEditor.dispatchCommand(
-                      INSERT_EXCALIDRAW_COMMAND,
-                      undefined,
-                    );
-                  }}
-                  className="item"
-                >
-                  <i className="icon diagram-2" />
-                  <span className="text">Excalidraw</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    showModal("Insert Table", (onClose) => (
-                      <InsertTableDialog
-                        activeEditor={activeEditor}
-                        onClose={onClose}
-                      />
-                    ));
-                  }}
-                  className="item"
-                >
-                  <i className="icon table" />
-                  <span className="text">Table</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    showModal("Insert Poll", (onClose) => (
-                      <InsertPollDialog
-                        activeEditor={activeEditor}
-                        onClose={onClose}
-                      />
-                    ));
-                  }}
-                  className="item"
-                >
-                  <i className="icon poll" />
-                  <span className="text">Poll</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    showModal("Insert Columns Layout", (onClose) => (
-                      <InsertLayoutDialog
-                        activeEditor={activeEditor}
-                        onClose={onClose}
-                      />
-                    ));
-                  }}
-                  className="item"
-                >
-                  <i className="icon columns" />
-                  <span className="text">Columns Layout</span>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  onClick={() => {
-                    showModal("Insert Equation", (onClose) => (
-                      <InsertEquationDialog
-                        activeEditor={activeEditor}
-                        onClose={onClose}
-                      />
-                    ));
-                  }}
-                  className="item"
-                >
-                  <i className="icon equation" />
-                  <span className="text">Equation</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    editor.update(() => {
-                      const root = $getRoot();
-                      const stickyNode = $createStickyNode(0, 0);
-                      root.append(stickyNode);
-                    });
-                  }}
-                  className="item"
-                >
-                  <i className="icon sticky" />
-                  <span className="text">Sticky Note</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    editor.dispatchCommand(
-                      INSERT_COLLAPSIBLE_COMMAND,
-                      undefined,
-                    );
-                  }}
-                  className="item"
-                >
-                  <i className="icon caret-right" />
-                  <span className="text">Collapsible container</span>
-                </DropdownMenuItem>
-                {EmbedConfigs.map((embedConfig) => (
-                  <DropdownMenuItem
-                    key={embedConfig.type}
-                    onClick={() => {
-                      activeEditor.dispatchCommand(
-                        INSERT_EMBED_COMMAND,
-                        embedConfig.type,
-                      );
-                    }}
-                    className="item"
-                  >
-                    {embedConfig.icon}
-                    <span className="text">{embedConfig.contentName}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <InsertItem activeEditor={activeEditor} isEditable={isEditable} />
             <TooltipButton
               onClick={() => {
                 activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
@@ -871,7 +665,6 @@ export default function ToolbarPlugin({
           Icon={ListTree}
         />
       </div>
-      {modal}
     </div>
   );
 }

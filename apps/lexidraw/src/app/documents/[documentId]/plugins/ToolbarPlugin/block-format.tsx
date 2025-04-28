@@ -6,7 +6,6 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Button } from "~/components/ui/button";
-import { ChevronDownIcon } from "@radix-ui/react-icons";
 import {
   Pilcrow,
   Heading1,
@@ -17,6 +16,7 @@ import {
   ListChecks,
   TextQuote,
   Code,
+  type LucideIcon,
 } from "lucide-react";
 import {
   LexicalEditor,
@@ -27,24 +27,55 @@ import {
 import { JSX } from "react";
 import { rootTypeToRootName } from "../../context/toolbar-context";
 import { $setBlocksType } from "@lexical/selection";
-import { $createHeadingNode, $createQuoteNode, HeadingTagType } from "@lexical/rich-text";
-import { INSERT_CHECK_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lexical/list";
+import {
+  $createHeadingNode,
+  $createQuoteNode,
+  HeadingTagType,
+} from "@lexical/rich-text";
+import {
+  INSERT_CHECK_LIST_COMMAND,
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+} from "@lexical/list";
 import { $createCodeNode } from "@lexical/code";
 
-const blockTypeToBlockName = {
-  bullet: "Bulleted List",
-  check: "Check List",
-  code: "Code Block",
-  h1: "Heading 1",
-  h2: "Heading 2",
-  h3: "Heading 3",
-  h4: "Heading 4",
-  h5: "Heading 5",
-  h6: "Heading 6",
-  number: "Numbered List",
-  paragraph: "Normal",
-  quote: "Quote",
-} as const;
+function getIconForBlockType(
+  blockType:
+    | "paragraph"
+    | "h1"
+    | "h2"
+    | "h3"
+    | "bullet"
+    | "number"
+    | "check"
+    | "quote"
+    | "code",
+): LucideIcon {
+  switch (blockType) {
+    case "paragraph":
+      return Pilcrow;
+    case "h1":
+      return Heading1;
+    case "h2":
+      return Heading2;
+    case "h3":
+      return Heading3;
+    case "bullet":
+      return List;
+    case "number":
+      return ListOrdered;
+    case "check":
+      return ListChecks;
+    case "quote":
+      return TextQuote;
+    case "code":
+      return Code;
+    default:
+      return Pilcrow; // Default to paragraph icon
+  }
+}
+
+export type BlockType = Parameters<typeof getIconForBlockType>[0];
 
 export function BlockFormatDropDown({
   editor,
@@ -52,7 +83,7 @@ export function BlockFormatDropDown({
   disabled = false,
   className = "",
 }: {
-  blockType: keyof typeof blockTypeToBlockName;
+  blockType: BlockType;
   rootType: keyof typeof rootTypeToRootName;
   editor: LexicalEditor;
   disabled?: boolean;
@@ -132,24 +163,24 @@ export function BlockFormatDropDown({
   };
 
   const { dropDownActiveClass } = useToolbarUtils();
+  const BlockIcon = getIconForBlockType(blockType);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className={`flex gap-1 h-12 md:h-10 ${className}`}
+          className={`flex gap-1 items-center h-12 md:h-10 ${className}`}
           aria-label="Formatting options for text style"
           disabled={disabled}
           variant="outline"
         >
-          {blockTypeToBlockName[blockType]}
-          <ChevronDownIcon className="size-4" />
+          <BlockIcon className="size-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent align="start">
         <DropdownMenuItem
           className={
-            "gap-2 item " + dropDownActiveClass(blockType === "paragraph")
+            "flex gap-2 item " + dropDownActiveClass(blockType === "paragraph")
           }
           onClick={formatParagraph}
         >
@@ -157,21 +188,27 @@ export function BlockFormatDropDown({
           <span className="text">Normal</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"gap-2 item " + dropDownActiveClass(blockType === "h1")}
+          className={
+            "flex gap-2 item " + dropDownActiveClass(blockType === "h1")
+          }
           onClick={() => formatHeading("h1")}
         >
           <Heading1 className="size-4" />
           <span className="text">Heading 1</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"gap-2 item " + dropDownActiveClass(blockType === "h2")}
+          className={
+            "flex gap-2 item " + dropDownActiveClass(blockType === "h2")
+          }
           onClick={() => formatHeading("h2")}
         >
           <Heading2 className="size-4" />
           <span className="text">Heading 2</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"gap-2 item " + dropDownActiveClass(blockType === "h3")}
+          className={
+            "flex gap-2 item " + dropDownActiveClass(blockType === "h3")
+          }
           onClick={() => formatHeading("h3")}
         >
           <Heading3 className="size-4" />
@@ -179,7 +216,7 @@ export function BlockFormatDropDown({
         </DropdownMenuItem>
         <DropdownMenuItem
           className={
-            "gap-2 item " + dropDownActiveClass(blockType === "bullet")
+            "flex gap-2 item " + dropDownActiveClass(blockType === "bullet")
           }
           onClick={formatBulletList}
         >
@@ -188,7 +225,7 @@ export function BlockFormatDropDown({
         </DropdownMenuItem>
         <DropdownMenuItem
           className={
-            "gap-2 item " + dropDownActiveClass(blockType === "number")
+            "flex gap-2 item " + dropDownActiveClass(blockType === "number")
           }
           onClick={formatNumberedList}
         >
@@ -196,21 +233,27 @@ export function BlockFormatDropDown({
           <span className="text">Numbered List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"gap-2 item " + dropDownActiveClass(blockType === "check")}
+          className={
+            "flex gap-2 item " + dropDownActiveClass(blockType === "check")
+          }
           onClick={formatCheckList}
         >
           <ListChecks className="size-4" />
           <span className="text">Check List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"gap-2 item " + dropDownActiveClass(blockType === "quote")}
+          className={
+            "flex gap-2 item " + dropDownActiveClass(blockType === "quote")
+          }
           onClick={formatQuote}
         >
           <TextQuote className="size-4" />
           <span className="text">Quote</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={"gap-2 item " + dropDownActiveClass(blockType === "code")}
+          className={
+            "flex gap-2 item " + dropDownActiveClass(blockType === "code")
+          }
           onClick={formatCode}
         >
           <Code className="size-4" />

@@ -1,5 +1,4 @@
 import { $patchStyleText } from "@lexical/selection";
-import { ChevronDownIcon } from "@radix-ui/react-icons";
 import {
   $getRoot,
   $getSelection,
@@ -196,16 +195,17 @@ export function FontDropDown({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            className={`flex gap-1 h-12 md:h-10 ${className}`}
+            className={` text-left h-12 md:h-10 ${className}`}
             variant="outline"
             disabled={disabled}
             aria-label={buttonAriaLabel}
           >
-            {getFontLabel(value, options)}
-            <ChevronDownIcon className="size-4" />
+            <span className="text-sm truncate max-w-20">
+              {getFontLabel(value, options)}
+            </span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent>
+        <DropdownMenuContent align="start">
           {options.map(([option, text]: [string, string]) => (
             <DropdownMenuItem
               className={`item ${dropDownActiveClass(value === option)} ${
@@ -288,5 +288,5 @@ function FontImportModal({
 
 function getFontLabel(value: string, options: [string, string][]) {
   const found = options.find(([val]) => val === value);
-  return found ? found[1] : value;
+  return found ? found[1].replace(/'/g, "") : value;
 }
