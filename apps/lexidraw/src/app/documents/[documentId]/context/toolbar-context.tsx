@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
 import { ElementFormatType } from "lexical";
 import React, {
   createContext,
@@ -20,8 +13,7 @@ export const MIN_ALLOWED_FONT_SIZE = 8;
 export const MAX_ALLOWED_FONT_SIZE = 72;
 export const DEFAULT_FONT_SIZE = 15;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const rootTypeToRootName = {
+export const rootTypeToRootName = {
   root: "Root",
   table: "Table",
 } as const;
