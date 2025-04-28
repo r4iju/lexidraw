@@ -50,6 +50,7 @@ interface ColorPickerButtonProps {
   color: string;
   Icon?: LucideIcon;
   onChange?: (value: string, skipHistoryStack: boolean) => void;
+  className?: string;
 }
 
 export function ColorPickerContent({
@@ -322,6 +323,7 @@ export function ColorPickerButton({
   color,
   onChange,
   Icon,
+  className,
 }: Readonly<ColorPickerButtonProps>): React.JSX.Element {
   const [currentColor, setCurrentColor] = useState(color);
 
@@ -340,7 +342,7 @@ export function ColorPickerButton({
             <Button
               aria-label={buttonAriaLabel}
               variant="outline"
-              className="w-8 h-12 md:h-10 p-0.5"
+              className={cn("w-8 h-12 md:h-10 p-0.5", className)}
               disabled={disabled}
             >
               {Icon && <Icon className="size-4" />}
