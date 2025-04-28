@@ -32,10 +32,12 @@ export interface InlineImagePayload {
   caption?: LexicalEditor;
   height?: number;
   key?: NodeKey;
+  maxWidth?: number;
   showCaption?: boolean;
   src: string;
   width?: number;
   position?: Position;
+  captionsEnabled?: boolean;
 }
 
 export interface UpdateInlineImagePayload {
@@ -67,6 +69,7 @@ export type SerializedInlineImageNode = Spread<
     src: string;
     width?: number;
     position?: Position;
+    captionsEnabled?: boolean;
   },
   SerializedLexicalNode
 >;
@@ -79,6 +82,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
   __showCaption: boolean;
   __caption: LexicalEditor;
   __position: Position;
+  __captionsEnabled: boolean;
 
   static getType(): string {
     return "inline-image";
@@ -93,6 +97,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
       node.__height,
       node.__showCaption,
       node.__caption,
+      node.__captionsEnabled,
       node.__key,
     );
   }
@@ -100,8 +105,16 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
   static importJSON(
     serializedNode: SerializedInlineImageNode,
   ): InlineImageNode {
-    const { altText, height, width, caption, src, showCaption, position } =
-      serializedNode;
+    const {
+      altText,
+      height,
+      width,
+      caption,
+      src,
+      showCaption,
+      position,
+      captionsEnabled,
+    } = serializedNode;
     const node = InlineImageNode.$createInlineImageNode({
       altText,
       height,
@@ -109,6 +122,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
       showCaption,
       src,
       width,
+      captionsEnabled,
     });
     const nestedEditor = node.__caption;
     const editorState = nestedEditor.parseEditorState(caption.editorState);
@@ -135,6 +149,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
     height?: "inherit" | number,
     showCaption?: boolean,
     caption?: LexicalEditor,
+    captionsEnabled?: boolean,
     key?: NodeKey,
   ) {
     super(key);
@@ -149,6 +164,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
         nodes: [ParagraphNode, TextNode, LineBreakNode, LinkNode],
       });
     this.__position = position;
+    this.__captionsEnabled = captionsEnabled ?? true;
   }
 
   exportDOM(): DOMExportOutput {
@@ -169,6 +185,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
       showCaption: this.__showCaption,
       src: this.getSrc(),
       type: "inline-image",
+      captionsEnabled: this.__captionsEnabled,
       version: 1,
       width: this.__width === "inherit" ? 0 : this.__width,
     };
@@ -266,6 +283,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
           showCaption={this.__showCaption}
           caption={this.__caption}
           position={this.__position}
+          captionsEnabled={this.__captionsEnabled}
         />
       </Suspense>
     );
@@ -279,6 +297,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
     width,
     showCaption,
     caption,
+    captionsEnabled,
     key,
   }: InlineImagePayload): InlineImageNode {
     return $applyNodeReplacement(
@@ -290,6 +309,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
         height,
         showCaption,
         caption,
+        captionsEnabled,
         key,
       ),
     );
