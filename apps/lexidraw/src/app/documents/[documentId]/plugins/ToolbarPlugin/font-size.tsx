@@ -1,5 +1,3 @@
-import "./font-size.css";
-
 import { $patchStyleText } from "@lexical/selection";
 import { $getSelection, LexicalEditor } from "lexical";
 import * as React from "react";
@@ -204,12 +202,15 @@ export default function FontSize({
         type="number"
         value={inputValue}
         disabled={disabled}
-        className="max-w-fit min-w-10 h-12 md:h-10 rounded-none border-x-0"
+        className="max-w-fit w-10 h-12 md:h-10 rounded-none focus-visible:ring-0 border-x-0 appearance-none text-center"
         min={MIN_ALLOWED_FONT_SIZE}
         max={MAX_ALLOWED_FONT_SIZE}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyPress}
         onBlur={handleInputBlur}
+        style={{
+          appearance: "textfield",
+        }}
       />
 
       <TooltipButton

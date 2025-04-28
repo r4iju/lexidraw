@@ -21,18 +21,7 @@ import { Dispatch, useEffect } from "react";
 
 import { useToolbarState } from "../../context/toolbar-context";
 import { useSanitizeUrl } from "../../utils/url";
-import {
-  clearFormatting,
-  formatBulletList,
-  formatCheckList,
-  formatCode,
-  formatHeading,
-  formatNumberedList,
-  formatParagraph,
-  formatQuote,
-  updateFontSize,
-  UpdateFontSizeType,
-} from "../ToolbarPlugin/utils";
+import { useToolbarUtils } from "../ToolbarPlugin/utils";
 import { useShortcuts } from "./shortcuts";
 
 export default function ShortcutsPlugin({
@@ -69,6 +58,19 @@ export default function ShortcutsPlugin({
     isSuperscript,
     isUppercase,
   } = useShortcuts();
+
+  const {
+    UpdateFontSizeType,
+    updateFontSize,
+    formatParagraph,
+    formatHeading,
+    formatBulletList,
+    formatNumberedList,
+    formatCheckList,
+    formatCode,
+    formatQuote,
+    clearFormatting,
+  } = useToolbarUtils();
 
   const sanitizeUrl = useSanitizeUrl();
 
@@ -202,6 +204,17 @@ export default function ShortcutsPlugin({
     isClearFormatting,
     isInsertLink,
     sanitizeUrl,
+    formatParagraph,
+    formatHeading,
+    formatBulletList,
+    formatNumberedList,
+    updateFontSize,
+    formatCheckList,
+    formatCode,
+    formatQuote,
+    UpdateFontSizeType.increment,
+    UpdateFontSizeType.decrement,
+    clearFormatting,
   ]);
 
   return null;
