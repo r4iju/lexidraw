@@ -1,7 +1,5 @@
 import type { Position } from "../../nodes/InlineImageNode/InlineImageNode";
 
-import "../../nodes/InlineImageNode/InlineImageNode.css";
-
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $wrapNodeInElement, CAN_USE_DOM, mergeRegister } from "@lexical/utils";
 import {
@@ -40,10 +38,12 @@ import {
   SelectGroup,
   SelectItem,
   SelectValue,
+  SelectTrigger,
 } from "~/components/ui/select";
-import { SelectTrigger } from "@radix-ui/react-select";
 import { useUploader } from "~/hooks/use-uploader";
 import { useEntityId } from "~/hooks/use-entity-id";
+import { Switch } from "~/components/ui/switch";
+import { SwitchThumb } from "@radix-ui/react-switch";
 
 export type InsertInlineImagePayload = Readonly<InlineImagePayload>;
 
@@ -68,14 +68,6 @@ export function InsertInlineImageDialog({
   const [position, setPosition] = useState<Position>("left");
 
   const isDisabled = src === "";
-
-  const handleShowCaptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setShowCaption(e.target.checked);
-  };
-
-  // const handlePositionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-  //   setPosition(e.target.value as Position);
-  // };
 
   const onChange = (files: FileList | null) => {
     handleFileChange(files, entityId);
@@ -105,7 +97,7 @@ export function InsertInlineImageDialog({
 
   return (
     <>
-      <div style={{ marginBottom: "1em" }}>
+      <div className="">
         <FileInput
           label="Image Upload"
           onChange={onChange}
@@ -119,7 +111,6 @@ export function InsertInlineImageDialog({
           placeholder="Descriptive alternative text"
           onChange={(e) => setAltText(e.target.value)}
           value={altText}
-          data-test-id="image-modal-alt-text-input"
         />
       </div>
 
@@ -141,18 +132,18 @@ export function InsertInlineImageDialog({
         </SelectContent>
       </Select>
 
-      <div className="Input__wrapper">
-        <input
+      <div className="flex items-center gap-2">
+        <Label htmlFor="caption">Show Caption</Label>
+        <Switch
           id="caption"
-          className="InlineImageNode_Checkbox"
-          type="checkbox"
           checked={showCaption}
-          onChange={handleShowCaptionChange}
-        />
-        <label htmlFor="caption">Show Caption</label>
+          onCheckedChange={setShowCaption}
+        >
+          <SwitchThumb />
+        </Switch>
       </div>
 
-      <DialogFooter>
+      <DialogFooter className="justify-end">
         <Button
           data-test-id="image-modal-file-upload-btn"
           disabled={isDisabled}

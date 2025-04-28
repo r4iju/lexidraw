@@ -1,8 +1,6 @@
 import type { Position } from "./InlineImageNode";
 import type { BaseSelection, LexicalEditor, NodeKey } from "lexical";
 
-import "./InlineImageNode.css";
-
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -52,6 +50,8 @@ import {
 import { cn } from "~/lib/utils";
 import { ErrorBoundary } from "react-error-boundary";
 import ImageResizer from "~/components/ui/image-resizer";
+import { Switch } from "~/components/ui/switch";
+import { SwitchThumb } from "@radix-ui/react-switch";
 
 type ResizableImageProps = {
   src: string;
@@ -138,10 +138,6 @@ export function UpdateInlineImageDialog({
     setAltText(e.target.value);
   };
 
-  const handleShowCaptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setShowCaption(e.target.checked);
-  };
-
   const handleOnConfirm = () => {
     const payload = { altText, position, showCaption };
     if (node) {
@@ -186,23 +182,19 @@ export function UpdateInlineImageDialog({
         </SelectContent>
       </Select>
 
-      <div className="Input__wrapper">
-        <input
+      <div className="flex items-center gap-2">
+        <Switch
           id="caption"
-          type="checkbox"
           checked={showCaption}
-          onChange={handleShowCaptionChange}
-        />
-        <label htmlFor="caption">Show Caption</label>
+          onCheckedChange={setShowCaption}
+        >
+          <SwitchThumb />
+        </Switch>
+        <Label htmlFor="caption">Show Caption</Label>
       </div>
 
-      <DialogFooter>
-        <Button
-          data-test-id="image-modal-file-upload-btn"
-          onClick={() => handleOnConfirm()}
-        >
-          Confirm
-        </Button>
+      <DialogFooter className="justify-end">
+        <Button onClick={handleOnConfirm}>Confirm</Button>
       </DialogFooter>
     </DialogContent>
   );
@@ -217,6 +209,7 @@ export default function InlineImageComponent({
   showCaption,
   caption,
   position,
+  captionsEnabled,
 }: {
   altText: string;
   caption: LexicalEditor;
@@ -226,6 +219,7 @@ export default function InlineImageComponent({
   src: string;
   width: "inherit" | number;
   position: Position;
+  captionsEnabled: boolean;
 }): React.JSX.Element {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentDimensions, setCurrentDimensions] = useState({
@@ -395,76 +389,92 @@ export default function InlineImageComponent({
     setCurrentDimensions(dimensions);
   };
 
+  // Callback to update the node's showCaption state
+  const updateShowCaption = (show: boolean) => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+      if (InlineImageNode.$isInlineImageNode(node)) {
+        node.setShowCaption(show);
+      }
+    });
+  };
+
   return (
     <Suspense fallback={null}>
       <>
         {/* 
-          We use <span> for inline flow, 
-          but the contained <div> has display:inline-block so it can size properly.
-        */}
-        <span draggable={draggable} className="inline-block relative">
-          <ResizableImage
-            className={isFocused ? "ring-1 ring-muted-foreground" : ""}
-            src={src}
-            altText={altText}
-            width={currentDimensions.width}
-            height={currentDimensions.height}
-            position={position}
-            nodeKey={nodeKey}
-            containerRef={containerRef as React.RefObject<HTMLDivElement>}
-          />
-          {/* “Edit” button on top */}
-          <Button
-            ref={buttonRef}
-            variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            Edit
-          </Button>
-
-          {isSelected && (
-            <ImageResizer
-              imageRef={containerRef as React.RefObject<HTMLImageElement>}
-              editor={editor}
-              buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
-              showCaption={false}
-              captionsEnabled={false}
-              onResizeEnd={(newWidth, newHeight) => {
-                editor.update(() => {
-                  const node = $getNodeByKey(nodeKey);
-                  if (InlineImageNode.$isInlineImageNode(node)) {
-                    node.setWidthAndHeight(newWidth, newHeight);
-                  }
-                });
-              }}
-              onDimensionsChange={onDimensionsChange}
+          Use inline-flex div for vertical stacking while maintaining inline flow.
+         */}
+        <div
+          draggable={draggable}
+          className="inline-flex flex-col relative align-bottom"
+        >
+          {/* Container for Image, Edit button, and Resizer */}
+          <div className="relative">
+            <ResizableImage
+              className={isFocused ? "ring-1 ring-muted-foreground" : ""}
+              src={src}
+              altText={altText}
+              width={currentDimensions.width}
+              height={currentDimensions.height}
+              position={position}
+              nodeKey={nodeKey}
+              containerRef={containerRef as React.RefObject<HTMLDivElement>}
             />
-          )}
-        </span>
+            {/* "Edit" button on top */}
+            <Button
+              ref={buttonRef}
+              variant="ghost"
+              className="absolute top-0 right-0 mt-1 mr-1 z-10"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              Edit
+            </Button>
 
-        {/* If the node has a caption */}
-        {showCaption && (
-          <div className="mt-2">
-            <LexicalNestedComposer initialEditor={caption}>
-              <AutoFocusPlugin />
-              <LinkPlugin />
-              <RichTextPlugin
-                contentEditable={
-                  <LexicalContentEditable className="border p-2 text-sm w-full" />
-                }
-                placeholder={
-                  <Placeholder className="text-gray-400 text-sm">
-                    Enter a caption...
-                  </Placeholder>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
+            {isSelected && (
+              <ImageResizer
+                imageRef={containerRef as React.RefObject<HTMLImageElement>}
+                editor={editor}
+                buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
+                showCaption={showCaption}
+                setShowCaption={updateShowCaption}
+                captionsEnabled={captionsEnabled}
+                onResizeEnd={(newWidth, newHeight) => {
+                  editor.update(() => {
+                    const node = $getNodeByKey(nodeKey);
+                    if (InlineImageNode.$isInlineImageNode(node)) {
+                      node.setWidthAndHeight(newWidth, newHeight);
+                    }
+                  });
+                }}
+                onDimensionsChange={onDimensionsChange}
               />
-            </LexicalNestedComposer>
+            )}
           </div>
-        )}
 
-        {/* The “Update Inline Image” dialog */}
+          {/* Caption rendered inside the relative container */}
+          {showCaption && captionsEnabled && (
+            <div className="absolute bottom-0 left-0 w-full z-10">
+              <LexicalNestedComposer initialEditor={caption}>
+                <AutoFocusPlugin />
+                <LinkPlugin />
+                <RichTextPlugin
+                  contentEditable={
+                    <LexicalContentEditable className="border-none font-medium block relative outline-none border border-muted-foreground bg-muted/50 backdrop-blur-md p-2 text-sm w-full" />
+                  }
+                  placeholder={
+                    <Placeholder className="text-sm text-muted-foreground/50">
+                      Enter a caption...
+                    </Placeholder>
+                  }
+                  ErrorBoundary={LexicalErrorBoundary}
+                />
+              </LexicalNestedComposer>
+            </div>
+          )}
+        </div>
+
+        {/* The "Update Inline Image" dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <UpdateInlineImageDialog
             activeEditor={editor}

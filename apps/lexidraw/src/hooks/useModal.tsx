@@ -51,7 +51,7 @@ export default function useModal(): [
     return (
       <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
         {/* <DialogOverlay /> */}
-        <DialogContent ref={ref}>
+        <DialogContent ref={ref} className="min-w-80">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
