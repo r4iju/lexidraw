@@ -23,6 +23,9 @@ import {
 import { LinkNode } from "@lexical/link";
 import * as React from "react";
 import { Suspense } from "react";
+import { EmojiNode } from "../EmojiNode";
+import { KeywordNode } from "../KeywordNode";
+import { HashtagNode } from "@lexical/hashtag";
 
 const InlineImageComponent = React.lazy(() => import("./InlineImageComponent"));
 
@@ -162,7 +165,16 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
     this.__caption =
       caption ||
       createEditor({
-        nodes: [RootNode, TextNode, LineBreakNode, ParagraphNode, LinkNode],
+        nodes: [
+          RootNode,
+          TextNode,
+          LineBreakNode,
+          ParagraphNode,
+          LinkNode,
+          EmojiNode,
+          HashtagNode,
+          KeywordNode,
+        ],
       });
     this.__position = position;
     this.__captionsEnabled = captionsEnabled ?? true;

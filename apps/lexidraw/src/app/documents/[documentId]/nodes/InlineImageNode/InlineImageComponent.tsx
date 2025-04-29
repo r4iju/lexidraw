@@ -48,6 +48,14 @@ import ImageResizer from "~/components/ui/image-resizer";
 import { Switch } from "~/components/ui/switch";
 import { SwitchThumb } from "@radix-ui/react-switch";
 import ImageCaption from "../common/ImageCaption";
+import KeywordsPlugin from "../../plugins/KeywordsPlugin";
+import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
+import EmojisPlugin from "../../plugins/EmojisPlugin";
+import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import MentionsPlugin from "../../plugins/MentionsPlugin";
+import TreeViewPlugin from "../../plugins/TreeViewPlugin";
+import { useSharedHistoryContext } from "../../context/shared-history-context";
+import { useSettings } from "../../context/settings-context";
 
 type ResizableImageProps = {
   src: string;
@@ -223,6 +231,10 @@ export default function InlineImageComponent({
   });
   const [editor] = useLexicalComposerContext();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
+  const { historyState } = useSharedHistoryContext();
+  const {
+    settings: { showNestedEditorTreeView },
+  } = useSettings();
 
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
@@ -462,9 +474,14 @@ export default function InlineImageComponent({
                 placeholder="Enter a caption..."
                 onHideCaption={handleHideCaption}
               >
-                {/* Pass the specific plugins for this component */}
                 <AutoFocusPlugin />
+                <MentionsPlugin />
                 <LinkPlugin />
+                <EmojisPlugin />
+                <HashtagPlugin />
+                <KeywordsPlugin />
+                <HistoryPlugin externalHistoryState={historyState} />
+                {showNestedEditorTreeView && <TreeViewPlugin />}
               </ImageCaption>
             )}
           </div>
