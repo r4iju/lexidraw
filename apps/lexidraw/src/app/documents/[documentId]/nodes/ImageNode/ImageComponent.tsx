@@ -5,15 +5,10 @@ import type {
   NodeKey,
 } from "lexical";
 
-import { HashtagNode } from "@lexical/hashtag";
-import { LinkNode } from "@lexical/link";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
-import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
-import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -30,30 +25,26 @@ import {
   KEY_DELETE_COMMAND,
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
-  LineBreakNode,
-  ParagraphNode,
-  RootNode,
   SELECTION_CHANGE_COMMAND,
-  TextNode,
 } from "lexical";
 import * as React from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSettings } from "../context/settings-context";
-import { useSharedHistoryContext } from "../context/shared-history-context";
-import EmojisPlugin from "../plugins/EmojisPlugin";
-import KeywordsPlugin from "../plugins/KeywordsPlugin";
-import LinkPlugin from "../plugins/LinkPlugin";
-import MentionsPlugin from "../plugins/MentionsPlugin";
-import TreeViewPlugin from "../plugins/TreeViewPlugin";
-import ContentEditable from "~/components/ui/content-editable";
+import { useSettings } from "../../context/settings-context";
+import { useSharedHistoryContext } from "../../context/shared-history-context";
+import EmojisPlugin from "../../plugins/EmojisPlugin";
+import KeywordsPlugin from "../../plugins/KeywordsPlugin";
+import LinkPlugin from "../../plugins/LinkPlugin";
+import MentionsPlugin from "../../plugins/MentionsPlugin";
+import TreeViewPlugin from "../../plugins/TreeViewPlugin";
 import ImageResizer from "~/components/ui/image-resizer";
-import Placeholder from "~/components/ui/placeholder";
-import { EmojiNode } from "./EmojiNode";
 import { ImageNode } from "./ImageNode";
-import { KeywordNode } from "./KeywordNode";
 import NextImage from "next/image";
 import { ErrorBoundary } from "react-error-boundary";
 import { cn } from "~/lib/utils";
+import ImageCaption from "../common/ImageCaption";
+import { Button } from "~/components/ui/button";
+import { Dialog } from "~/components/ui/dialog";
+import { UpdateImageDialog } from "./UpdateImageDialog";
 
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> =
   createCommand("RIGHT_CLICK_IMAGE_COMMAND");
@@ -164,6 +155,7 @@ export default function ImageComponent({
     height,
   });
   const nestedEditorContainerRef = useRef<HTMLDivElement>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
@@ -352,34 +344,6 @@ export default function ImageComponent({
     setSelected,
   ]);
 
-  useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const link = target.closest("a");
-
-      if (link && nestedEditorContainerRef.current?.contains(link)) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const url = link.getAttribute("href");
-        if (url) {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
-      }
-    };
-
-    const container = nestedEditorContainerRef.current;
-    if (container) {
-      container.addEventListener("click", handleClick, true);
-    }
-
-    return () => {
-      if (container) {
-        container.removeEventListener("click", handleClick, true);
-      }
-    };
-  }, []);
-
   const setShowCaption = () => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
@@ -448,45 +412,32 @@ export default function ImageComponent({
           />
         )}
 
-        {showCaption && (
-          <div
-            ref={nestedEditorContainerRef}
-            className="absolute bottom-0 left-0 w-full z-10 [&_a]:cursor-pointer"
+        {buttonRef && (
+          <Button
+            ref={buttonRef}
+            variant="ghost"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-sm"
+            onClick={() => setIsDialogOpen(true)}
           >
-            <LexicalNestedComposer
-              initialEditor={caption}
-              initialNodes={[
-                RootNode,
-                TextNode,
-                LineBreakNode,
-                ParagraphNode,
-                LinkNode,
-                EmojiNode,
-                HashtagNode,
-                KeywordNode,
-              ]}
-            >
-              <AutoFocusPlugin />
-              <MentionsPlugin />
-              <LinkPlugin />
-              <EmojisPlugin />
-              <HashtagPlugin />
-              <KeywordsPlugin />
-              <HistoryPlugin externalHistoryState={historyState} />
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable className="border-none border border-muted-foreground bg-muted/50 backdrop-blur-md text-sm w-full" />
-                }
-                placeholder={
-                  <Placeholder className="text-muted-foreground text-sm">
-                    Enter a caption...
-                  </Placeholder>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              {showNestedEditorTreeView && <TreeViewPlugin />}
-            </LexicalNestedComposer>
-          </div>
+            Edit
+          </Button>
+        )}
+
+        {showCaption && (
+          <ImageCaption
+            containerRef={nestedEditorContainerRef}
+            caption={caption}
+            placeholder="Enter a caption..."
+          >
+            <AutoFocusPlugin />
+            <MentionsPlugin />
+            <LinkPlugin />
+            <EmojisPlugin />
+            <HashtagPlugin />
+            <KeywordsPlugin />
+            <HistoryPlugin externalHistoryState={historyState} />
+            {showNestedEditorTreeView && <TreeViewPlugin />}
+          </ImageCaption>
         )}
 
         {resizable && $isNodeSelection(selection) && isFocused && (
@@ -504,6 +455,14 @@ export default function ImageComponent({
           />
         )}
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <UpdateImageDialog
+          activeEditor={editor}
+          nodeKey={nodeKey}
+          onClose={() => setIsDialogOpen(false)}
+        />
+      </Dialog>
     </Suspense>
   );
 }

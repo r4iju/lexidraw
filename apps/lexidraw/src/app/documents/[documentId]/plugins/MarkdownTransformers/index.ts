@@ -35,7 +35,7 @@ import {
 } from "lexical";
 
 import { EquationNode } from "../../nodes/EquationNode";
-import { ImageNode } from "../../nodes/ImageNode";
+import { ImageNode } from "../../nodes/ImageNode/ImageNode";
 import { TweetNode } from "../../nodes/TweetNode";
 import emojiList from "../../utils/emoji-list";
 

@@ -18,6 +18,7 @@ import {
   ParagraphNode,
   TextNode,
   LineBreakNode,
+  RootNode,
 } from "lexical";
 import { LinkNode } from "@lexical/link";
 import * as React from "react";
@@ -161,7 +162,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
     this.__caption =
       caption ||
       createEditor({
-        nodes: [ParagraphNode, TextNode, LineBreakNode, LinkNode],
+        nodes: [RootNode, TextNode, LineBreakNode, ParagraphNode, LinkNode],
       });
     this.__position = position;
     this.__captionsEnabled = captionsEnabled ?? true;
