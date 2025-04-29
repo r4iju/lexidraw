@@ -163,6 +163,7 @@ export default function ImageComponent({
     width,
     height,
   });
+  const nestedEditorContainerRef = useRef<HTMLDivElement>(null);
 
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
@@ -351,6 +352,34 @@ export default function ImageComponent({
     setSelected,
   ]);
 
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const link = target.closest("a");
+
+      if (link && nestedEditorContainerRef.current?.contains(link)) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const url = link.getAttribute("href");
+        if (url) {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      }
+    };
+
+    const container = nestedEditorContainerRef.current;
+    if (container) {
+      container.addEventListener("click", handleClick, true);
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener("click", handleClick, true);
+      }
+    };
+  }, []);
+
   const setShowCaption = () => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
@@ -399,7 +428,9 @@ export default function ImageComponent({
   return (
     <Suspense fallback={null}>
       <div
-        className={`relative inline-block cursor-pointer ${draggable ? "cursor-move" : ""}`}
+        className={cn("relative inline-block", {
+          "cursor-move": draggable,
+        })}
         draggable={draggable}
       >
         {isLoadError ? (
@@ -418,7 +449,10 @@ export default function ImageComponent({
         )}
 
         {showCaption && (
-          <div className="absolute bottom-0 left-0 w-full z-10">
+          <div
+            ref={nestedEditorContainerRef}
+            className="absolute bottom-0 left-0 w-full z-10 [&_a]:cursor-pointer"
+          >
             <LexicalNestedComposer
               initialEditor={caption}
               initialNodes={[
@@ -441,7 +475,7 @@ export default function ImageComponent({
               <HistoryPlugin externalHistoryState={historyState} />
               <RichTextPlugin
                 contentEditable={
-                  <ContentEditable className="border border-muted-foreground bg-muted/50 backdrop-blur-md p-2 text-sm w-full" />
+                  <ContentEditable className="border-none border border-muted-foreground bg-muted/50 backdrop-blur-md text-sm w-full" />
                 }
                 placeholder={
                   <Placeholder className="text-muted-foreground text-sm">

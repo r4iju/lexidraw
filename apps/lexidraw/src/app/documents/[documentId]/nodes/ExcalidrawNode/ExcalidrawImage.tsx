@@ -84,7 +84,7 @@ export default function ExcalidrawImage({
   }, [elements, files, appState, isDarkTheme]);
 
   return (
-    <div className={`relative inline-block cursor-pointer`}>
+    <div className={`relative inline-block`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}

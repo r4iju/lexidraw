@@ -234,6 +234,7 @@ export default function InlineImageComponent({
   const activeEditorRef = useRef<LexicalEditor | null>(null);
   const containerRef = useRef<HTMLImageElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const nestedEditorContainerRef = useRef<HTMLDivElement>(null);
 
   // Keydown logic
   const $onDelete = useCallback(
@@ -256,7 +257,6 @@ export default function InlineImageComponent({
       const latestSelection = $getSelection();
       if (isSelected && $isNodeSelection(latestSelection)) {
         if (showCaption) {
-          // Move focus into nested editor
           $setSelection(null);
           event.preventDefault();
           caption.focus();
@@ -376,9 +376,35 @@ export default function InlineImageComponent({
     setSelected,
   ]);
 
-  // For dragging
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const link = target.closest("a");
+
+      if (link && nestedEditorContainerRef.current?.contains(link)) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const url = link.getAttribute("href");
+        if (url) {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      }
+    };
+
+    const container = nestedEditorContainerRef.current;
+    if (container) {
+      container.addEventListener("click", handleClick, true);
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener("click", handleClick, true);
+      }
+    };
+  }, []);
+
   const draggable = isSelected && $isNodeSelection(selection);
-  // Highlight ring
   const isFocused = isSelected;
 
   const onDimensionsChange = (dimensions: {
@@ -453,13 +479,16 @@ export default function InlineImageComponent({
 
           {/* Caption rendered inside the relative container */}
           {showCaption && captionsEnabled && (
-            <div className="absolute bottom-0 left-0 w-full z-10">
+            <div
+              ref={nestedEditorContainerRef}
+              className="absolute bottom-0 left-0 w-full z-10 [&_a]:cursor-pointer"
+            >
               <LexicalNestedComposer initialEditor={caption}>
                 <AutoFocusPlugin />
                 <LinkPlugin />
                 <RichTextPlugin
                   contentEditable={
-                    <LexicalContentEditable className="border-none font-medium block relative outline-none border border-muted-foreground bg-muted/50 backdrop-blur-md p-2 text-sm w-full" />
+                    <LexicalContentEditable className="border-none border border-muted-foreground bg-muted/50 backdrop-blur-md text-sm w-full" />
                   }
                   placeholder={
                     <Placeholder className="text-sm text-muted-foreground/50">
