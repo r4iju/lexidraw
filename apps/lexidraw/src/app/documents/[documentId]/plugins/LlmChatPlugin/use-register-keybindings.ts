@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useSendQuery } from "../actions/use-send-query";
+import { useSendQuery } from "./use-send-query";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   COMMAND_PRIORITY_HIGH,

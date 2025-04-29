@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from "react";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
-import { useSendQuery } from "../actions/use-send-query";
-import { useChatState } from "../context/llm-chat-context";
+import { useSendQuery } from "../use-send-query";
+import { useChatState } from "../llm-chat-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
 import {

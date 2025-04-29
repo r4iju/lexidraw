@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useChatDispatch, useChatState } from "../context/llm-chat-context";
-import { useLLM } from "../../../context/llm-context";
-import { useLexicalTools } from "../lexical/tool-executors";
+import { useChatDispatch, useChatState } from "./llm-chat-context";
+import { useLLM } from "../../context/llm-context";
+import { useLexicalTools } from "./tool-executors";
 import { useImageInsertion } from "~/hooks/use-image-insertion";
 import { useImageGeneration } from "~/hooks/use-image-generation";
 

@@ -1,5 +1,5 @@
 import { Button } from "~/components/ui/button";
-import { useChatDispatch } from "../context/llm-chat-context";
+import { useChatDispatch } from "../llm-chat-context";
 import { RefreshCcw } from "lucide-react";
 import {
   Tooltip,
