@@ -12,8 +12,10 @@ import React, {
 
 import {
   generateText,
-  streamText,
+  LanguageModel,
+  StepResult,
   ToolCallRepairFunction,
+  ToolChoice,
   ToolSet,
   type Tool,
 } from "ai";
@@ -59,6 +61,8 @@ export type LLMOptions = {
   maxTokens?: number;
   signal?: AbortSignal;
   tools?: Record<string, Tool>;
+  maxSteps?: number;
+  toolChoice?: ToolChoice<ToolSet>;
 };
 
 export type GenerateChatResult = {
@@ -120,8 +124,20 @@ type LLMContextValue = {
   generateChatStream: (
     options: LLMOptions & {
       experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
+    } & {
+      toolChoice?: ToolChoice<ToolSet>;
+      prepareStep?: (options: {
+        steps: StepResult<ToolSet>[];
+        stepNumber: number;
+        maxSteps: number;
+        model: LanguageModel;
+      }) => Promise<{
+        model?: LanguageModel;
+        toolChoice?: ToolChoice<ToolSet>;
+      }>;
     },
   ) => Promise<GenerateChatResult>;
+
   chatState: ChatLLMState;
   setChatLlmOptions: (options: Partial<LLMBaseState>) => void;
   availableModels: typeof LlmModelList;
@@ -142,10 +158,6 @@ type LLMProviderProps = PropsWithChildren<{
 export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
   const updateLlmConfigMutation = api.config.updateLlmConfig.useMutation({
     onSuccess: async (updatedConfig) => {
-      console.log(
-        "[LLMContext] Config updated successfully (mutation):",
-        updatedConfig,
-      );
       setAutocompleteState((prev) => ({
         ...prev,
         ...(updatedConfig.autocomplete ?? initialConfig.autocomplete),
@@ -338,19 +350,26 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       maxTokens,
       signal,
       tools,
-      experimental_repairToolCall,
+      prepareStep,
+      toolChoice,
       maxSteps,
     }: Omit<LLMOptions, "experimental_repairToolCall"> & {
       experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
-      maxSteps?: number;
+      prepareStep?: (options: {
+        steps: StepResult<ToolSet>[];
+        stepNumber: number;
+        maxSteps: number;
+        model: LanguageModel;
+      }) => Promise<{
+        model?: LanguageModel;
+        toolChoice?: ToolChoice<ToolSet>;
+      }>;
     }): Promise<GenerateChatResult> => {
       if (!chatState.enabled || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
         return { text: "", toolCalls: undefined };
       }
 
-      let accumulatedText = "";
-      const capturedToolCalls: AppToolCall[] = [];
       setChatState((prev) => ({
         ...prev,
         isStreaming: true,
@@ -361,78 +380,47 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }));
 
       try {
-        const result = await streamText({
+        const result = await generateText({
+          experimental_prepareStep: prepareStep,
           model: chatProvider.current(chatState.modelId),
           prompt,
           system,
           temperature: temperature ?? chatState.temperature,
           maxTokens: maxTokens ?? chatState.maxTokens,
           abortSignal: signal,
-          maxSteps: maxSteps ?? 5,
           tools: tools,
-          experimental_repairToolCall: experimental_repairToolCall,
+          maxSteps: maxSteps,
+          toolChoice: toolChoice,
         });
-
-        for await (const part of result.fullStream) {
-          switch (part.type) {
-            case "text-delta":
-              accumulatedText += part.textDelta;
-              setChatState((prev) => ({ ...prev, text: accumulatedText }));
-              break;
-            case "tool-call":
-              capturedToolCalls.push({
-                toolCallId: part.toolCallId,
-                toolName: part.toolName,
-                args: part.args,
-              });
-              break;
-            case "error":
-              console.error("Streaming error:", part.error);
-              throw part.error;
-            case "finish":
-              console.log(
-                "Stream finished:",
-                part.finishReason,
-                "Usage:",
-                part.usage,
-              );
-              break;
-          }
-        }
-
-        const finalToolCalls =
-          capturedToolCalls.length > 0 ? capturedToolCalls : undefined;
-
-        const finalText = accumulatedText.trim();
 
         setChatState((prev) => ({
           ...prev,
           isError: false,
-          text: finalText,
+          text: result.text,
           error: null,
-          toolCalls: finalToolCalls,
+          toolCalls: result.toolCalls,
           isStreaming: false,
         }));
 
-        return { text: finalText, toolCalls: finalToolCalls };
+        return { text: result.text, toolCalls: result.toolCalls };
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
           setChatState((prev) => ({
             ...prev,
-            text: accumulatedText,
+            text: "",
             isStreaming: false,
           }));
-          return { text: accumulatedText, toolCalls: undefined };
+          return { text: "", toolCalls: undefined };
         }
         const errorMsg = err instanceof Error ? err.message : String(err);
         setChatState((prev) => ({
           ...prev,
+          text: "",
           isError: true,
-          text: accumulatedText,
           error: errorMsg,
           isStreaming: false,
         }));
-        return { text: accumulatedText, toolCalls: undefined };
+        return { text: "", toolCalls: undefined };
       }
     },
     [chatProvider, chatState],

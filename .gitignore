@@ -43,3 +43,6 @@ yarn-error.log*
 
 # turborepo
 **/.turbo
+
+# repomix
+**/repomix-output.xml
