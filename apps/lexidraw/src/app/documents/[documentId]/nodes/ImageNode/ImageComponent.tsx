@@ -389,6 +389,15 @@ export default function ImageComponent({
   const draggable = isSelected && $isNodeSelection(selection) && !isResizing;
   const isFocused = isSelected || isResizing;
 
+  const handleHideCaption = () => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+      if (ImageNode.$isImageNode(node)) {
+        node.setShowCaption(false);
+      }
+    });
+  };
+
   return (
     <Suspense fallback={null}>
       <div
@@ -428,6 +437,7 @@ export default function ImageComponent({
             containerRef={nestedEditorContainerRef}
             caption={caption}
             placeholder="Enter a caption..."
+            onHideCaption={handleHideCaption}
           >
             <AutoFocusPlugin />
             <MentionsPlugin />
