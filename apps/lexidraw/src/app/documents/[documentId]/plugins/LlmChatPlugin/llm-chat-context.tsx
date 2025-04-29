@@ -13,12 +13,12 @@ export type ChatState = {
   mode: "chat" | "agent";
 };
 
-type Action =
+export type Action =
   | { type: "push"; msg: ChatState["messages"][number] }
-  | { type: "setStreaming"; flag: boolean }
   | { type: "toggleSidebar" }
   | { type: "setMode"; mode: ChatState["mode"] }
-  | { type: "reset" };
+  | { type: "reset" }
+  | { type: "removeMessage"; id: string };
 
 const initial: ChatState = {
   messages: [],
@@ -38,18 +38,14 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   const reducer = useCallback((s: ChatState, a: Action): ChatState => {
     switch (a.type) {
       case "push":
-        // prevent duplicates
         if (s.messages.some((m) => m.id === a.msg.id)) {
           console.warn("Attempted to push duplicate message:", a.msg);
           return s;
         }
         return { ...s, messages: [...s.messages, a.msg] };
-      case "setStreaming":
-        return { ...s, streaming: a.flag };
       case "toggleSidebar":
         return { ...s, sidebarOpen: !s.sidebarOpen };
       case "setMode":
-        // ensure valid mode
         if (a.mode !== "chat" && a.mode !== "agent") {
           console.warn("Invalid mode set:", a.mode);
           return s;
@@ -58,9 +54,13 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
       case "reset":
         return {
           ...initial,
-          sidebarOpen: s.sidebarOpen, // keep sidebar state on reset
+          sidebarOpen: s.sidebarOpen,
           messages: [],
         };
+      case "removeMessage": {
+        const messages = s.messages.filter((msg) => msg.id !== a.id);
+        return { ...s, messages };
+      }
       default: {
         // default case for type safety
         const unhandledAction = a as Action;

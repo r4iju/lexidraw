@@ -20,12 +20,26 @@ import {
 } from "@lexical/list";
 import { z } from "zod";
 import { tool } from "ai";
+import { Action } from "./llm-chat-context";
 
-type ExecuteResult = Promise<{
-  success: boolean;
-  error?: string;
-  details?: unknown;
-}>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const ResultSchema = z.object({
+  success: z.boolean().describe("Whether the operation was successful."),
+  error: z
+    .string()
+    .optional()
+    .describe("An error message if the operation failed."),
+  details: z
+    .unknown()
+    .optional()
+    .describe("Additional details about the operation's outcome."),
+  summary: z
+    .string()
+    .optional()
+    .describe("A brief summary of the action taken, suitable for display."),
+});
+
+type ExecuteResult = Promise<z.infer<typeof ResultSchema>>;
 
 type SearchAndInsertFunc = (
   query: string,
@@ -38,15 +52,21 @@ export const useLexicalTools = ({
   editor,
   searchAndInsertImageFunc,
   generateAndInsertImageFunc,
+  dispatch,
 }: {
   editor: LexicalEditor;
   searchAndInsertImageFunc: SearchAndInsertFunc;
   generateAndInsertImageFunc: GenerateAndInsertFunc;
+  dispatch: React.Dispatch<Action>;
 }) => {
   const SearchAndInsertImageParamsSchema = z.object({
     query: z
       .string()
       .describe("The search query to find an image on Unsplash."),
+  });
+
+  const PlanParamsSchema = z.object({
+    objective: z.string().describe("What the user wants to achieve"),
   });
 
   const ListTypeEnum = z.enum(["bullet", "number", "check"]);
@@ -145,6 +165,23 @@ export const useLexicalTools = ({
   }
 
   const lexicalLlmTools = {
+    plan: tool({
+      description:
+        "Describe the steps *you* (the assistant) plan to take to accomplish the user's objective, phrased in the first person (e.g., 'First, I will...').",
+      parameters: PlanParamsSchema,
+      execute: async ({ objective }): ExecuteResult => {
+        const planMsgId = crypto.randomUUID();
+        dispatch({
+          type: "push",
+          msg: {
+            id: planMsgId,
+            role: "assistant",
+            content: objective,
+          },
+        });
+        return { success: true, details: { plan: objective } };
+      },
+    }),
     updateDocumentSemantically: tool({
       description:
         "Update the document based on a list of semantic instructions (format, insert, delete blocks). Anchor changes using unique node keys ('anchorKey') or text content ('anchorText'). anchorKey is preferred.",
@@ -545,6 +582,44 @@ export const useLexicalTools = ({
               status: "Failed",
               errorMessage: message,
             },
+          };
+        }
+      },
+    }),
+    summarizeExecution: tool({
+      description:
+        "Reports the final summary of actions taken to the user. This MUST be called as the final step after all other actions are complete.",
+      parameters: z.object({
+        summaryText: z
+          .string()
+          .describe(
+            "A concise summary, phrased in the first person, of all actions performed in the previous steps (e.g., 'I formatted block X as a heading, then I inserted image Y').",
+          ),
+      }),
+      execute: async ({ summaryText }): ExecuteResult => {
+        try {
+          dispatch({
+            type: "push",
+            msg: {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: summaryText,
+            },
+          });
+          return {
+            success: true,
+            summary: "Summary message dispatched.",
+          };
+        } catch (error) {
+          console.error("Error dispatching summary message:", error);
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to dispatch summary.";
+          return {
+            success: false,
+            error: message,
+            summary: "Failed to dispatch summary message.",
           };
         }
       },

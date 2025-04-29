@@ -5,6 +5,7 @@ import { useLLM } from "../../context/llm-context";
 import { useLexicalTools } from "./tool-executors";
 import { useImageInsertion } from "~/hooks/use-image-insertion";
 import { useImageGeneration } from "~/hooks/use-image-generation";
+import type { ToolChoice, ToolSet } from "ai";
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
@@ -18,6 +19,7 @@ export const useSendQuery = () => {
     editor,
     searchAndInsertImageFunc: searchAndInsertImage,
     generateAndInsertImageFunc: generateAndInsertImage,
+    dispatch,
   });
 
   return useCallback(
@@ -40,10 +42,10 @@ export const useSendQuery = () => {
         type: "push",
         msg: { id: userMessageId, role: "user", content: prompt },
       });
-      dispatch({ type: "setStreaming", flag: true });
 
       try {
         let systemPrompt = "You are a helpful assistant.";
+        systemPrompt += `\nAlways explain your plans and actions in the first person (e.g., 'I will...', 'I am doing...').`;
         systemPrompt += `\n\nThe user may provide the current document state below the main prompt.`;
         systemPrompt += `\nThe chat history leading up to the current request may also be provided below, labeled 'CHAT_HISTORY:'.`;
 
@@ -104,6 +106,11 @@ export const useSendQuery = () => {
             systemPrompt += `\n  - **Critical Response (Modification Tool):** When calling 'updateDocumentSemantically', your response MUST contain ONLY the tool call invocation. Do not include any other text.`;
             systemPrompt += `\n  - **Confirmation (Post-Execution):** After ANY tool executes successfully (you will receive the result), ALWAYS respond with a brief confirmation message to the user summarizing what action was taken.`;
 
+            // Add instruction for the new summarizeExecution tool
+            systemPrompt += `\n\n--- Final Summary Step ---`;
+            systemPrompt += `\n  - **Mandatory Final Action:** After executing the planned action(s) (like updating the document or inserting an image), you MUST conclude by calling the 'summarizeExecution' tool.`;
+            systemPrompt += `\n  - Provide a concise 'summaryText' argument describing all the actions you performed in the previous steps. Example: { "toolName": "summarizeExecution", "args": { "summaryText": "Formatted block 'abc' as h1 and then inserted an image related to 'cats'." } }`;
+
             break;
           case "chat":
             systemPrompt += `\n\nThe document state is provided as Markdown labeled 'DOCUMENT_STATE:'.`;
@@ -138,22 +145,37 @@ export const useSendQuery = () => {
           fullPrompt += `\n\nDOCUMENT_STATE:\n${editorStateMarkdown}`;
         }
 
-        const { text, toolCalls } = await generateChatStream({
+        await generateChatStream({
           prompt: fullPrompt,
           system: systemPrompt,
           temperature: chatState.temperature,
           maxTokens: chatState.maxTokens,
           tools: mode === "agent" ? lexicalLlmTools : undefined,
-        });
-
-        const assistantMessageId = crypto.randomUUID();
-        dispatch({
-          type: "push",
-          msg: {
-            id: assistantMessageId,
-            role: "assistant",
-            content: text,
-            toolCalls: toolCalls,
+          maxSteps: 3,
+          prepareStep: ({ stepNumber }) => {
+            console.log("prepareStep called with stepNumber:", stepNumber);
+            let stepOptions: { toolChoice?: ToolChoice<ToolSet> } = {};
+            switch (stepNumber) {
+              case 0:
+                stepOptions = {
+                  toolChoice: { type: "tool", toolName: "plan" },
+                };
+                break;
+              case 1:
+                stepOptions = { toolChoice: "auto" };
+                break;
+              case 2:
+                stepOptions = {
+                  toolChoice: { type: "tool", toolName: "summarizeExecution" },
+                };
+                break;
+              default:
+                console.warn(
+                  `Unexpected stepNumber in prepareStep: ${stepNumber}`,
+                );
+                stepOptions = {};
+            }
+            return Promise.resolve(stepOptions);
           },
         });
       } catch (error) {
@@ -169,8 +191,6 @@ export const useSendQuery = () => {
             content: "An error occurred while processing your request.",
           },
         });
-      } finally {
-        dispatch({ type: "setStreaming", flag: false });
       }
     },
     [
