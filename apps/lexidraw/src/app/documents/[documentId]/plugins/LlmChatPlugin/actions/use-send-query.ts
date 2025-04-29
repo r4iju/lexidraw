@@ -49,54 +49,61 @@ export const useSendQuery = () => {
 
         switch (mode) {
           case "agent":
-            systemPrompt += `\n\nThe document state is provided as a JSON object labeled 'JSON_STATE:'.`;
-            systemPrompt += `\n\n**Critical Instruction:** To modify the document content based on the user's request and the provided JSON_STATE, you MUST call the 'updateDocumentSemantically' tool.`;
-            systemPrompt += `\nDo NOT output the JSON changes as plain text in your response. You MUST invoke the tool.`;
+            // 1. Base Role & Context Info
+            systemPrompt += `\n\nThe document state is provided as a JSON object labeled 'JSON_STATE:'. Each node in the JSON has a unique 'key' property.`;
+
+            // 2. Core Task & Available Tools Overview
+            systemPrompt += `\n\nYour primary goal is to assist the user with document modifications using tools. The main tools are:`;
+            systemPrompt += `\n  - updateDocumentSemantically: For formatting, inserting, and deleting content blocks.`;
+            systemPrompt += `\n  - imageGenerationTool: For generating new images from detailed text descriptions.`;
+            systemPrompt += `\n  - searchAndInsertImage: For finding and inserting existing images based on a search query.`;
+
+            // 3. updateDocumentSemantically Focus - Critical Instruction
+            systemPrompt += `\n\n**Critical Instruction for Modifications:** To modify the document content based on the user's request and the provided JSON_STATE, you MUST call the 'updateDocumentSemantically' tool.`;
+            systemPrompt += `\nDo NOT output the JSON changes as plain text in your response.`;
+
+            // 4. updateDocumentSemantically Mechanics
             systemPrompt += `\nThe 'updateDocumentSemantically' tool requires an 'instructions' argument, which is an array of semantic instruction objects executed in order.`;
-            systemPrompt += `\nSupported operations: 'formatBlock', 'insertBlock', 'deleteBlock'.`;
-            systemPrompt += `\n**Important:** All operations identify target blocks using 'anchorText', which must be some unique text content found within the target block in the JSON_STATE.`;
+            systemPrompt += `\nOperations identify target blocks using either 'anchorKey' (the unique node key from JSON_STATE) or 'anchorText' (unique text within the block). **'anchorKey' is preferred if available and unambiguous.** Provide only one anchor per instruction.`;
 
-            systemPrompt += `\n\n--- Operations ---`;
-
+            // 5. updateDocumentSemantically Detailed Operations
+            systemPrompt += `\n\n--- updateDocumentSemantically Operations ---`;
             systemPrompt += `\n\n  **formatBlock**: Changes the type of an existing block.`;
-            systemPrompt += `\n    - Requires: 'anchorText' (text within target), 'formatAs' ('paragraph', 'heading', or 'list').`;
+            systemPrompt += `\n    - Requires: ('anchorKey' | 'anchorText'), 'formatAs' ('paragraph', 'heading', or 'list').`;
             systemPrompt += `\n    - If 'formatAs' is 'heading', requires 'headingTag' ('h1'-'h6').`;
             systemPrompt += `\n    - If 'formatAs' is 'list', requires 'listType' ('bullet', 'number', 'check').`;
-            systemPrompt += `\n    - Note: This operation internally inserts a new block with the original text and deletes the old one.`;
-            systemPrompt += `\n    - Example (format block with "Old text" as h2): { "operation": "formatBlock", "anchorText": "Old text", "formatAs": "heading", "headingTag": "h2" }`;
-            systemPrompt += `\n    - Example (format block with "Item text" as bullet list): { "operation": "formatBlock", "anchorText": "Item text", "formatAs": "list", "listType": "bullet" }`;
+            systemPrompt += `\n    - Example (format block key "123" as h2): { "operation": "formatBlock", "anchorKey": "123", "formatAs": "heading", "headingTag": "h2" }`;
 
             systemPrompt += `\n\n  **insertBlock**: Inserts a new block.`;
-            systemPrompt += `\n    - Requires: 'text' (new content), 'blockType' ('paragraph', 'heading', or 'list'), 'relation' ('before', 'after', 'appendRoot').`;
-            systemPrompt += `\n    - If 'blockType' is 'heading', requires 'headingTag' ('h1'-'h6').`;
-            systemPrompt += `\n    - If 'blockType' is 'list', requires 'listType' ('bullet', 'number', 'check'). The 'text' becomes the content of the first list item.`;
-            systemPrompt += `\n    - If 'relation' is 'before' or 'after', requires 'anchorText' (text in the block to insert relative to).`;
-            systemPrompt += `\n    - If 'relation' is 'appendRoot', 'anchorText' is ignored.`;
-            systemPrompt += `\n    - List Insertion Note: If inserting a list item ('blockType': 'list') relative to another list item of the *same* 'listType', it will be added to that existing list. Otherwise, a new list will be created.`;
-            systemPrompt += `\n    - Example (insert paragraph "New para" before block "Some text"): { "operation": "insertBlock", "text": "New para", "blockType": "paragraph", "relation": "before", "anchorText": "Some text" }`;
-            systemPrompt += `\n    - Example (append h3 "Conclusion"): { "operation": "insertBlock", "text": "Conclusion", "blockType": "heading", "headingTag": "h3", "relation": "appendRoot" }`;
-            systemPrompt += `\n    - Example (insert numbered list item "Step 1" after block "Introduction"): { "operation": "insertBlock", "text": "Step 1", "blockType": "list", "listType": "number", "relation": "after", "anchorText": "Introduction" }`;
-            systemPrompt += `\n    - Example (insert another bullet item "Point B" after list item "Point A"): { "operation": "insertBlock", "text": "Point B", "blockType": "list", "listType": "bullet", "relation": "after", "anchorText": "Point A" }`;
+            systemPrompt += `\n    - Requires: 'text', 'blockType' ('paragraph', 'heading', 'list'), 'relation' ('before', 'after', 'appendRoot').`;
+            systemPrompt += `\n    - Optional: 'headingTag', 'listType'.`;
+            systemPrompt += `\n    - Requires ('anchorKey' | 'anchorText') if 'relation' is 'before' or 'after'.`;
+            systemPrompt += `\n    - Example (insert paragraph "New para" before block key "456"): { "operation": "insertBlock", "text": "New para", "blockType": "paragraph", "relation": "before", "anchorKey": "456" }`;
 
             systemPrompt += `\n\n  **deleteBlock**: Deletes an existing block.`;
-            systemPrompt += `\n    - Requires: 'anchorText' (text within the block to delete).`;
-            systemPrompt += `\n    - Note: If deleting the last item in a list, the entire list structure is removed.`;
-            systemPrompt += `\n    - Example (delete block containing "Delete this"): { "operation": "deleteBlock", "anchorText": "Delete this" }`;
+            systemPrompt += `\n    - Requires: ('anchorKey' | 'anchorText') of the block to delete.`;
+            systemPrompt += `\n    - Works for any block type identified by key or text.`;
+            systemPrompt += `\n    - Example (delete block with key "789"): { "operation": "deleteBlock", "anchorKey": "789" }`;
 
-            systemPrompt += `\n\n--- Handling Replacements / Formatting ---`;
-            systemPrompt += `\n  - To replace content or format a block (like changing paragraph to heading or list), use the **'formatBlock'** operation. Provide the 'anchorText' of the block to change and specify the desired 'formatAs' (and 'headingTag' or 'listType' if needed). The tool handles the insertion and deletion sequence internally.`;
-            systemPrompt += `\n  - Example (replace block "Old paragraph" with h2 "New Heading"): { "operation": "formatBlock", "anchorText": "Old paragraph", "formatAs": "heading", "headingTag": "h2" }`;
-            systemPrompt += `\n  - Example (change block "Make this a list" into a bullet point): { "operation": "formatBlock", "anchorText": "Make this a list", "formatAs": "list", "listType": "bullet" }`;
+            // 6. updateDocumentSemantically Replacement Handling
+            systemPrompt += `\n\n--- Handling Replacements / Formatting (using updateDocumentSemantically) ---`;
+            systemPrompt += `\n  - To replace content or format a block (like changing paragraph to heading or list), use the **'formatBlock'** operation.`;
+            systemPrompt += `\n  - Example (replace block key "101" with h2 "New Heading"): { "operation": "formatBlock", "anchorKey": "101", "formatAs": "heading", "headingTag": "h2" }`;
 
-            systemPrompt += `\n\n**CRITICAL RESPONSE REQUIREMENT:**`;
-            systemPrompt += `\n  - When the user asks for modifications to the document that require using the 'updateDocumentSemantically' tool:`;
-            systemPrompt += `\n    - Your initial response requesting the tool MUST contain ONLY the tool call invocation.`;
-            systemPrompt += `\n    - Do NOT include any conversational text, explanations, or the JSON structure itself as plain text in that initial response. The ONLY valid output is the tool call.`;
-            systemPrompt += `\n    - (After the tool executes successfully, follow the IMPORTANT instruction below to confirm).`;
+            // 7. Image Tool Details
+            systemPrompt += `\n\n--- Image Handling ---`;
+            systemPrompt += `\n  - **Generating Images:** Use 'imageGenerationTool' with a detailed 'prompt'.`;
+            systemPrompt += `\n    - Create descriptive prompts: Include Style, Subject, Environment, Mood, Color Palette, Lighting.`;
+            systemPrompt += `\n    - Example Prompt Structure: "Generate a [Style] image of [Subject] in a [Environment], featuring [Mood], with [Color Palette] and [Lighting]."`;
+            systemPrompt += `\n  - **Searching Images:** Use 'searchAndInsertImage' with a 'query' parameter.`;
+            systemPrompt += `\n  - **Deleting Images:** Use 'updateDocumentSemantically' with the 'deleteBlock' operation and the image node's 'anchorKey'.`;
 
-            systemPrompt += `\n\n**IMPORTANT:** After ANY tool executes successfully (you will receive the result with details/summary), ALWAYS respond with a brief confirmation message to the user summarizing what action you took. Do NOT just return an empty response.`;
+            // 8. Interaction Protocol
+            systemPrompt += `\n\n--- Interaction Protocol ---`;
+            systemPrompt += `\n  - **Clarification:** If the user's request is ambiguous, lacks sufficient detail for a tool call, or could be interpreted multiple ways, **ASK the user clarifying questions** before attempting to call *any* tool. Do not guess.`;
+            systemPrompt += `\n  - **Critical Response (Modification Tool):** When calling 'updateDocumentSemantically', your response MUST contain ONLY the tool call invocation. Do not include any other text.`;
+            systemPrompt += `\n  - **Confirmation (Post-Execution):** After ANY tool executes successfully (you will receive the result), ALWAYS respond with a brief confirmation message to the user summarizing what action was taken.`;
 
-            systemPrompt += `\n\n**Image Generation:** To generate an image based on a description, call the 'generateImageAndInsert' tool with the 'prompt' argument.`;
             break;
           case "chat":
             systemPrompt += `\n\nThe document state is provided as Markdown labeled 'DOCUMENT_STATE:'.`;
