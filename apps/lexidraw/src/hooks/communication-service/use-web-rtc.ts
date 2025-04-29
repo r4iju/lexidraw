@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import type {
   ICommunicationOptions,
   ICommunicationProps,
@@ -28,12 +28,15 @@ export function useWebRtcService(
   const localConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const dataChannels = useRef<Map<string, RTCDataChannel>>(new Map());
 
+  const [peers, setPeers] = useState<string[]>([]);
+
   const handleParticipantLeft = useCallback((clientId: string) => {
     console.log("Participant left:", clientId);
     localConnections.current.get(clientId)?.close();
     localConnections.current.delete(clientId);
     dataChannels.current.get(clientId)?.close();
     dataChannels.current.delete(clientId);
+    setPeers(Array.from(localConnections.current.keys()));
   }, []);
 
   const setupPeerConnection = useCallback(
@@ -87,6 +90,7 @@ export function useWebRtcService(
       };
 
       localConnections.current.set(clientId, conn);
+      setPeers(Array.from(localConnections.current.keys()));
       return conn;
     },
     [drawingId, userId, iceServers, onMessage, onConnectionOpen],
@@ -278,6 +282,7 @@ export function useWebRtcService(
         conn.close();
       }
       localConnections.current = new Map();
+      setPeers([]);
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for (const [_, channel] of dataChannels.current) {
         channel.close();
@@ -307,8 +312,6 @@ export function useWebRtcService(
       }
     });
   }, []);
-
-  const peers = Array.from(localConnections.current.keys());
 
   return { closeConnection, sendMessage, initializeConnection, peers };
 }

@@ -30,10 +30,17 @@ type SearchAndInsertFunc = (
   insertAs?: "block" | "inline",
 ) => Promise<void>;
 
-export const useLexicalTools = (
-  editor: LexicalEditor,
-  searchAndInsertImageFunc: SearchAndInsertFunc,
-) => {
+type GenerateAndInsertFunc = (prompt: string) => Promise<void>;
+
+export const useLexicalTools = ({
+  editor,
+  searchAndInsertImageFunc,
+  generateAndInsertImageFunc,
+}: {
+  editor: LexicalEditor;
+  searchAndInsertImageFunc: SearchAndInsertFunc;
+  generateAndInsertImageFunc: GenerateAndInsertFunc;
+}) => {
   const SearchAndInsertImageParamsSchema = z.object({
     query: z
       .string()
@@ -385,6 +392,35 @@ export const useLexicalTools = (
             success: false,
             error: message,
             details: { query: query, status: "Failed", errorMessage: message },
+          };
+        }
+      },
+    }),
+    imageGenerationTool: tool({
+      description:
+        "Generates an image based on a user prompt and inserts it into the document.",
+      parameters: z.object({
+        prompt: z
+          .string()
+          .describe(
+            "A detailed text description of the image to be generated.",
+          ),
+      }),
+      execute: async ({ prompt }) => {
+        try {
+          await generateAndInsertImageFunc(prompt);
+          return {
+            success: true,
+            message: `Successfully generated and inserted an image for the prompt: "${prompt}"`,
+          };
+        } catch (error) {
+          console.error("Error executing image generation tool:", error);
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to generate or insert image.",
           };
         }
       },
