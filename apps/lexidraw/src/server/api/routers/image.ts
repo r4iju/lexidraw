@@ -2,8 +2,8 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { unsplash } from "~/server/unsplash";
 import { TRPCError } from "@trpc/server";
+import env from "@packages/env";
 
-// Input schema for tracking download
 const TrackDownloadInput = z.object({
   downloadLocation: z.string().url(),
 });
@@ -69,8 +69,9 @@ export const imageRouter = createTRPCRouter({
           downloadLocation: firstImage.links.download_location,
           attribution: {
             authorName: firstImage.user.name,
-            authorUrl: firstImage.user.links.html,
+            authorUrl: `${firstImage.user.links.html}?utm_source=${env.NEXT_PUBLIC_UNSPLASH_APP_NAME}&utm_medium=referral`,
           },
+          unsplashUrl: `https://unsplash.com?utm_source=${env.NEXT_PUBLIC_UNSPLASH_APP_NAME}&utm_medium=referral`,
         };
       } catch (error) {
         console.error("Unsplash API Error:", error);
@@ -117,7 +118,6 @@ export const imageRouter = createTRPCRouter({
           });
         }
 
-        // Map results to include attribution
         const resultsWithAttribution = result.response.results.map((img) => ({
           id: img.id,
           url: img.urls.regular,
@@ -126,15 +126,13 @@ export const imageRouter = createTRPCRouter({
           downloadLocation: img.links.download_location,
           attribution: {
             authorName: img.user.name,
-            authorUrl: img.user.links.html,
+            authorUrl: `${img.user.links.html}?utm_source=${env.NEXT_PUBLIC_UNSPLASH_APP_NAME}&utm_medium=referral`,
           },
-          // Include other fields if needed directly by the client
-          // width: img.width,
-          // height: img.height,
+          unsplashUrl: `https://unsplash.com?utm_source=${env.NEXT_PUBLIC_UNSPLASH_APP_NAME}&utm_medium=referral`,
         }));
 
         return {
-          results: resultsWithAttribution, // Return mapped results
+          results: resultsWithAttribution,
           totalPages: result.response.total_pages,
         };
       } catch (error) {

@@ -2,17 +2,12 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $wrapNodeInElement } from "@lexical/utils";
 import {
   $createParagraphNode,
-  $createTextNode,
-  $getRoot,
   $insertNodes,
   $isRootOrShadowRoot,
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_LOW,
-  createEditor,
   LexicalEditor,
   PASTE_COMMAND,
-  ParagraphNode,
-  TextNode,
 } from "lexical";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as React from "react";
@@ -30,25 +25,20 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { useUploader } from "~/hooks/use-uploader";
 import { useEntityId } from "~/hooks/use-entity-id";
-import {
-  INSERT_IMAGE_COMMAND,
-  SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND,
-} from "./commands";
-import type { inferProcedureOutput } from "@trpc/server";
+import { INSERT_IMAGE_COMMAND } from "./commands";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import type { AppRouter } from "~/server/api/root";
 import { api } from "~/trpc/react";
 import { useToast } from "~/components/ui/toast-provider";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { LinkNode, $createLinkNode } from "@lexical/link";
+import { LinkNode } from "@lexical/link";
+import { useImageInsertion } from "~/hooks/use-image-insertion";
+import { RouterOutputs } from "~/trpc/shared";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
 
-type SearchUnsplashOutput = inferProcedureOutput<
-  AppRouter["image"]["searchUnsplash"]
->;
-
-type UnsplashImageResult = SearchUnsplashOutput["results"][number];
+type UnsplashImageResult =
+  RouterOutputs["image"]["searchUnsplash"]["results"][number];
 
 export function InsertImageUriDialogBody({
   onClick,
@@ -157,7 +147,7 @@ export function InsertImageUnsplashDialogBody({
     mutate(
       { query: debouncedQuery, page: currentPage, perPage: PER_PAGE },
       {
-        onSuccess: (data: SearchUnsplashOutput) => {
+        onSuccess: (data) => {
           console.log("Unsplash search success:", data);
           setResults(data.results);
           setTotalPages(data.totalPages);
@@ -286,13 +276,40 @@ export function InsertImageDialog({
 }): React.JSX.Element {
   const [mode, setMode] = useState<null | "url" | "file" | "unsplash">(null);
   const hasModifier = useRef(false);
+  const { insertImageNode } = useImageInsertion();
+  const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
 
   const handleUnsplashImageSelect = useCallback(
     (image: UnsplashImageResult) => {
-      activeEditor.dispatchCommand(SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND, image);
+      const { url, altText, attribution, downloadLocation, unsplashUrl } =
+        image;
+      insertImageNode({
+        src: url,
+        altText: altText ?? "",
+        attribution: {
+          authorName: attribution.authorName,
+          authorUrl: attribution.authorUrl,
+        },
+        unsplashUrl: unsplashUrl,
+      });
+
+      // Track download separately
+      trackDownloadMutation.mutate(
+        { downloadLocation },
+        {
+          onSuccess: () =>
+            console.log(`Successfully tracked download: ${downloadLocation}`),
+          onError: (error: TRPCClientErrorLike<AppRouter>) =>
+            console.error(
+              `Failed to track download ${downloadLocation}:`,
+              error,
+            ),
+        },
+      );
+
       onClose();
     },
-    [activeEditor, onClose],
+    [insertImageNode, trackDownloadMutation, onClose],
   );
 
   useEffect(() => {
@@ -343,7 +360,6 @@ export default function ImagesPlugin({
 }): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const { toast } = useToast();
-  const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
   const modalOnCloseRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -376,59 +392,6 @@ export default function ImagesPlugin({
       COMMAND_PRIORITY_EDITOR,
     );
 
-    const unregisterSearchUnsplash =
-      editor.registerCommand<UnsplashImageResult>(
-        SEARCH_INSERT_UNSPLASH_IMAGE_COMMAND,
-        (selectedImage) => {
-          const captionEditor = createEditor({
-            nodes: [ParagraphNode, TextNode, LinkNode],
-          });
-          const attribution = selectedImage.attribution;
-
-          captionEditor.update(() => {
-            const root = $getRoot();
-            const paragraph = $createParagraphNode();
-            paragraph.append(
-              $createTextNode("Photo by "),
-              $createLinkNode(attribution.authorUrl).append(
-                $createTextNode(attribution.authorName),
-              ),
-              $createTextNode(" on Unsplash"),
-            );
-            root.clear();
-            root.append(paragraph);
-          });
-
-          const insertPayload: InsertImagePayload = {
-            altText: selectedImage.altText,
-            src: selectedImage.url,
-            caption: captionEditor,
-            showCaption: true,
-          };
-
-          editor.dispatchCommand(INSERT_IMAGE_COMMAND, insertPayload);
-
-          trackDownloadMutation.mutate(
-            { downloadLocation: selectedImage.downloadLocation },
-            {
-              onSuccess: () =>
-                console.log(
-                  `Successfully tracked download: ${selectedImage.downloadLocation}`,
-                ),
-              onError: (error: TRPCClientErrorLike<AppRouter>) =>
-                console.error(
-                  `Failed to track download ${selectedImage.downloadLocation}:`,
-                  error,
-                ),
-            },
-          );
-
-          modalOnCloseRef.current?.();
-          return true;
-        },
-        COMMAND_PRIORITY_EDITOR,
-      );
-
     const unregisterPaste = editor.registerCommand<ClipboardEvent>(
       PASTE_COMMAND,
       (event) => {
@@ -460,10 +423,9 @@ export default function ImagesPlugin({
 
     return () => {
       unregisterInsert();
-      unregisterSearchUnsplash();
       unregisterPaste();
     };
-  }, [editor, captionsEnabled, trackDownloadMutation, toast]);
+  }, [editor, captionsEnabled, toast]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 

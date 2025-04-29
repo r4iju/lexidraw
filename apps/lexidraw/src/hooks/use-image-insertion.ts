@@ -14,17 +14,6 @@ import { api } from "~/trpc/react";
 import { InlineImageNode } from "~/app/documents/[documentId]/nodes/InlineImageNode/InlineImageNode";
 import { useToast } from "~/components/ui/toast-provider";
 
-interface ImageInsertionResult {
-  id: string;
-  url: string;
-  altText: string;
-  downloadLocation: string;
-  attribution?: {
-    authorName: string;
-    authorUrl: string;
-  };
-}
-
 export const useImageInsertion = () => {
   const [editor] = useLexicalComposerContext();
   const { toast } = useToast();
@@ -33,11 +22,11 @@ export const useImageInsertion = () => {
 
   // Function to search and get image data
   const searchImage = useCallback(
-    async (query: string): Promise<ImageInsertionResult | null> => {
+    async (query: string) => {
       try {
         const imageData = await utils.image.imLuckyUnsplash.fetch({ query });
         if (imageData) {
-          return imageData; // Contains id, url, altText, attribution
+          return imageData;
         } else {
           toast({
             title: "Image Search Failed",
@@ -61,12 +50,12 @@ export const useImageInsertion = () => {
     [utils.image.imLuckyUnsplash, toast],
   );
 
-  // Function to insert a regular ImageNode
   const insertImageNode = useCallback(
     (payload: {
       src: string;
       altText: string;
-      attribution?: { authorName: string; authorUrl: string };
+      attribution: { authorName: string; authorUrl: string };
+      unsplashUrl: string;
     }) => {
       editor.update(() => {
         if (!editor.hasNodes([ImageNode])) {
@@ -83,17 +72,44 @@ export const useImageInsertion = () => {
         if ($isRootOrShadowRoot(imageNode.getParentOrThrow())) {
           $wrapNodeInElement(imageNode, $createParagraphNode).selectEnd();
         }
+
+        const captionEditor = imageNode.__caption;
+        captionEditor.update(() => {
+          if (!captionEditor.hasNodes([LinkNode])) {
+            console.error(
+              "LinkNode not registered on caption editor for ImageNode",
+            );
+            return;
+          }
+
+          const { authorName, authorUrl } = payload.attribution;
+          const captionParagraph = $createParagraphNode();
+          captionParagraph.setFormat("center");
+
+          const photoByText = $createTextNode("Photo by ");
+          const authorLink = $createLinkNode(authorUrl);
+          authorLink.append($createTextNode(authorName));
+          const onText = $createTextNode(" on ");
+          const unsplashLink = $createLinkNode(payload.unsplashUrl);
+          unsplashLink.append($createTextNode("Unsplash"));
+
+          captionParagraph.append(photoByText, authorLink, onText, unsplashLink);
+          const root = $getRoot();
+          root.clear();
+          root.append(captionParagraph);
+        });
+        imageNode.setShowCaption(true);
       });
     },
     [editor, toast],
   );
 
-  // Function to insert an InlineImageNode
   const insertInlineImageNode = useCallback(
     (payload: {
       src: string;
       altText: string;
-      attribution?: { authorName: string; authorUrl: string };
+      attribution: { authorName: string; authorUrl: string };
+      unsplashUrl: string;
     }) => {
       editor.update(() => {
         if (!editor.hasNodes([InlineImageNode])) {
@@ -108,189 +124,81 @@ export const useImageInsertion = () => {
         const inlineImageNode = InlineImageNode.$createInlineImageNode(payload);
         $insertNodes([inlineImageNode]);
 
-        // Insert caption if attribution exists
-        if (payload.attribution) {
-          const captionEditor = inlineImageNode.__caption; // Access internal editor
-          captionEditor.update(() => {
-            if (!captionEditor.hasNodes([LinkNode])) {
-              console.error("LinkNode not registered on caption editor");
-              // Ideally, register LinkNode when creating the caption editor
-              // For now, we'll skip caption insertion if not registered
-              return;
-            }
-            const { authorName, authorUrl } = payload.attribution ?? {};
-            const unsplashUrl = "https://unsplash.com";
-
-            const captionParagraph = $createParagraphNode();
-            captionParagraph.setFormat("center");
-
-            const photoByText = $createTextNode("Photo by ");
-            const authorLink = $createLinkNode(authorUrl);
-            authorLink.append($createTextNode(authorName));
-            const onText = $createTextNode(" on ");
-            const unsplashLink = $createLinkNode(unsplashUrl);
-            unsplashLink.append($createTextNode("Unsplash"));
-
-            captionParagraph.append(
-              photoByText,
-              authorLink,
-              onText,
-              unsplashLink,
+        const captionEditor = inlineImageNode.__caption;
+        captionEditor.update(() => {
+          if (!captionEditor.hasNodes([LinkNode])) {
+            console.error(
+              "LinkNode not registered on caption editor for InlineImageNode",
             );
-            const root = $getRoot();
-            root.append(captionParagraph);
-          });
-          inlineImageNode.setShowCaption(true); // Make sure caption is visible
-        }
+            return;
+          }
+
+          const { authorName, authorUrl } = payload.attribution;
+          const captionParagraph = $createParagraphNode();
+          captionParagraph.setFormat("center");
+
+          const photoByText = $createTextNode("Photo by ");
+          const authorLink = $createLinkNode(authorUrl);
+          authorLink.append($createTextNode(authorName));
+          const onText = $createTextNode(" on ");
+          const unsplashLink = $createLinkNode(payload.unsplashUrl);
+          unsplashLink.append($createTextNode("Unsplash"));
+
+          captionParagraph.append(photoByText, authorLink, onText, unsplashLink);
+          const root = $getRoot();
+          root.clear();
+          root.append(captionParagraph);
+        });
+        inlineImageNode.setShowCaption(true);
       });
     },
     [editor, toast],
   );
 
-  // Combined function: search then insert (defaulting to regular image)
   const searchAndInsertImage = useCallback(
     async (query: string, insertAs: "block" | "inline" = "block") => {
-      // 1. Fetch image data asynchronously first
       const imageData = await searchImage(query);
-
-      // 2. If fetch failed, exit early
       if (!imageData) {
         return;
       }
 
-      // 3. Trigger Unsplash download tracking
-      try {
-        // Call the mutation using the hook
-        trackDownloadMutation.mutate({
-          downloadLocation: imageData.downloadLocation,
-        });
-        console.log(
-          "Initiated Unsplash download tracking for:",
-          imageData.downloadLocation,
-        );
-      } catch (error) {
-        console.error("Failed to initiate Unsplash download tracking:", error);
-        // Decide if this failure should prevent image insertion or just be logged.
+      trackDownloadMutation.mutate(
+        { downloadLocation: imageData.downloadLocation },
+        {
+          onSuccess: () =>
+            console.log(
+              `Initiated Unsplash download tracking for: ${imageData.downloadLocation}`,
+            ),
+          onError: (error) =>
+            console.error(
+              `Failed to initiate Unsplash download tracking for ${imageData.downloadLocation}:`,
+              error,
+            ),
+        },
+      );
+
+      const insertPayload = {
+        src: imageData.url,
+        altText: imageData.altText,
+        attribution: imageData.attribution,
+        unsplashUrl: imageData.unsplashUrl,
+      };
+
+      switch (insertAs) {
+        case "inline":
+          insertInlineImageNode(insertPayload);
+          break;
+        case "block":
+          insertImageNode(insertPayload);
+          break;
       }
-
-      // 3. Perform synchronous editor updates
-      editor.update(() => {
-        const payload = { src: imageData.url, altText: imageData.altText };
-
-        if (insertAs === "inline") {
-          if (!editor.hasNodes([InlineImageNode, LinkNode])) {
-            console.error(
-              "InlineImageNode or LinkNode not registered on main editor",
-            );
-            toast({
-              title: "Error",
-              description: "InlineImageNode or LinkNode not registered.",
-              variant: "destructive",
-            });
-            return;
-          }
-          const inlineImageNode =
-            InlineImageNode.$createInlineImageNode(payload);
-          $insertNodes([inlineImageNode]);
-
-          // Insert caption if attribution exists
-          if (imageData.attribution) {
-            const captionEditor = inlineImageNode.__caption; // Access internal editor
-            captionEditor.update(() => {
-              if (!imageData.attribution) return;
-
-              if (!captionEditor.hasNodes([LinkNode])) {
-                console.error("LinkNode not registered on caption editor");
-                // Ideally, register LinkNode when creating the caption editor
-                // For now, we'll skip caption insertion if not registered
-                return;
-              }
-              const { authorName, authorUrl } = imageData.attribution;
-              const unsplashUrl = "https://unsplash.com";
-
-              const captionParagraph = $createParagraphNode();
-              captionParagraph.setFormat("center");
-
-              const photoByText = $createTextNode("Photo by ");
-              const authorLink = $createLinkNode(authorUrl);
-              authorLink.append($createTextNode(authorName));
-              const onText = $createTextNode(" on ");
-              const unsplashLink = $createLinkNode(unsplashUrl);
-              unsplashLink.append($createTextNode("Unsplash"));
-
-              captionParagraph.append(
-                photoByText,
-                authorLink,
-                onText,
-                unsplashLink,
-              );
-              const root = $getRoot();
-              root.append(captionParagraph);
-            });
-            inlineImageNode.setShowCaption(true); // Make sure caption is visible
-          }
-        } else {
-          // Ensure both ImageNode and LinkNode are registered on the main editor
-          if (!editor.hasNodes([ImageNode, LinkNode])) {
-            console.error(
-              "ImageNode or LinkNode not registered on main editor",
-            );
-            toast({
-              title: "Error",
-              description: "ImageNode or LinkNode not registered.",
-              variant: "destructive",
-            });
-            return;
-          }
-          const imageNode = ImageNode.$createImageNode(payload);
-          $insertNodes([imageNode]);
-
-          // Insert caption if attribution exists
-          if (imageData.attribution) {
-            const captionEditor = imageNode.__caption; // Access internal editor
-            captionEditor.update(() => {
-              // Check attribution again inside update for type safety
-              if (!imageData.attribution) return;
-
-              // Ensure LinkNode is registered on the caption editor
-              if (!captionEditor.hasNodes([LinkNode])) {
-                console.error(
-                  "LinkNode not registered on caption editor for ImageNode",
-                );
-                // TODO: Potentially register LinkNode when creating the caption editor in ImageNode.tsx
-                return; // Skip caption if LinkNode unavailable
-              }
-
-              const { authorName, authorUrl } = imageData.attribution; // Already checked, but safe
-              const unsplashUrl = "https://unsplash.com";
-
-              const captionParagraph = $createParagraphNode();
-              captionParagraph.setFormat("center");
-
-              const photoByText = $createTextNode("Photo by ");
-              const authorLink = $createLinkNode(authorUrl);
-              authorLink.append($createTextNode(authorName));
-              const onText = $createTextNode(" on ");
-              const unsplashLink = $createLinkNode(unsplashUrl);
-              unsplashLink.append($createTextNode("Unsplash"));
-
-              captionParagraph.append(
-                photoByText,
-                authorLink,
-                onText,
-                unsplashLink,
-              );
-
-              // Append the paragraph to the root of the caption editor
-              const root = $getRoot(); // Use $getRoot within caption editor's update
-              root.append(captionParagraph);
-            });
-            imageNode.setShowCaption(true); // Make sure caption is visible
-          }
-        }
-      });
     },
-    [editor, searchImage, toast, trackDownloadMutation],
+    [
+      searchImage,
+      trackDownloadMutation,
+      insertImageNode,
+      insertInlineImageNode,
+    ],
   );
 
   return {
