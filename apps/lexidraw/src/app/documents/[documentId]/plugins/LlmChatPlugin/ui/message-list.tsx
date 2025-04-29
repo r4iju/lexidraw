@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { useChatState } from "../context/llm-chat-context";
-import type { ChatState } from "../context/llm-chat-context";
+import { useChatState } from "../llm-chat-context";
+import type { ChatState } from "../llm-chat-context";
 import { cn } from "~/lib/utils";
 
 // Define the message type explicitly based on ChatState

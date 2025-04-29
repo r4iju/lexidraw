@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useReducer } from "react";
-import type { AppToolCall } from "../../../context/llm-context";
+import type { AppToolCall } from "../../context/llm-context";
 
 export type ChatState = {
   messages: {
