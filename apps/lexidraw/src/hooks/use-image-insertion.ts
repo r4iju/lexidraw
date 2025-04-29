@@ -8,7 +8,7 @@ import {
   $getRoot,
 } from "lexical";
 import { LinkNode, $createLinkNode } from "@lexical/link";
-import { ImageNode } from "../app/documents/[documentId]/nodes/ImageNode";
+import { ImageNode } from "../app/documents/[documentId]/nodes/ImageNode/ImageNode";
 import { $wrapNodeInElement } from "@lexical/utils";
 import { api } from "~/trpc/react";
 import { InlineImageNode } from "~/app/documents/[documentId]/nodes/InlineImageNode/InlineImageNode";
@@ -93,7 +93,12 @@ export const useImageInsertion = () => {
           const unsplashLink = $createLinkNode(payload.unsplashUrl);
           unsplashLink.append($createTextNode("Unsplash"));
 
-          captionParagraph.append(photoByText, authorLink, onText, unsplashLink);
+          captionParagraph.append(
+            photoByText,
+            authorLink,
+            onText,
+            unsplashLink,
+          );
           const root = $getRoot();
           root.clear();
           root.append(captionParagraph);
@@ -144,7 +149,12 @@ export const useImageInsertion = () => {
           const unsplashLink = $createLinkNode(payload.unsplashUrl);
           unsplashLink.append($createTextNode("Unsplash"));
 
-          captionParagraph.append(photoByText, authorLink, onText, unsplashLink);
+          captionParagraph.append(
+            photoByText,
+            authorLink,
+            onText,
+            unsplashLink,
+          );
           const root = $getRoot();
           root.clear();
           root.append(captionParagraph);

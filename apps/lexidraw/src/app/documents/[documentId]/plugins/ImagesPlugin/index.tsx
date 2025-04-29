@@ -11,7 +11,7 @@ import {
 } from "lexical";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as React from "react";
-import { ImageNode, ImagePayload } from "../../nodes/ImageNode";
+import { ImageNode, ImagePayload } from "../../nodes/ImageNode/ImageNode";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,

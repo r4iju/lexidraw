@@ -3,9 +3,6 @@ import type { BaseSelection, LexicalEditor, NodeKey } from "lexical";
 
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
-import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -35,8 +32,6 @@ import {
 } from "~/components/ui/dialog";
 import { InlineImageNode } from "./InlineImageNode";
 import { Button } from "~/components/ui/button";
-import LexicalContentEditable from "~/components/ui/content-editable";
-import Placeholder from "~/components/ui/placeholder";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
@@ -52,6 +47,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import ImageResizer from "~/components/ui/image-resizer";
 import { Switch } from "~/components/ui/switch";
 import { SwitchThumb } from "@radix-ui/react-switch";
+import ImageCaption from "../common/ImageCaption";
 
 type ResizableImageProps = {
   src: string;
@@ -376,34 +372,6 @@ export default function InlineImageComponent({
     setSelected,
   ]);
 
-  useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const link = target.closest("a");
-
-      if (link && nestedEditorContainerRef.current?.contains(link)) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const url = link.getAttribute("href");
-        if (url) {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
-      }
-    };
-
-    const container = nestedEditorContainerRef.current;
-    if (container) {
-      container.addEventListener("click", handleClick, true);
-    }
-
-    return () => {
-      if (container) {
-        container.removeEventListener("click", handleClick, true);
-      }
-    };
-  }, []);
-
   const draggable = isSelected && $isNodeSelection(selection);
   const isFocused = isSelected;
 
@@ -420,6 +388,16 @@ export default function InlineImageComponent({
       const node = $getNodeByKey(nodeKey);
       if (InlineImageNode.$isInlineImageNode(node)) {
         node.setShowCaption(show);
+      }
+    });
+  };
+
+  // Callback to hide the caption
+  const handleHideCaption = () => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+      if (InlineImageNode.$isInlineImageNode(node)) {
+        node.setShowCaption(false);
       }
     });
   };
@@ -450,7 +428,7 @@ export default function InlineImageComponent({
             <Button
               ref={buttonRef}
               variant="ghost"
-              className="absolute top-0 right-0 mt-1 mr-1 z-10"
+              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-sm"
               onClick={() => setIsDialogOpen(true)}
             >
               Edit
@@ -475,31 +453,21 @@ export default function InlineImageComponent({
                 onDimensionsChange={onDimensionsChange}
               />
             )}
-          </div>
 
-          {/* Caption rendered inside the relative container */}
-          {showCaption && captionsEnabled && (
-            <div
-              ref={nestedEditorContainerRef}
-              className="absolute bottom-0 left-0 w-full z-10 [&_a]:cursor-pointer"
-            >
-              <LexicalNestedComposer initialEditor={caption}>
+            {/* Caption rendered inside the relative container */}
+            {showCaption && captionsEnabled && (
+              <ImageCaption
+                containerRef={nestedEditorContainerRef}
+                caption={caption}
+                placeholder="Enter a caption..."
+                onHideCaption={handleHideCaption}
+              >
+                {/* Pass the specific plugins for this component */}
                 <AutoFocusPlugin />
                 <LinkPlugin />
-                <RichTextPlugin
-                  contentEditable={
-                    <LexicalContentEditable className="border-none border border-muted-foreground bg-muted/50 backdrop-blur-md text-sm w-full" />
-                  }
-                  placeholder={
-                    <Placeholder className="text-sm text-muted-foreground/50">
-                      Enter a caption...
-                    </Placeholder>
-                  }
-                  ErrorBoundary={LexicalErrorBoundary}
-                />
-              </LexicalNestedComposer>
-            </div>
-          )}
+              </ImageCaption>
+            )}
+          </div>
         </div>
 
         {/* The "Update Inline Image" dialog */}

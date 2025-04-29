@@ -49,7 +49,7 @@ import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbar
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { TableContext } from "./plugins/TablePlugin";
 import TableCellResizer from "./plugins/TableCellResizer";
-import { ImageNode } from "./nodes/ImageNode";
+import { ImageNode } from "./nodes/ImageNode/ImageNode";
 import ImagesPlugin from "./plugins/ImagesPlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
 import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
@@ -98,13 +98,12 @@ import { TooltipProvider } from "~/components/ui/tooltip";
 import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
 import { CommentProvider } from "./context/comment-context";
 import { TocProvider } from "./context/toc-context";
-import { type z } from "zod";
-import { LlmConfigSchema } from "~/server/api/routers/config";
+import { StoredLlmConfig } from "~/server/api/routers/config";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
-  initialLlmConfig: z.infer<ReturnType<typeof LlmConfigSchema.partial>>;
+  initialLlmConfig: StoredLlmConfig;
 };
 
 function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
@@ -208,9 +207,8 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                   <div className="flex flex-col size-full">
                     <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-sm">
                       <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
-                        {/* Dropdown for options (hidden on small screens) */}
                         <OptionsDropdown
-                          className="hidden md:flex"
+                          className="flex h-12 md:h-10 min-w-12 md:w-10"
                           documentId={entity.id}
                           state={editorStateRef}
                         />
@@ -231,13 +229,6 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                       </div>
                     </div>
                     <div className="relative size-full">
-                      {/* bottom left options */}
-                      <OptionsDropdown
-                        className=" fixed bottom-2 left-2 z-10 md:hidden"
-                        documentId={entity.id}
-                        state={editorStateRef}
-                      />
-
                       <div className="relative size-full max-w-screen-lg mx-auto">
                         <LlmChatPlugin />
                         <DisableChecklistSpacebarPlugin />
@@ -345,7 +336,7 @@ function Placeholder() {
 type Props = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
-  initialLlmConfig: z.infer<ReturnType<typeof LlmConfigSchema.partial>>;
+  initialLlmConfig: StoredLlmConfig;
 };
 
 export default function DocumentEditor({

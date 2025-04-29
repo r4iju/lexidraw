@@ -18,10 +18,14 @@ import {
   ParagraphNode,
   TextNode,
   LineBreakNode,
+  RootNode,
 } from "lexical";
 import { LinkNode } from "@lexical/link";
 import * as React from "react";
 import { Suspense } from "react";
+import { EmojiNode } from "../EmojiNode";
+import { KeywordNode } from "../KeywordNode";
+import { HashtagNode } from "@lexical/hashtag";
 
 const ImageComponent = React.lazy(() => import("./ImageComponent"));
 
@@ -35,6 +39,11 @@ export interface ImagePayload {
   src: string;
   width?: number;
   captionsEnabled?: boolean;
+}
+
+export interface UpdateImagePayload {
+  altText?: string;
+  showCaption?: boolean;
 }
 
 export type SerializedImageNode = Spread<
@@ -188,7 +197,16 @@ export class ImageNode extends DecoratorNode<React.JSX.Element> {
     this.__caption =
       caption ||
       createEditor({
-        nodes: [ParagraphNode, TextNode, LineBreakNode, LinkNode],
+        nodes: [
+          RootNode,
+          TextNode,
+          LineBreakNode,
+          ParagraphNode,
+          LinkNode,
+          EmojiNode,
+          HashtagNode,
+          KeywordNode,
+        ],
       });
     this.__captionsEnabled = captionsEnabled || captionsEnabled === undefined;
   }
@@ -219,6 +237,21 @@ export class ImageNode extends DecoratorNode<React.JSX.Element> {
   setShowCaption(showCaption: boolean): void {
     const writable = this.getWritable();
     writable.__showCaption = showCaption;
+  }
+
+  getShowCaption(): boolean {
+    return this.__showCaption;
+  }
+
+  update(payload: UpdateImagePayload): void {
+    const writable = this.getWritable();
+    const { altText, showCaption } = payload;
+    if (altText !== undefined) {
+      writable.__altText = altText;
+    }
+    if (showCaption !== undefined) {
+      writable.__showCaption = showCaption;
+    }
   }
 
   // View
