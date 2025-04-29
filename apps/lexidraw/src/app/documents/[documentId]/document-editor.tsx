@@ -99,6 +99,7 @@ import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
 import { CommentProvider } from "./context/comment-context";
 import { TocProvider } from "./context/toc-context";
 import { StoredLlmConfig } from "~/server/api/routers/config";
+import { ImageGenerationProvider } from "~/hooks/use-image-generation";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
@@ -202,121 +203,127 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
         <TableContext>
           <ToolbarContext>
             <LLMProvider initialConfig={initialLlmConfig}>
-              <CommentProvider>
-                <TocProvider>
-                  <div className="flex flex-col size-full">
-                    <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-sm">
-                      <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
-                        <OptionsDropdown
-                          className="flex h-12 md:h-10 min-w-12 md:w-10"
-                          documentId={entity.id}
-                          state={editorStateRef}
-                        />
+              <ImageGenerationProvider initialConfig={initialLlmConfig} entityId={entity.id}>
+                <CommentProvider>
+                  <TocProvider>
+                    <div className="flex flex-col size-full">
+                      <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-sm">
+                        <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
+                          <OptionsDropdown
+                            className="flex h-12 md:h-10 min-w-12 md:w-10"
+                            documentId={entity.id}
+                            state={editorStateRef}
+                          />
 
-                        <ShortcutsPlugin
-                          editor={editor}
-                          setIsLinkEditMode={setIsLinkEditMode}
-                        />
-
-                        {/* Toolbar Plugin (always visible) */}
-                        <TooltipProvider>
-                          <ToolbarPlugin
+                          <ShortcutsPlugin
+                            editor={editor}
                             setIsLinkEditMode={setIsLinkEditMode}
                           />
-                        </TooltipProvider>
-                        {/* Dark Mode Toggle (hidden on small screens) */}
-                        <ModeToggle className="hidden md:flex" />
+
+                          {/* Toolbar Plugin (always visible) */}
+                          <TooltipProvider>
+                            <ToolbarPlugin
+                              setIsLinkEditMode={setIsLinkEditMode}
+                            />
+                          </TooltipProvider>
+                          {/* Dark Mode Toggle (hidden on small screens) */}
+                          <ModeToggle className="hidden md:flex" />
+                        </div>
                       </div>
-                    </div>
-                    <div className="relative size-full">
-                      <div className="relative size-full max-w-screen-lg mx-auto">
-                        <LlmChatPlugin />
-                        <DisableChecklistSpacebarPlugin />
-                        <CommentPlugin />
-                        <EmojiPickerPlugin />
-                        <LayoutPlugin />
-                        <LLMWidget />
-                        <ListPlugin />
-                        <ListMaxIndentLevelPlugin />
-                        <CheckListPlugin />
-                        <MarkdownShortcutPlugin />
-                        <PageBreakPlugin />
-                        <CollapsiblePlugin />
-                        <PollPlugin />
-                        <CodeHighlightPlugin />
-                        <TabIndentationPlugin />
-                        <SessionUUIDProvider>
-                          <AutocompletePlugin />
-                        </SessionUUIDProvider>
-                        <AutoEmbedPlugin />
-                        <AutoLinkPlugin />
-                        <HorizontalRulePlugin />
-                        <TablePlugin
-                          hasCellMerge={tableCellMerge}
-                          hasCellBackgroundColor={tableCellBackgroundColor}
-                        />
-                        <TableCellResizer />
-                        <ImagesPlugin />
-                        <InlineImagePlugin />
-                        <LinkPlugin />
-                        <ClickableLinkPlugin disabled={isEditable} />
-                        <TwitterPlugin />
-                        <YouTubePlugin />
-                        <ExcalidrawPlugin />
-                        <FigmaPlugin />
-                        <EquationsPlugin />
-                        <RichTextPlugin
-                          contentEditable={
-                            <div
-                              className="size-full border-none flex relative outline-none z-0"
-                              ref={onRef}
-                            >
-                              <ContentEditable
-                                id="lexical-content"
-                                className="size-full min-h-[90vh] outline-none p-4 text-foreground border-x"
-                              />
-                            </div>
-                          }
-                          placeholder={<Placeholder />}
-                          ErrorBoundary={LexicalErrorBoundary}
-                        />
-                        <OnChangePlugin onChange={onChange} />
-                        <HistoryPlugin />
-                        <AutoFocusPlugin />
-                        <TableOfContentsPlugin />
+                      <div className="relative size-full">
+                        <div className="relative size-full max-w-screen-lg mx-auto">
+                          <LlmChatPlugin />
+                          <DisableChecklistSpacebarPlugin />
+                          <CommentPlugin />
+                          <EmojiPickerPlugin />
+                          <LayoutPlugin />
+                          <LLMWidget />
+                          <ListPlugin />
+                          <ListMaxIndentLevelPlugin />
+                          <CheckListPlugin />
+                          <MarkdownShortcutPlugin />
+                          <PageBreakPlugin />
+                          <CollapsiblePlugin />
+                          <PollPlugin />
+                          <CodeHighlightPlugin />
+                          <TabIndentationPlugin />
+                          <SessionUUIDProvider>
+                            <AutocompletePlugin />
+                          </SessionUUIDProvider>
+                          <AutoEmbedPlugin />
+                          <AutoLinkPlugin />
+                          <HorizontalRulePlugin />
+                          <TablePlugin
+                            hasCellMerge={tableCellMerge}
+                            hasCellBackgroundColor={tableCellBackgroundColor}
+                          />
+                          <TableCellResizer />
+                          <ImagesPlugin />
+                          <InlineImagePlugin />
+                          <LinkPlugin />
+                          <ClickableLinkPlugin disabled={isEditable} />
+                          <TwitterPlugin />
+                          <YouTubePlugin />
+                          <ExcalidrawPlugin />
+                          <FigmaPlugin />
+                          <EquationsPlugin />
+                          <RichTextPlugin
+                            contentEditable={
+                              <div
+                                className="size-full border-none flex relative outline-none z-0"
+                                ref={onRef}
+                              >
+                                <ContentEditable
+                                  id="lexical-content"
+                                  className="size-full min-h-[90vh] outline-none p-4 text-foreground border-x"
+                                />
+                              </div>
+                            }
+                            placeholder={<Placeholder />}
+                            ErrorBoundary={LexicalErrorBoundary}
+                          />
+                          <OnChangePlugin onChange={onChange} />
+                          <HistoryPlugin />
+                          <AutoFocusPlugin />
+                          <TableOfContentsPlugin />
+                        </div>
                       </div>
-                    </div>
-                    {floatingAnchorElem && (
-                      <>
-                        <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
-                        <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
-                        <FloatingLinkEditorPlugin
-                          anchorElem={floatingAnchorElem}
-                          isLinkEditMode={isLinkEditMode}
-                          setIsLinkEditMode={setIsLinkEditMode}
-                        />
-                        <TableActionMenuPlugin
-                          anchorElem={floatingAnchorElem}
-                          cellMerge={true}
-                        />
-                        <FloatingTextFormatToolbarPlugin
-                          anchorElem={floatingAnchorElem}
-                          setIsLinkEditMode={setIsLinkEditMode}
-                        />
-                      </>
-                    )}
-                    {isAutocomplete && <AutocompletePlugin />}
-                    {shouldUseLexicalContextMenu && <ContextMenuPlugin />}
-                    {showTreeView &&
-                      createPortal(
-                        <div className="absolute top-[60%] left-0 h-full w-full z-10 overflow-y-auto">
-                          <TreeViewPlugin />
-                        </div>,
-                        document.body,
+                      {floatingAnchorElem && (
+                        <>
+                          <DraggableBlockPlugin
+                            anchorElem={floatingAnchorElem}
+                          />
+                          <CodeActionMenuPlugin
+                            anchorElem={floatingAnchorElem}
+                          />
+                          <FloatingLinkEditorPlugin
+                            anchorElem={floatingAnchorElem}
+                            isLinkEditMode={isLinkEditMode}
+                            setIsLinkEditMode={setIsLinkEditMode}
+                          />
+                          <TableActionMenuPlugin
+                            anchorElem={floatingAnchorElem}
+                            cellMerge={true}
+                          />
+                          <FloatingTextFormatToolbarPlugin
+                            anchorElem={floatingAnchorElem}
+                            setIsLinkEditMode={setIsLinkEditMode}
+                          />
+                        </>
                       )}
-                  </div>
-                </TocProvider>
-              </CommentProvider>
+                      {isAutocomplete && <AutocompletePlugin />}
+                      {shouldUseLexicalContextMenu && <ContextMenuPlugin />}
+                      {showTreeView &&
+                        createPortal(
+                          <div className="absolute top-[60%] left-0 h-full w-full z-10 overflow-y-auto">
+                            <TreeViewPlugin />
+                          </div>,
+                          document.body,
+                        )}
+                    </div>
+                  </TocProvider>
+                </CommentProvider>
+              </ImageGenerationProvider>
             </LLMProvider>
           </ToolbarContext>
         </TableContext>

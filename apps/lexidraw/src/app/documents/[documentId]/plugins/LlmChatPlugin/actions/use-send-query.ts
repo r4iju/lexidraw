@@ -4,6 +4,7 @@ import { useChatDispatch, useChatState } from "../context/llm-chat-context";
 import { useLLM } from "../../../context/llm-context";
 import { useLexicalTools } from "../lexical/tool-executors";
 import { useImageInsertion } from "~/hooks/use-image-insertion";
+import { useImageGeneration } from "~/hooks/use-image-generation";
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
@@ -11,7 +12,13 @@ export const useSendQuery = () => {
   const { generateChatStream, chatState } = useLLM();
   const [editor] = useLexicalComposerContext();
   const { searchAndInsertImage } = useImageInsertion();
-  const { lexicalLlmTools } = useLexicalTools(editor, searchAndInsertImage);
+  const { generateAndInsertImage } = useImageGeneration();
+
+  const { lexicalLlmTools } = useLexicalTools({
+    editor,
+    searchAndInsertImageFunc: searchAndInsertImage,
+    generateAndInsertImageFunc: generateAndInsertImage,
+  });
 
   return useCallback(
     async ({
@@ -88,6 +95,8 @@ export const useSendQuery = () => {
             systemPrompt += `\n    - (After the tool executes successfully, follow the IMPORTANT instruction below to confirm).`;
 
             systemPrompt += `\n\n**IMPORTANT:** After ANY tool executes successfully (you will receive the result with details/summary), ALWAYS respond with a brief confirmation message to the user summarizing what action you took. Do NOT just return an empty response.`;
+
+            systemPrompt += `\n\n**Image Generation:** To generate an image based on a description, call the 'generateImageAndInsert' tool with the 'prompt' argument.`;
             break;
           case "chat":
             systemPrompt += `\n\nThe document state is provided as Markdown labeled 'DOCUMENT_STATE:'.`;
@@ -159,12 +168,12 @@ export const useSendQuery = () => {
     },
     [
       dispatch,
+      mode,
+      messages,
       generateChatStream,
       chatState.temperature,
       chatState.maxTokens,
-      mode,
       lexicalLlmTools,
-      messages,
     ],
   );
 };

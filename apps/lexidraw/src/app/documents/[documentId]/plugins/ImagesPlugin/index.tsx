@@ -30,10 +30,12 @@ import type { TRPCClientErrorLike } from "@trpc/client";
 import type { AppRouter } from "~/server/api/root";
 import { api } from "~/trpc/react";
 import { useToast } from "~/components/ui/toast-provider";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { LinkNode } from "@lexical/link";
 import { useImageInsertion } from "~/hooks/use-image-insertion";
 import { RouterOutputs } from "~/trpc/shared";
+import { useImageGeneration } from "~/hooks/use-image-generation";
+import { Textarea } from "~/components/ui/textarea";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
 
@@ -267,6 +269,51 @@ export function InsertImageUnsplashDialogBody({
   );
 }
 
+export function InsertImageGeneratedDialogBody({
+  onGenerate,
+  isLoading,
+  isConfigured,
+}: {
+  onGenerate: (prompt: string) => void;
+  isLoading: boolean;
+  isConfigured: boolean;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const isDisabled = prompt.trim() === "" || isLoading || !isConfigured;
+
+  return (
+    <>
+      {!isConfigured && (
+        <p className="text-center text-sm text-destructive p-4 border border-destructive rounded-md">
+          Image generation service is not configured. Please set the OpenAI API
+          key in the settings.
+        </p>
+      )}
+      <Label htmlFor="image-prompt">Image Prompt</Label>
+      <Textarea
+        id="image-prompt"
+        placeholder="e.g., A photorealistic cat wearing sunglasses"
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        rows={3}
+        disabled={!isConfigured || isLoading}
+      />
+      <DialogFooter>
+        <Button disabled={isDisabled} onClick={() => onGenerate(prompt)}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            "Generate Image"
+          )}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
 export function InsertImageDialog({
   activeEditor,
   onClose,
@@ -274,10 +321,18 @@ export function InsertImageDialog({
   activeEditor: LexicalEditor;
   onClose: () => void;
 }): React.JSX.Element {
-  const [mode, setMode] = useState<null | "url" | "file" | "unsplash">(null);
+  const [mode, setMode] = useState<
+    null | "url" | "file" | "unsplash" | "generate"
+  >(null);
   const hasModifier = useRef(false);
   const { insertImageNode } = useImageInsertion();
   const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
+
+  const {
+    generateAndInsertImage,
+    isLoading: isGenerating,
+    isConfigured: isGenerationConfigured,
+  } = useImageGeneration();
 
   const handleUnsplashImageSelect = useCallback(
     (image: UnsplashImageResult) => {
@@ -331,6 +386,15 @@ export function InsertImageDialog({
     [activeEditor, onClose],
   );
 
+  const handleGenerateImage = useCallback(
+    async (prompt: string) => {
+      if (!prompt) return;
+      await generateAndInsertImage(prompt);
+      onClose();
+    },
+    [generateAndInsertImage, onClose],
+  );
+
   return (
     <>
       {!mode && (
@@ -338,6 +402,15 @@ export function InsertImageDialog({
           <Button onClick={() => setMode("url")}>URL</Button>
           <Button onClick={() => setMode("file")}>File</Button>
           <Button onClick={() => setMode("unsplash")}>Unsplash</Button>
+          <Button
+            onClick={() => setMode("generate")}
+            disabled={!isGenerationConfigured}
+            title={
+              !isGenerationConfigured ? "OpenAI API key required" : undefined
+            }
+          >
+            Generate (AI)
+          </Button>
         </div>
       )}
       {mode === "url" && <InsertImageUriDialogBody onClick={insertImage} />}
@@ -347,6 +420,13 @@ export function InsertImageDialog({
       {mode === "unsplash" && (
         <InsertImageUnsplashDialogBody
           onImageSelect={handleUnsplashImageSelect}
+        />
+      )}
+      {mode === "generate" && (
+        <InsertImageGeneratedDialogBody
+          onGenerate={handleGenerateImage}
+          isLoading={isGenerating}
+          isConfigured={isGenerationConfigured}
         />
       )}
     </>
