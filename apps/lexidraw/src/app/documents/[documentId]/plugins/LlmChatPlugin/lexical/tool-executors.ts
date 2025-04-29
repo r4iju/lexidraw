@@ -6,6 +6,8 @@ import {
   $getRoot,
   LexicalEditor,
   ElementNode,
+  LexicalNode,
+  NodeKey,
 } from "lexical";
 import { $createHeadingNode, HeadingTagType } from "@lexical/rich-text";
 import {
@@ -54,7 +56,12 @@ export const useLexicalTools = ({
     operation: z.literal("formatBlock"),
     anchorText: z
       .string()
-      .describe("Text content within the block to identify it."),
+      .describe("Text content within the block (if anchorKey not provided).")
+      .optional(),
+    anchorKey: z
+      .string()
+      .describe("The unique key of the node (preferred over anchorText).")
+      .optional(),
     formatAs: z.enum(["paragraph", "heading", "list"]),
     headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
     listType: ListTypeEnum.optional(),
@@ -67,12 +74,28 @@ export const useLexicalTools = ({
     headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
     listType: ListTypeEnum.optional(),
     relation: z.enum(["before", "after", "appendRoot"]),
-    anchorText: z.string().optional(),
+    anchorText: z
+      .string()
+      .describe(
+        "Anchor text for relative insertion (if anchorKey not provided).",
+      )
+      .optional(),
+    anchorKey: z
+      .string()
+      .describe("Anchor key for relative insertion (preferred).")
+      .optional(),
   });
 
   const DeleteBlockSchema = z.object({
     operation: z.literal("deleteBlock"),
-    anchorText: z.string(),
+    anchorText: z
+      .string()
+      .describe("Anchor text for deletion (if anchorKey not provided).")
+      .optional(),
+    anchorKey: z
+      .string()
+      .describe("Anchor key for deletion (preferred).")
+      .optional(),
   });
 
   const SemanticInstructionSchema = z.discriminatedUnion("operation", [
@@ -100,14 +123,7 @@ export const useLexicalTools = ({
       ) {
         const nodeText = node.getTextContent();
         if (nodeText.includes(text)) {
-          const nodeType = node.getType();
-          if (
-            nodeType === "paragraph" ||
-            nodeType === "heading" ||
-            nodeType === "listitem"
-          ) {
-            return node;
-          }
+          return node;
         }
       }
       if ($isElementNode(node)) {
@@ -122,66 +138,145 @@ export const useLexicalTools = ({
     return null;
   }
 
+  function $findNodeByKey(key: NodeKey): LexicalNode | null {
+    const editorState = editor.getEditorState();
+    const node = editorState._nodeMap.get(key);
+    return node ?? null;
+  }
+
   const lexicalLlmTools = {
     updateDocumentSemantically: tool({
       description:
-        "Update the document based on a list of semantic instructions (format, insert, delete blocks, including lists). Anchor changes using text content.",
+        "Update the document based on a list of semantic instructions (format, insert, delete blocks). Anchor changes using unique node keys ('anchorKey') or text content ('anchorText'). anchorKey is preferred.",
       parameters: UpdateDocumentParamsSchema,
       execute: async ({ instructions }): ExecuteResult => {
         let overallSuccess = true;
-        const errors: { index: number; error: string; details?: unknown }[] =
-          [];
+        const errors: {
+          index: number;
+          error: string;
+          details?: unknown;
+          anchor?: string;
+        }[] = [];
+        let updateSummary = "";
 
         try {
           editor.update(() => {
             instructions.forEach((instruction, index) => {
+              let resolvedTargetNode: LexicalNode | null = null; // General node for deletion or reference
+              let resolvedTargetElementNode: ElementNode | null = null; // Specific element node needed for format/insert anchors
+              let anchorIdentifier = "";
+
               try {
-                let targetNode: ElementNode | null = null;
-                if ("anchorText" in instruction && instruction.anchorText) {
-                  if (
-                    instruction.operation !== "insertBlock" ||
-                    instruction.relation !== "appendRoot"
-                  ) {
-                    targetNode = $findFirstBlockNodeByText(
-                      instruction.anchorText,
-                    );
-                    if (!targetNode) {
+                const needsAnchor =
+                  instruction.operation !== "insertBlock" ||
+                  instruction.relation !== "appendRoot";
+                const needsElementAnchor =
+                  instruction.operation === "formatBlock" ||
+                  (instruction.operation === "insertBlock" &&
+                    instruction.relation !== "appendRoot");
+
+                if (needsAnchor) {
+                  if (instruction.anchorKey) {
+                    anchorIdentifier = `key "${instruction.anchorKey}"`;
+                    resolvedTargetNode = $findNodeByKey(instruction.anchorKey); // Find *any* node by key
+
+                    // If we specifically need an ElementNode, check if the found node qualifies
+                    if (needsElementAnchor) {
                       if (
-                        instruction.operation === "formatBlock" ||
-                        instruction.operation === "deleteBlock"
+                        resolvedTargetNode &&
+                        $isElementNode(resolvedTargetNode) &&
+                        !$isRootNode(resolvedTargetNode) &&
+                        !resolvedTargetNode.isInline() &&
+                        resolvedTargetNode.isAttached()
                       ) {
-                        console.warn(
-                          `Anchor text "${instruction.anchorText}" not found for ${instruction.operation} at index ${index}. Skipping.`,
-                        );
-                        return; // skip instruction
-                      } else {
+                        resolvedTargetElementNode = resolvedTargetNode; // It's a suitable ElementNode
+                      } else if (resolvedTargetNode) {
                         throw new Error(
-                          `Could not find block containing anchor text: "${instruction.anchorText}"`,
+                          `Node with ${anchorIdentifier} found, but it's not a block element suitable for anchoring ${instruction.operation}.`,
                         );
                       }
+                      // If resolvedTargetNode is null, validation below handles it.
+                    }
+                  } else if (instruction.anchorText) {
+                    anchorIdentifier = `text "${instruction.anchorText}"`;
+                    resolvedTargetElementNode = $findFirstBlockNodeByText(
+                      instruction.anchorText,
+                    ); // Find ElementNode by text
+                    resolvedTargetNode = resolvedTargetElementNode; // Assign to general node as well
+                  } else {
+                    throw new Error(
+                      `Missing anchorKey or anchorText for required anchor in ${instruction.operation}`,
+                    );
+                  }
+
+                  // --- Anchor Validation ---
+                  if (!resolvedTargetNode) {
+                    // Check if we found *any* node by the specified anchor
+                    if (
+                      (instruction.operation === "insertBlock" &&
+                        instruction.relation !== "appendRoot") ||
+                      instruction.operation === "formatBlock" ||
+                      instruction.operation === "deleteBlock"
+                    ) {
+                      // These operations require the anchor to exist
+                      console.warn(
+                        `Anchor ${anchorIdentifier} not found for ${instruction.operation} at index ${index}. Skipping.`,
+                      );
+                      updateSummary += `Skipped ${instruction.operation} for missing ${anchorIdentifier}. `;
+                      return; // Skip this instruction
+                    }
+                    // Other cases might not strictly need the anchor (e.g., appendRoot)
+                  }
+
+                  // Check if we have an ElementNode when specifically required
+                  if (needsElementAnchor && !resolvedTargetElementNode) {
+                    // This implies anchorKey was used but didn't resolve to a suitable ElementNode
+                    // Error thrown above in anchorKey logic, or handled by !resolvedTargetNode check.
+                    // Defensive check:
+                    if (resolvedTargetNode) {
+                      throw new Error(
+                        `Anchor ${anchorIdentifier} resolved to a non-element node, which cannot be used for ${instruction.operation}.`,
+                      );
+                    } else {
+                      // Should have been caught by !resolvedTargetNode check already
+                      throw new Error(
+                        `Could not resolve anchor element node for ${instruction.operation} using ${anchorIdentifier}.`,
+                      );
                     }
                   }
-                }
+                  // --- End Anchor Validation ---
+                } // End if(needsAnchor)
 
+                // --- Execute Instruction ---
+                // Use resolvedTargetNode for deleteBlock (if found by key or text)
+                // Use resolvedTargetElementNode for formatBlock and insertBlock(relative) (must be an element)
                 switch (instruction.operation) {
                   case "formatBlock": {
+                    if (!resolvedTargetElementNode)
+                      throw new Error(
+                        `Target element node not found/resolved for formatBlock using ${anchorIdentifier}.`,
+                      );
+
+                    // Validation
                     if (
                       instruction.formatAs === "heading" &&
                       !instruction.headingTag
-                    ) {
-                      throw new Error(`Validation failed: headingTag missing.`);
-                    }
+                    )
+                      throw new Error(
+                        `Validation failed: headingTag missing for formatAs 'heading'.`,
+                      );
                     if (
                       instruction.formatAs === "list" &&
                       !instruction.listType
-                    ) {
-                      throw new Error(`Validation failed: listType missing.`);
-                    }
-                    if (!targetNode) {
-                      throw new Error(`Target node not found for formatBlock.`);
-                    }
+                    )
+                      throw new Error(
+                        `Validation failed: listType missing for formatAs 'list'.`,
+                      );
+
                     let replacementNode: ElementNode | ListNode;
-                    const originalText = targetNode.getTextContent();
+                    const originalText =
+                      resolvedTargetElementNode.getTextContent();
+
                     if (instruction.formatAs === "paragraph") {
                       replacementNode = $createParagraphNode().append(
                         $createTextNode(originalText),
@@ -191,6 +286,7 @@ export const useLexicalTools = ({
                         instruction.headingTag as HeadingTagType,
                       ).append($createTextNode(originalText));
                     } else {
+                      // list
                       const listType = instruction.listType as ListType;
                       const listItem = $createListItemNode(
                         listType === "check" ? false : undefined,
@@ -199,34 +295,36 @@ export const useLexicalTools = ({
                       listWrapper.append(listItem);
                       replacementNode = listWrapper;
                     }
-                    targetNode.replace(replacementNode);
+                    resolvedTargetElementNode.replace(replacementNode);
+                    updateSummary += `Formatted ${anchorIdentifier} as ${instruction.formatAs}. `;
                     break;
                   }
                   case "insertBlock": {
+                    // Validation
                     if (
                       (instruction.relation === "before" ||
                         instruction.relation === "after") &&
+                      !instruction.anchorKey &&
                       !instruction.anchorText
-                    ) {
-                      throw new Error(`Validation failed: anchorText missing.`);
-                    }
+                    )
+                      throw new Error(
+                        `Validation failed: anchorKey or anchorText missing for relative insert.`,
+                      );
                     if (
                       instruction.blockType === "heading" &&
                       !instruction.headingTag
-                    ) {
-                      throw new Error(`Validation failed: headingTag missing.`);
-                    }
+                    )
+                      throw new Error(
+                        `Validation failed: headingTag missing for blockType 'heading'.`,
+                      );
                     if (
                       instruction.blockType === "list" &&
                       !instruction.listType
-                    ) {
-                      throw new Error(`Validation failed: listType missing.`);
-                    }
-                    if (instruction.relation !== "appendRoot" && !targetNode) {
+                    )
                       throw new Error(
-                        `Target node not found for relative insert.`,
+                        `Validation failed: listType missing for blockType 'list'.`,
                       );
-                    }
+
                     let newNode: ElementNode | ListItemNode;
                     let finalNodeToInsert: ElementNode | ListNode;
                     let requiresListWrapper = false;
@@ -234,6 +332,8 @@ export const useLexicalTools = ({
                       instruction.blockType === "list"
                         ? (instruction.listType as ListType)
                         : undefined;
+
+                    // Create node
                     if (instruction.blockType === "paragraph") {
                       newNode = $createParagraphNode().append(
                         $createTextNode(instruction.text),
@@ -245,6 +345,7 @@ export const useLexicalTools = ({
                       ).append($createTextNode(instruction.text));
                       finalNodeToInsert = newNode;
                     } else {
+                      // list
                       newNode = $createListItemNode(
                         listType === "check" ? false : undefined,
                       ).append($createTextNode(instruction.text));
@@ -254,80 +355,95 @@ export const useLexicalTools = ({
                       finalNodeToInsert = listWrapper;
                     }
 
+                    // Insert node
                     if (instruction.relation === "appendRoot") {
                       $getRoot().append(finalNodeToInsert);
+                      updateSummary += `Appended ${instruction.blockType}. `;
                     } else {
-                      if (!targetNode) {
+                      // before or after
+                      if (!resolvedTargetElementNode)
                         throw new Error(
-                          `Target node unexpectedly null for relative insert.`,
+                          `Target element node unexpectedly null/unresolved for relative insert using ${anchorIdentifier}.`,
                         );
-                      }
 
+                      // Special list handling
                       if (
                         requiresListWrapper &&
                         listType &&
-                        $isListItemNode(targetNode)
+                        $isListItemNode(resolvedTargetElementNode)
                       ) {
-                        const parent = targetNode.getParent();
+                        const parentList =
+                          resolvedTargetElementNode.getParent();
                         if (
-                          $isListNode(parent) &&
-                          parent.getListType() === listType
+                          $isListNode(parentList) &&
+                          parentList.getListType() === listType
                         ) {
-                          finalNodeToInsert = newNode as ListItemNode;
+                          finalNodeToInsert = newNode as ListItemNode; // Insert item directly
                         }
                       }
+                      // Perform insert
                       if (instruction.relation === "before") {
-                        targetNode.insertBefore(finalNodeToInsert);
+                        resolvedTargetElementNode.insertBefore(
+                          finalNodeToInsert,
+                        );
                       } else {
-                        targetNode.insertAfter(finalNodeToInsert);
+                        resolvedTargetElementNode.insertAfter(
+                          finalNodeToInsert,
+                        );
                       }
+                      updateSummary += `Inserted ${instruction.blockType} ${instruction.relation} ${anchorIdentifier}. `;
                     }
                     break;
                   }
                   case "deleteBlock": {
-                    if (!instruction.anchorText) {
-                      throw new Error("Anchor text required for deleteBlock.");
+                    if (!resolvedTargetNode) {
+                      // Node must have been found by anchor validation above
+                      return; // Skip instruction (warning already logged)
                     }
-                    if (!targetNode) {
-                      console.warn(
-                        `Anchor text "${instruction.anchorText}" not found for deleteBlock at index ${index}. Skipping.`,
-                      );
-                      return;
-                    }
-                    if ($isListItemNode(targetNode)) {
-                      const parentList = targetNode.getParent();
+
+                    // Use the resolvedTargetNode (could be Element or Decorator like Image)
+                    if ($isListItemNode(resolvedTargetNode)) {
+                      // Special handling for list items
+                      const parentList = resolvedTargetNode.getParent();
                       if (
                         $isListNode(parentList) &&
                         parentList.getChildrenSize() === 1
                       ) {
-                        parentList.remove();
+                        parentList.remove(); // Remove the empty list wrapper
+                        updateSummary += `Deleted list containing last item ${anchorIdentifier}. `;
                       } else {
-                        targetNode.remove();
+                        resolvedTargetNode.remove(); // Remove just the list item
+                        updateSummary += `Deleted list item ${anchorIdentifier}. `;
                       }
+                    } else if (resolvedTargetNode.isAttached()) {
+                      // Check attached before removing others
+                      resolvedTargetNode.remove();
+                      updateSummary += `Deleted node ${anchorIdentifier}. `;
                     } else {
-                      targetNode.remove();
+                      console.warn(
+                        `Node ${anchorIdentifier} was found but is not attached. Skipping deletion.`,
+                      );
+                      updateSummary += `Skipped deleting detached node ${anchorIdentifier}. `;
                     }
                     break;
                   }
-                }
+                } // End switch
               } catch (opError: unknown) {
                 overallSuccess = false;
-                const errorMsg = `Failed instruction [${index}] ${instruction.operation}: ${opError instanceof Error ? opError.message : String(opError)}`;
+                const errorMsg = `Failed instruction [${index}] ${instruction.operation} (anchor: ${anchorIdentifier || "N/A"}): ${opError instanceof Error ? opError.message : String(opError)}`;
                 console.error(errorMsg, "Instruction:", instruction, opError);
                 errors.push({
                   index,
                   error: errorMsg,
                   details: String(opError),
+                  anchor: anchorIdentifier,
                 });
               }
-            }); // end forEach instruction
+            }); // end forEach
 
             if (!overallSuccess) {
-              const combinedErrorMsg = errors
-                .map((e) => `[${e.index}] ${e.error}`)
-                .join("\n");
-              throw new Error(
-                `One or more semantic instructions failed:\n${combinedErrorMsg}`,
+              console.error(
+                `One or more semantic instructions failed. See details above.`,
               );
             }
           }); // end editor.update
@@ -339,23 +455,22 @@ export const useLexicalTools = ({
               ? updateError.message
               : String(updateError);
           console.error(errorMsg, updateError);
-          if (errors.length === 0) {
-            errors.push({ index: -1, error: errorMsg, details });
-          }
+          if (errors.length === 0)
+            errors.push({
+              index: -1,
+              error: errorMsg,
+              details,
+              anchor: "Transaction Level",
+            });
         }
 
+        // --- Return Result ---
         if (overallSuccess) {
-          const summary = instructions
-            .map(
-              (instr) =>
-                `${instr.operation} for anchor '${instr.anchorText ?? "N/A"}'`,
-            )
-            .join(", ");
           return {
             success: true,
             details: {
               message: "Document updates applied successfully.",
-              summary: `Applied ${instructions.length} change(s): ${summary}`,
+              summary: updateSummary.trim() || "No effective changes applied.",
             },
           };
         } else {
@@ -411,16 +526,25 @@ export const useLexicalTools = ({
           await generateAndInsertImageFunc(prompt);
           return {
             success: true,
-            message: `Successfully generated and inserted an image for the prompt: "${prompt}"`,
+            details: {
+              message: `Successfully generated and inserted an image for the prompt: "${prompt}"`,
+              summary: `Generated and inserted image for: "${prompt}"`,
+            },
           };
         } catch (error) {
           console.error("Error executing image generation tool:", error);
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to generate or insert image.";
           return {
             success: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to generate or insert image.",
+            error: message,
+            details: {
+              prompt: prompt,
+              status: "Failed",
+              errorMessage: message,
+            },
           };
         }
       },

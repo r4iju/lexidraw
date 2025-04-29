@@ -93,22 +93,22 @@ export const LlmModelList = [
       "A Gemini 2.0 Flash model optimized for cost efficiency and low latency",
   },
   {
-    modelId: "gemini-2.0-flash",
+    modelId: "gemini-2.5-flash-preview-04-17",
     provider: "google",
-    name: "Gemini 2.0 Flash",
+    name: "Gemini 2.5 Flash Preview",
     description:
       "Next generation features, speed, thinking, realtime streaming, and multimodal generation",
-  },
-  {
-    modelId: "gemini-2.0-pro-exp-02-05",
-    provider: "google",
-    name: "Gemini 2.0 Pro Exp",
-    description: "The most powerful Gemini 2.0 model",
   },
   {
     modelId: "gemini-2.5-pro-exp-03-25",
     provider: "google",
     name: "Gemini 2.5 Pro Exp",
+    description: "Free but powerful Gemini 2.5 model",
+  },
+  {
+    modelId: "gemini-2.5-pro-preview-03-25",
+    provider: "google",
+    name: "Gemini 2.5 Pro Preview",
     description: "The most powerful Gemini 2.5 model",
   },
 ] as const;
