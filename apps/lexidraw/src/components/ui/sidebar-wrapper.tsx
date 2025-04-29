@@ -18,7 +18,7 @@ export const SidebarWrapper: React.FC<
   return (
     <aside
       className={cn(
-        "fixed right-0 top-0 h-full border-l bg-popover shadow-lg transition-transform duration-300 ease-in-out z-40 w-[360px]",
+        "fixed right-0 top-0 h-full w-[360px] flex flex-col border-l bg-popover shadow-lg transition-transform duration-300 ease-in-out z-40",
         {
           "translate-x-0": isOpen,
           "translate-x-full": !isOpen,
