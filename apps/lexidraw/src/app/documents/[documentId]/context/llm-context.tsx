@@ -123,8 +123,7 @@ type LLMContextValue = {
   setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
   generateChatStream: (
     options: LLMOptions & {
-      experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
-    } & {
+      repairToolCall?: ToolCallRepairFunction<ToolSet>;
       toolChoice?: ToolChoice<ToolSet>;
       prepareStep?: (options: {
         steps: StepResult<ToolSet>[];
@@ -288,6 +287,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     autocompleteState.provider,
     chatState.provider,
   ]);
+
   const generateAutocomplete = useCallback(
     async ({
       prompt,
@@ -342,7 +342,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     [autocompleteProvider, autocompleteState],
   );
 
-  const generateChatStream = useCallback(
+  const generateChatText = useCallback(
     async ({
       prompt,
       system = "",
@@ -351,10 +351,11 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       signal,
       tools,
       prepareStep,
+      repairToolCall,
       toolChoice,
       maxSteps,
-    }: Omit<LLMOptions, "experimental_repairToolCall"> & {
-      experimental_repairToolCall?: ToolCallRepairFunction<ToolSet>;
+    }: LLMOptions & {
+      repairToolCall?: ToolCallRepairFunction<ToolSet>;
       prepareStep?: (options: {
         steps: StepResult<ToolSet>[];
         stepNumber: number;
@@ -382,6 +383,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       try {
         const result = await generateText({
           experimental_prepareStep: prepareStep,
+          experimental_repairToolCall: repairToolCall,
           model: chatProvider.current(chatState.modelId),
           prompt,
           system,
@@ -503,7 +505,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         generateAutocomplete,
         autocompleteState,
         setAutocompleteLlmOptions,
-        generateChatStream,
+        generateChatStream: generateChatText,
         chatState,
         setChatLlmOptions,
         availableModels: LlmModelList,
