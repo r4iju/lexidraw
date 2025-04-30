@@ -9,6 +9,7 @@ import {
   $isElementNode,
   $isRootNode,
 } from "lexical";
+import { $createCodeNode } from "@lexical/code";
 import { $createHeadingNode, HeadingTagType } from "@lexical/rich-text";
 import {
   $createListItemNode,
@@ -205,7 +206,7 @@ export function buildRuntimeTools({
       .string()
       .describe("The unique key of the node (preferred over anchorText).")
       .optional(),
-    formatAs: z.enum(["paragraph", "heading", "list"]),
+    formatAs: z.enum(["paragraph", "heading", "list", "code"]),
     headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
     listType: ListTypeEnum.optional(),
   });
@@ -213,7 +214,7 @@ export function buildRuntimeTools({
   const BaseInsertBlockSchema = z.object({
     operation: z.literal("insertBlock"),
     text: z.string(),
-    blockType: z.enum(["paragraph", "heading", "list"]),
+    blockType: z.enum(["paragraph", "heading", "list", "code"]),
     headingTag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]).optional(),
     listType: ListTypeEnum.optional(),
     relation: z.enum(["before", "after", "appendRoot"]),
@@ -579,23 +580,36 @@ export function buildRuntimeTools({
                   const originalText =
                     resolvedTargetElementNode.getTextContent();
 
-                  if (instruction.formatAs === "paragraph") {
-                    replacementNode = $createParagraphNode().append(
-                      $createTextNode(originalText),
-                    );
-                  } else if (instruction.formatAs === "heading") {
-                    replacementNode = $createHeadingNode(
-                      instruction.headingTag as HeadingTagType,
-                    ).append($createTextNode(originalText));
-                  } else {
-                    // list
-                    const listType = instruction.listType as ListType;
-                    const listItem = $createListItemNode(
-                      listType === "check" ? false : undefined,
-                    ).append($createTextNode(originalText));
-                    const listWrapper = $createListNode(listType);
-                    listWrapper.append(listItem);
-                    replacementNode = listWrapper;
+                  switch (instruction.formatAs) {
+                    case "paragraph": {
+                      replacementNode = $createParagraphNode().append(
+                        $createTextNode(originalText),
+                      );
+                      break;
+                    }
+                    case "heading": {
+                      replacementNode = $createHeadingNode(
+                        instruction.headingTag as HeadingTagType,
+                      ).append($createTextNode(originalText));
+                      break;
+                    }
+                    case "code": {
+                      replacementNode = $createCodeNode("typescript").append(
+                        $createTextNode(originalText),
+                      );
+                      break;
+                    }
+                    case "list": {
+                      // list
+                      const listType = instruction.listType as ListType;
+                      const listItem = $createListItemNode(
+                        listType === "check" ? false : undefined,
+                      ).append($createTextNode(originalText));
+                      const listWrapper = $createListNode(listType);
+                      listWrapper.append(listItem);
+                      replacementNode = listWrapper;
+                      break;
+                    }
                   }
                   resolvedTargetElementNode.replace(replacementNode);
                   updateSummary += `Formatted ${anchorIdentifier} as ${instruction.formatAs}. `;
@@ -632,26 +646,39 @@ export function buildRuntimeTools({
                       ? (instruction.listType as ListType)
                       : undefined;
 
-                  // Create node
-                  if (instruction.blockType === "paragraph") {
-                    newNode = $createParagraphNode().append(
-                      $createTextNode(instruction.text),
-                    );
-                    finalNodeToInsert = newNode;
-                  } else if (instruction.blockType === "heading") {
-                    newNode = $createHeadingNode(
-                      instruction.headingTag as HeadingTagType,
-                    ).append($createTextNode(instruction.text));
-                    finalNodeToInsert = newNode;
-                  } else {
-                    // list
-                    newNode = $createListItemNode(
-                      listType === "check" ? false : undefined,
-                    ).append($createTextNode(instruction.text));
-                    requiresListWrapper = true;
-                    const listWrapper = $createListNode(listType as ListType);
-                    listWrapper.append(newNode);
-                    finalNodeToInsert = listWrapper;
+                  switch (instruction.blockType) {
+                    case "paragraph": {
+                      newNode = $createParagraphNode().append(
+                        $createTextNode(instruction.text),
+                      );
+                      finalNodeToInsert = newNode;
+                      break;
+                    }
+                    case "heading": {
+                      newNode = $createHeadingNode(
+                        instruction.headingTag as HeadingTagType,
+                      ).append($createTextNode(instruction.text));
+                      finalNodeToInsert = newNode;
+                      break;
+                    }
+                    case "code": {
+                      newNode = $createCodeNode("typescript").append(
+                        $createTextNode(instruction.text),
+                      );
+                      finalNodeToInsert = newNode;
+                      break;
+                    }
+                    case "list": {
+                      // list
+                      newNode = $createListItemNode(
+                        listType === "check" ? false : undefined,
+                      ).append($createTextNode(instruction.text));
+                      requiresListWrapper = true;
+                      const listWrapper = $createListNode(listType as ListType);
+                      listWrapper.append(newNode);
+                      finalNodeToInsert = listWrapper;
+                      break;
+                    }
                   }
 
                   // Insert node

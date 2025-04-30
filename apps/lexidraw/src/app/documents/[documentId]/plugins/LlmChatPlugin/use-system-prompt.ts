@@ -65,6 +65,7 @@ ${toolLines}
     *   Instructions MUST have a top-level 'operation' field ('formatBlock', 'insertBlock', 'deleteBlock') and a flat structure.
     *   Use 'anchorKey' (preferred) or 'anchorText'. Provide exactly one anchor per instruction.
     *   For 'insertBlock', 'relation' must be one of: 'before', 'after', 'appendRoot'.
+    *   To insert list items, use 'operation': "insertBlock" with 'blockType': "list" and specify the 'listType' ('bullet', 'number', 'check'). The tool automatically creates the list item node.
     *   Use 'formatBlock' to replace content or reformat existing blocks (e.g., paragraph to heading).
     *   To delete images, use 'deleteBlock' with the image node's 'anchorKey'.
 *   **imageGenerationTool:** Provide a detailed 'prompt' including style, subject, environment, etc.
@@ -74,6 +75,7 @@ ${toolLines}
 *   \`setheading-Tag\`: \`anchorKey\` must reference a \`heading\` node. Error Example: "❌ [setheading-Tag] Error: Anchor resolves to paragraph, but setheading-Tag can only edit heading."
 *   \`updateDocumentSemantically\` (Insert Example): \`{ "operation": "insertBlock", "blockType": "heading", "text": "My New Heading", "headingTag": "h2", "relation": "appendRoot" }\`
 *   \`updateDocumentSemantically\` (Format Example): \`{ "operation": "formatBlock", "anchorKey": "123", "formatAs": "heading", "headingTag": "h1" }\`
+*   \`updateDocumentSemantically\` (List Item Insert Example): \`{ "operation": "insertBlock", "blockType": "list", "listType": "bullet", "text": "New item", "relation": "after", "anchorKey": "listItem456" }\`
 `.trim();
   }, [base, editor, dispatch]);
 }
