@@ -8,6 +8,8 @@ import {
   ElementNode,
   LexicalNode,
   NodeKey,
+  $isTextNode,
+  TextNode,
 } from "lexical";
 import { $createHeadingNode, HeadingTagType } from "@lexical/rich-text";
 import {
@@ -65,8 +67,26 @@ export const useLexicalTools = ({
       .describe("The search query to find an image on Unsplash."),
   });
 
-  const PlanParamsSchema = z.object({
-    objective: z.string().describe("What the user wants to achieve"),
+  const PlanOrClarifyParamsSchema = z.object({
+    operation: z
+      .enum(["plan", "clarify"])
+      .describe("Whether to generate a plan or to ask for clarification."),
+    objective: z
+      .string()
+      .min(50)
+      .max(1500)
+      .optional()
+      .describe(
+        "What the user wants to achieve (for plan). This must be written in first person, and be a short concise summary of the planned actions to achieve the objective.",
+      ),
+    clarification: z
+      .string()
+      .min(50)
+      .max(1500)
+      .optional()
+      .describe(
+        "A clarifying question (for clarify). This must be written in first person, and be a short concise question that will help the user clarify their objective.",
+      ),
   });
 
   const ListTypeEnum = z.enum(["bullet", "number", "check"]);
@@ -129,6 +149,30 @@ export const useLexicalTools = ({
     reason: z.string().optional(),
   });
 
+  const UpdateTextStyleParamsSchema = z
+    .object({
+      anchorKey: z
+        .string()
+        .describe(
+          "The unique key of the text node (preferred). Optional if anchorText is provided.",
+        )
+        .optional(),
+      anchorText: z
+        .string()
+        .describe(
+          "Text content within the text node. Used if anchorKey is not provided.",
+        )
+        .optional(),
+      style: z
+        .string()
+        .describe(
+          "CSS style string to apply, e.g., \"font-family: 'Inter'; font-size: 14px;\"",
+        ),
+    })
+    .refine((data) => data.anchorKey || data.anchorText, {
+      message: "Either anchorKey or anchorText must be provided.",
+    });
+
   function $findFirstBlockNodeByText(text: string): ElementNode | null {
     const root = $getRoot();
     const queue: ElementNode[] = [root];
@@ -158,6 +202,29 @@ export const useLexicalTools = ({
     return null;
   }
 
+  function $findFirstTextNodeByText(text: string): TextNode | null {
+    const root = $getRoot();
+    const queue: LexicalNode[] = [...root.getChildren()]; // Start with root's children
+
+    while (queue.length > 0) {
+      const node = queue.shift();
+      if (!node) continue;
+
+      if ($isTextNode(node) && node.isAttached()) {
+        const nodeText = node.getTextContent();
+        if (nodeText.includes(text)) {
+          return node;
+        }
+      }
+
+      // If it's an element node, queue its children
+      if ($isElementNode(node)) {
+        queue.push(...node.getChildren());
+      }
+    }
+    return null;
+  }
+
   function $findNodeByKey(key: NodeKey): LexicalNode | null {
     const editorState = editor.getEditorState();
     const node = editorState._nodeMap.get(key);
@@ -165,21 +232,44 @@ export const useLexicalTools = ({
   }
 
   const lexicalLlmTools = {
-    plan: tool({
-      description:
-        "Describe the steps *you* (the assistant) plan to take to accomplish the user's objective, phrased in the first person (e.g., 'First, I will...').",
-      parameters: PlanParamsSchema,
-      execute: async ({ objective }): ExecuteResult => {
-        const planMsgId = crypto.randomUUID();
-        dispatch({
-          type: "push",
-          msg: {
-            id: planMsgId,
-            role: "assistant",
-            content: objective,
-          },
-        });
-        return { success: true, details: { plan: objective } };
+    requestClarificationOrPlan: tool({
+      description: `Describe the steps *you* (the assistant) plan to take 
+          to accomplish the user's objective, phrased in the 
+          first person (e.g., 'First, I will...').
+          However if the user's objective is not clear un unambiguous, 
+          you must ask for clarification including a description 
+          of what you can do.
+          `.replaceAll("          ", ""),
+      parameters: PlanOrClarifyParamsSchema,
+      execute: async (args): ExecuteResult => {
+        switch (args.operation) {
+          case "plan": {
+            const planMsgId = crypto.randomUUID();
+            dispatch({
+              type: "push",
+              msg: {
+                id: planMsgId,
+                role: "assistant",
+                content: args.objective as string,
+              },
+            });
+            return { success: true, details: { plan: args.objective } };
+          }
+          case "clarify": {
+            dispatch({
+              type: "push",
+              msg: {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: args.clarification as string,
+              },
+            });
+            return {
+              success: false,
+              details: { clarification: args.clarification },
+            };
+          }
+        }
       },
     }),
     updateDocumentSemantically: tool({
@@ -620,6 +710,65 @@ export const useLexicalTools = ({
             success: false,
             error: message,
             summary: "Failed to dispatch summary message.",
+          };
+        }
+      },
+    }),
+    updateTextStyle: tool({
+      description:
+        "Apply CSS styles directly to a specific text node. Use this for changes like font family, font size, color, etc. Identify the target node using its unique key ('anchorKey') or specific text content ('anchorText'). 'anchorKey' is preferred.",
+      parameters: UpdateTextStyleParamsSchema,
+      execute: async (args): ExecuteResult => {
+        let summary = "";
+        try {
+          let success = false;
+          editor.update(() => {
+            let targetNode: LexicalNode | null = null;
+            let anchorIdentifier = "";
+
+            if (args.anchorKey) {
+              targetNode = $findNodeByKey(args.anchorKey);
+              anchorIdentifier = `key '${args.anchorKey}'`;
+            } else if (args.anchorText) {
+              targetNode = $findFirstTextNodeByText(args.anchorText);
+              anchorIdentifier = `text containing '${args.anchorText}'`;
+            }
+
+            if (!targetNode) {
+              throw new Error(
+                `Could not find target text node using ${anchorIdentifier}.`,
+              );
+            }
+
+            if (!$isTextNode(targetNode)) {
+              throw new Error(
+                `Node found with ${anchorIdentifier} is not a TextNode (found type: ${targetNode.getType()}). Cannot apply text styles.`,
+              );
+            }
+
+            targetNode.setStyle(args.style);
+            summary = `Applied style '${args.style}' to text node identified by ${anchorIdentifier}.`;
+            success = true;
+          });
+
+          if (success) {
+            return { success: true, summary };
+          } else {
+            // This path shouldn't be reached if update completes without throwing,
+            // but included for robustness.
+            return {
+              success: false,
+              error: "Update block completed but success flag was not set.",
+            };
+          }
+        } catch (error) {
+          console.error("Error executing updateTextStyle:", error);
+          return {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "An unknown error occurred",
           };
         }
       },

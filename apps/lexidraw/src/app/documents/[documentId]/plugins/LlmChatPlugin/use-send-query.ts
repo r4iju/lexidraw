@@ -56,6 +56,7 @@ export const useSendQuery = () => {
 
             // 2. Core Task & Available Tools Overview
             systemPrompt += `\n\nYour primary goal is to assist the user with document modifications using tools. The main tools are:`;
+            systemPrompt += `\n  - requestClarificationOrPlan: Request clarification if the user's request is ambigious or unclear, or update the user about the steps you will take to solve he user's objective.`;
             systemPrompt += `\n  - updateDocumentSemantically: For formatting, inserting, and deleting content blocks.`;
             systemPrompt += `\n  - imageGenerationTool: For generating new images from detailed text descriptions.`;
             systemPrompt += `\n  - searchAndInsertImage: For finding and inserting existing images based on a search query.`;
@@ -102,7 +103,7 @@ export const useSendQuery = () => {
 
             // 8. Interaction Protocol
             systemPrompt += `\n\n--- Interaction Protocol ---`;
-            systemPrompt += `\n  - **Clarification:** If the user's request is ambiguous, lacks sufficient detail for a tool call, or could be interpreted multiple ways, **ASK the user clarifying questions** before attempting to call *any* tool. Do not guess.`;
+            systemPrompt += `\n  - **Clarification:** If the user's request is ambiguous, lacks sufficient detail for a tool call, or could be interpreted multiple ways, **ASK the user clarifying questions** before attempting to call *any* tool. Do not guess. This can be done with the "requestClarificationOrPlan" tool`;
             systemPrompt += `\n  - **Critical Response (Modification Tool):** When calling 'updateDocumentSemantically', your response MUST contain ONLY the tool call invocation. Do not include any other text.`;
             systemPrompt += `\n  - **Confirmation (Post-Execution):** After ANY tool executes successfully (you will receive the result), ALWAYS respond with a brief confirmation message to the user summarizing what action was taken.`;
 
@@ -151,14 +152,33 @@ export const useSendQuery = () => {
           temperature: chatState.temperature,
           maxTokens: chatState.maxTokens,
           tools: mode === "agent" ? lexicalLlmTools : undefined,
-          maxSteps: 3,
+          maxSteps: 4,
+          repairToolCall: async ({
+            toolCall,
+            error,
+            messages,
+            // tools,
+            // parameterSchema,
+          }) => {
+            const errMsg =
+              error instanceof Error ? error.message : String(error);
+            messages.push({
+              role: "assistant",
+              content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify(toolCall.args)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
+            });
+
+            return toolCall;
+          },
           prepareStep: ({ stepNumber }) => {
             console.log("prepareStep called with stepNumber:", stepNumber);
             let stepOptions: { toolChoice?: ToolChoice<ToolSet> } = {};
             switch (stepNumber) {
               case 0:
                 stepOptions = {
-                  toolChoice: { type: "tool", toolName: "plan" },
+                  toolChoice: {
+                    type: "tool",
+                    toolName: "requestClarificationOrPlan",
+                  },
                 };
                 break;
               case 1:
