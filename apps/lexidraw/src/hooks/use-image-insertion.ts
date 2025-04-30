@@ -20,7 +20,6 @@ export const useImageInsertion = () => {
   const utils = api.useUtils();
   const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
 
-  // Function to search and get image data
   const searchImage = useCallback(
     async (query: string) => {
       try {

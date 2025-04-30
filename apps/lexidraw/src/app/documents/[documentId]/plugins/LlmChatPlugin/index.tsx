@@ -6,6 +6,7 @@ import { LlmChatProvider, useChatDispatch } from "./llm-chat-context";
 import { useRegisterKeybindings } from "./use-register-keybindings";
 import { createCommand, type LexicalCommand } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { RuntimeToolsProvider } from "./runtime-tools-provider";
 
 const ChatPluginCore = (): React.ReactElement => {
   useRegisterKeybindings();
@@ -30,7 +31,9 @@ const ChatPluginCore = (): React.ReactElement => {
 export function LlmChatPlugin(): React.ReactElement {
   return (
     <LlmChatProvider>
-      <ChatPluginCore />
+      <RuntimeToolsProvider>
+        <ChatPluginCore />
+      </RuntimeToolsProvider>
     </LlmChatProvider>
   );
 }

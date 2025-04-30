@@ -164,7 +164,6 @@ export const ImageGenerationProvider = ({
     [toast],
   );
 
-  // Step 2: Upload Image Data
   const uploadImageData = useCallback(
     async (
       imageData: Uint8Array,
@@ -247,7 +246,6 @@ export const ImageGenerationProvider = ({
     ],
   );
 
-  // Step 3: Insert Image Node into Editor
   const insertImageNodeFromUrl = useCallback(
     (imageUrl: string, prompt: string) => {
       editor.update(() => {
@@ -277,7 +275,6 @@ export const ImageGenerationProvider = ({
     [editor, toast],
   );
 
-  // Orchestrator: Generate, Upload, and Insert
   const generateUploadAndInsertImage = useCallback(
     async (
       prompt: string,
