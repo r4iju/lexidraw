@@ -14,10 +14,10 @@ import {
   generateText,
   LanguageModel,
   StepResult,
+  tool,
   ToolCallRepairFunction,
   ToolChoice,
   ToolSet,
-  type Tool,
 } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -28,6 +28,8 @@ import type {
   PartialLlmConfig,
 } from "~/server/api/routers/config";
 import { type z } from "zod";
+
+export type RuntimeToolMap = Record<string, ReturnType<typeof tool>>;
 
 export type LlmMode = "autocomplete" | "chat";
 
@@ -60,7 +62,7 @@ export type LLMOptions = {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
-  tools?: Record<string, Tool>;
+  tools?: RuntimeToolMap;
   maxSteps?: number;
   toolChoice?: ToolChoice<ToolSet>;
 };
