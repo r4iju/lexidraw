@@ -39,6 +39,8 @@ export type AppToolCall = {
   args: Record<string, unknown>;
 };
 
+export type AppToolResult = Record<string, unknown>;
+
 export type LLMBaseState = z.infer<typeof LlmBaseConfigSchema>;
 
 export type ChatLLMState = LLMBaseState & {
@@ -46,6 +48,7 @@ export type ChatLLMState = LLMBaseState & {
   text: string;
   error: string | null;
   toolCalls?: AppToolCall[];
+  toolResults?: AppToolResult[];
   isStreaming: boolean;
 };
 
@@ -70,6 +73,7 @@ export type LLMOptions = {
 export type GenerateChatResult = {
   text: string;
   toolCalls?: AppToolCall[];
+  toolResults?: AppToolResult[];
 };
 
 export const LlmModelList = [
@@ -403,10 +407,15 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           text: result.text,
           error: null,
           toolCalls: result.toolCalls,
+          toolResults: result.toolResults,
           isStreaming: false,
         }));
 
-        return { text: result.text, toolCalls: result.toolCalls };
+        return {
+          text: result.text,
+          toolCalls: result.toolCalls,
+          toolResults: result.toolResults,
+        };
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
           setChatState((prev) => ({

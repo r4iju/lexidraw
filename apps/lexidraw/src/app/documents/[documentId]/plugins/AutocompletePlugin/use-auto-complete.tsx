@@ -63,8 +63,6 @@ function useAutocompleteLLM() {
     editorContext?: AutocompleteEditorContext,
     signal?: AbortSignal,
   ): Promise<string> => {
-    console.log("autocomplete request: ", { partialSnippet, editorContext });
-
     const prompt = [
       `Complete the snippet without repeating those words.`,
       `Do not wrap in quotes.`,

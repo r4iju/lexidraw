@@ -20,8 +20,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       buildRuntimeTools({
         editor,
         dispatch,
-        searchAndInsertImage,
-        generateAndInsertImage,
+        searchAndInsertImageFunc: searchAndInsertImage,
+        generateAndInsertImageFunc: generateAndInsertImage,
       }),
     [editor, dispatch, searchAndInsertImage, generateAndInsertImage],
   );
