@@ -1,13 +1,12 @@
-import { buildRuntimeTools } from "./tool-factory";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useChatDispatch } from "./llm-chat-context";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { makeRuntimeSpec } from "./reflect-editor-runtime";
 import { $getRoot, $isElementNode, LexicalNode, EditorState } from "lexical";
+import { useRuntimeTools } from "./runtime-tools-provider";
 
 export function useSystemPrompt(base: string) {
   const [editor] = useLexicalComposerContext();
-  const dispatch = useChatDispatch();
+  const tools = useRuntimeTools();
 
   const [existingNodeTypes, setExistingNodeTypes] = useState(
     () => new Set<string>(),
@@ -55,9 +54,8 @@ export function useSystemPrompt(base: string) {
       existingNodeTypes,
     );
     const spec = makeRuntimeSpec(editor);
-    const allTools = buildRuntimeTools({ editor, dispatch });
 
-    const filteredTools = Object.keys(allTools).filter((toolName) => {
+    const filteredTools = Object.keys(tools).filter((toolName) => {
       if (toolName.startsWith("set")) {
         const nodeType = toolName.split("-")?.[0]?.slice(3);
         return nodeType && existingNodeTypes.has(nodeType);
@@ -99,5 +97,5 @@ export function useSystemPrompt(base: string) {
             `
       .replaceAll("            ", "")
       .trim();
-  }, [base, editor, dispatch, existingNodeTypes]);
+  }, [existingNodeTypes, editor, tools, base]);
 }

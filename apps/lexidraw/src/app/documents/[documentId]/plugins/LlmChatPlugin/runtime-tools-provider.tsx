@@ -1,5 +1,5 @@
-import { createContext, PropsWithChildren, useContext, useMemo } from "react";
-import { buildRuntimeTools } from "./tool-factory";
+import { createContext, PropsWithChildren, useContext } from "react";
+import { useRuntimeToolsFactory } from "./tool-factory";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useChatDispatch } from "./llm-chat-context";
 import { useImageInsertion } from "~/hooks/use-image-insertion";
@@ -14,17 +14,12 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const { searchAndInsertImage } = useImageInsertion();
   const { generateAndInsertImage } = useImageGeneration();
 
-  // memoised so the expensive reflection only runs once per editor instance
-  const tools = useMemo(
-    () =>
-      buildRuntimeTools({
-        editor,
-        dispatch,
-        searchAndInsertImageFunc: searchAndInsertImage,
-        generateAndInsertImageFunc: generateAndInsertImage,
-      }),
-    [editor, dispatch, searchAndInsertImage, generateAndInsertImage],
-  );
+  const tools = useRuntimeToolsFactory({
+    editor,
+    dispatch,
+    searchAndInsertImageFunc: searchAndInsertImage,
+    generateAndInsertImageFunc: generateAndInsertImage,
+  });
 
   return (
     <RuntimeToolsCtx.Provider value={tools}>

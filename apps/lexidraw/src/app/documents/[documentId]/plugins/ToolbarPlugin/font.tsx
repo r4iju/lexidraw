@@ -20,7 +20,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import useModal from "~/hooks/useModal";
 import { useToolbarUtils } from "./utils";
-import { parseStyleString } from "../../utils/lexical-style-utils";
+import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Fredoka", "Fredoka"],
@@ -67,7 +67,7 @@ export function FontDropDown({
   const [modal, showModal] = useModal();
   const [customFonts, setCustomFonts] = useState<[string, string][]>([]);
   const { dropDownActiveClass } = useToolbarUtils();
-
+  const { parseStyleString } = useLexicalStyleUtils();
   const handleClick = useCallback(
     (option: string) => {
       editor.update(() => {
@@ -175,7 +175,7 @@ export function FontDropDown({
         return all;
       });
     });
-  }, [editor]);
+  }, [editor, parseStyleString]);
 
   const buttonAriaLabel =
     style === "font-family"
