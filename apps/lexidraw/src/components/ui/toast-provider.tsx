@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { ToastActionElement, ToastProps } from "./toast";
 import * as ToastPrimitives from "@radix-ui/react-toast";
@@ -94,32 +95,38 @@ export function useToast() {
   }
   const { state, dispatch } = context;
 
-  function toast(props: Omit<ToasterToast, "id">) {
-    const id = uuidv4();
+  const toast = useCallback(
+    (props: Omit<ToasterToast, "id">) => {
+      const id = uuidv4();
 
-    dispatch({
-      type: "ADD_TOAST",
-      toast: {
-        ...props,
+      dispatch({
+        type: "ADD_TOAST",
+        toast: {
+          ...props,
+          id,
+          open: true,
+        },
+      });
+
+      return {
         id,
-        open: true,
-      },
-    });
+        dismiss: () => dispatch({ type: "DISMISS_TOAST", toastId: id }),
+        update: (updated: Partial<ToasterToast>) =>
+          dispatch({
+            type: "UPDATE_TOAST",
+            toast: { ...updated, id },
+          }),
+      };
+    },
+    [dispatch],
+  );
 
-    return {
-      id,
-      dismiss: () => dispatch({ type: "DISMISS_TOAST", toastId: id }),
-      update: (updated: Partial<ToasterToast>) =>
-        dispatch({
-          type: "UPDATE_TOAST",
-          toast: { ...updated, id },
-        }),
-    };
-  }
-
-  function dismiss(toastId?: string) {
-    dispatch({ type: "DISMISS_TOAST", toastId });
-  }
+  const dismiss = useCallback(
+    (toastId?: string) => {
+      dispatch({ type: "DISMISS_TOAST", toastId });
+    },
+    [dispatch],
+  );
 
   return {
     toasts: state.toasts,

@@ -36,7 +36,6 @@ type Props = {
 };
 
 const ExcalidrawWrapper: React.FC<Props> = ({
-  revalidate,
   drawing,
   appState,
   elements,
@@ -62,7 +61,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
     [],
   );
-  const stableRevalidateRef = useRef(revalidate);
 
   const applyUpdate = useCallback(
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {
@@ -95,23 +93,22 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [applyUpdate],
   );
 
-  const { sendMessage, initializeConnection, closeConnection } =
-    useWebRtcService(
-      {
-        drawingId: drawing.id,
-        userId,
-        iceServers,
+  const { sendMessage, initializeConnection } = useWebRtcService(
+    {
+      drawingId: drawing.id,
+      userId,
+      iceServers,
+    },
+    {
+      onMessage: handleMessage,
+      onConnectionClose: () => {
+        setIsCollaborating(false);
       },
-      {
-        onMessage: handleMessage,
-        onConnectionClose: () => {
-          setIsCollaborating(false);
-        },
-        onConnectionOpen: () => {
-          setIsCollaborating(true);
-        },
+      onConnectionOpen: () => {
+        setIsCollaborating(true);
       },
-    );
+    },
+  );
 
   const sendUpdate = useCallback(
     ({
@@ -274,16 +271,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         });
     }
   }, [isCollaborating, canCollaborate, initializeConnection]);
-
-  // // cleanup on unmount
-  useEffect(() => {
-    const stableRevalidate = stableRevalidateRef.current;
-    console.log("call useEffect for cleanup");
-    return () => {
-      stableRevalidate();
-      closeConnection(true);
-    };
-  }, [closeConnection]);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>

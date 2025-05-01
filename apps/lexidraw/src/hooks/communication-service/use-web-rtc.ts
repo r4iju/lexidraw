@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ICommunicationOptions,
   ICommunicationProps,
@@ -312,6 +312,12 @@ export function useWebRtcService(
       }
     });
   }, []);
+
+  useEffect(() => {
+    return () => {
+      closeConnection(true);
+    };
+  }, [closeConnection]);
 
   return { closeConnection, sendMessage, initializeConnection, peers };
 }
