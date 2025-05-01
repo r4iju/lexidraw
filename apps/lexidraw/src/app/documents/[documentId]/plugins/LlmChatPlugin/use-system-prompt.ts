@@ -78,8 +78,8 @@ export function useSystemPrompt(base: string) {
             ${toolLines}
 
             ### Interaction Guidelines
-            1.  **Clarity First:** If the request is ambiguous, lacks detail, or has multiple interpretations, ask clarifying questions using 'requestClarificationOrPlan' before acting. Do not guess. Explain this in first person.
-            2.  **Mutation Response:** When calling a tool that mutates the document (like 'insertTextNode' or 'setX-Y' tools), respond **only** with the tool call JSON.
+            1.  **Clarity First:** If the request is unclear or ambiguous, you ask clarifying questions using 'requestClarificationOrPlan' before acting. Explain this in first person.
+            2.  **Mutation Response:** When calling a tool that mutates the document respond **only** with the tool call JSON. A plaintext answer is accepted.
             3.  **Confirmation / Final Summary:** After completing all requested actions, **you must** conclude by calling \`summarizeExecution\` with a \`summaryText\` describing all steps taken.
 
             ### Tool Specific Notes
