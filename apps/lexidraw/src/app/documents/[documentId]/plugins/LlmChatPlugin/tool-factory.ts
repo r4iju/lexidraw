@@ -70,11 +70,11 @@ import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
 // Schema for anchor used in insertion tools
 const InsertionAnchorSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("key"),
+    type: z.literal("key").describe('type can be "key" or "text", never heading'),
     key: z.string(),
   }),
   z.object({
-    type: z.literal("text"),
+    type: z.literal("text").describe('type can be "key" or "text", never heading'),
     text: z.string(),
   }),
 ]);
@@ -93,13 +93,13 @@ type ListType = z.infer<typeof ListTypeEnum>;
 // Anchor schema specific to inserting ListItems (must target ListItem or List)
 const ListItemAnchorSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("key"),
+    type: z.literal("key").describe('type can be "key" or "text", never "heading"'),
     key: z
       .string()
       .describe("Use the key of the target ListItemNode or ListNode."),
   }),
   z.object({
-    type: z.literal("text"),
+    type: z.literal("text").describe('type can be "key" or "text", never heading'),
     text: z
       .string()
       .describe(
@@ -113,11 +113,11 @@ type ListItemAnchor = z.infer<typeof ListItemAnchorSchema>;
 type InsertionPointResolution =
   | { status: "success"; type: "appendRoot" }
   | {
-      status: "success";
-      type: "before" | "after";
-      targetKey: string;
-      // We return the key to avoid passing live node references outside the update cycle
-    }
+    status: "success";
+    type: "before" | "after";
+    targetKey: string;
+    // We return the key to avoid passing live node references outside the update cycle
+  }
   | { status: "error"; message: string };
 
 // Result schema: Now includes structured content
@@ -455,40 +455,40 @@ export function useRuntimeToolsFactory({
    * --------------------------------------------------------------*/
   const searchAndInsertImage = searchAndInsertImageFunc
     ? tool({
-        description:
-          "Searches for an image using the provided query on Unsplash and inserts the first result into the document (defaults to block).",
-        parameters: z.object({
-          query: z
-            .string()
-            .describe("The search query to find an image on Unsplash."),
-        }),
-        execute: async ({ query }): ExecuteResult => {
-          try {
-            await searchAndInsertImageFunc(query);
-            const summary = `Successfully searched and inserted an image related to '${query}'.`;
-            // TODO: This *does* mutate state, should we return it?
-            // For now, following pattern of not returning state from non-insert tools.
-            return { success: true, content: { summary } };
-          } catch (error) {
-            console.error(
-              "Error calling searchAndInsertImage function:",
-              error,
-            );
-            const message =
-              error instanceof Error
-                ? error.message
-                : "Unknown error occurred during image search/insertion.";
-            return {
-              success: false,
-              error: message,
-              // Provide error summary in content if needed
-              content: {
-                summary: `Failed to insert image for query: ${query}`,
-              },
-            };
-          }
-        },
-      })
+      description:
+        "Searches for an image using the provided query on Unsplash and inserts the first result into the document (defaults to block).",
+      parameters: z.object({
+        query: z
+          .string()
+          .describe("The search query to find an image on Unsplash."),
+      }),
+      execute: async ({ query }): ExecuteResult => {
+        try {
+          await searchAndInsertImageFunc(query);
+          const summary = `Successfully searched and inserted an image related to '${query}'.`;
+          // TODO: This *does* mutate state, should we return it?
+          // For now, following pattern of not returning state from non-insert tools.
+          return { success: true, content: { summary } };
+        } catch (error) {
+          console.error(
+            "Error calling searchAndInsertImage function:",
+            error,
+          );
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unknown error occurred during image search/insertion.";
+          return {
+            success: false,
+            error: message,
+            // Provide error summary in content if needed
+            content: {
+              summary: `Failed to insert image for query: ${query}`,
+            },
+          };
+        }
+      },
+    })
     : undefined;
 
   /* --------------------------------------------------------------
@@ -496,38 +496,38 @@ export function useRuntimeToolsFactory({
    * --------------------------------------------------------------*/
   const generateAndInsertImage = generateAndInsertImageFunc
     ? tool({
-        description:
-          "Generates an image based on a user prompt and inserts it into the document.",
-        parameters: z.object({
-          prompt: z
-            .string()
-            .describe(
-              "A detailed text description of the image to be generated.",
-            ),
-        }),
-        execute: async ({ prompt }): ExecuteResult => {
-          try {
-            await generateAndInsertImageFunc(prompt);
-            const summary = `Successfully generated and inserted an image for the prompt: "${prompt}"`;
-            // TODO: This *does* mutate state, should we return it?
-            // For now, following pattern of not returning state from non-insert tools.
-            return { success: true, content: { summary } };
-          } catch (error) {
-            console.error("Error executing image generation tool:", error);
-            const message =
-              error instanceof Error
-                ? error.message
-                : "Failed to generate or insert image.";
-            return {
-              success: false,
-              error: message,
-              content: {
-                summary: `Failed to generate image for prompt: ${prompt}`,
-              },
-            };
-          }
-        },
-      })
+      description:
+        "Generates an image based on a user prompt and inserts it into the document.",
+      parameters: z.object({
+        prompt: z
+          .string()
+          .describe(
+            "A detailed text description of the image to be generated.",
+          ),
+      }),
+      execute: async ({ prompt }): ExecuteResult => {
+        try {
+          await generateAndInsertImageFunc(prompt);
+          const summary = `Successfully generated and inserted an image for the prompt: "${prompt}"`;
+          // TODO: This *does* mutate state, should we return it?
+          // For now, following pattern of not returning state from non-insert tools.
+          return { success: true, content: { summary } };
+        } catch (error) {
+          console.error("Error executing image generation tool:", error);
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to generate or insert image.";
+          return {
+            success: false,
+            error: message,
+            content: {
+              summary: `Failed to generate image for prompt: ${prompt}`,
+            },
+          };
+        }
+      },
+    })
     : undefined;
 
   /* --------------------------------------------------------------
@@ -767,7 +767,12 @@ export function useRuntimeToolsFactory({
    * --------------------------------------------------------------*/
   const insertListNode = tool({
     description:
-      "Inserts a new ListNode of the specified type (bullet, number, check) containing an initial ListItemNode with the provided text. Uses relation and anchor to determine position.",
+      `Inserts a new ListNode of the specified type 
+      (bullet, number, check) containing an initial 
+      ListItemNode with the provided text. 
+      Uses relation and anchor to determine position.
+      Rather than invoking this tool directly, multiple list nodes should be inserted with a batch.
+      `,
     parameters: z.object({
       listType: ListTypeEnum,
       text: z.string().describe("Text for the initial list item."),
@@ -1450,7 +1455,11 @@ export function useRuntimeToolsFactory({
    * --------------------------------------------------------------*/
   const combinedTools = tool({
     description:
-      "Executes a sequence of other tool calls sequentially. Useful for batching independent or safely sequential operations to reduce latency. Stops execution if any step fails.",
+        `Executes a sequence of other tool calls sequentially. 
+        Useful for batching independent or safely sequential operations to reduce latency. 
+        Stops execution if any step fails.
+        Should prefferably be used when inserting multiple similar nodes.
+        `,
     parameters: z.object({
       calls: z
         .array(SingleCallSchema)
