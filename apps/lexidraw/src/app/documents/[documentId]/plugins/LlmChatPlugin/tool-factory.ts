@@ -388,7 +388,7 @@ export function useRuntimeToolsFactory({
     description: `Describe the steps *you* (the assistant) plan to take
           to accomplish the user's objective, phrased in the
           first person (e.g., 'First, I will...').
-          However if the user's objective is not clear un unambiguous,
+          However if the user's objective is unclear or ambiguous,
           you must ask for clarification including a description
           of what you can do.
           `.replaceAll("          ", ""),
