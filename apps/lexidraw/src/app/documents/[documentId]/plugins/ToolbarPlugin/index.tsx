@@ -55,7 +55,7 @@ import {
   Code,
   Italic,
   Link,
-  MessageSquare,
+  BotMessageSquare,
   PaintBucket,
   Redo,
   Underline,
@@ -644,7 +644,7 @@ export default function ToolbarPlugin({
           onClick={() => toggleSidebar("llm")}
           ariaLabel="Toggle LLM Chat"
           title="AI Assistant"
-          Icon={MessageSquare}
+          Icon={BotMessageSquare}
         />
         <TooltipButton
           className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
