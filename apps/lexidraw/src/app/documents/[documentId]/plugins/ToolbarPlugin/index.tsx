@@ -65,9 +65,7 @@ import { TooltipButton } from "~/components/ui/tooltip-button";
 import Ellipsis from "~/components/icons/ellipsis";
 import { Tooltip, TooltipTrigger } from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
-import { TOGGLE_LLM_CHAT_COMMAND } from "../LlmChatPlugin";
-import { TOGGLE_COMMENTS_COMMAND } from "../../context/comment-context";
-import { TOGGLE_TOC_COMMAND } from "../../context/toc-context";
+import { useSidebarManager } from "~/context/sidebar-manager-context";
 import { MessageSquareText, ListTree } from "lucide-react";
 import { useToolbarUtils } from "./utils";
 import { FontDropDown } from "./font";
@@ -115,6 +113,8 @@ export default function ToolbarPlugin({
   const [isRTL, setIsRTL] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState<string>("");
   const [isEditable, setIsEditable] = useState(() => editor.isEditable());
+
+  const { activeSidebar, toggleSidebar } = useSidebarManager();
 
   const sanitizeUrl = useSanitizeUrl();
 
@@ -637,31 +637,34 @@ export default function ToolbarPlugin({
       <div className="flex" role="group" aria-label="AI and sidebar controls">
         <LlmModelSelector className="rounded-r-none border-r-0" />
         <TooltipButton
-          className="w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0"
+          className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
+            "bg-muted": activeSidebar === "llm",
+          })}
           disabled={!isEditable}
-          onClick={() =>
-            editor.dispatchCommand(TOGGLE_LLM_CHAT_COMMAND, undefined)
-          }
+          onClick={() => toggleSidebar("llm")}
           ariaLabel="Toggle LLM Chat"
-          title="Toggle LLM Assistant Sidebar"
+          title="AI Assistant"
           Icon={MessageSquare}
         />
         <TooltipButton
-          className="w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0"
+          className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
+            "bg-muted": activeSidebar === "comments",
+          })}
           disabled={!isEditable}
-          onClick={() =>
-            editor.dispatchCommand(TOGGLE_COMMENTS_COMMAND, undefined)
-          }
+          onClick={() => toggleSidebar("comments")}
           ariaLabel="Toggle Comments"
-          title="Show/Hide Comments Panel"
+          title="Comments"
           Icon={MessageSquareText}
         />
         <TooltipButton
-          className="w-10 md:w-8 h-12 md:h-10 rounded-l-none rounded-r-md border-l-0"
+          className={cn(
+            "w-10 md:w-8 h-12 md:h-10 rounded-l-none rounded-r-md border-l-0",
+            { "bg-muted": activeSidebar === "toc" },
+          )}
           disabled={!isEditable}
-          onClick={() => editor.dispatchCommand(TOGGLE_TOC_COMMAND, undefined)}
+          onClick={() => toggleSidebar("toc")}
           ariaLabel="Toggle Table of Contents"
-          title="Show/Hide Table of Contents"
+          title="Table of Contents"
           Icon={ListTree}
         />
       </div>

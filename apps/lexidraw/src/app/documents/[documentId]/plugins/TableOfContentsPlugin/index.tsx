@@ -1,14 +1,13 @@
 import type { TableOfContentsEntry } from "@lexical/react/LexicalTableOfContentsPlugin";
 import type { HeadingTagType } from "@lexical/rich-text";
 import type { NodeKey } from "lexical";
-import { COMMAND_PRIORITY_LOW } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as React from "react";
 import { Button } from "~/components/ui/button";
-import { useTocContext, TOGGLE_TOC_COMMAND } from "../../context/toc-context";
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
+import { useSidebarManager } from "~/context/sidebar-manager-context";
 
 const FIXED_HEADER_HEIGHT = 70;
 const SCROLL_TOP_PADDING = 20;
@@ -24,7 +23,7 @@ function TableOfContentsList({
   const [selectedKey, setSelectedKey] = useState("");
   const selectedIndex = useRef(0);
   const [editor] = useLexicalComposerContext();
-  const { isTocOpen, toggleToc } = useTocContext();
+  const { activeSidebar, toggleSidebar } = useSidebarManager();
 
   const scrollToNodeWithPadding = useCallback(
     (key: NodeKey, currIndex: number) => {
@@ -149,8 +148,8 @@ function TableOfContentsList({
 
   return (
     <SidebarWrapper
-      isOpen={isTocOpen}
-      onClose={toggleToc}
+      isOpen={activeSidebar === "toc"}
+      onClose={() => toggleSidebar("toc")}
       title="Table of Contents"
     >
       {tableOfContents.length === 0 ? (
@@ -185,20 +184,6 @@ function TableOfContentsList({
 }
 
 function TocPluginWrapper() {
-  const [editor] = useLexicalComposerContext();
-  const { toggleToc } = useTocContext();
-
-  useEffect(() => {
-    return editor.registerCommand(
-      TOGGLE_TOC_COMMAND,
-      () => {
-        toggleToc();
-        return true;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
-  }, [editor, toggleToc]);
-
   return (
     <LexicalTableOfContentsPlugin>
       {(tableOfContents) => {

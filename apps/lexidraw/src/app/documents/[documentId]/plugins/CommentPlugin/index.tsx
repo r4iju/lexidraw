@@ -82,11 +82,12 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
-import {
-  useCommentsContext,
-  TOGGLE_COMMENTS_COMMAND,
-} from "../../context/comment-context";
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
+import { useSidebarManager } from "~/context/sidebar-manager-context";
+import {
+  TOGGLE_COMMENTS_COMMAND,
+  useCommentsContext,
+} from "../../context/comment-context";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -742,13 +743,13 @@ function CommentsPanel({
   ) => void;
   markNodeMap: Map<string, Set<NodeKey>>;
 }) {
-  const { isCommentPanelOpen, toggleCommentPanel } = useCommentsContext();
+  const { activeSidebar, toggleSidebar } = useSidebarManager();
   const isEmpty = comments.length === 0;
 
   return (
     <SidebarWrapper
-      isOpen={isCommentPanelOpen}
-      onClose={toggleCommentPanel}
+      isOpen={activeSidebar === "comments"}
+      onClose={() => toggleSidebar("comments")}
       title="Comments"
     >
       {isEmpty ? (

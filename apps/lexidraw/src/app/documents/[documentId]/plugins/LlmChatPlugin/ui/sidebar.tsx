@@ -2,22 +2,18 @@ import React from "react";
 import { ModeTabs } from "./mode-tabs";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
-import { useChatState, useChatDispatch } from "../llm-chat-context";
+// import { useChatState, useChatDispatch } from "../llm-chat-context";
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 import { Reset } from "./reset";
+import { useSidebarManager } from "~/context/sidebar-manager-context";
 
 export const Sidebar: React.FC = () => {
-  const { sidebarOpen } = useChatState();
-  const dispatch = useChatDispatch();
-
-  const handleClose = () => {
-    dispatch({ type: "toggleSidebar" });
-  };
+  const { activeSidebar, toggleSidebar } = useSidebarManager();
 
   return (
     <SidebarWrapper
-      isOpen={sidebarOpen}
-      onClose={handleClose}
+      isOpen={activeSidebar === "llm"}
+      onClose={() => toggleSidebar("llm")}
       title="LLM Assistant"
     >
       <div className="flex flex-col flex-1 h-full overflow-hidden">
