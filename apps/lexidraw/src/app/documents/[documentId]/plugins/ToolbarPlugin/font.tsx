@@ -20,6 +20,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import useModal from "~/hooks/useModal";
 import { useToolbarUtils } from "./utils";
+import { parseStyleString } from "../../utils/lexical-style-utils";
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Fredoka", "Fredoka"],
@@ -123,18 +124,16 @@ export function FontDropDown({
         if ($isTextNode(node)) {
           const style = node.getStyle?.();
           if (typeof style === "string") {
-            const match = /font-family:\s*([^;]+)/.exec(style);
-            if (match) {
-              let fontFamily = match[1]?.trim();
-              if (fontFamily) {
-                fontFamily = fontFamily.replace(/^['"]|['"]$/g, "");
-                if (
-                  !FONT_FAMILY_OPTIONS.some(
-                    ([val]) => val.replace(/^['"]|['"]$/g, "") === fontFamily,
-                  )
-                ) {
-                  usedFonts.add(fontFamily);
-                }
+            const styleObj = parseStyleString(style);
+            let fontFamily = styleObj["font-family"]?.trim();
+            if (fontFamily) {
+              fontFamily = fontFamily.replace(/^['"]|['"]$/g, "");
+              if (
+                !FONT_FAMILY_OPTIONS.some(
+                  ([val]) => val.replace(/^['"]|['"]$/g, "") === fontFamily,
+                )
+              ) {
+                usedFonts.add(fontFamily);
               }
             }
           }

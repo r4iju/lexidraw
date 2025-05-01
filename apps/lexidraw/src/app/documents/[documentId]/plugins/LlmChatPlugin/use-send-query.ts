@@ -1,9 +1,18 @@
 import { useCallback } from "react";
 import { useChatDispatch, useChatState } from "./llm-chat-context";
-import { useLLM } from "../../context/llm-context";
+import { useLLM, type AppToolCall } from "../../context/llm-context";
 import { useRuntimeTools } from "./runtime-tools-provider";
 import type { ToolChoice, ToolSet } from "ai";
 import { useSystemPrompt } from "./use-system-prompt";
+
+// Define a more specific type for messages used in history building
+// (Matches the structure in llm-chat-context.tsx)
+type HistoryMessage = {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  toolCalls?: AppToolCall[];
+};
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
@@ -17,12 +26,10 @@ export const useSendQuery = () => {
   return useCallback(
     async ({
       prompt,
-      editorStateMarkdown,
       editorStateJson,
     }: {
       prompt: string;
       editorStateJson?: string;
-      editorStateMarkdown?: string;
     }) => {
       if (!prompt?.trim()) {
         console.warn("attempted to send empty query.");
@@ -36,16 +43,17 @@ export const useSendQuery = () => {
       });
 
       try {
+        // --- Construct the full initial prompt string ---
         const historyToInclude = messages
-          .filter((msg) => msg.role !== "system")
-          .slice(0, -1)
-          .map((msg) => {
+          .filter((msg: HistoryMessage) => msg.role !== "system")
+          .map((msg: HistoryMessage) => {
             const prefix = msg.role === "user" ? "USER:" : "ASSISTANT:";
-            const toolCallContent =
-              msg.toolCalls && msg.toolCalls.length > 0
-                ? `\n(Tool Call: ${JSON.stringify(msg.toolCalls)})`
-                : "";
-            return `${prefix} ${msg.content}${toolCallContent}`;
+            let content = msg.content ?? "";
+            if (msg.toolCalls) {
+              content += `\n(Tool Calls: ${JSON.stringify(msg.toolCalls)})`;
+            }
+            // We don't include tool results in this history view
+            return `${prefix} ${content}`;
           })
           .join("\n\n");
 
@@ -54,15 +62,15 @@ export const useSendQuery = () => {
           fullPrompt += `CHAT_HISTORY:\n${historyToInclude}\n\n`;
         }
         fullPrompt += `USER_PROMPT:\n${prompt}`;
+        // Add JSON state if in agent mode and available
         if (mode === "agent" && editorStateJson) {
+          console.log(" Attaching initial JSON state to prompt.");
           fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
         }
-        if (mode === "chat" && editorStateMarkdown) {
-          fullPrompt += `\n\nDOCUMENT_STATE:\n${editorStateMarkdown}`;
-        }
+        // --- End Prompt Construction ---
 
         await generateChatStream({
-          prompt: fullPrompt,
+          prompt: fullPrompt, // Pass the fully constructed prompt
           system: systemPrompt,
           temperature: chatState.temperature,
           maxTokens: chatState.maxTokens,
@@ -71,22 +79,24 @@ export const useSendQuery = () => {
           repairToolCall: async ({
             toolCall,
             error,
-            messages,
-            // tools,
-            // parameterSchema,
+            messages: sdkMessages,
           }) => {
             const errMsg =
               error instanceof Error ? error.message : String(error);
-            messages.push({
+            sdkMessages.push({
               role: "assistant",
               content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify(toolCall.args)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
             });
-
             return toolCall;
           },
-          prepareStep: ({ stepNumber }) => {
-            console.log("prepareStep called with stepNumber:", stepNumber);
-            let stepOptions: { toolChoice?: ToolChoice<ToolSet> } = {};
+
+          // Simplified prepareStep: Only handles tool choice logic
+          prepareStep: async ({ stepNumber }: { stepNumber: number }) => {
+            console.log(
+              `prepareStep ${stepNumber}: Determining tool choice...`,
+            );
+
+            let stepOptions: { toolChoice?: ToolChoice<ToolSet> } = {}; // Only return toolChoice
             switch (stepNumber) {
               case 0:
                 stepOptions = {
@@ -110,9 +120,10 @@ export const useSendQuery = () => {
                 console.warn(
                   `Unexpected stepNumber in prepareStep: ${stepNumber}`,
                 );
-                stepOptions = {};
+                stepOptions = { toolChoice: "auto" };
             }
-            return Promise.resolve(stepOptions);
+            // Return only step-specific config, not the prompt
+            return stepOptions;
           },
         });
       } catch (error) {

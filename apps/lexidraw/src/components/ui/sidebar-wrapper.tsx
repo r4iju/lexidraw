@@ -26,7 +26,7 @@ export const SidebarWrapper: React.FC<
         className,
       )}
     >
-      <header className="flex items-center justify-between border-b shrink-0 px-4 py-6">
+      <header className="flex items-center justify-between border-b shrink-0 px-4 py-2 w-full">
         <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
         <Button
           variant="ghost"
