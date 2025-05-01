@@ -61,10 +61,7 @@ import { YouTubeNode } from "../../nodes/YouTubeNode";
 import type { Action } from "./llm-chat-context";
 import { RuntimeToolMap } from "../../context/llm-context";
 import { makeRuntimeSpec } from "./reflect-editor-runtime";
-import {
-  parseStyleString,
-  reconstructStyleString,
-} from "../../utils/lexical-style-utils";
+import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -260,7 +257,7 @@ async function resolveInsertionPoint(
 /* ------------------------------------------------------------------
  * Factory
  * -----------------------------------------------------------------*/
-export function buildRuntimeTools({
+export function useRuntimeToolsFactory({
   editor,
   dispatch,
   searchAndInsertImageFunc,
@@ -271,8 +268,9 @@ export function buildRuntimeTools({
   searchAndInsertImageFunc?: SearchAndInsertFunc;
   generateAndInsertImageFunc?: GenerateAndInsertFunc;
 }): RuntimeToolMap {
-  /* 1.  build enums / spec */
+  const { parseStyleString, reconstructStyleString } = useLexicalStyleUtils();
 
+  /* 1.  build enums / spec */
   const buildDynamicEnums = (editor: LexicalEditor) => {
     const spec = makeRuntimeSpec(editor);
 
