@@ -188,37 +188,65 @@ export const useSendQuery = () => {
           });
         } else {
           // Agent mode needs prepareStep
+          let summarised = false; // <-- closure flag
+
           const prepareStepForMode = async ({
+            steps,
             stepNumber,
+            maxSteps: _maxSteps,
+            model: _model,
           }: {
+            steps: readonly { toolResults?: AppToolCall[] }[];
             stepNumber: number;
-          }) => {
+            maxSteps: number;
+            model: unknown;
+          }): Promise<{ toolChoice?: ToolChoice<ToolSet> }> => {
             console.log(
-              `prepareStep ${stepNumber}: Determining tool choice (mode: ${mode})...`,
+              `prepareStep ${stepNumber}: Checking previous step results (mode: ${mode})...`,
             );
 
-            let stepOptions: { toolChoice?: ToolChoice<ToolSet> } = {};
-            // Agent mode logic
-            switch (stepNumber) {
-              case 0:
-                stepOptions = { toolChoice: "auto" };
-                break;
-              case 1:
-              case 2:
-              case 3:
-                stepOptions = { toolChoice: "auto" };
-                break;
-              case 4:
-                stepOptions = {
+            // Get the previous step from the steps array
+            const previousStep = steps[stepNumber - 1] || null;
+
+            // If the last *successful* tool was summarizeExecution we're done.
+            if (
+              summarised ||
+              previousStep?.toolResults?.at(-1)?.toolName ===
+                "summarizeExecution"
+            ) {
+              console.log(
+                `Step ${stepNumber}: summarizeExecution detected in previous step. Forcing toolChoice: 'none'`,
+              );
+              summarised = true;
+              return { toolChoice: "none" }; // Valid ToolChoice
+            }
+
+            // Allow up to maxSteps - 1 tool calls, then force summarize or none
+            const maxToolSteps = 5; // Allow tools up to step 4 (0, 1, 2, 3, 4)
+            if (stepNumber >= maxToolSteps) {
+              // On the last allowed step, prefer summarizeExecution if available
+              if (
+                runtimeTools.summarizeExecution &&
+                stepNumber === maxToolSteps
+              ) {
+                console.log(
+                  `Step ${stepNumber}: Reached max tool steps, forcing toolChoice: 'summarizeExecution'`,
+                );
+                return {
                   toolChoice: { type: "tool", toolName: "summarizeExecution" },
                 };
-                break;
-              default:
-                // Force stop after step 4 (or maxSteps)
-                console.log(`Step ${stepNumber}: Forcing toolChoice: 'none'`);
-                stepOptions = { toolChoice: "none" };
+              } else {
+                console.log(
+                  `Step ${stepNumber}: Reached max steps or summarizeExecution unavailable. Forcing toolChoice: 'none'`,
+                );
+                return { toolChoice: "none" };
+              }
             }
-            return stepOptions;
+
+            console.log(
+              `Step ${stepNumber}: Allowing LLM to choose tools (toolChoice: 'auto')`,
+            );
+            return { toolChoice: "auto" };
           };
 
           // Call generateChatResponse for agent mode
@@ -228,10 +256,9 @@ export const useSendQuery = () => {
               system: systemPrompt,
               temperature: chatState.temperature,
               maxTokens: chatState.maxTokens,
-              tools: runtimeTools, // Use full runtimeTools for agent
+              tools: runtimeTools,
               maxSteps: 5,
               prepareStep: prepareStepForMode,
-              // Define repairToolCall inline for agent mode
               repairToolCall: async ({
                 toolCall,
                 error,
@@ -248,16 +275,24 @@ export const useSendQuery = () => {
             });
 
           // Dispatch final agent message after response received
-          dispatch({
-            type: "push",
-            msg: {
-              id: crypto.randomUUID(),
-              role: "assistant",
-              content: responseResult.text,
-              toolCalls: responseResult.toolCalls,
-              toolResults: responseResult.toolResults,
-            },
-          });
+          const lastToolName = responseResult.toolResults?.at(-1)?.toolName;
+          const alreadyReplied =
+            lastToolName === "summarizeExecution" ||
+            lastToolName === "sendReply";
+
+          // Only push a new assistant message when nothing has replied yet
+          if (!alreadyReplied && responseResult.text.trim() !== "") {
+            dispatch({
+              type: "push",
+              msg: {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: responseResult.text,
+                toolCalls: responseResult.toolCalls,
+                toolResults: responseResult.toolResults,
+              },
+            });
+          }
         }
       } catch (error) {
         console.error(
