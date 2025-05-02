@@ -301,6 +301,47 @@ export function useRuntimeToolsFactory({
   const { NodeSpecByType } = buildDynamicEnums(editor);
   console.log("🛠️ [ToolFactory] NodeSpecByType:", NodeSpecByType);
 
+  /* ------------------------------------------------------------------
+   * Helper: normalise the "value" field so every setter receives
+   *         exactly the number (fn.length) of positional arguments.
+   * -----------------------------------------------------------------*/
+  function normaliseSetterArgs(
+    fn: (...args: unknown[]) => unknown,
+    rawValue: unknown,
+  ): unknown[] {
+    const paramCount = Math.max(fn.length, 1); // safety first
+    let args: unknown[];
+
+    // 1. Accept exact array → already ordered
+    if (Array.isArray(rawValue)) {
+      args = rawValue;
+    }
+    // 2. Plain object → extract width/height if possible, else use Object.values
+    else if (rawValue !== null && typeof rawValue === "object") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { width, height } = rawValue as any; // Attempt to destructure common case
+      if (width !== undefined || height !== undefined) {
+        args = [width, height]; // Assumes order for width/height case
+      } else {
+        // Fallback for generic objects - order might not be guaranteed
+        args = Object.values(rawValue as Record<string, unknown>);
+      }
+    }
+    // 3. Everything else → wrap single primitive
+    else {
+      args = [rawValue];
+    }
+
+    // 4. Pad / trim to match arity for *all* setters
+    if (args.length < paramCount) {
+      args = [...args, ...Array(paramCount - args.length).fill(undefined)];
+    } else if (args.length > paramCount) {
+      args = args.slice(0, paramCount);
+    }
+
+    return args;
+  }
+
   /* --------------------------------------------------------------
    * 3. Auto‑generate simple setter tools (setX-Y)
    * --------------------------------------------------------------*/
@@ -318,11 +359,21 @@ export function useRuntimeToolsFactory({
 
       // @ts-expect-error TODO: fix this
       setterTools[toolName] = tool({
-        description: `Calls ${method}(value) on a ${node.type} node.`,
+        description: `Calls ${method} on a ${node.type} node.
+If ${method} expects more than one parameter, pass **value** as an ordered array.${
+          method === "setWidthAndHeight"
+            ? `
+Arguments should be [number | 'inherit', number | 'inherit'].`
+            : ""
+        }`,
         parameters: z.object({
           anchorKey: z.string().optional(),
           anchorText: z.string().optional(),
-          value: z.any(),
+          value: z
+            .union([z.unknown(), z.array(z.unknown())])
+            .describe(
+              "Single argument OR ordered array for multi‑param setters",
+            ),
         }),
         execute: async ({ anchorKey, anchorText, value }) => {
           try {
@@ -373,9 +424,45 @@ export function useRuntimeToolsFactory({
               value,
             );
 
-            editor.update(() => fn.call(target, value));
+            const targetKey = target.getKey(); // cache key only
+            const paramCount = Math.max(fn.length, 1); // Define paramCount here
 
-            const summary = `${method} executed on ${node.type} (key: ${target.getKey()})`;
+            // Normalize arguments based on expected count and function name
+            const args = normaliseSetterArgs(fn, value);
+
+            editor.update(() => {
+              // always fetch a *fresh* writable instance first
+              const live = $getNodeByKey(targetKey);
+              if (!live) {
+                throw new Error(`Node ${targetKey} vanished before update.`);
+              }
+              // Log arguments before applying
+              console.log(
+                `[setter] ${fn.name} expects ${paramCount} args, got:`,
+                args,
+              );
+              // @ts-expect-error – dynamic method call, type safety handled by normaliseSetterArgs & checks
+              fn.apply(live, args);
+
+              if ("__maxWidth" in live) {
+                console.log(
+                  "[setimage-MaxWidth] maxWidth now =",
+                  live.__maxWidth,
+                );
+              }
+
+              if ("__width" in live && live.__width !== undefined) {
+                console.log(
+                  `[${toolName}] width now =`,
+                  live.__width,
+                  "height =",
+                  // @ts-expect-error – dynamic method call, handled by normaliseSetterArgs
+                  live.__height,
+                );
+              }
+            });
+
+            const summary = `${method} executed on ${node.type} (key: ${targetKey})`;
             console.log(`✅ [${toolName}] Success: ${summary}`);
             // Non-mutating (for state), return only summary
             return { success: true, content: { summary } };

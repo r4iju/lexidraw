@@ -301,6 +301,11 @@ export default function InlineImageComponent({
     [caption, editor, setSelected],
   );
 
+  useEffect(() => {
+    // keep state in sync with node updates
+    setCurrentDimensions({ width, height });
+  }, [width, height]);
+
   // Register commands
   useEffect(() => {
     let isMounted = true;

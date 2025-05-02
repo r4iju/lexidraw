@@ -90,11 +90,15 @@ function LazyImage({
         <img
           src={src}
           alt={altText}
-          width={width === "inherit" ? undefined : width}
-          height={height === "inherit" ? undefined : height}
           className={className ?? undefined}
           ref={imageRef as React.RefObject<HTMLImageElement>}
           draggable={false}
+          style={{
+            width: width === "inherit" ? "auto" : `${width}px`,
+            height: height === "inherit" ? "auto" : `${height}px`,
+            objectFit: "contain",
+            maxWidth: "100%",
+          }}
         />
       )}
       onError={onError}
@@ -264,6 +268,13 @@ export default function ImageComponent({
     },
     [editor],
   );
+
+  useEffect(() => {
+    // keep state in sync with node updates unless the user is actively dragging
+    if (!isResizing) {
+      setCurrentDimensions({ width, height });
+    }
+  }, [width, height, isResizing]);
 
   useEffect(() => {
     let isMounted = true;
