@@ -13,6 +13,12 @@ import {
   $isRootNode,
   $isTextNode,
   $getNodeByKey,
+  $isRangeSelection,
+  $getSelection,
+  type RangeSelection,
+  type NodeSelection,
+  $isParagraphNode,
+  $insertNodes,
 } from "lexical";
 import {
   $createCodeNode,
@@ -27,6 +33,11 @@ import {
   $isListNode,
   $isListItemNode,
 } from "@lexical/list";
+import {
+  $convertFromMarkdownString,
+  $convertToMarkdownString,
+  TRANSFORMERS,
+} from "@lexical/markdown";
 import { $createMarkNode, $isMarkNode } from "@lexical/mark";
 import { $createTableNode, $isTableNode } from "@lexical/table";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
@@ -34,7 +45,7 @@ import { $createLinkNode, $isLinkNode } from "@lexical/link";
 import { $createOverflowNode, $isOverflowNode } from "@lexical/overflow";
 
 /** Standard Nodes */
-import { ElementNode, LexicalNode, ParagraphNode, TextNode } from "lexical";
+import { ElementNode, LexicalNode, TextNode, ParagraphNode } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { CodeNode } from "@lexical/code";
@@ -1262,6 +1273,180 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     },
   });
 
+  const insertMarkdown = tool({
+    description:
+      "Inserts content parsed from a Markdown string. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. This is efficient for inserting complex structures like multiple paragraphs, lists, headings, code blocks, etc., defined in Markdown format.",
+    parameters: z.object({
+      markdownText: z
+        .string()
+        .describe("The Markdown content to parse and insert."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ markdownText, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertMarkdown] Starting", {
+          markdownText,
+          relation,
+          anchor,
+        });
+
+        // 1. Resolve insertion point *outside* update cycle
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(
+            `❌ [insertMarkdown] Error resolving insertion point: ${resolution.message}`,
+          );
+          return { success: false, error: resolution.message };
+        }
+
+        // 2. Perform insertion *inside* update cycle
+        let targetKeyForSummary: string | null =
+          resolution.type === "appendRoot"
+            ? "root"
+            : resolution.status === "success"
+              ? resolution.targetKey
+              : null;
+
+        editor.update(
+          () => {
+            let targetNodeForConversion: ElementNode | null = null;
+
+            if (resolution.type === "appendRoot") {
+              // For appendRoot, create a new paragraph at the end and use it as the target node.
+              const newParagraph = $createParagraphNode();
+              $getRoot().append(newParagraph);
+              targetNodeForConversion = newParagraph; // Target the new paragraph directly
+              targetKeyForSummary = newParagraph.getKey(); // Update summary key to the new node
+              console.log(
+                "[insertMarkdown] Mode: appendRoot - created target paragraph:",
+                targetKeyForSummary,
+              );
+            } else {
+              // Relative insertion ('before' or 'after')
+              // We already checked resolution.status !== 'error'
+              const targetNodeKey = (resolution as { targetKey: string })
+                .targetKey;
+              const targetNode = $getNodeByKey(targetNodeKey);
+
+              if (!targetNode) {
+                throw new Error(
+                  `Target node with key ${targetNodeKey} not found within editor update.`,
+                );
+              }
+
+              const targetBlock = targetNode.getTopLevelElement() ?? targetNode;
+              if (
+                !targetBlock ||
+                !$isElementNode(targetBlock) ||
+                targetBlock.isInline()
+              ) {
+                throw new Error(
+                  `Target node (key: ${targetNodeKey}) or its top-level element is not a valid block node for relative insertion.`,
+                );
+              }
+
+              // Create a paragraph node to hold the converted content.
+              const insertionPointNode = $createParagraphNode();
+              targetNodeForConversion = insertionPointNode; // Target this new node
+
+              if (resolution.type === "before") {
+                targetBlock.insertBefore(insertionPointNode);
+                console.log(
+                  `[insertMarkdown] Mode: before ${targetNodeKey} - inserted target paragraph:`,
+                  insertionPointNode.getKey(),
+                );
+              } else {
+                // 'after'
+                targetBlock.insertAfter(insertionPointNode);
+                console.log(
+                  `[insertMarkdown] Mode: after ${targetNodeKey} - inserted target paragraph:`,
+                  insertionPointNode.getKey(),
+                );
+              }
+            }
+
+            // Ensure we have a node to target for conversion
+            if (!targetNodeForConversion) {
+              // This should be unreachable if logic above is correct
+              throw new Error(
+                "Failed to determine target node for Markdown conversion.",
+              );
+            }
+
+            // Perform the conversion, passing the target node explicitly
+            // This should replace the content *of* targetNodeForConversion
+            console.log(
+              `[insertMarkdown] Calling $convertFromMarkdownString, targeting node: ${targetNodeForConversion.getKey()}`,
+            );
+            $convertFromMarkdownString(
+              markdownText,
+              TRANSFORMERS,
+              targetNodeForConversion,
+            );
+
+            // If the conversion resulted in an empty target node (e.g., empty markdown string), remove it.
+            // Need to get a fresh instance as conversion might replace the node object.
+            const potentiallyEmptyNode = $getNodeByKey(
+              targetNodeForConversion.getKey(),
+            );
+            if (
+              potentiallyEmptyNode &&
+              $isElementNode(potentiallyEmptyNode) &&
+              potentiallyEmptyNode.isAttached() &&
+              potentiallyEmptyNode.isEmpty()
+            ) {
+              console.log(
+                `[insertMarkdown] Conversion target node ${potentiallyEmptyNode.getKey()} is empty, removing it.`,
+              );
+              potentiallyEmptyNode.remove();
+            }
+          },
+          { tag: "llm-insert-markdown" },
+        ); // Add a tag for debugging history
+
+        // Capture state *after* the update completes
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended content from Markdown.`
+            : `Inserted content from Markdown ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertMarkdown] Success: ${summary}`);
+
+        // Return summary and state in content
+        return {
+          success: true,
+          content: { summary, updatedEditorStateJson: stateJson },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertMarkdown] Error:`, errorMsg);
+        // Capture state even on error if possible
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error("Failed to serialize state on error:", stateErr);
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert content from Markdown",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   /* --------------------------------------------------------------
    * Remove Node Tool
    * --------------------------------------------------------------*/
@@ -1566,6 +1751,7 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
+    ...(insertMarkdown && { insertMarkdown }),
     ...(applyTextStyle && { applyTextStyle }),
     ...(removeNode && { removeNode }),
     ...(moveNode && { moveNode }),
