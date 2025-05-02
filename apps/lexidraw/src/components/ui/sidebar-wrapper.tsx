@@ -34,12 +34,12 @@ export const SidebarWrapper: React.FC<
   maxWidth = 800,
 }) => {
   const [width, setWidth] = useState(initialWidth);
+  const [isResizing, setIsResizing] = useState(false);
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const initialMouseXRef = useRef(0);
   const initialWidthRef = useRef(initialWidth);
 
-  // Unified move logic
   const handleMove = useCallback(
     (clientX: number) => {
       if (!isResizingRef.current) return;
@@ -63,7 +63,6 @@ export const SidebarWrapper: React.FC<
     [minWidth, maxWidth],
   );
 
-  // Specific event handlers calling the unified logic
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
       handleMove(e.clientX);
@@ -74,58 +73,46 @@ export const SidebarWrapper: React.FC<
   const handleTouchMove = useCallback(
     (e: TouchEvent) => {
       if (e.touches.length === 1) {
-        handleMove(e.touches[0].clientX);
+        handleMove(e.touches[0]?.clientX ?? 0);
       }
     },
     [handleMove],
   );
 
-  // Unified end handler
   const handleResizeEnd = useCallback(() => {
     if (!isResizingRef.current) return;
     isResizingRef.current = false;
+    setIsResizing(false);
 
-    // Remove global listeners
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleResizeEnd);
     document.removeEventListener("touchmove", handleTouchMove);
     document.removeEventListener("touchend", handleResizeEnd);
+  }, [handleMouseMove, handleTouchMove]);
 
-    // Restore body style
-    document.body.style.userSelect = "";
-    document.body.style.webkitUserSelect = "";
-  }, [handleMouseMove, handleTouchMove]); // handleMove removed, end doesn't use it
-
-  // Unified start handler
   const handleResizeStart = useCallback(
     (clientX: number) => {
-      // Check ref before accessing offsetWidth
       if (!sidebarRef.current) {
         console.warn("Sidebar ref not available at resize start");
         return;
       }
-      if (isResizingRef.current) return; // Avoid starting multiple times
+      if (isResizingRef.current) return;
 
       isResizingRef.current = true;
+      setIsResizing(true);
       initialMouseXRef.current = clientX;
       initialWidthRef.current = sidebarRef.current.offsetWidth;
 
-      // Add global listeners
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleResizeEnd);
       document.addEventListener("touchmove", handleTouchMove, {
         passive: false,
       });
       document.addEventListener("touchend", handleResizeEnd);
-
-      // Prevent text selection
-      document.body.style.userSelect = "none";
-      document.body.style.webkitUserSelect = "none";
     },
-    [handleMouseMove, handleTouchMove, handleResizeEnd], // Added handleResizeEnd dependency
+    [handleMouseMove, handleTouchMove, handleResizeEnd],
   );
 
-  // Inline handlers for the resize handle element
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     handleResizeStart(e.clientX);
     e.preventDefault();
@@ -133,26 +120,33 @@ export const SidebarWrapper: React.FC<
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 1) {
-      handleResizeStart(e.touches[0].clientX);
-      // e.preventDefault(); // Only if needed to prevent scrolling
+      handleResizeStart(e.touches[0]?.clientX ?? 0);
     }
   };
 
-  // Effect for cleaning up global listeners on unmount *if* resizing
   useEffect(() => {
     return () => {
       if (isResizingRef.current) {
-        // If component unmounts while resizing, clean up everything
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleResizeEnd);
         document.removeEventListener("touchmove", handleTouchMove);
         document.removeEventListener("touchend", handleResizeEnd);
-        document.body.style.userSelect = "";
-        document.body.style.webkitUserSelect = "";
       }
     };
-    // Depend on the handlers used in cleanup
   }, [handleMouseMove, handleTouchMove, handleResizeEnd]);
+
+  useEffect(() => {
+    const bodyStyle = document.body.style;
+    const originalUserSelect = bodyStyle.userSelect;
+
+    if (isResizing) {
+      bodyStyle.userSelect = "none";
+
+      return () => {
+        bodyStyle.userSelect = originalUserSelect;
+      };
+    }
+  }, [isResizing]);
 
   return (
     <aside
@@ -169,15 +163,14 @@ export const SidebarWrapper: React.FC<
     >
       {/* Resize Handle */}
       <div
-        onMouseDown={handleMouseDown} // Use inline handler
-        onTouchStart={handleTouchStart} // Use inline handler
+        onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
         className="absolute left-0 top-0 h-full w-4 cursor-col-resize group -translate-x-1/2"
-        aria-label="Resize sidebar" // Added aria-label for accessibility
-        role="separator" // Added role
-        tabIndex={0} // Make it focusable for potential keyboard support later
+        aria-label="Resize sidebar"
+        role="separator"
+        tabIndex={0}
       >
-        <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors duration-200 mx-auto pointer-events-none"></div>{" "}
-        {/* Added pointer-events-none to inner div */}
+        <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors duration-200 mx-auto pointer-events-none"></div>
       </div>
 
       {/* Header */}
