@@ -702,14 +702,17 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
 
         // 2. Perform insertion *inside* update cycle
         let targetKey: string | null = null; // For summary
+        let newNodeKey: string | null = null; // To return
         editor.update(() => {
           const newTextNode = $createTextNode(text);
+          newNodeKey = newTextNode.getKey(); // Store text node key initially
 
           if (resolution.type === "appendRoot") {
             const paragraph = $createParagraphNode();
             paragraph.append(newTextNode);
             $getRoot().append(paragraph);
             targetKey = $getRoot().getKey(); // Technically root, but signifies append
+            newNodeKey = paragraph.getKey(); // Return the paragraph key for appendRoot
           } else {
             // Relative insertion ('before' or 'after')
             const targetNode = $getNodeByKey(resolution.targetKey);
@@ -730,6 +733,7 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
                 // 'after'
                 targetNode.insertAfter(newTextNode);
               }
+              newNodeKey = targetNode.getKey(); // Return the text node key
             } else {
               // Insert text wrapped in a paragraph relative to other node types
               const paragraph = $createParagraphNode();
@@ -740,6 +744,7 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
                 // 'after'
                 targetNode.insertAfter(paragraph);
               }
+              newNodeKey = paragraph.getKey(); // Return the paragraph key
             }
           }
         });
@@ -755,7 +760,11 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
         // Return summary and state in content
         return {
           success: true,
-          content: { summary, updatedEditorStateJson: stateJson },
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
@@ -809,10 +818,12 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
 
         // 2. Perform insertion *inside* update cycle
         let targetKey: string | null = null; // For summary
+        let newNodeKey: string | null = null; // To return
         editor.update(() => {
           const newHeadingNode = $createHeadingNode(tag).append(
             $createTextNode(text),
           );
+          newNodeKey = newHeadingNode.getKey(); // Store the key
 
           if (resolution.type === "appendRoot") {
             $getRoot().append(newHeadingNode);
@@ -849,7 +860,11 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
         // Return summary and state in content
         return {
           success: true,
-          content: { summary, updatedEditorStateJson: stateJson },
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
