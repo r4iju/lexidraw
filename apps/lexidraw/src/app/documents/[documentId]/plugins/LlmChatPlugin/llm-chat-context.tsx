@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useReducer } from "react";
-import type { AppToolCall } from "../../context/llm-context";
+import type { AppToolCall, AppToolResult } from "../../context/llm-context";
 
 export type ChatState = {
   messages: {
@@ -7,6 +7,7 @@ export type ChatState = {
     role: "user" | "assistant" | "system";
     content: string;
     toolCalls?: AppToolCall[];
+    toolResults?: AppToolResult[];
   }[];
   streaming: boolean;
   sidebarOpen: boolean;
@@ -18,7 +19,11 @@ export type Action =
   | { type: "toggleSidebar" }
   | { type: "setMode"; mode: ChatState["mode"] }
   | { type: "reset" }
-  | { type: "removeMessage"; id: string };
+  | { type: "removeMessage"; id: string }
+  | {
+      type: "update";
+      msg: Partial<ChatState["messages"][number]> & { id: string };
+    };
 
 const initial: ChatState = {
   messages: [],
@@ -60,6 +65,19 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
       case "removeMessage": {
         const messages = s.messages.filter((msg) => msg.id !== a.id);
         return { ...s, messages };
+      }
+      case "update": {
+        if (!a.msg.id) {
+          console.warn("Update action requires message ID:", a.msg);
+          return s;
+        }
+        const updatedMessages = s.messages.map((msg) => {
+          if (msg.id === a.msg.id) {
+            return { ...msg, ...a.msg };
+          }
+          return msg;
+        });
+        return { ...s, messages: updatedMessages };
       }
       default: {
         // default case for type safety

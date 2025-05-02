@@ -18,6 +18,9 @@ import {
   ToolCallRepairFunction,
   ToolChoice,
   ToolSet,
+  streamText,
+  type TextStreamPart,
+  type FinishReason,
 } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -40,6 +43,34 @@ export type AppToolCall = {
 };
 
 export type AppToolResult = Record<string, unknown>;
+
+export type StreamTokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+export type StreamCallbacks = {
+  onTextUpdate?: (text: string) => void;
+  onFinish?: (result: GenerateChatStreamResult) => void;
+  onError?: (error: Error) => void;
+};
+
+export type FinalStreamResult = {
+  finishReason: FinishReason;
+  usage: StreamTokenUsage;
+  text: string;
+};
+
+export type GenerateChatStreamResult = {
+  text: string;
+};
+
+export type GenerateChatResponseResult = {
+  text: string;
+  toolCalls?: AppToolCall[];
+  toolResults?: AppToolResult[];
+};
 
 export type LLMBaseState = z.infer<typeof LlmBaseConfigSchema>;
 
@@ -68,12 +99,6 @@ export type LLMOptions = {
   tools?: RuntimeToolMap;
   maxSteps?: number;
   toolChoice?: ToolChoice<ToolSet>;
-};
-
-export type GenerateChatResult = {
-  text: string;
-  toolCalls?: AppToolCall[];
-  toolResults?: AppToolResult[];
 };
 
 export const LlmModelList = [
@@ -127,7 +152,7 @@ type LLMContextValue = {
   generateAutocomplete: (options: LLMOptions) => Promise<string>;
   autocompleteState: AutocompleteLLMState;
   setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
-  generateChatStream: (
+  generateChatResponse: (
     options: LLMOptions & {
       repairToolCall?: ToolCallRepairFunction<ToolSet>;
       toolChoice?: ToolChoice<ToolSet>;
@@ -141,8 +166,12 @@ type LLMContextValue = {
         toolChoice?: ToolChoice<ToolSet>;
       }>;
     },
-  ) => Promise<GenerateChatResult>;
-
+  ) => Promise<GenerateChatResponseResult>;
+  generateChatStream: (
+    options: Omit<LLMOptions, "tools" | "toolChoice"> & {
+      callbacks: StreamCallbacks;
+    },
+  ) => Promise<void>;
   chatState: ChatLLMState;
   setChatLlmOptions: (options: Partial<LLMBaseState>) => void;
   availableModels: typeof LlmModelList;
@@ -348,7 +377,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     [autocompleteProvider, autocompleteState],
   );
 
-  const generateChatText = useCallback(
+  const generateChatResponse = useCallback(
     async ({
       prompt,
       system = "",
@@ -371,10 +400,10 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         model?: LanguageModel;
         toolChoice?: ToolChoice<ToolSet>;
       }>;
-    }): Promise<GenerateChatResult> => {
+    }): Promise<GenerateChatResponseResult> => {
       if (!chatState.enabled || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
-        return { text: "", toolCalls: undefined };
+        return { text: "", toolCalls: undefined, toolResults: undefined };
       }
 
       setChatState((prev) => ({
@@ -423,7 +452,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
             text: "",
             isStreaming: false,
           }));
-          return { text: "", toolCalls: undefined };
+          return { text: "", toolCalls: undefined, toolResults: undefined };
         }
         const errorMsg = err instanceof Error ? err.message : String(err);
         setChatState((prev) => ({
@@ -433,7 +462,128 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           error: errorMsg,
           isStreaming: false,
         }));
-        return { text: "", toolCalls: undefined };
+        return { text: "", toolCalls: undefined, toolResults: undefined };
+      }
+    },
+    [chatProvider, chatState],
+  );
+
+  const generateChatStream = useCallback(
+    async ({
+      prompt,
+      system = "",
+      temperature,
+      maxTokens,
+      signal,
+      maxSteps,
+      callbacks,
+    }: Omit<LLMOptions, "tools" | "toolChoice"> & {
+      callbacks: StreamCallbacks;
+    }): Promise<void> => {
+      if (!chatState.enabled || !chatProvider.current) {
+        console.warn("[LLMContext] Chat provider not loaded.");
+        callbacks.onError?.(new Error("Chat provider not loaded."));
+        return;
+      }
+
+      setChatState((prev) => ({
+        ...prev,
+        isStreaming: true,
+        isError: false,
+        error: null,
+        text: "",
+        toolCalls: undefined,
+      }));
+
+      let accumulatedText = "";
+      let finalResultData: FinalStreamResult | null = null;
+      let finalGenerateStreamResult: GenerateChatStreamResult | null = null;
+
+      try {
+        const result = await streamText({
+          model: chatProvider.current(chatState.modelId),
+          prompt,
+          system,
+          temperature: temperature ?? chatState.temperature,
+          maxTokens: maxTokens ?? chatState.maxTokens,
+          abortSignal: signal,
+          maxSteps: maxSteps,
+        });
+
+        for await (const delta of result.fullStream) {
+          switch (delta.type) {
+            case "text-delta": {
+              accumulatedText += delta.textDelta;
+              callbacks.onTextUpdate?.(accumulatedText);
+              break;
+            }
+            case "finish": {
+              const finishDelta = delta as Extract<
+                TextStreamPart<ToolSet>,
+                { type: "finish" }
+              >;
+              finalResultData = {
+                finishReason: finishDelta.finishReason,
+                usage: finishDelta.usage,
+                text: accumulatedText,
+              };
+              break;
+            }
+            case "error": {
+              const errorDelta = delta as Extract<
+                TextStreamPart<ToolSet>,
+                { type: "error" }
+              >;
+              throw errorDelta.error;
+            }
+          }
+        }
+
+        const awaitedText = await result.text;
+
+        if (finalResultData) {
+          finalResultData.text = awaitedText ?? finalResultData.text;
+        } else {
+          const finalReason = await result.finishReason;
+          const finalUsage = await result.usage;
+          if (finalReason !== "error") {
+            finalResultData = {
+              finishReason: finalReason,
+              usage: finalUsage,
+              text: awaitedText,
+            };
+          }
+        }
+
+        if (finalResultData) {
+          finalGenerateStreamResult = {
+            text: finalResultData.text,
+          };
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          console.log("[LLMContext] Stream aborted.");
+        } else {
+          const error = err instanceof Error ? err : new Error(String(err));
+          console.error("[LLMContext] Error during chat stream:", error);
+          setChatState((prev) => ({
+            ...prev,
+            isError: true,
+            error: error.message,
+          }));
+          callbacks.onError?.(error);
+        }
+      } finally {
+        setChatState((prev) => ({
+          ...prev,
+          isStreaming: false,
+          text: finalGenerateStreamResult?.text ?? accumulatedText,
+          toolCalls: undefined,
+          toolResults: undefined,
+        }));
+        if (finalGenerateStreamResult) {
+          callbacks.onFinish?.(finalGenerateStreamResult);
+        }
       }
     },
     [chatProvider, chatState],
@@ -516,7 +666,8 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         generateAutocomplete,
         autocompleteState,
         setAutocompleteLlmOptions,
-        generateChatStream: generateChatText,
+        generateChatResponse,
+        generateChatStream,
         chatState,
         setChatLlmOptions,
         availableModels: LlmModelList,

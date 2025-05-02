@@ -1,11 +1,14 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useChatDispatch, useChatState } from "./llm-chat-context";
-import { useLLM, type AppToolCall } from "../../context/llm-context";
+import { type ToolChoice, type ToolSet } from "ai";
+import {
+  useLLM,
+  type AppToolCall,
+  type StreamCallbacks,
+  type GenerateChatResponseResult,
+} from "../../context/llm-context";
 import { useRuntimeTools } from "./runtime-tools-provider";
-import type { ToolChoice, ToolSet } from "ai";
 import { useSystemPrompt } from "./use-system-prompt";
-// TODO: Implement or import a Lexical -> Markdown conversion utility
-// import { $convertToMarkdownString } from '@lexical/markdown'; // Example if using official package
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { EditorState, $getRoot } from "lexical";
 
@@ -51,7 +54,7 @@ function convertEditorStateToMarkdown(editorState: EditorState): string {
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
   const { mode, messages } = useChatState();
-  const { generateChatStream, chatState } = useLLM();
+  const { generateChatStream, generateChatResponse, chatState } = useLLM();
   const runtimeTools = useRuntimeTools();
   const [editor] = useLexicalComposerContext();
 
@@ -59,11 +62,11 @@ export const useSendQuery = () => {
   const systemPrompt = useSystemPrompt(systemPromptBase);
 
   // Reinstate separating the sendReply tool for chat mode
-  const sendReplyTool = useMemo(() => {
-    return runtimeTools.sendReply
-      ? { sendReply: runtimeTools.sendReply }
-      : undefined;
-  }, [runtimeTools.sendReply]);
+  // const sendReplyTool = useMemo(() => {
+  //   return runtimeTools.sendReply
+  //     ? { sendReply: runtimeTools.sendReply }
+  //     : undefined;
+  // }, [runtimeTools.sendReply]);
 
   return useCallback(
     async ({
@@ -117,81 +120,145 @@ export const useSendQuery = () => {
         }
         // --- End Prompt Construction ---
 
-        // --- Determine tools and prepareStep logic based on mode ---
-        const toolsForMode = mode === "chat" ? sendReplyTool : runtimeTools;
-        const prepareStepForMode = async ({
-          stepNumber,
-        }: {
-          stepNumber: number;
-        }) => {
-          console.log(
-            `prepareStep ${stepNumber}: Determining tool choice (mode: ${mode})...`,
-          );
+        // --- Select generation function based on mode ---
+        if (mode === "chat") {
+          console.log("Using generateChatStream for chat mode");
+          const assistantMessageId = crypto.randomUUID();
+          // Add placeholder assistant message for streaming
+          dispatch({
+            type: "push",
+            msg: { id: assistantMessageId, role: "assistant", content: "" },
+          });
 
-          let stepOptions: { toolChoice?: ToolChoice<ToolSet> } = {};
+          const streamCallbacks: StreamCallbacks = {
+            onTextUpdate: (textChunk) => {
+              // Update the content of the last assistant message incrementally
+              dispatch({
+                type: "update",
+                msg: {
+                  id: assistantMessageId,
+                  role: "assistant",
+                  content: textChunk,
+                },
+              });
+            },
+            onFinish: (result) => {
+              console.log("Streaming finished:", result);
+              // Final update - use simple result (text only)
+              dispatch({
+                type: "update",
+                msg: {
+                  id: assistantMessageId,
+                  role: "assistant",
+                  content: result.text,
+                },
+              });
+            },
+            onError: (error) => {
+              console.error("Error during chat stream:", error);
+              dispatch({
+                type: "update", // Update the placeholder message with error info
+                msg: {
+                  id: assistantMessageId,
+                  role: "assistant", // Ensure role is set
+                  content: `Error: ${error.message}`,
+                },
+              });
+              // Optionally push a system error message too
+              // dispatch({
+              //   type: "push",
+              //   msg: {
+              //     id: crypto.randomUUID(),
+              //     role: "system",
+              //     content: "An error occurred while processing the stream.",
+              //   },
+              // });
+            },
+          };
 
-          if (mode === "chat") {
-            // In chat mode, always force sendReply if available
-            if (sendReplyTool) {
-              stepOptions = {
-                toolChoice: { type: "tool", toolName: "sendReply" },
-              };
-            } else {
-              console.warn(
-                "Chat mode selected but sendReplyTool is not available!",
-              );
-              stepOptions = { toolChoice: "none" }; // Should not happen if tool exists
-            }
-          } else {
+          await generateChatStream({
+            prompt: fullPrompt,
+            system: systemPrompt,
+            temperature: chatState.temperature,
+            maxTokens: chatState.maxTokens,
+            // No tools needed for simple chat stream
+            maxSteps: 1, // Chat mode is typically single turn
+            // No toolChoice needed for simple chat stream
+            callbacks: streamCallbacks,
+          });
+        } else {
+          // Agent mode needs prepareStep
+          const prepareStepForMode = async ({
+            stepNumber,
+          }: {
+            stepNumber: number;
+          }) => {
+            console.log(
+              `prepareStep ${stepNumber}: Determining tool choice (mode: ${mode})...`,
+            );
+
+            let stepOptions: { toolChoice?: ToolChoice<ToolSet> } = {};
             // Agent mode logic
             switch (stepNumber) {
               case 0:
-                // Allow LLM to choose first step (plan/clarify, sendReply, or direct action if simple)
                 stepOptions = { toolChoice: "auto" };
                 break;
               case 1:
               case 2:
-              case 3: // Steps 1, 2, 3 allow auto tool choice
+              case 3:
                 stepOptions = { toolChoice: "auto" };
                 break;
-              case 4: // Step 4 forces summary
+              case 4:
                 stepOptions = {
                   toolChoice: { type: "tool", toolName: "summarizeExecution" },
                 };
                 break;
               default:
-                console.warn(
-                  `Unexpected stepNumber in agent prepareStep: ${stepNumber}`,
-                );
-                stepOptions = { toolChoice: "auto" };
+                // Force stop after step 4 (or maxSteps)
+                console.log(`Step ${stepNumber}: Forcing toolChoice: 'none'`);
+                stepOptions = { toolChoice: "none" };
             }
-          }
-          return stepOptions;
-        };
-        // --- End Mode-Specific Logic ---
+            return stepOptions;
+          };
 
-        await generateChatStream({
-          prompt: fullPrompt,
-          system: systemPrompt,
-          temperature: chatState.temperature,
-          maxTokens: chatState.maxTokens,
-          tools: toolsForMode, // Use the mode-specific tools
-          maxSteps: 1, // Always 1 step for chat, agent uses own logic implicitly via prepareStep
-          repairToolCall: async ({
-            toolCall,
-            error,
-            messages: sdkMessages,
-          }) => {
-            const errMsg =
-              error instanceof Error ? error.message : String(error);
-            sdkMessages.push({
-              role: "assistant",
-              content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify(toolCall.args)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
+          // Call generateChatResponse for agent mode
+          const responseResult: GenerateChatResponseResult =
+            await generateChatResponse({
+              prompt: fullPrompt,
+              system: systemPrompt,
+              temperature: chatState.temperature,
+              maxTokens: chatState.maxTokens,
+              tools: runtimeTools, // Use full runtimeTools for agent
+              maxSteps: 5,
+              prepareStep: prepareStepForMode,
+              // Define repairToolCall inline for agent mode
+              repairToolCall: async ({
+                toolCall,
+                error,
+                messages: sdkMessages,
+              }) => {
+                const errMsg =
+                  error instanceof Error ? error.message : String(error);
+                sdkMessages.push({
+                  role: "assistant",
+                  content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify(toolCall.args)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
+                });
+                return toolCall;
+              },
             });
-            return toolCall;
-          },
-          prepareStep: prepareStepForMode,
-        });
+
+          // Dispatch final agent message after response received
+          dispatch({
+            type: "push",
+            msg: {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: responseResult.text,
+              toolCalls: responseResult.toolCalls,
+              toolResults: responseResult.toolResults,
+            },
+          });
+        }
       } catch (error) {
         console.error(
           "Error in useSendQuery during LLM call or tool processing:",
@@ -212,12 +279,12 @@ export const useSendQuery = () => {
       messages,
       mode,
       generateChatStream,
+      generateChatResponse,
       systemPrompt,
       chatState.temperature,
       chatState.maxTokens,
       runtimeTools,
       editor,
-      sendReplyTool, // Add back sendReplyTool dependency
     ],
   );
 };
