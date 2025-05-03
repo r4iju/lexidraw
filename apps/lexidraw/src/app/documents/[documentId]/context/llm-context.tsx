@@ -539,6 +539,12 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
               >;
               throw errorDelta.error;
             }
+            // Explicitly ignore tool calls/results in basic text streaming
+            case "tool-call":
+              console.warn(
+                `[LLMContext] Unexpected delta type 'tool-call' received during generateChatStream. Ignoring.`,
+              );
+              break;
           }
         }
 
