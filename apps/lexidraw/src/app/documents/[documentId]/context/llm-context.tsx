@@ -360,6 +360,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         }));
         return result.text;
       } catch (err: unknown) {
+        // To exit autocomplete
         if (err instanceof Error && err.name === "AbortError") {
           return "";
         }
@@ -446,7 +447,10 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           toolResults: result.toolResults,
         };
       } catch (err: unknown) {
-        if (err instanceof Error && err.name === "AbortError") {
+        if (
+          err instanceof Error &&
+          ["AbortError", "ExitError"].includes(err.name)
+        ) {
           setChatState((prev) => ({
             ...prev,
             text: "",
@@ -457,7 +461,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         setChatState((prev) => ({
           ...prev,
-          text: "",
           isError: true,
           error: errorMsg,
           isStreaming: false,

@@ -165,15 +165,10 @@ export const useSendQuery = () => {
             system: systemPrompt,
             temperature: chatState.temperature,
             maxTokens: chatState.maxTokens,
-            // No tools needed for simple chat stream
-            maxSteps: 1, // Chat mode is typically single turn
-            // No toolChoice needed for simple chat stream
+            maxSteps: 1,
             callbacks: streamCallbacks,
           });
         } else {
-          // Agent mode needs prepareStep
-          let summarised = false; // <-- closure flag
-
           const prepareStepForMode = async ({
             steps,
             stepNumber,
@@ -189,20 +184,29 @@ export const useSendQuery = () => {
               `prepareStep ${stepNumber}: Checking previous step results (mode: ${mode})...`,
             );
 
-            // Get the previous step from the steps array
             const previousStep = steps[stepNumber - 1] || null;
+            const previousToolCallName =
+              previousStep?.toolResults?.at(-1)?.toolName;
+            console.log(
+              `prepareStep ${stepNumber}: Previous step results:`,
+              previousStep,
+              previousToolCallName,
+            );
 
-            // If the last *successful* tool was summarizeExecution we're done.
             if (
-              summarised ||
-              previousStep?.toolResults?.at(-1)?.toolName ===
-                "summarizeExecution"
+              previousToolCallName &&
+              [
+                "summarizeExecution",
+                "requestClarificationOrPlan",
+                "sendReply",
+              ].includes(previousToolCallName)
             ) {
               console.log(
-                `Step ${stepNumber}: summarizeExecution detected in previous step. Forcing toolChoice: 'none'`,
+                `Step ${stepNumber}: sendReply, summarizeExecution or requestClarificationOrPlan detected in previous step. Forcing toolChoice: 'none'`,
               );
-              summarised = true;
-              return { toolChoice: "none" }; // Valid ToolChoice
+              const error = new Error("TERMINAL_TOOL_CALL_DETECTED");
+              error.name = "ExitError";
+              throw error;
             }
 
             // Allow up to maxSteps - 1 tool calls, then force summarize or none
@@ -262,6 +266,7 @@ export const useSendQuery = () => {
           const lastToolName = responseResult.toolResults?.at(-1)?.toolName;
           const alreadyReplied =
             lastToolName === "summarizeExecution" ||
+            lastToolName === "requestClarificationOrPlan" ||
             lastToolName === "sendReply";
 
           // Only push a new assistant message when nothing has replied yet
