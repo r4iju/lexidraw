@@ -2,7 +2,6 @@ import React from "react";
 import { ModeTabs } from "./mode-tabs";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
-// import { useChatState, useChatDispatch } from "../llm-chat-context";
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 import { Reset } from "./reset";
 import { useSidebarManager } from "~/context/sidebar-manager-context";

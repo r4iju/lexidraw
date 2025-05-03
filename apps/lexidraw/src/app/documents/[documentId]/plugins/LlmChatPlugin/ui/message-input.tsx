@@ -5,11 +5,15 @@ import { useSendQuery } from "../use-send-query";
 import { useChatState } from "../llm-chat-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useSerializeEditorState } from "../use-serialized-editor-state";
+import { SendIcon } from "lucide-react";
+import { useSidebarSize } from "~/components/ui/sidebar-wrapper";
+import { cn } from "~/lib/utils";
 
-export const MessageInput: React.FC = () => {
+export const MessageInput = () => {
   const [text, setText] = useState("");
   const sendQuery = useSendQuery();
   const { streaming, mode } = useChatState();
+  const { width } = useSidebarSize();
   const [editor] = useLexicalComposerContext();
   const { serializeEditorStateWithKeys } = useSerializeEditorState();
 
@@ -58,7 +62,13 @@ export const MessageInput: React.FC = () => {
   })();
 
   return (
-    <form className="border-t p-3 flex gap-2 items-end" onSubmit={handleSubmit}>
+    <form
+      className={cn("flex gap-2 border-t p-3", {
+        "flex-col items-stretch": width < 300,
+        "flex-row items-end ": width >= 300,
+      })}
+      onSubmit={handleSubmit}
+    >
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -70,7 +80,10 @@ export const MessageInput: React.FC = () => {
         aria-label="Chat input"
       />
       <Button type="submit" disabled={streaming || !text.trim()}>
-        {streaming ? "Sending..." : "Send"}
+        <SendIcon className="w-4 h-4" />
+        {width < 300 || width >= 500 ? (
+          <span className="ml-2">{streaming ? "Sending..." : "Send"}</span>
+        ) : null}
       </Button>
     </form>
   );
