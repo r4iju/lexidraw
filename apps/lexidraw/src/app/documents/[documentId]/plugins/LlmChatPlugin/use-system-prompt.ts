@@ -4,7 +4,7 @@ import { makeRuntimeSpec } from "./reflect-editor-runtime";
 import { $getRoot, $isElementNode, LexicalNode, EditorState } from "lexical";
 import { useRuntimeTools } from "./runtime-tools-provider";
 
-export function useSystemPrompt(base: string) {
+export function useSystemPrompt(base: string, mode: "chat" | "agent") {
   const [editor] = useLexicalComposerContext();
   const tools = useRuntimeTools();
 
@@ -67,13 +67,16 @@ export function useSystemPrompt(base: string) {
       .map((n) => `• ${n.type}${n.isInline ? " (inline)" : ""}`)
       .join("\n");
 
-    const toolLines = filteredTools.map((t) => `• ${t}`).join("\n");
+    const toolLines =
+      mode === "chat"
+        ? "• No tools available – respond directly in Markdown."
+        : filteredTools.map((t) => `• ${t}`).join("\n");
 
-    return `${base}\n\n            **Operational Modes:**\n            - **Chat Mode:** For general conversation, questions, or non-document tasks. **Only** the \`sendReply\` tool is available. Document context is provided as **Markdown**.\n            - **Agent Mode:** For tasks involving document modification (inserting, formatting, moving, etc.). All tools **except** \`sendReply\` are available. Document context is provided as **JSON**.\n\n            ### Available node types\n            ${nodeLines}\n\n            ### Available tools\n            ${toolLines}\n\n            ### Interaction Guidelines\n            1.  **Clarity First:** If the user's request *for document modification* is unclear, ambiguous, or requires multiple steps, **use 'requestClarificationOrPlan'** before acting (Agent Mode). Use \`operation: "plan"\` to outline steps or \`operation: "clarify"\` to ask questions.
+    return `${base}\n\n            **Operational Modes:**\n            - **Chat Mode:** For general conversation, questions, or non-document tasks. **Do not** emit JSON or tool calls – just answer in plain Markdown. Document context is provided as **Markdown**.\n            - **Agent Mode:** For tasks involving document modification (inserting, formatting, moving, etc.). All tools **except** \`sendReply\` are available. Document context is provided as **JSON**.\n\n            ### Available node types\n            ${nodeLines}\n\n            ### Available tools\n            ${toolLines}\n\n            ### Interaction Guidelines\n            1.  **Clarity First:** If the user's request *for document modification* is unclear, ambiguous, or requires multiple steps, **use 'requestClarificationOrPlan'** before acting (Agent Mode). Use \`operation: "plan"\` to outline steps or \`operation: "clarify"\` to ask questions.
             2.  **Mutation Response:** When calling a tool that mutates the document respond **only** with the tool call JSON. A plaintext answer is accepted.
             3.  **Confirmation / Final Summary:** After completing all requested *document modification actions* in Agent Mode, **you must** conclude by calling \`summarizeExecution\` with a \`summaryText\` describing all steps taken.
             4.  **Mode Awareness:** 
-                - In **Chat Mode**, use ONLY \`sendReply\`. Document context is **Markdown**.
+                - In **Chat Mode**, respond directly in **Markdown**. **Do not** use tools or output JSON. Document context is **Markdown**.
                 - In **Agent Mode**: Document context is **JSON**.
                     - If the user asks a question or makes a comment not requiring document changes, respond directly using \`sendReply\`.
                     - If the request involves document changes, first assess clarity (Guideline 1). Then perform actions using appropriate tools.
@@ -95,5 +98,5 @@ export function useSystemPrompt(base: string) {
             `
       .replaceAll("            ", "")
       .trim();
-  }, [existingNodeTypes, editor, tools, base]);
+  }, [existingNodeTypes, editor, tools, base, mode]);
 }

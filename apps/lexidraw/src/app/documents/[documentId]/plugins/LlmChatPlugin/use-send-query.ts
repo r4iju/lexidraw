@@ -51,6 +51,27 @@ function convertEditorStateToMarkdown(editorState: EditorState): string {
   });
 }
 
+// Utility: if the whole response is a sendReply code-block, unwrap it
+function unwrapSendReply(jsonish: string): string | null {
+  try {
+    // remove ```json fences if present
+    const cleaned = jsonish
+      .replace(/^\s*```json/i, "")
+      .replace(/```\s*$/i, "") // Adjusted regex for trailing fence
+      .trim();
+    const obj = JSON.parse(cleaned);
+    if (
+      obj.toolName === "sendReply" &&
+      typeof obj.args?.replyText === "string"
+    ) {
+      return obj.args.replyText;
+    }
+  } catch {
+    /* ignore parse errors */
+  }
+  return null;
+}
+
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
   const { mode, messages } = useChatState();
@@ -59,7 +80,7 @@ export const useSendQuery = () => {
   const [editor] = useLexicalComposerContext();
 
   const systemPromptBase = "You are a helpful assistant.";
-  const systemPrompt = useSystemPrompt(systemPromptBase);
+  const systemPrompt = useSystemPrompt(systemPromptBase, mode);
 
   return useCallback(
     async ({
@@ -100,6 +121,9 @@ export const useSendQuery = () => {
         }
         fullPrompt += `USER_PROMPT:\n${prompt}`;
 
+        // Add instruction for Markdown formatting
+        fullPrompt += `\n\nFORMATTING_INSTRUCTION:\nStrictly format your final response text using Markdown. Do **not** output JSON or any other structured format. Keep Markdown nesting minimal (nested lists or quotes) and headings small for readability in a chat interface.`;
+
         // Add context based on mode (Markdown for chat, JSON for agent)
         const currentEditorState = editor.getEditorState();
         if (mode === "chat" && currentEditorState) {
@@ -116,15 +140,21 @@ export const useSendQuery = () => {
         // --- Select generation function based on mode ---
         if (mode === "chat") {
           console.log("Using generateChatStream for chat mode");
+
           const assistantMessageId = crypto.randomUUID();
           // Add placeholder assistant message for streaming
           dispatch({
             type: "push",
             msg: { id: assistantMessageId, role: "assistant", content: "" },
           });
+          dispatch({ type: "startStreaming", id: assistantMessageId });
 
           const streamCallbacks: StreamCallbacks = {
             onTextUpdate: (textChunk) => {
+              console.log(
+                "[Stream Callback] Received text chunk. Current accumulated text length:",
+                textChunk.length,
+              );
               // Update the content of the last assistant message incrementally
               dispatch({
                 type: "update",
@@ -136,16 +166,17 @@ export const useSendQuery = () => {
               });
             },
             onFinish: (result) => {
-              console.log("Streaming finished:", result);
-              // Final update - use simple result (text only)
+              const maybeReply = unwrapSendReply(result.text);
               dispatch({
                 type: "update",
                 msg: {
                   id: assistantMessageId,
                   role: "assistant",
-                  content: result.text,
+                  content: maybeReply ?? result.text,
                 },
               });
+              dispatch({ type: "stopStreaming" });
+              console.log("Streaming finished:", result);
             },
             onError: (error) => {
               console.error("Error during chat stream:", error);
@@ -157,6 +188,7 @@ export const useSendQuery = () => {
                   content: `Error: ${error.message}`,
                 },
               });
+              dispatch({ type: "stopStreaming" });
             },
           };
 
@@ -262,15 +294,70 @@ export const useSendQuery = () => {
               },
             });
 
-          // Dispatch final agent message after response received
-          const lastToolName = responseResult.toolResults?.at(-1)?.toolName;
-          const alreadyReplied =
-            lastToolName === "summarizeExecution" ||
-            lastToolName === "requestClarificationOrPlan" ||
-            lastToolName === "sendReply";
+          const lastToolCall = responseResult.toolCalls?.at(-1);
+          const lastToolResult = responseResult.toolResults?.find(
+            (r) => r.toolCallId === lastToolCall?.toolCallId,
+          );
 
-          // Only push a new assistant message when nothing has replied yet
-          if (!alreadyReplied && responseResult.text.trim() !== "") {
+          // Define a type for args known to have replyText for type safety
+          type ReplyArgs = { replyText?: unknown };
+
+          // --- Debugging Logs --- Start
+          console.log(
+            "[Agent Dispatch Logic] Last Tool Call:",
+            JSON.stringify(lastToolCall, null, 2),
+          );
+          console.log(
+            "[Agent Dispatch Logic] Last Tool Result:",
+            JSON.stringify(lastToolResult, null, 2),
+          );
+          console.log(
+            "[Agent Dispatch Logic] Reply Text Type:",
+            typeof (lastToolResult?.args as ReplyArgs | undefined)?.replyText,
+          );
+          console.log(
+            "[Agent Dispatch Logic] Raw Response Text:",
+            responseResult.text,
+          );
+          // --- Debugging Logs --- End
+
+          let dispatchedMessage = false; // Flag to prevent double dispatch
+
+          if (
+            lastToolCall?.toolName === "sendReply" &&
+            typeof (lastToolResult?.args as ReplyArgs | undefined)
+              ?.replyText === "string"
+          ) {
+            // Handle sendReply: Dispatch the replyText from the tool result
+            console.log("Dispatching message from sendReply tool result.");
+            dispatch({
+              type: "push",
+              msg: {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: (lastToolResult?.args as ReplyArgs)
+                  .replyText as string,
+                toolCalls: responseResult.toolCalls, // Include tool info for context if needed
+                toolResults: responseResult.toolResults,
+              },
+            });
+            dispatchedMessage = true; // Mark that we dispatched
+          }
+
+          // Only dispatch the raw text response if no message was dispatched yet
+          // AND no other terminal tool was the last one called.
+          if (
+            !dispatchedMessage &&
+            // Only push a new assistant message if sendReply/other terminal tools didn't run
+            // AND there is a final text response from the LLM
+            lastToolCall?.toolName !== "summarizeExecution" &&
+            lastToolCall?.toolName !== "requestClarificationOrPlan" &&
+            responseResult.text.trim() !== ""
+          ) {
+            console.log("Dispatching standard text response.");
+            console.log(
+              "[Agent Dispatch Logic] Dispatching raw text because sendReply check failed or was skipped.",
+            );
             dispatch({
               type: "push",
               msg: {

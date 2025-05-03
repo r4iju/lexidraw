@@ -12,6 +12,7 @@ export type ChatState = {
   streaming: boolean;
   sidebarOpen: boolean;
   mode: "chat" | "agent";
+  streamingMessageId: string | null;
 };
 
 export type Action =
@@ -20,6 +21,8 @@ export type Action =
   | { type: "setMode"; mode: ChatState["mode"] }
   | { type: "reset" }
   | { type: "removeMessage"; id: string }
+  | { type: "startStreaming"; id: string }
+  | { type: "stopStreaming" }
   | {
       type: "update";
       msg: Partial<ChatState["messages"][number]> & { id: string };
@@ -30,6 +33,7 @@ const initial: ChatState = {
   streaming: false,
   sidebarOpen: false,
   mode: "agent",
+  streamingMessageId: null,
 };
 
 export const ChatStateCtx = createContext<ChatState | undefined>(undefined);
@@ -60,8 +64,12 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
         return {
           ...initial,
           sidebarOpen: s.sidebarOpen,
-          messages: [],
+          streamingMessageId: null,
         };
+      case "startStreaming":
+        return { ...s, streaming: true, streamingMessageId: a.id };
+      case "stopStreaming":
+        return { ...s, streaming: false, streamingMessageId: null };
       case "removeMessage": {
         const messages = s.messages.filter((msg) => msg.id !== a.id);
         return { ...s, messages };
