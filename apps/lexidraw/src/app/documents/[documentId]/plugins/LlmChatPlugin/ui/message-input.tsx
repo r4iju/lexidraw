@@ -4,99 +4,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { useSendQuery } from "../use-send-query";
 import { useChatState } from "../llm-chat-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-
-import {
-  $getRoot,
-  $isElementNode,
-  $isTextNode,
-  type EditorState,
-  type LexicalNode,
-  type NodeKey,
-} from "lexical";
-import { $isHeadingNode } from "@lexical/rich-text";
-import { $convertToMarkdownString, TRANSFORMERS } from "@lexical/markdown";
-
-interface SerializedNodeWithKey {
-  type: string;
-  key: NodeKey;
-  // version: number; // Removed version
-  // TextNode specific
-  text?: string;
-  detail?: number;
-  format?: number;
-  mode?: string; // TextModeType is string literal union
-  style?: string;
-  // ElementNode specific
-  direction?: "ltr" | "rtl" | null;
-  indent?: number;
-  // ElementNode specific type tags (add more as needed)
-  tag?: string; // For HeadingNode, etc.
-  listType?: string; // For ListNode
-  // Children
-  children?: SerializedNodeWithKey[];
-}
-
-const useSerializeEditorState = () => {
-  function serializeNodeWithKeys(
-    node: LexicalNode,
-  ): SerializedNodeWithKey | null {
-    if (!node) {
-      return null;
-    }
-    const serializedNode: Partial<SerializedNodeWithKey> = {
-      type: node.getType(),
-      key: node.getKey(),
-    };
-
-    if ($isTextNode(node)) {
-      serializedNode.text = node.getTextContent();
-      serializedNode.detail = node.getDetail();
-      serializedNode.format = node.getFormat();
-      serializedNode.mode = node.getMode();
-      serializedNode.style = node.getStyle();
-    } else if ($isElementNode(node)) {
-      serializedNode.direction = node.getDirection();
-      serializedNode.format = node.getFormat();
-      serializedNode.indent = node.getIndent();
-      const children = node.getChildren();
-      serializedNode.children = children
-        .map(serializeNodeWithKeys)
-        .filter((child): child is SerializedNodeWithKey => child !== null);
-
-      if ($isHeadingNode(node)) {
-        serializedNode.tag = node.getTag();
-      }
-      // Example: Add check for ListNode (import $isListNode and ListNode from @lexical/list)
-      // if ($isListNode(node)) {
-      //   serializedNode.listType = node.getListType();
-      //   serializedNode.start = node.getStart();
-      // }
-    }
-    return serializedNode as SerializedNodeWithKey;
-  }
-
-  function serializeEditorStateWithKeys(editorState: EditorState): {
-    root: SerializedNodeWithKey;
-  } {
-    let serializedRoot: SerializedNodeWithKey | null = null;
-    editorState.read(() => {
-      const rootNode = $getRoot();
-      serializedRoot = serializeNodeWithKeys(rootNode);
-    });
-
-    const fallbackRoot: Partial<SerializedNodeWithKey> = {
-      type: "root",
-      key: "root",
-      children: [],
-      direction: null,
-      format: 0,
-      indent: 0,
-    };
-    return { root: (serializedRoot ?? fallbackRoot) as SerializedNodeWithKey };
-  }
-
-  return { serializeEditorStateWithKeys };
-};
+import { useSerializeEditorState } from "../use-serialized-editor-state";
 
 export const MessageInput: React.FC = () => {
   const [text, setText] = useState("");
@@ -104,48 +12,29 @@ export const MessageInput: React.FC = () => {
   const { streaming, mode } = useChatState();
   const [editor] = useLexicalComposerContext();
   const { serializeEditorStateWithKeys } = useSerializeEditorState();
+
   const handleSubmit = useCallback(
     async (event?: React.FormEvent<HTMLFormElement>) => {
       event?.preventDefault();
       const trimmedText = text.trim();
       if (!trimmedText || streaming) return;
 
-      let editorJson: string | undefined;
-      let editorMarkdown: string | undefined;
-      let editorStateObject: { root: SerializedNodeWithKey } | undefined;
+      const editorState = editor.getEditorState();
+      const editorStateObject = serializeEditorStateWithKeys(editorState);
+      const editorJson = editorStateObject
+        ? JSON.stringify(editorStateObject)
+        : undefined;
 
-      try {
-        const editorState = editor.getEditorState();
-        editorStateObject = serializeEditorStateWithKeys(editorState);
-        console.log(
-          "Inspecting CUSTOM editor state serialization:",
-          editorStateObject,
-        );
-        editorJson = JSON.stringify(editorStateObject);
-
-        editorState.read(() => {
-          editorMarkdown = $convertToMarkdownString(TRANSFORMERS);
-        });
-      } catch (error) {
-        console.error(
-          "Failed to serialize editor state in MessageInput:",
-          error,
-        );
-        if (editorStateObject) {
-          console.log("Object that failed to stringify:", editorStateObject);
-        }
+      if (!editorJson) {
+        console.error("Failed to serialize editor state.");
+        return;
       }
 
-      try {
-        await sendQuery({
-          prompt: trimmedText,
-          editorStateJson: editorJson,
-          editorStateMarkdown: editorMarkdown,
-        });
-        setText("");
-      } catch (error) {
-        console.error("Error sending query from MessageInput:", error);
-      }
+      await sendQuery({
+        prompt: trimmedText,
+        editorStateJson: editorJson,
+      });
+      setText("");
     },
     [editor, sendQuery, serializeEditorStateWithKeys, streaming, text],
   );

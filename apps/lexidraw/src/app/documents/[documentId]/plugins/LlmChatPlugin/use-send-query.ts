@@ -61,13 +61,6 @@ export const useSendQuery = () => {
   const systemPromptBase = "You are a helpful assistant.";
   const systemPrompt = useSystemPrompt(systemPromptBase);
 
-  // Reinstate separating the sendReply tool for chat mode
-  // const sendReplyTool = useMemo(() => {
-  //   return runtimeTools.sendReply
-  //     ? { sendReply: runtimeTools.sendReply }
-  //     : undefined;
-  // }, [runtimeTools.sendReply]);
-
   return useCallback(
     async ({
       prompt,
@@ -164,15 +157,6 @@ export const useSendQuery = () => {
                   content: `Error: ${error.message}`,
                 },
               });
-              // Optionally push a system error message too
-              // dispatch({
-              //   type: "push",
-              //   msg: {
-              //     id: crypto.randomUUID(),
-              //     role: "system",
-              //     content: "An error occurred while processing the stream.",
-              //   },
-              // });
             },
           };
 
