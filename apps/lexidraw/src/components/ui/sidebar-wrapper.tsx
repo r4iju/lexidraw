@@ -1,11 +1,12 @@
 "use client";
 
 import React, {
-  PropsWithChildren,
   useState,
   useCallback,
   useRef,
   useEffect,
+  createContext,
+  useContext,
 } from "react";
 import { Button } from "~/components/ui/button";
 import { X } from "lucide-react";
@@ -19,11 +20,28 @@ interface SidebarWrapperProps {
   initialWidth?: number;
   minWidth?: number;
   maxWidth?: number;
+  children: React.ReactNode;
+  ref?: React.RefObject<HTMLElement>;
 }
 
-export const SidebarWrapper: React.FC<
-  PropsWithChildren<SidebarWrapperProps>
-> = ({
+interface SidebarSizeContextType {
+  width: number;
+}
+
+const SidebarSizeContext = createContext<SidebarSizeContextType | undefined>(
+  undefined,
+);
+
+export const useSidebarSize = () => {
+  const context = useContext(SidebarSizeContext);
+  if (context === undefined) {
+    throw new Error("useSidebarSize must be used within a SidebarWrapper");
+  }
+  return context;
+};
+
+export const SidebarWrapper: React.FC<SidebarWrapperProps> = ({
+  ref,
   isOpen,
   onClose,
   title,
@@ -150,10 +168,10 @@ export const SidebarWrapper: React.FC<
 
   return (
     <aside
-      ref={sidebarRef}
+      ref={ref || sidebarRef}
       style={{ width: `${width}px` }}
       className={cn(
-        "fixed right-0 top-0 h-full flex flex-col border-l bg-popover shadow-lg transition-transform duration-300 ease-in-out z-40 touch-none",
+        "fixed right-0 top-0 h-full flex flex-col border-x bg-popover shadow-lg transition-transform duration-300 ease-in-out z-40 touch-none",
         {
           "translate-x-0": isOpen,
           "translate-x-full": !isOpen,
@@ -187,10 +205,10 @@ export const SidebarWrapper: React.FC<
       </header>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {" "}
-        {/* Added padding */}
-        {children}
+      <div className="flex-1 overflow-y-auto ">
+        <SidebarSizeContext.Provider value={{ width }}>
+          {children}
+        </SidebarSizeContext.Provider>
       </div>
     </aside>
   );

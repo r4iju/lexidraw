@@ -55,7 +55,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
   return (
     <div
       ref={scrollRef}
-      className={cn("flex-1 overflow-y-auto space-y-3 p-4", className)}
+      className={cn("flex-1 overflow-y-auto space-y-3 ", className)}
     >
       {messages.map((m: Message) => {
         const isStreaming = m.id === streamingMessageId;

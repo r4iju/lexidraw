@@ -7,7 +7,9 @@ import React, {
   useMemo,
   PropsWithChildren,
   useCallback,
+  useEffect,
 } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 
 export type ActiveSidebar = "llm" | "comments" | "toc" | null;
 
@@ -24,7 +26,24 @@ const SidebarManagerContext = createContext<
 export const SidebarManagerProvider: React.FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  const [activeSidebar, setActiveSidebarState] = useState<ActiveSidebar>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const initialSidebar = searchParams.get("sidebar") as ActiveSidebar | null;
+  const [activeSidebar, setActiveSidebarState] =
+    useState<ActiveSidebar>(initialSidebar);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeSidebar) {
+      params.set("sidebar", activeSidebar);
+    } else {
+      params.delete("sidebar");
+    }
+    // Replace the current history entry to avoid extra entries on state changes
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [activeSidebar, pathname, router, searchParams]);
 
   const setActiveSidebar = useCallback((sidebar: ActiveSidebar) => {
     setActiveSidebarState(sidebar);
