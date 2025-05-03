@@ -30,11 +30,11 @@ export const MessageInput: React.FC = () => {
         return;
       }
 
+      setText("");
       await sendQuery({
         prompt: trimmedText,
         editorStateJson: editorJson,
       });
-      setText("");
     },
     [editor, sendQuery, serializeEditorStateWithKeys, streaming, text],
   );
