@@ -55,7 +55,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
   return (
     <div
       ref={scrollRef}
-      className={cn("flex-1 overflow-y-auto space-y-3 ", className)}
+      className={cn("flex-1 overflow-y-auto space-y-3 px-2", className)}
     >
       {messages.map((m: Message) => {
         const isStreaming = m.id === streamingMessageId;
@@ -158,10 +158,10 @@ export const MessageList: React.FC<{ className?: string }> = ({
           <div
             key={m.id}
             className={cn(
-              "rounded-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] break-words",
+              "rounded-b-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] break-words",
               m.role === "user"
-                ? "bg-primary text-primary-foreground ml-auto"
-                : "bg-muted text-foreground mr-auto",
+                ? "bg-primary text-primary-foreground ml-auto rounded-tl-lg"
+                : "bg-muted text-foreground mr-auto rounded-tr-lg",
               m.role === "system" &&
                 "border border-dashed border-muted-foreground",
             )}

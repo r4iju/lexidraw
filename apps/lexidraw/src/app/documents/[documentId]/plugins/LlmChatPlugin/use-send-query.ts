@@ -151,10 +151,6 @@ export const useSendQuery = () => {
 
           const streamCallbacks: StreamCallbacks = {
             onTextUpdate: (textChunk) => {
-              console.log(
-                "[Stream Callback] Received text chunk. Current accumulated text length:",
-                textChunk.length,
-              );
               // Update the content of the last assistant message incrementally
               dispatch({
                 type: "update",
