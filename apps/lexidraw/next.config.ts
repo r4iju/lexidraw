@@ -6,7 +6,7 @@ const withBundleAnalyzer = nextBundleAnalyzer({
   enabled: env.ANALYZE,
 });
 
-const config: NextConfig = {
+const config = {
   webpack: (config) => {
     // exclude non-js files from being processed by webpack
     config.module.rules.push(
@@ -88,8 +88,13 @@ const config: NextConfig = {
         hostname: env.VERCEL_URL,
         pathname: "/_next/**",
       },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        // pathname: "/**",
+      },
     ],
   },
-};
+} satisfies NextConfig;
 
 export default withBundleAnalyzer(config);

@@ -4,7 +4,6 @@ import { RouterOutputs } from "~/trpc/shared";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { NewEntity } from "./_actions/new-entity";
-
 import { Drag } from "./drag";
 import { Drop } from "./drop";
 import { SortMenu } from "./sort-menu";
@@ -42,6 +41,7 @@ export async function Dashboard({
     tagNames: tags ? tags.split(",").filter(Boolean) : [],
   });
 
+  const llmConfig = await api.auth.getLlmConfig.query();
   const allTags = await api.entities.getUserTags.query();
 
   return (
@@ -148,7 +148,12 @@ export async function Dashboard({
                     parentId={entity.id}
                     disabled={entity.entityType !== "directory"}
                   >
-                    <EntityCard entity={entity} flex={flex} sortBy={sortBy} />
+                    <EntityCard
+                      entity={entity}
+                      flex={flex}
+                      sortBy={sortBy}
+                      llmConfig={llmConfig}
+                    />
                   </Drop>
                 </Drag>
               ))}

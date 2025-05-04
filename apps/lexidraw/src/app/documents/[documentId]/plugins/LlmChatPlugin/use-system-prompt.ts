@@ -1,6 +1,6 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { makeRuntimeSpec } from "./reflect-editor-runtime";
+import { useMakeRuntimeSpec } from "./reflect-editor-runtime";
 import { $getRoot, $isElementNode, LexicalNode, EditorState } from "lexical";
 import { useRuntimeTools } from "./runtime-tools-provider";
 
@@ -48,12 +48,14 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
     };
   }, [collectTypes, editor]);
 
+  const { makeRuntimeSpec } = useMakeRuntimeSpec();
+
   return useMemo(() => {
     console.log(
       "🔄 Recalculating system prompt with node types:",
       existingNodeTypes,
     );
-    const spec = makeRuntimeSpec(editor);
+    const spec = makeRuntimeSpec();
 
     const filteredTools = Object.keys(tools).filter((toolName) => {
       if (toolName.startsWith("set")) {
@@ -98,5 +100,5 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
             `
       .replaceAll("            ", "")
       .trim();
-  }, [existingNodeTypes, editor, tools, base, mode]);
+  }, [existingNodeTypes, makeRuntimeSpec, tools, mode, base]);
 }
