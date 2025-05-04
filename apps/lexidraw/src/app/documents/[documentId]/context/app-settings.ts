@@ -15,7 +15,6 @@ export const DEFAULT_SETTINGS = {
   showTreeView: false,
   tableCellBackgroundColor: true,
   tableCellMerge: true,
-  isLlmEnabled: true,
 } as const;
 
 // These are mutated in setupEnv

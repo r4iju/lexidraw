@@ -17,11 +17,10 @@ import {
   KEY_ESCAPE_COMMAND,
 } from "lexical";
 import { useEffect, useCallback, useRef } from "react";
-import { useSettings } from "../../context/settings-context";
 import { useSessionUUID } from "./session-uuid-provider";
 import {
   type AutocompleteEditorContext,
-  useThrottledAutocomplete,
+  useAutocompleteLLM,
 } from "./use-auto-complete";
 import { AutocompleteNode } from "../../nodes/AutocompleteNode";
 import { mergeRegister } from "@lexical/utils";
@@ -43,9 +42,8 @@ type ElementValues = {
 
 export default function AutocompletePlugin() {
   const [editor] = useLexicalComposerContext();
-  const { settings } = useSettings();
   const UUID = useSessionUUID();
-  const queryLLM = useThrottledAutocomplete();
+  const queryLLM = useAutocompleteLLM();
 
   const autocompleteNodeKey = useRef<NodeKey | null>(null);
   const lastWord = useRef<string | null>(null);
@@ -293,6 +291,7 @@ export default function AutocompletePlugin() {
 
   /** Cleanup suggestions on unmount or re-register. */
   const cleanup = useCallback(() => {
+    console.log("[AutocompletePlugin] cleanup");
     editor.update(() => {
       clearSuggestion();
     });
@@ -408,8 +407,6 @@ export default function AutocompletePlugin() {
 
   /** Set up event handlers and command registrations. */
   useEffect(() => {
-    if (!settings.isLlmEnabled) return;
-
     const rootElem = editor.getRootElement();
     return mergeRegister(
       editor.registerNodeTransform(
@@ -439,7 +436,6 @@ export default function AutocompletePlugin() {
     );
   }, [
     editor,
-    settings.isLlmEnabled,
     cleanup,
     handleAutocompleteNodeTransform,
     handleUpdate,

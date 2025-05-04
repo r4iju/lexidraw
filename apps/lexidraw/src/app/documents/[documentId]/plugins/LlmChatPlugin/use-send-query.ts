@@ -75,7 +75,7 @@ function unwrapSendReply(jsonish: string): string | null {
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
   const { mode, messages } = useChatState();
-  const { generateChatStream, generateChatResponse, chatState } = useLLM();
+  const { generateChatStream, generateChatResponse, llmConfig } = useLLM();
   const runtimeTools = useRuntimeTools();
   const [editor] = useLexicalComposerContext();
 
@@ -195,8 +195,8 @@ export const useSendQuery = () => {
           await generateChatStream({
             prompt: fullPrompt,
             system: systemPrompt,
-            temperature: chatState.temperature,
-            maxTokens: chatState.maxTokens,
+            temperature: llmConfig.chat.temperature,
+            maxTokens: llmConfig.chat.maxTokens,
             maxSteps: 1,
             callbacks: streamCallbacks,
           });
@@ -274,8 +274,8 @@ export const useSendQuery = () => {
             await generateChatResponse({
               prompt: fullPrompt,
               system: systemPrompt,
-              temperature: chatState.temperature,
-              maxTokens: chatState.maxTokens,
+              temperature: llmConfig.chat.temperature,
+              maxTokens: llmConfig.chat.maxTokens,
               tools: runtimeTools,
               maxSteps: 5,
               prepareStep: prepareStepForMode,
@@ -392,8 +392,7 @@ export const useSendQuery = () => {
       generateChatStream,
       generateChatResponse,
       systemPrompt,
-      chatState.temperature,
-      chatState.maxTokens,
+      llmConfig,
       runtimeTools,
       editor,
     ],
