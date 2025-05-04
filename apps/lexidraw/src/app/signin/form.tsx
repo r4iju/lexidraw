@@ -2,7 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import React, { useState } from "react";
-import { type FieldValues, useForm } from "react-hook-form";
+import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getSignInSchema, type SignInSchema } from "./schema";
 import FormProvider from "~/components/hook-form";
@@ -15,7 +15,7 @@ import { cn } from "~/lib/utils";
 export default function SignInForm() {
   const schema = getSignInSchema();
 
-  const methods = useForm<SignInSchema>({
+  const methods = useForm({
     resolver: zodResolver(schema),
     defaultValues: getDefaults(schema),
     mode: "onBlur",
@@ -25,7 +25,7 @@ export default function SignInForm() {
 
   const { handleSubmit } = methods;
 
-  const onSubmit = async (data: FieldValues) => {
+  const onSubmit: SubmitHandler<SignInSchema> = async (data) => {
     try {
       setIsLoading(true);
       await signIn("credentials", {

@@ -19,14 +19,15 @@ export default function ProfileForm({ user }: Props) {
   const { mutate: saveProfile, isPending } =
     api.auth.updateProfile.useMutation();
   const { toast } = useToast();
-  const methods = useForm<ProfileSchema>({
+  const methods = useForm({
     resolver: zodResolver(ProfileSchema),
     defaultValues: {
       email: user?.email ?? "",
       name: user?.name ?? "",
       googleApiKey: user?.config?.llm?.googleApiKey ?? "",
       openaiApiKey: user?.config?.llm?.openaiApiKey ?? "",
-      llmEnabled: user?.config?.llm?.enabled ?? false,
+      chat: user?.config?.llm?.chat,
+      autocomplete: user?.config?.llm?.autocomplete,
     },
     mode: "onBlur",
   });
