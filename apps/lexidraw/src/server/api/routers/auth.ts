@@ -10,25 +10,6 @@ import {
 import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
 
-// Define the type for the LLM config part based on the schema
-type LlmConfig = {
-  enabled: boolean;
-  googleApiKey?: string;
-  openaiApiKey?: string;
-  chat?: {
-    modelId: string;
-    provider: string;
-    temperature: number;
-    maxTokens: number;
-  };
-  autocomplete?: {
-    modelId: string;
-    provider: string;
-    temperature: number;
-    maxTokens: number;
-  };
-};
-
 export const authRouter = createTRPCRouter({
   signUp: publicProcedure
     .input(getSignUpSchema())
@@ -88,7 +69,7 @@ export const authRouter = createTRPCRouter({
 
       const currentConfig = currentUser[0]?.config ?? {};
       // Explicitly type currentLlmConfig or provide a default object structure
-      const currentLlmConfig: Partial<LlmConfig> = currentConfig.llm ?? {};
+      const currentLlmConfig: Partial<ProfileSchema> = currentConfig.llm ?? {};
 
       await ctx.drizzle
         .update(schema.users)
@@ -99,12 +80,10 @@ export const authRouter = createTRPCRouter({
             ...currentConfig,
             llm: {
               // Merge new LLM settings, using defaults from currentLlmConfig if properties are missing
-              enabled: input.llmEnabled,
               googleApiKey: input.googleApiKey ?? currentLlmConfig.googleApiKey,
               openaiApiKey: input.openaiApiKey ?? currentLlmConfig.openaiApiKey,
-              chat: input.chatConfig ?? currentLlmConfig.chat,
-              autocomplete:
-                input.autocompleteConfig ?? currentLlmConfig.autocomplete,
+              chat: input.chat ?? currentLlmConfig.chat,
+              autocomplete: input.autocomplete ?? currentLlmConfig.autocomplete,
             },
           },
         })

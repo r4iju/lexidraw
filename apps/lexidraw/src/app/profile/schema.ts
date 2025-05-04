@@ -2,6 +2,7 @@ import { z } from "zod";
 
 // Define a reusable schema for the LLM base configuration
 const LlmBaseConfigSchema = z.object({
+  enabled: z.boolean().default(false),
   modelId: z.string(),
   provider: z.string(),
   temperature: z.number().min(0).max(1),
@@ -13,10 +14,9 @@ export const ProfileSchema = z.object({
   email: z.string().min(1).email().default(""),
   googleApiKey: z.string().min(0).optional(),
   openaiApiKey: z.string().min(0).optional(),
-  llmEnabled: z.boolean().default(false),
   // Add nested, optional config objects
-  chatConfig: LlmBaseConfigSchema.optional(),
-  autocompleteConfig: LlmBaseConfigSchema.optional(),
+  chat: LlmBaseConfigSchema.optional(),
+  autocomplete: LlmBaseConfigSchema.optional(),
 });
 
 export type ProfileSchema = z.infer<typeof ProfileSchema>;
