@@ -12,6 +12,7 @@ import { DraggingContext } from "./dnd-context";
 import { EntityCard } from "./entity-card";
 import { replaceSearchParam } from "./utils";
 import { FilterByTags } from "./filter-by-tags";
+import { SearchBar } from "./search";
 
 type Props = {
   directory?: RouterOutputs["entities"]["getMetadata"];
@@ -91,44 +92,48 @@ export async function Dashboard({
             </div>
             <NewEntity parentId={directory ? directory.id : null} />
           </div>
-          <div className="flex justify-end space-x-2">
-            {/* filter by tags */}
+          <div className="grid grid-cols-1 md:grid-cols-3 md:gap-2 gap-y-5">
+            <div className="hidden md:block">{/* dummy */}</div>
+            <SearchBar />
+            <div className="flex justify-end space-x-2">
+              {/* filter by tags */}
 
-            <FilterByTags options={allTags} />
+              <FilterByTags options={allTags} />
 
-            <Button
-              variant={flex === "flex-row" ? "secondary" : "outline"}
-              size="icon"
-              asChild
-            >
-              <Link
-                href={replaceSearchParam({
-                  pathname: `/dashboard/${directory?.id ?? ""}`,
-                  prevParams: searchParams,
-                  key: "flex",
-                  value: "flex-row",
-                })}
+              <Button
+                variant={flex === "flex-row" ? "secondary" : "outline"}
+                size="icon"
+                asChild
               >
-                <LayoutGrid />
-              </Link>
-            </Button>
-            <Button
-              variant={flex === "flex-col" ? "secondary" : "outline"}
-              size="icon"
-              asChild
-            >
-              <Link
-                href={replaceSearchParam({
-                  pathname: `/dashboard/${directory?.id ?? ""}`,
-                  prevParams: searchParams,
-                  key: "flex",
-                  value: "flex-col",
-                })}
+                <Link
+                  href={replaceSearchParam({
+                    pathname: `/dashboard/${directory?.id ?? ""}`,
+                    prevParams: searchParams,
+                    key: "flex",
+                    value: "flex-row",
+                  })}
+                >
+                  <LayoutGrid />
+                </Link>
+              </Button>
+              <Button
+                variant={flex === "flex-col" ? "secondary" : "outline"}
+                size="icon"
+                asChild
               >
-                <Rows3 />
-              </Link>
-            </Button>
-            <SortMenu />
+                <Link
+                  href={replaceSearchParam({
+                    pathname: `/dashboard/${directory?.id ?? ""}`,
+                    prevParams: searchParams,
+                    key: "flex",
+                    value: "flex-col",
+                  })}
+                >
+                  <Rows3 />
+                </Link>
+              </Button>
+              <SortMenu />
+            </div>
           </div>
         </nav>
 

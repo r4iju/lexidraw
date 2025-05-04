@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * A debounced function that won’t call `fn` until
@@ -41,4 +41,17 @@ export function useDebounce<T extends (...args: any[]) => void>(
 
   // Return both methods in an object
   return { run, cancel };
+}
+
+export function useDebounceValue<T>(value: T, delay: number): [T] {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return [debouncedValue];
 }

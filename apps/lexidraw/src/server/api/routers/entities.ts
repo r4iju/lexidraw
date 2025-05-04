@@ -866,4 +866,107 @@ export const entityRouter = createTRPCRouter({
         });
       }
     }),
+  search: protectedProcedure
+    .input(z.object({ query: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      if (input.query.trim() === "") {
+        return [];
+      }
+      const searchQuery = `%${input.query}%`;
+
+      const results = await ctx.drizzle
+        .selectDistinct({
+          id: schema.entities.id,
+          title: schema.entities.title,
+          entityType: schema.entities.entityType,
+          screenShotLight: schema.entities.screenShotLight,
+          screenShotDark: schema.entities.screenShotDark,
+          updatedAt: schema.entities.updatedAt,
+          parentId: schema.entities.parentId,
+        })
+        .from(schema.entities)
+        .leftJoin(
+          schema.sharedEntities,
+          eq(schema.entities.id, schema.sharedEntities.entityId),
+        )
+        .where(
+          and(
+            or(
+              eq(schema.entities.userId, userId),
+              eq(schema.sharedEntities.userId, userId),
+            ),
+            isNull(schema.entities.deletedAt),
+            sql`lower(${schema.entities.title}) like ${searchQuery.toLowerCase()}`,
+          ),
+        )
+        .orderBy(desc(schema.entities.updatedAt))
+        .limit(20);
+
+      return results;
+    }),
+  // searches for tags or content
+  deepSearch: protectedProcedure
+    .input(z.object({ query: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      if (input.query.trim() === "") {
+        return [];
+      }
+
+      const likePattern = `%${input.query.toLowerCase()}%`;
+
+      const results = await ctx.drizzle
+        .selectDistinct({
+          id: schema.entities.id,
+          title: schema.entities.title,
+          entityType: schema.entities.entityType,
+          updatedAt: schema.entities.updatedAt,
+          parentId: schema.entities.parentId,
+          screenShotLight: schema.entities.screenShotLight,
+          screenShotDark: schema.entities.screenShotDark,
+        })
+        .from(schema.entities)
+        .leftJoin(
+          schema.sharedEntities,
+          eq(schema.entities.id, schema.sharedEntities.entityId),
+        )
+        // Join with tags
+        .leftJoin(
+          schema.entityTags,
+          eq(schema.entities.id, schema.entityTags.entityId),
+        )
+        .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+        .where(
+          and(
+            // Permission check
+            or(
+              eq(schema.entities.userId, userId),
+              eq(schema.sharedEntities.userId, userId),
+            ),
+            isNull(schema.entities.deletedAt),
+
+            // Match EITHER (content OR tags) AND entity type is relevant
+            or(
+              // Match content in drawings/documents
+              and(
+                or(
+                  eq(schema.entities.entityType, "drawing"),
+                  eq(schema.entities.entityType, "document"),
+                ),
+                or(
+                  sql`LOWER(${schema.entities.elements}) like ${likePattern}`,
+                  sql`LOWER(${schema.entities.appState}) like ${likePattern}`,
+                ),
+              ),
+              // OR Match tag name (for any entity type)
+              sql`LOWER(${schema.tags.name}) like ${likePattern}`,
+            ),
+          ),
+        )
+        .orderBy(desc(schema.entities.updatedAt))
+        .limit(10);
+
+      return results;
+    }),
 });
