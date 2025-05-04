@@ -27,10 +27,8 @@ import { Switch } from "~/components/ui/switch";
 
 export function LlmModelSelector({ className }: { className?: string }) {
   const {
-    chatState,
-    setChatLlmOptions,
-    autocompleteState,
-    setAutocompleteLlmOptions,
+    llmConfig: llmConfigState,
+    setLlmConfiguration,
     availableModels,
   } = useLLM();
   const utils = api.useUtils();
@@ -57,9 +55,8 @@ export function LlmModelSelector({ className }: { className?: string }) {
     "chat",
   );
 
-  const currentState = selectedMode === "chat" ? chatState : autocompleteState;
-  const currentSetter =
-    selectedMode === "chat" ? setChatLlmOptions : setAutocompleteLlmOptions;
+  const currentState =
+    selectedMode === "chat" ? llmConfigState.chat : llmConfigState.autocomplete;
 
   const isCurrentModeEnabled =
     selectedMode === "chat"
@@ -71,14 +68,18 @@ export function LlmModelSelector({ className }: { className?: string }) {
 
   useEffect(() => {
     setLocalTemperature(currentState.temperature.toString());
-    setLocalMaxTokens(currentState.maxTokens.toLocaleString());
+    setLocalMaxTokens(currentState.maxTokens.toString());
   }, [currentState, selectedMode]);
 
   const handleTemperatureBlur = () => {
     const tempValue = parseFloat(localTemperature);
     if (!isNaN(tempValue) && tempValue >= 0 && tempValue <= 1) {
       if (tempValue !== currentState.temperature) {
-        currentSetter({ temperature: tempValue });
+        setLlmConfiguration({
+          [selectedMode]: {
+            temperature: tempValue,
+          },
+        });
       }
     } else {
       setLocalTemperature(currentState.temperature.toString());
@@ -88,7 +89,11 @@ export function LlmModelSelector({ className }: { className?: string }) {
     const numValue = parseInt(localMaxTokens.replace(/\D/g, ""), 10);
     if (!isNaN(numValue) && numValue >= 0) {
       if (numValue !== currentState.maxTokens) {
-        currentSetter({ maxTokens: numValue });
+        setLlmConfiguration({
+          [selectedMode]: {
+            maxTokens: numValue,
+          },
+        });
       }
     } else {
       setLocalMaxTokens(currentState.maxTokens.toLocaleString());
@@ -202,9 +207,11 @@ export function LlmModelSelector({ className }: { className?: string }) {
                       model.modelId !== currentState.modelId ||
                       model.provider !== currentState.provider
                     ) {
-                      currentSetter({
-                        modelId: model.modelId,
-                        provider: model.provider,
+                      setLlmConfiguration({
+                        [selectedMode]: {
+                          modelId: model.modelId,
+                          provider: model.provider,
+                        },
                       });
                     }
                   }}

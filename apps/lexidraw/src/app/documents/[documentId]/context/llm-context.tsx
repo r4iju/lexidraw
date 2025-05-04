@@ -73,8 +73,12 @@ export type GenerateChatResponseResult = {
 };
 
 export type LLMBaseState = z.infer<typeof LlmBaseConfigSchema>;
+type LLMConfig = {
+  chat: LLMBaseState;
+  autocomplete: LLMBaseState;
+};
 
-export type ChatLLMState = LLMBaseState & {
+export type ChatLLMState = {
   isError: boolean;
   text: string;
   error: string | null;
@@ -83,7 +87,7 @@ export type ChatLLMState = LLMBaseState & {
   isStreaming: boolean;
 };
 
-export type AutocompleteLLMState = LLMBaseState & {
+export type AutocompleteLLMState = {
   isError: boolean;
   text: string;
   error: string | null;
@@ -149,6 +153,13 @@ export const LlmModelList = [
 ] as const;
 
 type LLMContextValue = {
+  llmConfig: LLMConfig;
+  setLlmConfiguration: (
+    config: Partial<{
+      chat: Partial<LLMBaseState>;
+      autocomplete: Partial<LLMBaseState>;
+    }>,
+  ) => void;
   generateAutocomplete: (options: LLMOptions) => Promise<string>;
   autocompleteState: AutocompleteLLMState;
   setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
@@ -206,40 +217,44 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     },
   });
 
+  const [llmConfig, setLlmConfig] = useState<LLMConfig>({
+    chat: initialConfig.chat,
+    autocomplete: initialConfig.autocomplete,
+  });
+
+  const setLlmConfiguration = useCallback(
+    (
+      config: Partial<{
+        chat: Partial<LLMBaseState>;
+        autocomplete: Partial<LLMBaseState>;
+      }>,
+    ) => {
+      setLlmConfig((prev) => ({
+        ...prev,
+        ...config,
+        chat: { ...prev.chat, ...config.chat },
+        autocomplete: { ...prev.autocomplete, ...config.autocomplete },
+      }));
+    },
+    [setLlmConfig],
+  );
+
   const [autocompleteState, setAutocompleteState] =
     useState<AutocompleteLLMState>({
-      ...initialConfig.autocomplete,
       isError: false,
       text: "",
       error: null,
       isLoading: false,
-    });
+    } satisfies AutocompleteLLMState);
 
   const [chatState, setChatState] = useState<ChatLLMState>({
-    ...initialConfig.chat,
     isError: false,
     text: "",
     error: null,
     isStreaming: false,
-    toolCalls: undefined,
-  });
-
-  useEffect(() => {
-    if (initialConfig) {
-      if (initialConfig.autocomplete) {
-        setAutocompleteState((prev) => ({
-          ...prev,
-          ...initialConfig.autocomplete,
-        }));
-      }
-      if (initialConfig.chat) {
-        setChatState((prev) => ({
-          ...prev,
-          ...initialConfig.chat,
-        }));
-      }
-    }
-  }, [initialConfig]);
+    toolCalls: [],
+    toolResults: [],
+  } satisfies ChatLLMState);
 
   const providerInstances = useRef<
     Record<
@@ -250,6 +265,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   const createProviderInstanceInternal = useCallback(
     (providerName: string) => {
+      console.log("[LLMContext] Creating provider instance for:", providerName);
       if (!initialConfig) {
         console.error("[LLMContext] Config not loaded for API key access.");
         return null;
@@ -306,21 +322,21 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   useEffect(() => {
     const createdAutocompleteProvider = createProviderInstanceInternal(
-      autocompleteState.provider,
+      llmConfig.autocomplete.provider,
     );
     if (createdAutocompleteProvider) {
       autocompleteProvider.current = createdAutocompleteProvider;
     }
     const createdChatProvider = createProviderInstanceInternal(
-      chatState.provider,
+      llmConfig.chat.provider,
     );
     if (createdChatProvider) {
       chatProvider.current = createdChatProvider;
     }
   }, [
     createProviderInstanceInternal,
-    autocompleteState.provider,
-    chatState.provider,
+    llmConfig.autocomplete.provider,
+    llmConfig.chat.provider,
   ]);
 
   const generateAutocomplete = useCallback(
@@ -331,26 +347,32 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       maxTokens,
       signal,
     }: LLMOptions): Promise<string> => {
-      if (!autocompleteState.enabled || !autocompleteProvider.current) {
+      if (!llmConfig.autocomplete.enabled || !autocompleteProvider.current) {
         console.warn("[LLMContext] Autocomplete provider not loaded.");
         return "";
       }
-      if (signal?.aborted) return "";
-      setAutocompleteState((prev) => ({
-        ...prev,
-        isLoading: true,
-        isError: false,
-        error: null,
-      }));
+      if (signal?.aborted) {
+        console.log("[LLMContext generateAutocomplete] signal aborted");
+        return "";
+      }
+      setAutocompleteState((prev) => {
+        return {
+          ...prev,
+          isLoading: true,
+          isError: false,
+          error: null,
+        };
+      });
       try {
         const result = await generateText({
-          model: autocompleteProvider.current(autocompleteState.modelId),
+          model: autocompleteProvider.current(llmConfig.autocomplete.modelId),
           prompt,
           system,
-          temperature: temperature ?? autocompleteState.temperature,
-          maxTokens: maxTokens ?? autocompleteState.maxTokens,
+          temperature: temperature ?? llmConfig.autocomplete.temperature,
+          maxTokens: maxTokens ?? llmConfig.autocomplete.maxTokens,
           abortSignal: signal,
         });
+
         setAutocompleteState((prev) => ({
           ...prev,
           isError: false,
@@ -375,7 +397,12 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return "";
       }
     },
-    [autocompleteProvider, autocompleteState],
+    [
+      llmConfig.autocomplete.enabled,
+      llmConfig.autocomplete.maxTokens,
+      llmConfig.autocomplete.modelId,
+      llmConfig.autocomplete.temperature,
+    ],
   );
 
   const generateChatResponse = useCallback(
@@ -402,7 +429,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         toolChoice?: ToolChoice<ToolSet>;
       }>;
     }): Promise<GenerateChatResponseResult> => {
-      if (!chatState.enabled || !chatProvider.current) {
+      if (!llmConfig.chat.enabled || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
@@ -420,11 +447,11 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         const result = await generateText({
           experimental_prepareStep: prepareStep,
           experimental_repairToolCall: repairToolCall,
-          model: chatProvider.current(chatState.modelId),
+          model: chatProvider.current(llmConfig.chat.modelId),
           prompt,
           system,
-          temperature: temperature ?? chatState.temperature,
-          maxTokens: maxTokens ?? chatState.maxTokens,
+          temperature: temperature ?? llmConfig.chat.temperature,
+          maxTokens: maxTokens ?? llmConfig.chat.maxTokens,
           abortSignal: signal,
           tools: tools,
           maxSteps: maxSteps,
@@ -468,7 +495,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
     },
-    [chatProvider, chatState],
+    [chatProvider, llmConfig.chat],
   );
 
   const generateChatStream = useCallback(
@@ -483,7 +510,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     }: Omit<LLMOptions, "tools" | "toolChoice"> & {
       callbacks: StreamCallbacks;
     }): Promise<void> => {
-      if (!chatState.enabled || !chatProvider.current) {
+      if (!llmConfig.chat.enabled || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
         callbacks.onError?.(new Error("Chat provider not loaded."));
         return;
@@ -504,11 +531,11 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
       try {
         const result = await streamText({
-          model: chatProvider.current(chatState.modelId),
+          model: chatProvider.current(llmConfig.chat.modelId),
           prompt,
           system,
-          temperature: temperature ?? chatState.temperature,
-          maxTokens: maxTokens ?? chatState.maxTokens,
+          temperature: temperature ?? llmConfig.chat.temperature,
+          maxTokens: maxTokens ?? llmConfig.chat.maxTokens,
           abortSignal: signal,
           maxSteps: maxSteps,
         });
@@ -595,7 +622,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         }
       }
     },
-    [chatProvider, chatState],
+    [chatProvider, llmConfig.chat],
   );
 
   const saveConfiguration = useCallback(
@@ -607,15 +634,21 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
       if (updatedConfig.chatConfig) {
         payload.chat = {
-          ...chatState,
-          ...updatedConfig.chatConfig,
+          enabled: llmConfig.chat.enabled,
+          modelId: llmConfig.chat.modelId,
+          provider: llmConfig.chat.provider,
+          temperature: llmConfig.chat.temperature,
+          maxTokens: llmConfig.chat.maxTokens,
         };
       }
 
       if (updatedConfig.autocompleteConfig) {
         payload.autocomplete = {
-          ...autocompleteState,
-          ...updatedConfig.autocompleteConfig,
+          enabled: llmConfig.autocomplete.enabled,
+          modelId: llmConfig.autocomplete.modelId,
+          provider: llmConfig.autocomplete.provider,
+          temperature: llmConfig.autocomplete.temperature,
+          maxTokens: llmConfig.autocomplete.maxTokens,
         };
       }
 
@@ -624,12 +657,15 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         updateLlmConfigMutation.mutate(payload);
       }
     },
-    [updateLlmConfigMutation, chatState, autocompleteState],
+    [updateLlmConfigMutation, llmConfig],
   );
 
   const setAutocompleteLlmOptions = useCallback(
     (options: Partial<LLMBaseState>) => {
-      if (options.provider && options.provider !== autocompleteState.provider) {
+      if (
+        options.provider &&
+        options.provider !== llmConfig.autocomplete.provider
+      ) {
         autocompleteProvider.current = createProviderInstanceInternal(
           options.provider,
         );
@@ -645,7 +681,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       saveConfiguration({ autocompleteConfig: options });
     },
     [
-      autocompleteState.provider,
+      llmConfig.autocomplete.provider,
       createProviderInstanceInternal,
       saveConfiguration,
     ],
@@ -653,7 +689,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   const setChatLlmOptions = useCallback(
     (options: Partial<LLMBaseState>) => {
-      if (options.provider && options.provider !== chatState.provider) {
+      if (options.provider && options.provider !== llmConfig.chat.provider) {
         chatProvider.current = createProviderInstanceInternal(options.provider);
       }
 
@@ -666,12 +702,18 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
       saveConfiguration({ chatConfig: options });
     },
-    [chatState.provider, createProviderInstanceInternal, saveConfiguration],
+    [
+      llmConfig.chat.provider,
+      createProviderInstanceInternal,
+      saveConfiguration,
+    ],
   );
 
   return (
     <LLMContext.Provider
       value={{
+        llmConfig,
+        setLlmConfiguration,
         generateAutocomplete,
         autocompleteState,
         setAutocompleteLlmOptions,
