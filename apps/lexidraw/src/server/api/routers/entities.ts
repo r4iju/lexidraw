@@ -543,6 +543,8 @@ export const entityRouter = createTRPCRouter({
         title: z.string().optional(),
         parentId: z.string().nullable().optional(),
         prevParentId: z.string().nullable().optional(),
+        screenShotLight: z.string().optional(),
+        screenShotDark: z.string().optional(),
         publicAccess: z
           .enum([PublicAccess.READ, PublicAccess.EDIT, PublicAccess.PRIVATE])
           .optional(),
@@ -588,6 +590,12 @@ export const entityRouter = createTRPCRouter({
             ? { publicAccess: input.publicAccess }
             : {}),
           ...("parentId" in input ? { parentId: input.parentId } : {}),
+          ...("screenShotLight" in input
+            ? { screenShotLight: input.screenShotLight }
+            : {}),
+          ...("screenShotDark" in input
+            ? { screenShotDark: input.screenShotDark }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(schema.entities.id, input.id))

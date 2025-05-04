@@ -1,4 +1,10 @@
-import { useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  ReactNode,
+  useState,
+} from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createTextNode,
@@ -8,25 +14,46 @@ import {
   $getRoot,
 } from "lexical";
 import { LinkNode, $createLinkNode } from "@lexical/link";
-import { ImageNode } from "../app/documents/[documentId]/nodes/ImageNode/ImageNode";
 import { $wrapNodeInElement } from "@lexical/utils";
-import { api } from "~/trpc/react";
+import { ImageNode } from "~/app/documents/[documentId]/nodes/ImageNode/ImageNode";
 import { InlineImageNode } from "~/app/documents/[documentId]/nodes/InlineImageNode/InlineImageNode";
+import { api } from "~/trpc/react";
 import { useToast } from "~/components/ui/toast-provider";
 
-export const useImageInsertion = () => {
-  const [editor] = useLexicalComposerContext();
+/**
+ * Types for Unsplash image data returned from the API
+ */
+type UnsplashImageData = {
+  url: string;
+  altText: string;
+  attribution: { authorName: string; authorUrl: string };
+  unsplashUrl: string;
+  downloadLocation: string;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1) Simple image search/tracking context + hook
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ImageContextValue = {
+  isLoading: boolean;
+  searchImage: (query: string) => Promise<UnsplashImageData | null>;
+  trackDownload: (downloadLocation: string) => void;
+};
+
+const ImageContext = createContext<ImageContextValue | null>(null);
+
+export const ImageProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const utils = api.useUtils();
   const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
-
+  const [isLoading, setIsLoading] = useState(false);
   const searchImage = useCallback(
     async (query: string) => {
       try {
+        setIsLoading(true);
         const imageData = await utils.image.imLuckyUnsplash.fetch({ query });
-        if (imageData) {
-          return imageData;
-        } else {
+        if (!imageData) {
           toast({
             title: "Image Search Failed",
             description: `Could not find an image for "${query}".`,
@@ -34,6 +61,7 @@ export const useImageInsertion = () => {
           });
           return null;
         }
+        return imageData;
       } catch (error) {
         console.error("Error searching image:", error);
         const message =
@@ -44,10 +72,77 @@ export const useImageInsertion = () => {
           variant: "destructive",
         });
         return null;
+      } finally {
+        setIsLoading(false);
       }
     },
     [utils.image.imLuckyUnsplash, toast],
   );
+
+  const trackDownload = useCallback(
+    (downloadLocation: string) => {
+      trackDownloadMutation.mutate(
+        { downloadLocation },
+        {
+          onSuccess: () =>
+            console.log(`Tracked Unsplash download for: ${downloadLocation}`),
+          onError: (error) =>
+            console.error(
+              `Failed to track download for ${downloadLocation}:`,
+              error,
+            ),
+        },
+      );
+    },
+    [trackDownloadMutation],
+  );
+
+  return (
+    <ImageContext.Provider value={{ searchImage, trackDownload, isLoading }}>
+      {children}
+    </ImageContext.Provider>
+  );
+};
+
+export const useUnsplashImage = (): ImageContextValue => {
+  const ctx = useContext(ImageContext);
+  if (!ctx) {
+    throw new Error("useUnsplashImage must be used within an ImageProvider");
+  }
+  return ctx;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2) Lexical image insertion context + hook
+// ─────────────────────────────────────────────────────────────────────────────
+
+type LexicalImageContextValue = {
+  insertImageNode: (payload: {
+    src: string;
+    altText: string;
+    attribution: { authorName: string; authorUrl: string };
+    unsplashUrl: string;
+  }) => void;
+  insertInlineImageNode: (payload: {
+    src: string;
+    altText: string;
+    attribution: { authorName: string; authorUrl: string };
+    unsplashUrl: string;
+  }) => void;
+  searchAndInsertImage: (
+    query: string,
+    insertAs: "block" | "inline",
+  ) => Promise<void>;
+};
+
+const LexicalImageContext = createContext<LexicalImageContextValue | null>(
+  null,
+);
+
+export const LexicalImageProvider = ({ children }: { children: ReactNode }) => {
+  const [editor] = useLexicalComposerContext();
+  const { toast } = useToast();
+  const { searchImage, trackDownload } = useUnsplashImage();
 
   const insertImageNode = useCallback(
     (payload: {
@@ -58,7 +153,6 @@ export const useImageInsertion = () => {
     }) => {
       editor.update(() => {
         if (!editor.hasNodes([ImageNode])) {
-          console.error("ImageNode not registered on editor");
           toast({
             title: "Error",
             description: "ImageNode not registered.",
@@ -72,6 +166,7 @@ export const useImageInsertion = () => {
           $wrapNodeInElement(imageNode, $createParagraphNode).selectEnd();
         }
 
+        // Caption with attribution
         const captionEditor = imageNode.__caption;
         captionEditor.update(() => {
           if (!captionEditor.hasNodes([LinkNode])) {
@@ -80,7 +175,6 @@ export const useImageInsertion = () => {
             );
             return;
           }
-
           const { authorName, authorUrl } = payload.attribution;
           const captionParagraph = $createParagraphNode();
           captionParagraph.setFormat("center");
@@ -98,6 +192,7 @@ export const useImageInsertion = () => {
             onText,
             unsplashLink,
           );
+
           const root = $getRoot();
           root.clear();
           root.append(captionParagraph);
@@ -117,7 +212,6 @@ export const useImageInsertion = () => {
     }) => {
       editor.update(() => {
         if (!editor.hasNodes([InlineImageNode])) {
-          console.error("InlineImageNode not registered on editor");
           toast({
             title: "Error",
             description: "InlineImageNode not registered.",
@@ -125,10 +219,11 @@ export const useImageInsertion = () => {
           });
           return;
         }
-        const inlineImageNode = InlineImageNode.$createInlineImageNode(payload);
-        $insertNodes([inlineImageNode]);
+        const inlineNode = InlineImageNode.$createInlineImageNode(payload);
+        $insertNodes([inlineNode]);
 
-        const captionEditor = inlineImageNode.__caption;
+        // Inline caption with attribution
+        const captionEditor = inlineNode.__caption;
         captionEditor.update(() => {
           if (!captionEditor.hasNodes([LinkNode])) {
             console.error(
@@ -136,7 +231,6 @@ export const useImageInsertion = () => {
             );
             return;
           }
-
           const { authorName, authorUrl } = payload.attribution;
           const captionParagraph = $createParagraphNode();
           captionParagraph.setFormat("center");
@@ -154,11 +248,12 @@ export const useImageInsertion = () => {
             onText,
             unsplashLink,
           );
+
           const root = $getRoot();
           root.clear();
           root.append(captionParagraph);
         });
-        inlineImageNode.setShowCaption(true);
+        inlineNode.setShowCaption(true);
       });
     },
     [editor, toast],
@@ -166,54 +261,41 @@ export const useImageInsertion = () => {
 
   const searchAndInsertImage = useCallback(
     async (query: string, insertAs: "block" | "inline" = "block") => {
-      const imageData = await searchImage(query);
-      if (!imageData) {
-        return;
-      }
+      const data = await searchImage(query);
+      if (!data) return;
+      trackDownload(data.downloadLocation);
 
-      trackDownloadMutation.mutate(
-        { downloadLocation: imageData.downloadLocation },
-        {
-          onSuccess: () =>
-            console.log(
-              `Initiated Unsplash download tracking for: ${imageData.downloadLocation}`,
-            ),
-          onError: (error) =>
-            console.error(
-              `Failed to initiate Unsplash download tracking for ${imageData.downloadLocation}:`,
-              error,
-            ),
-        },
-      );
-
-      const insertPayload = {
-        src: imageData.url,
-        altText: imageData.altText,
-        attribution: imageData.attribution,
-        unsplashUrl: imageData.unsplashUrl,
+      const payload = {
+        src: data.url,
+        altText: data.altText,
+        attribution: data.attribution,
+        unsplashUrl: data.unsplashUrl,
       };
 
-      switch (insertAs) {
-        case "inline":
-          insertInlineImageNode(insertPayload);
-          break;
-        case "block":
-          insertImageNode(insertPayload);
-          break;
+      if (insertAs === "inline") {
+        insertInlineImageNode(payload);
+      } else {
+        insertImageNode(payload);
       }
     },
-    [
-      searchImage,
-      trackDownloadMutation,
-      insertImageNode,
-      insertInlineImageNode,
-    ],
+    [searchImage, trackDownload, insertImageNode, insertInlineImageNode],
   );
 
-  return {
-    searchImage,
-    insertImageNode,
-    insertInlineImageNode,
-    searchAndInsertImage,
-  };
+  return (
+    <LexicalImageContext.Provider
+      value={{ insertImageNode, insertInlineImageNode, searchAndInsertImage }}
+    >
+      {children}
+    </LexicalImageContext.Provider>
+  );
+};
+
+export const useLexicalImageInsertion = (): LexicalImageContextValue => {
+  const ctx = useContext(LexicalImageContext);
+  if (!ctx) {
+    throw new Error(
+      "useLexicalImageInsertion must be used within LexicalImageProvider",
+    );
+  }
+  return ctx;
 };

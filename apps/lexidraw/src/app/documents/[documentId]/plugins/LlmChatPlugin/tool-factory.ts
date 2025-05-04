@@ -71,8 +71,10 @@ import { YouTubeNode } from "../../nodes/YouTubeNode";
 
 import type { Action } from "./llm-chat-context";
 import { RuntimeToolMap } from "../../context/llm-context";
-import { makeRuntimeSpec } from "./reflect-editor-runtime";
+import { useMakeRuntimeSpec } from "./reflect-editor-runtime";
 import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
+import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
+import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -195,7 +197,7 @@ type ExecuteResult = Promise<z.infer<typeof ResultSchema>>;
 
 type SearchAndInsertFunc = (
   query: string,
-  insertAs?: "block" | "inline",
+  insertAs: "block" | "inline",
 ) => Promise<void>;
 
 type GenerateAndInsertFunc = (prompt: string) => Promise<void>;
@@ -279,19 +281,21 @@ async function resolveInsertionPoint(
 export function useRuntimeToolsFactory({
   editor,
   dispatch,
-  searchAndInsertImageFunc,
-  generateAndInsertImageFunc,
 }: {
   editor: LexicalEditor;
   dispatch: React.Dispatch<Action>;
-  searchAndInsertImageFunc?: SearchAndInsertFunc;
-  generateAndInsertImageFunc?: GenerateAndInsertFunc;
 }): RuntimeToolMap {
   const { parseStyleString, reconstructStyleString } = useLexicalStyleUtils();
+  const { searchAndInsertImage: searchAndInsertImageFunc } =
+    useLexicalImageInsertion();
+  const { generateAndInsertImage: generateAndInsertImageFunc } =
+    useLexicalImageGeneration();
+
+  const { makeRuntimeSpec } = useMakeRuntimeSpec();
 
   /* 1.  build enums / spec */
-  const buildDynamicEnums = (editor: LexicalEditor) => {
-    const spec = makeRuntimeSpec(editor);
+  const buildDynamicEnums = () => {
+    const spec = makeRuntimeSpec();
 
     // Block vs inline
     const blockTypes = spec.nodes
@@ -309,7 +313,7 @@ export function useRuntimeToolsFactory({
     };
   };
 
-  const { NodeSpecByType } = buildDynamicEnums(editor);
+  const { NodeSpecByType } = buildDynamicEnums();
   console.log("🛠️ [ToolFactory] NodeSpecByType:", NodeSpecByType);
 
   /* ------------------------------------------------------------------
@@ -570,7 +574,7 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
         }),
         execute: async ({ query }): ExecuteResult => {
           try {
-            await searchAndInsertImageFunc(query);
+            await searchAndInsertImageFunc(query, "block");
             const summary = `Successfully searched and inserted an image related to '${query}'.`;
             // TODO: This *does* mutate state, should we return it?
             // For now, following pattern of not returning state from non-insert tools.

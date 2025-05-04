@@ -20,28 +20,33 @@ import { useState } from "react";
 import { useToast } from "~/components/ui/toast-provider";
 import ShareEntity from "./share-entity";
 import RenameEntityModal from "./rename-modal";
+import ThumbnailModal from "./icon-modal";
 import TagEntityModal from "./tag-modal";
 import { PublicAccess } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { TagIcon } from "lucide-react";
+import { Icon } from "@radix-ui/react-select";
+import { ImageGenerationProvider } from "~/hooks/use-image-generation";
+import { ImageProvider } from "~/hooks/use-image-insertion";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   currentAccess: PublicAccess;
+  llmConfig: RouterOutputs["auth"]["getLlmConfig"];
 };
 
-export const MoreActions = ({ entity, currentAccess }: Props) => {
+export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
   const { toast } = useToast();
 
   const [openDialog, setOpenDialog] = useState<
-    null | "delete" | "share" | "rename" | "tag"
+    null | "delete" | "share" | "rename" | "tag" | "thumbnail"
   >(null);
 
   const handleOpenDelete = () => setOpenDialog("delete");
   const handleOpenShare = () => setOpenDialog("share");
   const handleOpenRename = () => setOpenDialog("rename");
   const handleOpenTag = () => setOpenDialog("tag");
-
+  const handleOpenThumbnail = () => setOpenDialog("thumbnail");
   const handleCloseDialog = () => setOpenDialog(null);
 
   const copyPublicLink = async () => {
@@ -99,6 +104,13 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
               <Pencil1Icon />
             </DropdownMenuItem>
             <DropdownMenuItem
+              onSelect={handleOpenThumbnail}
+              className="justify-between"
+            >
+              Thumbnail
+              <Icon />
+            </DropdownMenuItem>
+            <DropdownMenuItem
               onSelect={copyPublicLink}
               disabled={
                 currentAccess === PublicAccess.PRIVATE &&
@@ -135,6 +147,17 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
           isOpen
           onOpenChange={handleCloseDialog}
         />
+      )}
+      {openDialog === "thumbnail" && (
+        <ImageGenerationProvider initialConfig={llmConfig} entityId={entity.id}>
+          <ImageProvider>
+            <ThumbnailModal
+              entity={entity}
+              isOpen
+              onOpenChange={handleCloseDialog}
+            />
+          </ImageProvider>
+        </ImageGenerationProvider>
       )}
     </>
   );

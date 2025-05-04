@@ -58,6 +58,13 @@ export const authRouter = createTRPCRouter({
     }
     return users[0];
   }),
+  getLlmConfig: protectedProcedure.query(async ({ ctx }) => {
+    const users = await ctx.drizzle
+      .select({ config: schema.users.config })
+      .from(schema.users)
+      .where(eq(schema.users.id, ctx.session.user.id));
+    return users[0]?.config?.llm;
+  }),
   updateProfile: protectedProcedure
     .input(ProfileSchema)
     .mutation(async ({ ctx, input }) => {

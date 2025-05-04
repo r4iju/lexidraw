@@ -32,9 +32,9 @@ import { api } from "~/trpc/react";
 import { useToast } from "~/components/ui/toast-provider";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { LinkNode } from "@lexical/link";
-import { useImageInsertion } from "~/hooks/use-image-insertion";
+import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
 import { RouterOutputs } from "~/trpc/shared";
-import { useImageGeneration } from "~/hooks/use-image-generation";
+import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 import { Textarea } from "~/components/ui/textarea";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
@@ -325,14 +325,14 @@ export function InsertImageDialog({
     null | "url" | "file" | "unsplash" | "generate"
   >(null);
   const hasModifier = useRef(false);
-  const { insertImageNode } = useImageInsertion();
+  const { insertImageNode } = useLexicalImageInsertion();
   const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
 
   const {
     generateAndInsertImage,
     isLoading: isGenerating,
     isConfigured: isGenerationConfigured,
-  } = useImageGeneration();
+  } = useLexicalImageGeneration();
 
   const handleUnsplashImageSelect = useCallback(
     (image: UnsplashImageResult) => {

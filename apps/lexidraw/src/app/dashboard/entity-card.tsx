@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 import { EntityType } from "@packages/types";
@@ -19,6 +21,7 @@ type Props = {
   sortBy?: "updatedAt" | "createdAt" | "title";
   sortOrder?: "asc" | "desc";
   isOverlay?: boolean;
+  llmConfig: RouterOutputs["auth"]["getLlmConfig"];
 };
 
 export function EntityCard({
@@ -27,6 +30,7 @@ export function EntityCard({
   sortBy = "updatedAt",
   sortOrder = "desc",
   isOverlay = false,
+  llmConfig,
 }: Props) {
   const searchParams = new URLSearchParams({
     ...(flex ? { flex } : {}),
@@ -124,7 +128,11 @@ export function EntityCard({
           <TagTooltip entity={entity} className="hidden md:flex" />
 
           {!isOverlay ? (
-            <MoreActions entity={entity} currentAccess={entity.publicAccess} />
+            <MoreActions
+              entity={entity}
+              currentAccess={entity.publicAccess}
+              llmConfig={llmConfig}
+            />
           ) : (
             <Button size="icon" variant="ghost" disabled>
               <DotsHorizontalIcon className="size-5" />
