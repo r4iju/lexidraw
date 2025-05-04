@@ -22,8 +22,8 @@ import {
 } from "lucide-react";
 import {
   exportToBlob,
-  exportToSvg,
   loadFromBlob,
+  exportToSvg,
   MainMenu,
 } from "@excalidraw/excalidraw";
 import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
@@ -95,8 +95,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           toast({
             title: "Saved!",
           });
-          await exportDrawingAsSvg({ elements: elements, appState });
-          closeMenu();
+          await exportDrawingAsSvg();
         },
         onError: (err) => {
           toast({
@@ -109,15 +108,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     );
   };
 
-  type ExportAsSvgProps = {
-    elements: readonly ExcalidrawElement[];
-    appState: AppState;
-  };
-
-  const exportDrawingAsSvg = async ({
-    elements,
-    appState,
-  }: ExportAsSvgProps) => {
+  const exportDrawingAsSvg = async () => {
     generateUploadUrls(
       {
         entityId: drawing.id,
@@ -126,25 +117,19 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       {
         onSuccess: async (uploadParams) => {
           const promises: Promise<void>[] = [];
-          uploadParams.map(async (param) => {
+          for (const param of uploadParams) {
             const svg = await exportToSvg({
-              data: {
-                elements,
-                appState: {
-                  ...appState,
-                  theme: param.theme,
-                  exportWithDarkMode: param.theme === Theme.DARK ? true : false,
-                },
-                files: null,
+              elements: excalidrawApi.current.getSceneElements(),
+              appState: {
+                ...excalidrawApi.current.getAppState(),
+                theme: param.theme,
+                exportWithDarkMode: param.theme === Theme.DARK ? true : false,
+                exportBackground: true,
               },
-              config: {
-                padding: 10,
-                renderEmbeddables: true,
-                exportingFrame: null,
-              },
+              files: null,
+              exportPadding: 10,
             });
 
-            // convert it to string
             const svgString = new XMLSerializer().serializeToString(svg);
             const blob = new Blob([svgString], { type: "image/svg+xml" });
             promises.push(
@@ -153,8 +138,9 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
                 file: blob,
               }),
             );
-          });
+          }
           await Promise.all(promises);
+          closeMenu();
         },
       },
     );
@@ -213,7 +199,11 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     if (!excalidrawApi.current) return;
     const blob = await exportToBlob({
       elements: excalidrawApi.current.getSceneElements(),
-      appState: excalidrawApi.current.getAppState(),
+      appState: {
+        ...excalidrawApi.current.getAppState(),
+        exportBackground: true,
+        exportWithDarkMode: isDarkTheme ? true : false,
+      },
       files: null,
       // quality: 100,
       mimeType: "image/png",
@@ -239,8 +229,6 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       appState: excalidrawApi.current.getAppState(),
       files: null,
       exportPadding: 10,
-      renderEmbeddables: true,
-      exportingFrame: null,
     });
     const svgString = new XMLSerializer().serializeToString(svg);
     const blob = new Blob([svgString], { type: "image/svg+xml" });

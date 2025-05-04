@@ -32,13 +32,14 @@ export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
       { id: entity.id },
       {
         onSuccess: async () => {
-          toast({ title: "Removed!" });
           await revalidateDashboard();
           router.refresh();
+          toast({ title: "Removed!" });
+          onOpenChange(false);
         },
         onError: (error) => {
           toast({
-            title: "Removed!",
+            title: "Something went wrong!",
             description: error.message,
             variant: "destructive",
           });
@@ -61,16 +62,14 @@ export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
-          <DialogClose asChild>
-            <Button
-              variant="destructive"
-              type="button"
-              onClick={handleDelete}
-              disabled={isPending}
-            >
-              Delete
-            </Button>
-          </DialogClose>
+          <Button
+            variant="destructive"
+            type="button"
+            onClick={handleDelete}
+            disabled={isPending}
+          >
+            Delete
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

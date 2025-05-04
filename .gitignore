@@ -46,3 +46,7 @@ yarn-error.log*
 
 # repomix
 **/repomix-output.xml
+
+# AI
+.windsurfrules
+.cursor/

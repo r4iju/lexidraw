@@ -7,7 +7,8 @@ import { useCallback, useMemo } from "react";
 export type AutocompleteEditorContext = {
   heading: string;
   blockType: string;
-  previousSentence: string;
+  surroundingText: string;
+  nextBlockText: string;
 };
 
 type SuggestionCache = {
@@ -73,6 +74,7 @@ export function useAutocompleteLLM() {
             `Complete the snippet without repeating those words.`,
             `Do not wrap in quotes.`,
             `Do not add any list markers or other formatting.`,
+            `The user is currently typing at the position marked [CURSOR].`,
             `User typed partial snippet: "${partialSnippet}"`,
             `The following context may be relevant:`,
             ...(editorContext?.heading
@@ -81,8 +83,13 @@ export function useAutocompleteLLM() {
             ...(editorContext?.blockType
               ? [`Block type: ${editorContext.blockType}`]
               : []),
-            ...(editorContext?.previousSentence
-              ? [`Previous sentence: ${editorContext.previousSentence}`]
+            ...(editorContext?.surroundingText
+              ? [
+                  `Surrounding text (with cursor position): ${editorContext.surroundingText}`,
+                ]
+              : []),
+            ...(editorContext?.nextBlockText
+              ? [`Following block text: ${editorContext.nextBlockText}`]
               : []),
           ].join("\n");
 
@@ -90,6 +97,7 @@ export function useAutocompleteLLM() {
             `You are a helpful autocomplete assistant.`,
             `Do not repeat the words the user already typed.`,
             `Avoid meta-information like "Sure" or "Here you go."`,
+            `Critically, do not suggest any text found in the 'Following block text' context.`,
             `If you cannot provide a suitable completion, return an empty string "".`,
           ].join("\n");
 
