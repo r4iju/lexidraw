@@ -66,10 +66,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {
       excalidrawApi.current?.updateScene({
         elements,
-        // appState: {
-        //   ...appState,
-        //   collaborators: new Map(Object.entries(appState.collaborators)),
-        // },
       });
       setIsRemoteUpdate(true);
       if (excalidrawApi.current) {

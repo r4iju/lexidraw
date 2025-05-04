@@ -77,39 +77,57 @@ export default function AutocompletePlugin() {
   const gatherEditorContext = useCallback((): AutocompleteEditorContext => {
     let headingHierarchy = "";
     let blockType = "";
-    let previousSentence = "";
+    let surroundingText = "";
+    let nextBlockText = "";
 
     const selection = $getSelection();
     if (!$isRangeSelection(selection)) {
-      return { heading: headingHierarchy, blockType, previousSentence };
+      return {
+        heading: headingHierarchy,
+        blockType,
+        surroundingText,
+        nextBlockText,
+      };
     }
 
     const anchorNode = selection.anchor.getNode();
-
     headingHierarchy = gatherHeadingChain(anchorNode).join(" > ");
 
     const anchorElement = anchorNode.getTopLevelElementOrThrow();
     blockType = anchorElement.getType();
 
-    const offset = selection.anchor.offset;
+    // Get text from the previous sibling element, if it exists
+    const previousSibling = anchorElement.getPreviousSibling();
+    const previousText = previousSibling
+      ? `${previousSibling.getTextContent().trim()}\n`
+      : "";
+
+    // Get text from the current element and mark cursor position
+    let currentTextWithCursor = "";
     if ($isTextNode(anchorNode)) {
-      const textBeforeCursor = anchorNode.getTextContent().slice(0, offset);
-
-      // A quick approach: capture all complete sentences that end in punctuation.
-      // We'll use a global regex that finds segments like "Some text.","Another?" etc.
-      const fullSentences = textBeforeCursor.match(/[^.?!]+[.?!]+/g);
-
-      // The "previous sentence" is the last fully ended sentence,
-      // ignoring whatever fragment the user is still typing.
-      if (fullSentences && fullSentences.length > 0) {
-        previousSentence =
-          fullSentences[fullSentences.length - 1]?.trim() ?? "";
-      } else {
-        previousSentence = "";
-      }
+      const textContent = anchorNode.getTextContent();
+      const offset = selection.anchor.offset;
+      const textBeforeCursor = textContent.slice(0, offset).trimStart(); // Trim leading space from start of element's text
+      const textAfterCursor = textContent.slice(offset).trimEnd(); // Trim trailing space
+      currentTextWithCursor = `${textBeforeCursor}[CURSOR]${textAfterCursor}`;
+    } else {
+      // Fallback if not a text node (though selection usually is)
+      currentTextWithCursor = `${anchorElement.getTextContent().trim()}[CURSOR]`;
     }
 
-    return { heading: headingHierarchy, blockType, previousSentence };
+    // Combine the texts
+    surroundingText = `${previousText}${currentTextWithCursor}`;
+
+    // Get text from the next sibling element, if it exists
+    const nextSibling = anchorElement.getNextSibling();
+    nextBlockText = nextSibling ? nextSibling.getTextContent().trim() : "";
+
+    return {
+      heading: headingHierarchy,
+      blockType,
+      surroundingText,
+      nextBlockText,
+    };
   }, [gatherHeadingChain]);
 
   /**

@@ -75,7 +75,9 @@ const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="outline" disabled={isLoading}>
+              Cancel
+            </Button>
           </DialogClose>
           <Button
             disabled={isLoading}

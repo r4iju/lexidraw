@@ -62,7 +62,8 @@ function unwrapSendReply(jsonish: string): string | null {
     const obj = JSON.parse(cleaned);
     if (
       obj.toolName === "sendReply" &&
-      typeof obj.args?.replyText === "string"
+      obj.args != null &&
+      typeof obj.args.replyText === "string"
     ) {
       return obj.args.replyText;
     }
