@@ -32,7 +32,7 @@ import { toast } from "sonner";
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   currentAccess: PublicAccess;
-  llmConfig: RouterOutputs["auth"]["getLlmConfig"];
+  llmConfig?: RouterOutputs["auth"]["getLlmConfig"];
 };
 
 export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
