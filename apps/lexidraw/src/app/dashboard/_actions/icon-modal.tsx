@@ -15,7 +15,7 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { useImageGeneration } from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
 import { cn } from "~/lib/utils";
@@ -45,8 +45,6 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const isLoading = isGenerating || isSearching || isUploading;
   const router = useRouter();
 
-  const { toast } = useToast();
-
   const handleSearch = async () => {
     const image = await searchImage(searchQuery);
     if (image) {
@@ -57,10 +55,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const handleGenerate = async () => {
     const image = await generateImageData(generateQuery);
     if (!image) {
-      toast({
-        title: "Error",
-        description: "Failed to generate image",
-      });
+      toast.error("Failed to generate image");
       return;
     }
     // create a blob from the image data
@@ -97,11 +92,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
     // Fetch the image data from the URL
     const response = await fetch(selectedThumbnail);
     if (!response.ok) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch image for upload.",
-        variant: "destructive",
-      });
+      toast.error("Failed to fetch image for upload.");
       return;
     }
     const blob = await response.blob();
@@ -109,10 +100,8 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
     // Validate the blob type before proceeding
 
     if (!allowedTypes.includes(blob.type as AllowedContentType)) {
-      toast({
-        title: "Invalid Image Type",
+      toast.error("Invalid Image Type", {
         description: `Unsupported image type: ${blob.type || "unknown"}. Please upload SVG, JPG, PNG, WEBP, or AVIF.`,
-        variant: "destructive",
       });
       return;
     }
@@ -141,9 +130,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
             },
             {
               onSuccess: async () => {
-                toast({
-                  title: "Thumbnail saved",
-                });
+                toast.success("Thumbnail saved");
                 await revalidateDashboard();
                 router.refresh();
                 onOpenChange(false);
@@ -152,10 +139,8 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
                 setIsUploading(false);
               },
               onError: (error) => {
-                toast({
-                  title: "Error",
-                  description: `Failed to save thumbnail: ${error.message}`,
-                  variant: "destructive",
+                toast.error("Error saving thumbnail", {
+                  description: error.message,
                 });
               },
             },

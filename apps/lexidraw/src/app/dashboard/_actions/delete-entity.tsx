@@ -11,10 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { useToast } from "~/components/ui/toast-provider";
 import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
+import { toast } from "sonner";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -25,7 +25,6 @@ type Props = {
 export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
   const router = useRouter();
   const { mutate: remove, isPending } = api.entities.delete.useMutation();
-  const { toast } = useToast();
 
   const handleDelete = () => {
     remove(
@@ -34,14 +33,12 @@ export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
         onSuccess: async () => {
           await revalidateDashboard();
           router.refresh();
-          toast({ title: "Removed!" });
+          toast.success("Removed!");
           onOpenChange(false);
         },
         onError: (error) => {
-          toast({
-            title: "Something went wrong!",
+          toast.error("Something went wrong!", {
             description: error.message,
-            variant: "destructive",
           });
         },
       },

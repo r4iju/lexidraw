@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { type RouterOutputs } from "~/trpc/shared";
 import { Input } from "~/components/ui/input";
@@ -44,7 +44,6 @@ const accessLevelLabel = {
 
 export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
   const utils = api.useUtils();
-  const { toast } = useToast();
   const searchParams = useSearchParams();
   const { sortBy, sortOrder } = z
     .object({
@@ -163,10 +162,8 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           context.previousData,
         );
         setShareWith(context.previousInput);
-        toast({
-          title: "Not found",
+        toast.error("Not found", {
           description: "Are you sure that email is valid?",
-          variant: "destructive",
         });
       },
       onSuccess: async (_res, variables, context) => {
@@ -210,9 +207,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
       onSuccess: async (_res, vars, context) => {
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
-        toast({
-          title: "Saved",
-        });
+        toast.success("Saved");
         await revalidateDashboard();
       },
     });
@@ -244,10 +239,8 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           context.queryKey,
           context.previousData,
         );
-        toast({
-          title: "Error",
+        toast.error("Error", {
           description: "Something went wrong",
-          variant: "destructive",
         });
       },
       onSuccess: async (_res, variables, context) => {

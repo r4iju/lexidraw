@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogClose,
 } from "~/components/ui/dialog";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";
@@ -29,7 +29,6 @@ type Props = {
 const TagEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const router = useRouter();
   const [tags, setTags] = useState<string[]>(entity.tags || []);
-  const { toast } = useToast();
   const { mutate: addTags } = api.entities.updateEntityTags.useMutation();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -41,15 +40,14 @@ const TagEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
         onSuccess: async () => {
           await revalidateDashboard();
           router.refresh();
-          toast({
-            title: "Saved!",
+          toast.success("Saved!", {
             description: `Added tags: ${tags.join(", ")}`,
           });
           setIsLoading(false);
           onOpenChange(false);
         },
         onError: (error) => {
-          toast({ title: error.message, variant: "destructive" });
+          toast.error(error.message);
           setIsLoading(false);
         },
       },

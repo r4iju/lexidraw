@@ -11,7 +11,7 @@ import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import {
   DownloadIcon,
   FileCheck,
@@ -35,7 +35,6 @@ type Props = {
 
 export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const isDarkTheme = useIsDarkTheme();
-  const { toast } = useToast();
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: generateUploadUrls } =
     api.snapshot.generateUploadUrls.useMutation();
@@ -92,16 +91,12 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       {
         onSuccess: async () => {
           markPristine();
-          toast({
-            title: "Saved!",
-          });
+          toast.success("Saved!");
           await exportDrawingAsSvg();
         },
         onError: (err) => {
-          toast({
-            title: "Something went wrong!",
+          toast.error("Something went wrong!", {
             description: err.message,
-            variant: "destructive",
           });
         },
       },
@@ -159,10 +154,8 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       const scene = await loadFromBlob(file, null, null);
       console.log(scene);
       if (!scene) {
-        toast({
-          title: "Invalid file",
+        toast.error("Invalid file", {
           description: "Please upload a valid Excalidraw file",
-          variant: "destructive",
         });
         return;
       }

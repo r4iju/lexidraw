@@ -14,7 +14,7 @@ import {
 import { EditorState } from "lexical";
 import { api } from "~/trpc/react";
 import { Theme } from "@packages/types";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useExportWebp } from "./export-webp";
@@ -33,7 +33,6 @@ export default function OptionsDropdown({
 }: Props) {
   const { setTheme } = useTheme();
   const isDarkTheme = useIsDarkTheme();
-  const { toast } = useToast();
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: generateUploadUrls } =
     api.snapshot.generateUploadUrls.useMutation();
@@ -93,9 +92,7 @@ export default function OptionsDropdown({
           }
           // setTheme(nextTheme);
           await Promise.all(promises);
-          toast({
-            title: "Exported thumbnails!",
-          });
+          toast.success("Exported thumbnails!");
         },
         onError: (error) => {
           console.error("Error generating upload URL", error);
@@ -106,10 +103,7 @@ export default function OptionsDropdown({
 
   const handleSave = () => {
     if (!state.current) {
-      toast({
-        title: "No state to save",
-        variant: "destructive",
-      });
+      toast.error("No state to save");
       return;
     }
     save(
@@ -120,17 +114,13 @@ export default function OptionsDropdown({
       },
       {
         onSuccess: async () => {
-          toast({
-            title: "Saved!",
-          });
+          toast.success("Saved!");
           // unless entity exists, can't update screenshot reference
           await exportDocumentAsImage();
         },
         onError: (error) => {
-          toast({
-            title: "Error saving",
+          toast.error("Error saving", {
             description: error.message,
-            variant: "destructive",
           });
         },
       },
@@ -154,24 +144,10 @@ export default function OptionsDropdown({
         <DropdownMenuSeparator />
         <DropdownMenuGroup title="Document">
           <DropdownMenuItem onClick={handleSave}>Save</DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() =>
-              toast({
-                title: "Not implemented yet!",
-                variant: "destructive",
-              })
-            }
-          >
+          <DropdownMenuItem onClick={() => toast.error("Not implemented yet!")}>
             Import from file
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() =>
-              toast({
-                title: "Not implemented yet!",
-                variant: "destructive",
-              })
-            }
-          >
+          <DropdownMenuItem onClick={() => toast.error("Not implemented yet!")}>
             Export to file
           </DropdownMenuItem>
         </DropdownMenuGroup>

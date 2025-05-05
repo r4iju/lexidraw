@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogClose,
 } from "~/components/ui/dialog";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";
@@ -30,7 +30,6 @@ type Props = {
 const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const router = useRouter();
   const [newTitle, setNewTitle] = useState(entity.title);
-  const { toast } = useToast();
   const { mutate } = api.entities.update.useMutation();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -42,12 +41,12 @@ const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
         onSuccess: async () => {
           await revalidateDashboard();
           router.refresh();
-          toast({ title: "Saved!", description: newTitle });
+          toast.success("Saved!", { description: newTitle });
           setIsLoading(false);
           onOpenChange(false);
         },
         onError: (error) => {
-          toast({ title: error.message, variant: "destructive" });
+          toast.error(error.message);
           setIsLoading(false);
         },
       },

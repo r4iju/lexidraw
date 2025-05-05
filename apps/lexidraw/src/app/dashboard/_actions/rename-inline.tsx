@@ -10,11 +10,11 @@ import {
   CheckIcon,
   ReloadIcon,
 } from "@radix-ui/react-icons";
-import { useToast } from "~/components/ui/toast-provider";
 import { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
 import { revalidateDashboard } from "../server-actions";
+import { toast } from "sonner";
 
 type Props = {
   className?: string;
@@ -25,7 +25,6 @@ const EntityTitle = ({ className, entity }: Props) => {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [newTitle, setNewTitle] = useState(entity.title);
-  const { toast } = useToast();
   const { mutate } = api.entities.update.useMutation();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -37,12 +36,12 @@ const EntityTitle = ({ className, entity }: Props) => {
         onSuccess: async () => {
           await revalidateDashboard();
           router.refresh();
-          toast({ title: "Saved!", description: newTitle });
+          toast.success("Saved!", { description: newTitle });
           setIsEditing(false);
           setIsLoading(false);
         },
         onError: (error) => {
-          toast({ title: error.message, variant: "destructive" });
+          toast.error(error.message);
           setIsEditing(false);
           setIsLoading(false);
         },
