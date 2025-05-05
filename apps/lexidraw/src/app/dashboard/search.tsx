@@ -22,6 +22,8 @@ import Image from "next/image";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 import type { RouterOutputs } from "~/trpc/shared";
+import { cn } from "~/lib/utils";
+import Link from "next/link";
 
 type CombinedSearchResult = RouterOutputs["entities"]["search"][number] &
   Partial<RouterOutputs["entities"]["deepSearch"][number]>;
@@ -119,85 +121,89 @@ export function SearchBar() {
 
   return (
     <Popover>
-      <PopoverTrigger asChild className="relative w-full">
-        <div className="relative w-full">
+      <div className="relative w-full">
+        <PopoverTrigger asChild className="relative w-full">
           <Input
             ref={inputRef as RefObject<HTMLInputElement>}
             type="text"
-            placeholder="Search entities..."
+            placeholder="Search by title, content, or tags..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="h-12 md:h-10 w-full pr-8"
           />
-          {isLoading && debouncedQuery.length > 0 && (
-            <Loader2 className="absolute right-2 top-1/3 h-4 w-4 animate-spin text-muted-foreground" />
-          )}
-        </div>
-      </PopoverTrigger>
+        </PopoverTrigger>
+        {isLoading && debouncedQuery.length > 0 && (
+          <Loader2 className="absolute right-2 top-1/3 h-4 w-4 animate-spin text-muted-foreground" />
+        )}
+      </div>
       <PopoverContent
-        className="w-[--radix-popover-trigger-width] p-0"
+        className={cn("w-[--radix-popover-trigger-width] p-0 mt-1 ", {
+          hidden: !isLoading && debouncedQuery.length === 0,
+        })}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <Command shouldFilter={false}>
           <CommandList>
             {/* Empty State: Show if not loading, query exists, but no results */}
-            {!isLoading &&
-              !displayResults.length &&
-              debouncedQuery.length > 0 && (
-                <CommandEmpty>
-                  No results found for "{debouncedQuery}".
-                </CommandEmpty>
-              )}
+            <CommandEmpty>
+              No results found for "{debouncedQuery}".
+            </CommandEmpty>
 
             {/* Results Group: Show if we have results to display */}
             {displayResults.length > 0 && (
               <CommandGroup heading="Results">
                 {displayResults.map((entity) => (
-                  <CommandItem
+                  <Link
                     key={entity.id}
-                    value={entity.id}
-                    onSelect={() => handleSelect(entity.id, entity.entityType)}
-                    className="cursor-pointer flex items-center h-16 gap-4 justify-between"
+                    href={toPath({
+                      entityType: entity.entityType,
+                      entityId: entity.id,
+                    })}
                   >
-                    <div className="flex items-center gap-4">
-                      {entity.screenShotLight && entity.screenShotDark && (
-                        <div className="relative h-12 w-12 overflow-hidden rounded-sm">
-                          <Image
-                            src={
-                              isDarkTheme
-                                ? entity.screenShotDark
-                                : entity.screenShotLight
-                            }
-                            alt={entity.title}
-                            className="mr-2 h-12 w-12 flex-shrink-0"
-                            width={48}
-                            height={48}
-                            style={{
-                              objectFit: "cover",
-                            }}
-                          />
+                    <CommandItem
+                      value={entity.id}
+                      className="flex items-center h-16 gap-4 justify-between"
+                    >
+                      <div className="flex items-center gap-4">
+                        {entity.screenShotLight && entity.screenShotDark && (
+                          <div className="relative h-12 w-12 overflow-hidden rounded-sm">
+                            <Image
+                              src={
+                                isDarkTheme
+                                  ? entity.screenShotDark
+                                  : entity.screenShotLight
+                              }
+                              alt={entity.title}
+                              className="mr-2 h-12 w-12 flex-shrink-0"
+                              width={48}
+                              height={48}
+                              style={{
+                                objectFit: "cover",
+                              }}
+                            />
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1">
+                          <span className="truncate flex-grow text-md">
+                            {entity.title}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {toDateString(entity.updatedAt)}
+                          </span>
                         </div>
-                      )}
-                      <div className="flex flex-col gap-1">
-                        <span className="truncate flex-grow text-md">
-                          {entity.title}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {toDateString(entity.updatedAt)}
-                        </span>
                       </div>
-                    </div>
-                    {entity.entityType === "directory" && (
-                      <Folder className="h-4 w-4 flex-shrink-0" />
-                    )}
-                    {entity.entityType === "drawing" && (
-                      <Brush className="h-4 w-4 flex-shrink-0" />
-                    )}
-                    {entity.entityType === "document" && (
-                      <File className="h-4 w-4 flex-shrink-0" />
-                    )}
-                  </CommandItem>
+                      {entity.entityType === "directory" && (
+                        <Folder className="h-4 w-4 flex-shrink-0" />
+                      )}
+                      {entity.entityType === "drawing" && (
+                        <Brush className="h-4 w-4 flex-shrink-0" />
+                      )}
+                      {entity.entityType === "document" && (
+                        <File className="h-4 w-4 flex-shrink-0" />
+                      )}
+                    </CommandItem>
+                  </Link>
                 ))}
               </CommandGroup>
             )}
