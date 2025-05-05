@@ -92,10 +92,10 @@ export async function Dashboard({
             </div>
             <NewEntity parentId={directory ? directory.id : null} />
           </div>
-          <div className="flex flex-col md:flex-row justify-between items-center md:gap-6">
+          <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-2 md:gap-6">
             {/* but dont cannibalize the search the buttons */}
-            <SearchBar className=" " />
-            <div className="flex justify-end space-x-2 ">
+            <SearchBar className="w-full" />
+            <div className="flex justify-end space-x-2 w-full md:w-auto">
               {/* filter by tags */}
 
               <FilterByTags options={allTags} />

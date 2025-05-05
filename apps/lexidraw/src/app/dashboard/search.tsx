@@ -32,7 +32,7 @@ type Props = {
 };
 
 export function SearchBar({ className }: Props) {
-  const [query, setQuery] = useState(""); // Raw input value
+  const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const isDarkTheme = useIsDarkTheme();
   const [displayResults, setDisplayResults] = useState<CombinedSearchResult[]>(
@@ -116,15 +116,22 @@ export function SearchBar({ className }: Props) {
 
   return (
     <Popover>
-      <div className="contents">
-        <PopoverTrigger asChild className={cn("w-full", className)}>
+      <div className={cn("w-full", className)}>
+        <PopoverTrigger asChild>
           <Input
             ref={inputRef as RefObject<HTMLInputElement>}
             type="text"
             placeholder="Search by title, content, or tags..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="h-12 md:h-10 w-full pr-8"
+            className={cn(
+              "h-12 md:h-10 w-full",
+              "pr-8", // keep room for the spinner
+              "font-medium text-center",
+              "placeholder-shown:text-center",
+              "placeholder:text-muted-foreground",
+              "focus:outline-none",
+            )}
           />
         </PopoverTrigger>
         {isLoading && debouncedQuery.length > 0 && (
