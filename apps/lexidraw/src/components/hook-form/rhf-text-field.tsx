@@ -64,10 +64,10 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
               />
             )}
             {error && (
-              <p className="mt-1 text-sm text-red-600">{error.message}</p>
+              <p className="mt-1 text-sm text-destructive">{error.message}</p>
             )}
             {helperText && !error && (
-              <p className="mt-1 text-sm text-gray-600">{helperText}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
             )}
           </div>
         );

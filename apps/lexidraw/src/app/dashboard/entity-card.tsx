@@ -21,7 +21,7 @@ type Props = {
   sortBy?: "updatedAt" | "createdAt" | "title";
   sortOrder?: "asc" | "desc";
   isOverlay?: boolean;
-  llmConfig: RouterOutputs["auth"]["getLlmConfig"];
+  llmConfig?: RouterOutputs["auth"]["getLlmConfig"];
 };
 
 export function EntityCard({
