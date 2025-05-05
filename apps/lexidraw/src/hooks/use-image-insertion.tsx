@@ -18,7 +18,7 @@ import { $wrapNodeInElement } from "@lexical/utils";
 import { ImageNode } from "~/app/documents/[documentId]/nodes/ImageNode/ImageNode";
 import { InlineImageNode } from "~/app/documents/[documentId]/nodes/InlineImageNode/InlineImageNode";
 import { api } from "~/trpc/react";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 
 /**
  * Types for Unsplash image data returned from the API
@@ -44,7 +44,6 @@ type ImageContextValue = {
 const ImageContext = createContext<ImageContextValue | null>(null);
 
 export const ImageProvider = ({ children }: { children: ReactNode }) => {
-  const { toast } = useToast();
   const utils = api.useUtils();
   const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
   const [isLoading, setIsLoading] = useState(false);
@@ -54,10 +53,8 @@ export const ImageProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         const imageData = await utils.image.imLuckyUnsplash.fetch({ query });
         if (!imageData) {
-          toast({
-            title: "Image Search Failed",
+          toast.error("Image Search Failed", {
             description: `Could not find an image for "${query}".`,
-            variant: "destructive",
           });
           return null;
         }
@@ -66,17 +63,15 @@ export const ImageProvider = ({ children }: { children: ReactNode }) => {
         console.error("Error searching image:", error);
         const message =
           error instanceof Error ? error.message : "An unknown error occurred.";
-        toast({
-          title: "Image Search Error",
+        toast.error("Image Search Error", {
           description: message,
-          variant: "destructive",
         });
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [utils.image.imLuckyUnsplash, toast],
+    [utils.image.imLuckyUnsplash],
   );
 
   const trackDownload = useCallback(
@@ -141,7 +136,6 @@ const LexicalImageContext = createContext<LexicalImageContextValue | null>(
 
 export const LexicalImageProvider = ({ children }: { children: ReactNode }) => {
   const [editor] = useLexicalComposerContext();
-  const { toast } = useToast();
   const { searchImage, trackDownload } = useUnsplashImage();
 
   const insertImageNode = useCallback(
@@ -153,11 +147,7 @@ export const LexicalImageProvider = ({ children }: { children: ReactNode }) => {
     }) => {
       editor.update(() => {
         if (!editor.hasNodes([ImageNode])) {
-          toast({
-            title: "Error",
-            description: "ImageNode not registered.",
-            variant: "destructive",
-          });
+          toast.error("ImageNode not registered.");
           return;
         }
         const imageNode = ImageNode.$createImageNode(payload);
@@ -200,7 +190,7 @@ export const LexicalImageProvider = ({ children }: { children: ReactNode }) => {
         imageNode.setShowCaption(true);
       });
     },
-    [editor, toast],
+    [editor],
   );
 
   const insertInlineImageNode = useCallback(
@@ -212,11 +202,7 @@ export const LexicalImageProvider = ({ children }: { children: ReactNode }) => {
     }) => {
       editor.update(() => {
         if (!editor.hasNodes([InlineImageNode])) {
-          toast({
-            title: "Error",
-            description: "InlineImageNode not registered.",
-            variant: "destructive",
-          });
+          toast.error("InlineImageNode not registered.");
           return;
         }
         const inlineNode = InlineImageNode.$createInlineImageNode(payload);
@@ -256,7 +242,7 @@ export const LexicalImageProvider = ({ children }: { children: ReactNode }) => {
         inlineNode.setShowCaption(true);
       });
     },
-    [editor, toast],
+    [editor],
   );
 
   const searchAndInsertImage = useCallback(

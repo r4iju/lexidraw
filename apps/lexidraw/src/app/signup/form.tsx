@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import FormProvider from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { getDefaults } from "@packages/lib";
 import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { signIn } from "next-auth/react";
@@ -17,7 +17,6 @@ import { cn } from "~/lib/utils";
 
 export default function SignUpForm() {
   const schema = getSignUpSchema();
-  const { toast } = useToast();
   const methods = useForm({
     resolver: zodResolver(schema),
     defaultValues: { ...getDefaults(schema) },
@@ -33,8 +32,7 @@ export default function SignUpForm() {
     setSubmitError(null);
     mutate(data, {
       onSuccess: () => {
-        toast({
-          title: "Account created.",
+        toast.success("Account created.", {
           description: "You may now login.",
         });
         router.push("/signin");

@@ -29,7 +29,7 @@ import { INSERT_IMAGE_COMMAND } from "./commands";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import type { AppRouter } from "~/server/api/root";
 import { api } from "~/trpc/react";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { LinkNode } from "@lexical/link";
 import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
@@ -123,7 +123,6 @@ export function InsertImageUnsplashDialogBody({
   const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
-  const { toast } = useToast();
   const searchMutation = api.image.searchUnsplash.useMutation();
   const [results, setResults] = useState<UnsplashImageResult[]>([]);
 
@@ -154,25 +153,22 @@ export function InsertImageUnsplashDialogBody({
           setResults(data.results);
           setTotalPages(data.totalPages);
           if (data.results.length === 0 && currentPage === 1) {
-            toast({
-              title: "No Results",
+            toast.error("No Results", {
               description: `No images found for "${debouncedQuery}". Try a different term.`,
             });
           }
         },
         onError: (error) => {
           console.error("Unsplash search error:", error);
-          toast({
-            title: "Unsplash Search Failed",
+          toast.error("Unsplash Search Failed", {
             description: error.message || "Could not fetch images.",
-            variant: "destructive",
           });
           setResults([]);
           setTotalPages(0);
         },
       },
     );
-  }, [debouncedQuery, currentPage, searchMutation.mutate, toast]);
+  }, [debouncedQuery, currentPage, searchMutation.mutate]);
 
   useEffect(() => {
     if (debouncedQuery.trim() !== "") {
@@ -439,7 +435,6 @@ export default function ImagesPlugin({
   captionsEnabled?: boolean;
 }): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const { toast } = useToast();
   const modalOnCloseRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -486,8 +481,7 @@ export default function ImagesPlugin({
               const file = item.getAsFile();
               if (file) {
                 console.log("Pasted image file:", file);
-                toast({
-                  title: "Image Pasted",
+                toast.error("Image Pasted", {
                   description:
                     "Pasted image handling needs implementation (upload & insert).",
                 });
@@ -505,7 +499,7 @@ export default function ImagesPlugin({
       unregisterInsert();
       unregisterPaste();
     };
-  }, [editor, captionsEnabled, toast]);
+  }, [editor, captionsEnabled]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 

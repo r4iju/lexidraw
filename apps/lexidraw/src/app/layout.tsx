@@ -16,8 +16,7 @@ import { cn } from "~/lib/utils";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "~/components/ui/tooltip";
-import { ToastProvider } from "~/components/ui/toast-provider";
-import { Toaster } from "~/components/ui/toaster";
+import { Toaster } from "~/components/ui/sonner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -123,10 +122,8 @@ export default async function RootLayout({ children }: Props) {
               disableTransitionOnChange
             >
               <TooltipProvider>
-                <ToastProvider>
-                  {children}
-                  <Toaster />
-                </ToastProvider>
+                {children}
+                <Toaster />
               </TooltipProvider>
             </ThemeProvider>
           </TRPCReactProvider>

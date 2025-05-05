@@ -7,7 +7,7 @@ import type {
   ICommunicationReturnType,
 } from "./interface";
 import type { WebRtcMessage, MessageStructure } from "@packages/types";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import env from "@packages/env";
 
 export function useWebRtcService(
@@ -18,8 +18,6 @@ export function useWebRtcService(
   }: ICommunicationProps & { iceServers: RTCIceServer[] },
   { onMessage, onConnectionClose, onConnectionOpen }: ICommunicationOptions,
 ): ICommunicationReturnType {
-  const { toast } = useToast();
-
   const shouldReconnectRef = useRef(true);
   const reconnectionAttemptsRef = useRef(0);
   const onConnectionCloseRef = useRef(onConnectionClose);
@@ -273,35 +271,29 @@ export function useWebRtcService(
     userId,
   ]);
 
-  const closeConnection = useCallback(
-    (muted = false) => {
-      shouldReconnectRef.current = false;
-      reconnectionAttemptsRef.current = 0;
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for (const [_, conn] of localConnections.current) {
-        conn.close();
-      }
-      localConnections.current = new Map();
-      setPeers([]);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for (const [_, channel] of dataChannels.current) {
-        channel.close();
-      }
-      dataChannels.current = new Map();
-      if (websocket.current) {
-        websocket.current.close();
-        websocket.current = null;
-      }
-      if (!muted) {
-        toast({
-          title: "Connection closed",
-          variant: "default",
-        });
-      }
-      onConnectionCloseRef.current();
-    },
-    [toast],
-  );
+  const closeConnection = useCallback((muted = false) => {
+    shouldReconnectRef.current = false;
+    reconnectionAttemptsRef.current = 0;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for (const [_, conn] of localConnections.current) {
+      conn.close();
+    }
+    localConnections.current = new Map();
+    setPeers([]);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for (const [_, channel] of dataChannels.current) {
+      channel.close();
+    }
+    dataChannels.current = new Map();
+    if (websocket.current) {
+      websocket.current.close();
+      websocket.current = null;
+    }
+    if (!muted) {
+      toast("Connection closed");
+    }
+    onConnectionCloseRef.current();
+  }, []);
 
   const sendMessage = useCallback((message: MessageStructure) => {
     dataChannels.current.forEach((channel) => {

@@ -6,7 +6,7 @@ import { ProfileSchema } from "./schema";
 import FormProvider, { RHFSwitch, RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { type RouterOutputs } from "~/trpc/shared";
 import { useSession } from "next-auth/react";
 import { ReloadIcon } from "@radix-ui/react-icons";
@@ -18,7 +18,6 @@ export default function ProfileForm({ user }: Props) {
 
   const { mutate: saveProfile, isPending } =
     api.auth.updateProfile.useMutation();
-  const { toast } = useToast();
   const methods = useForm({
     resolver: zodResolver(ProfileSchema),
     defaultValues: {
@@ -41,7 +40,7 @@ export default function ProfileForm({ user }: Props) {
   const onSubmit = async (data: ProfileSchema) => {
     saveProfile(data, {
       onSuccess: async () => {
-        toast({ title: "Profile saved" });
+        toast.success("Profile saved");
         reset(data);
         const updated = await update({
           ...session,
@@ -61,10 +60,8 @@ export default function ProfileForm({ user }: Props) {
         console.log("updated", updated);
       },
       onError: (error) => {
-        toast({
-          title: "Error saving profile",
+        toast.error("Error saving profile", {
           description: error.message,
-          variant: "destructive",
         });
       },
     });

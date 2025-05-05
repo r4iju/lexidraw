@@ -17,7 +17,6 @@ import {
 } from "@radix-ui/react-icons";
 import DeleteDrawing from "./delete-entity";
 import { useState } from "react";
-import { useToast } from "~/components/ui/toast-provider";
 import ShareEntity from "./share-entity";
 import RenameEntityModal from "./rename-modal";
 import ThumbnailModal from "./icon-modal";
@@ -28,6 +27,7 @@ import { TagIcon } from "lucide-react";
 import { Icon } from "@radix-ui/react-select";
 import { ImageGenerationProvider } from "~/hooks/use-image-generation";
 import { ImageProvider } from "~/hooks/use-image-insertion";
+import { toast } from "sonner";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -36,8 +36,6 @@ type Props = {
 };
 
 export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
-  const { toast } = useToast();
-
   const [openDialog, setOpenDialog] = useState<
     null | "delete" | "share" | "rename" | "tag" | "thumbnail"
   >(null);
@@ -53,14 +51,10 @@ export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
     const url = `${window.location.origin}/${entity.entityType}s/${entity.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast({
-        title: "Link copied to clipboard!",
-      });
+      toast.success("Link copied to clipboard!");
     } catch (err) {
-      toast({
-        title: "Failed to copy link to clipboard!",
+      toast.error("Failed to copy link to clipboard!", {
         description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
       });
     }
   };

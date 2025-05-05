@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import React, { useState, useRef, RefObject, useMemo, useEffect } from "react";
 import { Input } from "~/components/ui/input";
 import { useDebounceValue } from "~/lib/client-utils";
@@ -28,8 +27,11 @@ import Link from "next/link";
 type CombinedSearchResult = RouterOutputs["entities"]["search"][number] &
   Partial<RouterOutputs["entities"]["deepSearch"][number]>;
 
-export function SearchBar() {
-  const router = useRouter();
+type Props = {
+  className?: string;
+};
+
+export function SearchBar({ className }: Props) {
   const [query, setQuery] = useState(""); // Raw input value
   const inputRef = useRef<HTMLInputElement>(null);
   const isDarkTheme = useIsDarkTheme();
@@ -108,21 +110,14 @@ export function SearchBar() {
     }
   };
 
-  const handleSelect = (entityId: string, entityType: string) => {
-    setQuery("");
-    const basePath = toPath({ entityType, entityId });
-    inputRef.current?.blur(); // Manually blur input on selection
-    router.push(basePath);
-  };
-
   const toDateString = (date: Date) => {
     return formatDistanceToNow(date, { addSuffix: true });
   };
 
   return (
     <Popover>
-      <div className="relative w-full">
-        <PopoverTrigger asChild className="relative w-full">
+      <div className="contents">
+        <PopoverTrigger asChild className={cn("w-full", className)}>
           <Input
             ref={inputRef as RefObject<HTMLInputElement>}
             type="text"
@@ -165,9 +160,9 @@ export function SearchBar() {
                       value={entity.id}
                       className="flex items-center h-16 gap-4 justify-between"
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 min-w-0">
                         {entity.screenShotLight && entity.screenShotDark && (
-                          <div className="relative h-12 w-12 overflow-hidden rounded-sm">
+                          <div className="relative h-12 w-12 overflow-hidden rounded-sm flex-shrink-0">
                             <Image
                               src={
                                 isDarkTheme
@@ -184,8 +179,8 @@ export function SearchBar() {
                             />
                           </div>
                         )}
-                        <div className="flex flex-col gap-1">
-                          <span className="truncate flex-grow text-md">
+                        <div className="flex flex-col gap-1 min-w-0 ">
+                          <span className="truncate flex-grow text-md min-w-0">
                             {entity.title}
                           </span>
                           <span className="text-sm text-muted-foreground">

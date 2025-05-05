@@ -12,7 +12,7 @@ import {
 } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { v4 as uuidv4 } from "uuid";
-import { useToast } from "~/components/ui/toast-provider";
+import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 
@@ -41,7 +41,8 @@ type ImageGenerationContextValue = {
   ) => Promise<string | null>;
 };
 
-const ImageGenerationContext = createContext<ImageGenerationContextValue | null>(null);
+const ImageGenerationContext =
+  createContext<ImageGenerationContextValue | null>(null);
 
 export const ImageGenerationProvider = ({
   initialConfig,
@@ -52,7 +53,6 @@ export const ImageGenerationProvider = ({
   entityId: string;
   children: ReactNode;
 }) => {
-  const { toast } = useToast();
   const { mutateAsync: generateUploadUrlAsync } =
     api.entities.generateUploadUrl.useMutation();
   const [isLoading, setIsLoading] = useState(false);
@@ -86,11 +86,7 @@ export const ImageGenerationProvider = ({
       options?: { size?: "256x256" | "512x512" | "1024x1024" },
     ) => {
       if (!provider.current) {
-        toast({
-          title: "Error",
-          description: "API key not configured.",
-          variant: "destructive",
-        });
+        toast.error("API key not configured.");
         return null;
       }
       try {
@@ -106,10 +102,8 @@ export const ImageGenerationProvider = ({
             typeof w === "object" && "message" in w
               ? String(w.message)
               : JSON.stringify(w);
-          toast({
-            title: "Generation Warning",
+          toast.error("Generation Warning", {
             description: msg,
-            variant: "default",
           });
         });
         const result = images[0];
@@ -123,10 +117,8 @@ export const ImageGenerationProvider = ({
           err instanceof Error
             ? err.message
             : "Unknown error during generation.";
-        toast({
-          title: "Image Generation Failed",
+        toast.error("Image Generation Failed", {
           description: message,
-          variant: "destructive",
         });
         console.error(err);
         return null;
@@ -134,22 +126,18 @@ export const ImageGenerationProvider = ({
         setIsLoading(false);
       }
     },
-    [toast],
+    [],
   );
 
   const uploadImageData = useCallback(
     async (imageData: Uint8Array, mimeType: string, prompt: string) => {
       const fileName = `${sanitizeFilename(prompt)}_${uuidv4()}.png`;
       if (!isAllowedContentType(mimeType)) {
-        toast({
-          title: "Upload Error",
-          description: `Unsupported image type: ${mimeType}`,
-          variant: "destructive",
-        });
+        toast.error(`Unsupported image type: ${mimeType}`);
         return null;
       }
       try {
-        toast({ title: "Uploading Image...", description: fileName });
+        toast.info("Uploading Image...", { description: fileName });
         const { signedUploadUrl, signedDownloadUrl } =
           await generateUploadUrlAsync({
             entityId,
@@ -162,27 +150,17 @@ export const ImageGenerationProvider = ({
           headers: { "Content-Type": mimeType },
         });
         if (!resp.ok) throw new Error(`Status ${resp.status}`);
-        toast({ title: "Upload Successful", description: fileName });
+        toast.success("Upload Successful", { description: fileName });
         return signedDownloadUrl;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unknown upload error.";
-        toast({
-          title: "Image Upload Failed",
-          description: message,
-          variant: "destructive",
-        });
+        toast.error("Image Upload Failed", { description: message });
         console.error(err);
         return null;
       }
     },
-    [
-      entityId,
-      generateUploadUrlAsync,
-      isAllowedContentType,
-      sanitizeFilename,
-      toast,
-    ],
+    [entityId, generateUploadUrlAsync, isAllowedContentType, sanitizeFilename],
   );
 
   return (
@@ -241,7 +219,6 @@ export const LexicalImageGenerationProvider = ({
   children: ReactNode;
 }) => {
   const [editor] = useLexicalComposerContext();
-  const { toast } = useToast();
   const { isConfigured, generateImageData, uploadImageData } =
     useImageGeneration();
   const [isLoading, setIsLoading] = useState(false);
@@ -250,11 +227,7 @@ export const LexicalImageGenerationProvider = ({
     (imageUrl: string, prompt: string) => {
       editor.update(() => {
         if (!editor.hasNodes([ImageNode])) {
-          toast({
-            title: "Error",
-            description: "ImageNode not registered.",
-            variant: "destructive",
-          });
+          toast.error("ImageNode not registered.");
           return;
         }
         const img = ImageNode.$createImageNode({
@@ -267,7 +240,7 @@ export const LexicalImageGenerationProvider = ({
         }
       });
     },
-    [editor, toast],
+    [editor],
   );
 
   const generateAndInsertImage = useCallback(
@@ -276,39 +249,27 @@ export const LexicalImageGenerationProvider = ({
       options?: { size?: "256x256" | "512x512" | "1024x1024" },
     ) => {
       if (!isConfigured) {
-        toast({
-          title: "Error",
-          description: "Not configured.",
-          variant: "destructive",
-        });
+        toast.error("Not configured.");
         return;
       }
       setIsLoading(true);
-      toast({ title: "Generating Image...", description: prompt });
+      toast.info("Generating Image...", { description: prompt });
       try {
         const gen = await generateImageData(prompt, options);
         if (!gen) return;
         const url = await uploadImageData(gen.imageData, gen.mimeType, prompt);
         if (!url) return;
-        toast({ title: "Inserting Image...", description: "" });
+        toast.info("Inserting Image...", { description: "" });
         insertImageNodeFromUrl(url, prompt);
       } catch (err) {
-        toast({
-          title: "Process Failed",
+        toast.error("Process Failed", {
           description: err instanceof Error ? err.message : "Unknown error",
-          variant: "destructive",
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [
-      isConfigured,
-      generateImageData,
-      uploadImageData,
-      insertImageNodeFromUrl,
-      toast,
-    ],
+    [isConfigured, generateImageData, uploadImageData, insertImageNodeFromUrl],
   );
 
   return (
