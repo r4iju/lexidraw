@@ -1,6 +1,6 @@
 "use client";
 
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 
 type Props = {
   setTheme: () => void;
