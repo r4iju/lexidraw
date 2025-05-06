@@ -128,15 +128,6 @@
   --ring: oklch(0.4907 0.2413 292.6deg);
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
 /* ensures iOS won't allow scrolling while dragging */
 .touch-none {
   touch-action: none;

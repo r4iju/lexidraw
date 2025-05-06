@@ -12,6 +12,7 @@ import {
   NavigationMenuTrigger,
 } from "~/components/ui/navigation-menu";
 import { Brush, File, FolderPlus, Plus } from "lucide-react";
+import Link from "next/link";
 
 type Props = {
   parentId: string | null;
@@ -38,19 +39,19 @@ export function NewEntity({ parentId }: Props) {
   }[] = [
     {
       title: "Drawing",
-      icon: <Brush className="h-25 w-25" />,
+      icon: <Brush className="size-5" />,
       href: newItem("drawing"),
       description: "For creating visual content.",
     },
     {
       title: "Document",
-      icon: <File className="h-25 w-25" />,
+      icon: <File className="size-5" />,
       href: newItem("document"),
       description: "For creating rich text documents.",
     },
     {
       title: "Folder",
-      icon: <FolderPlus className="h-25 w-25" />,
+      icon: <FolderPlus className="size-5" />,
       href: newItem("directory"),
       description: "Create a folder.",
     },
@@ -65,16 +66,15 @@ export function NewEntity({ parentId }: Props) {
             New
           </NavigationMenuTrigger>
           <NavigationMenuContent>
-            <ul className="grid w-[200px] gap-3 p-4 md:w-[250px] md:grid-cols-1 lg:w-[300px] ">
+            <ul className="grid w-52 md:w-64 lg:w-72 gap-2 md:grid-cols-1 p-2">
               {items.map((component) => (
                 <ListItem
                   key={component.title}
                   title={component.title}
+                  description={component.description}
                   href={component.href}
                   icon={component.icon}
-                >
-                  {component.description}
-                </ListItem>
+                ></ListItem>
               ))}
             </ul>
           </NavigationMenuContent>
@@ -87,21 +87,15 @@ export function NewEntity({ parentId }: Props) {
 type ListItemProps = {
   className?: string;
   title: string;
+  description: string;
   icon: JSX.Element;
   href: string;
-  children?: React.ReactNode;
 };
 
-const ListItem = ({
-  className,
-  title,
-  icon,
-  href,
-  children,
-}: ListItemProps) => (
+const ListItem = ({ className, title, description, icon, href }: ListItemProps) => (
   <li>
     <NavigationMenuLink asChild>
-      <a
+      <Link
         href={href}
         className={cn(
           "flex items-center gap-3 select-none rounded-md p-3 no-underline outline-hidden transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
@@ -109,13 +103,13 @@ const ListItem = ({
         )}
       >
         <span className="shrink-0">{icon}</span>
-        <span>
-          <div className="text-sm font-medium">{title}</div>
-          <p className="line-clamp-2 text-sm text-muted-foreground">
-            {children}
-          </p>
-        </span>
-      </a>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium">{title}</span>
+          <span className="line-clamp-2 text-sm text-muted-foreground">
+            {description}
+          </span>
+        </div>
+      </Link>
     </NavigationMenuLink>
   </li>
 );
