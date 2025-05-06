@@ -7,7 +7,7 @@ export const runtime: ServerRuntime = "edge";
 export default function AuthError() {
   return (
     <div className="flex h-full items-center justify-center">
-      <div className="w-full rounded  border p-6 shadow-lg md:max-w-lg">
+      <div className="w-full rounded  border border-border p-6 shadow-lg md:max-w-lg">
         <h2 className="mb-4 text-center text-2xl font-bold text-gray-900 dark:text-white">
           Error
         </h2>

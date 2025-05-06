@@ -14,7 +14,7 @@ export default async function SignInPage() {
 
   return (
     <main className=" flex h-full min-h-[calc(100vh-56px-65px)] flex-col items-center justify-center">
-      <div className="w-full rounded  border p-6 shadow-lg md:max-w-lg">
+      <div className="w-full rounded  border border-border p-6 shadow-lg md:max-w-lg">
         <h2 className="mb-4 text-center text-2xl font-bold text-foreground">
           Edit profile
         </h2>
