@@ -102,7 +102,7 @@ export default async function RootLayout({ children }: Props) {
     >
       <body
         className={cn(
-          "min-h-screen size-full flex flex-col font-fredoka bg-background antialiased",
+          "min-h-screen size-full flex flex-col font-fredoka bg-background text-foreground antialiased",
           fredoka.variable,
           inter.variable,
           mono.variable,
