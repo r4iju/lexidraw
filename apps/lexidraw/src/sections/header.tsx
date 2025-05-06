@@ -19,7 +19,7 @@ export default async function Header() {
       <Button asChild variant="outline" size="icon">
         <Link href="/">
           <AppIcon
-            className="size-full object-contain border-muted hover:shadow-sm"
+            className="size-full object-contain border-muted hover:shadow-xs"
             aria-label="Go to startpage"
           />
         </Link>

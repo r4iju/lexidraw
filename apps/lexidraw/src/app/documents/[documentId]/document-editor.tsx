@@ -222,8 +222,8 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                         <SidebarManagerProvider>
                           <TocProvider>
                             <div className="flex flex-col size-full">
-                              <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-sm">
-                                <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-screen-xl rounded-md shadow-sm gap-2 mx-auto">
+                              <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs">
+                                <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-(--breakpoint-xl) rounded-md shadow-xs gap-2 mx-auto">
                                   <OptionsDropdown
                                     className="flex h-12 md:h-10 min-w-12 md:w-10"
                                     documentId={entity.id}
@@ -246,7 +246,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                 </div>
                               </div>
                               <div className="relative size-full">
-                                <div className="relative size-full max-w-screen-lg mx-auto">
+                                <div className="relative size-full max-w-(--breakpoint-lg) mx-auto">
                                   <LlmChatPlugin />
                                   <DisableChecklistSpacebarPlugin />
                                   <CommentPlugin />
@@ -287,12 +287,12 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                   <RichTextPlugin
                                     contentEditable={
                                       <div
-                                        className="size-full border-none flex relative outline-none z-0"
+                                        className="size-full border-none flex relative outline-hidden z-0"
                                         ref={onRef}
                                       >
                                         <ContentEditable
                                           id="lexical-content"
-                                          className="size-full min-h-[90vh] outline-none p-4 text-foreground border-x"
+                                          className="size-full min-h-[90vh] outline-hidden p-4 text-foreground border-x"
                                         />
                                       </div>
                                     }

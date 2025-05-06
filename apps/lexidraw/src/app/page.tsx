@@ -52,7 +52,7 @@ export default async function LandingPage() {
               <div>
                 <Image
                   alt="A web application for drawing and diagramming"
-                  className="mx-auto aspect-[4/3] border overflow-hidden rounded-2xl object-cover"
+                  className="mx-auto aspect-4/3 border overflow-hidden rounded-2xl object-cover"
                   src="/images/homepage-banner.png"
                   height={500}
                   width={500}
@@ -70,7 +70,7 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 1"
-                  className="mx-auto aspect-[7/6] overflow-hidden border rounded-2xl object-cover"
+                  className="mx-auto aspect-7/6 overflow-hidden border rounded-2xl object-cover"
                   height={350}
                   width={350}
                   src="/images/projects/project.png"
@@ -83,7 +83,7 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 2"
-                  className="mx-auto aspect-[7/6] overflow-hidden border rounded-2xl object-cover"
+                  className="mx-auto aspect-7/6 overflow-hidden border rounded-2xl object-cover"
                   height={350}
                   width={350}
                   src="/images/projects/project.png"
@@ -96,7 +96,7 @@ export default async function LandingPage() {
               <div className="grid gap-1">
                 <Image
                   alt="Project 3"
-                  className="mx-auto aspect-[7/6] overflow-hidden border rounded-2xl object-cover"
+                  className="mx-auto aspect-7/6 overflow-hidden border rounded-2xl object-cover"
                   height={350}
                   width={350}
                   src="/images/projects/project.png"

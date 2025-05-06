@@ -90,7 +90,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
                 }}
               >
                 <RichTextPlugin
-                  contentEditable={<ContentEditable className="outline-none" />}
+                  contentEditable={<ContentEditable className="outline-hidden" />}
                   placeholder={null}
                   ErrorBoundary={LexicalErrorBoundary}
                 />
@@ -140,7 +140,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
               }}
             >
               <RichTextPlugin
-                contentEditable={<ContentEditable className="outline-none" />}
+                contentEditable={<ContentEditable className="outline-hidden" />}
                 placeholder={null}
                 ErrorBoundary={LexicalErrorBoundary}
               />

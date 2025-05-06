@@ -130,7 +130,7 @@ export function SearchBar({ className }: Props) {
               "font-medium text-center",
               "placeholder-shown:text-center",
               "placeholder:text-muted-foreground",
-              "focus:outline-none",
+              "focus:outline-hidden",
             )}
           />
         </PopoverTrigger>
@@ -139,7 +139,7 @@ export function SearchBar({ className }: Props) {
         )}
       </div>
       <PopoverContent
-        className={cn("w-[--radix-popover-trigger-width] p-0 mt-1 ", {
+        className={cn("w-(--radix-popover-trigger-width) p-0 mt-1 ", {
           hidden: !isLoading && debouncedQuery.length === 0,
         })}
         onOpenAutoFocus={(e) => e.preventDefault()}
@@ -169,7 +169,7 @@ export function SearchBar({ className }: Props) {
                     >
                       <div className="flex items-center gap-4 min-w-0">
                         {entity.screenShotLight && entity.screenShotDark && (
-                          <div className="relative h-12 w-12 overflow-hidden rounded-sm flex-shrink-0">
+                          <div className="relative h-12 w-12 overflow-hidden rounded-sm shrink-0">
                             <Image
                               src={
                                 isDarkTheme
@@ -177,7 +177,7 @@ export function SearchBar({ className }: Props) {
                                   : entity.screenShotLight
                               }
                               alt={entity.title}
-                              className="mr-2 h-12 w-12 flex-shrink-0"
+                              className="mr-2 h-12 w-12 shrink-0"
                               width={48}
                               height={48}
                               style={{
@@ -187,7 +187,7 @@ export function SearchBar({ className }: Props) {
                           </div>
                         )}
                         <div className="flex flex-col gap-1 min-w-0 ">
-                          <span className="truncate flex-grow text-md min-w-0">
+                          <span className="truncate grow text-md min-w-0">
                             {entity.title}
                           </span>
                           <span className="text-sm text-muted-foreground">
@@ -196,13 +196,13 @@ export function SearchBar({ className }: Props) {
                         </div>
                       </div>
                       {entity.entityType === "directory" && (
-                        <Folder className="h-4 w-4 flex-shrink-0" />
+                        <Folder className="h-4 w-4 shrink-0" />
                       )}
                       {entity.entityType === "drawing" && (
-                        <Brush className="h-4 w-4 flex-shrink-0" />
+                        <Brush className="h-4 w-4 shrink-0" />
                       )}
                       {entity.entityType === "document" && (
-                        <File className="h-4 w-4 flex-shrink-0" />
+                        <File className="h-4 w-4 shrink-0" />
                       )}
                     </CommandItem>
                   </Link>
@@ -221,7 +221,7 @@ export function SearchBar({ className }: Props) {
                   <CommandItem key={index} disabled>
                     <div className="flex items-center gap-4 h-12 w-full">
                       <div className="h-10 w-10 bg-muted rounded-sm animate-pulse"></div>
-                      <div className="flex flex-col gap-2 flex-grow">
+                      <div className="flex flex-col gap-2 grow">
                         <div className="h-4 w-3/4 bg-muted rounded-sm animate-pulse"></div>
                         <div className="h-3 w-1/2 bg-muted rounded-sm animate-pulse"></div>
                       </div>

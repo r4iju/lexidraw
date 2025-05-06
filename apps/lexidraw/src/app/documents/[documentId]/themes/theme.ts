@@ -70,7 +70,7 @@ export const theme = {
   tableAddRows:
     "absolute left-0 bottom-[-25px] h-5 w-[calc(100%-25px)] bg-muted hover:bg-accent transition",
   tableCell:
-    "relative outline-none border border-border align-top text-start min-w-[75px] w-[75px] p-2",
+    "relative outline-hidden border border-border align-top text-start min-w-[75px] w-[75px] p-2",
   tableCellHeader: "font-semibold",
   tableCellSelected: "bg-primary/10",
   tableCellPrimarySelected:
@@ -117,7 +117,7 @@ export const theme = {
       pl-8 
       pr-8 
       list-none 
-      outline-none
+      outline-hidden
       before:absolute 
       before:left-0 
       before:top-1/2 
@@ -137,7 +137,7 @@ export const theme = {
       pl-8 
       pr-8 
       list-none 
-      outline-none
+      outline-hidden
       line-through 
       text-muted-foreground 
       before:absolute 
