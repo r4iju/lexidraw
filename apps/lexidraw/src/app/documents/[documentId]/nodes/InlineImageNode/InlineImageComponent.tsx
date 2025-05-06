@@ -1,4 +1,4 @@
-import type { Position } from "./InlineImageNode";
+import type { Position, UpdateInlineImagePayload } from "./InlineImageNode";
 import type { BaseSelection, LexicalEditor, NodeKey } from "lexical";
 
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
@@ -137,13 +137,43 @@ export function UpdateInlineImageDialog({
   const [altText, setAltText] = useState(node.getAltText());
   const [showCaption, setShowCaption] = useState(node.getShowCaption());
   const [position, setPosition] = useState<Position>(node.getPosition());
+  const [widthAndHeight, setWidthAndHeight] = useState<{
+    width: string;
+    height: string;
+  }>({
+    width: node.getWidth().toString(),
+    height: node.getHeight().toString(),
+  });
 
   const handleAltTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAltText(e.target.value);
   };
 
+  const handleWidthOrHeightChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    key: "width" | "height",
+  ) => {
+    const value = e.target.value;
+    setWidthAndHeight((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const toWidthOrHeight = (value: string): "inherit" | number => {
+    return value === "inherit" ? "inherit" : parseInt(value) || "inherit";
+  };
+
   const handleOnConfirm = () => {
-    const payload = { altText, position, showCaption };
+    const width = toWidthOrHeight(widthAndHeight.width);
+    const height = toWidthOrHeight(widthAndHeight.height);
+    const payload = {
+      altText,
+      position,
+      showCaption,
+      width,
+      height,
+    } satisfies UpdateInlineImagePayload;
     if (node) {
       activeEditor.update(() => {
         node.update(payload);
@@ -153,7 +183,7 @@ export function UpdateInlineImageDialog({
   };
 
   return (
-    <DialogContent>
+    <DialogContent className="min-w-72">
       <DialogHeader>
         <DialogTitle>Update Inline Image</DialogTitle>
       </DialogHeader>
@@ -165,7 +195,35 @@ export function UpdateInlineImageDialog({
           value={altText}
         />
       </div>
-
+      {/* Add Width and Height Inputs */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <Label htmlFor="width">Width</Label>
+          <Input
+            id="width"
+            placeholder="auto"
+            type="number"
+            step="50"
+            onChange={(e) => handleWidthOrHeightChange(e, "width")}
+            value={widthAndHeight.width}
+            min="0"
+            data-testid="image-modal-width-input"
+          />
+        </div>
+        <div>
+          <Label htmlFor="height">Height</Label>
+          <Input
+            id="height"
+            placeholder="auto"
+            type="number"
+            step="50"
+            onChange={(e) => handleWidthOrHeightChange(e, "height")}
+            value={widthAndHeight.height}
+            min="0"
+            data-testid="image-modal-height-input"
+          />
+        </div>
+      </div>
       <Select
         value={position}
         name="position"
@@ -184,7 +242,6 @@ export function UpdateInlineImageDialog({
           </SelectGroup>
         </SelectContent>
       </Select>
-
       <div className="flex items-center gap-2">
         <Switch
           id="caption"
@@ -195,7 +252,6 @@ export function UpdateInlineImageDialog({
         </Switch>
         <Label htmlFor="caption">Show Caption</Label>
       </div>
-
       <DialogFooter className="justify-end">
         <Button onClick={handleOnConfirm}>Confirm</Button>
       </DialogFooter>

@@ -44,6 +44,8 @@ export interface ImagePayload {
 export interface UpdateImagePayload {
   altText?: string;
   showCaption?: boolean;
+  width?: "inherit" | number;
+  height?: "inherit" | number;
 }
 
 export type SerializedImageNode = Spread<
@@ -225,6 +227,14 @@ export class ImageNode extends DecoratorNode<React.JSX.Element> {
     };
   }
 
+  getWidth(): "inherit" | number {
+    return this.__width;
+  }
+
+  getHeight(): "inherit" | number {
+    return this.__height;
+  }
+
   setWidthAndHeight(
     width: "inherit" | number,
     height: "inherit" | number,
@@ -245,12 +255,18 @@ export class ImageNode extends DecoratorNode<React.JSX.Element> {
 
   update(payload: UpdateImagePayload): void {
     const writable = this.getWritable();
-    const { altText, showCaption } = payload;
+    const { altText, showCaption, width, height } = payload;
     if (altText !== undefined) {
       writable.__altText = altText;
     }
     if (showCaption !== undefined) {
       writable.__showCaption = showCaption;
+    }
+    if (width !== undefined) {
+      writable.__width = width;
+    }
+    if (height !== undefined) {
+      writable.__height = height;
     }
   }
 

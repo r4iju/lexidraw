@@ -74,10 +74,6 @@ export function InsertInlineImageDialog({
   };
 
   useEffect(() => {
-    console.log("InsertInlineImageDialog", src);
-  }, [src]);
-
-  useEffect(() => {
     hasModifier.current = false;
     const handler = (e: KeyboardEvent) => {
       hasModifier.current = e.altKey;
