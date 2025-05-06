@@ -292,7 +292,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                       >
                                         <ContentEditable
                                           id="lexical-content"
-                                          className="size-full min-h-[90vh] outline-hidden p-4 text-foreground border-x"
+                                          className="size-full min-h-[90vh] outline-hidden p-4 text-foreground border-x border-border"
                                         />
                                       </div>
                                     }
