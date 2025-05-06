@@ -48,6 +48,8 @@ export interface UpdateInlineImagePayload {
   altText?: string;
   showCaption?: boolean;
   position?: Position;
+  width?: "inherit" | number;
+  height?: "inherit" | number;
 }
 
 function $convertInlineImageElement(domNode: Node): null | DOMConversionOutput {
@@ -217,6 +219,14 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
     writable.__altText = altText;
   }
 
+  getWidth(): "inherit" | number {
+    return this.__width;
+  }
+
+  getHeight(): "inherit" | number {
+    return this.__height;
+  }
+
   setWidthAndHeight(
     width: "inherit" | number,
     height: "inherit" | number,
@@ -246,7 +256,7 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
 
   update(payload: UpdateInlineImagePayload): void {
     const writable = this.getWritable();
-    const { altText, showCaption, position } = payload;
+    const { altText, showCaption, position, width, height } = payload;
     if (altText !== undefined) {
       writable.__altText = altText;
     }
@@ -255,6 +265,12 @@ export class InlineImageNode extends DecoratorNode<React.JSX.Element> {
     }
     if (position !== undefined) {
       writable.__position = position;
+    }
+    if (width !== undefined) {
+      writable.__width = width;
+    }
+    if (height !== undefined) {
+      writable.__height = height;
     }
   }
 

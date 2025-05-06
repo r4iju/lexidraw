@@ -90,10 +90,6 @@ export function InsertImageUploadedDialogBody({
     handleFileChange(files, entityId);
   };
 
-  useEffect(() => {
-    console.log("InsertImageUploadedDialogBody", src);
-  }, [src]);
-
   return (
     <>
       <FileInput label="Image Upload" onChange={onChange} accept="image/*" />
