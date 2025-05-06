@@ -75,6 +75,7 @@ export default tseslint.config(
       "tailwind.config.cjs",
       "**/drizzle.config.ts",
       "**/migrate.ts",
+      "**/prettier.config.mjs",
     ],
   },
 );
