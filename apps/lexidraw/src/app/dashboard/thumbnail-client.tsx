@@ -21,7 +21,7 @@ export function ThumbnailClient({ entity }: Props) {
   const isDefaultDirectory = entity.entityType === "directory" && !src;
 
   return (
-    <div className="relative size-full aspect-[4/3] border border-border rounded-sm overflow-hidden">
+    <div className="relative size-full aspect-4/3 border border-border rounded-sm overflow-hidden">
       <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
       {isDefaultDirectory && (
         <Folder className="size-full text-muted-foreground" />
@@ -44,6 +44,6 @@ export function ThumbnailClient({ entity }: Props) {
 
 export function ThumbnailFallback() {
   return (
-    <div className="aspect-[4/3] size-full bg-muted-foreground animate-pulse rounded-sm" />
+    <div className="aspect-4/3 size-full bg-muted-foreground animate-pulse rounded-sm" />
   );
 }

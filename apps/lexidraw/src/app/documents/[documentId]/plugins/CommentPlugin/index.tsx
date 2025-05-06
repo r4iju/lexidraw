@@ -128,7 +128,7 @@ function useOnChange(
           return $rootTextContent();
         });
         setContent(content);
-        const isEmpty = !content || content.trim() === "";
+        const isEmpty = content! || content.trim() === "";
         setCanSubmit(!isEmpty);
       });
     },

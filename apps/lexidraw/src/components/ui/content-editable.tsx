@@ -16,7 +16,7 @@ export default function LexicalContentEditable({
   return (
     <ContentEditable
       className={cn(
-        "border-none font-medium block relative outline-none p-2 cursor-text",
+        "border-none font-medium block relative outline-hidden p-2 cursor-text",
         className,
       )}
       placeholder={(isEditable: boolean) =>

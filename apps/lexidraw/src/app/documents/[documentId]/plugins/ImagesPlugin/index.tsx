@@ -196,7 +196,7 @@ export function InsertImageUnsplashDialogBody({
           placeholder="Search Unsplash..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-grow"
+          className="grow"
         />
       </div>
 
@@ -212,7 +212,7 @@ export function InsertImageUnsplashDialogBody({
               <button
                 key={image.id}
                 onClick={() => onImageSelect(image)}
-                className="aspect-square focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded overflow-hidden group"
+                className="aspect-square focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded overflow-hidden group"
                 title={`Select image by ${image.attribution.authorName}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}

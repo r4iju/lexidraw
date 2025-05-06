@@ -436,7 +436,7 @@ export default function ImageComponent({
           <Button
             ref={buttonRef}
             variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-sm"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs"
             onClick={() => setIsDialogOpen(true)}
           >
             Edit

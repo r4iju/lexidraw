@@ -46,7 +46,7 @@ const TagsInput = React.forwardRef<HTMLInputElement, TagsInputProps>(
       <div
         className={cn(
           "flex w-full min-h-10 flex-wrap gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background " +
-            "has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 " +
+            "has-focus-visible:outline-hidden has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2 " +
             "disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}
@@ -87,7 +87,7 @@ const TagsInput = React.forwardRef<HTMLInputElement, TagsInputProps>(
               onChange(value.slice(0, -1));
             }
           }}
-          className="flex-1 outline-none placeholder:text-muted-foreground bg-transparent"
+          className="flex-1 outline-hidden placeholder:text-muted-foreground bg-transparent"
           placeholder="Enter values, comma separated..."
           {...props}
         />
