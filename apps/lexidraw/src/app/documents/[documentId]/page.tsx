@@ -2,7 +2,6 @@ import type { Metadata, ServerRuntime } from "next";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
-import "./index.css";
 import DocumentEditor from "./document-editor-client";
 import { emptyContent } from "./initial-content";
 
