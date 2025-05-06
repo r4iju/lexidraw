@@ -255,7 +255,7 @@ function TextFormatFloatingToolbar({
     <div
       ref={popupCharStylesEditorRef}
       className={cn(
-        "bg-background border p-1 align-middle absolute top-0 left-0 z-10 rounded-lg opacity-0 shadow-md flex flex-row gap-1 ",
+        "bg-background border border-border p-1 align-middle absolute top-0 left-0 z-10 rounded-lg opacity-0 shadow-md flex flex-row gap-1 ",
         "animate-in fade-in zoom-in duration-75 delay-100",
       )}
     >
@@ -427,7 +427,7 @@ function useFloatingTextFormatToolbar(
         return;
       }
     });
-  }, [editor]);
+  }, [editor, getSelectedNode]);
 
   useEffect(() => {
     document.addEventListener("selectionchange", updatePopup);

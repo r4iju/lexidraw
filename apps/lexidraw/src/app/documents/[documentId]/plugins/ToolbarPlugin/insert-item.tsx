@@ -19,10 +19,14 @@ import { InsertTableDialog } from "../TablePlugin";
 import { InsertPollDialog } from "../PollPlugin";
 import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
 import { InsertEquationDialog } from "../EquationsPlugin";
-import { $createStickyNode } from "../../nodes/StickyNode";
+import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin/commands";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+
+// -------------------------------------------------------------------------------------------------
+// TODO: fix style
+// -------------------------------------------------------------------------------------------------
 
 type InsertItemProps = {
   activeEditor: LexicalEditor;
@@ -186,7 +190,7 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
             onClick={() => {
               editor.update(() => {
                 const root = $getRoot();
-                const stickyNode = $createStickyNode(0, 0);
+                const stickyNode = StickyNode.$createStickyNode(0, 0);
                 root.append(stickyNode);
               });
             }}

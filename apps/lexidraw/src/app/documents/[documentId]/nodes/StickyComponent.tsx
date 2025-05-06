@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 import type { LexicalEditor, NodeKey } from "lexical";
 import type { JSX } from "react";
 
@@ -21,7 +13,7 @@ import * as React from "react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import StickyEditorTheme from "../themes/sticky-editor-theme";
 
-import { $isStickyNode } from "./StickyNode";
+import { StickyNode } from "./StickyNode";
 import LexicalContentEditable from "~/components/ui/content-editable";
 
 type Positioning = {
@@ -164,7 +156,7 @@ export default function StickyComponent({
       stickyContainer.classList.remove("dragging");
       editor.update(() => {
         const node = $getNodeByKey(nodeKey);
-        if ($isStickyNode(node)) {
+        if (StickyNode.$isStickyNode(node)) {
           node.setPosition(positioning.x, positioning.y);
         }
       });
@@ -176,7 +168,7 @@ export default function StickyComponent({
   const handleDelete = () => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
-      if ($isStickyNode(node)) {
+      if (StickyNode.$isStickyNode(node)) {
         node.remove();
       }
     });
@@ -185,7 +177,7 @@ export default function StickyComponent({
   const handleColorChange = () => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
-      if ($isStickyNode(node)) {
+      if (StickyNode.$isStickyNode(node)) {
         node.toggleColor();
       }
     });

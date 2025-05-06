@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -131,4 +132,11 @@
 /* ensures iOS won't allow scrolling while dragging */
 .touch-none {
   touch-action: none;
+}
+
+hr {
+  border: none;
+  border-top-width: 1px;
+  border-top-style: solid;
+  @apply border-border;
 }
