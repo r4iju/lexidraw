@@ -290,7 +290,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-md"
+        className="min-w-[85vw] max-w-md md:min-w-96 md:max-w-lg"
         aria-describedby="dialog-description"
       >
         <DialogHeader>
@@ -309,7 +309,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
               Please select the type of public access you want to give to this{" "}
               {entity.entityType}.
             </p>
-            <div className="flex full-w justify-end">
+            <div className="full-w flex justify-end">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -318,7 +318,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                     disabled={publicShareIsLoading}
                   >
                     {publicShareIsLoading && (
-                      <ReloadIcon className="animate-spin w-4 mr-2" />
+                      <ReloadIcon className="mr-2 w-4 animate-spin" />
                     )}
                     {publicAccessLevelLabel[publicAccess as PublicAccess]}
                     <ChevronDownIcon />
@@ -371,7 +371,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
                 <Button disabled={shareWithIsLoading} onClick={handleShareWith}>
                   {shareWithIsLoading && (
-                    <ReloadIcon className="animate-spin w-4 mr-2" />
+                    <ReloadIcon className="mr-2 w-4 animate-spin" />
                   )}
                   Share
                 </Button>
@@ -403,7 +403,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                           variant="outline"
                         >
                           {changeAccessLevelIsLoading && (
-                            <ReloadIcon className="animate-spin w-4 mr-2" />
+                            <ReloadIcon className="mr-2 w-4 animate-spin" />
                           )}
                           {
                             accessLevelLabel[
@@ -442,8 +442,8 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
               ))}
               {/* progress bar, when removing a user */}
               {unshareIsLoading && (
-                <div className="w-full h-4 mt-2 animate-in slide-in-from-bottom-1">
-                  <div className="h-full w-full bg-muted-foreground rounded-sm animate-pulse"></div>
+                <div className="mt-2 h-4 w-full animate-in slide-in-from-bottom-1">
+                  <div className="h-full w-full animate-pulse rounded-sm bg-muted-foreground"></div>
                 </div>
               )}
             </div>
