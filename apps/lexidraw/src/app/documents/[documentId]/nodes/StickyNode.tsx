@@ -126,17 +126,14 @@ export class StickyNode extends DecoratorNode<React.JSX.Element> {
   isIsolated(): true {
     return true;
   }
-}
 
-export function $isStickyNode(
-  node: LexicalNode | null | undefined,
-): node is StickyNode {
-  return node instanceof StickyNode;
-}
+  static $isStickyNode(
+    node: LexicalNode | null | undefined,
+  ): node is StickyNode {
+    return node instanceof StickyNode;
+  }
 
-export function $createStickyNode(
-  xOffset: number,
-  yOffset: number,
-): StickyNode {
-  return new StickyNode(xOffset, yOffset, "yellow");
+  static $createStickyNode(xOffset: number, yOffset: number): StickyNode {
+    return new StickyNode(xOffset, yOffset, "yellow");
+  }
 }

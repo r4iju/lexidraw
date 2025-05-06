@@ -531,7 +531,7 @@ function TableActionMenu({
       >
         <span className="text">Background color</span>
       </DropdownMenuItem>
-      <hr />
+      {/* <hr /> */}
       <DropdownMenuItem onClick={() => insertTableRowAtSelection(false)}>
         <span className="text">
           Insert{" "}
