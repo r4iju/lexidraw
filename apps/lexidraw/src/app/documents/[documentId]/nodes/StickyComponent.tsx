@@ -1,8 +1,6 @@
 import type { LexicalEditor, NodeKey } from "lexical";
 import type { JSX } from "react";
 
-import "./StickyNode.css";
-
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
@@ -15,6 +13,8 @@ import StickyEditorTheme from "../themes/sticky-editor-theme";
 
 import { StickyNode } from "./StickyNode";
 import LexicalContentEditable from "~/components/ui/content-editable";
+import { Button } from "~/components/ui/button";
+import { PaintbrushIcon, TrashIcon } from "lucide-react";
 
 type Positioning = {
   isDragging: boolean;
@@ -33,7 +33,15 @@ export default function StickyComponent({
   caption,
 }: {
   caption: LexicalEditor;
-  color: "pink" | "yellow";
+  color:
+    | "pink"
+    | "yellow"
+    | "green"
+    | "blue"
+    | "red"
+    | "orange"
+    | "purple"
+    | "gray";
   nodeKey: NodeKey;
   x: number;
   y: number;
@@ -183,10 +191,26 @@ export default function StickyComponent({
     });
   };
 
+  const colorClasses = {
+    pink: "bg-pink-300",
+    yellow: "bg-yellow-300",
+    green: "bg-green-300",
+    blue: "bg-blue-300",
+    red: "bg-red-300",
+    orange: "bg-orange-300",
+    purple: "bg-purple-300",
+    gray: "bg-gray-300",
+  } as const;
+
+  const contentEditableTwClasses =
+    "min-h-[20px] border-0 resize-none cursor-text text-2xl caret-[#050505] block relative outline-none p-0 select-text whitespace-pre-wrap break-words w-full box-border";
+  const placeholderTwClasses =
+    "text-2xl text-neutral-400 overflow-hidden absolute text-ellipsis top-[30px] left-[20px] w-[120px] select-none whitespace-nowrap inline-block pointer-events-none";
+
   return (
-    <div ref={stickyContainerRef} className="sticky-note-container">
+    <div ref={stickyContainerRef} className="sticky-note-container absolute">
       <div
-        className={`sticky-note ${color}`}
+        className={`block w-48 h-48 p-1 border border-border shadow-lg relative ${colorClasses[color]}`}
         onPointerDown={(event) => {
           const stickyContainer = stickyContainerRef.current;
           if (
@@ -212,37 +236,43 @@ export default function StickyComponent({
           }
         }}
       >
-        <button
-          onClick={handleDelete}
-          className="delete"
-          aria-label="Delete sticky note"
-          title="Delete"
-        >
-          X
-        </button>
-        <button
-          onClick={handleColorChange}
-          className="color"
-          aria-label="Change sticky note color"
-          title="Color"
-        >
-          <i className="bucket" />
-        </button>
-        <LexicalNestedComposer
-          initialEditor={caption}
-          initialTheme={StickyEditorTheme}
-        >
-          <PlainTextPlugin
-            contentEditable={
-              <LexicalContentEditable
-                placeholder="What's up?"
-                placeholderClassName="StickyNode__placeholder"
-                className="StickyNode__contentEditable"
-              />
-            }
-            ErrorBoundary={LexicalErrorBoundary}
-          />
-        </LexicalNestedComposer>
+        <div className="flex items-center justify-between gap-2 p-0">
+          <Button
+            onClick={handleColorChange}
+            variant="ghost"
+            size="icon"
+            aria-label="Change sticky note color"
+            title="Color"
+          >
+            <PaintbrushIcon className="size-4" />
+          </Button>
+          <Button
+            onClick={handleDelete}
+            size="icon"
+            variant="ghost"
+            aria-label="Delete sticky note"
+            title="Delete"
+          >
+            <TrashIcon className="size-4" />
+          </Button>
+        </div>
+        <div className="px-2">
+          <LexicalNestedComposer
+            initialEditor={caption}
+            initialTheme={StickyEditorTheme}
+          >
+            <PlainTextPlugin
+              contentEditable={
+                <LexicalContentEditable
+                  placeholder="What's up?"
+                  placeholderClassName={placeholderTwClasses}
+                  className={contentEditableTwClasses}
+                />
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+          </LexicalNestedComposer>
+        </div>
       </div>
     </div>
   );

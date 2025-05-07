@@ -15,7 +15,15 @@ import { createPortal } from "react-dom";
 
 const StickyComponent = React.lazy(() => import("./StickyComponent"));
 
-type StickyNoteColor = "pink" | "yellow";
+type StickyNoteColor =
+  | "pink"
+  | "yellow"
+  | "green"
+  | "blue"
+  | "red"
+  | "orange"
+  | "purple"
+  | "gray";
 
 export type SerializedStickyNode = Spread<
   {
@@ -64,7 +72,15 @@ export class StickyNode extends DecoratorNode<React.JSX.Element> {
   constructor(
     x: number,
     y: number,
-    color: "pink" | "yellow",
+    color:
+      | "pink"
+      | "yellow"
+      | "green"
+      | "blue"
+      | "red"
+      | "orange"
+      | "purple"
+      | "gray",
     caption?: LexicalEditor,
     key?: NodeKey,
   ) {
@@ -105,7 +121,19 @@ export class StickyNode extends DecoratorNode<React.JSX.Element> {
 
   toggleColor(): void {
     const writable = this.getWritable();
-    writable.__color = writable.__color === "pink" ? "yellow" : "pink";
+    const colors = [
+      "pink",
+      "yellow",
+      "green",
+      "blue",
+      "red",
+      "orange",
+      "purple",
+      "gray",
+    ];
+    const currentIndex = colors.indexOf(writable.__color);
+    const nextIndex = (currentIndex + 1) % colors.length;
+    writable.__color = colors[nextIndex] as StickyNoteColor;
   }
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {

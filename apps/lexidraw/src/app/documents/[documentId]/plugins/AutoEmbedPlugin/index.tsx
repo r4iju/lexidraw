@@ -246,7 +246,7 @@ export function AutoEmbedDialog({
       <div className="w-full">
         <Input
           type="text"
-          className=""
+          className="min-w-72"
           placeholder={embedConfig.exampleUrl}
           value={text}
           onChange={(e) => {
