@@ -5,7 +5,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Button } from "~/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, VideoIcon } from "lucide-react";
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
@@ -23,6 +23,7 @@ import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin/commands";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { InsertVideoDialog } from "../VideosPlugin";
 
 // -------------------------------------------------------------------------------------------------
 // TODO: fix style
@@ -77,6 +78,20 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           >
             <i className="icon page-break" />
             <span className="text">Page Break</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              showModal("Insert Video", (onClose) => (
+                <InsertVideoDialog
+                  activeEditor={activeEditor}
+                  onClose={onClose}
+                />
+              ));
+            }}
+            className="item"
+          >
+            <VideoIcon className="size-4" />
+            <span className="text">Video</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {

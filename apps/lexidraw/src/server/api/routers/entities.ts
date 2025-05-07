@@ -866,6 +866,107 @@ export const entityRouter = createTRPCRouter({
         });
       }
     }),
+  generateVideoUploadUrl: protectedProcedure
+    .input(
+      z.object({
+        entityId: z.string(),
+        // mp4, webm, ogg
+        contentType: z.enum(["video/mp4", "video/webm", "video/ogg"]),
+        mode: z.enum(["direct", "redirect"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const entity = (
+        await ctx.drizzle
+          .select({
+            id: ctx.schema.entities.id,
+            userId: ctx.schema.entities.userId,
+            publicAccess: ctx.schema.entities.publicAccess,
+          })
+          .from(schema.entities)
+          .where(eq(schema.entities.id, input.entityId))
+      )[0];
+
+      if (!entity) {
+        console.error("entity not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Drawing not found",
+        });
+      }
+
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+
+      if (!isOwner && !anyOneCanEdit) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "You are not authorized to view this drawing",
+        });
+      }
+
+      const { entityId, contentType } = input;
+      const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
+      const randomId = uuidV4();
+
+      // let's make sure we have both dark and light themes
+      const fileName = `${entityId}-${randomId}.${extension}`;
+      console.log("fileName", fileName);
+
+      const fileUrl = `${ctx.headers.get("origin")}/api/videos/${fileName}`;
+      console.log("fileUrl", fileUrl);
+
+      try {
+        const uploadCommand = new PutObjectCommand({
+          Bucket: env.SUPABASE_S3_BUCKET,
+          Key: fileName,
+          ContentType: contentType,
+        });
+        const downloadCommand = new GetObjectCommand({
+          Bucket: env.SUPABASE_S3_BUCKET,
+          Key: fileName,
+        });
+
+        const [signedUploadUrl, signedDownloadUrl] = await Promise.all([
+          getSignedUrl(s3, uploadCommand, {
+            expiresIn: 15 * 60, // 15 minutes
+          }),
+          getSignedUrl(s3, downloadCommand, {
+            expiresIn: 7 * 24 * 60 * 60, // 7 days
+          }),
+        ]);
+
+        await ctx.drizzle
+          .insert(ctx.schema.uploadedVideos)
+          .values({
+            id: randomId,
+            userId: ctx.session.user.id,
+            entityId: entityId,
+            fileName: fileName,
+            signedUploadUrl: signedUploadUrl,
+            signedDownloadUrl: signedDownloadUrl,
+          })
+          .onConflictDoUpdate({
+            target: ctx.schema.uploadedVideos.id,
+            set: {
+              signedUploadUrl: signedUploadUrl,
+              signedDownloadUrl: signedDownloadUrl,
+            },
+          })
+          .execute();
+
+        return {
+          signedUploadUrl,
+          signedDownloadUrl,
+        };
+      } catch (error) {
+        console.error(`Failed to generate signed URL`, error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to generate signed URL",
+        });
+      }
+    }),
   search: protectedProcedure
     .input(z.object({ query: z.string() }))
     .query(async ({ ctx, input }) => {

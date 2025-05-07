@@ -108,6 +108,8 @@ import {
   LexicalImageProvider,
   ImageProvider,
 } from "~/hooks/use-image-insertion";
+import VideosPlugin from "./plugins/VideosPlugin";
+import { VideoNode } from "./nodes/VideoNode/VideoNode";
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
@@ -277,6 +279,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                   <TableCellResizer />
                                   <ImagesPlugin />
                                   <InlineImagePlugin />
+                                  <VideosPlugin />
                                   <LinkPlugin />
                                   <ClickableLinkPlugin disabled={isEditable} />
                                   <TwitterPlugin />
@@ -399,6 +402,7 @@ export default function DocumentEditor({
           TableRowNode,
           ImageNode,
           InlineImageNode,
+          VideoNode,
           AutocompleteNode,
           LinkNode,
           AutoLinkNode,
