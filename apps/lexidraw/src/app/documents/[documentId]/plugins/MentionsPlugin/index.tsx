@@ -546,15 +546,12 @@ function MentionsTypeaheadMenuItem({
   onMouseEnter: () => void;
   option: MentionTypeaheadOption;
 }) {
-  let className = "item";
-  if (isSelected) {
-    className += " selected";
-  }
   return (
     <li
       key={option.key}
       tabIndex={-1}
-      className={className}
+      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+      data-highlighted={isSelected ? "" : undefined}
       ref={option.setRefElement}
       role="option"
       aria-selected={isSelected}
@@ -562,8 +559,10 @@ function MentionsTypeaheadMenuItem({
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      {option.picture}
-      <span className="text">{option.name}</span>
+      {React.cloneElement(option.picture, {
+        className: `${option.picture.props.className} mr-2`,
+      })}
+      <span className="flex-grow">{option.name}</span>
     </li>
   );
 }
@@ -664,8 +663,8 @@ export default function NewMentionsPlugin(): React.JSX.Element | null {
       ) =>
         anchorElementRef.current && results.length
           ? ReactDOM.createPortal(
-              <div className="typeahead-popover mentions-menu">
-                <ul>
+              <div className="typeahead-popover mentions-menu bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50">
+                <ul className="list-none p-0 m-0">
                   {options.map((option, i: number) => (
                     <MentionsTypeaheadMenuItem
                       index={i}
