@@ -440,3 +440,30 @@ export const uploadedImages = sqliteTable(
   },
   (table) => [index("UploadedImage_userId_idx").on(table.userId)],
 );
+
+export const uploadedVideos = sqliteTable(
+  "UploadedVideos",
+  {
+    id: text("id").primaryKey().notNull(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    entityId: text("entityId")
+      .notNull()
+      .references(() => entities.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    fileName: text("fileName").notNull(),
+    signedUploadUrl: text("fileUrl").notNull(),
+    signedDownloadUrl: text("fileUrl").notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
+  },
+  (table) => [index("UploadedVideo_userId_idx").on(table.userId)],
+);
