@@ -22,6 +22,23 @@ export const useUploader = () => {
   ] as const;
   const allowedVideoTypes = ["video/mp4", "video/webm", "video/ogg"] as const;
 
+  const configs = [
+    {
+      maxSize: 10 * 1024 * 1024,
+      sizeErrorMsg: "File size should be less than 10MB",
+      typeErrorMsg: "File type should be an allowed image format.",
+      allowedTypes: allowedImageTypes,
+      type: "image",
+    },
+    {
+      maxSize: 100 * 1024 * 1024,
+      sizeErrorMsg: "File size should be less than 100MB",
+      typeErrorMsg: "File type should be video/mp4, video/webm, or video/ogg.",
+      allowedTypes: allowedVideoTypes,
+      type: "video",
+    },
+  ] as const;
+
   type AllowedImageType = (typeof allowedImageTypes)[number];
   type AllowedVideoType = (typeof allowedVideoTypes)[number];
 
@@ -32,65 +49,61 @@ export const useUploader = () => {
   ) => {
     if (files && files.length > 0 && files[0]) {
       const file = files[0];
-      const currentAllowedTypes =
-        type === "image" ? allowedImageTypes : allowedVideoTypes;
-      const maxSize = type === "image" ? 1024 * 1024 : 10 * 1024 * 1024; // 1MB for images, 10MB for videos
-      const sizeErrorMsg =
-        type === "image"
-          ? "File size should be less than 1MB"
-          : "File size should be less than 10MB";
-      const typeErrorMsg =
-        type === "image"
-          ? "File type should be an allowed image format."
-          : "File type should be video/mp4, video/webm, or video/ogg.";
-
+      const currentConfig = configs.find((config) => config.type === type);
+      if (!currentConfig) {
+        setError("Invalid file type");
+        return;
+      }
+      const { allowedTypes, maxSize, sizeErrorMsg, typeErrorMsg } =
+        currentConfig;
       if (file.size > maxSize) {
         setError(sizeErrorMsg);
-      } else if (
-        !(currentAllowedTypes as readonly string[]).includes(file.type)
-      ) {
+        return;
+      }
+      // @ts-expect-error - file.type is a string
+      if (!allowedTypes.includes(file.type)) {
         setError(typeErrorMsg);
-      } else {
-        setError(null);
-        const commonOptions = {
-          onSuccess: async (res: {
-            signedUploadUrl: string;
-            signedDownloadUrl: string;
-          }) => {
-            await fetch(res.signedUploadUrl, {
-              method: "PUT",
-              body: file,
-            });
-            setSrc(res.signedDownloadUrl);
-            console.log("res.signedDownloadUrl", res.signedDownloadUrl);
-          },
-          onError: (err: TRPCClientErrorLike<AppRouter>) => {
-            console.error(`Error generating ${type} upload URL:`, err.message);
-            setError(
-              `Could not get an upload URL for the ${type}. ${err.message}`,
-            );
-          },
-        };
+        return;
+      }
+      setError(null);
+      const commonOptions = {
+        onSuccess: async (res: {
+          signedUploadUrl: string;
+          signedDownloadUrl: string;
+        }) => {
+          await fetch(res.signedUploadUrl, {
+            method: "PUT",
+            body: file,
+          });
+          setSrc(res.signedDownloadUrl);
+          console.log("res.signedDownloadUrl", res.signedDownloadUrl);
+        },
+        onError: (err: TRPCClientErrorLike<AppRouter>) => {
+          console.error(`Error generating ${type} upload URL:`, err.message);
+          setError(
+            `Could not get an upload URL for the ${type}. ${err.message}`,
+          );
+        },
+      };
 
-        if (type === "image") {
-          generateImageUrl(
-            {
-              entityId,
-              contentType: file.type as AllowedImageType,
-              mode: "direct",
-            },
-            commonOptions,
-          );
-        } else if (type === "video") {
-          generateVideoUrl(
-            {
-              entityId,
-              contentType: file.type as AllowedVideoType,
-              mode: "direct",
-            },
-            commonOptions,
-          );
-        }
+      if (type === "image") {
+        generateImageUrl(
+          {
+            entityId,
+            contentType: file.type as AllowedImageType,
+            mode: "direct",
+          },
+          commonOptions,
+        );
+      } else if (type === "video") {
+        generateVideoUrl(
+          {
+            entityId,
+            contentType: file.type as AllowedVideoType,
+            mode: "direct",
+          },
+          commonOptions,
+        );
       }
     }
   };

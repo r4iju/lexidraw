@@ -122,15 +122,12 @@ function AutoEmbedMenuItem({
   onMouseEnter: () => void;
   option: AutoEmbedOption;
 }) {
-  let className = "item";
-  if (isSelected) {
-    className += " selected";
-  }
   return (
     <li
       key={option.key}
       tabIndex={-1}
-      className={className}
+      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+      data-highlighted={isSelected ? "" : undefined}
       ref={option.setRefElement}
       role="option"
       aria-selected={isSelected}
@@ -138,7 +135,7 @@ function AutoEmbedMenuItem({
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      <span className="text">{option.title}</span>
+      <span className="flex-grow">{option.title}</span>
     </li>
   );
 }
@@ -155,8 +152,8 @@ function AutoEmbedMenu({
   options: AutoEmbedOption[];
 }) {
   return (
-    <div className="typeahead-popover">
-      <ul>
+    <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50 w-[200px]">
+      <ul className="list-none p-0 m-0">
         {options.map((option: AutoEmbedOption, i: number) => (
           <AutoEmbedMenuItem
             index={i}
@@ -318,7 +315,7 @@ export default function AutoEmbedPlugin(): React.JSX.Element {
           anchorElementRef.current
             ? ReactDOM.createPortal(
                 <div
-                  className="typeahead-popover auto-embed-menu"
+                  className="bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50"
                   style={{
                     marginLeft: `${Math.max(
                       parseFloat(anchorElementRef.current.style.width) - 200,

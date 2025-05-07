@@ -183,9 +183,9 @@ export class VideoNode extends DecoratorNode<React.JSX.Element> {
           nodeKey={this.getKey()}
           width={this.__width}
           height={this.__height}
-          _resizable={true}
-          showCaption={this.__showCaption}
+          resizable={true}
           caption={this.__caption}
+          showCaption={this.__showCaption}
           captionsEnabled={this.__captionsEnabled}
         />
       </Suspense>

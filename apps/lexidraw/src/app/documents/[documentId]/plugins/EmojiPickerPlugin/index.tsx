@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   LexicalTypeaheadMenuPlugin,
@@ -53,15 +45,12 @@ function EmojiMenuItem({
   onMouseEnter: () => void;
   option: EmojiOption;
 }) {
-  let className = "item";
-  if (isSelected) {
-    className += " selected";
-  }
   return (
     <li
       key={option.key}
       tabIndex={-1}
-      className={className}
+      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+      data-highlighted={isSelected ? "" : undefined}
       ref={option.setRefElement}
       role="option"
       aria-selected={isSelected}
@@ -69,7 +58,7 @@ function EmojiMenuItem({
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      <span className="text">
+      <span className="flex-grow">
         {option.emoji} {option.title}
       </span>
     </li>
@@ -171,8 +160,8 @@ export default function EmojiPickerPlugin() {
 
         return anchorElementRef.current && options.length
           ? ReactDOM.createPortal(
-              <div className="typeahead-popover emoji-menu">
-                <ul>
+              <div className="typeahead-popover emoji-menu bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50">
+                <ul className="list-none p-0 m-0">
                   {options.map((option: EmojiOption, index) => (
                     <EmojiMenuItem
                       key={option.key}

@@ -30,15 +30,12 @@ function ContextMenuItem({
   onMouseEnter: () => void;
   option: ContextMenuOption;
 }) {
-  let className = "item";
-  if (isSelected) {
-    className += " selected";
-  }
   return (
     <li
       key={option.key}
       tabIndex={-1}
-      className={className}
+      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+      data-highlighted={isSelected ? "" : undefined}
       ref={option.setRefElement}
       role="option"
       aria-selected={isSelected}
@@ -46,7 +43,7 @@ function ContextMenuItem({
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      <span className="text">{option.title}</span>
+      <span className="flex-grow">{option.title}</span>
     </li>
   );
 }
@@ -63,20 +60,18 @@ function ContextMenu({
   options: ContextMenuOption[];
 }) {
   return (
-    <div className="typeahead-popover">
-      <ul>
-        {options.map((option: ContextMenuOption, i: number) => (
-          <ContextMenuItem
-            index={i}
-            isSelected={selectedItemIndex === i}
-            onClick={() => onOptionClick(option, i)}
-            onMouseEnter={() => onOptionMouseEnter(i)}
-            key={option.key}
-            option={option}
-          />
-        ))}
-      </ul>
-    </div>
+    <ul className="list-none p-0 m-0">
+      {options.map((option: ContextMenuOption, i: number) => (
+        <ContextMenuItem
+          index={i}
+          isSelected={selectedItemIndex === i}
+          onClick={() => onOptionClick(option, i)}
+          onMouseEnter={() => onOptionMouseEnter(i)}
+          key={option.key}
+          option={option}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -239,7 +234,7 @@ export default function ContextMenuPlugin(): JSX.Element {
         anchorElementRef.current
           ? ReactDOM.createPortal(
               <div
-                className="typeahead-popover auto-embed-menu"
+                className="bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50"
                 style={{
                   marginLeft: anchorElementRef.current.style.width,
                   userSelect: "none",
