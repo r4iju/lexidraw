@@ -3241,6 +3241,335 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     },
   });
 
+  /* --------------------------------------------------------------
+   * Insert PollNode Tool
+   * --------------------------------------------------------------*/
+  const insertPollNode = tool({
+    description:
+      "Inserts a new PollNode with a question and a list of option texts. Each option text will be converted into a poll option with a unique ID and an empty vote count. PollNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      question: z.string().describe("The question for the poll."),
+      optionTexts: z
+        .array(z.string())
+        .min(1)
+        .describe(
+          "An array of strings, where each string is the text for a poll option. Must have at least one option.",
+        ),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({
+      question,
+      optionTexts,
+      relation,
+      anchor,
+    }): ExecuteResult => {
+      try {
+        console.log("[insertPollNode] Starting", {
+          question,
+          optionTexts,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertPollNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          const options = optionTexts.map((text) =>
+            PollNode.createPollOption(text),
+          );
+          const newPollNode = PollNode.$createPollNode(question, options);
+          newNodeKey = newPollNode.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newPollNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // PollNode is treated as block-level for insertion
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newPollNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newPollNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new poll: "${question}".`
+            : `Inserted poll: "${question}" ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertPollNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertPollNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert poll",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert TweetNode Tool
+   * --------------------------------------------------------------*/
+  const insertTweetNode = tool({
+    description:
+      "Inserts a Tweet embed using the provided Tweet ID. TweetNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, an alignment format can be applied.",
+    parameters: z.object({
+      tweetID: z
+        .string()
+        .regex(/^\d+$/, "Tweet ID must be a string of digits.")
+        .describe("The ID of the Tweet (the numerical part of its URL)."),
+      format: z
+        .enum(["left", "center", "right", "justify"])
+        .optional()
+        .describe("Optional alignment format for the Tweet embed."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ tweetID, format, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertTweetNode] Starting", {
+          tweetID,
+          format,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertTweetNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newTweetNode = TweetNode.$createTweetNode(tweetID);
+          if (format) {
+            newTweetNode.setFormat(format);
+          }
+          newNodeKey = newTweetNode.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newTweetNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // TweetNode is block-level
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newTweetNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newTweetNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new Tweet embed (ID: ${tweetID}).`
+            : `Inserted Tweet embed (ID: ${tweetID}) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertTweetNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertTweetNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert Tweet embed",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert YouTubeNode Tool
+   * --------------------------------------------------------------*/
+  const insertYouTubeNode = tool({
+    description:
+      "Inserts a YouTube video embed using the provided video ID. YouTubeNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, an alignment format can be applied.",
+    parameters: z.object({
+      videoID: z
+        .string()
+        .describe(
+          "The ID of the YouTube video (from its URL, e.g., dQw4w9WgXcQ).",
+        ),
+      format: z
+        .enum(["left", "center", "right", "justify"])
+        .optional()
+        .describe("Optional alignment format for the YouTube video embed."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ videoID, format, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertYouTubeNode] Starting", {
+          videoID,
+          format,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertYouTubeNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newYouTubeNode = YouTubeNode.$createYouTubeNode(videoID);
+          if (format) {
+            newYouTubeNode.setFormat(format);
+          }
+          newNodeKey = newYouTubeNode.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newYouTubeNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // YouTubeNode is block-level
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newYouTubeNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newYouTubeNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new YouTube video embed (ID: ${videoID}).`
+            : `Inserted YouTube video embed (ID: ${videoID}) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertYouTubeNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertYouTubeNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert YouTube video embed",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   const individualTools = {
     ...setterTools,
     ...(insertTextNode && { insertTextNode }),
@@ -3250,6 +3579,12 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     ...(insertEquationNode && { insertEquationNode }),
     ...(insertFigmaNode && { insertFigmaNode }),
     ...(insertCollapsibleSection && { insertCollapsibleSection }),
+    ...(insertExcalidrawNode && { insertExcalidrawNode }),
+    ...(insertLayout && { insertLayout }),
+    ...(insertPageBreakNode && { insertPageBreakNode }),
+    ...(insertPollNode && { insertPollNode }),
+    ...(insertTweetNode && { insertTweetNode }),
+    ...(insertYouTubeNode && { insertYouTubeNode }),
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
@@ -3266,9 +3601,6 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     ...(searchAndInsertImage && { searchAndInsertImage }),
     ...(generateAndInsertImage && { generateAndInsertImage }),
     ...(sendReply && { sendReply }),
-    ...(insertExcalidrawNode && { insertExcalidrawNode }),
-    ...(insertLayout && { insertLayout }),
-    ...(insertPageBreakNode && { insertPageBreakNode }),
   } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------
