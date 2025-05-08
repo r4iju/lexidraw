@@ -63,7 +63,7 @@ export const MessageInput = () => {
 
   return (
     <form
-      className={cn("flex gap-2 border-t p-3", {
+      className={cn("flex gap-2 border-t border-border p-3", {
         "flex-col items-stretch": width < 300,
         "flex-row items-end ": width >= 300,
       })}

@@ -171,7 +171,7 @@ export const SidebarWrapper: React.FC<SidebarWrapperProps> = ({
       ref={ref || sidebarRef}
       style={{ width: `${width}px` }}
       className={cn(
-        "fixed right-0 top-0 h-full flex flex-col border-x bg-popover shadow-lg transition-transform duration-300 ease-in-out z-40 touch-none",
+        "fixed right-0 top-0 h-full flex flex-col border-x border-border bg-popover shadow-lg transition-transform duration-300 ease-in-out z-40 touch-none",
         {
           "translate-x-0": isOpen,
           "translate-x-full": !isOpen,
@@ -192,7 +192,7 @@ export const SidebarWrapper: React.FC<SidebarWrapperProps> = ({
       </div>
 
       {/* Header */}
-      <header className="flex items-center justify-between border-b shrink-0 px-4 py-2 w-full">
+      <header className="flex items-center justify-between border-b border-border shrink-0 px-4 py-2 w-full">
         <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
         <Button
           variant="ghost"
