@@ -382,46 +382,50 @@ export default function VideoResizer({
           Add Caption
         </Button>
       )}
-
-      {/* Resizer handles (same logic as before) */}
-      {/* Top-Right */}
+      {/* ── Top‑Right ───────────────────────────────────────────── */}
       <div
-        className="absolute top-0 right-0 w-4 h-4 pointer-events-auto cursor-nesw-resize"
-        onPointerDown={(event) =>
-          handlePointerDown(event, Direction.north | Direction.east)
+        className="absolute top-0 right-0 h-4 w-4 cursor-nesw-resize pointer-events-auto"
+        onPointerDown={(e) =>
+          handlePointerDown(e, Direction.north | Direction.east)
         }
       >
-        <div className="absolute top-0 right-0 w-4 h-4 border-t-[2px] border-r-[2px] border-white cursor-nesw-resize" />
+        {/* 1px black outline just on the top & right, offset outward */}
+        <div className="absolute -top-px -right-px h-[18px] w-[18px] border-t border-r border-black" />
+        {/* existing 2px white “L” */}
+        <div className="absolute inset-0 border-t-2 border-r-2 border-white" />
       </div>
 
-      {/* Bottom-Right */}
+      {/* ── Bottom‑Right ────────────────────────────────────────── */}
       <div
-        className="absolute bottom-0 right-0 w-4 h-4 pointer-events-auto cursor-nwse-resize"
-        onPointerDown={(event) =>
-          handlePointerDown(event, Direction.south | Direction.east)
+        className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize pointer-events-auto"
+        onPointerDown={(e) =>
+          handlePointerDown(e, Direction.south | Direction.east)
         }
       >
-        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-[2px] border-r-[2px] border-white cursor-nwse-resize" />
+        <div className="absolute -bottom-px -right-px h-[18px] w-[18px] border-b border-r border-black" />
+        <div className="absolute inset-0 border-b-2 border-r-2 border-white" />
       </div>
 
-      {/* Bottom-Left */}
+      {/* ── Bottom‑Left ─────────────────────────────────────────── */}
       <div
-        className="absolute bottom-0 left-0 w-4 h-4 pointer-events-auto cursor-nesw-resize"
-        onPointerDown={(event) =>
-          handlePointerDown(event, Direction.south | Direction.west)
+        className="absolute bottom-0 left-0 h-4 w-4 cursor-nesw-resize pointer-events-auto"
+        onPointerDown={(e) =>
+          handlePointerDown(e, Direction.south | Direction.west)
         }
       >
-        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-[2px] border-l-[2px] border-white cursor-nesw-resize" />
+        <div className="absolute -bottom-px -left-px h-[18px] w-[18px] border-b border-l border-black" />
+        <div className="absolute inset-0 border-b-2 border-l-2 border-white" />
       </div>
 
-      {/* Top-Left */}
+      {/* ── Top‑Left ────────────────────────────────────────────── */}
       <div
-        className="absolute top-0 left-0 w-4 h-4 pointer-events-auto cursor-nwse-resize"
-        onPointerDown={(event) =>
-          handlePointerDown(event, Direction.north | Direction.west)
+        className="absolute top-0 left-0 h-4 w-4 cursor-nwse-resize pointer-events-auto"
+        onPointerDown={(e) =>
+          handlePointerDown(e, Direction.north | Direction.west)
         }
       >
-        <div className="absolute top-0 left-0 w-4 h-4 border-t-[2px] border-l-[2px] border-white cursor-nwse-resize" />
+        <div className="absolute -top-px -left-px h-[18px] w-[18px] border-t border-l border-black" />
+        <div className="absolute inset-0 border-t-2 border-l-2 border-white" />
       </div>
     </div>
   );

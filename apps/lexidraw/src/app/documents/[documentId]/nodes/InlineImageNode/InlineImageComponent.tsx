@@ -515,6 +515,8 @@ export default function InlineImageComponent({
                 showCaption={showCaption}
                 setShowCaption={updateShowCaption}
                 captionsEnabled={captionsEnabled}
+                // ugly hack to offset the bottom-right resizer
+                bottomOffset
                 onResizeEnd={(newWidth, newHeight) => {
                   editor.update(() => {
                     const node = $getNodeByKey(nodeKey);
