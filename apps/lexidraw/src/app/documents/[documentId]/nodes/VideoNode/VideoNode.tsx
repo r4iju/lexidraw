@@ -11,11 +11,37 @@ import type {
   Spread,
 } from "lexical";
 
-import { DecoratorNode, createEditor } from "lexical";
+import {
+  DecoratorNode,
+  createEditor,
+  $getRoot,
+  $createParagraphNode,
+} from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
 
 const VideoComponent = React.lazy(() => import("./VideoComponent"));
+
+// Define a default initial state for the caption editor
+const defaultInitialCaptionState = JSON.stringify({
+  root: {
+    children: [
+      {
+        children: [],
+        direction: null,
+        format: "",
+        indent: 0,
+        type: "paragraph",
+        version: 1,
+      },
+    ],
+    direction: null,
+    format: "",
+    indent: 0,
+    type: "root",
+    version: 1,
+  },
+});
 
 export interface VideoPayload {
   caption?: LexicalEditor;
@@ -55,17 +81,36 @@ export class VideoNode extends DecoratorNode<React.JSX.Element> {
   __showCaption: boolean;
   __caption: LexicalEditor;
   __captionsEnabled: boolean;
+
   static getType(): string {
     return "video";
   }
 
   static clone(node: VideoNode): VideoNode {
-    const newCaption = createEditor();
+    const newCaptionEditor = createEditor({
+      // nodes: node.__caption.getNodes(), // This was incorrect
+      // onError: (error) => { /* handle error */ }, // Optional: add error handling
+      // theme: node.__caption._config.theme, // Preserve theme if needed
+    });
     try {
-      const editorStateJSON = node.__caption.getEditorState().toJSON();
-      newCaption.setEditorState(newCaption.parseEditorState(editorStateJSON));
+      const currentCaptionState = node.__caption.getEditorState();
+      if (!currentCaptionState.isEmpty()) {
+        newCaptionEditor.setEditorState(currentCaptionState.clone());
+      } else {
+        // If original was empty, initialize new one with default
+        newCaptionEditor.setEditorState(
+          newCaptionEditor.parseEditorState(defaultInitialCaptionState),
+        );
+      }
     } catch (e) {
-      console.error("Error cloning caption editor state:", e);
+      console.error(
+        "Error cloning caption editor state, falling back to default:",
+        e,
+      );
+      // Fallback to a default state if cloning fails catastrophically
+      newCaptionEditor.setEditorState(
+        newCaptionEditor.parseEditorState(defaultInitialCaptionState),
+      );
     }
 
     return new VideoNode(
@@ -73,27 +118,46 @@ export class VideoNode extends DecoratorNode<React.JSX.Element> {
       node.__width,
       node.__height,
       node.__showCaption,
-      newCaption,
+      newCaptionEditor, // Use the carefully prepared new caption editor
       node.__key,
       node.__captionsEnabled,
     );
   }
 
   static importJSON(serializedNode: SerializedVideoNode): VideoNode {
-    const { height, width, src, caption, showCaption } = serializedNode;
+    const { height, width, src, caption, showCaption, captionsEnabled } =
+      serializedNode;
     const node = VideoNode.$createVideoNode({
       src,
       height,
       width,
       showCaption,
+      captionsEnabled,
+      // caption editor will be initialized by constructor if `caption` is undefined here
     });
     if (caption) {
       const nestedEditor = node.__caption;
-      const editorState = nestedEditor.parseEditorState(caption);
-      if (!editorState.isEmpty()) {
-        nestedEditor.setEditorState(editorState);
+      try {
+        const editorState = nestedEditor.parseEditorState(caption);
+        if (!editorState.isEmpty()) {
+          nestedEditor.setEditorState(editorState);
+        } else {
+          // If parsed state is empty, set a default one
+          nestedEditor.setEditorState(
+            nestedEditor.parseEditorState(defaultInitialCaptionState),
+          );
+        }
+      } catch (e) {
+        console.error(
+          "Error importing caption JSON, falling back to default:",
+          e,
+        );
+        nestedEditor.setEditorState(
+          nestedEditor.parseEditorState(defaultInitialCaptionState),
+        );
       }
     }
+    // If caption was not in serializedNode, constructor already initialized it with a default state.
     return node;
   }
 
@@ -132,13 +196,47 @@ export class VideoNode extends DecoratorNode<React.JSX.Element> {
     this.__width = width || "inherit";
     this.__height = height || "inherit";
     this.__showCaption = showCaption || false;
-    this.__caption = caption || createEditor();
-    this.__captionsEnabled = captionsEnabled || false;
+    this.__captionsEnabled = captionsEnabled || false; // Initialize this field
+
+    if (caption) {
+      this.__caption = caption;
+    } else {
+      this.__caption = createEditor();
+      // Initialize with a default state if a new editor is created
+      try {
+        this.__caption.setEditorState(
+          this.__caption.parseEditorState(defaultInitialCaptionState),
+        );
+      } catch (e) {
+        console.error("Error setting initial caption state in constructor:", e);
+        // Fallback for safety, though parseEditorState with valid JSON should not fail
+        this.__caption.update(() => {
+          const root = $getRoot();
+          if (root.isEmpty()) {
+            root.append($createParagraphNode());
+          }
+        });
+      }
+    }
   }
 
   exportJSON(): SerializedVideoNode {
+    let captionJSON;
+    try {
+      captionJSON = this.__caption.getEditorState().toJSON();
+    } catch (e) {
+      console.error(
+        "Error exporting caption to JSON, using default empty state:",
+        e,
+      );
+      const tempEditor = createEditor();
+      tempEditor.setEditorState(
+        tempEditor.parseEditorState(defaultInitialCaptionState),
+      );
+      captionJSON = tempEditor.getEditorState().toJSON();
+    }
     return {
-      caption: this.__caption.getEditorState().toJSON(),
+      caption: captionJSON,
       height: this.__height === "inherit" ? 0 : this.__height,
       src: this.getSrc(),
       type: "video",
@@ -183,7 +281,7 @@ export class VideoNode extends DecoratorNode<React.JSX.Element> {
           nodeKey={this.getKey()}
           width={this.__width}
           height={this.__height}
-          resizable={true}
+          resizable={true} // Assuming always resizable for now
           caption={this.__caption}
           showCaption={this.__showCaption}
           captionsEnabled={this.__captionsEnabled}
@@ -221,15 +319,20 @@ export class VideoNode extends DecoratorNode<React.JSX.Element> {
   }
 
   createDOM(config: EditorConfig): HTMLElement {
-    const span = document.createElement("span");
+    const div = document.createElement("div");
     const theme = config.theme;
-    const className = theme.video; // Example: theme.video if you add it to your theme
+    const className = theme.video;
     if (className !== undefined) {
-      span.className = className;
+      div.className = className;
     }
-    // You can add other attributes or classes to the span if needed
-    // For a DecoratorNode, this element often just serves as a container
-    // for the React component rendered by decorate().
-    return span;
+    return div;
+  }
+
+  updateDOM(
+    _prevNode: VideoNode,
+    _dom: HTMLElement,
+    _config: EditorConfig,
+  ): boolean {
+    return false;
   }
 }
