@@ -27,7 +27,8 @@ function $convertLayoutContainerElement(
     "grid-template-columns",
   );
   if (templateColumns) {
-    const node = LayoutContainerNode.$createLayoutContainerNode(templateColumns);
+    const node =
+      LayoutContainerNode.$createLayoutContainerNode(templateColumns);
     return { node };
   }
   return null;
@@ -114,6 +115,7 @@ export class LayoutContainerNode extends ElementNode {
   setTemplateColumns(templateColumns: string) {
     this.getWritable().__templateColumns = templateColumns;
   }
+
   static $createLayoutContainerNode(
     templateColumns: string,
   ): LayoutContainerNode {

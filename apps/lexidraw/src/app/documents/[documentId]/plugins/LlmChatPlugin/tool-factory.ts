@@ -2483,12 +2483,773 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     },
   });
 
+  /* --------------------------------------------------------------
+   * Insert EquationNode Tool
+   * --------------------------------------------------------------*/
+  const insertEquationNode = tool({
+    description:
+      "Inserts a new EquationNode with the provided LaTeX equation string. Can be inline or block-level. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      equation: z
+        .string()
+        .describe("The LaTeX equation string (e.g., 'E=mc^2')."),
+      inline: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "Whether the equation should be inline (renders as span) or block (renders as div). Defaults to false (block).",
+        ),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ equation, inline, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertEquationNode] Starting", {
+          equation,
+          inline,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertEquationNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let finalInsertedNodeKey: string | null = null; // Key of the EquationNode or its wrapper Paragraph
+
+        editor.update(() => {
+          const newEquationNode = EquationNode.$createEquationNode(
+            equation,
+            inline,
+          ); // Use the static method from EquationNode.tsx
+
+          if (resolution.type === "appendRoot") {
+            targetKeyForSummary = $getRoot().getKey();
+            if (inline) {
+              const paragraph = $createParagraphNode();
+              paragraph.append(newEquationNode);
+              $getRoot().append(paragraph);
+              finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
+            } else {
+              $getRoot().append(newEquationNode);
+              finalInsertedNodeKey = newEquationNode.getKey(); // EquationNode itself
+            }
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            if (inline) {
+              // Inline equation handling: similar to LinkNode or TextNode
+              if (
+                $isTextNode(targetNode) ||
+                ($isElementNode(targetNode) && targetNode.isInline())
+              ) {
+                if (resolution.type === "before") {
+                  targetNode.insertBefore(newEquationNode);
+                } else {
+                  // 'after'
+                  targetNode.insertAfter(newEquationNode);
+                }
+                finalInsertedNodeKey = newEquationNode.getKey(); // The EquationNode itself
+              } else {
+                // Target is block-level, wrap inline equation in a paragraph
+                const paragraph = $createParagraphNode();
+                paragraph.append(newEquationNode);
+                if (resolution.type === "before") {
+                  targetNode.insertBefore(paragraph);
+                } else {
+                  // 'after'
+                  targetNode.insertAfter(paragraph);
+                }
+                finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
+              }
+            } else {
+              // Block equation handling: similar to CodeBlock
+              if (resolution.type === "before") {
+                targetNode.insertBefore(newEquationNode);
+              } else {
+                // 'after'
+                targetNode.insertAfter(newEquationNode);
+              }
+              finalInsertedNodeKey = newEquationNode.getKey(); // EquationNode itself
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new ${inline ? "inline" : "block"} equation.`
+            : `Inserted ${inline ? "inline" : "block"} equation ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertEquationNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: finalInsertedNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertEquationNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert equation node",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert FigmaNode Tool
+   * --------------------------------------------------------------*/
+  const insertFigmaNode = tool({
+    description:
+      "Inserts a Figma embed using the provided Figma document ID. FigmaNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, a format (e.g., 'center') can be applied.",
+    parameters: z.object({
+      documentID: z
+        .string()
+        .describe(
+          "The document ID of the Figma file (extracted from its URL).",
+        ),
+      format: z
+        .enum(["left", "center", "right", "justify"])
+        .optional()
+        .describe("Optional alignment format for the Figma embed."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({
+      documentID,
+      format,
+      relation,
+      anchor,
+    }): ExecuteResult => {
+      try {
+        console.log("[insertFigmaNode] Starting", {
+          documentID,
+          format,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertFigmaNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newFigmaNode = FigmaNode.$createFigmaNode(documentID); // Use static method from FigmaNode.tsx
+          if (format) {
+            newFigmaNode.setFormat(format);
+          }
+          newNodeKey = newFigmaNode.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newFigmaNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // FigmaNode is block-level
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newFigmaNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newFigmaNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new Figma embed (ID: ${documentID}).`
+            : `Inserted Figma embed (ID: ${documentID}) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertFigmaNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertFigmaNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert Figma embed",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert CollapsibleSection Tool
+   * --------------------------------------------------------------*/
+  const insertCollapsibleSection = tool({
+    description:
+      "Inserts a new collapsible section (container, title, and content). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      titleText: z.string().describe("The text for the collapsible title."),
+      initialContentMarkdown: z
+        .string()
+        .optional()
+        .describe(
+          "Optional Markdown content for the collapsible body. If empty, an empty paragraph is created.",
+        ),
+      initiallyOpen: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Whether the section is open by default. Defaults to false."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({
+      titleText,
+      initialContentMarkdown,
+      initiallyOpen,
+      relation,
+      anchor,
+    }): ExecuteResult => {
+      try {
+        console.log("[insertCollapsibleSection] Starting", {
+          titleText,
+          initialContentMarkdown,
+          initiallyOpen,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(
+            `❌ [insertCollapsibleSection] Error: ${resolution.message}`,
+          );
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null; // Key of the CollapsibleContainerNode
+
+        editor.update(() => {
+          // 1. Create the container
+          const containerNode =
+            CollapsibleContainerNode.$createCollapsibleContainerNode(
+              initiallyOpen ?? false,
+            );
+          newNodeKey = containerNode.getKey();
+
+          // 2. Create the title
+          const titleNode = CollapsibleTitleNode.$createCollapsibleTitleNode();
+          const titleParagraph = $createParagraphNode();
+          titleParagraph.append($createTextNode(titleText));
+          titleNode.append(titleParagraph);
+
+          // 3. Create the content
+          const contentNode =
+            CollapsibleContentNode.$createCollapsibleContentNode();
+          if (initialContentMarkdown && initialContentMarkdown.trim() !== "") {
+            $convertFromMarkdownString(
+              initialContentMarkdown,
+              TRANSFORMERS,
+              contentNode,
+            );
+            if (contentNode.isEmpty()) {
+              // If markdown was empty or only whitespace, add a paragraph
+              contentNode.append($createParagraphNode());
+            }
+          } else {
+            contentNode.append($createParagraphNode()); // Default empty paragraph
+          }
+
+          // 4. Assemble the structure
+          containerNode.append(titleNode);
+          containerNode.append(contentNode);
+
+          // 5. Insert the container
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(containerNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+            if (resolution.type === "before") {
+              targetNode.insertBefore(containerNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(containerNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new collapsible section titled '${titleText}'.`
+            : `Inserted collapsible section titled '${titleText}' ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertCollapsibleSection] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertCollapsibleSection] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert collapsible section",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert ExcalidrawNode Tool
+   * --------------------------------------------------------------*/
+  const insertExcalidrawNode = tool({
+    description:
+      "Inserts a new Excalidraw canvas. ExcalidrawNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      data: z
+        .string()
+        .optional()
+        .describe(
+          "The Excalidraw JSON data string. Defaults to an empty drawing '[]'.",
+        ),
+      width: z
+        .union([z.number(), z.literal("inherit")])
+        .optional()
+        .describe(
+          "Optional width for the Excalidraw embed. Can be a number (pixels) or 'inherit'. Defaults to 'inherit'.",
+        ),
+      height: z
+        .union([z.number(), z.literal("inherit")])
+        .optional()
+        .describe(
+          "Optional height for the Excalidraw embed. Can be a number (pixels) or 'inherit'. Defaults to 'inherit'.",
+        ),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({
+      data,
+      width,
+      height,
+      relation,
+      anchor,
+    }): ExecuteResult => {
+      try {
+        console.log("[insertExcalidrawNode] Starting", {
+          data,
+          width,
+          height,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(
+            `❌ [insertExcalidrawNode] Error: ${resolution.message}`,
+          );
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          // Use the constructor directly with defaults handled by it or by Zod's .default() if preferred later
+          const excalidrawData = data ?? "[]";
+          const excalidrawWidth = width ?? "inherit";
+          const excalidrawHeight = height ?? "inherit";
+
+          const newExcalidrawNode = new ExcalidrawNode(
+            excalidrawData,
+            excalidrawWidth,
+            excalidrawHeight,
+          );
+          newNodeKey = newExcalidrawNode.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newExcalidrawNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // ExcalidrawNode is block-level
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newExcalidrawNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newExcalidrawNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? "Appended new Excalidraw canvas."
+            : `Inserted Excalidraw canvas ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertExcalidrawNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertExcalidrawNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert Excalidraw canvas",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert Layout Tool
+   * --------------------------------------------------------------*/
+  const insertLayout = tool({
+    description:
+      "Inserts a new layout container with a specified column structure. Each column (LayoutItemNode) will be initialized with an empty paragraph. The number of columns is determined by the space-separated values in templateColumns (e.g., '1fr 1fr' creates two columns). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      templateColumns: z
+        .string()
+        .describe(
+          "A CSS grid-template-columns string (e.g., '1fr 1fr', '30% 70%'). Space-separated values determine the number of columns.",
+        ),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ templateColumns, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertLayout] Starting", {
+          templateColumns,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertLayout] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null; // Key of the LayoutContainerNode
+
+        editor.update(() => {
+          // 1. Create the container
+          const containerNode =
+            LayoutContainerNode.$createLayoutContainerNode(templateColumns);
+          newNodeKey = containerNode.getKey();
+
+          // 2. Determine number of columns and create items
+          const columnDefinitions = templateColumns
+            .split(" ")
+            .filter((def) => def.trim() !== "");
+          const numberOfColumns = columnDefinitions.length;
+
+          if (numberOfColumns === 0) {
+            // Avoid creating a layout with no columns, though templateColumns schema should prevent empty string ideally.
+            // Or, default to a single column if that's preferred behavior for empty/invalid input.
+            // For now, let's assume valid input means at least one column definition.
+            // If needed, add a paragraph directly to the container or throw error.
+            const emptyParagraph = $createParagraphNode();
+            containerNode.append(emptyParagraph); // Fallback: add one empty paragraph to make it usable
+          } else {
+            for (let i = 0; i < numberOfColumns; i++) {
+              const itemNode = LayoutItemNode.$createLayoutItemNode();
+              const paragraphNode = $createParagraphNode();
+              itemNode.append(paragraphNode);
+              containerNode.append(itemNode);
+            }
+          }
+
+          // 3. Insert the container
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(containerNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+            if (resolution.type === "before") {
+              targetNode.insertBefore(containerNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(containerNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new layout with columns: ${templateColumns}.`
+            : `Inserted layout with columns: ${templateColumns} ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertLayout] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertLayout] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert layout",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert PageBreakNode Tool
+   * --------------------------------------------------------------*/
+  const insertPageBreakNode = tool({
+    description:
+      "Inserts a new PageBreakNode. This is a block-level element that typically forces a page break when printing or exporting to PDF. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertPageBreakNode] Starting", { relation, anchor });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(
+            `❌ [insertPageBreakNode] Error: ${resolution.message}`,
+          );
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newPageBreak = PageBreakNode.$createPageBreakNode();
+          newNodeKey = newPageBreak.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newPageBreak);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // PageBreakNode is block-level
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newPageBreak);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newPageBreak);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? "Appended new Page Break."
+            : `Inserted Page Break ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertPageBreakNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertPageBreakNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert Page Break",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   const individualTools = {
     ...setterTools,
     ...(insertTextNode && { insertTextNode }),
     ...(insertHeadingNode && { insertHeadingNode }),
     ...(insertLinkNode && { insertLinkNode }),
     ...(insertOverflowNode && { insertOverflowNode }),
+    ...(insertEquationNode && { insertEquationNode }),
+    ...(insertFigmaNode && { insertFigmaNode }),
+    ...(insertCollapsibleSection && { insertCollapsibleSection }),
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
@@ -2504,7 +3265,10 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     ...(summarizeExecution && { summarizeExecution }),
     ...(searchAndInsertImage && { searchAndInsertImage }),
     ...(generateAndInsertImage && { generateAndInsertImage }),
-    ...(sendReply && { sendReply }), // Add the new tool here
+    ...(sendReply && { sendReply }),
+    ...(insertExcalidrawNode && { insertExcalidrawNode }),
+    ...(insertLayout && { insertLayout }),
+    ...(insertPageBreakNode && { insertPageBreakNode }),
   } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------
