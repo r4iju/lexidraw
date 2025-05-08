@@ -39,7 +39,12 @@ import {
   TRANSFORMERS,
 } from "@lexical/markdown";
 import { $createMarkNode, $isMarkNode } from "@lexical/mark";
-import { $createTableNode, $isTableNode } from "@lexical/table";
+import {
+  $createTableCellNode,
+  $createTableNode,
+  $createTableRowNode,
+  $isTableNode,
+} from "@lexical/table";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
 import { $createLinkNode, $isLinkNode } from "@lexical/link";
 import { $createOverflowNode, $isOverflowNode } from "@lexical/overflow";
@@ -195,86 +200,6 @@ const SingleCallSchema = z.object({
 
 type ExecuteResult = Promise<z.infer<typeof ResultSchema>>;
 
-type SearchAndInsertFunc = (
-  query: string,
-  insertAs: "block" | "inline",
-) => Promise<void>;
-
-type GenerateAndInsertFunc = (prompt: string) => Promise<void>;
-
-function findNodeByKey(
-  editor: LexicalEditor,
-  key?: string,
-): LexicalNode | null {
-  if (!key) return null;
-  const node = editor.getEditorState()._nodeMap.get(key);
-  return node ?? null;
-}
-
-function findFirstNodeByText(
-  editor: LexicalEditor,
-  text?: string,
-): ElementNode | null {
-  if (!text) return null;
-  const root = $getRoot();
-  const queue: ElementNode[] = [root];
-  while (queue.length) {
-    const n = queue.shift();
-    if (!n) break;
-    if ($isElementNode(n) && !$isRootNode(n) && !n.isInline()) {
-      if (n.getTextContent().includes(text)) return n;
-    }
-    if ($isElementNode(n))
-      queue.push(...n.getChildren().filter($isElementNode));
-  }
-  return null;
-}
-
-/**
- * Resolves the target node and relation for an insertion operation.
- * This should be called *outside* an editor update cycle.
- * It returns the target node's key for safe use within an update cycle.
- */
-async function resolveInsertionPoint(
-  editor: LexicalEditor,
-  relation: InsertionRelation,
-  anchor?: InsertionAnchor, // Anchor is optional only if relation is appendRoot
-): Promise<InsertionPointResolution> {
-  if (relation === "appendRoot") {
-    return { status: "success", type: "appendRoot" };
-  }
-
-  if (!anchor) {
-    return {
-      status: "error",
-      message: `Anchor (key or text) is required for relation '${relation}'.`,
-    };
-  }
-
-  // Find the target node based on the anchor
-  // Note: This happens outside editor.update, so we use the editor state directly
-  let target: LexicalNode | null = null;
-  if (anchor.type === "key") {
-    target = findNodeByKey(editor, anchor.key);
-  } else {
-    // findFirstNodeByText needs to run within an update cycle to use $ commands
-    editor.getEditorState().read(() => {
-      target = findFirstNodeByText(editor, anchor.text);
-    });
-  }
-
-  if (!target) {
-    const anchorDesc =
-      anchor.type === "key" ? `key "${anchor.key}"` : `text "${anchor.text}"`;
-    return {
-      status: "error",
-      message: `Target node not found for anchor ${anchorDesc} with relation '${relation}'.`,
-    };
-  }
-
-  return { status: "success", type: relation, targetKey: target.getKey() };
-}
-
 /* ------------------------------------------------------------------
  * Factory
  * -----------------------------------------------------------------*/
@@ -292,6 +217,79 @@ export function useRuntimeToolsFactory({
     useLexicalImageGeneration();
 
   const { makeRuntimeSpec } = useMakeRuntimeSpec();
+
+  function findNodeByKey(
+    editor: LexicalEditor,
+    key?: string,
+  ): LexicalNode | null {
+    if (!key) return null;
+    const node = editor.getEditorState()._nodeMap.get(key);
+    return node ?? null;
+  }
+
+  function findFirstNodeByText(
+    editor: LexicalEditor,
+    text?: string,
+  ): ElementNode | null {
+    if (!text) return null;
+    const root = $getRoot();
+    const queue: ElementNode[] = [root];
+    while (queue.length) {
+      const n = queue.shift();
+      if (!n) break;
+      if ($isElementNode(n) && !$isRootNode(n) && !n.isInline()) {
+        if (n.getTextContent().includes(text)) return n;
+      }
+      if ($isElementNode(n))
+        queue.push(...n.getChildren().filter($isElementNode));
+    }
+    return null;
+  }
+
+  /**
+   * Resolves the target node and relation for an insertion operation.
+   * This should be called *outside* an editor update cycle.
+   * It returns the target node's key for safe use within an update cycle.
+   */
+  async function resolveInsertionPoint(
+    editor: LexicalEditor,
+    relation: InsertionRelation,
+    anchor?: InsertionAnchor, // Anchor is optional only if relation is appendRoot
+  ): Promise<InsertionPointResolution> {
+    if (relation === "appendRoot") {
+      return { status: "success", type: "appendRoot" };
+    }
+
+    if (!anchor) {
+      return {
+        status: "error",
+        message: `Anchor (key or text) is required for relation '${relation}'.`,
+      };
+    }
+
+    // Find the target node based on the anchor
+    // Note: This happens outside editor.update, so we use the editor state directly
+    let target: LexicalNode | null = null;
+    if (anchor.type === "key") {
+      target = findNodeByKey(editor, anchor.key);
+    } else {
+      // findFirstNodeByText needs to run within an update cycle to use $ commands
+      editor.getEditorState().read(() => {
+        target = findFirstNodeByText(editor, anchor.text);
+      });
+    }
+
+    if (!target) {
+      const anchorDesc =
+        anchor.type === "key" ? `key "${anchor.key}"` : `text "${anchor.text}"`;
+      return {
+        status: "error",
+        message: `Target node not found for anchor ${anchorDesc} with relation '${relation}'.`,
+      };
+    }
+
+    return { status: "success", type: relation, targetKey: target.getKey() };
+  }
 
   /* 1.  build enums / spec */
   const buildDynamicEnums = () => {
@@ -1292,6 +1290,227 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     },
   });
 
+  /* --------------------------------------------------------------
+   * Insert CodeHighlightNode Tool
+   * --------------------------------------------------------------*/
+  const insertCodeHighlightNode = tool({
+    description:
+      "Inserts a new CodeHighlightNode containing the provided text. This node is a special TextNode that will be highlighted if it is within a CodeNode. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      text: z.string().describe("The text content for the CodeHighlightNode."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ text, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertCodeHighlightNode] Starting", {
+          text,
+          relation,
+          anchor,
+        });
+
+        // 1. Resolve insertion point *outside* update cycle
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(
+            `❌ [insertCodeHighlightNode] Error: ${resolution.message}`,
+          );
+          return { success: false, error: resolution.message };
+        }
+
+        // 2. Perform insertion *inside* update cycle
+        let targetKey: string | null = null; // For summary
+        let newNodeKey: string | null = null; // To return
+        editor.update(() => {
+          const newHighlightNode = $createCodeHighlightNode(text);
+          newNodeKey = newHighlightNode.getKey(); // Store highlight node key initially
+
+          if (resolution.type === "appendRoot") {
+            const paragraph = $createParagraphNode();
+            paragraph.append(newHighlightNode);
+            $getRoot().append(paragraph);
+            targetKey = $getRoot().getKey(); // Technically root, but signifies append
+            newNodeKey = paragraph.getKey(); // Return the paragraph key for appendRoot
+          } else {
+            // Relative insertion ('before' or 'after')
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKey = resolution.targetKey; // For summary
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            if ($isTextNode(targetNode) || $isCodeHighlightNode(targetNode)) {
+              // Insert highlight node inline relative to existing text or highlight node
+              if (resolution.type === "before") {
+                targetNode.insertBefore(newHighlightNode);
+              } else {
+                // 'after'
+                targetNode.insertAfter(newHighlightNode);
+              }
+              // newNodeKey remains the highlight node's key (set initially)
+            } else {
+              // Insert highlight node wrapped in a paragraph relative to other node types
+              const paragraph = $createParagraphNode();
+              paragraph.append(newHighlightNode);
+              if (resolution.type === "before") {
+                targetNode.insertBefore(paragraph);
+              } else {
+                // 'after'
+                targetNode.insertAfter(paragraph);
+              }
+              newNodeKey = paragraph.getKey(); // Return the paragraph key
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? "Appended new paragraph containing a CodeHighlightNode."
+            : `Inserted CodeHighlightNode ${resolution.type} target (key: ${targetKey ?? "N/A"}).`;
+        console.log(`✅ [insertCodeHighlightNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertCodeHighlightNode] Error:`, errorMsg);
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert CodeHighlightNode",
+            updatedEditorStateJson: stateJson,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert MarkNode Tool
+   * --------------------------------------------------------------*/
+  const insertMarkNode = tool({
+    description:
+      "Inserts a new MarkNode with the specified IDs. MarkNodes are DecoratorNodes typically used to associate metadata (like comment IDs) with text ranges. This tool inserts the MarkNode itself. If placed relative to block content or at the root, it will be wrapped in a ParagraphNode.",
+    parameters: z.object({
+      ids: z
+        .array(z.string())
+        .min(1)
+        .describe("An array of string IDs to associate with the MarkNode."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ ids, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertMarkNode] Starting", { ids, relation, anchor });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertMarkNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let finalInsertedNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newMarkNode = $createMarkNode(ids);
+
+          if (resolution.type === "appendRoot") {
+            const paragraph = $createParagraphNode();
+            paragraph.append(newMarkNode);
+            $getRoot().append(paragraph);
+            targetKeyForSummary = $getRoot().getKey();
+            finalInsertedNodeKey = paragraph.getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            if ($isTextNode(targetNode) || $isCodeHighlightNode(targetNode)) {
+              if (resolution.type === "before") {
+                targetNode.insertBefore(newMarkNode);
+              } else {
+                targetNode.insertAfter(newMarkNode);
+              }
+              finalInsertedNodeKey = newMarkNode.getKey();
+            } else {
+              const paragraph = $createParagraphNode();
+              paragraph.append(newMarkNode);
+              if (resolution.type === "before") {
+                targetNode.insertBefore(paragraph);
+              } else {
+                targetNode.insertAfter(paragraph);
+              }
+              finalInsertedNodeKey = paragraph.getKey();
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? "Appended new paragraph containing a MarkNode."
+            : `Inserted MarkNode (or its wrapper paragraph) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertMarkNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: finalInsertedNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertMarkNode] Error:`, errorMsg);
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert MarkNode",
+            updatedEditorStateJson: stateJson,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert Markdown Tool
+   * --------------------------------------------------------------*/
   const insertMarkdown = tool({
     description:
       "Inserts content parsed from a Markdown string. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. This is efficient for inserting complex structures like multiple paragraphs, lists, headings, code blocks, etc., defined in Markdown format.",
@@ -1459,6 +1678,264 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
           error: errorMsg,
           content: {
             summary: "Failed to insert content from Markdown",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert Table Tool
+   * --------------------------------------------------------------*/
+  const insertTable = tool({
+    description:
+      "Inserts a new TableNode with the specified number of rows and columns, populating it with empty cells. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      rows: z.number().min(1).describe("The number of rows for the table."),
+      columns: z
+        .number()
+        .min(1)
+        .describe("The number of columns for the table."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({
+      rows,
+      columns,
+      relation,
+      anchor,
+    }: {
+      rows: number;
+      columns: number;
+      relation: InsertionRelation;
+      anchor?: InsertionAnchor;
+    }): ExecuteResult => {
+      // editor and resolveInsertionPoint are accessed from the useRuntimeToolsFactory closure
+      try {
+        console.log("[insertTableNode - corrected] Starting", {
+          rows,
+          columns,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(
+            `❌ [insertTableNode - corrected] Error: ${resolution.message}`,
+          );
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newTableNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newTable = $createTableNode(); // Create an empty table
+          newTableNodeKey = newTable.getKey();
+
+          // Populate the table with rows and cells
+          for (let i = 0; i < rows; i++) {
+            const tableRow = $createTableRowNode();
+            for (let j = 0; j < columns; j++) {
+              const tableCell = $createTableCellNode();
+              // Add a paragraph with an empty text node or line break to make cells editable
+              const paragraph = $createParagraphNode();
+              // Option 1: Empty Text Node (often preferred)
+              paragraph.append($createTextNode(""));
+              // Option 2: LineBreakNode (can also work)
+              // paragraph.append($createLineBreakNode());
+              tableCell.append(paragraph);
+              tableRow.append(tableCell);
+            }
+            newTable.append(tableRow);
+          }
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newTable);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newTable);
+            } else {
+              targetNode.insertAfter(newTable);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new ${rows}x${columns} table.`
+            : `Inserted ${rows}x${columns} table ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertTableNode - corrected] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newTableNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertTableNode - corrected] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert table node",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert HashtagNode Tool
+   * --------------------------------------------------------------*/
+  const insertHashtag = tool({
+    description:
+      "Inserts a new HashtagNode with the provided text. If relation is 'appendRoot' or the anchor is block-level, it's wrapped in a ParagraphNode.",
+    parameters: z.object({
+      text: z
+        .string()
+        .describe(
+          "The text content of the hashtag (e.g., 'lexical', 'important').",
+        ),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({
+      text,
+      relation,
+      anchor,
+    }: {
+      text: string;
+      relation: InsertionRelation;
+      anchor?: InsertionAnchor;
+    }): ExecuteResult => {
+      try {
+        console.log("[insertHashtagNode] Starting", { text, relation, anchor });
+
+        // Use editor and resolveInsertionPoint from the useRuntimeToolsFactory closure
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertHashtagNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let finalInsertedNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newHashtagNode = $createHashtagNode(text);
+
+          if (resolution.type === "appendRoot") {
+            const paragraph = $createParagraphNode();
+            paragraph.append(newHashtagNode);
+            $getRoot().append(paragraph);
+            targetKeyForSummary = $getRoot().getKey();
+            finalInsertedNodeKey = paragraph.getKey(); // Key of the wrapper paragraph
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // Check if target is suitable for inline insertion (e.g., TextNode, or even another HashtagNode)
+            // Or if the target is a block node that can accept a paragraph as a child.
+            if (
+              $isTextNode(targetNode) ||
+              $isHashtagNode(targetNode) /* Add other inline types if needed */
+            ) {
+              // Insert inline
+              if (resolution.type === "before") {
+                targetNode.insertBefore(newHashtagNode);
+              } else {
+                // 'after'
+                targetNode.insertAfter(newHashtagNode);
+              }
+              finalInsertedNodeKey = newHashtagNode.getKey(); // Key of the hashtag node itself
+            } else {
+              // Target is likely a block node, or something else where direct inline insertion isn't appropriate.
+              // Wrap the HashtagNode in a paragraph.
+              const paragraph = $createParagraphNode();
+              paragraph.append(newHashtagNode);
+              if (resolution.type === "before") {
+                targetNode.insertBefore(paragraph);
+              } else {
+                // 'after'
+                targetNode.insertAfter(paragraph);
+              }
+              finalInsertedNodeKey = paragraph.getKey(); // Key of the wrapper paragraph
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new paragraph containing hashtag '#${text}'.`
+            : `Inserted hashtag '#${text}' ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertHashtagNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: finalInsertedNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertHashtagNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert hashtag node",
             updatedEditorStateJson: stateJsonOnError,
           },
         };
@@ -1763,14 +2240,264 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     },
   });
 
+  /* --------------------------------------------------------------
+   * Insert LinkNode Tool
+   * --------------------------------------------------------------*/
+  const insertLinkNode = tool({
+    description:
+      "Inserts a new LinkNode with the provided URL and optional text. If linkText is not provided, the URL itself will be used as the visible text. The LinkNode is inline; if inserted at the root or relative to a block-level node, it will be wrapped in a ParagraphNode.",
+    parameters: z.object({
+      url: z
+        .string()
+        .url()
+        .describe("The URL for the link (e.g., 'https://example.com')."),
+      linkText: z
+        .string()
+        .optional()
+        .describe(
+          "The visible text for the link. Defaults to the URL if not provided.",
+        ),
+      attributes: z
+        .object({
+          rel: z
+            .string()
+            .optional()
+            .describe(
+              "The 'rel' attribute for the link (e.g., 'noopener noreferrer').",
+            ),
+          target: z
+            .string()
+            .optional()
+            .describe("The 'target' attribute for the link (e.g., '_blank')."),
+          title: z
+            .string()
+            .optional()
+            .describe("The 'title' attribute for the link."),
+        })
+        .optional()
+        .describe("Optional HTML attributes for the link."),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({
+      url,
+      linkText,
+      attributes,
+      relation,
+      anchor,
+    }): ExecuteResult => {
+      try {
+        console.log("[insertLinkNode] Starting", {
+          url,
+          linkText,
+          attributes,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertLinkNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let finalInsertedNodeKey: string | null = null; // Key of the LinkNode or its wrapper Paragraph
+
+        editor.update(() => {
+          const actualLinkText = linkText || url;
+          const newLinkNode = $createLinkNode(url, attributes);
+          newLinkNode.append($createTextNode(actualLinkText));
+
+          if (resolution.type === "appendRoot") {
+            const paragraph = $createParagraphNode();
+            paragraph.append(newLinkNode);
+            $getRoot().append(paragraph);
+            targetKeyForSummary = $getRoot().getKey();
+            finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            if (
+              $isTextNode(targetNode) ||
+              ($isElementNode(targetNode) && targetNode.isInline())
+            ) {
+              if (resolution.type === "before") {
+                targetNode.insertBefore(newLinkNode);
+              } else {
+                // 'after'
+                targetNode.insertAfter(newLinkNode);
+              }
+              finalInsertedNodeKey = newLinkNode.getKey(); // The LinkNode itself
+            } else {
+              const paragraph = $createParagraphNode();
+              paragraph.append(newLinkNode);
+              if (resolution.type === "before") {
+                targetNode.insertBefore(paragraph);
+              } else {
+                // 'after'
+                targetNode.insertAfter(paragraph);
+              }
+              finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? `Appended new paragraph containing a link to '${url}'.`
+            : `Inserted link to '${url}' ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertLinkNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: finalInsertedNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertLinkNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert link node",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert OverflowNode Tool
+   * --------------------------------------------------------------*/
+  const insertOverflowNode = tool({
+    description:
+      "Inserts a new OverflowNode. OverflowNodes are typically used to indicate that content has been truncated (e.g., in a 'show more' scenario). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+    parameters: z.object({
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertOverflowNode] Starting", { relation, anchor });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(`❌ [insertOverflowNode] Error: ${resolution.message}`);
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          const newOverflowNode = $createOverflowNode();
+          newNodeKey = newOverflowNode.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newOverflowNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // OverflowNode is typically block-level
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newOverflowNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newOverflowNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? "Appended new OverflowNode."
+            : `Inserted OverflowNode ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertOverflowNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertOverflowNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert OverflowNode",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   const individualTools = {
     ...setterTools,
     ...(insertTextNode && { insertTextNode }),
     ...(insertHeadingNode && { insertHeadingNode }),
+    ...(insertLinkNode && { insertLinkNode }),
+    ...(insertOverflowNode && { insertOverflowNode }),
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
+    ...(insertCodeHighlightNode && { insertCodeHighlightNode }),
+    ...(insertMarkNode && { insertMarkNode }),
     ...(insertMarkdown && { insertMarkdown }),
+    ...(insertTable && { insertTable }),
+    ...(insertHashtag && { insertHashtag }),
     ...(applyTextStyle && { applyTextStyle }),
     ...(removeNode && { removeNode }),
     ...(moveNode && { moveNode }),
@@ -1820,7 +2547,7 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
           );
 
           // Find the tool in the preliminary map (using closure for 'individualTools')
-          const subTool = individualTools[toolName];
+          const subTool = individualTools[toolName]; // Corrected: individualTools should be in scope here
 
           if (!subTool) {
             const errorMsg = `[combinedTools] Error: Tool '${toolName}' not found. Available tools: ${Object.keys(individualTools).join(", ")}`;
@@ -1906,6 +2633,6 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
    * --------------------------------------------------------------*/
   return {
     ...individualTools,
-    combinedTools, // Add the wrapper tool
+    combinedTools, // Ensure combinedTools is included here
   } as unknown as RuntimeToolMap;
 }

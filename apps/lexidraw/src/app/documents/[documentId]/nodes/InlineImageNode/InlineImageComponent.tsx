@@ -81,15 +81,13 @@ function ResizableImage({
   return (
     <div
       ref={containerRef}
-      // inline-block keeps it inline-level while still allowing width/height
       style={{
-        display: "inline-block",
         width: typeof width === "number" ? width : undefined,
         height: typeof height === "number" ? height : undefined,
       }}
       data-position={position}
       data-lexical-node-key={nodeKey}
-      className={cn("relative")}
+      className={cn("inline-block relative")}
     >
       <ErrorBoundary
         FallbackComponent={() => (
@@ -108,13 +106,13 @@ function ResizableImage({
           alt={altText}
           draggable={false}
           style={{
-            // Convert "inherit" or number to actual styles
             width: typeof width === "number" ? `${width}px` : "auto",
             height: typeof height === "number" ? `${height}px` : "auto",
-            objectFit: "contain",
-            display: "block",
           }}
-          className={cn("rounded-xs", className)}
+          className={cn(
+            "block object-contain rounded-xs align-bottom",
+            className,
+          )}
         />
       </ErrorBoundary>
     </div>
