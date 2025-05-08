@@ -19,6 +19,8 @@ type VideoResizerProps = {
     width: number | "inherit";
     height: number | "inherit";
   }) => void;
+  initialWidth?: "inherit" | number;
+  initialHeight?: "inherit" | number;
 };
 
 export default function VideoResizer({
@@ -32,6 +34,8 @@ export default function VideoResizer({
   setShowCaption,
   captionsEnabled,
   buttonRef,
+  initialWidth,
+  initialHeight,
 }: VideoResizerProps): React.JSX.Element {
   const controlWrapperRef = useRef<HTMLDivElement>(null);
   // This state was only used for the cleanup event listeners, not strictly necessary
@@ -155,18 +159,46 @@ export default function VideoResizer({
 
     if (video !== null && controlWrapper !== null) {
       event.preventDefault();
-      const { width, height } = video.getBoundingClientRect();
+
+      let startW: number;
+      let startH: number;
+
+      if (typeof initialWidth === "number") {
+        startW = initialWidth;
+      } else {
+        startW = video.getBoundingClientRect().width;
+        if (startW === 0 && video.offsetWidth > 0) {
+          startW = video.offsetWidth;
+        }
+      }
+
+      if (typeof initialHeight === "number") {
+        startH = initialHeight;
+      } else {
+        startH = video.getBoundingClientRect().height;
+        if (startH === 0 && video.offsetHeight > 0) {
+          startH = video.offsetHeight;
+        }
+      }
+
+      // Fallback if dimensions are still zero, use minWidth/minHeight
+      // Though clamp later might handle this, ensuring non-zero start can be safer.
+      if (startW === 0 && minWidth > 0) startW = minWidth;
+      if (startH === 0 && minHeight > 0) startH = minHeight;
+
       const zoom = calculateZoomLevel(video);
       const positioning = positioningRef.current;
-      positioning.startWidth = width;
-      positioning.startHeight = height;
+      positioning.startWidth = startW;
+      positioning.startHeight = startH;
       // Get video aspect ratio from videoWidth/videoHeight if available and non-zero
       positioning.ratio =
         video.videoWidth > 0 && video.videoHeight > 0
           ? video.videoWidth / video.videoHeight
-          : width / height;
-      positioning.currentWidth = width;
-      positioning.currentHeight = height;
+          : startW > 0 && startH > 0
+            ? startW / startH
+            : 0; // Use startW/startH for ratio if video intrinsics are 0
+      positioning.currentWidth = startW;
+      positioning.currentHeight = startH;
       positioning.startX = event.clientX / zoom;
       positioning.startY = event.clientY / zoom;
       positioning.isResizing = true;
@@ -174,7 +206,7 @@ export default function VideoResizer({
 
       setStartCursor(direction);
       onResizeStart?.();
-      onDimensionsChange?.({ width, height }); // Initial dimensions
+      onDimensionsChange?.({ width: startW, height: startH }); // Initial dimensions
 
       controlWrapper.classList.add("video-control-wrapper--resizing"); // Optional class change
 
@@ -275,6 +307,13 @@ export default function VideoResizer({
 
       // Update live dimensions if callback provided (pass numbers)
       onDimensionsChange?.({ width: newWidth, height: newHeight });
+
+      // Live visual feedback
+      const videoElement = videoRef.current;
+      if (videoElement) {
+        videoElement.style.setProperty("width", `${newWidth}px`);
+        videoElement.style.setProperty("height", `${newHeight}px`);
+      }
     }
   };
 
@@ -283,17 +322,22 @@ export default function VideoResizer({
     const positioning = positioningRef.current;
     const controlWrapper = controlWrapperRef.current;
     if (video !== null && controlWrapper !== null && positioning.isResizing) {
-      // Ensure width/height passed to onResizeEnd are numbers or "inherit"
-      // If the original node had "inherit", maybe we pass that back?
-      // For now, assume resize always results in numeric pixels.
       const width = positioning.currentWidth;
       const height = positioning.currentHeight;
+
+      // Reset styles if they were applied for live feedback
+      const videoElement = videoRef.current;
+      if (videoElement) {
+        videoElement.style.removeProperty("width");
+        videoElement.style.removeProperty("height");
+      }
+
       positioning.startWidth = 0;
       positioning.startHeight = 0;
       positioning.ratio = 0;
       positioning.startX = 0;
       positioning.startY = 0;
-      positioning.currentWidth = 0; // Reset state
+      positioning.currentWidth = 0;
       positioning.currentHeight = 0;
       positioning.isResizing = false;
 
