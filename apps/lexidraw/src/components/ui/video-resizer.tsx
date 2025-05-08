@@ -391,7 +391,7 @@ export default function VideoResizer({
           handlePointerDown(event, Direction.north | Direction.east)
         }
       >
-        <div className="absolute top-0 right-0 w-4 h-4 border-t-[2px] border-r-[2px] border-foreground cursor-nesw-resize" />
+        <div className="absolute top-0 right-0 w-4 h-4 border-t-[2px] border-r-[2px] border-white cursor-nesw-resize" />
       </div>
 
       {/* Bottom-Right */}
@@ -401,7 +401,7 @@ export default function VideoResizer({
           handlePointerDown(event, Direction.south | Direction.east)
         }
       >
-        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-[2px] border-r-[2px] border-foreground cursor-nwse-resize" />
+        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-[2px] border-r-[2px] border-white cursor-nwse-resize" />
       </div>
 
       {/* Bottom-Left */}
@@ -411,7 +411,7 @@ export default function VideoResizer({
           handlePointerDown(event, Direction.south | Direction.west)
         }
       >
-        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-[2px] border-l-[2px] border-foreground cursor-nesw-resize" />
+        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-[2px] border-l-[2px] border-white cursor-nesw-resize" />
       </div>
 
       {/* Top-Left */}
@@ -421,7 +421,7 @@ export default function VideoResizer({
           handlePointerDown(event, Direction.north | Direction.west)
         }
       >
-        <div className="absolute top-0 left-0 w-4 h-4 border-t-[2px] border-l-[2px] border-foreground cursor-nwse-resize" />
+        <div className="absolute top-0 left-0 w-4 h-4 border-t-[2px] border-l-[2px] border-white cursor-nwse-resize" />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { LexicalEditor, NodeKey /*, BaseSelection*/ } from "lexical"; // BaseSelection removed if _selection is removed
+import type { LexicalEditor, NodeKey } from "lexical";
 import * as React from "react";
 import { Suspense, useRef, useState, useCallback, useEffect } from "react";
 import MentionsPlugin from "../../plugins/MentionsPlugin";
@@ -17,7 +17,6 @@ import { useSharedHistoryContext } from "../../context/shared-history-context";
 import { useSettings } from "../../context/settings-context";
 import VideoEditModal from "./VideoEditModal";
 import { Button } from "~/components/ui/button";
-import { cn } from "~/lib/utils"; // Import cn for conditional class names
 
 import {
   $getNodeByKey,
@@ -31,7 +30,6 @@ import {
   KEY_DELETE_COMMAND,
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
-  // SELECTION_CHANGE_COMMAND, // Removed as unused
 } from "lexical";
 
 import ImageCaption from "../common/ImageCaption";
@@ -75,12 +73,12 @@ export default function VideoComponent({
   const [isResizing, setIsResizing] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isVideoActivated, setIsVideoActivated] = useState(false); // State for video interaction mode
+  const [isHovered, setIsHovered] = useState(false);
 
   const currentShowCaption = initialShowCaption;
 
   console.log(
-    `[VideoComponent ${nodeKey}] isSelected: ${isSelected}, isResizing: ${isResizing}, isVideoActivated: ${isVideoActivated}`,
+    `[VideoComponent ${nodeKey}] isSelected: ${isSelected}, isResizing: ${isResizing}`,
   );
 
   const $onDelete = useCallback(
@@ -119,7 +117,6 @@ export default function VideoComponent({
       if (isSelected) {
         clearSelection();
         setSelected(false);
-        setIsVideoActivated(false); // Deactivate video on escape
         return true;
       }
       return false;
@@ -127,59 +124,30 @@ export default function VideoComponent({
     [isSelected, clearSelection, setSelected],
   );
 
-  // Effect to deactivate video when it's no longer selected
-  useEffect(() => {
-    if (!isSelected && isVideoActivated) {
-      setIsVideoActivated(false);
-    }
-  }, [isSelected, isVideoActivated]);
-
   useEffect(() => {
     let isMounted = true;
     const unregister = mergeRegister(
       editor.registerUpdateListener(({ editorState: _editorState }) => {
         if (isMounted) {
-          // setSelection(editorState.read(() => $getSelection())); // _selection removed
+          // setSelection(editorState.read(() => $getSelection()));
         }
       }),
       editor.registerCommand<MouseEvent>(
         CLICK_COMMAND,
-        (payload) => {
-          const event = payload;
-          if (isResizing) {
-            return true; // Don't interfere if already resizing
-          }
-
-          const clickTargetIsVideo = event.target === videoRef.current;
-
-          if (isVideoActivated) {
-            // If video is activated, and the click is on the video element itself,
-            // we return true. This signals to Lexical that we've handled the click,
-            // preventing it from deselecting the node. The browser's default action
-            // (play/pause) for the video element will still occur because we haven't called
-            // event.preventDefault() here for this specific scenario.
-            if (clickTargetIsVideo) {
-              return true;
+        (e) => {
+          if (e.target === videoRef.current) {
+            const selection = $getSelection();
+            if (!$isNodeSelection(selection) || !selection.has(nodeKey)) {
+              // Node is not selected or this node is not part of multi-selection
+              clearSelection();
+              setSelected(true);
+              e.preventDefault(); // Stop play/pause on first click (selection click)
+              return true; // Event handled
             }
-            // If activated and click is elsewhere within the component (e.g., padding),
-            // it might be desirable to deactivate. For now, we let it fall through (returns false),
-            // which might lead to deselection and then deactivation via useEffect.
-          } else {
-            // If not activated, the overlay is responsible for selection clicks on the video area.
-            // If a click somehow reaches the video element directly when not activated,
-            // this logic path will be taken. Returning true prevents Lexical from deselecting.
-            if (clickTargetIsVideo) {
-              // This path implies the overlay was not clicked or didn't stop propagation.
-              // For safety, if a click lands on the video when not activated, we treat it as handled to avoid deselection.
-              // The overlay should be the one setting selection state.
-              return true;
-            }
+            // Node is already selected, let event pass to video for play/pause
+            return false;
           }
-
-          // For any other clicks not on the video element when activated,
-          // or not on the video when not activated (where overlay should handle),
-          // let Lexical proceed as usual (e.g. deselect if click is outside).
-          return false;
+          return false; // Click was not on this video element
         },
         COMMAND_PRIORITY_LOW,
       ),
@@ -218,19 +186,15 @@ export default function VideoComponent({
   }, [
     clearSelection,
     editor,
-    isResizing,
-    isSelected,
     nodeKey,
     $onDelete,
     $onEnter,
     $onEscape,
     setSelected,
-    isVideoActivated, // Add isVideoActivated to dependency array
   ]);
 
   const onResizeStart = useCallback(() => {
     setIsResizing(true);
-    setIsVideoActivated(false); // Deactivate video when resizing starts
   }, []);
 
   const onResizeEnd = useCallback(
@@ -293,21 +257,21 @@ export default function VideoComponent({
     <Suspense fallback={null}>
       <div
         style={{ position: "relative", display: "inline-block" }}
-        className={`${isFocused && !isVideoActivated ? "outline-ring ring-primary" : ""}`}
+        className={`${isFocused ? "outline-ring ring-primary" : ""}`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
-        {isFocused &&
-          !isResizing &&
-          !isVideoActivated && ( // Hide Edit button if video is activated
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute top-2 right-2 z-40 bg-background/80 hover:bg-background/100 p-1 h-auto"
-              onClick={() => setIsEditModalOpen(true)}
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              Edit
-            </Button>
-          )}
+        {isHovered && !isResizing && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background/100 p-1 h-auto"
+            onClick={() => setIsEditModalOpen(true)}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            Edit
+          </Button>
+        )}
         {isLoadError ? (
           <p className="text-destructive">Error loading video.</p>
         ) : (
@@ -318,37 +282,6 @@ export default function VideoComponent({
             style={videoStyle}
             onError={onError}
             data-lexical-video-node-key={nodeKey}
-          />
-        )}
-
-        {/* Click interceptor overlay - shown when not resizing and video not activated */}
-        {!isResizing && (
-          <div
-            className={cn(
-              "absolute top-0 left-0 w-full h-full z-10 cursor-default",
-              isVideoActivated && "pointer-events-none", // Allow clicks to pass through when activated
-            )}
-            onClick={(event) => {
-              if (isVideoActivated) return; // Do nothing if already activated, let potential underlying elements handle click
-              event.preventDefault();
-              event.stopPropagation();
-              if (event.shiftKey) {
-                setSelected(!isSelected);
-              } else {
-                clearSelection();
-                setSelected(true);
-              }
-            }}
-            onDoubleClick={() => {
-              if (!isResizing) {
-                // Only activate if not currently resizing
-                setIsVideoActivated(true);
-                // Optionally, if node is selected, focus the video element for keyboard controls
-                if (isSelected && videoRef.current) {
-                  videoRef.current.focus();
-                }
-              }
-            }}
           />
         )}
 
@@ -374,23 +307,21 @@ export default function VideoComponent({
             </ImageCaption>
           </div>
         )}
-        {resizable &&
-          !isLoadError &&
-          !isVideoActivated && ( // Hide resizer if video is activated
-            <VideoResizer
-              editor={editor}
-              videoRef={videoRef}
-              buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
-              maxWidth={VIDEO_MAX_WIDTH}
-              onResizeStart={onResizeStart}
-              onResizeEnd={onResizeEnd}
-              showCaption={currentShowCaption || false}
-              setShowCaption={setShowVideoCaptionOnNode}
-              captionsEnabled={!!caption}
-              initialWidth={width}
-              initialHeight={height}
-            />
-          )}
+        {(isHovered || isResizing) && resizable && !isLoadError && (
+          <VideoResizer
+            editor={editor}
+            videoRef={videoRef}
+            buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
+            maxWidth={VIDEO_MAX_WIDTH}
+            onResizeStart={onResizeStart}
+            onResizeEnd={onResizeEnd}
+            showCaption={currentShowCaption || false}
+            setShowCaption={setShowVideoCaptionOnNode}
+            captionsEnabled={!!caption}
+            initialWidth={width}
+            initialHeight={height}
+          />
+        )}
         <button
           ref={buttonRef}
           style={{ display: "none" }}
