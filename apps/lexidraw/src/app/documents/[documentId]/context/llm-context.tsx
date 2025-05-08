@@ -145,7 +145,7 @@ export const LlmModelList = [
     description: "Free but powerful Gemini 2.5 model",
   },
   {
-    modelId: "gemini-2.5-pro-preview-03-25",
+    modelId: "gemini-2.5-pro-preview-05-06",
     provider: "google",
     name: "Gemini 2.5 Pro Preview",
     description: "The most powerful Gemini 2.5 model",
