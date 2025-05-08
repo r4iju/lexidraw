@@ -2249,7 +2249,6 @@ Arguments should be [number | 'inherit', number | 'inherit'].`
     parameters: z.object({
       url: z
         .string()
-        .url()
         .describe("The URL for the link (e.g., 'https://example.com')."),
       linkText: z
         .string()
