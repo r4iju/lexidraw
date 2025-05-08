@@ -14,6 +14,7 @@ type ImageResizerProps = {
   editor: LexicalEditor;
   showCaption: boolean;
   setShowCaption?: (show: boolean) => void;
+  bottomOffset?: boolean;
   captionsEnabled: boolean;
   onDimensionsChange?: (dimensions: {
     width: number | "inherit";
@@ -32,6 +33,7 @@ export default function ImageResizer({
   setShowCaption,
   captionsEnabled,
   onDimensionsChange,
+  bottomOffset,
 }: ImageResizerProps): React.JSX.Element {
   const controlWrapperRef = useRef<HTMLDivElement>(null);
   const [, setIsResizing] = React.useState(false);
@@ -288,7 +290,12 @@ export default function ImageResizer({
 
       {/* Bottom-Right */}
       <div
-        className="absolute bottom-0 right-0 w-4 h-4 pointer-events-auto cursor-nwse-resize"
+        className={cn(
+          "absolute bottom-0 right-0 w-4 h-4 pointer-events-auto cursor-nwse-resize",
+          {
+            "bottom-1.5": bottomOffset !== undefined,
+          },
+        )}
         onPointerDown={(event) =>
           handlePointerDown(event, Direction.south | Direction.east)
         }
@@ -298,7 +305,12 @@ export default function ImageResizer({
 
       {/* Bottom-Left */}
       <div
-        className="absolute bottom-0 left-0 w-4 h-4 pointer-events-auto cursor-nesw-resize"
+        className={cn(
+          "absolute bottom-0 left-0 w-4 h-4 pointer-events-auto cursor-nesw-resize",
+          {
+            "bottom-1.5": bottomOffset !== undefined,
+          },
+        )}
         onPointerDown={(event) =>
           handlePointerDown(event, Direction.south | Direction.west)
         }
