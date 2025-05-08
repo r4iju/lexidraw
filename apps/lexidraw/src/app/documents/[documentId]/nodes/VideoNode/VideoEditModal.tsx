@@ -69,7 +69,7 @@ export default function VideoEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="w-full">
         <DialogHeader>
           <DialogTitle>Edit Video Properties</DialogTitle>
           <DialogDescription>
@@ -77,39 +77,29 @@ export default function VideoEditModal({
             height blank to inherit.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="width" className="text-right">
-              Width
-            </Label>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-6 py-4 w-full">
+          <div className="flex justify-start flex-col gap-2">
+            <Label htmlFor="width">Width</Label>
             <Input
               id="width"
               type="number"
               value={width}
               onChange={(e) => setWidth(e.target.value)}
               placeholder="auto"
-              className="col-span-3"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="height" className="text-right">
-              Height
-            </Label>
+          <div className="flex justify-start flex-col gap-2">
+            <Label htmlFor="height">Height</Label>
             <Input
               id="height"
               type="number"
               value={height}
               onChange={(e) => setHeight(e.target.value)}
               placeholder="auto"
-              className="col-span-3"
             />
           </div>
-          <div className="flex items-center space-x-2 justify-end col-span-4 pr-[calc(theme(spacing.16)+theme(spacing.4))]">
-            {" "}
-            {/* Align with input fields approx */}
-            <Label htmlFor="show-caption" className="text-right">
-              Show Caption
-            </Label>
+          <div className="flex items-center gap-x-4 justify-start col-span-2">
+            <Label htmlFor="show-caption">Show Caption</Label>
             <Switch
               id="show-caption"
               checked={showCaption}
