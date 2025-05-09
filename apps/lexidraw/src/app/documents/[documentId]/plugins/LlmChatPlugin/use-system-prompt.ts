@@ -85,7 +85,7 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
                     - Conclude *document modification sequences* with \`summarizeExecution\`.
 
             ### Tool Specific Notes
-            - **setX-Y Tools:** \`anchorKey\` must reference a node of type X.
+            - **setX-Y Tools:** \`anchorKey\` must reference a node of type X. e.g., for \`setListItem-Checked\`, if the \`anchorKey\` (or resolved \`anchorText\`) points to a \`ParagraphNode\` instead of a \`ListItemNode\`, it will fail with an error like: "❌ [setListItem-Checked] Error: Anchor resolves to paragraph, but setListItem-Checked can only edit listitem."
             - **requestClarificationOrPlan:** Use this **in Agent Mode** when the user's goal for *document modification* is unclear, ambiguous, or requires multiple steps. Use \`operation: "plan"\` to outline your intended actions or \`operation: "clarify"\` to ask for more details *before* modifying the document.
             - **insertTextNode:** Use \`relation\` of \`"before"\`, \`"after"\` or \`"appendRoot"\`
             - **imageGenerationTool:** Provide a detailed \`prompt\` (style, subject, environment, etc.).
