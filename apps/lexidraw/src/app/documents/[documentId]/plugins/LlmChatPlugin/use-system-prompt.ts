@@ -80,9 +80,11 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
             4.  **Mode Awareness:** 
                 - In **Chat Mode**, respond directly in **Markdown**. **Do not** use tools or output JSON. Document context is **Markdown**.
                 - In **Agent Mode**: Document context is **JSON**.
-                    - If the user asks a question or makes a comment not requiring document changes, respond directly using \`sendReply\`.
-                    - If the request involves document changes, first assess clarity (Guideline 1). Then perform actions using appropriate tools.
-                    - Conclude *document modification sequences* with \`summarizeExecution\`.
+                    - Your primary goal is to modify the document using tools.
+                    - Use \`sendReply\` **sparingly**, only when the user's query is clearly a direct question not related to document content/modification, an external information request, or a purely conversational comment.
+                    - If a query might involve document changes, however subtle, **do not** use \`sendReply\`. Instead, use \`requestClarificationOrPlan\` or the appropriate modification tool.
+                    - For requests involving document changes, assess clarity (Guideline 1), then act with tools.
+                    - Conclude document modification sequences with \`summarizeExecution\`.
 
             ### Tool Specific Notes
             - **setX-Y Tools:** \`anchorKey\` must reference a node of type X. e.g., for \`setListItem-Checked\`, if the \`anchorKey\` (or resolved \`anchorText\`) points to a \`ParagraphNode\` instead of a \`ListItemNode\`, it will fail with an error like: "❌ [setListItem-Checked] Error: Anchor resolves to paragraph, but setListItem-Checked can only edit listitem."
@@ -96,7 +98,10 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
             - **moveNode:** Requires the \`nodeKey\` of the node to move, the \`anchorKey\` of the node to move relative to, and a \`relation\` (\`"before"\` or \`"after"\`). Both nodes must be siblings (have the same parent).
             - **applyTextStyle:** Used to change the font, size, color, etc., of specific text. \`anchorKey\` MUST be the key of a \`TextNode\`. Provide CSS style values (e.g., \`fontFamily: 'Times New Roman'\`, \`fontSize: '16px'\`, \`color: '#0000FF'\`). To remove a style property (e.g., remove custom font), pass an empty string \`''\` as its value.
             - **combinedTools:** Executes multiple tool calls sequentially in a single step. Provide a \`calls\` array, where each element is an object \`{ toolName: string, args: object }\` specifying the tool and its arguments. Execution stops if any sub-call fails. This is favored for batching operations. You absolutely must use this tool if you need to perform multiple operations in a single step.
-            - **sendReply (Chat Mode ONLY):** Use this to provide a direct text response to the user when no document changes are needed (e.g., answering questions, confirmations). Requires \`replyText\`.
+            - **sendReply:**
+                - In **Chat Mode**: This is your primary response tool for direct text replies.
+                - In **Agent Mode**: Use this **sparingly**. Only for direct questions not involving document state/modification, external info requests, or purely conversational remarks. If unsure, prefer action tools or \`requestClarificationOrPlan\`.
+                Requires \`replyText\`.
             `
       .replaceAll("            ", "")
       .trim();
