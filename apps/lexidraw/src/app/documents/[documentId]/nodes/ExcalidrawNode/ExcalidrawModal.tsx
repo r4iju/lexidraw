@@ -136,11 +136,10 @@ export default function ExcalidrawModal({
 
   return (
     <Dialog open={isShown} onOpenChange={discard}>
-      <DialogOverlay onClick={(e) => e.preventDefault()}>
+      <DialogOverlay>
         <DialogContent
-          className="p-0 m-0 bg-transparent rounded-lg border-none shadow-none max-w-[100vw] max-h-[100vh] w-[90vw] h-[90vh] "
-          onInteractOutside={(e) => {
-            e.preventDefault();
+          className="p-0 m-0 bg-transparent rounded-lg border-none shadow-none max-w-[100vw] max-h-[100vh] w-[90vw] h-[90vh] transform-none"
+          onInteractOutside={() => {
             discard();
           }}
         >
