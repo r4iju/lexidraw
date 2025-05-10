@@ -79,6 +79,7 @@ import { ElementFormatDropdown } from "./element-format";
 import { Divider } from "./divider";
 import { CodeSelector } from "./code-selector";
 import { InsertItem } from "./insert-item";
+import { SettingsDropdown } from "./settings-dropdown";
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
@@ -668,6 +669,8 @@ export default function ToolbarPlugin({
           Icon={ListTree}
         />
       </div>
+      <Divider />
+      <SettingsDropdown className="rounded-md" />
     </div>
   );
 }

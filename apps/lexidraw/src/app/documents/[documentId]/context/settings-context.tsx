@@ -31,6 +31,18 @@ export const SettingsContext = ({
 }): React.JSX.Element => {
   const [settings, setSettings] = useState(INITIAL_SETTINGS);
 
+  const setURLParam = (param: SettingName, value: null | boolean) => {
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams(url.search);
+    if (value !== DEFAULT_SETTINGS[param]) {
+      params.set(param, String(value));
+    } else {
+      params.delete(param);
+    }
+    url.search = params.toString();
+    window.history.pushState(null, "", url.toString());
+  };
+
   const setOption = useCallback((setting: SettingName, value: boolean) => {
     setSettings((options) => ({
       ...options,
@@ -49,15 +61,3 @@ export const SettingsContext = ({
 export const useSettings = (): SettingsContextShape => {
   return useContext(Context);
 };
-
-function setURLParam(param: SettingName, value: null | boolean) {
-  const url = new URL(window.location.href);
-  const params = new URLSearchParams(url.search);
-  if (value !== DEFAULT_SETTINGS[param]) {
-    params.set(param, String(value));
-  } else {
-    params.delete(param);
-  }
-  url.search = params.toString();
-  window.history.pushState(null, "", url.toString());
-}
