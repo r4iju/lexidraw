@@ -79,20 +79,20 @@ export class CollapsibleContainerNode extends ElementNode {
       });
       dom = detailsDom;
     }
-    dom.classList.add("bg-card", "border", "border-border", "rounded-lg");
+    dom.classList.add("bg-card", "border", "border-border", "rounded-sm");
 
     return dom;
   }
 
   updateDOM(prevNode: CollapsibleContainerNode, dom: HTMLElement): boolean {
     const currentOpen = this.__open;
+    const contentDom = dom.children[1] as HTMLElement; // Assuming content is the second child
+
     if (prevNode.__open !== currentOpen) {
       // Update icon rotation in summary
       const summaryElement = dom.firstChild as HTMLElement;
       if (summaryElement && summaryElement.tagName === "SUMMARY") {
         const iconElement = summaryElement.firstChild as HTMLElement;
-        // Check if it's our icon span (e.g., by checking for SVG content or a specific class if we add one)
-        // For now, assuming it's the first child if it exists and is a SPAN.
         if (iconElement && iconElement.tagName === "SPAN") {
           if (currentOpen) {
             iconElement.classList.add("rotate-90");
@@ -102,25 +102,41 @@ export class CollapsibleContainerNode extends ElementNode {
         }
       }
 
-      // details is not well supported in Chrome #5582
+      // Handle content animation
+      if (contentDom) {
+        if (currentOpen) {
+          // Opening
+          if (IS_CHROME) {
+            contentDom.hidden = false;
+          }
+          contentDom.classList.remove("animate-accordion-up", "h-0");
+          contentDom.classList.add("animate-accordion-down");
+        } else {
+          // Closing
+          contentDom.classList.remove("animate-accordion-down");
+          contentDom.classList.add("animate-accordion-up");
+          // The animation should take care of setting height to 0.
+          // If IS_CHROME, and we needed to set hidden after animation, that would be complex here.
+          // Relying on h-0 from animation and overflow-hidden for now.
+        }
+      }
+
+      // Original logic for details/div open attribute
       if (IS_CHROME) {
-        const contentDom = dom.children[1];
+        // const contentDom = dom.children[1]; // Already got contentDom
         invariant(
           isHTMLElement(contentDom as Element),
           "Expected contentDom to be an HTMLElement",
         );
         if (currentOpen) {
           dom.setAttribute("open", "");
-          // @ts-expect-error - its fine
-          contentDom.hidden = false;
+          // contentDom.hidden = false; // Done above
         } else {
           dom.removeAttribute("open");
-          this.setDomHiddenUntilFound(contentDom as HTMLElement);
+          // For Chrome, if not animating to h-0 reliably, we might need this after a delay:
+          // this.setDomHiddenUntilFound(contentDom as HTMLElement);
         }
       } else {
-        // For non-Chrome, ensure the details element's open attribute matches the node state.
-        // The toggle event on <details> should have already triggered the node state update.
-        // This DOM update ensures visual consistency if the state was changed programmatically.
         if (dom instanceof HTMLDetailsElement) {
           dom.open = this.__open;
         }
@@ -157,7 +173,7 @@ export class CollapsibleContainerNode extends ElementNode {
 
   exportDOM(): DOMExportOutput {
     const element = document.createElement("details");
-    element.classList.add("bg-card", "border", "border-border", "rounded-lg");
+    element.classList.add("bg-card", "border", "border-border", "rounded-sm");
     element.setAttribute("open", this.__open.toString());
     return { element };
   }

@@ -45,7 +45,19 @@ export class CollapsibleContentNode extends ElementNode {
 
   createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
     const dom = document.createElement("div");
-    dom.classList.add("pr-1", "pb-1", "pl-5");
+    dom.classList.add("pr-1", "pb-1", "pl-5", "overflow-hidden");
+
+    // If initially closed, set height to 0 for opening animation baseline
+    editor.getEditorState().read(() => {
+      const containerNode = this.getParentOrThrow();
+      if (
+        CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode) &&
+        !containerNode.getOpen()
+      ) {
+        dom.classList.add("h-0");
+      }
+    });
+
     if (IS_CHROME) {
       editor.getEditorState().read(() => {
         const containerNode = this.getParentOrThrow();
