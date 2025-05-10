@@ -79,17 +79,29 @@ export class CollapsibleContainerNode extends ElementNode {
       });
       dom = detailsDom;
     }
-    dom.classList.add("Collapsible__container");
+    dom.classList.add("bg-card", "border", "border-border", "rounded-lg");
 
     return dom;
   }
 
-  updateDOM(
-    prevNode: CollapsibleContainerNode,
-    dom: HTMLDetailsElement,
-  ): boolean {
+  updateDOM(prevNode: CollapsibleContainerNode, dom: HTMLElement): boolean {
     const currentOpen = this.__open;
     if (prevNode.__open !== currentOpen) {
+      // Update icon rotation in summary
+      const summaryElement = dom.firstChild as HTMLElement;
+      if (summaryElement && summaryElement.tagName === "SUMMARY") {
+        const iconElement = summaryElement.firstChild as HTMLElement;
+        // Check if it's our icon span (e.g., by checking for SVG content or a specific class if we add one)
+        // For now, assuming it's the first child if it exists and is a SPAN.
+        if (iconElement && iconElement.tagName === "SPAN") {
+          if (currentOpen) {
+            iconElement.classList.add("rotate-90");
+          } else {
+            iconElement.classList.remove("rotate-90");
+          }
+        }
+      }
+
       // details is not well supported in Chrome #5582
       if (IS_CHROME) {
         const contentDom = dom.children[1];
@@ -106,10 +118,14 @@ export class CollapsibleContainerNode extends ElementNode {
           this.setDomHiddenUntilFound(contentDom as HTMLElement);
         }
       } else {
-        dom.open = this.__open;
+        // For non-Chrome, ensure the details element's open attribute matches the node state.
+        // The toggle event on <details> should have already triggered the node state update.
+        // This DOM update ensures visual consistency if the state was changed programmatically.
+        if (dom instanceof HTMLDetailsElement) {
+          dom.open = this.__open;
+        }
       }
     }
-
     return false;
   }
 
@@ -141,7 +157,7 @@ export class CollapsibleContainerNode extends ElementNode {
 
   exportDOM(): DOMExportOutput {
     const element = document.createElement("details");
-    element.classList.add("Collapsible__container");
+    element.classList.add("bg-card", "border", "border-border", "rounded-lg");
     element.setAttribute("open", this.__open.toString());
     return { element };
   }
