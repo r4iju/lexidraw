@@ -18,6 +18,8 @@ import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/sonner";
+import Script from "next/script";
+import env from "@packages/env";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -93,6 +95,8 @@ export default async function RootLayout({ children }: Props) {
   const headersList = await nextHeaders();
   const plainHeaders = new Map(headersList.entries());
 
+  console.log("🔄 env.REACT_SCAN_ENABLED", env.REACT_SCAN_ENABLED);
+
   return (
     <html
       lang="en"
@@ -101,6 +105,14 @@ export default async function RootLayout({ children }: Props) {
         scrollbarGutter: "stable both-edges",
       }}
     >
+      <head>
+        {env.REACT_SCAN_ENABLED && (
+          <Script
+            crossOrigin="anonymous"
+            src="//unpkg.com/react-scan/dist/auto.global.js"
+          />
+        )}
+      </head>
       <body
         className={cn(
           "min-h-screen size-full flex flex-col font-fredoka bg-background text-foreground antialiased",

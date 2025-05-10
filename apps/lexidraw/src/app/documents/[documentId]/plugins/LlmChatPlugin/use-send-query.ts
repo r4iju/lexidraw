@@ -80,8 +80,7 @@ export const useSendQuery = () => {
   const runtimeTools = useRuntimeTools();
   const [editor] = useLexicalComposerContext();
 
-  const systemPromptBase = "You are a helpful assistant.";
-  const systemPrompt = useSystemPrompt(systemPromptBase, mode);
+  const systemPrompt = useSystemPrompt(mode);
 
   return useCallback(
     async ({

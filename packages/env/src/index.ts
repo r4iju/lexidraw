@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const env = createEnv({
   server: {
+    REACT_SCAN_ENABLED: z.preprocess((val) => val === "true", z.boolean()),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -61,6 +62,7 @@ const env = createEnv({
     NEXT_PUBLIC_FIRESTORE_APP_ID: z.string().min(1),
   },
   runtimeEnv: {
+    REACT_SCAN_ENABLED: process.env.REACT_SCAN_ENABLED,
     NEXT_PUBLIC_UNSPLASH_APP_NAME: process.env.NEXT_PUBLIC_UNSPLASH_APP_NAME,
     ANALYZE: process.env.ANALYZE,
     NEXT_PUBLIC_NODE_ENV: process.env.NODE_ENV,

@@ -1,10 +1,10 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useMakeRuntimeSpec } from "./reflect-editor-runtime";
+import { useRuntimeSpec } from "./reflect-editor-runtime";
 import { $getRoot, $isElementNode, LexicalNode, EditorState } from "lexical";
 import { useRuntimeTools } from "./runtime-tools-provider";
 
-export function useSystemPrompt(base: string, mode: "chat" | "agent") {
+export function useSystemPrompt(mode: "chat" | "agent") {
   const [editor] = useLexicalComposerContext();
   const tools = useRuntimeTools();
 
@@ -48,14 +48,29 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
     };
   }, [collectTypes, editor]);
 
-  const { makeRuntimeSpec } = useMakeRuntimeSpec();
+  const { runtimeSpec } = useRuntimeSpec();
+
+  useEffect(() => {
+    console.log("🔄 existingNodeTypes changed:", existingNodeTypes);
+  }, [existingNodeTypes]);
+
+  useEffect(() => {
+    console.log("🔄 tools changed:", tools);
+  }, [tools]);
+
+  useEffect(() => {
+    console.log("🔄 runtimeSpec changed:", runtimeSpec);
+  }, [runtimeSpec]);
+
+  useEffect(() => {
+    console.log("🔄 mode changed:", mode);
+  }, [mode]);
 
   return useMemo(() => {
     console.log(
       "🔄 Recalculating system prompt with node types:",
       existingNodeTypes,
     );
-    const spec = makeRuntimeSpec();
 
     const filteredTools = Object.keys(tools).filter((toolName) => {
       if (toolName.startsWith("set")) {
@@ -65,7 +80,7 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
       return true;
     });
 
-    const nodeLines = spec.nodes
+    const nodeLines = runtimeSpec.nodes
       .map((n) => `• ${n.type}${n.isInline ? " (inline)" : ""}`)
       .join("\n");
 
@@ -74,7 +89,8 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
         ? "• No tools available – respond directly in Markdown."
         : filteredTools.map((t) => `• ${t}`).join("\n");
 
-    return `${base}\n\n            **Operational Modes:**\n            - **Chat Mode:** For general conversation, questions, or non-document tasks. **Do not** emit JSON or tool calls – just answer in plain Markdown. Document context is provided as **Markdown**.\n            - **Agent Mode:** For tasks involving document modification (inserting, formatting, moving, etc.). All tools **except** \`sendReply\` are available. Document context is provided as **JSON**.\n\n            ### Available node types\n            ${nodeLines}\n\n            ### Available tools\n            ${toolLines}\n\n            ### Interaction Guidelines\n            1.  **Clarity First:** If the user's request *for document modification* is unclear, ambiguous, or requires multiple steps, **use 'requestClarificationOrPlan'** before acting (Agent Mode). Use \`operation: "plan"\` to outline steps or \`operation: "clarify"\` to ask questions.
+    return `You are a helpful assistant.
+            \n\n            **Operational Modes:**\n            - **Chat Mode:** For general conversation, questions, or non-document tasks. **Do not** emit JSON or tool calls – just answer in plain Markdown. Document context is provided as **Markdown**.\n            - **Agent Mode:** For tasks involving document modification (inserting, formatting, moving, etc.). All tools **except** \`sendReply\` are available. Document context is provided as **JSON**.\n\n            ### Available node types\n            ${nodeLines}\n\n            ### Available tools\n            ${toolLines}\n\n            ### Interaction Guidelines\n            1.  **Clarity First:** If the user's request *for document modification* is unclear, ambiguous, or requires multiple steps, **use 'requestClarificationOrPlan'** before acting (Agent Mode). Use \`operation: "plan"\` to outline steps or \`operation: "clarify"\` to ask questions.
             2.  **Mutation Response:** When calling a tool that mutates the document respond **only** with the tool call JSON. A plaintext answer is accepted.
             3.  **Confirmation / Final Summary:** After completing all requested *document modification actions* in Agent Mode, **you must** conclude by calling \`summarizeExecution\` with a \`summaryText\` describing all steps taken.
             4.  **Mode Awareness:** 
@@ -107,5 +123,5 @@ export function useSystemPrompt(base: string, mode: "chat" | "agent") {
             `
       .replaceAll("            ", "")
       .trim();
-  }, [existingNodeTypes, makeRuntimeSpec, tools, mode, base]);
+  }, [existingNodeTypes, runtimeSpec, tools, mode]);
 }
