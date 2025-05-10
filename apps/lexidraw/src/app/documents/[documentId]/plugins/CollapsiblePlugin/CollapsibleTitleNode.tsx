@@ -13,8 +13,8 @@ import {
 
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
 import { CollapsibleContentNode } from "./CollapsibleContentNode";
-import { IS_CHROME } from "@lexical/utils";
-import invariant from "../../shared/invariant";
+import ReactDOMServer from "react-dom/server";
+import { ChevronRight } from "lucide-react";
 
 type SerializedCollapsibleTitleNode = SerializedElementNode;
 
@@ -36,72 +36,32 @@ export class CollapsibleTitleNode extends ElementNode {
     return new CollapsibleTitleNode(node.__key);
   }
 
-  createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    const dom = document.createElement("summary");
-    dom.classList.add(
-      "flex",
-      "items-center",
-      "cursor-pointer",
-      "pt-1",
-      "pr-1",
-      "pl-2",
-      "font-bold",
-      "outline-none",
-      "list-none",
+  createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
+    const summaryJsx = (
+      <summary className="flex items-center cursor-pointer pt-1 pr-1 pl-2 font-bold list-none outline-none">
+        <ChevronRight className="mr-2 transition-transform duration-200 ease-in-out group-open:rotate-90 size-4" />
+      </summary>
     );
 
-    const icon = document.createElement("span");
-    icon.classList.add(
-      "mr-2",
-      "transition-transform",
-      "duration-200",
-      "ease-in-out",
-      "size-4",
-    );
-    icon.innerHTML =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>';
-    dom.prepend(icon);
+    const html = ReactDOMServer.renderToStaticMarkup(summaryJsx);
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    const dom = div.firstChild as HTMLElement;
 
-    if (IS_CHROME) {
-      dom.addEventListener("click", (event) => {
-        event.preventDefault();
-        editor.update(() => {
-          const collapsibleContainer = this.getLatest().getParentOrThrow();
-          invariant(
-            CollapsibleContainerNode.$isCollapsibleContainerNode(
-              collapsibleContainer,
-            ),
-            "Expected parent node to be a CollapsibleContainerNode",
-          );
-          collapsibleContainer.toggleOpen();
-          const isOpen = collapsibleContainer.getOpen();
-          if (isOpen) {
-            icon.classList.add("rotate-90");
-          } else {
-            icon.classList.remove("rotate-90");
-          }
-        });
+    dom.addEventListener("click", (e) => {
+      e.preventDefault();
+      editor.update(() => {
+        const container = this.getLatest().getParentOrThrow();
+        if (CollapsibleContainerNode.$isCollapsibleContainerNode(container)) {
+          container.toggleOpen();
+        }
       });
-    }
-
-    editor.getEditorState().read(() => {
-      const container = this.getParent();
-      if (
-        CollapsibleContainerNode.$isCollapsibleContainerNode(container) &&
-        container.getOpen()
-      ) {
-        icon.classList.add("rotate-90");
-      }
     });
 
     return dom;
   }
 
-  updateDOM(
-    _prevNode: CollapsibleTitleNode,
-    _dom: HTMLElement,
-    _config: EditorConfig,
-  ): boolean {
+  updateDOM() {
     return false;
   }
 

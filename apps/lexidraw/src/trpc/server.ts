@@ -21,13 +21,13 @@ const createContext = cache(async () => {
 
 export const api = createTRPCClient<AppRouter>({
   links: [
-    loggerLink({
-      enabled: (opts) => {
-        return (
-          process.env.NODE_ENV === "development" || opts.direction === "down"
-        );
-      },
-    }),
+    // loggerLink({
+    //   enabled: (opts) => {
+    //     return (
+    //       process.env.NODE_ENV === "development" || opts.direction === "down"
+    //     );
+    //   },
+    // }),
     /**
      * Custom RSC link that lets us invoke procedures without using http requests. Since Server
      * Components always run on the server, we can just call the procedure as a function.

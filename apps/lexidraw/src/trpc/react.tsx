@@ -21,7 +21,7 @@ export function TRPCReactProvider(props: {
   const [trpcClient] = useState(() =>
     api.createClient({
       links: [
-        loggerLink(),
+        // loggerLink(),
         httpBatchStreamLink({
           transformer,
           url: "/api/trpc",
