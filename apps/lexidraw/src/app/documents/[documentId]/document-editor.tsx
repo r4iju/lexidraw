@@ -129,7 +129,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
 
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {
-    settings: { showTreeView, isAutocomplete },
+    settings: { showTreeView, autocomplete },
   } = useSettings();
   const isEditable = useLexicalEditable();
 
@@ -323,7 +323,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                   />
                                 </>
                               )}
-                              {isAutocomplete && <AutocompletePlugin />}
+                              {autocomplete && <AutocompletePlugin />}
                               <ContextMenuPlugin />
                               {showTreeView &&
                                 createPortal(

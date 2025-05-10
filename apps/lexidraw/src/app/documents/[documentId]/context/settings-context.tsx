@@ -6,11 +6,14 @@ import {
   ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 
-import { DEFAULT_SETTINGS, INITIAL_SETTINGS } from "./app-settings";
+import { DEFAULT_SETTINGS } from "./app-settings";
+
+const SETTINGS_STORAGE_KEY = "lexidraw-settings";
 
 type SettingsContextShape = {
   setOption: (name: SettingName, value: boolean) => void;
@@ -21,7 +24,7 @@ const Context: React.Context<SettingsContextShape> = createContext({
   setOption: (_name: SettingName, _value: boolean) => {
     return;
   },
-  settings: INITIAL_SETTINGS,
+  settings: DEFAULT_SETTINGS,
 });
 
 export const SettingsContext = ({
@@ -29,26 +32,49 @@ export const SettingsContext = ({
 }: {
   children: ReactNode;
 }): React.JSX.Element => {
-  const [settings, setSettings] = useState(INITIAL_SETTINGS);
-
-  const setURLParam = (param: SettingName, value: null | boolean) => {
-    const url = new URL(window.location.href);
-    const params = new URLSearchParams(url.search);
-    if (value !== DEFAULT_SETTINGS[param]) {
-      params.set(param, String(value));
-    } else {
-      params.delete(param);
+  const [settings, setSettings] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedSettings =
+          window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (storedSettings) {
+          const parsedSettings = JSON.parse(storedSettings);
+          const mergedSettings = { ...DEFAULT_SETTINGS };
+          for (const key in parsedSettings) {
+            if (Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)) {
+              mergedSettings[key as SettingName] = parsedSettings[key];
+            }
+          }
+          return mergedSettings;
+        }
+      } catch (error) {
+        console.error("Error loading settings from localStorage:", error);
+      }
     }
-    url.search = params.toString();
-    window.history.pushState(null, "", url.toString());
-  };
+    return DEFAULT_SETTINGS;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(
+          SETTINGS_STORAGE_KEY,
+          JSON.stringify(settings),
+        );
+      } catch (error) {
+        console.error("Error saving settings to localStorage:", error);
+      }
+    }
+  }, [settings]);
 
   const setOption = useCallback((setting: SettingName, value: boolean) => {
-    setSettings((options) => ({
-      ...options,
-      [setting]: value,
-    }));
-    setURLParam(setting, value);
+    setSettings((options) => {
+      const newOptions = {
+        ...options,
+        [setting]: value,
+      };
+      return newOptions;
+    });
   }, []);
 
   const contextValue = useMemo(() => {
