@@ -11,6 +11,7 @@ import {
   Sawarabi_Mincho,
 } from "next/font/google";
 import { headers as nextHeaders } from "next/headers";
+import { Analytics } from "@vercel/analytics/react";
 import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
 import { ThemeProvider } from "~/components/theme/theme-provider";
@@ -124,6 +125,7 @@ export default async function RootLayout({ children }: Props) {
               <TooltipProvider>
                 {children}
                 <Toaster />
+                <Analytics />
               </TooltipProvider>
             </ThemeProvider>
           </TRPCReactProvider>
