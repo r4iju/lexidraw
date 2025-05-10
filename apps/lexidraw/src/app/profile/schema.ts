@@ -2,7 +2,6 @@ import { z } from "zod";
 
 // Define a reusable schema for the LLM base configuration
 const LlmBaseConfigSchema = z.object({
-  enabled: z.boolean().default(false),
   modelId: z.string(),
   provider: z.string(),
   temperature: z.number().min(0).max(1),

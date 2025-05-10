@@ -80,14 +80,12 @@ export const users = sqliteTable(
         googleApiKey?: string;
         openaiApiKey?: string;
         chat?: {
-          enabled: boolean;
           modelId: string;
           provider: string;
           temperature: number;
           maxTokens: number;
         };
         autocomplete?: {
-          enabled: boolean;
           modelId: string;
           provider: string;
           temperature: number;

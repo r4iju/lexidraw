@@ -15,7 +15,6 @@ type LlmBaseConfig = {
 };
 
 type LlmConfig = {
-  enabled: boolean;
   googleApiKey?: string;
   openaiApiKey?: string;
   chat?: LlmBaseConfig;

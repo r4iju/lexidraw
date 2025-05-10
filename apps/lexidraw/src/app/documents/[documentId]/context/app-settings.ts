@@ -1,7 +1,8 @@
 export const DEFAULT_SETTINGS = {
   disableBeforeInput: false,
   emptyEditor: false,
-  isAutocomplete: false,
+  autocomplete: false,
+  chat: false,
   isCharLimit: false,
   isCharLimitUtf8: false,
   isCollab: false,

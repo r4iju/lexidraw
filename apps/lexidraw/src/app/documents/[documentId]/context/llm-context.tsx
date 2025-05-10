@@ -31,6 +31,7 @@ import type {
   PartialLlmConfig,
 } from "~/server/api/routers/config";
 import { type z } from "zod";
+import { useSettings } from "./settings-context";
 
 export type RuntimeToolMap = Record<string, ReturnType<typeof tool>>;
 
@@ -339,6 +340,8 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     llmConfig.chat.provider,
   ]);
 
+  const { settings } = useSettings();
+
   const generateAutocomplete = useCallback(
     async ({
       prompt,
@@ -347,7 +350,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       maxTokens,
       signal,
     }: LLMOptions): Promise<string> => {
-      if (!llmConfig.autocomplete.enabled || !autocompleteProvider.current) {
+      if (!settings.autocomplete || !autocompleteProvider.current) {
         console.warn("[LLMContext] Autocomplete provider not loaded.");
         return "";
       }
@@ -398,7 +401,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }
     },
     [
-      llmConfig.autocomplete.enabled,
+      settings.autocomplete,
       llmConfig.autocomplete.maxTokens,
       llmConfig.autocomplete.modelId,
       llmConfig.autocomplete.temperature,
@@ -429,7 +432,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         toolChoice?: ToolChoice<ToolSet>;
       }>;
     }): Promise<GenerateChatResponseResult> => {
-      if (!llmConfig.chat.enabled || !chatProvider.current) {
+      if (!settings.chat || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
@@ -495,7 +498,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
     },
-    [chatProvider, llmConfig.chat],
+    [chatProvider, llmConfig.chat, settings.chat],
   );
 
   const generateChatStream = useCallback(
@@ -510,7 +513,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     }: Omit<LLMOptions, "tools" | "toolChoice"> & {
       callbacks: StreamCallbacks;
     }): Promise<void> => {
-      if (!llmConfig.chat.enabled || !chatProvider.current) {
+      if (!settings.chat || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
         callbacks.onError?.(new Error("Chat provider not loaded."));
         return;
@@ -622,7 +625,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         }
       }
     },
-    [chatProvider, llmConfig.chat],
+    [chatProvider, llmConfig.chat, settings.chat],
   );
 
   const saveConfiguration = useCallback(
@@ -634,7 +637,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
       if (updatedConfig.chatConfig) {
         payload.chat = {
-          enabled: llmConfig.chat.enabled,
           modelId: llmConfig.chat.modelId,
           provider: llmConfig.chat.provider,
           temperature: llmConfig.chat.temperature,
@@ -644,7 +646,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
       if (updatedConfig.autocompleteConfig) {
         payload.autocomplete = {
-          enabled: llmConfig.autocomplete.enabled,
           modelId: llmConfig.autocomplete.modelId,
           provider: llmConfig.autocomplete.provider,
           temperature: llmConfig.autocomplete.temperature,

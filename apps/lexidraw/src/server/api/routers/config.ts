@@ -4,7 +4,6 @@ import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
 
 export const LlmBaseConfigSchema = z.object({
-  enabled: z.boolean().default(false),
   modelId: z.string(),
   provider: z.string(),
   temperature: z.number().min(0).max(1),
@@ -30,7 +29,6 @@ export type PartialLlmConfig = z.infer<typeof PatchSchema>;
 
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
-  enabled: true,
   modelId: "gemini-2.0-flash",
   provider: "google",
   temperature: 0.7,
@@ -38,7 +36,6 @@ const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
 };
 
 const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
-  enabled: false,
   modelId: "gemini-2.0-flash-lite",
   provider: "google",
   temperature: 0.3,
@@ -77,9 +74,7 @@ export const configRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }): Promise<PartialLlmConfig> => {
       const currentUser = await ctx.drizzle.query.users.findFirst({
         where: eq(schema.users.id, ctx.session.user.id),
-        columns: {
-          config: true,
-        },
+        columns: { config: true },
       });
 
       const newLlmConfigToSave = LlmConfigSchema.parse({
@@ -98,11 +93,7 @@ export const configRouter = createTRPCRouter({
 
       await ctx.drizzle
         .update(schema.users)
-        .set({
-          config: {
-            llm: newLlmConfigToSave,
-          },
-        })
+        .set({ config: { llm: newLlmConfigToSave } })
         .where(eq(schema.users.id, ctx.session.user.id));
 
       // Return as partial config

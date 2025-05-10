@@ -1,4 +1,3 @@
-import { api } from "~/trpc/react";
 import { useLLM } from "../../context/llm-context";
 import { useEffect, useState } from "react";
 import {
@@ -24,6 +23,7 @@ import {
 } from "~/components/ui/command";
 import { Check } from "lucide-react";
 import { Switch } from "~/components/ui/switch";
+import { useSettings } from "../../context/settings-context";
 
 export function LlmModelSelector({ className }: { className?: string }) {
   const {
@@ -31,25 +31,8 @@ export function LlmModelSelector({ className }: { className?: string }) {
     setLlmConfiguration,
     availableModels,
   } = useLLM();
-  const utils = api.useUtils();
 
-  // Fetch the config to get enabled states
-  const { data: llmConfig, isLoading: isLoadingConfig } =
-    api.config.getConfig.useQuery(
-      undefined,
-      { staleTime: 5 * 60 * 1000 }, // Fetch occasionally
-    );
-
-  // Mutation to update config
-  const updateLlmConfigMutation = api.config.updateLlmConfig.useMutation({
-    onSuccess: async () => {
-      await utils.config.getConfig.invalidate(); // Refetch config after update
-    },
-    onError: (error) => {
-      console.error("Failed to update LLM config:", error);
-      // TODO: Add user feedback
-    },
-  });
+  const { settings, setOption } = useSettings();
 
   const [selectedMode, setSelectedMode] = useState<"chat" | "autocomplete">(
     "chat",
@@ -58,10 +41,7 @@ export function LlmModelSelector({ className }: { className?: string }) {
   const currentState =
     selectedMode === "chat" ? llmConfigState.chat : llmConfigState.autocomplete;
 
-  const isCurrentModeEnabled =
-    selectedMode === "chat"
-      ? (llmConfig?.chat?.enabled ?? false)
-      : (llmConfig?.autocomplete?.enabled ?? false);
+  const isCurrentModeEnabled = settings[selectedMode];
 
   const [localTemperature, setLocalTemperature] = useState<string>("0");
   const [localMaxTokens, setLocalMaxTokens] = useState<string>("0");
@@ -139,19 +119,10 @@ export function LlmModelSelector({ className }: { className?: string }) {
           </Label>
           <Switch
             id={`enable-${selectedMode}`}
-            checked={isCurrentModeEnabled}
-            disabled={isLoadingConfig}
+            checked={settings[selectedMode]}
             onCheckedChange={(checked: boolean | string) => {
               const isEnabled = checked === true;
-              if (selectedMode === "chat") {
-                updateLlmConfigMutation.mutate({
-                  chat: { enabled: isEnabled },
-                });
-              } else {
-                updateLlmConfigMutation.mutate({
-                  autocomplete: { enabled: isEnabled },
-                });
-              }
+              setOption(selectedMode, isEnabled);
             }}
           />
         </DropdownMenuItem>
@@ -168,7 +139,7 @@ export function LlmModelSelector({ className }: { className?: string }) {
             value={localTemperature}
             onChange={(e) => setLocalTemperature(e.target.value)}
             onBlur={handleTemperatureBlur}
-            disabled={isLoadingConfig || !isCurrentModeEnabled}
+            disabled={!isCurrentModeEnabled}
           />
         </div>
         <div className="mb-2">
@@ -182,7 +153,7 @@ export function LlmModelSelector({ className }: { className?: string }) {
               setLocalMaxTokens(value);
             }}
             onBlur={handleMaxTokensBlur}
-            disabled={isLoadingConfig || !isCurrentModeEnabled}
+            disabled={!isCurrentModeEnabled}
           />
         </div>
         <DropdownMenuSeparator className="my-2" />
@@ -191,7 +162,7 @@ export function LlmModelSelector({ className }: { className?: string }) {
         <Command>
           <CommandInput
             placeholder="Search model..."
-            disabled={isLoadingConfig || !isCurrentModeEnabled}
+            disabled={!isCurrentModeEnabled}
           />
           <CommandList>
             <CommandEmpty>No model found.</CommandEmpty>
@@ -200,9 +171,9 @@ export function LlmModelSelector({ className }: { className?: string }) {
                 <CommandItem
                   key={model.modelId}
                   value={model.modelId}
-                  disabled={isLoadingConfig || !isCurrentModeEnabled}
+                  disabled={!isCurrentModeEnabled}
                   onSelect={() => {
-                    if (isLoadingConfig || !isCurrentModeEnabled) return;
+                    if (!isCurrentModeEnabled) return;
                     if (
                       model.modelId !== currentState.modelId ||
                       model.provider !== currentState.provider
