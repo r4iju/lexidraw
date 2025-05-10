@@ -1,12 +1,19 @@
 import "@excalidraw/excalidraw/index.css";
+import { createPortal } from "react-dom";
 import type {
   AppState,
   BinaryFiles,
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
-import * as React from "react";
-import { useEffect, useRef, useState } from "react";
+import React, {
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   Dialog,
@@ -21,23 +28,24 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
 import { ErrorBoundary } from "next/dist/client/components/error-boundary";
 import { Loader2 } from "lucide-react";
-import { VisuallyHidden } from "~/components/ui/visually-hidden";
-
-const Excalidraw = React.lazy(() =>
-  import("@excalidraw/excalidraw").then((module) => ({
-    default: module.Excalidraw,
-  })),
-);
-
+import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import { DrawingBoardMenu } from "./ExcalidrawMenu";
 export type ExcalidrawInitialElements = ExcalidrawInitialDataState["elements"];
 
 type Props = {
+  /** Scene elements when the editor opens */
   initialElements: ExcalidrawInitialElements;
+  /** App‑level state to seed Excalidraw with */
   initialAppState: AppState;
+  /** Binary files belonging to the scene */
   initialFiles: BinaryFiles;
+  /** Whether the editor should be shown.  If false nothing is rendered. */
   isShown?: boolean;
+  /** Called when the user explicitly finishes the session (save or discard). */
   onClose: () => void;
+  /** Called when the user discards an *empty* drawing (nothing to save). */
   onDelete: () => void;
+  /** Persist the scene.  Invoked on *Save*. */
   onSave: (
     elements: ExcalidrawInitialElements,
     appState: Partial<AppState>,
@@ -45,7 +53,14 @@ type Props = {
   ) => void;
 };
 
-export default function ExcalidrawModal({
+/**
+ * Inline Excalidraw editor.
+ *
+ * Renders full‑width/height inside the parent container.  A tiny confirmation
+ * dialog (\<Dialog/>) is only used when the user clicks *Discard* – it offers
+ * *Cancel*, *Discard* and *Save*.
+ */
+export default function ExcalidrawInlineEditor({
   onSave,
   initialElements,
   initialAppState,
@@ -54,51 +69,65 @@ export default function ExcalidrawModal({
   onDelete,
   onClose,
 }: Props) {
-  const excaliDrawModelRef = useRef<HTMLDivElement | null>(null);
-  const excalidrawApi = useRef<ExcalidrawImperativeAPI>(null);
+  // ────────────────────────────────────────────────────────────────────────────
+  // refs & state
+  // ────────────────────────────────────────────────────────────────────────────
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const isDarkTheme = useIsDarkTheme();
-  const [discardModalOpen, setDiscardModalOpen] = useState(false);
-  const [elements, setElements] =
-    useState<ExcalidrawInitialElements>(initialElements);
-  const [files, setFiles] = useState<BinaryFiles>(initialFiles);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  useEffect(() => {
-    if (excaliDrawModelRef.current !== null) {
-      excaliDrawModelRef.current.focus();
-    }
-  }, []);
+  // ────────────────────────────────────────────────────────────────────────────
+  // helpers
+  // ────────────────────────────────────────────────────────────────────────────
+  const buildPartialAppState = (state?: AppState): Partial<AppState> => ({
+    exportBackground: state?.exportBackground,
+    exportScale: state?.exportScale,
+    exportWithDarkMode: state?.theme === Theme.DARK,
+    isBindingEnabled: state?.isBindingEnabled,
+    isLoading: state?.isLoading,
+    name: state?.name,
+    theme: state?.theme,
+    viewBackgroundColor: state?.viewBackgroundColor,
+    viewModeEnabled: state?.viewModeEnabled,
+    zenModeEnabled: state?.zenModeEnabled,
+    zoom: state?.zoom,
+  });
 
-  const save = () => {
-    if (elements && elements.filter((el) => !el.isDeleted).length > 0) {
-      const appState = excalidrawApi.current?.getAppState();
-      const partialState: Partial<AppState> = {
-        exportBackground: appState?.exportBackground,
-        exportScale: appState?.exportScale,
-        exportWithDarkMode: appState?.theme === Theme.DARK,
-        isBindingEnabled: appState?.isBindingEnabled,
-        isLoading: appState?.isLoading,
-        name: appState?.name,
-        theme: appState?.theme,
-        viewBackgroundColor: appState?.viewBackgroundColor,
-        viewModeEnabled: appState?.viewModeEnabled,
-        zenModeEnabled: appState?.zenModeEnabled,
-        zoom: appState?.zoom,
-      };
-      onSave(elements, partialState, files);
-    } else {
+  const save = useCallback(() => {
+    if (!apiRef.current) return;
+
+    const els = apiRef.current.getSceneElements();
+    const fls = apiRef.current.getFiles();
+
+    // If everything is deleted treat it like discard
+    if (!els || els.filter((e) => !e.isDeleted).length === 0) {
       onDelete();
-    }
-  };
-
-  const discard = () => {
-    if (JSON.stringify(elements) === JSON.stringify(initialElements)) {
       onClose();
-    } else {
-      setDiscardModalOpen(true);
+      return;
     }
+
+    const partialState = buildPartialAppState(apiRef.current.getAppState());
+    onSave(els, partialState, fls ?? {});
+    onClose();
+  }, [onSave, onDelete, onClose]);
+
+  const saveAndClose = () => {
+    save();
+    onClose();
   };
 
-  const options = React.useMemo(
+  const closeDiscardConfirm = () => setConfirmOpen(false);
+
+  const handleDiscardConfirmed = () => {
+    closeDiscardConfirm();
+    onClose();
+  };
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Excalidraw options (memoised)
+  // ────────────────────────────────────────────────────────────────────────────
+  const options = useMemo(
     () => ({
       initialData: {
         appState: {
@@ -107,131 +136,102 @@ export default function ExcalidrawModal({
           exportWithDarkMode: false,
           exportBackground: false,
         },
-        elements: elements ?? [],
-        files: files ?? {},
+        elements: initialElements ?? [],
+        files: initialFiles ?? {},
       },
       UIOptions: {
         canvasActions: {
           toggleTheme: false,
         },
       },
-      onChange: (
-        els: ExcalidrawInitialElements,
-        _state: AppState,
-        fls: BinaryFiles,
-      ) => {
-        setElements(els);
-        setFiles(fls);
-      },
     }),
-    [initialAppState, elements, files, isDarkTheme],
+    [initialAppState, initialElements, initialFiles, isDarkTheme],
   );
 
-  // update theme on theme change
+  // Update theme live
   useEffect(() => {
-    excalidrawApi.current?.updateScene({
-      appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
-    });
-  }, [isDarkTheme]);
+    if (apiRef.current && isShown) {
+      apiRef.current.updateScene({
+        appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
+      });
+    }
+  }, [isDarkTheme, isShown]);
 
-  return (
-    <Dialog open={isShown} onOpenChange={discard}>
-      <DialogOverlay>
-        <DialogContent
-          className="p-0 m-0 bg-transparent rounded-lg border-none shadow-none max-w-[100vw] max-h-[100vh] w-[90vw] h-[90vh] transform-none"
-          onInteractOutside={() => {
-            discard();
-          }}
-        >
-          <VisuallyHidden>
-            <DialogTitle>Excalidraw</DialogTitle>
-          </VisuallyHidden>
-          <div
-            ref={excaliDrawModelRef}
-            tabIndex={-1}
-            className="relative flex justify-center rounded-lg items-center bg-card w-full h-full"
-          >
-            <DiscardDialog
-              discardModalOpen={discardModalOpen}
-              setDiscardModalOpen={setDiscardModalOpen}
-              onDiscardConfirmed={() => {
-                setElements(initialElements);
-                setFiles(initialFiles);
-                setDiscardModalOpen(false);
-                onClose();
-              }}
-            />
+  // ────────────────────────────────────────────────────────────────────────────
+  // Mount guard
+  // ────────────────────────────────────────────────────────────────────────────
+  if (!isShown) return null;
 
-            <ErrorBoundary
-              errorComponent={({ error }) => (
-                <div>Error loading Excalidraw: {error.message}</div>
-              )}
-            >
-              <React.Suspense
-                fallback={
-                  <div className="w-full h-full flex justify-center items-center">
-                    <Loader2 className="size-5 animate-spin" />
-                  </div>
-                }
-              >
-                <Excalidraw
-                  {...options}
-                  excalidrawAPI={(api) => {
-                    excalidrawApi.current = api;
-                  }}
-                />
-              </React.Suspense>
-            </ErrorBoundary>
-
-            <div className="absolute right-[5px] top-[-45px] z-10 text-end flex gap-2">
-              <Button variant="destructive" onClick={discard}>
-                Discard
-              </Button>
-              <Button variant="outline" onClick={save}>
-                Save
-              </Button>
+  // ────────────────────────────────────────────────────────────────────────────
+  // render
+  // ────────────────────────────────────────────────────────────────────────────
+  return createPortal(
+    <div className="absolute top-0 left-0 size-full z-10">
+      {/* inline container */}
+      <div
+        ref={containerRef}
+        className="relative size-full bg-background overflow-hidden"
+      >
+        <ErrorBoundary
+          errorComponent={({ error }) => (
+            <div className="flex items-center justify-center size-full">
+              Error loading Excalidraw: {error.message}
             </div>
-          </div>
-        </DialogContent>
-      </DialogOverlay>
-    </Dialog>
+          )}
+        >
+          <Suspense
+            fallback={
+              <div className="size-full flex justify-center items-center">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+            }
+          >
+            <Excalidraw
+              {...options}
+              excalidrawAPI={(api) => {
+                apiRef.current = api;
+              }}
+            >
+              <MainMenu>
+                <DrawingBoardMenu
+                  excalidrawApi={
+                    apiRef as React.RefObject<ExcalidrawImperativeAPI>
+                  }
+                  onSaveAndClose={saveAndClose}
+                  onSave={save}
+                  onDiscard={handleDiscardConfirmed}
+                />
+              </MainMenu>
+            </Excalidraw>
+          </Suspense>
+        </ErrorBoundary>
+      </div>
+
+      {/* discard confirmation dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogOverlay>
+          <DialogContent aria-describedby="discard-dialog-description">
+            <DialogHeader>
+              <DialogTitle>Discard changes?</DialogTitle>
+            </DialogHeader>
+            <DialogDescription id="discard-dialog-description">
+              Your drawing has unsaved changes. What would you like to do?
+            </DialogDescription>
+            <div className="flex justify-between mt-6">
+              <Button onClick={closeDiscardConfirm}>Cancel</Button>
+              <div className="space-x-2">
+                <Button variant="destructive" onClick={handleDiscardConfirmed}>
+                  Discard
+                </Button>
+                <Button variant="outline" onClick={save}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </DialogOverlay>
+      </Dialog>
+    </div>,
+    document.body,
   );
 }
-
-const DiscardDialog = ({
-  discardModalOpen,
-  setDiscardModalOpen,
-  onDiscardConfirmed,
-}: {
-  discardModalOpen: boolean;
-  setDiscardModalOpen: (open: boolean) => void;
-  onDiscardConfirmed: () => void;
-}): React.JSX.Element => {
-  return (
-    <Dialog open={discardModalOpen} onOpenChange={setDiscardModalOpen}>
-      <DialogOverlay onClick={(e) => e.preventDefault()}>
-        <DialogContent aria-describedby="discard-dialog-description">
-          <DialogHeader>
-            <DialogTitle>Discard</DialogTitle>
-          </DialogHeader>
-          <DialogDescription id="discard-dialog-description">
-            Are you sure you want to discard the changes?
-          </DialogDescription>
-          <div className="flex justify-between">
-            <Button variant="destructive" onClick={onDiscardConfirmed}>
-              Discard
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDiscardModalOpen(false);
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </DialogContent>
-      </DialogOverlay>
-    </Dialog>
-  );
-};
