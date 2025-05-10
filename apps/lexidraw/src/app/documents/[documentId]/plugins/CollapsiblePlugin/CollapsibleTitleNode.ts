@@ -38,9 +38,34 @@ export class CollapsibleTitleNode extends ElementNode {
 
   createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
     const dom = document.createElement("summary");
-    dom.classList.add("Collapsible__title");
+    dom.classList.add(
+      "flex",
+      "items-center",
+      "cursor-pointer",
+      "pt-1",
+      "pr-1",
+      "pl-4",
+      "font-bold",
+      "outline-none",
+      "list-none",
+    );
+
+    const icon = document.createElement("span");
+    icon.classList.add(
+      "mr-2",
+      "transition-transform",
+      "duration-200",
+      "ease-in-out",
+      "w-4",
+      "h-4",
+    );
+    icon.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>';
+    dom.prepend(icon);
+
     if (IS_CHROME) {
-      dom.addEventListener("click", () => {
+      dom.addEventListener("click", (event) => {
+        event.preventDefault();
         editor.update(() => {
           const collapsibleContainer = this.getLatest().getParentOrThrow();
           invariant(
@@ -50,14 +75,27 @@ export class CollapsibleTitleNode extends ElementNode {
             "Expected parent node to be a CollapsibleContainerNode",
           );
           collapsibleContainer.toggleOpen();
+          const isOpen = collapsibleContainer.getOpen();
+          if (isOpen) {
+            icon.classList.add("rotate-90");
+          } else {
+            icon.classList.remove("rotate-90");
+          }
         });
       });
     }
-    return dom;
-  }
 
-  updateDOM(_prevNode: CollapsibleTitleNode, _dom: HTMLElement): boolean {
-    return false;
+    editor.getEditorState().read(() => {
+      const container = this.getParent();
+      if (
+        CollapsibleContainerNode.$isCollapsibleContainerNode(container) &&
+        container.getOpen()
+      ) {
+        icon.classList.add("rotate-90");
+      }
+    });
+
+    return dom;
   }
 
   static importDOM(): DOMConversionMap | null {
