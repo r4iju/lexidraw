@@ -5,12 +5,12 @@ import {
   type Klass,
   type LexicalNode,
 } from "lexical";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 // Helper type to satisfy Klass constraint
 type LexicalNodeKlass = Klass<LexicalNode>;
 
-export function useMakeRuntimeSpec() {
+export function useRuntimeSpec() {
   const [editor] = useLexicalComposerContext();
 
   const makeRuntimeSpec = useCallback(() => {
@@ -69,5 +69,7 @@ export function useMakeRuntimeSpec() {
     return { nodes, commands };
   }, [editor]);
 
-  return { makeRuntimeSpec };
+  const runtimeSpec = useMemo(() => makeRuntimeSpec(), [makeRuntimeSpec]);
+
+  return { runtimeSpec };
 }

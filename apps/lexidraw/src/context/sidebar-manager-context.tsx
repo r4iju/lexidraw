@@ -9,7 +9,6 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
 
 export type ActiveSidebar = "llm" | "comments" | "toc" | null;
 
@@ -23,27 +22,32 @@ const SidebarManagerContext = createContext<
   SidebarManagerContextProps | undefined
 >(undefined);
 
+const SIDEBAR_LOCALSTORAGE_KEY = "lexidraw.sidebar";
+
 export const SidebarManagerProvider: React.FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  const initialSidebar = searchParams.get("sidebar") as ActiveSidebar | null;
-  const [activeSidebar, setActiveSidebarState] =
-    useState<ActiveSidebar>(initialSidebar);
-
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (activeSidebar) {
-      params.set("sidebar", activeSidebar);
-    } else {
-      params.delete("sidebar");
+  // Initialize from localStorage on mount
+  const [activeSidebar, setActiveSidebarState] = useState<ActiveSidebar>(() => {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem(SIDEBAR_LOCALSTORAGE_KEY);
+      if (stored === "llm" || stored === "comments" || stored === "toc") {
+        return stored as ActiveSidebar;
+      }
     }
-    // Replace the current history entry to avoid extra entries on state changes
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [activeSidebar, pathname, router, searchParams]);
+    return null;
+  });
+
+  // Persist to localStorage when activeSidebar changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (activeSidebar) {
+        window.localStorage.setItem(SIDEBAR_LOCALSTORAGE_KEY, activeSidebar);
+      } else {
+        window.localStorage.removeItem(SIDEBAR_LOCALSTORAGE_KEY);
+      }
+    }
+  }, [activeSidebar]);
 
   const setActiveSidebar = useCallback((sidebar: ActiveSidebar) => {
     setActiveSidebarState(sidebar);

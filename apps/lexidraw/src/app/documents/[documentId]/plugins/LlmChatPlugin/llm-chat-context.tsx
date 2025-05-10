@@ -44,6 +44,7 @@ export const ChatDispatchCtx = createContext<
 export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   children,
 }) => {
+  console.log("🔄 LlmChatProvider re-rendered");
   const reducer = useCallback((s: ChatState, a: Action): ChatState => {
     switch (a.type) {
       case "push":

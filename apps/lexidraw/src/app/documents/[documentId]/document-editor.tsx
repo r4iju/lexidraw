@@ -367,7 +367,7 @@ export default function DocumentEditor({
   iceServers,
   initialLlmConfig,
 }: Props) {
-  "use memo";
+  console.log("🔄 DocumentEditor re-rendered");
   return (
     <LexicalComposer
       initialConfig={{

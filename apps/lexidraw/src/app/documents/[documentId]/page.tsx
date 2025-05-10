@@ -31,6 +31,7 @@ type Props = {
 };
 
 export default async function DocumentPage(props: Props) {
+  console.log("🔄 DocumentPage re-rendered");
   const param = await props.params;
   const { documentId } = Params.parse(param);
   const { new: isNew, parentId } = await props.searchParams;
