@@ -12,6 +12,7 @@ import {
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
 import { IS_CHROME } from "@lexical/utils";
 import invariant from "../../shared/invariant";
+import ReactDOMServer from "react-dom/server";
 
 type SerializedCollapsibleContentNode = SerializedElementNode;
 
@@ -44,20 +45,36 @@ export class CollapsibleContentNode extends ElementNode {
   }
 
   createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    const dom = document.createElement("div");
-    dom.classList.add("pr-1", "pb-1", "pl-5", "overflow-hidden");
-
-    // If initially closed, set height to 0 for opening animation baseline
+    let initialIsOpen = true; // Default to open unless parent container is closed
     editor.getEditorState().read(() => {
       const containerNode = this.getParentOrThrow();
-      if (
-        CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode) &&
-        !containerNode.getOpen()
-      ) {
-        dom.classList.add("h-0");
+      if (CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode)) {
+        initialIsOpen = containerNode.getOpen();
       }
     });
 
+    // The class `h-0` is applied if initially closed to set a baseline for animation.
+    // Animations themselves (e.g., animate-accordion-down/up) are typically handled by
+    // the container node's updateDOM when the open state changes.
+    const contentJsx = (
+      <div
+        className={[
+          "pr-1 pb-1 pl-5 overflow-hidden origin-top",
+          "transition-transform duration-300 ease-in-out",
+          "details-open-content:scale-y-100", // <- opens automatically
+          initialIsOpen ? "scale-y-100" : "scale-y-0",
+        ].join(" ")}
+      >
+        {/* Lexical will append children here */}
+      </div>
+    );
+
+    const htmlString = ReactDOMServer.renderToStaticMarkup(contentJsx);
+    const temp = document.createElement("div");
+    temp.innerHTML = htmlString;
+    const dom = temp.firstChild as HTMLElement;
+
+    // Imperatively add attributes/listeners not easily handled by static JSX
     if (IS_CHROME) {
       editor.getEditorState().read(() => {
         const containerNode = this.getParentOrThrow();
@@ -66,6 +83,7 @@ export class CollapsibleContentNode extends ElementNode {
           "Expected parent node to be a CollapsibleContainerNode",
         );
         if (!containerNode.__open) {
+          // Accessing internal __open for initial state
           this.setDomHiddenUntilFound(dom);
         }
       });
@@ -85,7 +103,11 @@ export class CollapsibleContentNode extends ElementNode {
     return dom;
   }
 
-  updateDOM(_prevNode: CollapsibleContentNode, _dom: HTMLElement): boolean {
+  updateDOM(
+    _prevNode: CollapsibleContentNode,
+    _dom: HTMLElement,
+    _config: EditorConfig,
+  ): boolean {
     return false;
   }
 
