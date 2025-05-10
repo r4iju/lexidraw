@@ -129,13 +129,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
 
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {
-    settings: {
-      showTreeView,
-      isAutocomplete,
-      shouldUseLexicalContextMenu,
-      tableCellMerge,
-      tableCellBackgroundColor,
-    },
+    settings: { showTreeView, isAutocomplete },
   } = useSettings();
   const isEditable = useLexicalEditable();
 
@@ -271,10 +265,8 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                   <AutoLinkPlugin />
                                   <HorizontalRulePlugin />
                                   <TablePlugin
-                                    hasCellMerge={tableCellMerge}
-                                    hasCellBackgroundColor={
-                                      tableCellBackgroundColor
-                                    }
+                                    hasCellMerge
+                                    hasCellBackgroundColor
                                   />
                                   <TableCellResizer />
                                   <ImagesPlugin />
@@ -332,9 +324,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                 </>
                               )}
                               {isAutocomplete && <AutocompletePlugin />}
-                              {shouldUseLexicalContextMenu && (
-                                <ContextMenuPlugin />
-                              )}
+                              <ContextMenuPlugin />
                               {showTreeView &&
                                 createPortal(
                                   <div className="absolute top-[60%] left-0 h-full w-full z-10 overflow-y-auto">

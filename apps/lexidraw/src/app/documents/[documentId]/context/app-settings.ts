@@ -13,8 +13,6 @@ export const DEFAULT_SETTINGS = {
   showNestedEditorTreeView: false,
   showTableOfContents: true,
   showTreeView: false,
-  tableCellBackgroundColor: true,
-  tableCellMerge: true,
 } as const;
 
 // These are mutated in setupEnv
