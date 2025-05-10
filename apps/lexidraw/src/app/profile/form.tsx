@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ProfileSchema } from "./schema";
-import FormProvider, { RHFSwitch, RHFTextField } from "~/components/hook-form";
+import FormProvider, { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
@@ -71,34 +71,17 @@ export default function ProfileForm({ user }: Props) {
     <div>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
         <div className="space-y-4 py-4">
-          <RHFTextField
-            label="Email"
-            name="email"
-            type="email"
-            //
-          />
-          <RHFTextField
-            label="Name"
-            name="name"
-            type="name"
-            //
-          />
-          <RHFSwitch
-            label="LLM Enabled"
-            name="llmEnabled"
-            //
-          />
+          <RHFTextField label="Email" name="email" type="email" />
+          <RHFTextField label="Name" name="name" type="name" />
           <RHFTextField
             label="Google API Key"
             name="googleApiKey"
             type="googleApiKey"
-            //
           />
           <RHFTextField
             label="OpenAI API Key"
             name="openaiApiKey"
             type="openaiApiKey"
-            //
           />
         </div>
         <Button
