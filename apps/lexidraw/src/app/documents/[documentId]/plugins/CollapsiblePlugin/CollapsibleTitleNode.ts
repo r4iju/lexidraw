@@ -44,7 +44,7 @@ export class CollapsibleTitleNode extends ElementNode {
       "cursor-pointer",
       "pt-1",
       "pr-1",
-      "pl-4",
+      "pl-2",
       "font-bold",
       "outline-none",
       "list-none",
@@ -56,8 +56,7 @@ export class CollapsibleTitleNode extends ElementNode {
       "transition-transform",
       "duration-200",
       "ease-in-out",
-      "w-4",
-      "h-4",
+      "size-4",
     );
     icon.innerHTML =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>';
@@ -96,6 +95,14 @@ export class CollapsibleTitleNode extends ElementNode {
     });
 
     return dom;
+  }
+
+  updateDOM(
+    _prevNode: CollapsibleTitleNode,
+    _dom: HTMLElement,
+    _config: EditorConfig,
+  ): boolean {
+    return false;
   }
 
   static importDOM(): DOMConversionMap | null {
