@@ -2,9 +2,11 @@ import { Elysia, t, type Context as ElysiaContext } from "elysia";
 import env from "@packages/env";
 import { DownloadService, type DownloadResult } from "./download.service";
 import { S3Service } from "./s3.service";
-import fs from "node:fs/promises"; // Using promises for async file operations
-import path from "node:path"; // Import path module
-
+import fs from "node:fs/promises";
+import path from "node:path";
+import { uploadedVideos } from "@packages/drizzle/drizzle-schema";
+import { createId } from "@paralleldrive/cuid2"; // Import CUID generator
+import { db } from "@packages/drizzle/drizzle";
 const downloadService = new DownloadService();
 const s3Service = new S3Service();
 
@@ -38,51 +40,75 @@ const app = new Elysia()
   .post(
     "/download",
     async ({ body, set, downloadService, s3Service }) => {
-      const { url } = body;
-      const logPrefix = `[Req: ${crypto.randomUUID().substring(0, 8)}]`; // Shorter request ID for logs
-      console.log(`${logPrefix} Received download request for URL: ${url}`);
+      const { url, userId, entityId } = body;
+      const requestId = crypto.randomUUID().substring(0, 12); // Consistent request ID generation
+      const logPrefix = `[Req:${requestId}]`;
+      console.log(
+        `${logPrefix} Received download request for URL: ${url}, UserID: ${userId}, EntityID: ${entityId}`,
+      );
 
       // Respond immediately
       set.status = 202; // Accepted
       const initialResponse = {
         message: "Download request received and is being processed.",
-        requestId: logPrefix, // Using the same ID for consistency
+        requestId: requestId, // Using the same ID for consistency
         // statusUrl: `/status/${requestId}`, // Placeholder for a status endpoint
       };
 
       // Perform download and upload in the background (fire and forget)
       (async () => {
-        let downloadResult: DownloadResult | undefined = undefined; // Declare here for wider scope
+        let downloadResult: DownloadResult | undefined = undefined;
         try {
           console.log(
             `${logPrefix} Starting background processing for URL: ${url}`,
           );
-          downloadResult = await downloadService.downloadVideo(url); // Assign here
+          downloadResult = await downloadService.downloadVideo(url);
 
           if (downloadResult.error || !downloadResult.filePath) {
             console.error(
               `${logPrefix} Download failed:`,
               downloadResult.error,
             );
-            // TODO: Update DB with error status
+            // TODO: Potentially update DB with error status if a preliminary record was made
+            // For now, we only insert on success.
             return;
           }
 
           console.log(
             `${logPrefix} Video downloaded to: ${downloadResult.filePath}`,
           );
-          const fileExtension = path.extname(downloadResult.filePath) || ".mp4"; // Get extension safely
-          const fileNameForS3 = `${logPrefix.replace(/[^a-zA-Z0-9]/g, "")}-${downloadResult.title.replace(/[^a-zA-Z0-9_.-]/g, "_")}${fileExtension}`;
+          const fileExtension = path.extname(downloadResult.filePath) || ".mp4";
+          // Sanitize title and generate a more robust S3 key
+          const sanitizedTitle = (downloadResult.title || "untitled")
+            .replace(/[^a-zA-Z0-9_.-]/g, "_")
+            .substring(0, 100); // Limit length
+          const s3Key = `media/${userId}/${entityId}/${requestId}-${sanitizedTitle}${fileExtension}`;
 
           const s3UploadResult = await s3Service.uploadFile(
             downloadResult.filePath,
-            fileNameForS3,
+            s3Key, // Use the generated S3 key directly
           );
 
           console.log(
-            `${logPrefix} File uploaded to S3: ${s3UploadResult.url}`,
+            `${logPrefix} File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}`,
           );
-          // TODO: Update DB with success status and S3 URL
+
+          // Save to database
+          const newVideoId = createId();
+          await db.insert(uploadedVideos).values({
+            id: newVideoId,
+            userId: userId,
+            entityId: entityId,
+            fileName: s3UploadResult.key, // This is the S3 key
+            requestId: requestId,
+            signedUploadUrl: s3UploadResult.url, // This is the direct S3 URL
+            signedDownloadUrl: s3UploadResult.url, // This is the direct S3 URL
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          console.log(
+            `${logPrefix} Video record saved to DB with ID: ${newVideoId} and RequestID: ${requestId}`,
+          );
         } catch (error) {
           console.error(
             `${logPrefix} Error in background processing for URL ${url}:`,
@@ -112,6 +138,8 @@ const app = new Elysia()
     {
       body: t.Object({
         url: t.String({ format: "uri", error: "Invalid URL format" }),
+        userId: t.String({ minLength: 1, error: "UserID is required" }),
+        entityId: t.String({ minLength: 1, error: "EntityID is required" }),
       }),
       beforeHandle: [authenticate], // Use array for hooks
     },

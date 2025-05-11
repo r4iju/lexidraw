@@ -15,6 +15,13 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
 
+interface YTDLPMetadata {
+  title?: string;
+  duration?: number;
+  // You can add other known properties here e.g., uploader?: string;
+  [key: string]: unknown; // Use unknown for other dynamic properties
+}
+
 export interface DownloadResult {
   filePath: string;
   title: string;
@@ -27,8 +34,7 @@ export class DownloadService {
     console.log(`Starting download for URL: ${url}`);
     const stderrOutput: string[] = [];
     const stdoutOutput: string[] = []; // To collect stdout messages
-    let metadata: { title?: string; duration?: number; [key: string]: any } =
-      {};
+    let metadata: YTDLPMetadata = {};
     let downloadedFilePath: string | undefined = undefined;
 
     try {
@@ -46,13 +52,23 @@ export class DownloadService {
 
       console.log(`Proceeding to download. Output directory: ${tempDir}`);
 
+      // Construct filename: use title from metadata if available, otherwise a generic name
+      // Sanitize title to be filesystem-friendly
+      const sanitizedTitle = metadata.title
+        ?.replace(/[^a-zA-Z0-9_.-]/g, "_") // Replace invalid chars
+        .substring(0, 100); // Limit length
+      const baseFileName = sanitizedTitle || `downloaded_video_${Date.now()}`;
+      // yt-dlp will append the correct extension based on format chosen or default
+      const outputTemplate = path.join(tempDir, `${baseFileName}.%(ext)s`);
+
       const downloadProcess = ytdlp.exec([
         url,
         "--no-playlist",
         "--max-filesize",
         "2G",
-        "-P",
-        tempDir,
+        "-o", // Specify output template
+        outputTemplate, // Full path with filename template
+        // Note: -P is removed as -o specifies the full path
       ]);
 
       downloadProcess.on("progress", (progress) => {

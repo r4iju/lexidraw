@@ -424,9 +424,8 @@ export const uploadedImages = sqliteTable(
         onUpdate: "cascade",
       }),
     fileName: text("fileName").notNull(),
-    signedUploadUrl: text("fileUrl").notNull(),
-    signedDownloadUrl: text("fileUrl").notNull(),
-    // enum ["thumbnail", "attachment"]
+    signedUploadUrl: text("signedUploadUrl").notNull().default(""),
+    signedDownloadUrl: text("signedDownloadUrl").notNull(),
     kind: text("kind").notNull().default("attachment"),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
@@ -453,8 +452,9 @@ export const uploadedVideos = sqliteTable(
         onUpdate: "cascade",
       }),
     fileName: text("fileName").notNull(),
-    signedUploadUrl: text("fileUrl").notNull(),
-    signedDownloadUrl: text("fileUrl").notNull(),
+    requestId: text("requestId").unique(),
+    signedUploadUrl: text("signedUploadUrl").notNull().default(""),
+    signedDownloadUrl: text("signedDownloadUrl").notNull(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),

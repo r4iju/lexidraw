@@ -844,12 +844,15 @@ export const entityRouter = createTRPCRouter({
             fileName: fileName,
             signedUploadUrl: signedUploadUrl,
             signedDownloadUrl: signedDownloadUrl,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           })
           .onConflictDoUpdate({
             target: ctx.schema.uploadedImages.id,
             set: {
               signedUploadUrl: signedUploadUrl,
               signedDownloadUrl: signedDownloadUrl,
+              updatedAt: new Date(),
             },
           })
           .execute();
@@ -945,12 +948,16 @@ export const entityRouter = createTRPCRouter({
             fileName: fileName,
             signedUploadUrl: signedUploadUrl,
             signedDownloadUrl: signedDownloadUrl,
+            requestId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           })
           .onConflictDoUpdate({
             target: ctx.schema.uploadedVideos.id,
             set: {
               signedUploadUrl: signedUploadUrl,
               signedDownloadUrl: signedDownloadUrl,
+              updatedAt: new Date(),
             },
           })
           .execute();

@@ -43,6 +43,20 @@
       "when": 1746620974622,
       "tag": "0007_safe_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1746947250960,
+      "tag": "0008_lucky_plazm",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1746947448713,
+      "tag": "0009_brown_killmonger",
+      "breakpoints": true
     }
   ]
 }
