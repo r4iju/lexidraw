@@ -34,16 +34,34 @@ export async function GET() {
 
     for (const item of bucketRes.Contents ?? []) {
       if (!item.Key) continue;
-      console.log(`Item: ${item.Key}`);
-      const res = (
+      console.log(`Checking S3 item: ${item.Key}`);
+
+      // Check if the key exists in uploadedImages
+      const imageRecord = (
         await drizzle
           .select({ count: count() })
           .from(schema.uploadedImages)
           .where(eq(schema.uploadedImages.fileName, item.Key))
       )[0];
-      if (!res) continue;
-      if (res.count === 0) {
+
+      // Check if the key exists in uploadedVideos (assuming schema.uploadedVideos exists)
+      const videoRecord = (
+        await drizzle
+          .select({ count: count() })
+          .from(schema.uploadedVideos) // Assuming schema.uploadedVideos exists
+          .where(eq(schema.uploadedVideos.fileName, item.Key))
+      )[0]; // Assuming schema.uploadedVideos.fileName exists
+
+      const imageExists = imageRecord && imageRecord.count > 0;
+      const videoExists = videoRecord && videoRecord.count > 0;
+
+      if (!imageExists && !videoExists) {
+        console.log(
+          `Marking for deletion (not found in images or videos): ${item.Key}`,
+        );
         keysToDelete.push(item.Key);
+      } else {
+        console.log(`Keeping S3 item (found in images or videos): ${item.Key}`);
       }
     }
 
