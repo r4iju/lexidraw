@@ -20,6 +20,7 @@
     "elysia": "^1.0.0",
     "yt-dlp-wrap": "^2.3.12",
     "@aws-sdk/client-s3": "^3.577.0",
+    "@aws-sdk/s3-request-presigner": "^3.804.0",
     "mime-types": "^2.1.35"
   },
   "devDependencies": {

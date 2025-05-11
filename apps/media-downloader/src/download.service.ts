@@ -1,4 +1,8 @@
-import YTDlpWrap from "yt-dlp-wrap";
+import YTDlpWrapImport, { Progress } from "yt-dlp-wrap";
+const YTDlpWrap =
+  // @ts-expect-error this is fine
+  YTDlpWrapImport.default || YTDlpWrapImport;
+
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -79,7 +83,7 @@ export class DownloadService {
         ytDlpProcess.ytDlpProcess?.spawnargs,
       );
 
-      ytDlpProcess.on("progress", (progress) => {
+      ytDlpProcess.on("progress", (progress: Progress) => {
         console.log(
           `Download Progress: ${progress.percent}% at ${progress.currentSpeed} ETA ${progress.eta}`,
         );
@@ -133,9 +137,9 @@ export class DownloadService {
         });
 
         // Listen for 'error' events from the process itself (e.g., spawn errors)
-        ytDlpProcess.on("error", (err) => {
+        ytDlpProcess.on("error", (err: unknown) => {
           console.error("YTDlpWrap process error event:", err);
-          capturedError = err; // Store it, 'close' event will handle rejection with this error
+          capturedError = err instanceof Error ? err : new Error(String(err)); // Store it, 'close' event will handle rejection with this error
         });
 
         // Optional: Fallback timeout (if process hangs indefinitely)
