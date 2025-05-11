@@ -6,6 +6,11 @@ type Props = {
   children: ReactNode;
 };
 
+export const metadata = {
+  title: "Dashboard",
+  description: "Dashboard",
+};
+
 export default function Layout({ children }: Props) {
   return (
     <>

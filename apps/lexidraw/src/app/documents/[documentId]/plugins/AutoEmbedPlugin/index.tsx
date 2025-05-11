@@ -22,6 +22,10 @@ import { INSERT_FIGMA_COMMAND } from "../FigmaPlugin";
 import { INSERT_TWEET_COMMAND } from "../TwitterPlugin";
 import { INSERT_YOUTUBE_COMMAND } from "../YouTubePlugin";
 import { Input } from "~/components/ui/input";
+import { useCallback, useEffect, useRef } from "react";
+import YoutubeIcon from "~/components/icons/youtube";
+import { TwitterIcon } from "~/components/icons/twitter";
+import { FigmaIcon } from "~/components/icons/figma";
 
 interface PlaygroundEmbedConfig extends EmbedConfig {
   contentName: string;
@@ -35,7 +39,7 @@ export const useEmbedConfigs = () => {
   const YoutubeEmbedConfig: PlaygroundEmbedConfig = {
     contentName: "Youtube Video",
     exampleUrl: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-    icon: <i className="icon youtube" />,
+    icon: <YoutubeIcon className="size-4" />,
     insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
       editor.dispatchCommand(INSERT_YOUTUBE_COMMAND, result.id);
     },
@@ -61,7 +65,7 @@ export const useEmbedConfigs = () => {
   const TwitterEmbedConfig: PlaygroundEmbedConfig = {
     contentName: "Tweet",
     exampleUrl: "https://twitter.com/jack/status/20",
-    icon: <i className="icon tweet" />,
+    icon: <TwitterIcon className="size-4" />,
     insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
       editor.dispatchCommand(INSERT_TWEET_COMMAND, result.id);
     },
@@ -82,7 +86,7 @@ export const useEmbedConfigs = () => {
   const FigmaEmbedConfig: PlaygroundEmbedConfig = {
     contentName: "Figma Document",
     exampleUrl: "https://www.figma.com/file/LKQ4FJ4bTnCSjedbRpk931/Sample-File",
-    icon: <i className="icon figma" />,
+    icon: <FigmaIcon className="size-4" />,
     insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
       editor.dispatchCommand(INSERT_FIGMA_COMMAND, result.id);
     },
@@ -168,8 +172,6 @@ function AutoEmbedMenu({
     </div>
   );
 }
-
-import { useCallback, useEffect, useRef } from "react";
 
 /**
  * Returns a stable debounced function that delays invoking `callback`
