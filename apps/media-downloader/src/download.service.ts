@@ -32,8 +32,8 @@ export interface DownloadResult {
 export class DownloadService {
   async downloadVideo(url: string): Promise<DownloadResult> {
     console.log(`Starting download for URL: ${url}`);
-    const stderrOutput: string[] = [];
-    const stdoutOutput: string[] = []; // To collect stdout messages
+    const stderrOutput: string[] = []; // Used for collecting all stderr
+    const stdoutOutput: string[] = []; // Used for collecting all stdout
     let metadata: YTDLPMetadata = {};
     let downloadedFilePath: string | undefined = undefined;
 
@@ -61,118 +61,205 @@ export class DownloadService {
       // yt-dlp will append the correct extension based on format chosen or default
       const outputTemplate = path.join(tempDir, `${baseFileName}.%(ext)s`);
 
-      const downloadProcess = ytdlp.exec([
+      const ytDlpProcess = ytdlp.exec([
         url,
+        "-P",
+        tempDir,
+        "-o",
+        outputTemplate,
         "--no-playlist",
-        "--max-filesize",
-        "2G",
-        "-o", // Specify output template
-        outputTemplate, // Full path with filename template
-        // Note: -P is removed as -o specifies the full path
+        "--merge-output-format",
+        "mp4",
       ]);
 
-      downloadProcess.on("progress", (progress) => {
+      const logPrefix = `[DownloadService:${path.basename(tempDir)}]`;
+
+      console.log(
+        `${logPrefix} yt-dlp command executed with args: `,
+        ytDlpProcess.ytDlpProcess?.spawnargs,
+      );
+
+      ytDlpProcess.on("progress", (progress) => {
         console.log(
           `Download Progress: ${progress.percent}% at ${progress.currentSpeed} ETA ${progress.eta}`,
         );
       });
 
-      downloadProcess.on("ytDlpEvent", (eventType, eventData) => {
-        if (eventType === "stderr") {
-          console.warn("[yt-dlp stderr]:", eventData);
-          stderrOutput.push(eventData);
-        } else if (eventType === "stdout") {
-          // console.log('[yt-dlp stdout]:', eventData); // Can be verbose
+      ytDlpProcess.on("ytDlpEvent", (eventType: string, eventData: string) => {
+        if (eventType === "stdout") {
+          // stdout data is already a string as per yt-dlp-wrap types
+          // console.log(`${logPrefix} YT-DLP STDOUT (via ytDlpEvent): ${eventData}`); // Can be very verbose
           stdoutOutput.push(eventData);
+        } else if (eventType === "stderr") {
+          // stderr data is already a string
+          console.error(
+            `${logPrefix} YT-DLP STDERR (via ytDlpEvent): ${eventData}`,
+          ); // Log each stderr line
+          stderrOutput.push(eventData);
+        } else {
+          console.log(
+            `${logPrefix} ytDlpEvent (generic): ${eventType}`,
+            eventData,
+          );
         }
       });
 
-      await downloadProcess; // Wait for the process to complete
-      const fullStdout = stdoutOutput.join("\n");
-      // console.log('yt-dlp process finished. Full stdout:', fullStdout);
+      // Wait for the yt-dlp process to complete by listening to its events
+      await new Promise<void>((resolve, reject) => {
+        let capturedError: Error | null = null;
 
-      const destinationRegex =
-        /\[(?:download|info|ExtractAudio)\]\s+(?:Destination|Filename):\s*(.*)/i;
-      let foundPath: string | null = null;
+        // Listen for the 'close' event to determine success or failure based on exit code
+        ytDlpProcess.on("close", async (code: number | null) => {
+          console.log(`${logPrefix} yt-dlp process closed with code: ${code}`);
+          // Log the full stderr output collected during the process
+          if (stderrOutput.length > 0) {
+            console.error(
+              `${logPrefix} Full yt-dlp stderr output:\\n${stderrOutput.join("")}`,
+            );
+          }
 
-      const lines = fullStdout.split("\n");
-      for (const line of lines) {
-        const match = destinationRegex.exec(line);
-        if (match && match[1]) {
-          foundPath = match[1].trim();
-          break;
-        }
-      }
+          if (
+            code !== 0 &&
+            !stderrOutput.join("").includes("already been downloaded")
+          ) {
+            const errMsg =
+              stderrOutput.length > 0
+                ? stderrOutput.join("\n")
+                : `yt-dlp process exited with code ${code}`;
+            reject(capturedError || new Error(errMsg));
+          } else {
+            resolve();
+          }
+        });
 
-      // Fallback: if no explicit destination line, check if stdout itself is a path (sometimes happens)
-      if (
-        !foundPath &&
-        fullStdout.trim().startsWith(tempDir) &&
-        fs.existsSync(fullStdout.trim())
-      ) {
-        foundPath = fullStdout.trim();
-      }
+        // Listen for 'error' events from the process itself (e.g., spawn errors)
+        ytDlpProcess.on("error", (err) => {
+          console.error("YTDlpWrap process error event:", err);
+          capturedError = err; // Store it, 'close' event will handle rejection with this error
+        });
 
-      if (!foundPath) {
-        // As a last resort, try to find the newest file in tempDir if no path was found in stdout.
-        // This is less reliable and should only be a fallback.
-        console.warn(
-          "Could not parse downloaded file path from yt-dlp stdout. Attempting to find newest file in tempDir.",
+        // Optional: Fallback timeout (if process hangs indefinitely)
+        const timeoutMillis = 15 * 60 * 1000; // 15 minutes
+        const fallbackTimeout = setTimeout(() => {
+          const err = new Error(
+            `yt-dlp process timed out after ${timeoutMillis / 60000} minutes`,
+          );
+          console.error(err.message);
+          if (!capturedError) capturedError = err;
+          reject(capturedError);
+        }, timeoutMillis);
+
+        // Clear timeout if process closes or errors before timeout
+        ytDlpProcess.once("close", () => clearTimeout(fallbackTimeout));
+        ytDlpProcess.once("error", () => clearTimeout(fallbackTimeout));
+      });
+
+      // Path Detection Logic (relies on scanning tempDir)
+      let determinedFilePath: string | undefined = undefined;
+      console.log(`Scanning tempDir for file starting with: ${baseFileName}`);
+      try {
+        const filesInTempDir = fs.readdirSync(tempDir);
+        const potentialFiles = filesInTempDir.filter((f) =>
+          f.startsWith(baseFileName),
         );
-        const filesInTempDir = fs
-          .readdirSync(tempDir)
-          .map((name) => ({
-            name,
-            ctime: fs.statSync(path.join(tempDir, name)).ctime,
-          }))
-          .sort((a, b) => b.ctime.getTime() - a.ctime.getTime());
-        if (filesInTempDir.length > 0) {
-          foundPath = path.join(tempDir, filesInTempDir[0].name);
-          console.log("Found newest file as fallback:", foundPath);
+
+        if (potentialFiles.length === 1) {
+          determinedFilePath = path.join(tempDir, potentialFiles[0]);
+          console.log(
+            `Found unique matching file in tempDir: ${determinedFilePath}`,
+          );
+        } else if (potentialFiles.length > 1) {
+          console.warn(
+            `Multiple files found starting with ${baseFileName}: ${potentialFiles.join(", ")}. Selecting newest.`,
+          );
+          potentialFiles.sort((a, b) => {
+            try {
+              const statA = fs.statSync(path.join(tempDir, a));
+              const statB = fs.statSync(path.join(tempDir, b));
+              return statB.ctime.getTime() - statA.ctime.getTime();
+            } catch (statError) {
+              console.error(`Error stating files for sorting: ${statError}`);
+              return 0;
+            }
+          });
+          if (potentialFiles.length > 0) {
+            determinedFilePath = path.join(tempDir, potentialFiles[0]);
+            console.log(`Selected newest matching file: ${determinedFilePath}`);
+          }
+        } else {
+          console.warn(
+            `No file found in tempDir starting with ${baseFileName}.`,
+          );
+          determinedFilePath = undefined;
         }
+      } catch (readdirError) {
+        console.error(`Error reading tempDir ${tempDir}:`, readdirError);
+        determinedFilePath = undefined;
       }
 
-      if (!foundPath || !fs.existsSync(foundPath)) {
+      downloadedFilePath = determinedFilePath;
+
+      // Use the correctly populated stdoutOutput and stderrOutput arrays
+      const fullStdout = stdoutOutput.join("\n");
+      const fullStderr = stderrOutput.join("\n");
+
+      if (!downloadedFilePath || !fs.existsSync(downloadedFilePath)) {
         console.error(
-          "Downloaded file path not found or file does not exist. Stdout:",
-          fullStdout,
+          `Downloaded file path not determined or file does not exist. BaseFileName was: ${baseFileName}.`,
+          "Stdout (last lines):",
+          fullStdout.slice(-500),
           "Stderr:",
-          stderrOutput.join("\n"),
+          fullStderr, // Log full stderr here
         );
         return {
           filePath: "",
-          title: metadata.title || "Untitled (download only)",
-          error: `Downloaded file path not found. Details: ${stderrOutput.join("\n")}`,
+          title: (metadata.title as string) || "Untitled (download error)",
+          error: `Downloaded file not found or invalid. Stderr: ${fullStderr}`,
         };
       }
 
-      downloadedFilePath = foundPath;
+      // At this point, the file exists. If it's unplayable, it might be due to
+      // yt-dlp internal issues not reflected in exit code. stderr might have clues.
+      if (fullStderr.length > 0) {
+        console.warn(
+          `Download for ${baseFileName} completed, but stderr had content (check for warnings/errors):\n${fullStderr}`,
+        );
+      }
+
       console.log(
         `Download appears successful. File determined as: ${downloadedFilePath}`,
       );
 
       return {
         filePath: downloadedFilePath,
-        title: metadata.title || "Untitled (metadata unavailable)",
-        duration: metadata.duration,
+        title: (metadata.title as string) || "Untitled (metadata unavailable)", // Ensure title is string
+        duration: metadata.duration as number | undefined, // Ensure duration is number or undefined
       };
     } catch (error: unknown) {
       console.error(
-        "Error during video download process:",
-        error,
-        "Stderr:",
+        "Error during video download process or in yt-dlp execution:",
+        error, // This is the error from the new Promise (or earlier)
+        "Cumulative Stderr (from ytDlpEvent):",
         stderrOutput.join("\n"),
       );
       let errorMessage = "Unknown download error";
       if (error instanceof Error) {
         errorMessage = error.message;
+        // No longer attempting (error as any).stderr as it's unreliable
+      } else if (typeof error === "string") {
+        errorMessage = error;
       }
-      if (stderrOutput.length > 0) {
-        errorMessage += `\nstderr: ${stderrOutput.join("\n")}`;
+
+      if (
+        stderrOutput.length > 0 &&
+        !errorMessage.includes(stderrOutput.join("\n"))
+      ) {
+        errorMessage += `\nStderr Output: ${stderrOutput.join("\n")}`;
       }
+
       return {
         filePath: "",
-        title: metadata.title || "Untitled (download error)",
+        title: (metadata.title as string) || "Untitled (download error)", // Ensure title is string
         error: errorMessage,
       };
     }

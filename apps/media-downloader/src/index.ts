@@ -4,6 +4,7 @@ import { DownloadService, type DownloadResult } from "./download.service";
 import { S3Service } from "./s3.service";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { lookup as mimeLookup } from "mime-types";
 import { uploadedVideos } from "@packages/drizzle/drizzle-schema";
 import { createId } from "@paralleldrive/cuid2"; // Import CUID generator
 import { db } from "@packages/drizzle/drizzle";
@@ -81,16 +82,24 @@ const app = new Elysia()
           // Sanitize title and generate a more robust S3 key
           const sanitizedTitle = (downloadResult.title || "untitled")
             .replace(/[^a-zA-Z0-9_.-]/g, "_")
-            .substring(0, 100); // Limit length
-          const s3Key = `media/${userId}/${entityId}/${requestId}-${sanitizedTitle}${fileExtension}`;
+            .substring(0, 30); // Limit length
+          const s3Key = `${entityId}/${requestId}-${sanitizedTitle}${fileExtension}`;
+
+          // Determine content type for S3 upload using mime-types
+          const s3ContentType =
+            mimeLookup(downloadResult.filePath) || "application/octet-stream";
+          console.log(
+            `${logPrefix} Determined S3 Content-Type: ${s3ContentType} for file ${downloadResult.filePath}`,
+          );
 
           const s3UploadResult = await s3Service.uploadFile(
             downloadResult.filePath,
-            s3Key, // Use the generated S3 key directly
+            s3Key,
+            s3ContentType, // Pass determined content type (now mandatory)
           );
 
           console.log(
-            `${logPrefix} File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}`,
+            `${logPrefix} File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}, ContentType: ${s3UploadResult.contentType}`,
           );
 
           // Save to database
