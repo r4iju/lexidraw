@@ -108,6 +108,7 @@ export class CollapsibleContentNode extends ElementNode {
     _dom: HTMLElement,
     _config: EditorConfig,
   ): boolean {
+    // Content DOM is static from its own perspective; parent handles open/close trigger
     return false;
   }
 
