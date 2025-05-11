@@ -49,6 +49,7 @@ const env = createEnv({
       ),
     ),
     ANALYZE: z.preprocess((val) => val === "true", z.boolean()),
+    MEDIA_DOWNLOADER_PORT: z.coerce.number().optional(),
   },
   client: {
     NEXT_PUBLIC_UNSPLASH_APP_NAME: z.string().min(1),
@@ -96,6 +97,7 @@ const env = createEnv({
     NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID:
       process.env.NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID,
     NEXT_PUBLIC_FIRESTORE_APP_ID: process.env.NEXT_PUBLIC_FIRESTORE_APP_ID,
+    MEDIA_DOWNLOADER_PORT: process.env.MEDIA_DOWNLOADER_PORT,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

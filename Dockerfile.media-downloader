@@ -1,0 +1,90 @@
+# Stage 1: Builder - Installs dependencies and yt-dlp
+FROM oven/bun:latest AS builder
+
+WORKDIR /usr/src/app
+
+# Install system dependencies: python3, pip3 for yt-dlp, and ffmpeg for yt-dlp processing
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install yt-dlp
+RUN pip3 install yt-dlp
+
+# Copy root package.json and lockfile (if it exists)
+# Assumes Docker build context is the monorepo root
+COPY package.json bun.lockb* ./
+
+# Create directories for packages and apps to ensure COPY commands work as expected
+RUN mkdir -p packages/env packages/drizzle apps/media-downloader
+
+# Copy package.json files for the app and its direct workspace dependencies
+COPY apps/media-downloader/package.json ./apps/media-downloader/
+COPY packages/env/package.json ./packages/env/
+COPY packages/drizzle/package.json ./packages/drizzle/
+# If you have a shared tsconfig package in packages/tsconfig, uncomment and copy its package.json:
+# COPY packages/tsconfig/package.json ./packages/tsconfig/
+# If you have a root tsconfig.json affecting workspaces, uncomment and copy it:
+# COPY tsconfig.json ./
+
+# Install dependencies for the entire workspace. Bun will handle linking.
+# Using --production=false because the "start" script runs .ts files directly,
+# so Bun's TypeScript transpiler (and potentially other dev deps) are used at runtime.
+RUN bun install --frozen-lockfile --production=false
+
+# Copy source code for the app and its workspace dependencies
+# This comes after bun install to leverage Docker layer caching for dependencies
+COPY apps/media-downloader/src ./apps/media-downloader/src
+COPY apps/media-downloader/tsconfig.json ./apps/media-downloader/
+
+COPY packages/env/src ./packages/env/src
+COPY packages/env/tsconfig.json ./packages/env/
+
+COPY packages/drizzle/src ./packages/drizzle/src
+COPY packages/drizzle/tsconfig.json ./packages/drizzle/
+# If you have a shared tsconfig package, copy its source too:
+# COPY packages/tsconfig/src ./packages/tsconfig/src
+# COPY packages/tsconfig/tsconfig.json ./packages/tsconfig/base.json # (or relevant tsconfig files)
+
+
+# --- Stage 2: Final - Creates the lean production image ---
+FROM oven/bun:latest AS final
+
+WORKDIR /usr/src/app
+
+# Install runtime system dependencies: python3 for yt-dlp and ffmpeg
+RUN apt-get update && \
+    apt-get install -y python3 ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy installed yt-dlp binary from the builder stage
+COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
+
+# Copy installed node_modules from the builder stage
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+# Copy lockfile for completeness, though bun install already ran
+COPY --from=builder /usr/src/app/bun.lockb* ./
+
+# Copy application code and workspace dependencies from the builder stage
+COPY --from=builder /usr/src/app/apps/media-downloader ./apps/media-downloader
+COPY --from=builder /usr/src/app/packages/env ./packages/env
+COPY --from=builder /usr/src/app/packages/drizzle ./packages/drizzle
+# If you used a shared tsconfig package:
+# COPY --from=builder /usr/src/app/packages/tsconfig ./packages/tsconfig
+
+# Copy root package.json (Bun might need it for workspace context at runtime)
+COPY --from=builder /usr/src/app/package.json ./
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV MEDIA_DOWNLOADER_PORT=3003
+# Other ENV VARS (S3 keys, SHARED_KEY, DB_URL, etc.) should be injected at runtime e.g. via -e or .env file for docker-compose
+
+# Expose the application port
+EXPOSE ${MEDIA_DOWNLOADER_PORT}
+
+# Set the working directory to the specific app we want to run
+WORKDIR /usr/src/app/apps/media-downloader
+
+# Command to run the application using the "start" script from its package.json
+CMD ["bun", "start"] 
