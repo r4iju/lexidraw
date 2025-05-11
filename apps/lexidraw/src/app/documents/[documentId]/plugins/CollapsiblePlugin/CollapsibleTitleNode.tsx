@@ -1,6 +1,4 @@
 import {
-  $createParagraphNode,
-  $isElementNode,
   DOMConversionMap,
   DOMConversionOutput,
   EditorConfig,
@@ -9,8 +7,8 @@ import {
   LexicalNode,
   RangeSelection,
   SerializedElementNode,
+  $createParagraphNode,
 } from "lexical";
-
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
 import { CollapsibleContentNode } from "./CollapsibleContentNode";
 import ReactDOMServer from "react-dom/server";
@@ -18,13 +16,12 @@ import { ChevronRight } from "lucide-react";
 
 type SerializedCollapsibleTitleNode = SerializedElementNode;
 
-export function $convertSummaryElement(
-  _domNode: HTMLElement,
+export function $convertAccordionTriggerElement(
+  domNode: HTMLElement,
 ): DOMConversionOutput | null {
-  const node = CollapsibleTitleNode.$createCollapsibleTitleNode();
-  return {
-    node,
-  };
+  return domNode.dataset.slot === "accordion-trigger"
+    ? { node: CollapsibleTitleNode.$createCollapsibleTitleNode() }
+    : null;
 }
 
 export class CollapsibleTitleNode extends ElementNode {
@@ -37,28 +34,44 @@ export class CollapsibleTitleNode extends ElementNode {
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    const summaryJsx = (
-      <summary className="flex items-center cursor-pointer pt-1 pr-1 pl-2 font-bold list-none outline-none">
-        <ChevronRight className="mr-2 transition-transform duration-200 ease-in-out group-open:rotate-90 size-4" />
-      </summary>
+    let isOpen = true;
+    editor.getEditorState().read(() => {
+      const parent = this.getParentOrThrow();
+      if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
+        isOpen = parent.getOpen();
+      }
+    });
+
+    const button = document.createElement("button");
+    button.dataset.slot = "accordion-trigger";
+    button.dataset.state = isOpen ? "open" : "closed";
+    button.className = [
+      "flex flex-1 flex-row items-start gap-2 w-full py-1",
+      "text-left text-sm font-medium",
+      "transition-all ease-in-out",
+      "outline-none cursor-pointer",
+      "disabled:pointer-events-none disabled:opacity-50",
+      "[&[data-state=open]>svg]:rotate-90",
+    ].join(" ");
+
+    button.innerHTML = ReactDOMServer.renderToStaticMarkup(
+      <ChevronRight className="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-2.5 transition-transform " />,
     );
 
-    const html = ReactDOMServer.renderToStaticMarkup(summaryJsx);
-    const div = document.createElement("div");
-    div.innerHTML = html;
-    const dom = div.firstChild as HTMLElement;
-
-    dom.addEventListener("click", (e) => {
+    button.addEventListener("click", (e) => {
       e.preventDefault();
       editor.update(() => {
         const container = this.getLatest().getParentOrThrow();
-        if (CollapsibleContainerNode.$isCollapsibleContainerNode(container)) {
-          container.toggleOpen();
-        }
+        if (!CollapsibleContainerNode.$isCollapsibleContainerNode(container))
+          return;
+
+        container.toggleOpen();
+        // move caret to end of title
+        this.getLatest().selectEnd();
       });
     });
 
-    return dom;
+    return button;
   }
 
   updateDOM() {
@@ -67,11 +80,15 @@ export class CollapsibleTitleNode extends ElementNode {
 
   static importDOM(): DOMConversionMap | null {
     return {
-      summary: (_domNode: HTMLElement) => {
-        return {
-          conversion: $convertSummaryElement,
-          priority: 1,
-        };
+      button: (domNode: HTMLElement) => {
+        // Changed from summary to button
+        if (domNode.dataset.slot === "accordion-trigger") {
+          return {
+            conversion: $convertAccordionTriggerElement,
+            priority: 1,
+          };
+        }
+        return null;
       },
     };
   }
@@ -80,6 +97,14 @@ export class CollapsibleTitleNode extends ElementNode {
     _serializedNode: SerializedCollapsibleTitleNode,
   ): CollapsibleTitleNode {
     return CollapsibleTitleNode.$createCollapsibleTitleNode();
+  }
+
+  exportJSON(): SerializedCollapsibleTitleNode {
+    return {
+      ...super.exportJSON(),
+      type: "collapsible-title",
+      version: 1,
+    };
   }
 
   static $isCollapsibleTitleNode(
@@ -92,51 +117,8 @@ export class CollapsibleTitleNode extends ElementNode {
     return new CollapsibleTitleNode();
   }
 
-  exportJSON(): SerializedCollapsibleTitleNode {
-    return {
-      ...super.exportJSON(),
-      type: "collapsible-title",
-      version: 1,
-    };
-  }
-
   collapseAtStart(_selection: RangeSelection): boolean {
     this.getParentOrThrow().insertBefore(this);
     return true;
-  }
-
-  insertNewAfter(_: RangeSelection, restoreSelection = true): ElementNode {
-    const containerNode = this.getParentOrThrow();
-
-    if (
-      containerNode !== null &&
-      !CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode)
-    ) {
-      throw new Error(
-        "CollapsibleTitleNode expects to be child of CollapsibleContainerNode",
-      );
-    }
-
-    if (containerNode.getOpen()) {
-      const contentNode = this.getNextSibling();
-      if (!CollapsibleContentNode.$isCollapsibleContentNode(contentNode)) {
-        throw new Error(
-          "CollapsibleTitleNode expects to have CollapsibleContentNode sibling",
-        );
-      }
-
-      const firstChild = contentNode.getFirstChild();
-      if ($isElementNode(firstChild)) {
-        return firstChild;
-      } else {
-        const paragraph = $createParagraphNode();
-        contentNode.append(paragraph);
-        return paragraph;
-      }
-    } else {
-      const paragraph = $createParagraphNode();
-      containerNode.insertAfter(paragraph, restoreSelection);
-      return paragraph;
-    }
   }
 }
