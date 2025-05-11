@@ -42,107 +42,104 @@ const app = new Elysia()
     "/download",
     async ({ body, set, downloadService, s3Service }) => {
       const { url, userId, entityId } = body;
-      const requestId = crypto.randomUUID().substring(0, 12); // Consistent request ID generation
+      const requestId = crypto.randomUUID().substring(0, 12);
       const logPrefix = `[Req:${requestId}]`;
       console.log(
         `${logPrefix} Received download request for URL: ${url}, UserID: ${userId}, EntityID: ${entityId}`,
       );
 
-      // Respond immediately
-      set.status = 202; // Accepted
-      const initialResponse = {
-        message: "Download request received and is being processed.",
-        requestId: requestId, // Using the same ID for consistency
-        // statusUrl: `/status/${requestId}`, // Placeholder for a status endpoint
-      };
+      let downloadResult: DownloadResult | undefined = undefined;
+      try {
+        console.log(`${logPrefix} Starting processing for URL: ${url}`);
+        downloadResult = await downloadService.downloadVideo(url);
 
-      // Perform download and upload in the background (fire and forget)
-      (async () => {
-        let downloadResult: DownloadResult | undefined = undefined;
-        try {
-          console.log(
-            `${logPrefix} Starting background processing for URL: ${url}`,
-          );
-          downloadResult = await downloadService.downloadVideo(url);
-
-          if (downloadResult.error || !downloadResult.filePath) {
-            console.error(
-              `${logPrefix} Download failed:`,
-              downloadResult.error,
-            );
-            // TODO: Potentially update DB with error status if a preliminary record was made
-            // For now, we only insert on success.
-            return;
-          }
-
-          console.log(
-            `${logPrefix} Video downloaded to: ${downloadResult.filePath}`,
-          );
-          const fileExtension = path.extname(downloadResult.filePath) || ".mp4";
-          // Sanitize title and generate a more robust S3 key
-          const sanitizedTitle = (downloadResult.title || "untitled")
-            .replace(/[^a-zA-Z0-9_.-]/g, "_")
-            .substring(0, 30); // Limit length
-          const s3Key = `${entityId}/${requestId}-${sanitizedTitle}${fileExtension}`;
-
-          // Determine content type for S3 upload using mime-types
-          const s3ContentType =
-            mimeLookup(downloadResult.filePath) || "application/octet-stream";
-          console.log(
-            `${logPrefix} Determined S3 Content-Type: ${s3ContentType} for file ${downloadResult.filePath}`,
-          );
-
-          const s3UploadResult = await s3Service.uploadFile(
-            downloadResult.filePath,
-            s3Key,
-            s3ContentType, // Pass determined content type (now mandatory)
-          );
-
-          console.log(
-            `${logPrefix} File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}, ContentType: ${s3UploadResult.contentType}`,
-          );
-
-          // Save to database
-          const newVideoId = createId();
-          await db.insert(uploadedVideos).values({
-            id: newVideoId,
-            userId: userId,
-            entityId: entityId,
-            fileName: s3UploadResult.key, // This is the S3 key
+        if (downloadResult.error || !downloadResult.filePath) {
+          console.error(`${logPrefix} Download failed:`, downloadResult.error);
+          set.status = 500; // Internal Server Error
+          return {
+            error: "Download failed",
+            details: downloadResult.error,
             requestId: requestId,
-            signedUploadUrl: s3UploadResult.url, // This is the direct S3 URL
-            signedDownloadUrl: s3UploadResult.url, // This is the direct S3 URL
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          console.log(
-            `${logPrefix} Video record saved to DB with ID: ${newVideoId} and RequestID: ${requestId}`,
-          );
-        } catch (error) {
-          console.error(
-            `${logPrefix} Error in background processing for URL ${url}:`,
-            error,
-          );
-          // TODO: Update DB with error status
-        } finally {
-          if (downloadResult && downloadResult.filePath) {
-            // Check if downloadResult and filePath exist
-            try {
-              await fs.unlink(downloadResult.filePath);
-              console.log(
-                `${logPrefix} Cleaned up temporary file: ${downloadResult.filePath}`,
-              );
-            } catch (cleanupError) {
-              console.error(
-                `${logPrefix} Error cleaning up temporary file ${downloadResult.filePath}:`,
-                cleanupError,
-              );
-            }
+          };
+        }
+
+        console.log(
+          `${logPrefix} Video downloaded to: ${downloadResult.filePath}`,
+        );
+        const fileExtension = path.extname(downloadResult.filePath) || ".mp4";
+        const sanitizedTitle = (downloadResult.title || "untitled")
+          .replace(/[^a-zA-Z0-9_.-]/g, "_")
+          .substring(0, 30);
+        const s3Key = `${entityId}/${requestId}-${sanitizedTitle}${fileExtension}`;
+
+        const s3ContentType =
+          mimeLookup(downloadResult.filePath) || "application/octet-stream";
+        console.log(
+          `${logPrefix} Determined S3 Content-Type: ${s3ContentType} for file ${downloadResult.filePath}`,
+        );
+
+        const s3UploadResult = await s3Service.uploadFile(
+          downloadResult.filePath,
+          s3Key,
+          s3ContentType,
+        );
+
+        console.log(
+          `${logPrefix} File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}, ContentType: ${s3UploadResult.contentType}`,
+        );
+
+        const newVideoId = createId();
+        await db.insert(uploadedVideos).values({
+          id: newVideoId,
+          userId: userId,
+          entityId: entityId,
+          fileName: s3UploadResult.key,
+          requestId: requestId,
+          signedUploadUrl: s3UploadResult.url,
+          signedDownloadUrl: s3UploadResult.url,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        console.log(
+          `${logPrefix} Video record saved to DB with ID: ${newVideoId} and RequestID: ${requestId}`,
+        );
+
+        set.status = 200; // OK
+        return {
+          message: "Download and upload successful.",
+          requestId: requestId,
+          videoId: newVideoId,
+          s3Url: s3UploadResult.url,
+          s3Key: s3UploadResult.key,
+          title: downloadResult.title,
+          duration: downloadResult.duration,
+        };
+      } catch (error) {
+        console.error(
+          `${logPrefix} Error in processing for URL ${url}:`,
+          error,
+        );
+        set.status = 500; // Internal Server Error
+        return {
+          error: "An unexpected error occurred during processing.",
+          details: error instanceof Error ? error.message : String(error),
+          requestId: requestId,
+        };
+      } finally {
+        if (downloadResult && downloadResult.filePath) {
+          try {
+            await fs.unlink(downloadResult.filePath);
+            console.log(
+              `${logPrefix} Cleaned up temporary file: ${downloadResult.filePath}`,
+            );
+          } catch (cleanupError) {
+            console.error(
+              `${logPrefix} Error cleaning up temporary file ${downloadResult.filePath}:`,
+              cleanupError,
+            );
           }
         }
-      })(); // IIFE to run async immediately
-
-      return initialResponse;
+      }
     },
     {
       body: t.Object({
