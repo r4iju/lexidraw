@@ -7,10 +7,8 @@ import {
   LexicalNode,
   RangeSelection,
   SerializedElementNode,
-  $createParagraphNode,
 } from "lexical";
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
-import { CollapsibleContentNode } from "./CollapsibleContentNode";
 import ReactDOMServer from "react-dom/server";
 import { ChevronRight } from "lucide-react";
 
