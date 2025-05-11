@@ -1,0 +1,25 @@
+{
+  "name": "@apps/media-downloader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir=dist",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@packages/env": "workspace:*",
+    "@packages/drizzle": "workspace:*",
+    "elysia": "^1.0.0",
+    "yt-dlp-wrap": "^2.3.12",
+    "@aws-sdk/client-s3": "^3.577.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.3",
+    "prettier": "^3.5.3"
+  }
+}
