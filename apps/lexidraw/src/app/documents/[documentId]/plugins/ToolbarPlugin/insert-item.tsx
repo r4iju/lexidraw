@@ -5,7 +5,21 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Button } from "~/components/ui/button";
-import { Plus, VideoIcon } from "lucide-react";
+import {
+  Plus,
+  VideoIcon,
+  Minus,
+  FileText,
+  Image,
+  Gift,
+  PencilRuler,
+  Table,
+  Vote,
+  Columns,
+  Sigma,
+  StickyNote,
+  ChevronRight,
+} from "lucide-react";
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
@@ -65,18 +79,18 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 undefined,
               );
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon horizontal-rule" />
+            <Minus className="size-4" />
             <span className="text">Horizontal Rule</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
               activeEditor.dispatchCommand(INSERT_PAGE_BREAK, undefined);
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon page-break" />
+            <FileText className="size-4" />
             <span className="text">Page Break</span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -88,7 +102,7 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 />
               ));
             }}
-            className="item"
+            className="flex gap-2"
           >
             <VideoIcon className="size-4" />
             <span className="text">Video</span>
@@ -102,9 +116,9 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 />
               ));
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon image" />
+            <Image className="size-4" />
             <span className="text">Image</span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -116,9 +130,10 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 />
               ));
             }}
-            className="item"
+            className="flex gap-2"
           >
-            Inline Image
+            <Image className="size-4" />
+            <span className="text">Inline Image</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() =>
@@ -127,9 +142,9 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 src: "/images/cat-typing.gif",
               })
             }
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon gif" />
+            <Gift className="size-4" />
             <span className="text">GIF</span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -139,9 +154,9 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 undefined,
               );
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon diagram-2" />
+            <PencilRuler className="size-4" />
             <span className="text">Excalidraw</span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -153,9 +168,9 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 />
               ));
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon table" />
+            <Table className="size-4" />
             <span className="text">Table</span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -167,9 +182,9 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 />
               ));
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon poll" />
+            <Vote className="size-4" />
             <span className="text">Poll</span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -181,9 +196,9 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 />
               ));
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon columns" />
+            <Columns className="size-4" />
             <span className="text">Columns Layout</span>
           </DropdownMenuItem>
 
@@ -196,9 +211,9 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 />
               ));
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon equation" />
+            <Sigma className="size-4" />
             <span className="text">Equation</span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -209,18 +224,18 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                 root.append(stickyNode);
               });
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon sticky" />
+            <StickyNote className="size-4" />
             <span className="text">Sticky Note</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
               editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, undefined);
             }}
-            className="item"
+            className="flex gap-2"
           >
-            <i className="icon caret-right" />
+            <ChevronRight className="size-4" />
             <span className="text">Collapsible container</span>
           </DropdownMenuItem>
           {EmbedConfigs.map((embedConfig) => (
@@ -232,7 +247,7 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
                   embedConfig.type,
                 );
               }}
-              className="item"
+              className="flex gap-2"
             >
               {embedConfig.icon}
               <span className="text">{embedConfig.contentName}</span>
