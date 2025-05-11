@@ -48,11 +48,7 @@ FROM oven/bun:alpine AS final
 
 WORKDIR /app
 
-RUN apk add --no-cache python3 ffmpeg
-
-# Copy installed yt-dlp binary from the builder stage
-# yt-dlp installed via apk is typically in /usr/bin/
-COPY --from=builder /usr/bin/yt-dlp /usr/bin/yt-dlp
+RUN apk add --no-cache python3 ffmpeg yt-dlp
 
 # Copy the built application from the builder stage
 COPY --from=builder /usr/src/app/apps/media-downloader/dist ./dist
