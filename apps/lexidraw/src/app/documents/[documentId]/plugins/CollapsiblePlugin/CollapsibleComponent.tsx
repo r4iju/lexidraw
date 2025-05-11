@@ -39,7 +39,7 @@ export function CollapsibleComponent({
     <details
       ref={detailsRef}
       onToggle={handleToggle}
-      className="bg-card border border-border rounded-lg mb-2 select-none details-open:transition-none"
+      className="bg-card border border-border rounded-lg mb-2 select-none"
     >
       <summary className="flex items-center cursor-pointer pt-1 pr-1 pl-4 font-bold list-none">
         <ChevronRight
