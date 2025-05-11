@@ -10,19 +10,18 @@ import {
 } from "lexical";
 
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
-import { IS_CHROME } from "@lexical/utils";
-import invariant from "../../shared/invariant";
-import ReactDOMServer from "react-dom/server";
+// import { IS_CHROME } from "@lexical/utils"; // No longer needed
+// import invariant from "../../shared/invariant"; // No longer needed
+// import ReactDOMServer from "react-dom/server"; // No longer needed
 
 type SerializedCollapsibleContentNode = SerializedElementNode;
 
-export function $convertCollapsibleContentElement(
-  _domNode: HTMLElement,
+export function $convertAccordionContentElement(
+  domNode: HTMLElement,
 ): DOMConversionOutput | null {
-  const node = CollapsibleContentNode.$createCollapsibleContentNode();
-  return {
-    node,
-  };
+  return domNode.dataset.slot === "accordion-content"
+    ? { node: CollapsibleContentNode.$createCollapsibleContentNode() }
+    : null;
 }
 
 export class CollapsibleContentNode extends ElementNode {
@@ -34,73 +33,24 @@ export class CollapsibleContentNode extends ElementNode {
     return new CollapsibleContentNode(node.__key);
   }
 
-  private setDomHiddenUntilFound(dom: HTMLElement): void {
-    // @ts-expect-error it's probably fine
-    dom.hidden = "until-found";
-  }
-
-  private domOnBeforeMatch(dom: HTMLElement, callback: () => void): void {
-    // @ts-expect-error it's probably fine
-    dom.onbeforematch = callback;
-  }
-
-  createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    let initialIsOpen = true; // Default to open unless parent container is closed
+  createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
+    let isOpen = true;
     editor.getEditorState().read(() => {
-      const containerNode = this.getParentOrThrow();
-      if (CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode)) {
-        initialIsOpen = containerNode.getOpen();
+      const parent = this.getParentOrThrow();
+      if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
+        isOpen = parent.getOpen();
       }
     });
 
-    // The class `h-0` is applied if initially closed to set a baseline for animation.
-    // Animations themselves (e.g., animate-accordion-down/up) are typically handled by
-    // the container node's updateDOM when the open state changes.
-    const contentJsx = (
-      <div
-        className={[
-          "pr-1 pb-1 pl-5 overflow-hidden origin-top",
-          "transition-transform duration-300 ease-in-out",
-          "details-open-content:scale-y-100", // <- opens automatically
-          initialIsOpen ? "scale-y-100" : "scale-y-0",
-        ].join(" ")}
-      >
-        {/* Lexical will append children here */}
-      </div>
-    );
+    const outer = document.createElement("div");
+    outer.dataset.slot = "accordion-content";
+    outer.dataset.state = isOpen ? "open" : "closed"; // Initial state
+    outer.className =
+      "overflow-hidden text-sm " +
+      "data-[state=open]:animate-accordion-down " +
+      "data-[state=closed]:animate-accordion-up";
 
-    const htmlString = ReactDOMServer.renderToStaticMarkup(contentJsx);
-    const temp = document.createElement("div");
-    temp.innerHTML = htmlString;
-    const dom = temp.firstChild as HTMLElement;
-
-    // Imperatively add attributes/listeners not easily handled by static JSX
-    if (IS_CHROME) {
-      editor.getEditorState().read(() => {
-        const containerNode = this.getParentOrThrow();
-        invariant(
-          CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode),
-          "Expected parent node to be a CollapsibleContainerNode",
-        );
-        if (!containerNode.__open) {
-          // Accessing internal __open for initial state
-          this.setDomHiddenUntilFound(dom);
-        }
-      });
-      this.domOnBeforeMatch(dom, () => {
-        editor.update(() => {
-          const containerNode = this.getParentOrThrow().getLatest();
-          invariant(
-            CollapsibleContainerNode.$isCollapsibleContainerNode(containerNode),
-            "Expected parent node to be a CollapsibleContainerNode",
-          );
-          if (!containerNode.__open) {
-            containerNode.toggleOpen();
-          }
-        });
-      });
-    }
-    return dom;
+    return outer;
   }
 
   updateDOM(
@@ -108,28 +58,31 @@ export class CollapsibleContentNode extends ElementNode {
     _dom: HTMLElement,
     _config: EditorConfig,
   ): boolean {
-    // Content DOM is static from its own perspective; parent handles open/close trigger
     return false;
   }
 
   static importDOM(): DOMConversionMap | null {
     return {
       div: (domNode: HTMLElement) => {
-        if (!domNode.hasAttribute("data-lexical-collapsible-content")) {
-          return null;
+        if (domNode.dataset.slot === "accordion-content") {
+          return {
+            conversion: $convertAccordionContentElement,
+            priority: 1,
+          };
         }
-        return {
-          conversion: $convertCollapsibleContentElement,
-          priority: 2,
-        };
+        return null;
       },
     };
   }
 
   exportDOM(): DOMExportOutput {
     const element = document.createElement("div");
-    element.classList.add("pr-1", "pb-1", "pl-5");
-    element.setAttribute("data-lexical-collapsible-content", "true");
+    element.dataset.slot = "accordion-content";
+    // The parent CollapsibleContainerNode is responsible for the data-state attribute that drives animation.
+    // This node just needs its base classes.
+    element.className = "overflow-hidden text-sm pt-0 pb-4";
+    // The animate-accordion-down/up classes are applied based on data-state, set by parent container.
+    // So we don't need to explicitly add them here if state is unknown.
     return { element };
   }
 

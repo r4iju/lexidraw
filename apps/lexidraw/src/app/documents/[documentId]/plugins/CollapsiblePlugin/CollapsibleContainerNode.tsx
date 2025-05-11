@@ -11,8 +11,8 @@ import {
   Spread,
 } from "lexical";
 
-import { IS_CHROME } from "@lexical/utils";
-import ReactDOMServer from "react-dom/server";
+// import { IS_CHROME } from "@lexical/utils"; // Unused
+// import ReactDOMServer from "react-dom/server"; // Unused
 
 type SerializedCollapsibleContainerNode = Spread<
   {
@@ -21,10 +21,11 @@ type SerializedCollapsibleContainerNode = Spread<
   SerializedElementNode
 >;
 
-export function $convertDetailsElement(
-  domNode: HTMLDetailsElement,
+export function $convertAccordionItemElement(
+  domNode: HTMLElement,
 ): DOMConversionOutput | null {
-  const isOpen = domNode.open !== undefined ? domNode.open : true;
+  if (domNode.dataset.slot !== "accordion-item") return null;
+  const isOpen = domNode.dataset.state !== "closed";
   const node = CollapsibleContainerNode.$createCollapsibleContainerNode(isOpen);
   return {
     node,
@@ -53,65 +54,80 @@ export class CollapsibleContainerNode extends ElementNode {
     return node instanceof CollapsibleContainerNode;
   }
 
-  createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    const isOpen = this.__open; // Current open state of the node
+  createDOM(_config: EditorConfig, _editor: LexicalEditor): HTMLElement {
+    const root = document.createElement("div"); // <Accordion.Item>
+    root.dataset.slot = "accordion-item";
+    root.dataset.state = this.__open ? "open" : "closed";
+    root.className = "border border-border rounded-md px-4";
+    // Children (summary, content) will be appended by Lexical reconciliation
+    // We will call syncChildState in updateDOM and after initial append if needed.
+    return root;
+  }
 
-    let dom: HTMLElement;
+  /** keep trigger & content in lock‑step with this.__open */
+  private syncChildState(dom: HTMLElement) {
+    const trigger = dom.querySelector<HTMLElement>(
+      "[data-slot='accordion-trigger']",
+    );
+    const content = dom.querySelector<HTMLElement>(
+      "[data-slot='accordion-content']",
+    );
+    const stateStr = this.__open ? "open" : "closed";
 
-    if (IS_CHROME) {
-      const chromeJsx = (
-        <div
-          className="group bg-card border border-border rounded-sm"
-          data-open={isOpen ? "" : undefined}
-        >
-          {/* Children (summary, content) will be appended by Lexical reconciliation */}
-        </div>
-      );
-      const htmlString = ReactDOMServer.renderToStaticMarkup(chromeJsx);
-      const temp = document.createElement("div");
-      temp.innerHTML = htmlString;
-      dom = temp.firstChild as HTMLElement;
-      if (isOpen) {
-        dom.setAttribute("open", ""); // Ensure attribute if initially open
-      } else {
-        dom.removeAttribute("open");
-      }
-    } else {
-      const detailsJsx = (
-        <details className="group bg-card border border-border rounded-sm"></details>
-      );
-      const htmlString = ReactDOMServer.renderToStaticMarkup(detailsJsx);
-      const temp = document.createElement("div");
-      temp.innerHTML = htmlString;
-      const detailsDom = temp.firstChild as HTMLDetailsElement;
-      detailsDom.open = isOpen;
-      detailsDom.addEventListener("toggle", () => {
-        editor.getEditorState().read(() => {
-          if (this.getOpen() !== detailsDom.open) {
-            editor.update(() => this.toggleOpen());
-          }
-        });
+    if (trigger) trigger.dataset.state = stateStr;
+    if (!content) return;
+
+    // Inline height & CSS var — this is what Radix does internally
+    const fullHeight = content.scrollHeight;
+    content.style.setProperty(
+      "--radix-accordion-content-height",
+      `${fullHeight}px`,
+    );
+
+    if (this.__open) {
+      // opening ► 0 → fullHeight → "" (auto)
+      content.style.height = "0px";
+      requestAnimationFrame(() => {
+        content.style.height = `${fullHeight}px`;
+        // after the animation ends, unlock the height
+        content.addEventListener(
+          "transitionend", // Using transitionend as per typical CSS transitions for height
+          () => content.style.removeProperty("height"),
+          { once: true },
+        );
       });
-      dom = detailsDom;
+    } else {
+      // closing ► fullHeight → 0
+      content.style.height = `${fullHeight}px`;
+      requestAnimationFrame(() => (content.style.height = "0px"));
     }
-    return dom;
+    content.dataset.state = stateStr;
   }
 
   updateDOM(prev: this, dom: HTMLElement) {
     if (prev.__open !== this.__open) {
-      if (this.__open) dom.setAttribute("open", "");
-      else dom.removeAttribute("open");
+      dom.dataset.state = this.__open ? "open" : "closed";
+      this.syncChildState(dom);
     }
-    return false;
+    // Ensure child state is synced after children are first mounted by Lexical
+    // This might be better handled after initial render if children are not immediately available
+    if (dom.dataset.lexicalInitialRender === undefined) {
+      this.syncChildState(dom);
+      dom.dataset.lexicalInitialRender = "done"; // Mark to avoid re-running excessively
+    }
+    return false; // DOM skeleton itself never changes
   }
 
-  static importDOM(): DOMConversionMap<HTMLDetailsElement> | null {
+  static importDOM(): DOMConversionMap<HTMLElement> | null {
     return {
-      details: (_domNode: HTMLDetailsElement) => {
-        return {
-          conversion: $convertDetailsElement,
-          priority: 1,
-        };
+      div: (domNode: HTMLElement) => {
+        if (domNode.dataset.slot === "accordion-item") {
+          return {
+            conversion: $convertAccordionItemElement,
+            priority: 1,
+          };
+        }
+        return null;
       },
     };
   }
@@ -132,9 +148,10 @@ export class CollapsibleContainerNode extends ElementNode {
   }
 
   exportDOM(): DOMExportOutput {
-    const element = document.createElement("details");
-    element.classList.add("bg-card", "border", "border-border", "rounded-sm");
-    element.setAttribute("open", this.__open.toString());
+    const element = document.createElement("div");
+    element.dataset.slot = "accordion-item";
+    element.dataset.state = this.__open ? "open" : "closed";
+    element.className = "border border-border";
     return { element };
   }
 

@@ -259,7 +259,7 @@ export default function CollapsiblePlugin(): null {
             const paragraph = $createParagraphNode();
             $insertNodeToNearestRoot(
               CollapsibleContainerNode.$createCollapsibleContainerNode(
-                true,
+                false,
               ).append(
                 title.append(paragraph),
                 CollapsibleContentNode.$createCollapsibleContentNode().append(
