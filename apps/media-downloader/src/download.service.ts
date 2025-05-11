@@ -19,6 +19,17 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
 
+const COMMON_USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:125.0) Gecko/20100101 Firefox/125.0",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/605.1.15",
+  "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/124.0.0.0",
+];
+
 interface YTDLPMetadata {
   title?: string;
   duration?: number;
@@ -44,7 +55,16 @@ export class DownloadService {
     try {
       try {
         console.log(`Attempting to fetch metadata for URL: ${url}`);
-        metadata = await ytdlp.getVideoInfo(url);
+        // Select a random user agent for fetching metadata as well
+        const metadataUserAgent =
+          COMMON_USER_AGENTS[
+            Math.floor(Math.random() * COMMON_USER_AGENTS.length)
+          ];
+        console.log(`Using User-Agent for metadata: ${metadataUserAgent}`);
+        metadata = await ytdlp.getVideoInfo(url, [
+          "--user-agent",
+          metadataUserAgent,
+        ]);
         console.log("Successfully fetched metadata.");
       } catch (metadataError: unknown) {
         const message =
@@ -65,8 +85,16 @@ export class DownloadService {
       // yt-dlp will append the correct extension based on format chosen or default
       const outputTemplate = path.join(tempDir, `${baseFileName}.%(ext)s`);
 
+      const selectedUserAgent =
+        COMMON_USER_AGENTS[
+          Math.floor(Math.random() * COMMON_USER_AGENTS.length)
+        ];
+      console.log(`Selected User-Agent for download: ${selectedUserAgent}`);
+
       const ytDlpProcess = ytdlp.exec([
         url,
+        "--user-agent",
+        selectedUserAgent,
         "-P",
         tempDir,
         "-o",
