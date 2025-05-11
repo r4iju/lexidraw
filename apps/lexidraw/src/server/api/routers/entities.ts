@@ -974,6 +974,128 @@ export const entityRouter = createTRPCRouter({
         });
       }
     }),
+  downloadAndUploadByUrl: protectedProcedure
+    .input(z.object({ url: z.string(), entityId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const { url, entityId } = input;
+      // check user has access to entity
+      const entity = (
+        await ctx.drizzle
+          .select({
+            id: ctx.schema.entities.id,
+            userId: ctx.schema.entities.userId,
+            publicAccess: ctx.schema.entities.publicAccess,
+          })
+          .from(schema.entities)
+          .where(eq(schema.entities.id, input.entityId))
+      )[0];
+
+      if (!entity) {
+        console.error("entity not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Entity not found",
+        });
+      }
+
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+
+      if (!isOwner && !anyOneCanEdit) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "You are not authorized to edit this entity",
+        });
+      }
+
+      console.log("downloading and uploading by url", { url, entityId });
+
+      const response = await fetch(`${env.MEDIA_DOWNLOADER_URL}/download`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.SHARED_KEY}`,
+        },
+        body: JSON.stringify({ url, entityId, userId: ctx.session.user.id }),
+      });
+
+      console.log("response", response.status);
+
+      if (!response.ok) {
+        // log response text
+        const responseText = await response.text();
+        console.error("response text", responseText);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to download and upload media, ${responseText}`,
+        });
+      }
+
+      // validate with zod
+      // {"message":"Download request received and is being processed.","requestId":"[Req: 7bb4ecde]"}
+      const responseBody = await response.json();
+      console.log("responseBody", responseBody);
+      const zodResponse = z
+        .object({
+          message: z.string(),
+          requestId: z.string(),
+        })
+        .parse(responseBody);
+
+      return zodResponse;
+    }),
+  getDownloadUrlByRequestId: protectedProcedure
+    .input(z.object({ requestId: z.string(), entityId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      // check user has access to entity
+      const entity = (
+        await ctx.drizzle
+          .select({
+            id: ctx.schema.entities.id,
+            userId: ctx.schema.entities.userId,
+            publicAccess: ctx.schema.entities.publicAccess,
+            signedDownloadUrl: schema.uploadedVideos.signedDownloadUrl,
+          })
+          .from(schema.entities)
+          .leftJoin(
+            schema.uploadedVideos,
+            eq(schema.entities.id, schema.uploadedVideos.entityId),
+          )
+          .where(
+            and(
+              eq(schema.entities.id, input.entityId),
+              eq(schema.uploadedVideos.requestId, input.requestId),
+            ),
+          )
+      )[0];
+
+      if (!entity) {
+        console.error("entity not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Drawing not found",
+        });
+      }
+
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+
+      if (!isOwner && !anyOneCanEdit) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "You are not authorized to view this drawing",
+        });
+      }
+
+      if (!entity.signedDownloadUrl) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Signed download URL not found, or not ready yet",
+        });
+      }
+
+      return entity.signedDownloadUrl;
+    }),
   search: protectedProcedure
     .input(z.object({ query: z.string() }))
     .query(async ({ ctx, input }) => {

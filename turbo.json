@@ -32,7 +32,9 @@
     "NEXT_PUBLIC_FIRESTORE_APP_ID",
     "CRON_SECRET",
     "SKIP_ENV_VALIDATION",
-    "REACT_SCAN_ENABLED"
+    "REACT_SCAN_ENABLED",
+    "MEDIA_DOWNLOADER_URL",
+    "MEDIA_DOWNLOADER_PORT"
   ],
   "globalDependencies": [
     ".env",
