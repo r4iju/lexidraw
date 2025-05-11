@@ -151,6 +151,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.577.0",
+        "@aws-sdk/s3-request-presigner": "^3.804.0",
         "@libsql/client": "^0.15.3",
         "@packages/drizzle": "workspace:*",
         "@packages/env": "workspace:*",
