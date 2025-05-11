@@ -255,7 +255,8 @@ export const snapshotRouter = createTRPCRouter({
         if (!Body) return genericSvgContent;
         const svgString = await streamToString(Body as Readable);
         return svgString;
-      } catch (error) {
+      } catch (_error) {
+        console.error("Error getting SVG data", _error);
         return genericSvgContent;
       }
     }),
