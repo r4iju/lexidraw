@@ -76,8 +76,9 @@ function InsertVideoByUrlDialogBody({
     },
     {
       enabled: !!requestId,
-      // polling interval
       refetchInterval: 2000,
+      refetchIntervalInBackground: true,
+      staleTime: 0,
     },
   );
   const { mutate: downloadAndUploadByUrl } =
