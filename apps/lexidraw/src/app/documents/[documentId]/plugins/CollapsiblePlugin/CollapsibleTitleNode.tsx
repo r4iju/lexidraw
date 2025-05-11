@@ -44,7 +44,7 @@ export class CollapsibleTitleNode extends ElementNode {
     button.dataset.slot = "accordion-trigger";
     button.dataset.state = isOpen ? "open" : "closed";
     button.className = [
-      "flex flex-1 flex-row items-start gap-2 w-full py-1",
+      "flex flex-1 flex-row items-center gap-2 w-full py-1 min-h-10",
       "text-left text-sm font-medium",
       "transition-all ease-in-out",
       "outline-none cursor-pointer",
@@ -53,7 +53,7 @@ export class CollapsibleTitleNode extends ElementNode {
     ].join(" ");
 
     button.innerHTML = ReactDOMServer.renderToStaticMarkup(
-      <ChevronRight className="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-2.5 transition-transform " />,
+      <ChevronRight className="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0 transition-transform " />,
     );
 
     button.addEventListener("click", (e) => {
