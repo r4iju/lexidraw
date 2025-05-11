@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // query param to force the cron job to run
   const shouldForceUpdate =
     request.nextUrl.searchParams.get("force-update") !== null;
 
@@ -29,7 +28,6 @@ export async function GET(request: NextRequest) {
   const queryParamUpdateSince =
     request.nextUrl.searchParams.get("update-since");
 
-  // epoch time
   if (queryParamUpdateSince) {
     updateSince = new Date(parseInt(queryParamUpdateSince));
   }
@@ -40,7 +38,10 @@ export async function GET(request: NextRequest) {
   let updatedCount = 0;
 
   try {
-    // Fetch all uploaded images
+    const imageUpdateCriteria = shouldForceUpdate
+      ? undefined
+      : lte(schema.uploadedImages.updatedAt, updateSince);
+
     const uploadedImages = await drizzle
       .select({
         id: schema.uploadedImages.id,
@@ -48,21 +49,40 @@ export async function GET(request: NextRequest) {
         updatedAt: schema.uploadedImages.updatedAt,
       })
       .from(schema.uploadedImages)
-      .where(() =>
-        shouldForceUpdate
-          ? undefined
-          : lte(schema.uploadedImages.updatedAt, updateSince),
-      )
+      .where(() => imageUpdateCriteria)
       .orderBy(desc(schema.uploadedImages.updatedAt))
       .execute();
 
     console.log("Found images in table:", uploadedImages.length);
 
-    // Process one entity at a time to avoid holding large data in memory
+    // Fetch all uploaded videos
+    const videoUpdateCriteria = shouldForceUpdate
+      ? undefined
+      : lte(schema.uploadedVideos.updatedAt, updateSince); // Assuming schema.uploadedVideos exists
 
-    for (const currentEntityId of [
-      ...new Set(uploadedImages.map((image) => image.entityId)),
-    ]) {
+    const uploadedVideos = await drizzle
+      .select({
+        id: schema.uploadedVideos.id, // Assuming schema.uploadedVideos exists
+        entityId: schema.uploadedVideos.entityId, // Assuming schema.uploadedVideos exists
+        updatedAt: schema.uploadedVideos.updatedAt, // Assuming schema.uploadedVideos exists
+      })
+      .from(schema.uploadedVideos) // Assuming schema.uploadedVideos exists
+      .where(() => videoUpdateCriteria)
+      .orderBy(desc(schema.uploadedVideos.updatedAt)) // Assuming schema.uploadedVideos exists
+      .execute();
+
+    console.log("Found videos in table:", uploadedVideos.length);
+
+    const allEntityIds = [
+      ...new Set([
+        ...uploadedImages.map((item) => item.entityId),
+        ...uploadedVideos.map((item) => item.entityId),
+      ]),
+    ];
+
+    console.log("Total unique entities to process:", allEntityIds.length);
+
+    for (const currentEntityId of allEntityIds) {
       const currentEntity = await drizzle
         .select({
           id: schema.entities.id,
@@ -84,8 +104,13 @@ export async function GET(request: NextRequest) {
       let updatedElements = currentEntity.elements;
       let screenShotDark = currentEntity.screenShotDark;
       let screenShotLight = currentEntity.screenShotLight;
+      let entityNeedsUpdate = false;
 
-      for (const _image of uploadedImages) {
+      // Process images for the current entity
+      const imagesForEntity = uploadedImages.filter(
+        (img) => img.entityId === currentEntityId,
+      );
+      for (const _image of imagesForEntity) {
         const image = await drizzle
           .select()
           .from(schema.uploadedImages)
@@ -97,12 +122,13 @@ export async function GET(request: NextRequest) {
           )
           .then((rows) => rows[0]);
 
-        if (!image) {
-          console.warn(`Image not found for ID: ${_image.id}`);
+        if (!image || !image.fileName) {
+          console.warn(
+            `Image not found or fileName missing for ID: ${_image.id}`,
+          );
           continue;
         }
 
-        // Generate a new signed download URL
         const downloadCommand = new GetObjectCommand({
           Bucket: env.SUPABASE_S3_BUCKET,
           Key: image.fileName,
@@ -111,7 +137,6 @@ export async function GET(request: NextRequest) {
           expiresIn: 7 * 24 * 60 * 60,
         });
 
-        // Update the image record
         await drizzle
           .update(schema.uploadedImages)
           .set({
@@ -124,34 +149,96 @@ export async function GET(request: NextRequest) {
         console.log(
           `Updated download URL for image ${image.id}. Old URL: ${image.signedDownloadUrl}, New URL: ${signedDownloadUrl}`,
         );
+        updatedCount++;
+        entityNeedsUpdate = true;
 
-        // Replace URLs in the entity's elements
-        if (image.kind === "attachment") {
+        if (
+          image.kind === "attachment" &&
+          image.signedDownloadUrl &&
+          updatedElements
+        ) {
           const filename = image.fileName.replace(
-            /[-[\]{}()*+?.,\\^$|#\s]/g,
-            "\\$&",
-          ); // Escape special regex characters in the filename
+            /[-[\]{}()*+?.,\\^$|#\\s]/g,
+            "\\\\$&",
+          );
           const regex = new RegExp(`https://\\S*${filename}\\S*GetObject`, "g");
-
           updatedElements = updatedElements.replaceAll(
             regex,
             signedDownloadUrl,
           );
-
-          updatedCount += 1;
         }
         if (image.kind === "thumbnail") {
-          if (image.fileName.includes("dark")) {
+          if (image.fileName.includes("dark") && screenShotDark) {
             screenShotDark = signedDownloadUrl;
-          } else {
+          } else if (screenShotLight) {
             screenShotLight = signedDownloadUrl;
           }
-          updatedCount += 1;
         }
       }
 
-      // Final update for the last entity
-      if (currentEntity && currentEntityId) {
+      // Process videos for the current entity
+      const videosForEntity = uploadedVideos.filter(
+        (vid) => vid.entityId === currentEntityId,
+      );
+      for (const _video of videosForEntity) {
+        const video = await drizzle
+          .select()
+          .from(schema.uploadedVideos) // Assuming schema.uploadedVideos exists
+          .where(
+            and(
+              eq(schema.uploadedVideos.id, _video.id), // Assuming schema.uploadedVideos exists
+              eq(schema.uploadedVideos.entityId, currentEntityId), // Assuming schema.uploadedVideos exists
+            ),
+          )
+          .then((rows) => rows[0]);
+
+        if (!video || !video.fileName) {
+          // Assuming video has fileName
+          console.warn(
+            `Video not found or fileName missing for ID: ${_video.id}`,
+          );
+          continue;
+        }
+
+        const downloadCommand = new GetObjectCommand({
+          Bucket: env.SUPABASE_S3_BUCKET,
+          Key: video.fileName,
+        });
+        const signedDownloadUrl = await getSignedUrl(s3, downloadCommand, {
+          expiresIn: 7 * 24 * 60 * 60, // Assuming same expiry for videos
+        });
+
+        await drizzle
+          .update(schema.uploadedVideos) // Assuming schema.uploadedVideos exists
+          .set({
+            signedDownloadUrl, // Assuming field exists
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.uploadedVideos.id, video.id)) // Assuming schema.uploadedVideos exists
+          .execute();
+
+        console.log(
+          `Updated download URL for video ${video.id}. Old URL: ${video.signedDownloadUrl}, New URL: ${signedDownloadUrl}`,
+        );
+        updatedCount++;
+        entityNeedsUpdate = true;
+
+        // Assuming videos are also 'attachments' and their URLs are in 'elements'
+        // And that videos also have a 'signedDownloadUrl' field that was stored previously.
+        if (video.signedDownloadUrl && updatedElements) {
+          const filename = video.fileName.replace(
+            /[-[\]{}()*+?.,\\^$|#\\s]/g,
+            "\\\\$&",
+          );
+          const regex = new RegExp(`https://\\S*${filename}\\S*GetObject`, "g");
+          updatedElements = updatedElements.replaceAll(
+            regex,
+            signedDownloadUrl,
+          );
+        }
+      }
+
+      if (entityNeedsUpdate) {
         await drizzle
           .update(schema.entities)
           .set({
@@ -168,7 +255,9 @@ export async function GET(request: NextRequest) {
           })
           .where(eq(schema.entities.id, currentEntityId))
           .execute();
-        console.log(`Updated entity ${currentEntityId}`);
+        console.log(
+          `Updated entity ${currentEntityId} with new image/video URLs.`,
+        );
       }
     }
 
