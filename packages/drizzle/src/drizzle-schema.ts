@@ -463,6 +463,7 @@ export const uploadedVideos = sqliteTable(
     status: text("status").$type<
       "UPLOADED" | "DOWNLOADING" | "UPLOADING" | "FAILED" | null
     >(),
+    errorMessage: text("errorMessage"),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),

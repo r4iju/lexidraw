@@ -36,7 +36,12 @@ const authenticate = (
 const updateVideoStatus = async (
   requestId: string,
   status: "DOWNLOADING" | "UPLOADING" | "UPLOADED" | "FAILED",
-  data: Partial<typeof uploadedVideos.$inferInsert> = {},
+  data: Partial<
+    Omit<
+      typeof uploadedVideos.$inferInsert,
+      "status" | "requestId" | "updatedAt"
+    >
+  > = {},
 ) => {
   console.log(`[Req:${requestId}] Updating status to ${status}`);
   try {
@@ -108,7 +113,9 @@ const app = new Elysia()
                 downloadResult.error,
               );
               await updateVideoStatus(requestId, "FAILED", {
-                signedDownloadUrl: downloadResult.error,
+                errorMessage:
+                  downloadResult.error ??
+                  "Download failed, no specific error message.",
               }); // Store error detail
               return;
             }
@@ -157,7 +164,7 @@ const app = new Elysia()
               error,
             );
             await updateVideoStatus(requestId, "FAILED", {
-              signedDownloadUrl:
+              errorMessage:
                 error instanceof Error ? error.message : String(error),
             });
           } finally {
@@ -185,7 +192,7 @@ const app = new Elysia()
           );
           // Attempt to mark as FAILED if possible, though the initial insert might have failed too
           updateVideoStatus(requestId, "FAILED", {
-            signedDownloadUrl: "Background process failed to start or crashed",
+            errorMessage: "Background process failed to start or crashed",
           });
         });
 

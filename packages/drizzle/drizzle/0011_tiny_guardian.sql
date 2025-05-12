@@ -1,0 +1,1 @@
+ALTER TABLE `UploadedVideos` ADD `errorMessage` text;
