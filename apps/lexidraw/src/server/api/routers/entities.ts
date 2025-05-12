@@ -1041,7 +1041,7 @@ export const entityRouter = createTRPCRouter({
       }
 
       const cookiesConfig = entity.config?.cookies;
-      const host = new URL(url).host;
+      const host = new URL(url).host.replace("www.", "");
       const cookies = cookiesConfig?.find((cookie) => cookie.name === host);
 
       console.log("downloading and uploading by url", {

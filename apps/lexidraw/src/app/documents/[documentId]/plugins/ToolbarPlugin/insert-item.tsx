@@ -99,27 +99,29 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center justify-between gap-2"
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => {
+              console.log("should fire OPEN_INSERT_VIDEO_DIALOG_COMMAND");
+              activeEditor.dispatchCommand(
+                OPEN_INSERT_VIDEO_DIALOG_COMMAND,
+                undefined,
+              );
+            }}
           >
-            <button
-              className="flex items-center gap-2 rounded-sm hover:bg-accent focus:outline-none"
-              onClick={() => {
-                activeEditor.dispatchCommand(
-                  OPEN_INSERT_VIDEO_DIALOG_COMMAND,
-                  undefined,
-                );
-              }}
-              onSelect={(e) => e.preventDefault()}
-            >
+            <div className="flex items-center gap-2">
               <VideoIcon className="size-4" />
               <span className="text">Video</span>
-            </button>
+            </div>
             <button
               type="button"
               className="p-1 rounded-sm hover:bg-accent focus:outline-none"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 showModal("Video Download Settings", (onClose) => (
-                  <InsertVideoSettingsDialog onClose={onClose} />
+                  <InsertVideoSettingsDialog
+                    onClose={() => {
+                      onClose();
+                    }}
+                  />
                 ));
               }}
               aria-label="Video settings"
