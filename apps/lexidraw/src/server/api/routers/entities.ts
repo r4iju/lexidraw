@@ -1077,12 +1077,11 @@ export const entityRouter = createTRPCRouter({
       }
 
       // validate with zod
-      // {"message":"Download request received and is being processed.","requestId":"[Req: 7bb4ecde]"}
+      // {"requestId":"[Req: 7bb4ecde]"}
       const responseBody = await response.json();
       console.log("responseBody", responseBody);
       const zodResponse = z
         .object({
-          message: z.string(),
           requestId: z.string(),
         })
         .parse(responseBody);
@@ -1101,6 +1100,7 @@ export const entityRouter = createTRPCRouter({
             publicAccess: ctx.schema.entities.publicAccess,
             status: schema.uploadedVideos.status,
             signedDownloadUrl: schema.uploadedVideos.signedDownloadUrl,
+            errorMessage: schema.uploadedVideos.errorMessage,
           })
           .from(schema.entities)
           .leftJoin(

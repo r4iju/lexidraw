@@ -189,15 +189,17 @@ interface ProcessingJob {
 function VideoProcessingMonitor({
   requestId,
   entityId,
+  processingJobs,
   onComplete,
   onError,
 }: {
   requestId: string;
   entityId: string | null;
+  processingJobs: Record<string, ProcessingJob>;
   onComplete: (src: string) => void;
   onError: (error: TRPCClientErrorLike<AppRouter>) => void;
 }) {
-  const { data: download, error } =
+  const { data: download, error: queryError } =
     api.entities.getDownloadUrlByRequestId.useQuery(
       {
         requestId,
@@ -214,16 +216,45 @@ function VideoProcessingMonitor({
     );
 
   useEffect(() => {
-    if (download?.signedDownloadUrl) {
-      onComplete(download.signedDownloadUrl);
+    // Handle successful query result (might still indicate processing or failure)
+    if (download) {
+      const { status, signedDownloadUrl, errorMessage } = download;
+      const job = processingJobs[requestId]; // Access parent state
+
+      if (status === "UPLOADED" && signedDownloadUrl) {
+        onComplete(signedDownloadUrl);
+      } else if (status === "FAILED") {
+        // Use TRPCClientErrorLike structure for consistency with queryError
+        const syntheticError: TRPCClientErrorLike<AppRouter> = {
+          message: errorMessage ?? "Processing failed.",
+          // Add other properties if needed, or adjust onError type
+          // name: "TRPCClientError", // Example
+          // shape: undefined, // Example
+        } as TRPCClientErrorLike<AppRouter>;
+        onError(syntheticError);
+      } else if (
+        (status === "DOWNLOADING" || status === "UPLOADING") &&
+        job?.toastId
+      ) {
+        // Update toast message based on status
+        const message =
+          status === "DOWNLOADING"
+            ? "Downloading video..."
+            : "Uploading video...";
+        toast.loading(`${message} ${job.url.substring(0, 30)}...`, {
+          id: job.toastId,
+        });
+      }
+      // No action needed if status is null or otherwise unexpected here, polling continues
     }
-  }, [download, onComplete]);
+  }, [download, onComplete, onError, processingJobs, requestId]); // Include processingJobs and requestId
 
   useEffect(() => {
-    if (error) {
-      onError(error);
+    // Handle actual query error (network issue, backend error during query itself)
+    if (queryError) {
+      onError(queryError);
     }
-  }, [error, onError]);
+  }, [queryError, onError]);
 
   // This component doesn't render anything itself
   return null;
@@ -347,6 +378,7 @@ export default function VideosPlugin(): React.JSX.Element | null {
           key={requestId}
           requestId={requestId}
           entityId={entityId}
+          processingJobs={processingJobs}
           onComplete={(src) => handleProcessingComplete(requestId, src)}
           onError={(error: TRPCClientErrorLike<AppRouter>) =>
             handleProcessingError(requestId, error)
