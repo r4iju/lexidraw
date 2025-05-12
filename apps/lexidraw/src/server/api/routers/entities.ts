@@ -20,7 +20,6 @@ import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidV4 } from "uuid";
 import { s3 } from "~/server/s3";
-import { cookies } from "next/headers";
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -1100,6 +1099,7 @@ export const entityRouter = createTRPCRouter({
             id: ctx.schema.entities.id,
             userId: ctx.schema.entities.userId,
             publicAccess: ctx.schema.entities.publicAccess,
+            status: schema.uploadedVideos.status,
             signedDownloadUrl: schema.uploadedVideos.signedDownloadUrl,
           })
           .from(schema.entities)
@@ -1133,14 +1133,7 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
-      if (!entity.signedDownloadUrl) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Signed download URL not found, or not ready yet",
-        });
-      }
-
-      return entity.signedDownloadUrl;
+      return entity;
     }),
   search: protectedProcedure
     .input(z.object({ query: z.string() }))

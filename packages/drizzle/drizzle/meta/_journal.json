@@ -57,6 +57,13 @@
       "when": 1746947448713,
       "tag": "0009_brown_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1747059333827,
+      "tag": "0010_nifty_whirlwind",
+      "breakpoints": true
     }
   ]
 }

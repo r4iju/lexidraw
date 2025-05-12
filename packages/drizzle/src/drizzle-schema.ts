@@ -431,6 +431,7 @@ export const uploadedImages = sqliteTable(
     signedUploadUrl: text("signedUploadUrl").notNull().default(""),
     signedDownloadUrl: text("signedDownloadUrl").notNull(),
     kind: text("kind").notNull().default("attachment"),
+    status: text("status").$type<"UPLOADED" | "PROCESSING" | "FAILED" | null>(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -459,6 +460,9 @@ export const uploadedVideos = sqliteTable(
     requestId: text("requestId").unique(),
     signedUploadUrl: text("signedUploadUrl").notNull().default(""),
     signedDownloadUrl: text("signedDownloadUrl").notNull(),
+    status: text("status").$type<
+      "UPLOADED" | "DOWNLOADING" | "UPLOADING" | "FAILED" | null
+    >(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),

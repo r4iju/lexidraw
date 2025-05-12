@@ -9,7 +9,7 @@ import {
   LexicalEditor,
   createCommand,
 } from "lexical";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import * as React from "react";
 import {
   Dialog,
@@ -34,6 +34,9 @@ import { z } from "zod";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "~/components/ui/textarea";
+import type { TRPCClientErrorLike } from "@trpc/client";
+import { AppRouter } from "~/server/api/root";
+
 function InsertVideoUploadedDialogBody({
   onClick,
 }: {
@@ -66,27 +69,14 @@ function InsertVideoUploadedDialogBody({
 }
 
 function InsertVideoByUrlDialogBody({
-  onInsert,
+  onStartProcessing,
 }: {
-  onInsert: (payload: VideoPayload) => void;
+  onStartProcessing: (requestId: string, url: string) => void;
 }) {
   const entityId = useEntityId();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [requestId, setRequestId] = useState<string | null>(null);
-  const { data: downloadUrl } = api.entities.getDownloadUrlByRequestId.useQuery(
-    {
-      requestId: requestId ?? "",
-      entityId,
-    },
-    {
-      enabled: !!requestId,
-      refetchInterval: 2000,
-      refetchIntervalInBackground: true,
-      staleTime: 0,
-    },
-  );
   const { mutate: downloadAndUploadByUrl } =
     api.entities.downloadAndUploadByUrl.useMutation();
 
@@ -99,22 +89,26 @@ function InsertVideoByUrlDialogBody({
         { url, entityId },
         {
           onSuccess: (data) => {
-            console.log(data);
-            setRequestId(data.requestId);
+            console.log("Download started:", data);
+            onStartProcessing(data.requestId, url);
+          },
+          onError: (err) => {
+            setLoading(false);
+            setError(`Failed to start video download: ${err.message}`);
+          },
+          onSettled: () => {
+            // Note: setLoading(false) is handled in onSuccess/onError
+            // because we want to keep it loading until the callback is triggered.
           },
         },
       );
     } catch {
+      // This catch block might be redundant if the mutation's onError handles it,
+      // but kept for safety against unexpected synchronous errors.
       setLoading(false);
       setError("Failed to start video download.");
     }
   };
-
-  useEffect(() => {
-    if (downloadUrl) {
-      onInsert({ src: downloadUrl, showCaption: true });
-    }
-  }, [downloadUrl, onInsert]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -135,14 +129,9 @@ function InsertVideoByUrlDialogBody({
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button type="submit" disabled={loading || !url}>
-          {loading ? "Processing..." : "Insert by URL"}
+          {loading ? "Starting..." : "Insert by URL"}
         </Button>
       </DialogFooter>
-      {loading && (
-        <div className="text-sm text-muted-foreground mt-2">
-          Waiting for video to be processed... (this may take a minute)
-        </div>
-      )}
     </form>
   );
 }
@@ -150,9 +139,11 @@ function InsertVideoByUrlDialogBody({
 export function InsertVideoDialog({
   activeEditor,
   onClose,
+  onStartProcessing,
 }: {
   activeEditor: LexicalEditor;
   onClose: () => void;
+  onStartProcessing: (requestId: string, url: string) => void;
 }): React.JSX.Element {
   const [tab, setTab] = useState("upload");
   const insertVideo = useCallback(
@@ -177,7 +168,7 @@ export function InsertVideoDialog({
         <InsertVideoUploadedDialogBody onClick={insertVideo} />
       </TabsContent>
       <TabsContent value="url">
-        <InsertVideoByUrlDialogBody onInsert={insertVideo} />
+        <InsertVideoByUrlDialogBody onStartProcessing={onStartProcessing} />
       </TabsContent>
     </Tabs>
   );
@@ -189,14 +180,64 @@ export function InsertVideoDialog({
 export const OPEN_INSERT_VIDEO_DIALOG_COMMAND: LexicalCommand<unknown> =
   createCommand("OPEN_INSERT_VIDEO_DIALOG_COMMAND");
 
+interface ProcessingJob {
+  url: string;
+  toastId: string | number;
+}
+
+// Helper component to monitor a single video processing job
+function VideoProcessingMonitor({
+  requestId,
+  entityId,
+  onComplete,
+  onError,
+}: {
+  requestId: string;
+  entityId: string | null;
+  onComplete: (src: string) => void;
+  onError: (error: TRPCClientErrorLike<AppRouter>) => void;
+}) {
+  const { data: download, error } =
+    api.entities.getDownloadUrlByRequestId.useQuery(
+      {
+        requestId,
+        entityId: entityId ?? "", // Should ideally not be null here
+      },
+      {
+        enabled: !!requestId && !!entityId,
+        refetchInterval: 2000,
+        refetchIntervalInBackground: true,
+        staleTime: 0,
+        // Don't retry on error, let the onError handle it
+        retry: false,
+      },
+    );
+
+  useEffect(() => {
+    if (download?.signedDownloadUrl) {
+      onComplete(download.signedDownloadUrl);
+    }
+  }, [download, onComplete]);
+
+  useEffect(() => {
+    if (error) {
+      onError(error);
+    }
+  }, [error, onError]);
+
+  // This component doesn't render anything itself
+  return null;
+}
+
 export default function VideosPlugin(): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const modalOnCloseRef = useRef<(() => void) | null>(null);
+  const [processingJobs, setProcessingJobs] = useState<
+    Record<string, ProcessingJob>
+  >({});
+  const entityId = useEntityId(); // Get entityId once here
 
   useEffect(() => {
-    modalOnCloseRef.current = () => setIsModalOpen(false);
-
     if (!editor.hasNodes([VideoNode])) {
       throw new Error("VideosPlugin: VideoNode not registered on editor");
     }
@@ -235,23 +276,99 @@ export default function VideosPlugin(): React.JSX.Element | null {
     setIsModalOpen(false);
   }, []);
 
-  useEffect(() => {
-    modalOnCloseRef.current = closeModal;
-  }, [closeModal]);
+  const handleStartProcessing = useCallback(
+    (requestId: string, url: string) => {
+      console.log(`Starting processing for ${url} with ID: ${requestId}`);
+      const toastId = toast.loading(
+        `Processing video: ${url.substring(0, 50)}...`,
+      );
+      setProcessingJobs((prev) => ({
+        ...prev,
+        [requestId]: { url, toastId },
+      }));
+      closeModal();
+    },
+    [closeModal],
+  );
 
-  if (!isModalOpen) {
+  const handleProcessingComplete = useCallback(
+    (requestId: string, src: string) => {
+      setProcessingJobs((prev) => {
+        const job = prev[requestId];
+        if (job) {
+          toast.success(`Video processed: ${job.url.substring(0, 50)}...`, {
+            id: job.toastId,
+          });
+          editor.dispatchCommand(INSERT_VIDEO_COMMAND, {
+            src,
+            showCaption: true,
+          });
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [requestId]: _, ...rest } = prev; // Remove the completed job
+        return rest;
+      });
+    },
+    [editor],
+  );
+
+  const handleProcessingError = useCallback(
+    (requestId: string, error: TRPCClientErrorLike<AppRouter>) => {
+      setProcessingJobs((prev) => {
+        const job = prev[requestId];
+        if (job) {
+          toast.error(
+            `Error processing video: ${job.url.substring(0, 50)}...`,
+            {
+              id: job.toastId,
+              description: error.message,
+            },
+          );
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [requestId]: _, ...rest } = prev; // Remove the failed job
+        return rest;
+      });
+    },
+    [],
+  );
+
+  if (!isModalOpen && Object.keys(processingJobs).length === 0) {
+    // Only render monitors if there are active jobs, otherwise return null
+    // (We don't need the Dialog if modal is closed)
     return null;
   }
 
   return (
-    <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
-          <DialogTitle>Insert Video</DialogTitle>
-        </DialogHeader>
-        <InsertVideoDialog activeEditor={editor} onClose={closeModal} />
-      </DialogContent>
-    </Dialog>
+    <>
+      {/* Render monitors for active jobs */}
+      {Object.keys(processingJobs).map((requestId) => (
+        <VideoProcessingMonitor
+          key={requestId}
+          requestId={requestId}
+          entityId={entityId}
+          onComplete={(src) => handleProcessingComplete(requestId, src)}
+          onError={(error: TRPCClientErrorLike<AppRouter>) =>
+            handleProcessingError(requestId, error)
+          }
+        />
+      ))}
+      {/* Render the dialog if it's open */}
+      {isModalOpen && (
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Insert Video</DialogTitle>
+            </DialogHeader>
+            <InsertVideoDialog
+              activeEditor={editor}
+              onClose={closeModal}
+              onStartProcessing={handleStartProcessing}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
 
@@ -319,8 +436,8 @@ export function InsertVideoSettingsDialog({
 
   /**
    * Convert the contents of a Netscape cookies.txt file (as a string)
-   * to a single “name=value; …” cookie header string that can be passed
-   * to yt‑dlp, e.g.   --cookies "SID=…; HSID=…"
+   * to a single "name=value; ..." cookie header string that can be passed
+   * to yt‑dlp, e.g.   --cookies "SID=...; HSID=..."
    *
    * @example
    * const txt = await Bun.file('/tmp/cookies.txt').text();
