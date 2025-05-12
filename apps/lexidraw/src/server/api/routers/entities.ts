@@ -20,6 +20,7 @@ import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidV4 } from "uuid";
 import { s3 } from "~/server/s3";
+import { cookies } from "next/headers";
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -381,6 +382,36 @@ export const entityRouter = createTRPCRouter({
         ...entity,
         tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
       }));
+    }),
+  getCookies: protectedProcedure.query(async ({ ctx }) => {
+    const result = await ctx.drizzle
+      .select({
+        config: schema.users.config,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, ctx.session.user.id))
+      .execute();
+
+    const cookies = result[0]?.config?.cookies ?? [];
+
+    return cookies;
+  }),
+  setCookies: protectedProcedure
+    .input(
+      z.object({
+        cookies: z.array(z.object({ name: z.string(), value: z.string() })),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ctx.drizzle
+        .update(schema.users)
+        .set({
+          config: {
+            cookies: input.cookies,
+          },
+        })
+        .where(eq(schema.users.id, ctx.session.user.id))
+        .execute();
     }),
   getUserTags: protectedProcedure.query(async ({ ctx }) => {
     const tags = await ctx.drizzle
@@ -985,8 +1016,10 @@ export const entityRouter = createTRPCRouter({
             id: ctx.schema.entities.id,
             userId: ctx.schema.entities.userId,
             publicAccess: ctx.schema.entities.publicAccess,
+            config: ctx.schema.users.config,
           })
           .from(schema.entities)
+          .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
           .where(eq(schema.entities.id, input.entityId))
       )[0];
 
@@ -1008,7 +1041,15 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
-      console.log("downloading and uploading by url", { url, entityId });
+      const cookiesConfig = entity.config?.cookies;
+      const host = new URL(url).host;
+      const cookies = cookiesConfig?.find((cookie) => cookie.name === host);
+
+      console.log("downloading and uploading by url", {
+        url,
+        entityId,
+        cookies,
+      });
 
       const response = await fetch(`${env.MEDIA_DOWNLOADER_URL}/download`, {
         method: "POST",
@@ -1016,7 +1057,12 @@ export const entityRouter = createTRPCRouter({
           "Content-Type": "application/json",
           Authorization: `Bearer ${env.SHARED_KEY}`,
         },
-        body: JSON.stringify({ url, entityId, userId: ctx.session.user.id }),
+        body: JSON.stringify({
+          url,
+          entityId,
+          userId: ctx.session.user.id,
+          ...(cookies ?? {}),
+        }),
       });
 
       console.log("response", response.status);

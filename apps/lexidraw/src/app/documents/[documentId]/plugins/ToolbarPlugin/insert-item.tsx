@@ -19,6 +19,7 @@ import {
   Sigma,
   StickyNote,
   ChevronRight,
+  Settings,
 } from "lucide-react";
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
@@ -37,7 +38,7 @@ import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin/commands";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { InsertVideoDialog } from "../VideosPlugin";
+import { InsertVideoDialog, InsertVideoSettingsDialog } from "../VideosPlugin";
 
 // -------------------------------------------------------------------------------------------------
 // TODO: fix style
@@ -94,18 +95,41 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
             <span className="text">Page Break</span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Video", (onClose) => (
-                <InsertVideoDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                />
-              ));
+            className="flex items-center justify-between gap-2"
+            onClick={(e) => {
+              e.stopPropagation();
             }}
-            className="flex gap-2"
           >
-            <VideoIcon className="size-4" />
-            <span className="text">Video</span>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-sm hover:bg-accent focus:outline-none"
+              onClick={(e) => {
+                e.stopPropagation();
+                // show modal
+                showModal("Insert Video", (onClose) => (
+                  <InsertVideoDialog
+                    activeEditor={activeEditor}
+                    onClose={onClose}
+                  />
+                ));
+              }}
+            >
+              <VideoIcon className="size-4" />
+              <span className="text">Video</span>
+            </button>
+            <button
+              type="button"
+              className="p-1 rounded-sm hover:bg-accent focus:outline-none"
+              onClick={(e) => {
+                e.stopPropagation();
+                showModal("Video Download Settings", (onClose) => (
+                  <InsertVideoSettingsDialog onClose={onClose} />
+                ));
+              }}
+              aria-label="Video settings"
+            >
+              <Settings className="size-4" />
+            </button>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {

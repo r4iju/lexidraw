@@ -45,7 +45,13 @@ export interface DownloadResult {
 }
 
 export class DownloadService {
-  async downloadVideo(url: string): Promise<DownloadResult> {
+  async downloadVideo({
+    url,
+    cookies,
+  }: {
+    url: string;
+    cookies?: string;
+  }): Promise<DownloadResult> {
     console.log(`Starting download for URL: ${url}`);
     const stderrOutput: string[] = []; // Used for collecting all stderr
     const stdoutOutput: string[] = []; // Used for collecting all stdout
@@ -61,10 +67,14 @@ export class DownloadService {
             Math.floor(Math.random() * COMMON_USER_AGENTS.length)
           ];
         console.log(`Using User-Agent for metadata: ${metadataUserAgent}`);
-        metadata = await ytdlp.getVideoInfo(url, [
-          "--user-agent",
-          metadataUserAgent,
-        ]);
+        // build metadata args
+        const metadataArgs: string[] = [];
+        if (cookies) {
+          console.log(`Using cookies for metadata: ${cookies}`);
+          metadataArgs.push("--cookies", cookies);
+        }
+        metadataArgs.push("--user-agent", metadataUserAgent);
+        metadata = await ytdlp.getVideoInfo(url, metadataArgs);
         console.log("Successfully fetched metadata.");
       } catch (metadataError: unknown) {
         const message =
@@ -91,8 +101,13 @@ export class DownloadService {
         ];
       console.log(`Selected User-Agent for download: ${selectedUserAgent}`);
 
-      const ytDlpProcess = ytdlp.exec([
-        url,
+      // build download args
+      const downloadArgs: string[] = [url];
+      if (cookies) {
+        console.log(`Using cookies for download: ${cookies}`);
+        downloadArgs.push("--cookies", cookies);
+      }
+      downloadArgs.push(
         "--user-agent",
         selectedUserAgent,
         "-P",
@@ -102,7 +117,8 @@ export class DownloadService {
         "--no-playlist",
         "--merge-output-format",
         "mp4",
-      ]);
+      );
+      const ytDlpProcess = ytdlp.exec(downloadArgs);
 
       const logPrefix = `[DownloadService:${path.basename(tempDir)}]`;
 
