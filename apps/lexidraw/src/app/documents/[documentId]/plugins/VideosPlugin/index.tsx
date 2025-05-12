@@ -27,7 +27,13 @@ import { INSERT_VIDEO_COMMAND } from "./commands";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { Input } from "~/components/ui/input";
 import { api } from "~/trpc/react";
-
+import FormProvider from "~/components/hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Textarea } from "~/components/ui/textarea";
 function InsertVideoUploadedDialogBody({
   onClick,
 }: {
@@ -246,5 +252,150 @@ export default function VideosPlugin(): React.JSX.Element | null {
         <InsertVideoDialog activeEditor={editor} onClose={closeModal} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Convert the contents of a Netscape cookies.txt file (as a string)
+ * to a single “name=value; …” cookie header string that can be passed
+ * to yt‑dlp, e.g.   --cookies "SID=…; HSID=…"
+ *
+ * @example
+ * const txt = await Bun.file('/tmp/cookies.txt').text();
+ * const header = cookiesTxtToHeader(txt); // "SID=abcd; HSID=efgh"
+ */
+export function cookiesTxtToHeader(cookiesTxt: string): string {
+  return cookiesTxt
+    .split(/\r?\n/) // split into lines
+    .map((line) => line.trim()) // trim whitespace
+    .filter(
+      (line) =>
+        line !== "" && // ignore blanks
+        !line.startsWith("#"), // ignore comments
+    )
+    .map((line) => {
+      // Netscape format: domain<TAB>flag<TAB>path<TAB>secure<TAB>expires<TAB>name<TAB>value
+      const parts = line.split("\t");
+      // Gracefully skip malformed lines
+      if (parts.length < 7) return null;
+      const name = parts[5];
+      const value = parts[6];
+      return `${name}=${value}`;
+    })
+    .filter(Boolean) // drop nulls
+    .join("; "); // join into header string
+}
+
+export function InsertVideoSettingsDialog({
+  onClose,
+}: {
+  onClose: () => void;
+}) {
+  const schema = z.object({
+    cookies: z.array(
+      z.object({
+        name: z.string(),
+        value: z.string(),
+      }),
+    ),
+  });
+  const { data: cookies } = api.entities.getCookies.useQuery();
+  const { mutate: setCookies, isPending } =
+    api.entities.setCookies.useMutation();
+  const methods = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      cookies: [],
+    },
+  });
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    formState: { isValid, isDirty },
+  } = methods;
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "cookies",
+  });
+
+  useEffect(() => {
+    reset({ cookies });
+  }, [cookies, reset]);
+
+  const onSubmit = ({ cookies }: z.infer<typeof schema>) => {
+    // TODO: handle save
+    console.log("Save cookies:", cookies);
+    setCookies(
+      {
+        cookies: cookies.map((cookie) => ({
+          name: cookie.name,
+          value: cookiesTxtToHeader(cookie.value),
+        })),
+      },
+      {
+        onSuccess: () => {
+          toast.success("Cookies saved");
+          onClose();
+        },
+        onError: (error) => {
+          toast.error("Error saving cookies:", {
+            description: error.message,
+          });
+        },
+      },
+    );
+  };
+
+  return (
+    <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
+      <div className="flex flex-col gap-4">
+        {fields.map((field, index) => (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="youtube.com"
+                {...register(`cookies.${index}.name` as const)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                onClick={() => remove(index)}
+                aria-label="Remove cookie"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            <Textarea
+              rows={3}
+              placeholder="1234567890"
+              {...register(`cookies.${index}.value` as const)}
+              className="flex-1"
+            />
+          </div>
+        ))}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => append({ name: "", value: "" })}
+        className="w-full flex items-center gap-2"
+      >
+        <Plus className="size-4" />
+        Add Cookie
+      </Button>
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!isValid || !isDirty}>
+          {isPending ? "Saving..." : "Save"}
+          {isPending && <Loader2 className="size-4 ml-2 animate-spin" />}
+        </Button>
+      </DialogFooter>
+    </FormProvider>
   );
 }

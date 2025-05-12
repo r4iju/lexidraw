@@ -41,7 +41,7 @@ const app = new Elysia()
   .post(
     "/download",
     async ({ body, set, downloadService, s3Service }) => {
-      const { url, userId, entityId } = body;
+      const { url, userId, entityId, cookies } = body;
       const requestId = crypto.randomUUID().substring(0, 12);
       const logPrefix = `[Req:${requestId}]`;
       console.log(
@@ -51,7 +51,7 @@ const app = new Elysia()
       let downloadResult: DownloadResult | undefined = undefined;
       try {
         console.log(`${logPrefix} Starting processing for URL: ${url}`);
-        downloadResult = await downloadService.downloadVideo(url);
+        downloadResult = await downloadService.downloadVideo({ url, cookies });
 
         if (downloadResult.error || !downloadResult.filePath) {
           console.error(`${logPrefix} Download failed:`, downloadResult.error);
@@ -146,6 +146,9 @@ const app = new Elysia()
         url: t.String({ format: "uri", error: "Invalid URL format" }),
         userId: t.String({ minLength: 1, error: "UserID is required" }),
         entityId: t.String({ minLength: 1, error: "EntityID is required" }),
+        cookies: t.Optional(
+          t.String({ description: "Path or URL to cookies.txt" }),
+        ),
       }),
       beforeHandle: [authenticate], // Use array for hooks
     },

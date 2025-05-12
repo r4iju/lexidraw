@@ -92,6 +92,10 @@ export const users = sqliteTable(
           maxTokens: number;
         };
       };
+      cookies?: {
+        name: string;
+        value: string;
+      }[];
     }>(),
     email: text("email"),
     password: text("password"),
