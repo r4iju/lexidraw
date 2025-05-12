@@ -255,37 +255,6 @@ export default function VideosPlugin(): React.JSX.Element | null {
   );
 }
 
-/**
- * Convert the contents of a Netscape cookies.txt file (as a string)
- * to a single “name=value; …” cookie header string that can be passed
- * to yt‑dlp, e.g.   --cookies "SID=…; HSID=…"
- *
- * @example
- * const txt = await Bun.file('/tmp/cookies.txt').text();
- * const header = cookiesTxtToHeader(txt); // "SID=abcd; HSID=efgh"
- */
-export function cookiesTxtToHeader(cookiesTxt: string): string {
-  return cookiesTxt
-    .split(/\r?\n/) // split into lines
-    .map((line) => line.trim()) // trim whitespace
-    .filter(
-      (line) =>
-        line !== "" && // ignore blanks
-        !line.startsWith("#"), // ignore comments
-    )
-    .map((line) => {
-      // Netscape format: domain<TAB>flag<TAB>path<TAB>secure<TAB>expires<TAB>name<TAB>value
-      const parts = line.split("\t");
-      // Gracefully skip malformed lines
-      if (parts.length < 7) return null;
-      const name = parts[5];
-      const value = parts[6];
-      return `${name}=${value}`;
-    })
-    .filter(Boolean) // drop nulls
-    .join("; "); // join into header string
-}
-
 export function InsertVideoSettingsDialog({
   onClose,
 }: {
@@ -346,6 +315,37 @@ export function InsertVideoSettingsDialog({
         },
       },
     );
+  };
+
+  /**
+   * Convert the contents of a Netscape cookies.txt file (as a string)
+   * to a single “name=value; …” cookie header string that can be passed
+   * to yt‑dlp, e.g.   --cookies "SID=…; HSID=…"
+   *
+   * @example
+   * const txt = await Bun.file('/tmp/cookies.txt').text();
+   * const header = cookiesTxtToHeader(txt); // "SID=abcd; HSID=efgh"
+   */
+  const cookiesTxtToHeader = (cookiesTxt: string): string => {
+    return cookiesTxt
+      .split(/\r?\n/) // split into lines
+      .map((line) => line.trim()) // trim whitespace
+      .filter(
+        (line) =>
+          line !== "" && // ignore blanks
+          !line.startsWith("#"), // ignore comments
+      )
+      .map((line) => {
+        // Netscape format: domain<TAB>flag<TAB>path<TAB>secure<TAB>expires<TAB>name<TAB>value
+        const parts = line.split("\t");
+        // Gracefully skip malformed lines
+        if (parts.length < 7) return null;
+        const name = parts[5];
+        const value = parts[6];
+        return `${name}=${value}`;
+      })
+      .filter(Boolean) // drop nulls
+      .join("; "); // join into header string
   };
 
   return (

@@ -103,9 +103,8 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
             <button
               type="button"
               className="flex items-center gap-2 rounded-sm hover:bg-accent focus:outline-none"
-              onClick={(e) => {
-                e.stopPropagation();
-                // show modal
+              onClick={() => {
+                console.log("clicked");
                 showModal("Insert Video", (onClose) => (
                   <InsertVideoDialog
                     activeEditor={activeEditor}
@@ -120,8 +119,7 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
             <button
               type="button"
               className="p-1 rounded-sm hover:bg-accent focus:outline-none"
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
                 showModal("Video Download Settings", (onClose) => (
                   <InsertVideoSettingsDialog onClose={onClose} />
                 ));
