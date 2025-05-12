@@ -7,7 +7,7 @@ import path from "node:path";
 import { lookup as mimeLookup } from "mime-types";
 import { uploadedVideos } from "@packages/drizzle/drizzle-schema";
 import { createId } from "@paralleldrive/cuid2"; // Import CUID generator
-import { db } from "@packages/drizzle/drizzle";
+import { drizzle, eq } from "@packages/drizzle";
 const downloadService = new DownloadService();
 const s3Service = new S3Service();
 
@@ -32,6 +32,26 @@ const authenticate = (
   // If authentication passes, do nothing, Elysia proceeds to the next handler
 };
 
+// Helper function to update video status
+const updateVideoStatus = async (
+  requestId: string,
+  status: "DOWNLOADING" | "UPLOADING" | "UPLOADED" | "FAILED",
+  data: Partial<typeof uploadedVideos.$inferInsert> = {},
+) => {
+  console.log(`[Req:${requestId}] Updating status to ${status}`);
+  try {
+    await drizzle
+      .update(uploadedVideos)
+      .set({ ...data, status, updatedAt: new Date() })
+      .where(eq(uploadedVideos.requestId, requestId));
+  } catch (dbError) {
+    console.error(
+      `[Req:${requestId}] Failed to update status to ${status}:`,
+      dbError,
+    );
+  }
+};
+
 const app = new Elysia()
   .decorate("downloadService", downloadService)
   .decorate("s3Service", s3Service)
@@ -43,102 +63,147 @@ const app = new Elysia()
     async ({ body, set, downloadService, s3Service }) => {
       const { url, userId, entityId, cookies } = body;
       const requestId = crypto.randomUUID().substring(0, 12);
-      const logPrefix = `[Req:${requestId}]`;
+
       console.log(
-        `${logPrefix} Received download request for URL: ${url}, UserID: ${userId}, EntityID: ${entityId}`,
+        `[Req:${requestId}] Received download request for URL: ${url}, UserID: ${userId}, EntityID: ${entityId}`,
       );
 
-      let downloadResult: DownloadResult | undefined = undefined;
       try {
-        console.log(`${logPrefix} Starting processing for URL: ${url}`);
-        downloadResult = await downloadService.downloadVideo({ url, cookies });
-
-        if (downloadResult.error || !downloadResult.filePath) {
-          console.error(`${logPrefix} Download failed:`, downloadResult.error);
-          set.status = 500; // Internal Server Error
-          return {
-            error: "Download failed",
-            details: downloadResult.error,
-            requestId: requestId,
-          };
-        }
-
-        console.log(
-          `${logPrefix} Video downloaded to: ${downloadResult.filePath}`,
-        );
-        const fileExtension = path.extname(downloadResult.filePath) || ".mp4";
-        const sanitizedTitle = (downloadResult.title || "untitled")
-          .replace(/[^a-zA-Z0-9_.-]/g, "_")
-          .substring(0, 30);
-        const s3Key = `${entityId}/${requestId}-${sanitizedTitle}${fileExtension}`;
-
-        const s3ContentType =
-          mimeLookup(downloadResult.filePath) || "application/octet-stream";
-        console.log(
-          `${logPrefix} Determined S3 Content-Type: ${s3ContentType} for file ${downloadResult.filePath}`,
-        );
-
-        const s3UploadResult = await s3Service.uploadFile(
-          downloadResult.filePath,
-          s3Key,
-          s3ContentType,
-        );
-
-        console.log(
-          `${logPrefix} File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}, ContentType: ${s3UploadResult.contentType}`,
-        );
-
+        // 1. Immediately create DB record with DOWNLOADING status
         const newVideoId = createId();
-        await db.insert(uploadedVideos).values({
+        await drizzle.insert(uploadedVideos).values({
           id: newVideoId,
           userId: userId,
           entityId: entityId,
-          fileName: s3UploadResult.key,
+          fileName: `pending-${requestId}`, // Temporary filename
           requestId: requestId,
-          signedUploadUrl: s3UploadResult.url,
-          signedDownloadUrl: s3UploadResult.url,
+          signedUploadUrl: "", // Not applicable yet
+          signedDownloadUrl: "", // Not applicable yet
+          status: "DOWNLOADING",
           createdAt: new Date(),
           updatedAt: new Date(),
         });
         console.log(
-          `${logPrefix} Video record saved to DB with ID: ${newVideoId} and RequestID: ${requestId}`,
+          `[Req:${requestId}] Initial video record created (ID: ${newVideoId}), status: DOWNLOADING`,
         );
 
-        set.status = 200; // OK
-        return {
-          message: "Download and upload successful.",
-          requestId: requestId,
-          videoId: newVideoId,
-          s3Url: s3UploadResult.url,
-          s3Key: s3UploadResult.key,
-          title: downloadResult.title,
-          duration: downloadResult.duration,
-        };
-      } catch (error) {
-        console.error(
-          `${logPrefix} Error in processing for URL ${url}:`,
-          error,
-        );
-        set.status = 500; // Internal Server Error
-        return {
-          error: "An unexpected error occurred during processing.",
-          details: error instanceof Error ? error.message : String(error),
-          requestId: requestId,
-        };
-      } finally {
-        if (downloadResult && downloadResult.filePath) {
+        // 2. Return 202 Accepted immediately
+        set.status = 202; // Accepted
+
+        // 3. Start background processing (don't await)
+        const processInBackground = async () => {
+          let downloadResult: DownloadResult | undefined;
           try {
-            await fs.unlink(downloadResult.filePath);
             console.log(
-              `${logPrefix} Cleaned up temporary file: ${downloadResult.filePath}`,
+              `[Req:${requestId}] Starting background download for URL: ${url}`,
             );
-          } catch (cleanupError) {
+            downloadResult = await downloadService.downloadVideo({
+              url,
+              cookies,
+            });
+
+            if (downloadResult.error || !downloadResult.filePath) {
+              console.error(
+                `[Req:${requestId}] Download failed:`,
+                downloadResult.error,
+              );
+              await updateVideoStatus(requestId, "FAILED", {
+                signedDownloadUrl: downloadResult.error,
+              }); // Store error detail
+              return;
+            }
+
+            console.log(
+              `[Req:${requestId}] Video downloaded to: ${downloadResult.filePath}`,
+            );
+            await updateVideoStatus(requestId, "UPLOADING");
+
+            const fileExtension =
+              path.extname(downloadResult.filePath) || ".mp4";
+            const sanitizedTitle = (downloadResult.title || "untitled")
+              .replace(/[^a-zA-Z0-9_.-]/g, "_")
+              .substring(0, 30);
+            const s3Key = `${entityId}/${requestId}-${sanitizedTitle}${fileExtension}`;
+
+            const s3ContentType =
+              mimeLookup(downloadResult.filePath) || "application/octet-stream";
+            console.log(
+              `[Req:${requestId}] Determined S3 Content-Type: ${s3ContentType} for file ${downloadResult.filePath}`,
+            );
+
+            const s3UploadResult = await s3Service.uploadFile(
+              downloadResult.filePath,
+              s3Key,
+              s3ContentType,
+            );
+
+            console.log(
+              `[Req:${requestId}] File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}, ContentType: ${s3UploadResult.contentType}`,
+            );
+
+            // Update DB record with final details
+            await updateVideoStatus(requestId, "UPLOADED", {
+              fileName: s3UploadResult.key,
+              signedDownloadUrl: s3UploadResult.url, // Assuming upload URL is also download URL
+              // title: downloadResult.title, // Consider adding title/duration if schema allows
+            });
+
+            console.log(
+              `[Req:${requestId}] Processing complete. Status: UPLOADED`,
+            );
+          } catch (error) {
             console.error(
-              `${logPrefix} Error cleaning up temporary file ${downloadResult.filePath}:`,
-              cleanupError,
+              `[Req:${requestId}] Error during background processing for URL ${url}:`,
+              error,
             );
+            await updateVideoStatus(requestId, "FAILED", {
+              signedDownloadUrl:
+                error instanceof Error ? error.message : String(error),
+            });
+          } finally {
+            if (downloadResult?.filePath) {
+              try {
+                await fs.unlink(downloadResult.filePath);
+                console.log(
+                  `[Req:${requestId}] Cleaned up temporary file: ${downloadResult.filePath}`,
+                );
+              } catch (cleanupError) {
+                console.error(
+                  `[Req:${requestId}] Error cleaning up temporary file ${downloadResult.filePath}:`,
+                  cleanupError,
+                );
+              }
+            }
           }
-        }
+        };
+
+        processInBackground().catch((err) => {
+          // Catch errors from the async function itself (e.g., if DB connection fails initially)
+          console.error(
+            `[Req:${requestId}] Unhandled error in processInBackground:`,
+            err,
+          );
+          // Attempt to mark as FAILED if possible, though the initial insert might have failed too
+          updateVideoStatus(requestId, "FAILED", {
+            signedDownloadUrl: "Background process failed to start or crashed",
+          });
+        });
+
+        // Return the requestId to the client immediately
+        return {
+          requestId: requestId,
+        };
+      } catch (initialError) {
+        // Error during the initial phase (e.g., DB connection issue before starting background task)
+        console.error(
+          `[Req:${requestId}] Critical error before starting background processing:`,
+          initialError,
+        );
+        set.status = 500;
+        return {
+          error: "Failed to initiate download process.",
+          requestId: requestId,
+        };
       }
     },
     {

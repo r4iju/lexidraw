@@ -38,7 +38,10 @@ import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
 import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin/commands";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { InsertVideoDialog, InsertVideoSettingsDialog } from "../VideosPlugin";
+import {
+  OPEN_INSERT_VIDEO_DIALOG_COMMAND,
+  InsertVideoSettingsDialog,
+} from "../VideosPlugin";
 
 // -------------------------------------------------------------------------------------------------
 // TODO: fix style
@@ -96,22 +99,17 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center justify-between gap-2"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
+            onClick={(e) => e.stopPropagation()}
           >
             <button
-              type="button"
               className="flex items-center gap-2 rounded-sm hover:bg-accent focus:outline-none"
               onClick={() => {
-                console.log("clicked");
-                showModal("Insert Video", (onClose) => (
-                  <InsertVideoDialog
-                    activeEditor={activeEditor}
-                    onClose={onClose}
-                  />
-                ));
+                activeEditor.dispatchCommand(
+                  OPEN_INSERT_VIDEO_DIALOG_COMMAND,
+                  undefined,
+                );
               }}
+              onSelect={(e) => e.preventDefault()}
             >
               <VideoIcon className="size-4" />
               <span className="text">Video</span>
