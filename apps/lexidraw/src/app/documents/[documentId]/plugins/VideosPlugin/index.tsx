@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { Textarea } from "~/components/ui/textarea";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import { AppRouter } from "~/server/api/root";
+import { Label } from "~/components/ui/label";
 
 function InsertVideoUploadedDialogBody({
   onClick,
@@ -53,7 +54,12 @@ function InsertVideoUploadedDialogBody({
 
   return (
     <div className="space-y-4">
-      <FileInput label="Video Upload" onChange={onChange} accept="video/*" />
+      <FileInput
+        label="Video Upload"
+        onChange={onChange}
+        accept="video/*"
+        className="pb-[2px]"
+      />
       {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
       <DialogFooter>
         <Button
@@ -111,21 +117,18 @@ function InsertVideoByUrlDialogBody({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <label
-        htmlFor="video-url-input"
-        className="block text-sm font-medium mb-1"
-      >
-        Video URL
-      </label>
-      <Input
-        id="video-url-input"
-        placeholder="Paste a video URL (YouTube, X, etc)"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        required
-        disabled={loading}
-      />
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="video-url-input">Video URL</Label>
+        <Input
+          id="video-url-input"
+          placeholder="Paste a video URL (YouTube, X, etc)"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          required
+          disabled={loading}
+        />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
       <DialogFooter>
         <Button type="submit" disabled={loading || !url}>
           {loading ? "Starting..." : "Insert by URL"}
