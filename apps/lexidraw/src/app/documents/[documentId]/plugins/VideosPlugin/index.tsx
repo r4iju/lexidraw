@@ -44,7 +44,6 @@ function InsertVideoUploadedDialogBody({
 }) {
   const { src, handleFileChange, error: uploadError } = useUploader();
   const entityId = useEntityId();
-  console.log({ entityId });
 
   const isDisabled = src === "" || !!uploadError;
 
@@ -164,10 +163,10 @@ export function InsertVideoDialog({
           By URL
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="upload">
+      <TabsContent value="upload" className="min-w-84">
         <InsertVideoUploadedDialogBody onClick={insertVideo} />
       </TabsContent>
-      <TabsContent value="url">
+      <TabsContent value="url" className="min-w-84">
         <InsertVideoByUrlDialogBody onStartProcessing={onStartProcessing} />
       </TabsContent>
     </Tabs>
@@ -291,6 +290,7 @@ export default function VideosPlugin(): React.JSX.Element | null {
     const unregisterOpenDialogCommand = editor.registerCommand(
       OPEN_INSERT_VIDEO_DIALOG_COMMAND,
       () => {
+        console.log("OPEN_INSERT_VIDEO_DIALOG_COMMAND");
         setIsModalOpen(true);
         return true;
       },
@@ -353,10 +353,11 @@ export default function VideosPlugin(): React.JSX.Element | null {
             {
               id: job.toastId,
               description: error.message,
+              duration: Infinity,
             },
           );
         }
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         const { [requestId]: _, ...rest } = prev; // Remove the failed job
         return rest;
       });
