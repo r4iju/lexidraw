@@ -1,7 +1,7 @@
 import { Elysia, t, type Context as ElysiaContext } from "elysia";
 import env from "@packages/env";
 import { DownloadService, type DownloadResult } from "./download.service";
-import { S3Service } from "./s3.service";
+import { BlobService } from "./blob.service";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { lookup as mimeLookup } from "mime-types";
@@ -9,7 +9,7 @@ import { uploadedVideos } from "@packages/drizzle/drizzle-schema";
 import { createId } from "@paralleldrive/cuid2"; // Import CUID generator
 import { drizzle, eq } from "@packages/drizzle";
 const downloadService = new DownloadService();
-const s3Service = new S3Service();
+const blobService = new BlobService();
 
 // Simple bearer token auth hook for beforeHandle
 // Context type will be inferred by Elysia when used in beforeHandle
@@ -59,13 +59,13 @@ const updateVideoStatus = async (
 
 const app = new Elysia()
   .decorate("downloadService", downloadService)
-  .decorate("s3Service", s3Service)
+  .decorate("blobService", blobService)
   .get("/", () => "Hello from Media Downloader!", {
     beforeHandle: [authenticate], // Use array for hooks
   })
   .post(
     "/download",
-    async ({ body, set, downloadService, s3Service }) => {
+    async ({ body, set, downloadService, blobService }) => {
       const { url, userId, entityId, cookies } = body;
       const requestId = crypto.randomUUID().substring(0, 12);
 
@@ -138,20 +138,20 @@ const app = new Elysia()
               `[Req:${requestId}] Determined S3 Content-Type: ${s3ContentType} for file ${downloadResult.filePath}`,
             );
 
-            const s3UploadResult = await s3Service.uploadFile(
+            const blobResult = await blobService.uploadFile(
               downloadResult.filePath,
               s3Key,
               s3ContentType,
             );
 
             console.log(
-              `[Req:${requestId}] File uploaded to S3: ${s3UploadResult.url} with key: ${s3UploadResult.key}, ContentType: ${s3UploadResult.contentType}`,
+              `[Req:${requestId}] File uploaded to S3: ${blobResult.url} with key: ${blobResult.key}, ContentType: ${blobResult.contentType}`,
             );
 
             // Update DB record with final details
             await updateVideoStatus(requestId, "UPLOADED", {
-              fileName: s3UploadResult.key,
-              signedDownloadUrl: s3UploadResult.url, // Assuming upload URL is also download URL
+              fileName: blobResult.key,
+              signedDownloadUrl: blobResult.url, // Assuming upload URL is also download URL
               // title: downloadResult.title, // Consider adding title/duration if schema allows
             });
 

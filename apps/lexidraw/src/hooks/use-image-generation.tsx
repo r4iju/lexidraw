@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
+import { put } from "@vercel/blob/client";
 
 type AllowedContentType =
   | "image/svg+xml"
@@ -137,21 +138,24 @@ export const ImageGenerationProvider = ({
         return null;
       }
       try {
-        toast.info("Uploading Image...", { description: fileName });
-        const { signedUploadUrl, signedDownloadUrl } =
-          await generateUploadUrlAsync({
-            entityId,
-            contentType: mimeType,
-            mode: "direct",
-          });
-        const resp = await fetch(signedUploadUrl, {
-          method: "PUT",
-          body: new File([imageData], fileName, { type: mimeType }),
-          headers: { "Content-Type": mimeType },
+        toast.info("Uploading Image…", { description: fileName });
+        const { token, pathname } = await generateUploadUrlAsync({
+          entityId,
+          contentType: mimeType,
+          mode: "direct",
         });
-        if (!resp.ok) throw new Error(`Status ${resp.status}`);
+        const { url } = await put(
+          pathname,
+          new File([imageData], fileName, { type: mimeType }),
+          {
+            access: "public",
+            multipart: true,
+            contentType: mimeType,
+            token,
+          },
+        );
         toast.success("Upload Successful", { description: fileName });
-        return signedDownloadUrl;
+        return url;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unknown upload error.";

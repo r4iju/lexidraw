@@ -110,6 +110,72 @@ import {
 } from "~/hooks/use-image-insertion";
 import VideosPlugin from "./plugins/VideosPlugin";
 import { VideoNode } from "./nodes/VideoNode/VideoNode";
+import {
+  Noto_Sans_JP,
+  Inter,
+  Anonymous_Pro,
+  M_PLUS_Rounded_1c,
+  Yusei_Magic,
+  Kosugi_Maru,
+  Sawarabi_Mincho,
+} from "next/font/google";
+import { cn } from "~/lib/utils";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const mono = Anonymous_Pro({
+  weight: "700",
+  subsets: ["latin"],
+  variable: "--font-mono",
+});
+
+const mplus = M_PLUS_Rounded_1c({
+  weight: ["400", "700"],
+  subsets: [
+    "latin",
+    "latin-ext",
+    "cyrillic",
+    "cyrillic-ext",
+    "greek",
+    "greek-ext",
+    "hebrew",
+    "vietnamese",
+  ],
+  variable: "--font-mplus",
+  display: "swap",
+});
+
+const noto = Noto_Sans_JP({
+  weight: ["400", "700"],
+  subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
+  variable: "--font-noto",
+  display: "swap",
+});
+
+const yusei = Yusei_Magic({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-yusei",
+  display: "swap",
+});
+
+const kosugi = Kosugi_Maru({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-kosugi",
+  display: "swap",
+});
+
+const sawarabi = Sawarabi_Mincho({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-sawarabi",
+  display: "swap",
+});
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
@@ -217,7 +283,18 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                       <CommentProvider>
                         <SidebarManagerProvider>
                           <TocProvider>
-                            <div className="flex flex-col size-full">
+                            <div
+                              className={cn(
+                                "flex flex-col size-full",
+                                inter.variable,
+                                mono.variable,
+                                mplus.variable,
+                                noto.variable,
+                                yusei.variable,
+                                kosugi.variable,
+                                sawarabi.variable,
+                              )}
+                            >
                               <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs">
                                 <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-(--breakpoint-xl) rounded-md shadow-xs gap-2 mx-auto">
                                   <OptionsDropdown

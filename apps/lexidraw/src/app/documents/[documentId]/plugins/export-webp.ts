@@ -40,9 +40,6 @@ export function useExportWebp() {
       throw new Error("#lexical-content element not found");
     }
 
-    // Start performance tracing
-    performance.mark("start");
-
     // Create a hidden container
     const hiddenContainer = document.createElement("div");
     hiddenContainer.style.position = "absolute";
@@ -67,7 +64,6 @@ export function useExportWebp() {
 
     // Wait for the next animation frame so the layout updates
     await new Promise<number>((resolve) => requestAnimationFrame(resolve));
-    performance.mark("resized_dom_element");
 
     // Capture element as PNG using html2canvas
     const canvas = await html2canvas(clonedElement, {
@@ -77,7 +73,6 @@ export function useExportWebp() {
       width: 500,
       height: 400,
     });
-    performance.mark("captured_canvas");
 
     // restore theme
     restoreTheme();
@@ -87,11 +82,9 @@ export function useExportWebp() {
       document.body.removeChild(hiddenContainer); // Cleanup
       throw new Error("Unable to get canvas 2D context");
     }
-    performance.mark("got_canvas_context");
 
     // Cleanup: remove the hidden container
     document.body.removeChild(hiddenContainer);
-    performance.mark("cleaned_up_clone");
 
     // image data to blob
     const url = canvas.toDataURL("image/webp");
@@ -99,33 +92,6 @@ export function useExportWebp() {
     if (!blob) {
       throw new Error("Failed to create blob");
     }
-    performance.mark("blob_created");
-
-    // Measure all performance marks
-    performance.measure("DOM Resizing", "start", "resized_dom_element");
-    performance.measure(
-      "Canvas Capture",
-      "resized_dom_element",
-      "captured_canvas",
-    );
-    performance.measure(
-      "Canvas Context Retrieval",
-      "captured_canvas",
-      "got_canvas_context",
-    );
-    performance.measure("Cleanup", "got_canvas_context", "cleaned_up_clone");
-    performance.measure("Blob Creation", "cleaned_up_clone", "blob_created");
-
-    // Log performance results
-    performance
-      .getEntriesByType("measure")
-      .forEach((entry) =>
-        console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`),
-      );
-
-    // Clear performance marks and measures to avoid clutter
-    performance.clearMarks();
-    performance.clearMeasures();
 
     return blob;
   }

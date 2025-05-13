@@ -64,6 +64,7 @@
     "@trpc/react-query": "11.1.0",
     "@trpc/server": "11.1.0",
     "@vercel/analytics": "^1.5.0",
+    "@vercel/blob": "^1.0.1",
     "@vercel/functions": "^1.6.0",
     "@zod/mini": "^4.0.0-beta.20250505T195954",
     "ai": "^4.3.15",

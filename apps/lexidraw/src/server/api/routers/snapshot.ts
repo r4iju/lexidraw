@@ -1,12 +1,14 @@
+// src/server/api/routers/snapshotRouter.ts
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
+import { put } from "@vercel/blob"; // ⬅️ Vercel Blob SDK
 import { PublicAccess } from "@packages/types";
 import { eq, schema } from "@packages/drizzle";
-import { s3 } from "~/server/s3";
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Readable } from "stream";
+import {
+  generateClientTokenFromReadWriteToken,
+  GenerateClientTokenOptions,
+} from "@vercel/blob/client";
 import env from "@packages/env";
 
 const THEME = {
@@ -35,31 +37,36 @@ const genericSvgContent = `<?xml version="1.0" encoding="UTF-8"?>
   <path class="cls-1" d="M78.58,0V7.21h-7.93V73.54h7.93v7.21h-22.35v-7.21h7.21V7.21h-7.21V0h22.35Zm-18.74,10.81v7.21H7.21V62.72H59.84v7.21H0V10.81H59.84Zm25.23,0v59.12h-10.82v-7.21h3.6V18.02h-3.6v-7.21h10.82Z"/>
 </svg>`;
 
-const streamToBuffer = async (stream: Readable): Promise<Buffer> => {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-  }
-  return Buffer.concat(chunks);
+/* ------------------------------------------------------------------ */
+/* helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+const uploadSvg = async (
+  key: string,
+  data: Buffer,
+): Promise<string /* public url */> => {
+  const blob = await put(key, data, {
+    access: "public", // presigned URLs don’t exist – public is fine
+    contentType: "image/svg+xml",
+  }); // uses BLOB_READ_WRITE_TOKEN automatically:contentReference[oaicite:0]{index=0}
+  return blob.url; // immutable, globally‑cached URL
 };
 
-const streamToString = async (stream: Readable): Promise<string> => {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-  }
-  return Buffer.concat(chunks).toString("utf-8");
+const fetchToBuffer = async (url: string): Promise<Buffer> => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Fetch ${res.status}: ${url}`);
+  return Buffer.from(await res.arrayBuffer());
 };
 
-const generatePresignedUrl = async (bucket: string, key: string) => {
-  const command = new GetObjectCommand({
-    Bucket: bucket,
-    Key: key,
-  });
-  return getSignedUrl(s3, command, { expiresIn: 7 * 24 * 60 * 60 }); // 7 days
-};
+const fetchToString = async (url: string): Promise<string> =>
+  (await fetchToBuffer(url)).toString("utf-8");
+
+/* ------------------------------------------------------------------ */
+/* router                                                              */
+/* ------------------------------------------------------------------ */
 
 export const snapshotRouter = createTRPCRouter({
+  /* -------------------------- CREATE -------------------------------- */
   create: publicProcedure
     .input(
       z.object({
@@ -69,61 +76,37 @@ export const snapshotRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      console.log("input", input);
       const entity = await ctx.drizzle.query.entities.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       });
-      if (!entity) {
+      if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
         });
-      }
 
       const isOwner = entity.userId === ctx.session?.user.id;
       const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyOneCanEdit) {
+      if (!isOwner && !anyOneCanEdit)
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "You are not authorized to save this drawing",
         });
-      }
-      const { entityId, theme, svg } = input;
-      const svgBuffer = Buffer.from(svg);
 
-      try {
-        const uploadParams = {
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: `${entityId}-${theme}.svg`,
-          Body: svgBuffer,
-          ContentType: "image/svg+xml",
-        };
-        await s3.send(new PutObjectCommand(uploadParams));
+      const key = `${input.entityId}-${input.theme}.svg`;
+      const url = await uploadSvg(key, Buffer.from(input.svg));
 
-        const signedUrl = await generatePresignedUrl(
-          env.SUPABASE_S3_BUCKET,
-          `${entityId}-${theme}.svg`,
-        );
-
-        await ctx.drizzle
-          .update(schema.entities)
-          .set({
-            [theme === THEME.DARK ? "screenShotDark" : "screenShotLight"]:
-              signedUrl,
-          })
-          .where(eq(schema.entities.id, entityId))
-          .execute();
-      } catch (error) {
-        let errorMessage = "Failed to upload blob due to unknown reason.";
-        if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: errorMessage,
-        });
-      }
+      await ctx.drizzle
+        .update(schema.entities)
+        .set({
+          [input.theme === THEME.DARK ? "screenShotDark" : "screenShotLight"]:
+            url,
+        })
+        .where(eq(schema.entities.id, input.entityId))
+        .execute();
     }),
+
+  /* -------------------------- UPDATE -------------------------------- */
   update: publicProcedure
     .input(
       z.object({
@@ -136,47 +119,36 @@ export const snapshotRouter = createTRPCRouter({
       const entity = await ctx.drizzle.query.entities.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       });
-      console.log("entity", entity);
-      if (!entity) {
+      if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
         });
-      }
+
       const isOwner = entity.userId === ctx.session?.user.id;
-      console.log("isOwner", isOwner);
       const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      console.log("anyOneCanEdit", anyOneCanEdit);
-      if (!isOwner && !anyOneCanEdit) {
+      if (!isOwner && !anyOneCanEdit)
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "You are not authorized to save this drawing",
         });
-      }
-      const { entityId, svg, theme } = input;
-      const svgBuffer = Buffer.from(svg);
-      console.log("svgBuffer", svgBuffer);
-      try {
-        const uploadParams = {
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: `${entityId}-${theme}.svg`,
-          Body: svgBuffer,
-          ContentType: "image/svg+xml",
-        };
-        const res = await s3.send(new PutObjectCommand(uploadParams));
-        console.log("uploaded to s3 with res", res);
-        return res;
-      } catch (error) {
-        let errorMessage = "Failed to update snapshot due to an unknown error.";
-        if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: errorMessage,
-        });
-      }
+
+      const key = `${input.entityId}-${input.theme}.svg`;
+      const url = await uploadSvg(key, Buffer.from(input.svg));
+
+      await ctx.drizzle
+        .update(schema.entities)
+        .set({
+          [input.theme === THEME.DARK ? "screenShotDark" : "screenShotLight"]:
+            url,
+        })
+        .where(eq(schema.entities.id, input.entityId))
+        .execute();
+
+      return { url };
     }),
+
+  /* ----------------------- BINARY→BASE‑64 ------------------------- */
   getSvgData: publicProcedure
     .input(
       z.object({
@@ -188,37 +160,24 @@ export const snapshotRouter = createTRPCRouter({
       const entity = await ctx.drizzle.query.entities.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       });
-      if (!entity) {
+      if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
         });
-      }
 
-      const { entityId, theme } = input;
+      const url =
+        (input.theme === THEME.DARK
+          ? entity.screenShotDark
+          : entity.screenShotLight) ?? "";
+      if (!url)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Missing SVG" });
 
-      try {
-        const getObjectParams = {
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: `${entityId}-${theme}.svg`,
-        };
-        const { Body } = await s3.send(new GetObjectCommand(getObjectParams));
-        if (!Body) throw new Error("Failed to retrieve SVG data");
-        const svgBuffer = await streamToBuffer(Body as Readable);
-        const svgBase64 = svgBuffer.toString("base64");
-        return `data:image/svg+xml;base64,${svgBase64}`;
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Failed to retrieve SVG data";
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: errorMessage,
-        });
-      }
+      const svgBase64 = (await fetchToBuffer(url)).toString("base64");
+      return `data:image/svg+xml;base64,${svgBase64}`;
     }),
 
+  /* ---------------------------- GET --------------------------------- */
   get: publicProcedure
     .input(
       z.object({
@@ -230,36 +189,28 @@ export const snapshotRouter = createTRPCRouter({
       const entity = await ctx.drizzle.query.entities.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       });
-      if (!entity) {
+      if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
         });
-      }
+
       const isOwner = entity.userId === ctx.session?.user.id;
       const anyOneCanEditOrView = entity.publicAccess !== PublicAccess.PRIVATE;
-      if (!isOwner && !anyOneCanEditOrView) {
+      if (!isOwner && !anyOneCanEditOrView)
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "You are not authorized to view this drawing",
         });
-      }
-      const { entityId, theme } = input;
 
-      try {
-        const getObjectParams = {
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: `${entityId}-${theme}.svg`,
-        };
-        const { Body } = await s3.send(new GetObjectCommand(getObjectParams));
-        if (!Body) return genericSvgContent;
-        const svgString = await streamToString(Body as Readable);
-        return svgString;
-      } catch (_error) {
-        console.error("Error getting SVG data", _error);
-        return genericSvgContent;
-      }
+      const url =
+        (input.theme === THEME.DARK
+          ? entity.screenShotDark
+          : entity.screenShotLight) ?? "";
+      return url ? await fetchToString(url) : genericSvgContent;
     }),
+
+  /* ---------------------- “SIGNED”_URL_(alias) ---------------------- */
   getSignedUrl: publicProcedure
     .input(
       z.object({
@@ -268,51 +219,36 @@ export const snapshotRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      // kept for backward‑compat – now just returns the permanent public URL
       const entity = await ctx.drizzle.query.entities.findFirst({
         where: (drw, { eq }) => eq(drw.id, input.entityId),
       });
-      console.log("entity", entity);
-      if (!entity) {
+      if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
         });
-      }
+
       const isOwner = entity.userId === ctx.session?.user.id;
       const anyOneCanEditOrView = entity.publicAccess !== PublicAccess.PRIVATE;
-      console.log("isOwner", isOwner);
-      console.log("anyOneCanEditOrView", anyOneCanEditOrView);
-      if (!isOwner && !anyOneCanEditOrView) {
+      if (!isOwner && !anyOneCanEditOrView)
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "You are not authorized to view this drawing",
         });
-      }
-      const { entityId, theme } = input;
 
-      try {
-        const signedUrl = await generatePresignedUrl(
-          env.SUPABASE_S3_BUCKET,
-          `${entityId}-${theme}.svg`,
-        );
-        return signedUrl;
-      } catch (error) {
-        let errorMessage =
-          "Failed to generate signed URL due to an unknown error.";
-        if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: errorMessage,
-        });
-      }
+      const url =
+        (input.theme === THEME.DARK
+          ? entity.screenShotDark
+          : entity.screenShotLight) ?? "";
+      return url;
     }),
-  generateUploadUrls: publicProcedure
+
+  /** Step1 – hand the browser a client‑token */
+  generateClientUploadTokens: publicProcedure
     .input(
       z.object({
         entityId: z.string(),
-        // svg, jpeg or png
         contentType: z.enum([
           "image/svg+xml",
           "image/jpeg",
@@ -324,121 +260,71 @@ export const snapshotRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { entityId, contentType } = input;
-
-      // Fetch the entity
-      const entity = await ctx.drizzle
-        .select({
-          id: ctx.schema.entities.id,
-          userId: ctx.schema.entities.userId,
-          publicAccess: ctx.schema.entities.publicAccess,
-        })
-        .from(ctx.schema.entities)
-        .where(eq(ctx.schema.entities.id, entityId))
-        .then((rows) => rows[0]);
-
-      if (!entity) {
-        console.error("Entity not found");
+      const entity = await ctx.drizzle.query.entities.findFirst({
+        where: (e, { eq }) => eq(e.id, entityId),
+      });
+      if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
         });
-      }
 
       const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-
-      if (!isOwner && !anyOneCanEdit) {
+      const anyoneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+      if (!isOwner && !anyoneCanEdit)
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "You are not authorized to view this drawing",
+          message: "Forbidden",
         });
-      }
 
-      const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
-      const themes = [THEME.DARK, THEME.LIGHT];
-      const now = new Date();
+      const ext = contentType.split("/")[1]?.replace(/\+.*$/, "");
+      if (!ext)
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid content type",
+        });
 
-      // Generate file details for both themes
-      const files = themes.map((theme) => {
-        const fileName = `${entityId}-${theme}.${extension}`;
-        return {
-          theme,
-          fileName,
-          uploadCommand: new PutObjectCommand({
-            Bucket: env.SUPABASE_S3_BUCKET,
-            Key: fileName,
-            ContentType: contentType,
-          }),
-          downloadCommand: new GetObjectCommand({
-            Bucket: env.SUPABASE_S3_BUCKET,
-            Key: fileName,
-          }),
-        };
-      });
+      const themes = [THEME.DARK, THEME.LIGHT] as const;
 
-      // Generate signed URLs and update entity
-      const signedUrls = await Promise.all(
-        files.map(
-          async ({ theme, fileName, uploadCommand, downloadCommand }) => {
-            try {
-              const [signedUploadUrl, signedDownloadUrl] = await Promise.all([
-                getSignedUrl(s3, uploadCommand, { expiresIn: 15 * 60 }), // 15 minutes
-                getSignedUrl(s3, downloadCommand, {
-                  expiresIn: 7 * 24 * 60 * 60,
-                }), // 7 days
-              ]);
+      /* Produce one token per theme */
+      const results = await Promise.all(
+        themes.map(async (theme) => {
+          const pathname = `${entityId}-${theme}.${ext}`; // final blob path (immutable)
+          const token = await generateClientTokenFromReadWriteToken({
+            token: env.BLOB_READ_WRITE_TOKEN,
+            pathname,
+            allowedContentTypes: [contentType],
+            allowOverwrite: true,
+            // Uncomment to let Vercel call you back when the file is fully stored
+            // onUploadCompleted: {
+            //   callbackUrl: `${env.NEXT_PUBLIC_SITE_URL}/api/blobCallback`,
+            //   // payload: JSON.stringify({ entityId, theme }),
+            // },
+          } satisfies GenerateClientTokenOptions);
 
-              const fieldToUpdate =
-                theme === THEME.DARK ? "screenShotDark" : "screenShotLight";
-              await ctx.drizzle
-                .update(ctx.schema.entities)
-                .set({
-                  [fieldToUpdate]: signedDownloadUrl,
-                  updatedAt: now, // Update the entity's timestamp
-                })
-                .where(eq(ctx.schema.entities.id, entityId))
-                .execute();
-              await ctx.drizzle
-                .insert(ctx.schema.uploadedImages)
-                .values({
-                  id: `${entity.id}-${theme}`,
-                  userId: ctx.session?.user.id ?? "",
-                  entityId,
-                  fileName,
-                  kind: "thumbnail",
-                  signedUploadUrl,
-                  signedDownloadUrl,
-                })
-                .onConflictDoUpdate({
-                  target: ctx.schema.uploadedImages.id,
-                  set: {
-                    signedUploadUrl: signedUploadUrl,
-                    signedDownloadUrl: signedDownloadUrl,
-                  },
-                })
-                .execute();
-
-              return {
-                theme,
-                signedUploadUrl,
-                signedDownloadUrl,
-                key: fileName,
-                bucket: env.SUPABASE_S3_BUCKET,
-              };
-            } catch (error) {
-              console.error(
-                `Failed to generate signed URL for theme ${theme}:`,
-                error,
-              );
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: "Failed to generate signed URL",
-              });
-            }
-          },
-        ),
+          return { theme, token, pathname };
+        }),
       );
 
-      return signedUrls;
+      return results; // [{ theme:'dark', token:'vercel_blob_client_…', pathname:'123-dark.png' }, …]
+    }),
+
+  /** (Optional)  Step3 – save the final blob URL once the browser is done */
+  saveUploadedUrl: publicProcedure
+    .input(
+      z.object({
+        entityId: z.string(),
+        theme: z.enum([THEME.DARK, THEME.LIGHT]),
+        url: z.string().url(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const column =
+        input.theme === THEME.DARK ? "screenShotDark" : "screenShotLight";
+      await ctx.drizzle
+        .update(schema.entities)
+        .set({ [column]: input.url })
+        .where(eq(schema.entities.id, input.entityId))
+        .execute();
     }),
 });
