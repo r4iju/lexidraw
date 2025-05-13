@@ -135,20 +135,20 @@ export const LlmModelList = [
   {
     modelId: "gemini-2.5-flash-preview-04-17",
     provider: "google",
-    name: "Gemini 2.5 Flash Preview",
+    name: "Gemini 2.5 Flash Preview (04-17)",
     description:
       "Next generation features, speed, thinking, realtime streaming, and multimodal generation",
   },
   {
     modelId: "gemini-2.5-pro-exp-03-25",
     provider: "google",
-    name: "Gemini 2.5 Pro Exp",
+    name: "Gemini 2.5 Pro Exp (03-25)",
     description: "Free but powerful Gemini 2.5 model",
   },
   {
     modelId: "gemini-2.5-pro-preview-05-06",
     provider: "google",
-    name: "Gemini 2.5 Pro Preview",
+    name: "Gemini 2.5 Pro Preview (05-06)",
     description: "The most powerful Gemini 2.5 model",
   },
 ] as const;
