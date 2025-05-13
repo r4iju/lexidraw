@@ -101,7 +101,9 @@ export const useSendQuery = () => {
       const userMessageId = crypto.randomUUID();
       // If a file is present, add its name to the user's message content for display
       const userMessageContent = files
-        ? `${prompt} (Files: ${files.length})`
+        ? `${prompt} (Files: ${Array.from(files)
+            .map((f) => f.name)
+            .join(", ")})`
         : prompt;
 
       dispatch({
@@ -129,7 +131,9 @@ export const useSendQuery = () => {
         }
         fullPrompt += `USER_PROMPT:\n${prompt}`;
         if (files) {
-          fullPrompt += `\nATTACHED_FILE_NAMES: ${Array.from(files).map((f) => f.name).join(", ")}`;
+          fullPrompt += `\nATTACHED_FILE_NAMES: ${Array.from(files)
+            .map((f) => f.name)
+            .join(", ")}`;
           // Note: The actual file content needs to be handled by the API call mechanism (e.g. FormData)
           // This prompt addition is just to inform the LLM about the file's presence and name.
         }

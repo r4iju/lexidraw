@@ -29,8 +29,8 @@ export const MessageInput = () => {
   const handleRemoveFile = (index: number) => {
     if (!files) return;
     const newFiles = Array.from(files).filter((_, i) => i !== index);
-    setFiles(newFiles);
-    if (fileInputRef.current) {
+    setFiles(newFiles.length > 0 ? newFiles : null);
+    if (newFiles.length === 0 && fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
@@ -119,6 +119,7 @@ export const MessageInput = () => {
           onChange={handleFileChange}
           className="hidden"
           id="file-upload-input"
+          multiple
         />
         <div className="flex-1 flex flex-col">
           <Textarea
