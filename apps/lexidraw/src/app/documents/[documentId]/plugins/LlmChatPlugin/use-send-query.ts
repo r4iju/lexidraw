@@ -73,6 +73,13 @@ function unwrapSendReply(jsonish: string): string | null {
   return null;
 }
 
+// Define the expected parameters for the sendQuery callback
+interface SendQueryParams {
+  prompt: string;
+  editorStateJson?: string;
+  files?: File[] | FileList | null; // Added optional file parameter
+}
+
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
   const { mode, messages } = useChatState();
@@ -83,22 +90,23 @@ export const useSendQuery = () => {
   const systemPrompt = useSystemPrompt(mode);
 
   return useCallback(
-    async ({
-      prompt,
-      editorStateJson,
-    }: {
-      prompt: string;
-      editorStateJson?: string;
-    }) => {
-      if (!prompt?.trim()) {
-        console.warn("attempted to send empty query.");
+    async ({ prompt, editorStateJson, files }: SendQueryParams) => {
+      // Use the interface here
+      if (!prompt?.trim() && !files) {
+        // Check if both prompt and file are absent
+        console.warn("attempted to send empty query or file.");
         return;
       }
 
       const userMessageId = crypto.randomUUID();
+      // If a file is present, add its name to the user's message content for display
+      const userMessageContent = files
+        ? `${prompt} (Files: ${files.length})`
+        : prompt;
+
       dispatch({
         type: "push",
-        msg: { id: userMessageId, role: "user", content: prompt },
+        msg: { id: userMessageId, role: "user", content: userMessageContent },
       });
 
       try {
@@ -120,6 +128,11 @@ export const useSendQuery = () => {
           fullPrompt += `CHAT_HISTORY:\n${historyToInclude}\n\n`;
         }
         fullPrompt += `USER_PROMPT:\n${prompt}`;
+        if (files) {
+          fullPrompt += `\nATTACHED_FILE_NAMES: ${Array.from(files).map((f) => f.name).join(", ")}`;
+          // Note: The actual file content needs to be handled by the API call mechanism (e.g. FormData)
+          // This prompt addition is just to inform the LLM about the file's presence and name.
+        }
 
         // Add instruction for Markdown formatting
         fullPrompt += `\n\nFORMATTING_INSTRUCTION:\nStrictly format your final response text using Markdown. Do **not** output JSON or any other structured format. Keep Markdown nesting minimal (nested lists or quotes) and headings small for readability in a chat interface.`;
@@ -195,6 +208,7 @@ export const useSendQuery = () => {
             maxTokens: llmConfig.chat.maxTokens,
             maxSteps: 1,
             callbacks: streamCallbacks,
+            files: files,
           });
         } else {
           const prepareStepForMode = async ({
@@ -266,6 +280,7 @@ export const useSendQuery = () => {
           };
 
           // Call generateChatResponse for agent mode
+          // TODO: Update generateChatResponse to handle file uploads
           const responseResult: GenerateChatResponseResult =
             await generateChatResponse({
               prompt: fullPrompt,
@@ -275,6 +290,7 @@ export const useSendQuery = () => {
               tools: runtimeTools,
               maxSteps: 5,
               prepareStep: prepareStepForMode,
+              files: files,
               repairToolCall: async ({
                 toolCall,
                 error,

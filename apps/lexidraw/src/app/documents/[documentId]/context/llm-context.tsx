@@ -21,6 +21,9 @@ import {
   streamText,
   type TextStreamPart,
   type FinishReason,
+  type FilePart,
+  type TextPart,
+  type CoreMessage,
 } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -104,9 +107,10 @@ export type LLMOptions = {
   tools?: RuntimeToolMap;
   maxSteps?: number;
   toolChoice?: ToolChoice<ToolSet>;
+  files?: File[] | FileList | null;
 };
 
-export const LlmModelList = [
+const LlmModelList = [
   {
     modelId: "gpt-4.1-nano",
     provider: "openai",
@@ -166,6 +170,7 @@ type LLMContextValue = {
   setAutocompleteLlmOptions: (options: Partial<LLMBaseState>) => void;
   generateChatResponse: (
     options: LLMOptions & {
+      files?: File[] | FileList | null;
       repairToolCall?: ToolCallRepairFunction<ToolSet>;
       toolChoice?: ToolChoice<ToolSet>;
       prepareStep?: (options: {
@@ -182,6 +187,7 @@ type LLMContextValue = {
   generateChatStream: (
     options: Omit<LLMOptions, "tools" | "toolChoice"> & {
       callbacks: StreamCallbacks;
+      files?: File[] | FileList | null;
     },
   ) => Promise<void>;
   chatState: ChatLLMState;
@@ -408,6 +414,46 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     ],
   );
 
+  const toFileParts = useCallback(
+    async (files?: File[] | FileList | null): Promise<FilePart[]> => {
+      if (!files || files.length === 0) {
+        return [];
+      }
+      const filePartsArray: FilePart[] = [];
+      for (const file of Array.from(files)) {
+        const buffer = await file.arrayBuffer(); // Read file content as ArrayBuffer
+        filePartsArray.push({
+          type: "file" as const,
+          data: new Uint8Array(buffer), // Convert ArrayBuffer to Uint8Array
+          mimeType: file.type || "application/octet-stream",
+          filename: file.name,
+        });
+      }
+      return filePartsArray;
+    },
+    [],
+  );
+
+  const buildPrompt = useCallback(
+    async (
+      { prompt }: { prompt: string },
+      files?: File[] | FileList | null,
+    ): Promise<{ messages: CoreMessage[] } | { prompt: string }> => {
+      if (files && files.length) {
+        const fileParts = await toFileParts(files);
+        const parts: (TextPart | FilePart)[] = [
+          { type: "text", text: prompt },
+          ...fileParts,
+        ];
+
+        const messages: CoreMessage[] = [{ role: "user", content: parts }];
+        return { messages };
+      }
+      return { prompt };
+    },
+    [toFileParts],
+  );
+
   const generateChatResponse = useCallback(
     async ({
       prompt,
@@ -420,7 +466,9 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       repairToolCall,
       toolChoice,
       maxSteps,
+      files,
     }: LLMOptions & {
+      files?: File[] | FileList | null;
       repairToolCall?: ToolCallRepairFunction<ToolSet>;
       prepareStep?: (options: {
         steps: StepResult<ToolSet>[];
@@ -437,6 +485,13 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
 
+      if (files) {
+        console.log(
+          "[LLMContext generateChatResponse] Received file:",
+          files.length,
+        );
+      }
+
       setChatState((prev) => ({
         ...prev,
         isStreaming: true,
@@ -447,11 +502,12 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }));
 
       try {
+        const promptConfig = await buildPrompt({ prompt }, files);
         const result = await generateText({
           experimental_prepareStep: prepareStep,
           experimental_repairToolCall: repairToolCall,
           model: chatProvider.current(llmConfig.chat.modelId),
-          prompt,
+          ...promptConfig,
           system,
           temperature: temperature ?? llmConfig.chat.temperature,
           maxTokens: maxTokens ?? llmConfig.chat.maxTokens,
@@ -498,7 +554,13 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
     },
-    [chatProvider, llmConfig.chat, settings.chat],
+    [
+      buildPrompt,
+      llmConfig.chat.maxTokens,
+      llmConfig.chat.modelId,
+      llmConfig.chat.temperature,
+      settings.chat,
+    ],
   );
 
   const generateChatStream = useCallback(
@@ -510,13 +572,24 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       signal,
       maxSteps,
       callbacks,
+      files,
     }: Omit<LLMOptions, "tools" | "toolChoice"> & {
       callbacks: StreamCallbacks;
+      files?: File[] | FileList | null;
     }): Promise<void> => {
       if (!settings.chat || !chatProvider.current) {
         console.warn("[LLMContext] Chat provider not loaded.");
         callbacks.onError?.(new Error("Chat provider not loaded."));
         return;
+      }
+
+      if (files) {
+        console.log(
+          "[LLMContext generateChatStream] Received file:",
+          files.length,
+        );
+        // TODO: Handle file upload logic here (e.g., FormData with prompt/file)
+        // This currently does not send the file, only logs its presence.
       }
 
       setChatState((prev) => ({
@@ -533,9 +606,10 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       let finalGenerateStreamResult: GenerateChatStreamResult | null = null;
 
       try {
-        const result = await streamText({
+        const promptConfig = await buildPrompt({ prompt }, files);
+        const result = streamText({
           model: chatProvider.current(llmConfig.chat.modelId),
-          prompt,
+          ...promptConfig,
           system,
           temperature: temperature ?? llmConfig.chat.temperature,
           maxTokens: maxTokens ?? llmConfig.chat.maxTokens,
@@ -625,7 +699,13 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         }
       }
     },
-    [chatProvider, llmConfig.chat, settings.chat],
+    [
+      buildPrompt,
+      llmConfig.chat.maxTokens,
+      llmConfig.chat.modelId,
+      llmConfig.chat.temperature,
+      settings.chat,
+    ],
   );
 
   const saveConfiguration = useCallback(
