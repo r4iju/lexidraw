@@ -24,7 +24,13 @@ type Ctx = {
 
 const UnsavedCtx = createContext<Ctx | null>(null);
 
-export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
+export function UnsavedChangesProvider({
+  children,
+  onSaveAndLeave,
+}: {
+  children: ReactNode;
+  onSaveAndLeave?: () => void;
+}) {
   const dirty = useRef(false);
   const [modal, showModal] = useModal();
 
@@ -34,7 +40,6 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
         showModal("Unsaved changes", (close) => (
           <div className="flex flex-col gap-4">
             <p>You have unsaved changes. Leave anyway?</p>
-
             <div className="flex gap-2 self-end">
               <Button
                 variant="destructive"
@@ -45,6 +50,17 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
               >
                 Leave
               </Button>
+              {onSaveAndLeave && (
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    close();
+                    onSaveAndLeave();
+                  }}
+                >
+                  Save and leave
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => {
@@ -58,7 +74,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
           </div>
         )),
       ),
-    [showModal],
+    [showModal, onSaveAndLeave],
   );
 
   useBeforeUnloadGuard(dirty);
