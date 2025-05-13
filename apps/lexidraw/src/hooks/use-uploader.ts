@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import type { AppRouter } from "~/server/api/root"; // Assuming AppRouter is available
+import { put } from "@vercel/blob/client";
 
 export const useUploader = () => {
   const [src, setSrc] = useState<string>("");
@@ -67,16 +68,15 @@ export const useUploader = () => {
       }
       setError(null);
       const commonOptions = {
-        onSuccess: async (res: {
-          signedUploadUrl: string;
-          signedDownloadUrl: string;
-        }) => {
-          await fetch(res.signedUploadUrl, {
-            method: "PUT",
-            body: file,
+        onSuccess: async (res: { token: string; pathname: string }) => {
+          const { url } = await put(res.pathname, file, {
+            access: "public",
+            multipart: true,
+            contentType: file.type,
+            token: res.token,
           });
-          setSrc(res.signedDownloadUrl);
-          console.log("res.signedDownloadUrl", res.signedDownloadUrl);
+          setSrc(url);
+          console.log("uploaded →", url);
         },
         onError: (err: TRPCClientErrorLike<AppRouter>) => {
           console.error(`Error generating ${type} upload URL:`, err.message);
@@ -85,7 +85,6 @@ export const useUploader = () => {
           );
         },
       };
-
       if (type === "image") {
         generateImageUrl(
           {

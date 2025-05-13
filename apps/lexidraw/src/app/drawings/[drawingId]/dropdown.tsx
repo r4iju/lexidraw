@@ -5,7 +5,7 @@ import type {
   AppState,
   ExcalidrawImperativeAPI,
 } from "@excalidraw/excalidraw/types";
-import { RefObject } from "react";
+import { RefObject, useState } from "react";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
@@ -27,6 +27,7 @@ import {
   MainMenu,
 } from "@excalidraw/excalidraw";
 import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
+import { put } from "@vercel/blob/client";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
@@ -36,31 +37,14 @@ type Props = {
 export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const isDarkTheme = useIsDarkTheme();
   const { mutate: save } = api.entities.save.useMutation();
-  const { mutate: generateUploadUrls } =
-    api.snapshot.generateUploadUrls.useMutation();
+  const { mutate: generateTokens } =
+    api.snapshot.generateClientUploadTokens.useMutation();
+  const { mutate: saveUploadedUrl } =
+    api.snapshot.saveUploadedUrl.useMutation();
+  const [isUploading, setIsUploading] = useState(false);
   const { markPristine } = useUnsavedChanges();
 
   const CustomMenuItem = MainMenu.ItemCustom;
-
-  const uploadToS3 = async ({
-    uploadUrl,
-    file: blob,
-  }: {
-    uploadUrl: string;
-    file: Blob;
-  }) => {
-    try {
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: blob, // File object from input
-        headers: {
-          "Content-Type": blob.type,
-        },
-      });
-    } catch (error) {
-      console.error("Error uploading to S3", error);
-    }
-  };
 
   const closeMenu = () => {
     excalidrawApi.current?.updateScene({
@@ -77,6 +61,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     const elements =
       excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
     const appState: AppState = excalidrawApi.current.getAppState();
+
     save(
       {
         id: drawing.id,
@@ -94,48 +79,65 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           toast.success("Saved!");
           await exportDrawingAsSvg();
         },
-        onError: (err) => {
-          toast.error("Something went wrong!", {
-            description: err.message,
-          });
-        },
+        onError: (err) =>
+          toast.error("Something went wrong!", { description: err.message }),
       },
     );
   };
 
   const exportDrawingAsSvg = async () => {
-    generateUploadUrls(
-      {
-        entityId: drawing.id,
-        contentType: "image/svg+xml",
-      },
-      {
-        onSuccess: async (uploadParams) => {
-          const promises: Promise<void>[] = [];
-          for (const param of uploadParams) {
-            const svg = await exportToSvg({
-              elements: excalidrawApi.current.getSceneElements(),
-              appState: {
-                ...excalidrawApi.current.getAppState(),
-                theme: param.theme,
-                exportWithDarkMode: param.theme === Theme.DARK ? true : false,
-                exportBackground: true,
-              },
-              files: null,
-              exportPadding: 10,
-            });
+    setIsUploading(true);
 
-            const svgString = new XMLSerializer().serializeToString(svg);
-            const blob = new Blob([svgString], { type: "image/svg+xml" });
-            promises.push(
-              uploadToS3({
-                uploadUrl: param.signedUploadUrl,
-                file: blob,
+    generateTokens(
+      { entityId: drawing.id, contentType: "image/svg+xml" },
+      {
+        onError: (e) => {
+          toast.error("Failed preparing upload", { description: e.message });
+          setIsUploading(false);
+        },
+        onSuccess: async (tokens) => {
+          try {
+            await Promise.all(
+              tokens.map(async ({ token, pathname, theme }) => {
+                const svg = await exportToSvg({
+                  elements: excalidrawApi.current.getSceneElements(),
+                  appState: {
+                    ...excalidrawApi.current.getAppState(),
+                    theme,
+                    exportWithDarkMode: theme === Theme.DARK,
+                    exportBackground: true,
+                  },
+                  files: null,
+                  exportPadding: 10,
+                });
+
+                const svgString = new XMLSerializer().serializeToString(svg);
+                const blob = new Blob([svgString], {
+                  type: "image/svg+xml",
+                });
+
+                const { url } = await put(pathname, blob, {
+                  access: "public",
+                  multipart: true,
+                  contentType: blob.type,
+                  token,
+                });
+
+                // persist URL so the dashboard shows the new thumbnail
+                saveUploadedUrl({ entityId: drawing.id, theme, url });
               }),
             );
+            toast.success("Exported thumbnails!");
+          } catch (e) {
+            console.error(
+              "Error exporting thumbnails in drawing-dropdown.tsx",
+              e,
+            );
+            toast.error("Upload failed", { description: (e as Error).message });
+          } finally {
+            setIsUploading(false);
+            closeMenu();
           }
-          await Promise.all(promises);
-          closeMenu();
         },
       },
     );
@@ -283,6 +285,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       >
         <Button
           onClick={saveToBackend}
+          disabled={isUploading}
           variant="ghost"
           className="w-full justify-start gap-2 h-8 py-0 px-3 cursor-pointer"
         >

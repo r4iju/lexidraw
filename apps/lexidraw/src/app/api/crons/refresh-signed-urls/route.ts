@@ -10,7 +10,6 @@ import { canRunCron } from "../cron-middleware";
 export const maxDuration = 120; // 2 minutes
 export const runtime: ServerRuntime = "edge";
 export const dynamic = "force-dynamic";
-// no cache
 export const cache = "force-no-store";
 
 export async function GET(request: NextRequest) {

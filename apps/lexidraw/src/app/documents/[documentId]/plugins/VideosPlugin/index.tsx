@@ -361,6 +361,7 @@ export default function VideosPlugin(): React.JSX.Element | null {
           );
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { [requestId]: _, ...rest } = prev; // Remove the failed job
         return rest;
       });

@@ -23,6 +23,7 @@ import { api } from "~/trpc/react";
 import { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
 import { ReloadIcon } from "@radix-ui/react-icons";
+import { put } from "@vercel/blob/client";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -34,8 +35,8 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const [selectedThumbnail, setSelectedThumbnail] = useState<string | null>(
     entity.screenShotLight ?? null,
   );
-  const { mutate: generateUploadUrls } =
-    api.snapshot.generateUploadUrls.useMutation();
+  const { mutate: generateTokens } =
+    api.snapshot.generateClientUploadTokens.useMutation();
   const { mutate: updateEntity } = api.entities.update.useMutation();
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [generateQuery, setGenerateQuery] = useState<string>("");
@@ -86,69 +87,75 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
 
   /** common for all upload methods */
   const handleUpload = async () => {
-    if (!selectedThumbnail) {
-      return;
-    }
-    // Fetch the image data from the URL
-    const response = await fetch(selectedThumbnail);
-    if (!response.ok) {
-      toast.error("Failed to fetch image for upload.");
-      return;
-    }
-    const blob = await response.blob();
+    if (!selectedThumbnail) return;
 
-    // Validate the blob type before proceeding
+    const res = await fetch(selectedThumbnail);
+    if (!res.ok) {
+      toast.error("Failed to fetch image for upload");
+      return;
+    }
+    const blob = await res.blob();
 
     if (!allowedTypes.includes(blob.type as AllowedContentType)) {
       toast.error("Invalid Image Type", {
-        description: `Unsupported image type: ${blob.type || "unknown"}. Please upload SVG, JPG, PNG, WEBP, or AVIF.`,
+        description: `Unsupported type: ${blob.type || "unknown"}`,
       });
       return;
     }
 
     setIsUploading(true);
-    generateUploadUrls(
+
+    /* 1️⃣  get upload tokens (one for dark & light) */
+    generateTokens(
+      { entityId: entity.id, contentType: blob.type as AllowedContentType },
       {
-        entityId: entity.id,
-        contentType: blob.type as AllowedContentType,
-      },
-      {
-        onSuccess: async (data) => {
-          await Promise.all(
-            data.map(async (item) => {
-              await fetch(item.signedUploadUrl, {
-                method: "PUT",
-                body: blob,
-              });
-            }),
-          );
-          updateEntity(
-            {
-              id: entity.id,
-              screenShotLight: data[0]?.signedDownloadUrl,
-              screenShotDark: data[1]?.signedDownloadUrl,
-            },
-            {
-              onSuccess: async () => {
-                toast.success("Thumbnail saved");
-                await revalidateDashboard();
-                router.refresh();
-                onOpenChange(false);
-              },
-              onSettled: () => {
-                setIsUploading(false);
-              },
-              onError: (error) => {
-                toast.error("Error saving thumbnail", {
-                  description: error.message,
-                });
-              },
-            },
-          );
-        },
-        onError: (error) => {
+        onError: (e) => {
+          toast.error("Unable to prepare upload", { description: e.message });
           setIsUploading(false);
-          console.error(error);
+        },
+        onSuccess: async (tokens) => {
+          try {
+            /* 2️⃣  push the file to Blob for each theme */
+            const uploaded = await Promise.all(
+              tokens.map(async ({ token, pathname, theme }) => {
+                const { url } = await put(pathname, blob, {
+                  access: "public",
+                  multipart: true,
+                  contentType: blob.type,
+                  token,
+                });
+                return { theme, url };
+              }),
+            );
+
+            /* 3️⃣  persist URLs in your DB */
+            const light = uploaded.find((u) => u.theme === "light")?.url;
+            const dark = uploaded.find((u) => u.theme === "dark")?.url;
+
+            await new Promise<void>((resolve, reject) => {
+              updateEntity(
+                {
+                  id: entity.id,
+                  screenShotLight: light,
+                  screenShotDark: dark,
+                },
+                {
+                  onSuccess: resolve,
+                  onError: (e) => reject(e),
+                },
+              );
+            });
+
+            toast.success("Thumbnail saved");
+            await revalidateDashboard();
+            router.refresh();
+            onOpenChange(false);
+          } catch (e) {
+            console.error("Error uploading thumbnail in icon-modal.tsx", e);
+            toast.error("Upload failed", { description: (e as Error).message });
+          } finally {
+            setIsUploading(false);
+          }
         },
       },
     );

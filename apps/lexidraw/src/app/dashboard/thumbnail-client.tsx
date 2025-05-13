@@ -35,6 +35,7 @@ export function ThumbnailClient({ entity }: Props) {
           quality={75}
           loading="eager"
           className="object-cover"
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
       )}
       {!src && !isDefaultDirectory && <ThumbnailFallback />}

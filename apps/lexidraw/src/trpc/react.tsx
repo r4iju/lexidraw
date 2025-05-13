@@ -1,10 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  unstable_httpBatchStreamLink as httpBatchStreamLink,
-  loggerLink,
-} from "@trpc/client";
+import { httpBatchStreamLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import { useState } from "react";
 import { type AppRouter } from "~/server/api/root";

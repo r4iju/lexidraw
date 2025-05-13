@@ -16,10 +16,11 @@ import {
 } from "@packages/drizzle";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import env from "@packages/env";
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidV4 } from "uuid";
-import { s3 } from "~/server/s3";
+import {
+  generateClientTokenFromReadWriteToken,
+  type GenerateClientTokenOptions,
+} from "@vercel/blob/client";
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -793,7 +794,6 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         entityId: z.string(),
-        // svg, jpeg, webp, avif or png
         contentType: z.enum([
           "image/svg+xml",
           "image/jpeg",
@@ -801,7 +801,7 @@ export const entityRouter = createTRPCRouter({
           "image/webp",
           "image/avif",
         ]),
-        mode: z.enum(["direct", "redirect"]),
+        mode: z.enum(["direct", "redirect"]), // kept for API shape
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -815,95 +815,61 @@ export const entityRouter = createTRPCRouter({
           .from(schema.entities)
           .where(eq(schema.entities.id, input.entityId))
       )[0];
-
-      if (!entity) {
-        console.error("entity not found");
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Drawing not found",
-        });
-      }
+      if (!entity)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
 
       const isOwner = entity.userId === ctx.session?.user.id;
       const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+      if (!isOwner && !anyOneCanEdit)
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
 
-      if (!isOwner && !anyOneCanEdit) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to view this drawing",
-        });
-      }
-
-      const { entityId, contentType } = input;
-      const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
-      const randomId = uuidV4();
-
-      // let's make sure we have both dark and light themes
-      const fileName = `${entityId}-${randomId}.${extension}`;
-      console.log("fileName", fileName);
-
-      const fileUrl = `${ctx.headers.get("origin")}/api/images/${fileName}`;
-      console.log("fileUrl", fileUrl);
-
-      try {
-        const uploadCommand = new PutObjectCommand({
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: fileName,
-          ContentType: contentType,
-        });
-        const downloadCommand = new GetObjectCommand({
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: fileName,
-        });
-
-        const [signedUploadUrl, signedDownloadUrl] = await Promise.all([
-          getSignedUrl(s3, uploadCommand, {
-            expiresIn: 15 * 60, // 15 minutes
-          }),
-          getSignedUrl(s3, downloadCommand, {
-            expiresIn: 7 * 24 * 60 * 60, // 7 days
-          }),
-        ]);
-
-        await ctx.drizzle
-          .insert(ctx.schema.uploadedImages)
-          .values({
-            id: randomId,
-            userId: ctx.session.user.id,
-            entityId: entityId,
-            fileName: fileName,
-            signedUploadUrl: signedUploadUrl,
-            signedDownloadUrl: signedDownloadUrl,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: ctx.schema.uploadedImages.id,
-            set: {
-              signedUploadUrl: signedUploadUrl,
-              signedDownloadUrl: signedDownloadUrl,
-              updatedAt: new Date(),
-            },
-          })
-          .execute();
-
-        return {
-          signedUploadUrl,
-          signedDownloadUrl,
-        };
-      } catch (error) {
-        console.error(`Failed to generate signed URL`, error);
+      /* --- generate client token ----------------------------------- */
+      const extension = input.contentType.split("/")[1]?.replace(/\+.*$/, "");
+      if (!extension)
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to generate signed URL",
+          message: "Invalid content type",
         });
-      }
+      const randomId = uuidV4();
+      const pathname = `${input.entityId}-${randomId}.${extension}`;
+
+      const token = await generateClientTokenFromReadWriteToken({
+        token: env.BLOB_READ_WRITE_TOKEN,
+        pathname,
+        allowedContentTypes: [input.contentType],
+        addRandomSuffix: false, // we already randomised
+      } satisfies GenerateClientTokenOptions);
+
+      /* --- persist expected upload --------------------------------- */
+      await ctx.drizzle
+        .insert(ctx.schema.uploadedImages)
+        .values({
+          id: randomId,
+          userId: ctx.session.user.id,
+          entityId: input.entityId,
+          fileName: pathname,
+          signedUploadUrl: token,
+          signedDownloadUrl: "",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: ctx.schema.uploadedImages.id,
+          set: { signedUploadUrl: token, updatedAt: new Date() },
+        })
+        .execute();
+
+      /* --- respond (minimal API break) ----------------------------- */
+      return {
+        token, // 🔑  to be used with `put(pathname, file, { token })`
+        pathname, // where the blob will live
+      };
     }),
+
   generateVideoUploadUrl: protectedProcedure
     .input(
       z.object({
         entityId: z.string(),
-        // mp4, webm, ogg
         contentType: z.enum(["video/mp4", "video/webm", "video/ogg"]),
         mode: z.enum(["direct", "redirect"]),
       }),
@@ -919,91 +885,51 @@ export const entityRouter = createTRPCRouter({
           .from(schema.entities)
           .where(eq(schema.entities.id, input.entityId))
       )[0];
-
-      if (!entity) {
-        console.error("entity not found");
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Drawing not found",
-        });
-      }
+      if (!entity)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
 
       const isOwner = entity.userId === ctx.session?.user.id;
       const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+      if (!isOwner && !anyOneCanEdit)
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
 
-      if (!isOwner && !anyOneCanEdit) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to view this drawing",
-        });
-      }
-
-      const { entityId, contentType } = input;
-      const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
-      const randomId = uuidV4();
-
-      // let's make sure we have both dark and light themes
-      const fileName = `${entityId}-${randomId}.${extension}`;
-      console.log("fileName", fileName);
-
-      const fileUrl = `${ctx.headers.get("origin")}/api/videos/${fileName}`;
-      console.log("fileUrl", fileUrl);
-
-      try {
-        const uploadCommand = new PutObjectCommand({
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: fileName,
-          ContentType: contentType,
-        });
-        const downloadCommand = new GetObjectCommand({
-          Bucket: env.SUPABASE_S3_BUCKET,
-          Key: fileName,
-        });
-
-        const [signedUploadUrl, signedDownloadUrl] = await Promise.all([
-          getSignedUrl(s3, uploadCommand, {
-            expiresIn: 15 * 60, // 15 minutes
-          }),
-          getSignedUrl(s3, downloadCommand, {
-            expiresIn: 7 * 24 * 60 * 60, // 7 days
-          }),
-        ]);
-
-        await ctx.drizzle
-          .insert(ctx.schema.uploadedVideos)
-          .values({
-            id: randomId,
-            userId: ctx.session.user.id,
-            entityId: entityId,
-            fileName: fileName,
-            signedUploadUrl: signedUploadUrl,
-            signedDownloadUrl: signedDownloadUrl,
-            requestId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: ctx.schema.uploadedVideos.id,
-            set: {
-              signedUploadUrl: signedUploadUrl,
-              signedDownloadUrl: signedDownloadUrl,
-              updatedAt: new Date(),
-            },
-          })
-          .execute();
-
-        return {
-          signedUploadUrl,
-          signedDownloadUrl,
-        };
-      } catch (error) {
-        console.error(`Failed to generate signed URL`, error);
+      const extension = input.contentType.split("/")[1]?.replace(/\+.*$/, "");
+      if (!extension)
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to generate signed URL",
+          message: "Invalid content type",
         });
-      }
+      const randomId = uuidV4();
+      const pathname = `${input.entityId}-${randomId}.${extension}`;
+
+      const token = await generateClientTokenFromReadWriteToken({
+        token: env.BLOB_READ_WRITE_TOKEN,
+        pathname,
+        allowedContentTypes: [input.contentType],
+      });
+
+      await ctx.drizzle
+        .insert(ctx.schema.uploadedVideos)
+        .values({
+          id: randomId,
+          userId: ctx.session.user.id,
+          entityId: input.entityId,
+          fileName: pathname,
+          signedUploadUrl: token,
+          signedDownloadUrl: "",
+          requestId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: ctx.schema.uploadedVideos.id,
+          set: { signedUploadUrl: token, updatedAt: new Date() },
+        })
+        .execute();
+
+      return { token, pathname };
     }),
+
   downloadAndUploadByUrl: protectedProcedure
     .input(z.object({ url: z.string(), entityId: z.string() }))
     .mutation(async ({ input, ctx }) => {
