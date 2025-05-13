@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { debounce } from "@packages/lib";
 import { MessageStructure, PublicAccess } from "@packages/types";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
@@ -120,6 +120,7 @@ import {
   Sawarabi_Mincho,
 } from "next/font/google";
 import { cn } from "~/lib/utils";
+import { useSaveAndExportDocument } from "./context/save-and-export";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -183,8 +184,22 @@ type EditorProps = {
   initialLlmConfig: StoredLlmConfig;
 };
 
-function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
-  const editorStateRef = useRef<EditorState>(undefined);
+type ExtendedEditorProps = EditorProps & {
+  handleSave: (onSuccessCallback?: () => void) => void;
+  isUploading: boolean;
+  editorStateRef: RefObject<EditorState | undefined>;
+  setEditorStateRef: (editorState: EditorState) => void;
+};
+
+function EditorHandler({
+  entity,
+  iceServers,
+  initialLlmConfig,
+  handleSave,
+  isUploading,
+  editorStateRef,
+  setEditorStateRef,
+}: ExtendedEditorProps) {
   const canCollaborate =
     entity.sharedWith.length > 0 ||
     entity.publicAccess !== PublicAccess.PRIVATE;
@@ -229,7 +244,7 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
       return;
     }
     markDirty();
-    editorStateRef.current = editorState;
+    setEditorStateRef(editorState);
     debouncedSendUpdateRef.current(parsedState);
   };
 
@@ -238,12 +253,12 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
       if (message.entityType === "document") {
         setIsRemoteUpdate(true);
         const editorState = editor.parseEditorState(message.payload.elements);
-        editorStateRef.current = editorState;
+        setEditorStateRef(editorState);
         editor.setEditorState(editorState);
         setIsRemoteUpdate(false);
       }
     },
-    [editor],
+    [editor, setEditorStateRef],
   );
 
   const { sendMessage, initializeConnection } = useWebRtcService(
@@ -299,8 +314,8 @@ function EditorHandler({ entity, iceServers, initialLlmConfig }: EditorProps) {
                                 <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-(--breakpoint-xl) rounded-md shadow-xs gap-2 mx-auto">
                                   <OptionsDropdown
                                     className="flex h-12 md:h-10 min-w-12 md:w-10"
-                                    documentId={entity.id}
-                                    state={editorStateRef}
+                                    onSaveDocument={handleSave}
+                                    isSavingDocument={isUploading}
                                   />
 
                                   <ShortcutsPlugin
@@ -445,6 +460,15 @@ export default function DocumentEditor({
   initialLlmConfig,
 }: Props) {
   console.log("🔄 DocumentEditor re-rendered");
+
+  const editorStateRef = useRef<EditorState>(undefined);
+  const setEditorStateRef = useCallback((editorState: EditorState) => {
+    editorStateRef.current = editorState;
+  }, []);
+
+  const { handleSaveAndLeave, handleSave, isUploading } =
+    useSaveAndExportDocument({ entity, editorStateRef });
+
   return (
     <LexicalComposer
       initialConfig={{
@@ -490,11 +514,15 @@ export default function DocumentEditor({
         theme: theme,
       }}
     >
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
         <EditorHandler
           entity={entity}
           iceServers={iceServers}
           initialLlmConfig={initialLlmConfig}
+          handleSave={handleSave}
+          isUploading={isUploading}
+          editorStateRef={editorStateRef}
+          setEditorStateRef={setEditorStateRef}
         />
       </UnsavedChangesProvider>
     </LexicalComposer>
