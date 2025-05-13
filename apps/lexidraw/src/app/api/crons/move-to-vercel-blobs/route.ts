@@ -5,6 +5,9 @@ import { put } from "@vercel/blob";
 import env from "@packages/env";
 import { drizzle, schema, eq } from "@packages/drizzle";
 
+// timeout
+export const maxDuration = 600;
+
 /* ---------------------------------------------------- */
 /* helpers                                              */
 /* ---------------------------------------------------- */
