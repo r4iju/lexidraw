@@ -90,13 +90,15 @@ export const MessageInput = () => {
               key={index}
               className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted"
             >
-              <FileIcon className="size-6" />
-              <span className="text-sm">{file.name}</span>
+              <FileIcon className="size-5 flex-shrink-0" />
+              <span className="text-sm truncate max-w-[150px]">
+                {file.name}
+              </span>
               <Button
                 size="icon"
                 variant="ghost"
                 onClick={() => handleRemoveFile(index)}
-                className="hover:bg-background size-8"
+                className="hover:bg-background size-8 flex-shrink-0"
               >
                 <XIcon className="size-4" />
               </Button>
