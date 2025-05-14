@@ -35,6 +35,7 @@ import type {
 } from "~/server/api/routers/config";
 import { type z } from "zod";
 import { useSettings } from "./settings-context";
+import { useDebounce } from "~/lib/client-utils";
 
 export type RuntimeToolMap = Record<string, ReturnType<typeof tool>>;
 
@@ -229,6 +230,41 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     autocomplete: initialConfig.autocomplete,
   });
 
+  const saveConfiguration = useCallback(
+    (updatedConfig: {
+      chatConfig?: Partial<LLMBaseState>;
+      autocompleteConfig?: Partial<LLMBaseState>;
+    }) => {
+      const payload: PartialLlmConfig = {};
+
+      if (updatedConfig.chatConfig) {
+        payload.chat = {
+          modelId: llmConfig.chat.modelId,
+          provider: llmConfig.chat.provider,
+          temperature: llmConfig.chat.temperature,
+          maxTokens: llmConfig.chat.maxTokens,
+        };
+      }
+
+      if (updatedConfig.autocompleteConfig) {
+        payload.autocomplete = {
+          modelId: llmConfig.autocomplete.modelId,
+          provider: llmConfig.autocomplete.provider,
+          temperature: llmConfig.autocomplete.temperature,
+          maxTokens: llmConfig.autocomplete.maxTokens,
+        };
+      }
+
+      if (Object.keys(payload).length > 0) {
+        console.log("[LLMContext] Saving LLM configuration update:", payload);
+        updateLlmConfigMutation.mutate(payload);
+      }
+    },
+    [updateLlmConfigMutation, llmConfig],
+  );
+
+  const debouncedSaveConfiguration = useDebounce(saveConfiguration, 5000);
+
   const setLlmConfiguration = useCallback(
     (
       config: Partial<{
@@ -242,8 +278,12 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         chat: { ...prev.chat, ...config.chat },
         autocomplete: { ...prev.autocomplete, ...config.autocomplete },
       }));
+      debouncedSaveConfiguration.run({
+        chatConfig: config.chat,
+        autocompleteConfig: config.autocomplete,
+      });
     },
-    [setLlmConfig],
+    [setLlmConfig, debouncedSaveConfiguration],
   );
 
   const [autocompleteState, setAutocompleteState] =
@@ -485,13 +525,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
 
-      if (files) {
-        console.log(
-          "[LLMContext generateChatResponse] Received file:",
-          files.length,
-        );
-      }
-
       setChatState((prev) => ({
         ...prev,
         isStreaming: true,
@@ -581,15 +614,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         console.warn("[LLMContext] Chat provider not loaded.");
         callbacks.onError?.(new Error("Chat provider not loaded."));
         return;
-      }
-
-      if (files) {
-        console.log(
-          "[LLMContext generateChatStream] Received file:",
-          files.length,
-        );
-        // TODO: Handle file upload logic here (e.g., FormData with prompt/file)
-        // This currently does not send the file, only logs its presence.
       }
 
       setChatState((prev) => ({
@@ -706,39 +730,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       llmConfig.chat.temperature,
       settings.chat,
     ],
-  );
-
-  const saveConfiguration = useCallback(
-    (updatedConfig: {
-      chatConfig?: Partial<LLMBaseState>;
-      autocompleteConfig?: Partial<LLMBaseState>;
-    }) => {
-      const payload: PartialLlmConfig = {};
-
-      if (updatedConfig.chatConfig) {
-        payload.chat = {
-          modelId: llmConfig.chat.modelId,
-          provider: llmConfig.chat.provider,
-          temperature: llmConfig.chat.temperature,
-          maxTokens: llmConfig.chat.maxTokens,
-        };
-      }
-
-      if (updatedConfig.autocompleteConfig) {
-        payload.autocomplete = {
-          modelId: llmConfig.autocomplete.modelId,
-          provider: llmConfig.autocomplete.provider,
-          temperature: llmConfig.autocomplete.temperature,
-          maxTokens: llmConfig.autocomplete.maxTokens,
-        };
-      }
-
-      if (Object.keys(payload).length > 0) {
-        console.log("[LLMContext] Saving LLM configuration update:", payload);
-        updateLlmConfigMutation.mutate(payload);
-      }
-    },
-    [updateLlmConfigMutation, llmConfig],
   );
 
   const setAutocompleteLlmOptions = useCallback(
