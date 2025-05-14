@@ -67,16 +67,27 @@ export function LlmModelSelector({ className }: { className?: string }) {
   };
   const handleMaxTokensBlur = () => {
     const numValue = parseInt(localMaxTokens.replace(/\D/g, ""), 10);
+
     if (!isNaN(numValue) && numValue >= 0) {
-      if (numValue !== currentState.maxTokens) {
+      const currentProvider = currentState.provider;
+      let cappedValue = numValue;
+
+      if (currentProvider === "openai") {
+        cappedValue = Math.min(numValue, 32768);
+      } else if (currentProvider === "google") {
+        cappedValue = Math.min(numValue, 65535);
+      }
+
+      if (cappedValue !== currentState.maxTokens) {
         setLlmConfiguration({
           [selectedMode]: {
-            maxTokens: numValue,
+            maxTokens: cappedValue,
           },
         });
       }
+      setLocalMaxTokens(cappedValue.toString());
     } else {
-      setLocalMaxTokens(currentState.maxTokens.toLocaleString());
+      setLocalMaxTokens(currentState.maxTokens.toString());
     }
   };
 
@@ -174,14 +185,27 @@ export function LlmModelSelector({ className }: { className?: string }) {
                   disabled={!isCurrentModeEnabled}
                   onSelect={() => {
                     if (!isCurrentModeEnabled) return;
+
+                    const newProvider = model.provider;
+                    const newModelId = model.modelId;
+                    let newMaxTokens = currentState.maxTokens;
+
+                    if (newProvider === "openai") {
+                      newMaxTokens = 32768;
+                    } else if (newProvider === "google") {
+                      newMaxTokens = 65535;
+                    }
+
                     if (
-                      model.modelId !== currentState.modelId ||
-                      model.provider !== currentState.provider
+                      newModelId !== currentState.modelId ||
+                      newProvider !== currentState.provider ||
+                      newMaxTokens !== currentState.maxTokens
                     ) {
                       setLlmConfiguration({
                         [selectedMode]: {
-                          modelId: model.modelId,
-                          provider: model.provider,
+                          modelId: newModelId,
+                          provider: newProvider,
+                          maxTokens: newMaxTokens,
                         },
                       });
                     }
