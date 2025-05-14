@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { createContext, PropsWithChildren, useContext, useEffect } from "react";
 import { tool } from "ai";
 import { z } from "zod";
@@ -13,60 +12,38 @@ import {
   $isRootNode,
   $isTextNode,
   $getNodeByKey,
-  $isRangeSelection,
-  $getSelection,
-  type RangeSelection,
-  type NodeSelection,
-  $isParagraphNode,
-  $insertNodes,
 } from "lexical";
 import {
   $createCodeNode,
   $createCodeHighlightNode,
-  $isCodeNode,
   $isCodeHighlightNode,
 } from "@lexical/code";
-import { $createHeadingNode, type HeadingTagType } from "@lexical/rich-text";
+import { $createHeadingNode } from "@lexical/rich-text";
 import {
   $createListNode,
   $createListItemNode,
   $isListNode,
   $isListItemNode,
 } from "@lexical/list";
-import {
-  $convertFromMarkdownString,
-  $convertToMarkdownString,
-  TRANSFORMERS,
-} from "@lexical/markdown";
-import { $createMarkNode, $isMarkNode } from "@lexical/mark";
+import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import {
   $createTableCellNode,
   $createTableNode,
   $createTableRowNode,
-  $isTableNode,
 } from "@lexical/table";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
-import { $createLinkNode, $isLinkNode } from "@lexical/link";
-import { $createOverflowNode, $isOverflowNode } from "@lexical/overflow";
+import { $createLinkNode } from "@lexical/link";
 
 /** Standard Nodes */
-import { ElementNode, LexicalNode, TextNode, ParagraphNode } from "lexical";
-import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { ListNode, ListItemNode } from "@lexical/list";
-import { CodeNode } from "@lexical/code";
-import { MarkNode } from "@lexical/mark";
-import { TableNode } from "@lexical/table";
+import { ElementNode, LexicalNode } from "lexical";
 
 /** Custom Nodes */
 import { EquationNode } from "../../nodes/EquationNode";
 import { FigmaNode } from "../../nodes/FigmaNode";
-import { ImageNode } from "../../nodes/ImageNode/ImageNode";
-import { AutocompleteNode } from "../../nodes/AutocompleteNode";
 import { CollapsibleContainerNode } from "../../plugins/CollapsiblePlugin/CollapsibleContainerNode";
 import { CollapsibleContentNode } from "../../plugins/CollapsiblePlugin/CollapsibleContentNode";
 import { CollapsibleTitleNode } from "../../plugins/CollapsiblePlugin/CollapsibleTitleNode";
 import { ExcalidrawNode } from "../../nodes/ExcalidrawNode/index";
-import { InlineImageNode } from "../../nodes/InlineImageNode/InlineImageNode";
 import { LayoutContainerNode } from "../../nodes/LayoutContainerNode";
 import { LayoutItemNode } from "../../nodes/LayoutItemNode";
 import { PageBreakNode } from "../../nodes/PageBreakNode";
@@ -74,7 +51,7 @@ import { PollNode } from "../../nodes/PollNode";
 import { TweetNode } from "../../nodes/TweetNode";
 import { YouTubeNode } from "../../nodes/YouTubeNode";
 
-import { useChatDispatch, type Action } from "./llm-chat-context";
+import { useChatDispatch } from "./llm-chat-context";
 import { useRuntimeSpec } from "./reflect-editor-runtime";
 import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
 import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
@@ -147,7 +124,7 @@ type InsertionPointResolution =
     }
   | { status: "error"; message: string };
 
-// Result schema: Now includes structured content
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ResultSchema = z.object({
   success: z.boolean().describe("Whether the operation was successful."),
   error: z
@@ -316,183 +293,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     console.log("🛠️ [ToolFactory] NodeSpecByType changed:", NodeSpecByType);
   }, [NodeSpecByType]);
 
-  /* ------------------------------------------------------------------
-   * Helper: normalise the "value" field so every setter receives
-   *         exactly the number (fn.length) of positional arguments.
-   * -----------------------------------------------------------------*/
-  function normaliseSetterArgs(
-    fn: (...args: unknown[]) => unknown,
-    rawValue: unknown,
-  ): unknown[] {
-    const paramCount = Math.max(fn.length, 1); // safety first
-    let args: unknown[];
-
-    // 1. Accept exact array → already ordered
-    if (Array.isArray(rawValue)) {
-      args = rawValue;
-    }
-    // 2. Plain object → extract width/height if possible, else use Object.values
-    else if (rawValue !== null && typeof rawValue === "object") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { width, height } = rawValue as any; // Attempt to destructure common case
-      if (width !== undefined || height !== undefined) {
-        args = [width, height]; // Assumes order for width/height case
-      } else {
-        // Fallback for generic objects - order might not be guaranteed
-        args = Object.values(rawValue as Record<string, unknown>);
-      }
-    }
-    // 3. Everything else → wrap single primitive
-    else {
-      args = [rawValue];
-    }
-
-    // 4. Pad / trim to match arity for *all* setters
-    if (args.length < paramCount) {
-      args = [...args, ...Array(paramCount - args.length).fill(undefined)];
-    } else if (args.length > paramCount) {
-      args = args.slice(0, paramCount);
-    }
-
-    return args;
-  }
-
-  /* --------------------------------------------------------------
-   * 3. Auto‑generate simple setter tools (setX-Y)
-   * --------------------------------------------------------------*/
-  const setterTools: RuntimeToolMap = useMemo(() => {
-    const tools = {} as RuntimeToolMap;
-
-    for (const node of Object.values(NodeSpecByType)) {
-      for (const method of node.methods) {
-        if (!method.startsWith("set")) continue;
-        const attrName = method.slice(3); // e.g. setIndent -> Indent
-        const toolName = `set${node.type}-${attrName}` as keyof RuntimeToolMap;
-
-        // Avoid duplicates when multiple node types share the same setter name
-        if (tools[toolName]) continue;
-
-        // @ts-expect-error TODO: fix this
-        tools[toolName] = tool({
-          description: `Calls ${method} on a ${node.type} node.
-  If ${method} expects more than one parameter, pass **value** as an ordered array.${
-    method === "setWidthAndHeight"
-      ? `
-  Arguments should be [number | 'inherit', number | 'inherit'].`
-      : ""
-  }`,
-          parameters: z.object({
-            anchorKey: z.string().optional(),
-            anchorText: z.string().optional(),
-            value: z
-              .union([z.unknown(), z.array(z.unknown())])
-              .describe(
-                "Single argument OR ordered array for multi‑param setters",
-              ),
-          }),
-          execute: async ({ anchorKey, anchorText, value }) => {
-            try {
-              console.log(`▶️ [${toolName}] searching for target`, {
-                anchorKey,
-                anchorText,
-              });
-
-              // 1. resolve target
-              const target = anchorKey
-                ? findNodeByKey(editor, anchorKey)
-                : findFirstNodeByText(editor, anchorText);
-
-              if (!target) {
-                console.error(`❌ [${toolName}] Error: Target node not found`);
-                return { success: false, error: "Target node not found" };
-              }
-
-              console.log(
-                `▶️ [${toolName}] found target: type=${target.getType()}, key=${target.getKey()}`,
-              );
-
-              // New guard: Check node type
-              if (target.getType() !== node.type) {
-                const errorMsg = `Anchor resolves to ${target.getType()}, but ${toolName} can only edit ${node.type}.`;
-                console.error(`❌ [${toolName}] Error: ${errorMsg}`);
-                return {
-                  success: false,
-                  error: errorMsg,
-                };
-              }
-
-              // 2. call setter safely *outside* editor.update
-              // @ts-expect-error TODO: fix this
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const fn = target[method] as ((v: any) => void) | undefined;
-              if (typeof fn !== "function") {
-                const errorMsg = `${method} is not implemented on ${node.type}`;
-                console.error(`❌ [${toolName}] Error: ${errorMsg}`);
-                return {
-                  success: false,
-                  error: errorMsg,
-                };
-              }
-
-              console.log(
-                `▶️ [${toolName}] calling ${method} with value:`,
-                value,
-              );
-
-              const targetKey = target.getKey(); // cache key only
-              const paramCount = Math.max(fn.length, 1); // Define paramCount here
-
-              // Normalize arguments based on expected count and function name
-              const args = normaliseSetterArgs(fn, value);
-
-              editor.update(() => {
-                // always fetch a *fresh* writable instance first
-                const live = $getNodeByKey(targetKey);
-                if (!live) {
-                  throw new Error(`Node ${targetKey} vanished before update.`);
-                }
-                // Log arguments before applying
-                console.log(
-                  `[setter] ${fn.name} expects ${paramCount} args, got:`,
-                  args,
-                );
-                // @ts-expect-error – dynamic method call, type safety handled by normaliseSetterArgs & checks
-                fn.apply(live, args);
-
-                if ("__maxWidth" in live) {
-                  console.log(
-                    "[setimage-MaxWidth] maxWidth now =",
-                    live.__maxWidth,
-                  );
-                }
-
-                if ("__width" in live && live.__width !== undefined) {
-                  console.log(
-                    `[${toolName}] width now =`,
-                    live.__width,
-                    "height =",
-                    // @ts-expect-error – dynamic method call, handled by normaliseSetterArgs
-                    live.__height,
-                  );
-                }
-              });
-
-              const summary = `${method} executed on ${node.type} (key: ${targetKey})`;
-              console.log(`✅ [${toolName}] Success: ${summary}`);
-              // Non-mutating (for state), return only summary
-              return { success: true, content: { summary } };
-            } catch (err) {
-              const errorMsg = err instanceof Error ? err.message : String(err);
-              console.error(`❌ [${toolName}] Error:`, errorMsg);
-              return { success: false, error: errorMsg };
-            }
-          },
-        });
-      }
-    }
-    return tools;
-  }, [NodeSpecByType, editor]);
-
   /* --------------------------------------------------------------
    * Plan or Clarify Tool
    * --------------------------------------------------------------*/
@@ -558,6 +358,97 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             content: { summary: `Clarification needed: ${args.clarification}` },
           };
         }
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Patch Node‑by‑Key Tool
+   * --------------------------------------------------------------*/
+  const patchNodeByJSON = tool({
+    description: `Replaces a node with a JSON‑patched clone.
+      Internally:
+        1. exportJSON() → current shape
+        2. Object.fromEntries(patchProperties) → patch
+        3. { …current, …patch } → merged  (if node class supplies importJSON)
+        4. Otherwise mutate the existing node in‑place via setters / direct props
+        5. importJSON(merged) → new node (only for the first path)
+        6. swap old ↔︎ new, keeping the same spot in the tree.`,
+    parameters: z.object({
+      nodeKey: z.string().describe("Key of the node to edit."),
+      patchProperties: z
+        .array(
+          z.object({
+            key: z.string(),
+            value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+          }),
+        )
+        .nonempty()
+        .describe(
+          "Array of patch records to merge into the node. " +
+            "Each record is `{ key: string; value: string|number|boolean|null }`.",
+        ),
+    }),
+
+    execute: async ({ nodeKey, patchProperties }): ExecuteResult => {
+      try {
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey);
+          if (!node)
+            throw new Error(`Node ${nodeKey} not found during update.`);
+
+          patchProperties.forEach(({ key, value }) => {
+            // @ts-expect-error - text nodes accept setTextContent
+            if (key === "text" && typeof node.setTextContent === "function") {
+              console.log(
+                "🛠️ [ToolFactory: patchNodeByJSON] setting text content with setTextContent:",
+                value,
+              );
+              // @ts-expect-error - text nodes accept setTextContent
+              node.setTextContent(String(value));
+              return;
+            }
+
+            // Generic setter e.g. set<Prop>()
+            const setterName =
+              "set" + key.charAt(0).toUpperCase() + key.slice(1);
+            // @ts-expect-error - most nodes accept dynamic setters
+            if (typeof node[setterName] === "function") {
+              console.log(
+                "🛠️ [ToolFactory: patchNodeByJSON] setting property with setter named:",
+                setterName,
+                "for node:",
+                node,
+              );
+              // @ts-expect-error - most nodes accept dynamic setters
+              node[setterName](value);
+              return;
+            }
+
+            // As last resort, mutate property directly (non‑reactive but OK for static fields)
+            try {
+              // @ts-expect-error – allow dynamic write
+              node[key] = value;
+            } catch {
+              console.warn(
+                `[patchNodeByJSON] Cannot set ${key} on node type ${node.getType()}.`,
+              );
+            }
+          });
+        });
+
+        const stateJson = JSON.stringify(editor.getEditorState().toJSON());
+        return {
+          success: true,
+          content: {
+            summary: `Patched node ${nodeKey} (properties: ${patchProperties.map((p) => p.key).join(", ")}).`,
+            updatedEditorStateJson: stateJson,
+          },
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[patchNodeByJSON] Error:", msg);
+        return { success: false, error: msg };
       }
     },
   });
@@ -1409,110 +1300,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   });
 
   /* --------------------------------------------------------------
-   * Insert MarkNode Tool
-   * --------------------------------------------------------------*/
-  const insertMarkNode = tool({
-    description:
-      "Inserts a new MarkNode with the specified IDs. MarkNodes are DecoratorNodes typically used to associate metadata (like comment IDs) with text ranges. This tool inserts the MarkNode itself. If placed relative to block content or at the root, it will be wrapped in a ParagraphNode.",
-    parameters: z.object({
-      ids: z
-        .array(z.string())
-        .min(1)
-        .describe("An array of string IDs to associate with the MarkNode."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-    }),
-    execute: async ({ ids, relation, anchor }): ExecuteResult => {
-      try {
-        console.log("[insertMarkNode] Starting", { ids, relation, anchor });
-
-        const resolution = await resolveInsertionPoint(
-          editor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertMarkNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let finalInsertedNodeKey: string | null = null;
-
-        editor.update(() => {
-          const newMarkNode = $createMarkNode(ids);
-
-          if (resolution.type === "appendRoot") {
-            const paragraph = $createParagraphNode();
-            paragraph.append(newMarkNode);
-            $getRoot().append(paragraph);
-            targetKeyForSummary = $getRoot().getKey();
-            finalInsertedNodeKey = paragraph.getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            if ($isTextNode(targetNode) || $isCodeHighlightNode(targetNode)) {
-              if (resolution.type === "before") {
-                targetNode.insertBefore(newMarkNode);
-              } else {
-                targetNode.insertAfter(newMarkNode);
-              }
-              finalInsertedNodeKey = newMarkNode.getKey();
-            } else {
-              const paragraph = $createParagraphNode();
-              paragraph.append(newMarkNode);
-              if (resolution.type === "before") {
-                targetNode.insertBefore(paragraph);
-              } else {
-                targetNode.insertAfter(paragraph);
-              }
-              finalInsertedNodeKey = paragraph.getKey();
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? "Appended new paragraph containing a MarkNode."
-            : `Inserted MarkNode (or its wrapper paragraph) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertMarkNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: finalInsertedNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertMarkNode] Error:`, errorMsg);
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert MarkNode",
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      }
-    },
-  });
-
-  /* --------------------------------------------------------------
    * Insert Markdown Tool
    * --------------------------------------------------------------*/
   const insertMarkdown = tool({
@@ -1805,6 +1592,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
         } catch (stateErr) {
+          console.error("Failed to serialize state on error:", stateErr);
           /* ignore */
         }
         return {
@@ -1933,7 +1721,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
         } catch (stateErr) {
-          /* ignore */
+          console.error("Failed to serialize state on error:", stateErr);
         }
         return {
           success: false,
@@ -2145,6 +1933,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
               if (key in styleObj) {
                 // Check if key exists before attempting removal
                 // Linter-friendly removal: create new object excluding the key
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { [key]: _, ...rest } = styleObj;
                 styleObj = rest;
                 appliedStyles.push(`removed ${key}`);
@@ -2215,7 +2004,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
    * --------------------------------------------------------------*/
   const sendReply = tool({
     description:
-      "Sends a text-only reply to the user. Use this when the user's query does not require document modification, such as asking a question or making a comment. This is the primary tool for 'chat' mode.",
+      "Sends a text-only reply to the user. Use this when the user's query clearly does not require document modification, such as asking a question or making a comment.",
     parameters: z.object({
       replyText: z
         .string()
@@ -2380,6 +2169,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -2388,98 +2178,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           error: errorMsg,
           content: {
             summary: "Failed to insert link node",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
-    },
-  });
-
-  /* --------------------------------------------------------------
-   * Insert OverflowNode Tool
-   * --------------------------------------------------------------*/
-  const insertOverflowNode = tool({
-    description:
-      "Inserts a new OverflowNode. OverflowNodes are typically used to indicate that content has been truncated (e.g., in a 'show more' scenario). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-    }),
-    execute: async ({ relation, anchor }): ExecuteResult => {
-      try {
-        console.log("[insertOverflowNode] Starting", { relation, anchor });
-
-        const resolution = await resolveInsertionPoint(
-          editor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertOverflowNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        editor.update(() => {
-          const newOverflowNode = $createOverflowNode();
-          newNodeKey = newOverflowNode.getKey();
-
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newOverflowNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // OverflowNode is typically block-level
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newOverflowNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newOverflowNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? "Appended new OverflowNode."
-            : `Inserted OverflowNode ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertOverflowNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertOverflowNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert OverflowNode",
             updatedEditorStateJson: stateJsonOnError,
           },
         };
@@ -2617,6 +2315,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -2731,6 +2430,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -2879,6 +2579,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -3012,6 +2713,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -3136,6 +2838,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -3230,6 +2933,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -3342,6 +3046,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -3450,6 +3155,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -3559,6 +3265,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (stateErr) {
           /* ignore */
         }
@@ -3575,11 +3282,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   });
 
   const individualTools = {
-    ...setterTools,
+    ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
     ...(insertHeadingNode && { insertHeadingNode }),
     ...(insertLinkNode && { insertLinkNode }),
-    ...(insertOverflowNode && { insertOverflowNode }),
     ...(insertEquationNode && { insertEquationNode }),
     ...(insertFigmaNode && { insertFigmaNode }),
     ...(insertCollapsibleSection && { insertCollapsibleSection }),
@@ -3593,7 +3299,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
     ...(insertCodeHighlightNode && { insertCodeHighlightNode }),
-    ...(insertMarkNode && { insertMarkNode }),
     ...(insertMarkdown && { insertMarkdown }),
     ...(insertTable && { insertTable }),
     ...(insertHashtag && { insertHashtag }),

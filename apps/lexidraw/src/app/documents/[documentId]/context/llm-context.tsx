@@ -263,7 +263,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     [updateLlmConfigMutation, llmConfig],
   );
 
-  const debouncedSaveConfiguration = useDebounce(saveConfiguration, 5000);
+  const debouncedSaveConfiguration = useDebounce(saveConfiguration, 2000);
 
   const setLlmConfiguration = useCallback(
     (
@@ -272,12 +272,39 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         autocomplete: Partial<LLMBaseState>;
       }>,
     ) => {
-      setLlmConfig((prev) => ({
-        ...prev,
-        ...config,
-        chat: { ...prev.chat, ...config.chat },
-        autocomplete: { ...prev.autocomplete, ...config.autocomplete },
-      }));
+      setLlmConfig((prev) => {
+        // Start with the previous state
+        const nextState = { ...prev };
+
+        // Apply chat updates if provided
+        if (config.chat) {
+          nextState.chat = { ...prev.chat, ...config.chat };
+        }
+
+        // Apply autocomplete updates if provided
+        if (config.autocomplete) {
+          nextState.autocomplete = {
+            ...prev.autocomplete,
+            ...config.autocomplete,
+          };
+        }
+
+        // Apply OpenAI max token cap for chat
+        if (nextState.chat.provider === "openai") {
+          nextState.chat.maxTokens = Math.min(nextState.chat.maxTokens, 32768);
+        }
+
+        // Apply OpenAI max token cap for autocomplete
+        if (nextState.autocomplete.provider === "openai") {
+          nextState.autocomplete.maxTokens = Math.min(
+            nextState.autocomplete.maxTokens,
+            32768,
+          );
+        }
+
+        return nextState;
+      });
+
       debouncedSaveConfiguration.run({
         chatConfig: config.chat,
         autocompleteConfig: config.autocomplete,
