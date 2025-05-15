@@ -293,7 +293,13 @@ export const snapshotRouter = createTRPCRouter({
           const token = await generateClientTokenFromReadWriteToken({
             token: env.BLOB_READ_WRITE_TOKEN,
             pathname,
-            allowedContentTypes: [contentType],
+            allowedContentTypes: [
+              "image/svg+xml",
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+              "image/avif",
+            ],
             allowOverwrite: true,
             // Uncomment to let Vercel call you back when the file is fully stored
             // onUploadCompleted: {
