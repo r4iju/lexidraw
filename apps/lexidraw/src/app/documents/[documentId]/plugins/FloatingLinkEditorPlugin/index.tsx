@@ -28,8 +28,9 @@ import { createPortal } from "react-dom";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { useSanitizeUrl } from "../../utils/url";
 import { Button } from "~/components/ui/button";
-import { PencilIcon, TrashIcon } from "lucide-react";
+import { CheckIcon, PencilIcon, TrashIcon, XIcon } from "lucide-react";
 import Link from "next/link";
+import { Input } from "~/components/ui/input";
 
 function FloatingLinkEditor({
   editor,
@@ -264,13 +265,17 @@ function FloatingLinkEditor({
   };
 
   return (
-    <div ref={editorRef} className="link-editor">
+    <div
+      ref={editorRef}
+      style={{ willChange: "transform" }}
+      className="flex items-center absolute top-0 left-0 z-10 max-w-[400px] w-full opacity-0 bg-transparent  transition-opacity duration-300"
+    >
       {!isLink ? null : isLinkEditMode ? (
-        <>
-          <input
+        <div className="flex items-center w-full justify-between gap-4 p-1 bg-background border border-border rounded-md">
+          <Input
             ref={inputRef}
-            className="link-input"
             value={editedLinkUrl}
+            className="w-full border border-ring focus-visible:ring-0 py-1 px-2 h-10"
             onChange={(event) => {
               setEditedLinkUrl(event.target.value);
             }}
@@ -278,31 +283,37 @@ function FloatingLinkEditor({
               monitorInputInteraction(event);
             }}
           />
-          <div>
-            <div
-              className="link-cancel"
+          <div className="flex items-center gap-2">
+            <Button
+              variant="destructive"
+              size="icon"
               role="button"
               tabIndex={0}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
                 setIsLinkEditMode(false);
               }}
-            />
+            >
+              <XIcon className="w-4 h-4" />
+            </Button>
 
-            <div
-              className="link-confirm"
+            <Button
+              variant="secondary"
+              size="icon"
               role="button"
               tabIndex={0}
               onMouseDown={(event) => event.preventDefault()}
               onClick={handleLinkSubmission}
-            />
+            >
+              <CheckIcon className="w-4 h-4" />
+            </Button>
           </div>
-        </>
+        </div>
       ) : (
-        <div className="flex items-center w-full justify-between pl-4 pr-2 py-2">
+        <div className="flex items-center w-full justify-between gap-4 p-1 bg-background border border-border rounded-md">
           <Button variant="link" asChild rel="noopener noreferrer">
             <Link
-              className="text-sm pl-0 pr-0"
+              className="text-muted-foreground text-sm text-left justify-start truncate pl-2"
               target="_blank"
               href={sanitizeUrl(linkUrl)}
             >
@@ -312,7 +323,7 @@ function FloatingLinkEditor({
 
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="icon"
               role="button"
               tabIndex={0}
@@ -320,12 +331,17 @@ function FloatingLinkEditor({
               onClick={() => {
                 setEditedLinkUrl(linkUrl);
                 setIsLinkEditMode(true);
+                setTimeout(() => {
+                  if (inputRef.current) {
+                    inputRef.current.focus();
+                  }
+                }, 0);
               }}
             >
               <PencilIcon className="w-4 h-4" />
             </Button>
             <Button
-              variant="outline"
+              variant="destructive"
               size="icon"
               role="button"
               tabIndex={0}
