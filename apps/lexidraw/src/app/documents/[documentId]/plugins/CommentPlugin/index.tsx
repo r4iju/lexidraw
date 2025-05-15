@@ -52,9 +52,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { Trash, Send, ChevronRight } from "lucide-react";
-
 import {
   Comment,
   Comments,
@@ -82,8 +80,6 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
-import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
-import { useSidebarManager } from "~/context/sidebar-manager-context";
 import {
   TOGGLE_COMMENTS_COMMAND,
   useCommentsContext,
@@ -128,7 +124,7 @@ function useOnChange(
           return $rootTextContent();
         });
         setContent(content);
-        const isEmpty = content! || content.trim() === "";
+        const isEmpty = content || content.trim() === "";
         setCanSubmit(!isEmpty);
       });
     },
@@ -341,7 +337,7 @@ function CommentInputBox({
         autoFocus
         className={cn(
           "relative block w-full border border-border bg-background rounded-sm text-sm p-2",
-          "focus:outline focus:outline-1 focus:outline-primary",
+          "focus:outline focus:outline-primary",
         )}
         onEscape={onEscape}
         onChange={onChange}
@@ -722,8 +718,8 @@ function CommentsPanelList({
   );
 }
 
-// the side panel
-function CommentsPanel({
+// the side panel - now exported and frameless
+export function CommentsPanel({
   activeIDs,
   comments,
   deleteCommentOrThread,
@@ -743,17 +739,12 @@ function CommentsPanel({
   ) => void;
   markNodeMap: Map<string, Set<NodeKey>>;
 }) {
-  const { activeSidebar, toggleSidebar } = useSidebarManager();
   const isEmpty = comments.length === 0;
 
   return (
-    <SidebarWrapper
-      isOpen={activeSidebar === "comments"}
-      onClose={() => toggleSidebar("comments")}
-      title="Comments"
-    >
+    <>
       {isEmpty ? (
-        <div className="text-center text-sm text-muted-foreground pt-8 -m-4">
+        <div className="text-center text-sm text-muted-foreground pt-8">
           No Comments
         </div>
       ) : (
@@ -765,11 +756,11 @@ function CommentsPanel({
           markNodeMap={markNodeMap}
         />
       )}
-    </SidebarWrapper>
+    </>
   );
 }
 
-export default function CommentPlugin(): JSX.Element {
+export default function CommentPlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const comments = useCommentStore(commentStore);
@@ -955,7 +946,6 @@ export default function CommentPlugin(): JSX.Element {
         });
       }),
       editor.registerUpdateListener(({ editorState, tags }) => {
-        // Track active Mark IDs from selection
         editorState.read(() => {
           const sel = $getSelection();
           let foundAny = false;
@@ -977,7 +967,6 @@ export default function CommentPlugin(): JSX.Element {
           }
         });
       }),
-      // insert-inline command
       editor.registerCommand(
         INSERT_INLINE_COMMAND,
         () => {
@@ -991,10 +980,8 @@ export default function CommentPlugin(): JSX.Element {
     );
   }, [editor, markNodeMap]);
 
-  // rehydrate from the Lexical tree on first load (only if not collaborating)
   useEffect(() => {
     editor.getEditorState().read(() => {
-      // build up a "set" of IDs we already know
       const knownIds = new Set(
         commentStore
           .getComments()
@@ -1004,7 +991,6 @@ export default function CommentPlugin(): JSX.Element {
               : [x.id],
           ),
       );
-      // DFS to find any Node-based comments/threads we haven't got:
       const root = $getRoot();
       const allNodes = $dfs(root);
       for (const { node } of allNodes) {
@@ -1028,25 +1014,21 @@ export default function CommentPlugin(): JSX.Element {
 
   return (
     <>
-      {showCommentInput &&
-        createPortal(
-          <CommentInputBox
-            editor={editor}
-            cancelAddComment={cancelAddComment}
-            submitAddComment={submitAddComment}
-          />,
-          document.body,
-        )}
-      {createPortal(
-        <CommentsPanel
-          activeIDs={activeIDs}
-          deleteCommentOrThread={deleteCommentOrThread}
-          comments={comments}
+      {showCommentInput && (
+        <CommentInputBox
+          editor={editor}
+          cancelAddComment={cancelAddComment}
           submitAddComment={submitAddComment}
-          markNodeMap={markNodeMap}
-        />,
-        document.body,
+        />
       )}
+
+      <CommentsPanel
+        activeIDs={activeIDs}
+        deleteCommentOrThread={deleteCommentOrThread}
+        comments={comments}
+        submitAddComment={submitAddComment}
+        markNodeMap={markNodeMap}
+      />
     </>
   );
 }

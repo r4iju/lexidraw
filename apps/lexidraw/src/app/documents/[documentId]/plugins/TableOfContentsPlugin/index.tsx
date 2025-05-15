@@ -6,8 +6,6 @@ import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as React from "react";
 import { Button } from "~/components/ui/button";
-import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
-import { useSidebarManager } from "~/context/sidebar-manager-context";
 
 const FIXED_HEADER_HEIGHT = 70;
 const SCROLL_TOP_PADDING = 20;
@@ -23,7 +21,6 @@ function TableOfContentsList({
   const [selectedKey, setSelectedKey] = useState("");
   const selectedIndex = useRef(0);
   const [editor] = useLexicalComposerContext();
-  const { activeSidebar, toggleSidebar } = useSidebarManager();
 
   const scrollToNodeWithPadding = useCallback(
     (key: NodeKey, currIndex: number) => {
@@ -147,17 +144,13 @@ function TableOfContentsList({
   }, [tableOfContents, editor, selectedKey]);
 
   return (
-    <SidebarWrapper
-      isOpen={activeSidebar === "toc"}
-      onClose={() => toggleSidebar("toc")}
-      title="Table of Contents"
-    >
+    <div className="p-4">
       {tableOfContents.length === 0 ? (
         <p className="text-sm text-muted-foreground italic px-4 py-2">
           No headings found.
         </p>
       ) : (
-        <ul className="p-4 space-y-1">
+        <ul className="space-y-1">
           {tableOfContents.map(([key, text, tag], index) => (
             <li
               key={key}
@@ -179,7 +172,7 @@ function TableOfContentsList({
           ))}
         </ul>
       )}
-    </SidebarWrapper>
+    </div>
   );
 }
 

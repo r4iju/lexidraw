@@ -31,13 +31,7 @@ export default async function RootLayout({ children }: Props) {
   const plainHeaders = new Map(headersList.entries());
 
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      style={{
-        scrollbarGutter: "stable both-edges",
-      }}
-    >
+    <html lang="en" suppressHydrationWarning>
       <head>
         {env.REACT_SCAN_ENABLED && (
           <Script
