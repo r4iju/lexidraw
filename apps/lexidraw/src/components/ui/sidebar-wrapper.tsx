@@ -218,7 +218,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto ">
+        <div data-label="sidebar-content" className="flex-1 overflow-y-auto ">
           <SidebarSizeContext.Provider value={{ width }}>
             {children}
           </SidebarSizeContext.Provider>

@@ -317,7 +317,8 @@ function CommentInputBox({
 
   return (
     <div
-      className="absolute w-64 min-h-20 left-0 top-0 bg-muted shadow-lg rounded-md z-20 animate-in slide-in-from-right-5 border border-border"
+      data-component-name="CommentInputBox"
+      className="fixed w-64 min-h-20 left-0 top-0 bg-muted shadow-lg rounded-md z-20 animate-in slide-in-from-right-5 border border-border"
       ref={boxRef}
     >
       {/* arrow div */}
@@ -744,7 +745,9 @@ export function CommentsPanel({
   return (
     <>
       {isEmpty ? (
-        <div className="text-center text-sm text-muted-foreground pt-8">
+        <div 
+        data-component-name="CommentsPanel"
+        className="text-center text-sm text-muted-foreground pt-8">
           No Comments
         </div>
       ) : (
@@ -1013,7 +1016,7 @@ export default function CommentPlugin(): JSX.Element | null {
   }, [editor, commentStore, $isCommentNode, $isThreadNode]);
 
   return (
-    <div className="h-full p-4">
+    <div className="h-full p-4" data-component-name="CommentPlugin">
       {showCommentInput && (
         <CommentInputBox
           editor={editor}
