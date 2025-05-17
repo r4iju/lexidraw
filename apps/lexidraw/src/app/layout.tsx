@@ -42,7 +42,7 @@ export default async function RootLayout({ children }: Props) {
       </head>
       <body
         className={cn(
-          "h-[100svh] w-[100vw] overflow-hidden flex flex-col font-fredoka bg-background text-foreground antialiased",
+          "min-h-[100svh] w-[100vw] flex flex-col font-fredoka bg-background text-foreground antialiased",
           fredoka.variable,
         )}
       >

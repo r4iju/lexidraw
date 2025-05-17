@@ -1,9 +1,5 @@
 import type { Option, Options } from "./PollNode";
 import { PollNode } from "./PollNode";
-
-import "./PollNode.css";
-
-import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
@@ -20,9 +16,12 @@ import {
 } from "lexical";
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-import joinClasses from "../utils/joinClasses";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Input } from "~/components/ui/input";
+import { cn } from "~/lib/utils";
+import { TrashIcon } from "lucide-react";
+import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 
 function getTotalVotes(options: Options): number {
   return options.reduce((totalVotes, next) => {
@@ -35,80 +34,76 @@ function PollOptionComponent({
   index,
   options,
   totalVotes,
+  nodeKey,
   withPollNode,
 }: {
   index: number;
   option: Option;
   options: Options;
   totalVotes: number;
+  nodeKey: NodeKey;
   withPollNode: (
     cb: (pollNode: PollNode) => void,
     onSelect?: () => void,
   ) => void;
 }): React.JSX.Element {
-  const { clientID } = useCollaborationContext();
+  const userId = useUserIdOrGuestId();
+  const [editor] = useLexicalComposerContext();
   const checkboxRef = useRef(null);
   const votesArray = option.votes;
-  const checkedIndex = votesArray.indexOf(clientID);
+  const checkedIndex = votesArray.indexOf(userId);
   const checked = checkedIndex !== -1;
   const votes = votesArray.length;
   const text = option.text;
 
   return (
-    <div className="PollNode__optionContainer">
-      <div
-        className={joinClasses(
-          "PollNode__optionCheckboxWrapper",
-          checked && "PollNode__optionCheckboxChecked",
-        )}
-      >
-        <input
-          ref={checkboxRef}
-          className="PollNode__optionCheckbox"
-          type="checkbox"
-          onChange={() => {
-            withPollNode((node) => {
-              node.toggleVote(option, clientID);
-            });
-          }}
-          checked={checked}
-        />
-      </div>
-      <div className="PollNode__optionInputWrapper">
+    <div className="flex items-center mb-2">
+      <Checkbox
+        ref={checkboxRef}
+        onCheckedChange={() => {
+          withPollNode((node) => {
+            node.toggleVote(option, userId);
+          });
+        }}
+        className="mr-2 size-6"
+        checked={checked}
+      />
+
+      <div className="relative flex flex-grow rounded-md border border-primary overflow-hidden">
         <div
-          className="PollNode__optionInputVotes"
+          className="absolute inset-y-0 left-0 bg-primary/10 transition-[width] duration-1000 ease-in-out"
           style={{ width: `${votes === 0 ? 0 : (votes / totalVotes) * 100}%` }}
         />
-        <span className="PollNode__optionInputVotesCount">
+        <span className="pointer-events-none absolute right-4 top-1 text-xs text-primary z-10">
           {votes > 0 && (votes === 1 ? "1 vote" : `${votes} votes`)}
         </span>
-        <input
-          className="PollNode__optionInput"
+        <Input
+          className={cn(
+            "relative z-10 flex-1 border-0 bg-transparent p-2 font-semibold",
+            "text-primary placeholder:text-muted-foreground placeholder:font-normal",
+            "focus-visible:ring-0",
+          )}
           type="text"
           value={text}
-          onChange={(e) => {
-            const target = e.target;
-            const value = target.value;
-            const selectionStart = target.selectionStart;
-            const selectionEnd = target.selectionEnd;
-            withPollNode(
-              (node) => {
-                node.setOptionText(option, value);
-              },
-              () => {
-                target.selectionStart = selectionStart;
-                target.selectionEnd = selectionEnd;
-              },
-            );
-          }}
+          onKeyDownCapture={(e) => e.stopPropagation()}
+          onChange={(e) =>
+            editor.update(() => {
+              const n = $getNodeByKey(nodeKey);
+              if (PollNode.$isPollNode(n)) {
+                n.setOptionText(option, e.target.value);
+              }
+            })
+          }
           placeholder={`Option ${index + 1}`}
         />
       </div>
-      <button
+      <Button
         disabled={options.length < 3}
-        className={joinClasses(
-          "PollNode__optionDelete",
-          options.length < 3 && "PollNode__optionDeleteDisabled",
+        size="icon"
+        className={cn(
+          "ml-2 size-7 shrink-0 rounded-sm",
+          "opacity-30 hover:opacity-100",
+          "disabled:pointer-events-none disabled:opacity-30",
         )}
         aria-label="Remove"
         onClick={() => {
@@ -116,7 +111,9 @@ function PollOptionComponent({
             node.deleteOption(option);
           });
         }}
-      />
+      >
+        <TrashIcon className="size-4" />
+      </Button>
     </div>
   );
 }
@@ -213,29 +210,34 @@ export default function PollComponent({
 
   return (
     <div
-      className={`PollNode__container ${isFocused ? "focused" : ""}`}
+      className={cn(
+        "max-w-[600px] min-w-[400px] select-none rounded-lg",
+        "border border-border bg-card p-6",
+        { "outline-2 outline-ring": isFocused },
+      )}
       ref={ref}
     >
-      <div className="PollNode__inner">
-        <h2 className="PollNode__heading">{question}</h2>
-        {options.map((option, index) => {
-          const key = option.uid;
-          return (
-            <PollOptionComponent
-              key={key}
-              withPollNode={withPollNode}
-              option={option}
-              index={index}
-              options={options}
-              totalVotes={totalVotes}
-            />
-          );
-        })}
-        <div className="PollNode__footer">
-          <Button onClick={addOption} size="sm">
-            Add Option
-          </Button>
-        </div>
+      <h2 className="mb-4 text-center text-lg font-medium text-foreground">
+        {question}
+      </h2>
+      {options.map((option, index) => {
+        const key = option.uid;
+        return (
+          <PollOptionComponent
+            key={key}
+            nodeKey={nodeKey}
+            withPollNode={withPollNode}
+            option={option}
+            index={index}
+            options={options}
+            totalVotes={totalVotes}
+          />
+        );
+      })}
+      <div className="flex justify-center">
+        <Button onClick={addOption} size="sm">
+          Add Option
+        </Button>
       </div>
     </div>
   );

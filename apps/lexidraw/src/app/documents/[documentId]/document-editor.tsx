@@ -344,7 +344,7 @@ function EditorHandler({
                   <ImageProvider>
                     <LexicalImageProvider>
                       <CommentPluginProvider>
-                        <div className="page-frame z-0 flex overflow-x-hidden">
+                        <div className="page-frame z-0 flex">
                           <div
                             className={cn(
                               "min-w-0 flex-1 flex flex-col",
@@ -357,6 +357,7 @@ function EditorHandler({
                               sawarabi.variable,
                             )}
                           >
+                            {/* toolbar */}
                             <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs shrink-0">
                               <div
                                 className="flex items-start gap-2 w-full overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2"
@@ -380,63 +381,61 @@ function EditorHandler({
                                 <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
                               </div>
                             </div>
-                            <div className="relative min-w-0 flex-1 ">
-                              <div className="relative max-w-(--breakpoint-lg) mx-auto">
-                                <DisableChecklistSpacebarPlugin />
-                                <EmojiPickerPlugin />
-                                <LayoutPlugin />
-                                <LLMWidget />
-                                <ListPlugin />
-                                <ListMaxIndentLevelPlugin />
-                                <CheckListPlugin />
-                                <MarkdownShortcutPlugin />
-                                <PageBreakPlugin />
-                                <CollapsiblePlugin />
-                                <PollPlugin />
-                                <CodeHighlightPlugin />
-                                <TabIndentationPlugin />
-                                <SessionUUIDProvider>
-                                  <AutocompletePlugin />
-                                </SessionUUIDProvider>
-                                <AutoEmbedPlugin />
-                                <AutoLinkPlugin />
-                                <HorizontalRulePlugin />
-                                <TablePlugin
-                                  hasCellMerge
-                                  hasCellBackgroundColor
-                                />
-                                <TableCellResizer />
-                                <ImagesPlugin />
-                                <InlineImagePlugin />
-                                <VideosPlugin />
-                                <LinkPlugin />
-                                <ClickableLinkPlugin disabled={isEditable} />
-                                <TwitterPlugin />
-                                <YouTubePlugin />
-                                <ExcalidrawPlugin />
-                                <FigmaPlugin />
-                                <EquationsPlugin />
-                                <RichTextPlugin
-                                  contentEditable={
-                                    <div
-                                      className="size-full flex relative outline-hidden z-0"
-                                      ref={onRef}
-                                    >
-                                      <ContentEditable
-                                        id="lexical-content"
-                                        className="size-full outline-hidden p-4 text-foreground"
-                                      />
-                                    </div>
-                                  }
-                                  placeholder={<Placeholder />}
-                                  ErrorBoundary={LexicalErrorBoundary}
-                                />
-                                <OnChangePlugin onChange={onChange} />
-                                <HistoryPlugin />
-                                <AutoFocusPlugin />
-                              </div>
+
+                            {/* editors */}
+                            <div className="relative flex-1 w-full max-w-(--breakpoint-lg) mx-auto">
+                              <DisableChecklistSpacebarPlugin />
+                              <EmojiPickerPlugin />
+                              <LayoutPlugin />
+                              <LLMWidget />
+                              <ListPlugin />
+                              <ListMaxIndentLevelPlugin />
+                              <CheckListPlugin />
+                              <MarkdownShortcutPlugin />
+                              <PageBreakPlugin />
+                              <CollapsiblePlugin />
+                              <PollPlugin />
+                              <CodeHighlightPlugin />
+                              <TabIndentationPlugin />
+                              <SessionUUIDProvider>
+                                <AutocompletePlugin />
+                              </SessionUUIDProvider>
+                              <AutoEmbedPlugin />
+                              <AutoLinkPlugin />
+                              <HorizontalRulePlugin />
+                              <TablePlugin
+                                hasCellMerge
+                                hasCellBackgroundColor
+                              />
+                              <TableCellResizer />
+                              <ImagesPlugin />
+                              <InlineImagePlugin />
+                              <VideosPlugin />
+                              <LinkPlugin />
+                              <ClickableLinkPlugin disabled={isEditable} />
+                              <TwitterPlugin />
+                              <YouTubePlugin />
+                              <ExcalidrawPlugin />
+                              <FigmaPlugin />
+                              <EquationsPlugin />
+                              <RichTextPlugin
+                                contentEditable={
+                                  <article ref={onRef}>
+                                    <ContentEditable
+                                      id="lexical-content"
+                                      className="p-4 text-foreground outline-muted outline-2 outline-offset-12 min-h-[calc(100svh-4rem)]"
+                                    />
+                                  </article>
+                                }
+                                placeholder={<Placeholder />}
+                                ErrorBoundary={LexicalErrorBoundary}
+                              />
+                              <OnChangePlugin onChange={onChange} />
+                              <HistoryPlugin />
+                              <AutoFocusPlugin />
                             </div>
 
+                            {/* plugins */}
                             {floatingAnchorElem && (
                               <>
                                 <DraggableBlockPlugin
