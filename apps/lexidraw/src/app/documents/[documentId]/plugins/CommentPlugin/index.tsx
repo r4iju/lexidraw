@@ -480,7 +480,10 @@ function ShowDeleteCommentOrThreadDialog({
         <Button
           variant="destructive"
           onClick={() => {
-            deleteCommentOrThread(commentOrThread, thread);
+            deleteCommentOrThread(
+              commentOrThread,
+              commentOrThread.type === "thread" ? undefined : thread,
+            );
             onClose();
           }}
         >
