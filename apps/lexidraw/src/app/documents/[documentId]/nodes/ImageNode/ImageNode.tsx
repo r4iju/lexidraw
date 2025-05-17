@@ -32,12 +32,12 @@ const ImageComponent = React.lazy(() => import("./ImageComponent"));
 export interface ImagePayload {
   altText: string;
   caption?: LexicalEditor;
-  height?: number;
+  height?: number | "inherit";
   key?: NodeKey;
   maxWidth?: number;
   showCaption?: boolean;
   src: string;
-  width?: number;
+  width?: number | "inherit";
   captionsEnabled?: boolean;
 }
 
