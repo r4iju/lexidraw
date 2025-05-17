@@ -15,7 +15,7 @@ import { auth } from "~/server/auth";
 export default async function Header() {
   const session = await auth();
   return (
-    <header className="static top-0 left-0 w-full min-w-[100vw] h-14 z-50 flex border-b border-muted items-center justify-between bg-background shadow-md py-2 px-4 lg:px-6 overflow-hidden">
+    <header className="sticky top-0 left-0 w-full min-w-[100dw] h-14 z-50 flex border-b border-muted items-center justify-between bg-background shadow-md py-2 px-4 lg:px-6 overflow-hidden">
       <Button asChild variant="outline" size="icon">
         <Link href="/">
           <AppIcon
