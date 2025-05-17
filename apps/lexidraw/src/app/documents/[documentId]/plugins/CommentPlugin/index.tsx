@@ -77,14 +77,6 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
-import {
-  clearCommentStore,
-  setCommentStore,
-  setCommentDeleteFunc,
-  clearCommentDeleteFunc,
-  setMarkNodeMap,
-  clearMarkNodeMap,
-} from "./comment-store-resgistry";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -655,7 +647,7 @@ function CommentsPanelList({
                 { "ring-1 ring-ring": isThreadActive },
               )}
             >
-              <div className="flex items-center p-2 text-muted-foreground">
+              <div className="flex items-center py-2 text-muted-foreground gap-2">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -667,7 +659,7 @@ function CommentsPanelList({
                       handleClickThread();
                     }
                   }}
-                  className="p-1 size-6"
+                  className="p-1 size-8"
                 >
                   <ChevronRight
                     className={cn(
@@ -816,13 +808,6 @@ export const $isThreadNodeUtil = (
   return node?.getType?.() === "thread";
 };
 
-declare module "lexical" {
-  interface LexicalEditor {
-    /** injected by CommentPluginProvider */
-    _commentStore?: CommentStore;
-  }
-}
-
 export function CommentPluginProvider({
   children,
 }: {
@@ -831,16 +816,6 @@ export function CommentPluginProvider({
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => new Map(), []);
-
-  useEffect(() => {
-    setCommentStore(editor, commentStore);
-    setMarkNodeMap(editor, markNodeMap);
-    return () => {
-      clearCommentStore(editor);
-      clearMarkNodeMap(editor);
-    };
-  }, [editor, commentStore, markNodeMap]);
-
   const comments = useCommentStore(commentStore);
   const [activeIDs, setActiveIDs] = useState<string[]>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
@@ -901,13 +876,6 @@ export function CommentPluginProvider({
     },
     [commentStore, markNodeMap, editor],
   );
-
-  useEffect(() => {
-    setCommentDeleteFunc(editor, deleteCommentOrThread);
-    return () => {
-      clearCommentDeleteFunc(editor);
-    };
-  }, [editor, deleteCommentOrThread]);
 
   const submitAddComment = useCallback(
     (
@@ -1073,21 +1041,23 @@ export function CommentPluginProvider({
     });
   }, [editor, commentStore]);
 
-  const contextValue: CommentPluginContextType = {
-    commentStore,
-    comments,
-    markNodeMap,
-    activeIDs,
-    showCommentInput,
-    setShowCommentInput,
-    cancelAddComment,
-    submitAddComment,
-    deleteCommentOrThread,
-    editor,
-  };
-
   return (
-    <CommentPluginContext.Provider value={contextValue}>
+    <CommentPluginContext.Provider
+      value={
+        {
+          commentStore,
+          comments,
+          markNodeMap,
+          activeIDs,
+          showCommentInput,
+          setShowCommentInput,
+          cancelAddComment,
+          submitAddComment,
+          deleteCommentOrThread,
+          editor,
+        } satisfies CommentPluginContextType
+      }
+    >
       {children}
     </CommentPluginContext.Provider>
   );
@@ -1103,7 +1073,7 @@ export function CommentUI(): JSX.Element {
   } = useCommentPlugin();
 
   return (
-    <div className="h-full p-4" data-component-name="CommentUI">
+    <div className="h-full p-2" data-component-name="CommentUI">
       <CommentsPanel
         activeIDs={activeIDs}
         deleteCommentOrThread={deleteCommentOrThread}

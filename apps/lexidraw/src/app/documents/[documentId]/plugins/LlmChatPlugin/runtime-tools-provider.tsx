@@ -69,14 +69,8 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { RuntimeToolMap } from "../../context/llm-context";
 import type { Thread } from "../../commenting";
 import { CommentStore } from "../../commenting";
-import { CommentNode } from "../../nodes/CommentNode";
+import { useCommentPlugin } from "../../plugins/CommentPlugin";
 import { ThreadNode } from "../../nodes/ThreadNode";
-import { $isThreadNodeUtil } from "../../plugins/CommentPlugin";
-import { $dfs as lexicalDfs } from "@lexical/utils";
-import {
-  getCommentStore,
-  getCommentDeleteFunc,
-} from "../../plugins/CommentPlugin/comment-store-resgistry";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -215,7 +209,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     useLexicalImageInsertion();
   const { generateAndInsertImage: generateAndInsertImageFunc } =
     useLexicalImageGeneration();
-
+  const { submitAddComment, deleteCommentOrThread, commentStore } =
+    useCommentPlugin();
   const [editor] = useLexicalComposerContext();
 
   const { runtimeSpec } = useRuntimeSpec();
@@ -3408,12 +3403,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       threadNodePlacementAnchor,
     }): ExecuteResult => {
       try {
-        const commentStore = getCommentStore(editor);
-        if (!commentStore) {
-          throw new Error(
-            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
-          );
-        }
         const author = authorName || "AI Assistant";
         let quote = "";
         let currentSelection: RangeSelection | null = null;
@@ -3443,8 +3432,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           author,
         );
         const newThread = CommentStore.createThread(quote, [firstComment]);
-
-        commentStore.addComment(newThread);
 
         // Determine ThreadNode placement
         const placementRelationResolved =
@@ -3547,17 +3534,18 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }),
     execute: async ({ threadId, replyText, authorName }): ExecuteResult => {
       try {
-        const commentStore = getCommentStore(editor);
+        const author = authorName || "AI Assistant";
+
         if (!commentStore) {
+          // Check if commentStore is available from hook
           throw new Error(
-            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
+            "CommentStore not found via useCommentPlugin. Ensure CommentPluginProvider is an ancestor.",
           );
         }
-        const author = authorName || "AI Assistant";
 
         const threads = commentStore
           .getComments()
-          .filter((c) => c.type === "thread") as Thread[]; // Thread type import will be used here
+          .filter((c) => c.type === "thread") as Thread[];
         const targetThread = threads.find((t) => t.id === threadId);
 
         if (!targetThread) {
@@ -3567,30 +3555,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           };
         }
 
-        const newReply = CommentStore.createComment(replyText, author); // Comment type implicitly used by createComment
-        commentStore.addComment(newReply, targetThread);
+        const newReply = CommentStore.createComment(replyText, author);
 
-        editor.update(() => {
-          const root = $getRoot();
-          const dfsNodes = lexicalDfs(root); // lexicalDfs import will be used here
-          let foundThreadNode: ThreadNode | null = null;
-          for (const { node } of dfsNodes) {
-            if ($isThreadNodeUtil(node) && node.__thread.id === threadId) {
-              // $isThreadNodeUtil import will be used here
-              foundThreadNode = node as ThreadNode;
-              break;
-            }
-          }
-
-          if (foundThreadNode) {
-            const newCommentNode = new CommentNode(newReply); // CommentNode import will be used here
-            foundThreadNode.append(newCommentNode);
-          } else {
-            console.warn(
-              `[addReplyToThread] ThreadNode with ID ${threadId} not found in editor state. Reply added to store, but node not directly updated.`,
-            );
-          }
-        });
+        submitAddComment(newReply, false /* isInlineComment */, targetThread);
 
         const latestState = editor.getEditorState();
         const stateJson = JSON.stringify(latestState.toJSON());
@@ -3623,19 +3590,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }),
     execute: async ({ threadId, commentId }): ExecuteResult => {
       try {
-        const commentStore = getCommentStore(editor);
-        if (!commentStore) {
-          throw new Error(
-            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
-          );
-        }
-        const deleteFunc = getCommentDeleteFunc(editor); // Use registry getter
-        if (!deleteFunc) {
-          throw new Error(
-            "CommentPlugin delete function not found in registry. Ensure CommentPlugin is active and has exposed its deletion logic.",
-          );
-        }
-
         const threads = commentStore
           .getComments()
           .filter((c) => c.type === "thread") as Thread[];
@@ -3659,7 +3613,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           };
         }
 
-        deleteFunc(targetComment, targetThread);
+        deleteCommentOrThread(targetComment, targetThread);
 
         const latestState = editor.getEditorState();
         const stateJson = JSON.stringify(latestState.toJSON());
@@ -3691,19 +3645,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }),
     execute: async ({ threadId }): ExecuteResult => {
       try {
-        const commentStore = getCommentStore(editor);
-        if (!commentStore) {
-          throw new Error(
-            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
-          );
-        }
-        const deleteFunc = getCommentDeleteFunc(editor); // Use registry getter
-        if (!deleteFunc) {
-          throw new Error(
-            "CommentPlugin delete function not found in registry. Ensure CommentPlugin is active and has exposed its deletion logic.",
-          );
-        }
-
         const targetThread = commentStore
           .getComments()
           .find((c) => c.id === threadId && c.type === "thread") as
@@ -3717,7 +3658,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           };
         }
 
-        deleteFunc(targetThread);
+        deleteCommentOrThread(targetThread);
 
         const latestState = editor.getEditorState();
         const stateJson = JSON.stringify(latestState.toJSON());
