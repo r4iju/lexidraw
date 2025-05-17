@@ -6,7 +6,6 @@ import type {
   NodeKey,
   RangeSelection,
 } from "lexical";
-
 import {
   $createMarkNode,
   $getMarkIDs,
@@ -61,15 +60,12 @@ import {
   Thread,
   useCommentStore,
 } from "../../commenting";
-
 import ContentEditable from "~/components/ui/content-editable";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-
 import CommentEditorTheme from "../../themes/CommentEditorTheme";
 import useLayoutEffect from "../../shared/useLayoutEffect";
 import useModal from "~/hooks/useModal";
-
 import { CommentNode } from "../../nodes/CommentNode";
 import { ThreadNode } from "../../nodes/ThreadNode";
 import { $rootTextContent } from "@lexical/text";
@@ -81,12 +77,12 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
+import { clearCommentStore, setCommentStore } from "./comment-store-resgistry";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
 );
 
-// Define Context (NEW)
 interface CommentPluginContextType {
   commentStore: CommentStore;
   comments: Comments;
@@ -801,17 +797,24 @@ export function CommentsPanel({
 }
 
 // Utility functions (moved from old CommentLexicalPlugin or ensure they are in scope)
-const $isCommentNodeUtil = (
+export const $isCommentNodeUtil = (
   node: LexicalNode | null | undefined,
 ): node is CommentNode => {
   return node?.getType?.() === "comment";
 };
 
-const $isThreadNodeUtil = (
+export const $isThreadNodeUtil = (
   node: LexicalNode | null | undefined,
 ): node is ThreadNode => {
   return node?.getType?.() === "thread";
 };
+
+declare module "lexical" {
+  interface LexicalEditor {
+    /** injected by CommentPluginProvider */
+    _commentStore?: CommentStore;
+  }
+}
 
 export function CommentPluginProvider({
   children,
@@ -820,6 +823,12 @@ export function CommentPluginProvider({
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
+
+  useEffect(() => {
+    setCommentStore(editor, commentStore);
+    return () => void clearCommentStore(editor);
+  }, [editor, commentStore]);
+
   const comments = useCommentStore(commentStore);
   const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => new Map(), []);
   const [activeIDs, setActiveIDs] = useState<string[]>([]);
