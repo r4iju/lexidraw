@@ -85,22 +85,16 @@ export class CollapsibleContainerNode extends ElementNode {
     );
 
     if (this.__open) {
-      // opening ► 0 → fullHeight → "" (auto)
-      content.style.height = "0px";
-      requestAnimationFrame(() => {
-        content.style.height = `${fullHeight}px`;
-        // after the animation ends, unlock the height
-        content.addEventListener(
-          "transitionend", // Using transitionend as per typical CSS transitions for height
-          () => content.style.removeProperty("height"),
-          { once: true },
-        );
-      });
+      content.style.setProperty(
+        "--radix-accordion-content-height",
+        `${fullHeight}px`,
+      );
+      // remove the inline height that was added when we closed last time
+      content.style.removeProperty("height");
     } else {
-      // closing ► fullHeight → 0
-      content.style.height = `${fullHeight}px`;
-      requestAnimationFrame(() => (content.style.height = "0px"));
+      content.style.height = "0"; // kept for the close animation
     }
+
     content.dataset.state = stateStr;
   }
 
