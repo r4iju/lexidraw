@@ -38,7 +38,6 @@ import {
   $isTextNode,
   CLEAR_EDITOR_COMMAND,
   COMMAND_PRIORITY_EDITOR,
-  COMMAND_PRIORITY_LOW,
   createCommand,
   getDOMSelection,
   KEY_ESCAPE_COMMAND,
@@ -80,10 +79,6 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
-import {
-  TOGGLE_COMMENTS_COMMAND,
-  useCommentsContext,
-} from "../../context/comment-context";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -745,9 +740,10 @@ export function CommentsPanel({
   return (
     <>
       {isEmpty ? (
-        <div 
-        data-component-name="CommentsPanel"
-        className="text-center text-sm text-muted-foreground pt-8">
+        <div
+          data-component-name="CommentsPanel"
+          className="text-center text-sm text-muted-foreground pt-8"
+        >
           No Comments
         </div>
       ) : (
@@ -763,25 +759,13 @@ export function CommentsPanel({
   );
 }
 
-export default function CommentPlugin(): JSX.Element | null {
+export default function CommentLexicalPlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const comments = useCommentStore(commentStore);
   const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => new Map(), []);
   const [activeIDs, setActiveIDs] = useState<string[]>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const { toggleCommentPanel } = useCommentsContext();
-
-  useEffect(() => {
-    return editor.registerCommand(
-      TOGGLE_COMMENTS_COMMAND,
-      () => {
-        toggleCommentPanel();
-        return true;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
-  }, [editor, toggleCommentPanel]);
 
   const cancelAddComment = useCallback(() => {
     editor.update(() => {
