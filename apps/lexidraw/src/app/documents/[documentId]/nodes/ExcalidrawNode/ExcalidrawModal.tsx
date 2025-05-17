@@ -132,6 +132,8 @@ export default function ExcalidrawInlineEditor({
       initialData: {
         appState: {
           ...initialAppState,
+          zenModeEnabled: true,
+          openMenu: null,
           theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
           exportWithDarkMode: false,
           exportBackground: false,
@@ -157,6 +159,14 @@ export default function ExcalidrawInlineEditor({
     }
   }, [isDarkTheme, isShown]);
 
+  const BODY_LOCK = "overflow-hidden";
+  useEffect(() => {
+    if (isShown) {
+      document.documentElement.classList.add(BODY_LOCK);
+      return () => document.documentElement.classList.remove(BODY_LOCK);
+    }
+  }, [isShown]);
+
   // ────────────────────────────────────────────────────────────────────────────
   // Mount guard
   // ────────────────────────────────────────────────────────────────────────────
@@ -166,7 +176,7 @@ export default function ExcalidrawInlineEditor({
   // render
   // ────────────────────────────────────────────────────────────────────────────
   return createPortal(
-    <div className="absolute top-0 left-0 size-full z-10">
+    <div className="fixed inset-0 z-[120] bg-background">
       {/* inline container */}
       <div
         ref={containerRef}
