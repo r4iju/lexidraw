@@ -7,7 +7,7 @@ import {
   MermaidConfig,
   ExcalidrawConfig,
 } from "@excalidraw/mermaid-to-excalidraw";
-
+import mermaid from "mermaid";
 /** Lexical utils */
 import {
   $createParagraphNode,
@@ -78,6 +78,7 @@ import { CommentStore } from "../../commenting";
 import { useCommentPlugin } from "../../plugins/CommentPlugin";
 import { ThreadNode } from "../../nodes/ThreadNode";
 import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
+import { ImageNode } from "../../nodes/ImageNode/ImageNode";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -2641,7 +2642,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           .array(z.string())
           .describe(
             `A list of Mermaid DSL strings. 
-            Mermaid ER diagrams aren't yet supported - please supply a flowchart / class diagram.
+            For ER diagrams, use the \`insertMermaidSvg\` tool instead.
             Example: [
             "graph TD",
             "  User([User]) -->|HTTPS| BrowserUI[Browser UI (Frontend)]",
@@ -2753,6 +2754,107 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           newNodeKey: newNodeKey ?? undefined,
         },
       } as const;
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Insert Mermaid SVG Tool
+   * --------------------------------------------------------------*/
+  const insertMermaidSvg = tool({
+    description: `Renders Mermaid DSL to a self-contained SVG <img>.
+                  Stores the original Mermaid text in the image’s alt attribute
+                  so you can re-edit or regenerate later.`,
+    parameters: z
+      .object({
+        mermaidLines: z.array(z.string()).nonempty(),
+        mermaidConfig: z.record(z.any()).optional(),
+        width: z
+          .union([z.number().min(100), z.literal("inherit")])
+          .describe(
+            "Optional. The width of the SVG image. If 'inherit', the width will be determined by the parent container. Minimum width is 100px.",
+          )
+          .optional()
+          .default("inherit"),
+        height: z
+          .union([z.number().min(100), z.literal("inherit")])
+          .describe(
+            "Optional. The height of the SVG image. If 'inherit', the height will be determined by the parent container. Minimum height is 100px.",
+          )
+          .optional()
+          .default("inherit"),
+        relation: InsertionRelationSchema,
+        anchor: InsertionAnchorSchema.optional(),
+      })
+      .transform(({ mermaidLines, ...rest }) => ({
+        ...rest,
+        mermaid: mermaidLines.join("\n"),
+      })),
+    execute: async (args) => {
+      /* ------------ 1 · render Mermaid → SVG string --------------- */
+      mermaid.initialize({
+        startOnLoad: false,
+        ...(args.mermaidConfig ?? {}),
+      });
+
+      const uniqueId = "mmd-" + crypto.randomUUID().replace(/-/g, "");
+      let svg: string;
+      try {
+        const rendered = await mermaid.render(uniqueId, args.mermaid);
+        svg = rendered.svg; // { svg, bindFunctions }
+      } catch (err) {
+        return {
+          success: false,
+          error: `Mermaid render failed: ${String(err)}`,
+        };
+      }
+
+      /* ------------ 2 · encode as data-URI ------------------------- */
+      const svgUri =
+        "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+
+      /* ------------ 3 · insert an ImageNode ------------------------ */
+      const resolution = await resolveInsertionPoint(
+        editor,
+        args.relation,
+        args.anchor,
+      );
+      if (resolution.status === "error")
+        return { success: false, error: resolution.message };
+
+      let nodeKey: string | undefined;
+      editor.update(() => {
+        const imageNode = ImageNode.$createImageNode({
+          src: svgUri,
+          altText: args.mermaid, // keep original DSL here
+          width: args.width,
+          height: args.height,
+          captionsEnabled: true,
+        });
+        nodeKey = imageNode.getKey();
+
+        if (resolution.type === "appendRoot") $getRoot().append(imageNode);
+        else {
+          const target = $getNodeByKey(resolution.targetKey);
+          if (!target)
+            throw new Error(`Target node ${resolution.targetKey} vanished.`);
+
+          if (resolution.type === "before") {
+            target.insertBefore(imageNode);
+          } else {
+            target.insertAfter(imageNode);
+          }
+        }
+      });
+
+      const stateJson = JSON.stringify(editor.getEditorState().toJSON());
+      return {
+        success: true,
+        content: {
+          summary: `Inserted Mermaid diagram as inline SVG (${args.width}×${args.height}).`,
+          updatedEditorStateJson: stateJson,
+          newNodeKey: nodeKey,
+        },
+      };
     },
   });
 
@@ -3694,7 +3796,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertEquationNode && { insertEquationNode }),
     ...(insertFigmaNode && { insertFigmaNode }),
     ...(insertCollapsibleSection && { insertCollapsibleSection }),
-    ...(insertExcalidrawDiagram && { insertDiagram: insertExcalidrawDiagram }),
+    ...(insertExcalidrawDiagram && {
+      insertExcalidrawDiagram: insertExcalidrawDiagram,
+    }),
+    ...(insertMermaidSvg && { insertMermaidSvg }),
     ...(insertLayout && { insertLayout }),
     ...(insertPageBreakNode && { insertPageBreakNode }),
     ...(insertPollNode && { insertPollNode }),
@@ -3776,8 +3881,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             return { success: false, error: errorMsg };
           }
 
+          /**
+           * ts\n// before calling subTool.execute ...\nconst validatedArgs = subTool.parameters.parse(args);\nconst result = await subTool.execute(validatedArgs);\n
+           */
+
           // @ts-expect-error - TODO: fix this
-          const result = (await subTool.execute(args)) as z.infer<
+          const validatedArgs = subTool.parameters.parse(args);
+
+          // @ts-expect-error - TODO: fix this
+          const result = (await subTool.execute(validatedArgs)) as z.infer<
             typeof ResultSchema
           >;
 
