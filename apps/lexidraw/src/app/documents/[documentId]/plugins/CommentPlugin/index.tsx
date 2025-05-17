@@ -43,13 +43,15 @@ import {
   KEY_ESCAPE_COMMAND,
   $setSelection,
 } from "lexical";
-import {
+import React, {
   type JSX,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  createContext,
+  useContext,
 } from "react";
 import { Trash, Send, ChevronRight } from "lucide-react";
 import {
@@ -84,6 +86,42 @@ export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
 );
 
+// Define Context (NEW)
+interface CommentPluginContextType {
+  commentStore: CommentStore;
+  comments: Comments;
+  markNodeMap: Map<string, Set<NodeKey>>;
+  activeIDs: string[];
+  showCommentInput: boolean;
+  setShowCommentInput: (show: boolean) => void;
+  cancelAddComment: () => void;
+  submitAddComment: (
+    item: Comment | Thread,
+    isInlineComment: boolean,
+    parentThread?: Thread,
+    sel?: RangeSelection | null,
+  ) => void;
+  deleteCommentOrThread: (
+    thing: Comment | Thread,
+    parentThread?: Thread,
+  ) => void;
+  editor: LexicalEditor;
+}
+
+const CommentPluginContext = createContext<CommentPluginContextType | null>(
+  null,
+);
+
+export const useCommentPlugin = (): CommentPluginContextType => {
+  const context = useContext(CommentPluginContext);
+  if (context === null) {
+    throw new Error(
+      "useCommentPlugin must be used within a CommentPluginProvider",
+    );
+  }
+  return context;
+};
+
 function useCollabAuthorName(): string {
   // For name or fallback
   const collabContext = useCollaborationContext();
@@ -115,11 +153,9 @@ function useOnChange(
   return useCallback(
     (editorState: EditorState, _editor: LexicalEditor) => {
       editorState.read(() => {
-        const content = editorState.read(() => {
-          return $rootTextContent();
-        });
+        const content = $rootTextContent();
         setContent(content);
-        const isEmpty = content || content.trim() === "";
+        const isEmpty = content.trim() === "";
         setCanSubmit(!isEmpty);
       });
     },
@@ -173,12 +209,12 @@ function PlainTextEditor({
 }
 
 // the inline input box that appears near a user selection
-function CommentInputBox({
-  editor,
+export function CommentInputBox({
+  editor: mainEditor, // Renamed to avoid conflict with sub-editor
   cancelAddComment,
   submitAddComment,
 }: {
-  editor: LexicalEditor;
+  editor: LexicalEditor; // This is the main editor instance
   cancelAddComment: () => void;
   submitAddComment: (
     commentOrThread: Comment | Thread,
@@ -210,7 +246,8 @@ function CommentInputBox({
 
   // Positioning the box near the selection
   const positionBox = useCallback(() => {
-    editor.getEditorState().read(() => {
+    mainEditor.getEditorState().read(() => {
+      // Use mainEditor
       const sel = $getSelection();
       if (!$isRangeSelection(sel)) return;
 
@@ -219,7 +256,7 @@ function CommentInputBox({
       const anchor = sel.anchor;
       const focus = sel.focus;
       const range = createDOMRange(
-        editor,
+        mainEditor, // Use mainEditor
         anchor.getNode(),
         anchor.offset,
         focus.getNode(),
@@ -266,7 +303,7 @@ function CommentInputBox({
         elements.splice(i, 1);
       }
     });
-  }, [editor, highlightState]);
+  }, [mainEditor, highlightState]);
 
   // move or re-calc box on resize
   useLayoutEffect(() => {
@@ -297,7 +334,8 @@ function CommentInputBox({
 
   const doSubmit = useCallback(() => {
     if (!canSubmit) return;
-    let quote = editor.getEditorState().read(() => {
+    let quote = mainEditor.getEditorState().read(() => {
+      // Use mainEditor
       const sel = selectionRef.current;
       return sel ? sel.getTextContent() : "";
     });
@@ -308,7 +346,7 @@ function CommentInputBox({
       CommentStore.createComment(content, author),
     ]);
     submitAddComment(newThread, true, undefined, selectionRef.current || null);
-  }, [canSubmit, editor, content, author, submitAddComment]);
+  }, [canSubmit, mainEditor, content, author, submitAddComment]);
 
   return (
     <div
@@ -759,7 +797,24 @@ export function CommentsPanel({
   );
 }
 
-export default function CommentLexicalPlugin(): JSX.Element | null {
+// Utility functions (moved from old CommentLexicalPlugin or ensure they are in scope)
+const $isCommentNodeUtil = (
+  node: LexicalNode | null | undefined,
+): node is CommentNode => {
+  return node?.getType?.() === "comment";
+};
+
+const $isThreadNodeUtil = (
+  node: LexicalNode | null | undefined,
+): node is ThreadNode => {
+  return node?.getType?.() === "thread";
+};
+
+export function CommentPluginProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
   const comments = useCommentStore(commentStore);
@@ -775,24 +830,10 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
     setShowCommentInput(false);
   }, [editor]);
 
-  const $isCommentNode = useCallback(
-    (node: LexicalNode | null | undefined): node is CommentNode => {
-      return node?.getType?.() === "comment";
-    },
-    [],
-  );
-
-  const $isThreadNode = useCallback(
-    (node: LexicalNode | null | undefined): node is ThreadNode => {
-      return node?.getType?.() === "thread";
-    },
-    [],
-  );
-
   const deleteCommentOrThread = useCallback(
     (thing: Comment | Thread, parentThread?: Thread) => {
-      const info = commentStore.deleteCommentOrThread(thing, parentThread);
-      console.log("info about to be deleted", info);
+      commentStore.deleteCommentOrThread(thing, parentThread);
+      // console.log("info about to be deleted", info); // Original console.log removed for brevity
 
       if (thing.type === "comment") {
         const commentId = thing.id;
@@ -800,7 +841,7 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
           const root = $getRoot();
           const dfsNodes = $dfs(root);
           for (const { node } of dfsNodes) {
-            if ($isCommentNode(node) && node.__comment.id === commentId) {
+            if ($isCommentNodeUtil(node) && node.__comment.id === commentId) {
               node.remove();
             }
           }
@@ -811,7 +852,7 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
           const root = $getRoot();
           const dfsNodes = $dfs(root);
           for (const { node } of dfsNodes) {
-            if ($isThreadNode(node) && node.__thread.id === threadId) {
+            if ($isThreadNodeUtil(node) && node.__thread.id === threadId) {
               node.remove();
             }
           }
@@ -835,7 +876,7 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
         }, 0);
       }
     },
-    [commentStore, markNodeMap, editor, $isCommentNode, $isThreadNode],
+    [commentStore, markNodeMap, editor],
   );
 
   const submitAddComment = useCallback(
@@ -862,7 +903,7 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
             const allNodes = $dfs(root);
             for (const { node: maybeThread } of allNodes) {
               if (
-                $isThreadNode(maybeThread) &&
+                $isThreadNodeUtil(maybeThread) &&
                 maybeThread.__thread.id === parentThread.id
               ) {
                 maybeThread.append(commentNode);
@@ -886,7 +927,7 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
         setShowCommentInput(false);
       }
     },
-    [commentStore, editor, $isThreadNode],
+    [commentStore, editor],
   );
 
   useEffect(() => {
@@ -915,9 +956,11 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
               markKeysToIDs.set(key, ids);
 
               if (type === "destroyed") {
-                setOfKeys?.delete(key);
-                if (setOfKeys && setOfKeys.size === 0) {
-                  markNodeMap.delete(id);
+                if (setOfKeys) {
+                  setOfKeys.delete(key);
+                  if (setOfKeys.size === 0) {
+                    markNodeMap.delete(id);
+                  }
                 }
               } else {
                 if (!setOfKeys) {
@@ -981,34 +1024,56 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
       const root = $getRoot();
       const allNodes = $dfs(root);
       for (const { node } of allNodes) {
-        if ($isCommentNode(node) && !knownIds.has(node.__comment.id)) {
+        if ($isCommentNodeUtil(node) && !knownIds.has(node.__comment.id)) {
           commentStore.addComment(node.__comment);
           knownIds.add(node.__comment.id);
-        } else if ($isThreadNode(node) && !knownIds.has(node.__thread.id)) {
+        } else if ($isThreadNodeUtil(node) && !knownIds.has(node.__thread.id)) {
           const thr = node.__thread;
+          // Ensure all comments within the thread are also processed
+          commentStore.addComment(thr); // Add thread first
+          knownIds.add(thr.id);
           thr.comments.forEach((cmt) => {
             if (!knownIds.has(cmt.id)) {
-              commentStore.addComment(cmt, thr);
+              commentStore.addComment(cmt, thr); // Then add comments belonging to this thread
               knownIds.add(cmt.id);
             }
           });
-          commentStore.addComment(thr);
-          knownIds.add(thr.id);
         }
       }
     });
-  }, [editor, commentStore, $isCommentNode, $isThreadNode]);
+  }, [editor, commentStore]);
+
+  const contextValue: CommentPluginContextType = {
+    commentStore,
+    comments,
+    markNodeMap,
+    activeIDs,
+    showCommentInput,
+    setShowCommentInput,
+    cancelAddComment,
+    submitAddComment,
+    deleteCommentOrThread,
+    editor,
+  };
 
   return (
-    <div className="h-full p-4" data-component-name="CommentPlugin">
-      {showCommentInput && (
-        <CommentInputBox
-          editor={editor}
-          cancelAddComment={cancelAddComment}
-          submitAddComment={submitAddComment}
-        />
-      )}
+    <CommentPluginContext.Provider value={contextValue}>
+      {children}
+    </CommentPluginContext.Provider>
+  );
+}
 
+export function CommentUI(): JSX.Element {
+  const {
+    activeIDs,
+    deleteCommentOrThread,
+    comments,
+    markNodeMap,
+    submitAddComment,
+  } = useCommentPlugin();
+
+  return (
+    <div className="h-full p-4" data-component-name="CommentUI">
       <CommentsPanel
         activeIDs={activeIDs}
         deleteCommentOrThread={deleteCommentOrThread}
@@ -1019,3 +1084,6 @@ export default function CommentLexicalPlugin(): JSX.Element | null {
     </div>
   );
 }
+
+// Default export is CommentPluginProvider
+export default CommentPluginProvider;
