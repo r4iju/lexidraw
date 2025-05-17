@@ -12,6 +12,13 @@ import {
   $isRootNode,
   $isTextNode,
   $getNodeByKey,
+  $getSelection,
+  $createRangeSelection,
+  $setSelection,
+  $isRangeSelection,
+  TextNode,
+  RangeSelection,
+  LexicalNode,
 } from "lexical";
 import {
   $createCodeNode,
@@ -33,9 +40,10 @@ import {
 } from "@lexical/table";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
 import { $createLinkNode } from "@lexical/link";
+import { $wrapSelectionInMarkNode } from "@lexical/mark";
 
 /** Standard Nodes */
-import { ElementNode, LexicalNode } from "lexical";
+import { ElementNode } from "lexical";
 
 /** Custom Nodes */
 import { EquationNode } from "../../nodes/EquationNode";
@@ -59,6 +67,14 @@ import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 import { useMemo } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { RuntimeToolMap } from "../../context/llm-context";
+
+// Commenting related imports
+import type { Thread } from "../../commenting";
+import { CommentStore } from "../../commenting";
+import { CommentNode } from "../../nodes/CommentNode";
+import { ThreadNode } from "../../nodes/ThreadNode";
+import { $isThreadNodeUtil } from "../../plugins/CommentPlugin";
+import { $dfs as lexicalDfs } from "@lexical/utils";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -96,7 +112,7 @@ const ListItemAnchorSchema = z.discriminatedUnion("type", [
   z.object({
     type: z
       .literal("key")
-      .describe('type can be "key" or "text", never "heading"'),
+      .describe('type can be "key" or "text", never "heading'),
     key: z
       .string()
       .describe("Use the key of the target ListItemNode or ListNode."),
@@ -156,6 +172,12 @@ const ResultSchema = z.object({
         .string()
         .optional()
         .describe("Key of the newly created node (if applicable)."),
+      // New fields for comment tools
+      threadId: z
+        .string()
+        .optional()
+        .describe("ID of the created/affected thread."),
+      commentId: z.string().optional().describe("ID of the created comment."),
     })
     .optional()
     .describe(
@@ -195,6 +217,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const [editor] = useLexicalComposerContext();
 
   const { runtimeSpec } = useRuntimeSpec();
+
+  function getCommentStore(currentEditor: LexicalEditor): CommentStore {
+    const store = currentEditor._commentStore as CommentStore | undefined;
+    if (!store) {
+      throw new Error(
+        "CommentStore not found on editor instance. Ensure CommentPlugin is active and initialized before LlmChatPlugin tools.",
+      );
+    }
+    return store;
+  }
 
   function findNodeByKey(
     editor: LexicalEditor,
@@ -3281,6 +3313,302 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  /* --------------------------------------------------------------
+   * Find and Select Text Tool
+   * --------------------------------------------------------------*/
+  const findAndSelectText = tool({
+    description:
+      "Finds the first occurrence of the specified text in the document and selects it. Subsequent calls to tools like 'addCommentThread' will use this selection.",
+    parameters: z.object({
+      textToFind: z
+        .string()
+        .min(1)
+        .describe("The exact text to find and select in the document."),
+    }),
+    execute: async ({ textToFind }): ExecuteResult => {
+      let success = false;
+      let foundText: string | undefined;
+      let errorMessage: string | undefined;
+
+      try {
+        editor.update(() => {
+          const root = $getRoot();
+          const queue: LexicalNode[] = [root]; // LexicalNode import needed if not already present
+          let targetNode: TextNode | null = null;
+          let offset = -1;
+
+          while (queue.length > 0) {
+            const node = queue.shift();
+            if ($isTextNode(node)) {
+              const textContent = node.getTextContent();
+              const index = textContent.indexOf(textToFind);
+              if (index !== -1) {
+                targetNode = node;
+                offset = index;
+                break;
+              }
+            }
+            if ($isElementNode(node)) {
+              queue.push(...node.getChildren());
+            }
+          }
+
+          if (targetNode && offset !== -1) {
+            const rangeSelection = $createRangeSelection();
+            rangeSelection.anchor.set(targetNode.getKey(), offset, "text");
+            rangeSelection.focus.set(
+              targetNode.getKey(),
+              offset + textToFind.length,
+              "text",
+            );
+            $setSelection(rangeSelection);
+            foundText = rangeSelection.getTextContent();
+            success = true;
+          } else {
+            errorMessage = `Text "${textToFind}" not found.`;
+            $setSelection(null); // Clear selection if not found
+          }
+        });
+
+        if (success) {
+          return {
+            success: true,
+            content: { summary: `Selected text: "${foundText}".` },
+          };
+        } else {
+          return { success: false, error: errorMessage };
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [findAndSelectText] Error:`, msg);
+        return { success: false, error: msg };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Add Comment Thread Tool (Uses current selection)
+   * --------------------------------------------------------------*/
+  const addCommentThread = tool({
+    description:
+      "Creates a new comment thread on the currently selected text in the editor. The selection provides the quote and the area to highlight. Returns the new thread ID and initial comment ID.",
+    parameters: z.object({
+      initialCommentText: z
+        .string()
+        .describe("The text for the first comment in this new thread."),
+      authorName: z
+        .string()
+        .optional()
+        .describe("Author name for the comment. Defaults to 'AI Assistant'."),
+      threadNodePlacementRelation: InsertionRelationSchema.optional()
+        .default("appendRoot")
+        .describe(
+          "Relation for placing the ThreadNode (decorator) in the document structure.",
+        ),
+      threadNodePlacementAnchor: InsertionAnchorSchema.optional().describe(
+        "Anchor for placing the ThreadNode (decorator) in the document structure.",
+      ),
+    }),
+    execute: async ({
+      initialCommentText,
+      authorName,
+      threadNodePlacementRelation,
+      threadNodePlacementAnchor,
+    }): ExecuteResult => {
+      try {
+        const commentStore = getCommentStore(editor);
+        const author = authorName || "AI Assistant";
+        let quote = "";
+        let currentSelection: RangeSelection | null = null;
+
+        editor.getEditorState().read(() => {
+          const sel = $getSelection();
+          if ($isRangeSelection(sel) && !sel.isCollapsed()) {
+            currentSelection = sel.clone();
+            quote = currentSelection.getTextContent();
+          } else {
+            throw new Error(
+              "No valid text selected to comment on. Please select text first using 'findAndSelectText' or ensure a manual selection exists.",
+            );
+          }
+        });
+
+        if (!currentSelection || quote.trim() === "") {
+          // This check might be redundant due to the throw above but kept for safety
+          return {
+            success: false,
+            error: "No valid text selected or selection is empty.",
+          };
+        }
+
+        const firstComment = CommentStore.createComment(
+          initialCommentText,
+          author,
+        );
+        const newThread = CommentStore.createThread(quote, [firstComment]);
+
+        commentStore.addComment(newThread);
+
+        // Determine ThreadNode placement
+        const placementRelationResolved =
+          threadNodePlacementRelation || "appendRoot";
+        const resolution = await resolveInsertionPoint(
+          editor,
+          placementRelationResolved,
+          threadNodePlacementAnchor,
+        );
+        if (
+          resolution.status === "error" &&
+          placementRelationResolved !== "appendRoot"
+        ) {
+          // Error only if specific placement fails; appendRoot is always possible
+          return {
+            success: false,
+            error: `Failed to resolve placement for ThreadNode: ${resolution.message}`,
+          };
+        }
+
+        let threadNodeKey: string | null = null;
+
+        editor.update(() => {
+          // Re-fetch selection within update to ensure it's the latest
+          const activeSelection = $getSelection();
+          if (
+            !$isRangeSelection(activeSelection) ||
+            activeSelection.isCollapsed()
+          ) {
+            // This should ideally not happen if checked before, but as a safeguard:
+            throw new Error(
+              "Selection disappeared or became invalid during update.",
+            );
+          }
+
+          const threadNode = new ThreadNode(newThread);
+          threadNodeKey = threadNode.getKey();
+
+          if (
+            resolution.status === "success" &&
+            resolution.type !== "appendRoot"
+          ) {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found for ThreadNode placement.`,
+              );
+            }
+            if (resolution.type === "before") {
+              targetNode.insertBefore(threadNode);
+            } else {
+              targetNode.insertAfter(threadNode);
+            }
+          } else {
+            // Default to appendRoot if no specific placement or if placement resolution failed but was optional (e.g. initial appendRoot)
+            $getRoot().append(threadNode);
+          }
+
+          // Create MarkNode for highlighting using the active selection
+          $wrapSelectionInMarkNode(
+            activeSelection,
+            activeSelection.isBackward(),
+            newThread.id,
+          );
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        return {
+          success: true,
+          content: {
+            summary: `Created new comment thread (ID: ${newThread.id}) on selected text: "${quote.substring(0, 50)}...".`,
+            updatedEditorStateJson: stateJson,
+            threadId: newThread.id,
+            commentId: firstComment.id,
+            newNodeKey: threadNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [addCommentThread] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Add Reply to Thread Tool
+   * --------------------------------------------------------------*/
+  const addReplyToThread = tool({
+    description:
+      "Adds a reply to an existing comment thread. Returns the new comment ID.",
+    parameters: z.object({
+      threadId: z.string().describe("The ID of the thread to reply to."),
+      replyText: z.string().describe("The text content of the reply."),
+      authorName: z
+        .string()
+        .optional()
+        .describe("Author name for the reply. Defaults to 'AI Assistant'."),
+    }),
+    execute: async ({ threadId, replyText, authorName }): ExecuteResult => {
+      try {
+        const commentStore = getCommentStore(editor);
+        const author = authorName || "AI Assistant";
+
+        const threads = commentStore
+          .getComments()
+          .filter((c) => c.type === "thread") as Thread[]; // Thread type import will be used here
+        const targetThread = threads.find((t) => t.id === threadId);
+
+        if (!targetThread) {
+          return {
+            success: false,
+            error: `Thread with ID ${threadId} not found.`,
+          };
+        }
+
+        const newReply = CommentStore.createComment(replyText, author); // Comment type implicitly used by createComment
+        commentStore.addComment(newReply, targetThread);
+
+        editor.update(() => {
+          const root = $getRoot();
+          const dfsNodes = lexicalDfs(root); // lexicalDfs import will be used here
+          let foundThreadNode: ThreadNode | null = null;
+          for (const { node } of dfsNodes) {
+            if ($isThreadNodeUtil(node) && node.__thread.id === threadId) {
+              // $isThreadNodeUtil import will be used here
+              foundThreadNode = node as ThreadNode;
+              break;
+            }
+          }
+
+          if (foundThreadNode) {
+            const newCommentNode = new CommentNode(newReply); // CommentNode import will be used here
+            foundThreadNode.append(newCommentNode);
+          } else {
+            console.warn(
+              `[addReplyToThread] ThreadNode with ID ${threadId} not found in editor state. Reply added to store, but node not directly updated.`,
+            );
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        return {
+          success: true,
+          content: {
+            summary: `Added reply to thread ID ${threadId}.`,
+            updatedEditorStateJson: stateJson,
+            threadId: threadId,
+            commentId: newReply.id,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [addReplyToThread] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -3310,6 +3638,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(searchAndInsertImage && { searchAndInsertImage }),
     ...(generateAndInsertImage && { generateAndInsertImage }),
     ...(sendReply && { sendReply }),
+    ...(addCommentThread && { addCommentThread }),
+    ...(addReplyToThread && { addReplyToThread }),
+    ...(findAndSelectText && { findAndSelectText }),
   } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------
