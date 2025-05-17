@@ -360,7 +360,7 @@ function EditorHandler({
                             {/* toolbar */}
                             <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs shrink-0">
                               <div
-                                className="flex items-start gap-2 w-full overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2"
+                                className="flex items-start gap-2 w-full overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center"
                                 data-component-name="Toolbar"
                               >
                                 <OptionsDropdown
