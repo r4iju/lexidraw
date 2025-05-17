@@ -16,7 +16,7 @@ export type Options = readonly Option[];
 export type Option = Readonly<{
   text: string;
   uid: string;
-  votes: number[];
+  votes: string[];
 }>;
 
 const PollComponent = React.lazy(() => import("./PollComponent"));
@@ -47,7 +47,7 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
     return null;
   }
 
-  static cloneOption(option: Option, text: string, votes?: number[]): Option {
+  static cloneOption(option: Option, text: string, votes?: string[]): Option {
     return {
       text,
       uid: option.uid,
@@ -59,13 +59,8 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
     return new PollNode(node.__question, node.__options, node.__key);
   }
 
-  static importJSON(serializedNode: SerializedPollNode): PollNode {
-    const node = PollNode.$createPollNode(
-      serializedNode.question,
-      serializedNode.options,
-    );
-    serializedNode.options.forEach(node.addOption);
-    return node;
+  static importJSON(s: SerializedPollNode): PollNode {
+    return PollNode.$createPollNode(s.question, s.options);
   }
 
   constructor(question: string, options: Options, key?: NodeKey) {
@@ -107,7 +102,7 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
     self.__options = options;
   }
 
-  toggleVote(option: Option, clientID: number): void {
+  toggleVote(option: Option, clientID: string): void {
     const self = this.getWritable();
     const votes = option.votes;
     const votesClone = Array.from(votes);
@@ -174,7 +169,7 @@ export class PollNode extends DecoratorNode<React.JSX.Element> {
     return Math.random()
       .toString(36)
       .replace(/[^a-z]+/g, "")
-      .substr(0, 5);
+      .substring(0, 5);
   }
 
   static createPollOption(text = ""): Option {

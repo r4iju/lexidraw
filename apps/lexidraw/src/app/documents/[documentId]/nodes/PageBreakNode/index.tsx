@@ -1,5 +1,3 @@
-import "./index.css";
-
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
@@ -19,7 +17,9 @@ import {
   NodeKey,
   SerializedLexicalNode,
 } from "lexical";
+import { ScissorsIcon } from "lucide-react";
 import { type JSX, useCallback, useEffect } from "react";
+import { cn } from "~/lib/utils";
 
 export type SerializedPageBreakNode = SerializedLexicalNode;
 
@@ -82,7 +82,37 @@ function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
     }
   }, [editor, isSelected, nodeKey]);
 
-  return null;
+  return (
+    <figure
+      data-node-type="page-break"
+      className={cn(
+        "relative block border-y border-dashed",
+        "bg-muted border-muted",
+        "w-[calc(100%+4rem)]",
+        "-ml-[2rem]",
+        "my-[1rem]",
+        "peer-[:has(+.page-break-handle)[data-selected='true']]:border-primary",
+      )}
+    >
+      {/* scissors icon (old ::before) */}
+      <ScissorsIcon
+        className={cn(
+          "absolute left-[calc(2rem+12px)]",
+          "top-1/2 -translate-y-1/2 h-4 w-4 opacity-50",
+          "peer-[:has(+.page-break-handle)[data-selected='true']]:opacity-100",
+        )}
+      />
+
+      <span className="absolute inset-0 flex items-center justify-center">
+        <span className="border px-1.5 py-0.5 text-xs font-semibold bg-background text-muted-foreground border-muted cursor-default">
+          PAGE&nbsp;BREAK
+        </span>
+      </span>
+
+      {/* invisible handle that Lexical toggles with .selected */}
+      <span data-selected={isSelected} className="page-break-handle hidden" />
+    </figure>
+  );
 }
 
 export class PageBreakNode extends DecoratorNode<JSX.Element> {

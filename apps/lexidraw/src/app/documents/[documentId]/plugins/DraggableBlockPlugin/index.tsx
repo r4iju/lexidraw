@@ -193,7 +193,7 @@ function useDraggableBlockMenu(
 
       return blockElem;
     },
-    [getCurrentIndex, getTopLevelNodeKeys, getCollapsedMargins],
+    [getCurrentIndex, getTopLevelNodeKeys, getCollapsedMargins, Upward],
   );
 
   const setMenuPosition = useCallback(
