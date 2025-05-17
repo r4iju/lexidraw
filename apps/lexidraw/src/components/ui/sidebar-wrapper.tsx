@@ -61,10 +61,35 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
     const componentSidebarRef = useRef<HTMLElement>(null);
     const initialMouseXRef = useRef(0);
     const initialWidthRef = useRef(initialWidth);
+    const [isMobile, setIsMobile] = useState(false);
+
+    const MOBILE_BREAKPOINT = 768; // Standard tablet breakpoint
+
+    useEffect(() => {
+      const checkMobile = () => {
+        const isNowMobile = window.innerWidth < MOBILE_BREAKPOINT;
+        setIsMobile(isNowMobile);
+        if (isNowMobile) {
+          setWidth(window.innerWidth);
+        } else {
+          // Restore initial/persisted width if provided, otherwise use default
+          // We might need a more sophisticated way to remember the last desktop width
+          // if the user resizes, then goes mobile, then back to desktop.
+          // For now, let's reset to initialWidth or the current width if it was changed by resizing.
+          setWidth((prevWidth) =>
+            prevWidth === window.innerWidth ? initialWidth : prevWidth,
+          );
+        }
+      };
+
+      checkMobile(); // Initial check
+      window.addEventListener("resize", checkMobile);
+      return () => window.removeEventListener("resize", checkMobile);
+    }, [initialWidth]);
 
     const handleMove = useCallback(
       (clientX: number) => {
-        if (!isResizingRef.current) return;
+        if (!isResizingRef.current || isMobile) return;
 
         const deltaX = initialMouseXRef.current - clientX;
         let newWidth = initialWidthRef.current + deltaX;
@@ -82,7 +107,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
 
         setWidth(newWidth);
       },
-      [minWidth, maxWidth],
+      [minWidth, maxWidth, isMobile],
     );
 
     const handleMouseMove = useCallback(
@@ -147,6 +172,12 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
     };
 
     useEffect(() => {
+      if (isMobile) {
+        setWidth(window.innerWidth);
+      }
+    }, [isMobile]);
+
+    useEffect(() => {
       return () => {
         if (isResizingRef.current) {
           document.removeEventListener("mousemove", handleMouseMove);
@@ -189,23 +220,26 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
         style={{ width: `${width}px` }}
         className={cn(
           "sticky top-0 h-[100dvh] flex flex-col border-l border-border bg-popover shadow-lg touch-none",
+          isMobile ? "border-l-0" : "", // Remove border on mobile if it's full width
           className,
         )}
       >
         {/* Resize Handle */}
-        <div
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-          className="absolute left-0 top-0 h-full w-4 cursor-col-resize group -translate-x-1/2"
-          aria-label="Resize sidebar"
-          role="separator"
-          tabIndex={0}
-        >
-          <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors duration-200 mx-auto pointer-events-none"></div>
-        </div>
+        {!isMobile && (
+          <div
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            className="absolute left-0 top-0 h-full w-4 cursor-col-resize group -translate-x-1/2"
+            aria-label="Resize sidebar"
+            role="separator"
+            tabIndex={0}
+          >
+            <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors duration-200 mx-auto pointer-events-none"></div>
+          </div>
+        )}
 
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-border shrink-0 px-4 py-2 w-full">
+        <header className="flex items-center justify-between border-b border-border shrink-0 pl-12 md:pl-0 px-4 py-2 w-full">
           <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
           <Button
             variant="ghost"
