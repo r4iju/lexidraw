@@ -9,7 +9,10 @@ import { ListItemNode, ListNode } from "@lexical/list";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { MarkNode } from "@lexical/mark";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
-import CommentLexicalPlugin from "./plugins/CommentPlugin";
+import CommentPluginProvider, {
+  CommentUI,
+  useCommentPlugin,
+} from "./plugins/CommentPlugin";
 import { LayoutPlugin } from "./plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "./plugins/CollapsiblePlugin";
 import ShortcutsPlugin from "./plugins/ShortcutsPlugin";
@@ -124,6 +127,7 @@ import {
 import { cn } from "~/lib/utils";
 import { useSaveAndExportDocument } from "./context/save-and-export";
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
+import { CommentInputBox } from "./plugins/CommentPlugin";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -212,6 +216,24 @@ function getSidebarTitle(sidebar: ActiveSidebar): string {
     }
   }
 }
+
+const ConditionalCommentInputBoxRenderer = () => {
+  const context = useCommentPlugin();
+
+  const { editor, showCommentInput, cancelAddComment, submitAddComment } =
+    context;
+
+  if (showCommentInput && editor) {
+    return (
+      <CommentInputBox
+        editor={editor}
+        cancelAddComment={cancelAddComment}
+        submitAddComment={submitAddComment}
+      />
+    );
+  }
+  return null;
+};
 
 function EditorHandler({
   entity,
@@ -321,157 +343,155 @@ function EditorHandler({
                 <LexicalImageGenerationProvider>
                   <ImageProvider>
                     <LexicalImageProvider>
-                      <div className="page-frame z-0 flex overflow-x-hidden">
-                        <div
-                          className={cn(
-                            "min-w-0 flex-1 flex flex-col",
-                            inter.variable,
-                            mono.variable,
-                            mplus.variable,
-                            noto.variable,
-                            yusei.variable,
-                            kosugi.variable,
-                            sawarabi.variable,
-                          )}
-                        >
-                          {/* toolbar */}
-                          <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs shrink-0">
-                            <div
-                              className="flex items-start gap-2 w-full overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2"
-                              data-component-name="Toolbar"
-                            >
-                              <OptionsDropdown
-                                className="flex h-12 md:h-10 min-w-12 md:min-w-10"
-                                onSaveDocument={handleSave}
-                                isSavingDocument={isUploading}
-                              />
+                      <CommentPluginProvider>
+                        <div className="page-frame z-0 flex overflow-x-hidden">
+                          <div
+                            className={cn(
+                              "min-w-0 flex-1 flex flex-col",
+                              inter.variable,
+                              mono.variable,
+                              mplus.variable,
+                              noto.variable,
+                              yusei.variable,
+                              kosugi.variable,
+                              sawarabi.variable,
+                            )}
+                          >
+                            <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs shrink-0">
+                              <div
+                                className="flex items-start gap-2 w-full overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2"
+                                data-component-name="Toolbar"
+                              >
+                                <OptionsDropdown
+                                  className="flex h-12 md:h-10 min-w-12 md:min-w-10"
+                                  onSaveDocument={handleSave}
+                                  isSavingDocument={isUploading}
+                                />
 
-                              <ShortcutsPlugin
-                                editor={editor}
-                                setIsLinkEditMode={setIsLinkEditMode}
-                              />
-                              <TooltipProvider>
-                                <ToolbarPlugin
+                                <ShortcutsPlugin
+                                  editor={editor}
                                   setIsLinkEditMode={setIsLinkEditMode}
                                 />
-                              </TooltipProvider>
-                              <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
+                                <TooltipProvider>
+                                  <ToolbarPlugin
+                                    setIsLinkEditMode={setIsLinkEditMode}
+                                  />
+                                </TooltipProvider>
+                                <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
+                              </div>
                             </div>
-                          </div>
-                          {/* editor */}
-                          <div className="relative min-w-0 flex-1 ">
-                            <div className="relative max-w-(--breakpoint-lg) mx-auto">
-                              <DisableChecklistSpacebarPlugin />
-                              <EmojiPickerPlugin />
-                              <LayoutPlugin />
-                              <LLMWidget />
-                              <ListPlugin />
-                              <ListMaxIndentLevelPlugin />
-                              <CheckListPlugin />
-                              <MarkdownShortcutPlugin />
-                              <PageBreakPlugin />
-                              <CollapsiblePlugin />
-                              <PollPlugin />
-                              <CodeHighlightPlugin />
-                              <TabIndentationPlugin />
-                              <SessionUUIDProvider>
-                                <AutocompletePlugin />
-                              </SessionUUIDProvider>
-                              <AutoEmbedPlugin />
-                              <AutoLinkPlugin />
-                              <HorizontalRulePlugin />
-                              <TablePlugin
-                                hasCellMerge
-                                hasCellBackgroundColor
-                              />
-                              <TableCellResizer />
-                              <ImagesPlugin />
-                              <InlineImagePlugin />
-                              <VideosPlugin />
-                              <LinkPlugin />
-                              <ClickableLinkPlugin disabled={isEditable} />
-                              <TwitterPlugin />
-                              <YouTubePlugin />
-                              <ExcalidrawPlugin />
-                              <FigmaPlugin />
-                              <EquationsPlugin />
-                              <RichTextPlugin
-                                contentEditable={
-                                  <div
-                                    className="size-full flex relative outline-hidden z-0"
-                                    ref={onRef}
-                                  >
-                                    <ContentEditable
-                                      id="lexical-content"
-                                      className="size-full outline-hidden p-4 text-foreground"
-                                    />
-                                  </div>
-                                }
-                                placeholder={<Placeholder />}
-                                ErrorBoundary={LexicalErrorBoundary}
-                              />
-                              <OnChangePlugin onChange={onChange} />
-                              <HistoryPlugin />
-                              <AutoFocusPlugin />
+                            <div className="relative min-w-0 flex-1 ">
+                              <div className="relative max-w-(--breakpoint-lg) mx-auto">
+                                <DisableChecklistSpacebarPlugin />
+                                <EmojiPickerPlugin />
+                                <LayoutPlugin />
+                                <LLMWidget />
+                                <ListPlugin />
+                                <ListMaxIndentLevelPlugin />
+                                <CheckListPlugin />
+                                <MarkdownShortcutPlugin />
+                                <PageBreakPlugin />
+                                <CollapsiblePlugin />
+                                <PollPlugin />
+                                <CodeHighlightPlugin />
+                                <TabIndentationPlugin />
+                                <SessionUUIDProvider>
+                                  <AutocompletePlugin />
+                                </SessionUUIDProvider>
+                                <AutoEmbedPlugin />
+                                <AutoLinkPlugin />
+                                <HorizontalRulePlugin />
+                                <TablePlugin
+                                  hasCellMerge
+                                  hasCellBackgroundColor
+                                />
+                                <TableCellResizer />
+                                <ImagesPlugin />
+                                <InlineImagePlugin />
+                                <VideosPlugin />
+                                <LinkPlugin />
+                                <ClickableLinkPlugin disabled={isEditable} />
+                                <TwitterPlugin />
+                                <YouTubePlugin />
+                                <ExcalidrawPlugin />
+                                <FigmaPlugin />
+                                <EquationsPlugin />
+                                <RichTextPlugin
+                                  contentEditable={
+                                    <div
+                                      className="size-full flex relative outline-hidden z-0"
+                                      ref={onRef}
+                                    >
+                                      <ContentEditable
+                                        id="lexical-content"
+                                        className="size-full outline-hidden p-4 text-foreground"
+                                      />
+                                    </div>
+                                  }
+                                  placeholder={<Placeholder />}
+                                  ErrorBoundary={LexicalErrorBoundary}
+                                />
+                                <OnChangePlugin onChange={onChange} />
+                                <HistoryPlugin />
+                                <AutoFocusPlugin />
+                              </div>
                             </div>
+
+                            {floatingAnchorElem && (
+                              <>
+                                <DraggableBlockPlugin
+                                  anchorElem={floatingAnchorElem}
+                                />
+                                <CodeActionMenuPlugin
+                                  anchorElem={floatingAnchorElem}
+                                />
+                                <FloatingLinkEditorPlugin
+                                  anchorElem={floatingAnchorElem}
+                                  isLinkEditMode={isLinkEditMode}
+                                  setIsLinkEditMode={setIsLinkEditMode}
+                                />
+                                <TableActionMenuPlugin
+                                  anchorElem={floatingAnchorElem}
+                                  cellMerge={true}
+                                />
+                                <FloatingTextFormatToolbarPlugin
+                                  anchorElem={floatingAnchorElem}
+                                  setIsLinkEditMode={setIsLinkEditMode}
+                                />
+                              </>
+                            )}
+                            {autocomplete && <AutocompletePlugin />}
+                            <ContextMenuPlugin />
+                            {showTreeView &&
+                              createPortal(
+                                <div className="absolute top-[60%] left-0 h-full w-full z-10 overflow-y-auto">
+                                  <TreeViewPlugin />
+                                </div>,
+                                document.body,
+                              )}
                           </div>
 
-                          {/* plugins */}
-                          {floatingAnchorElem && (
-                            <>
-                              <DraggableBlockPlugin
-                                anchorElem={floatingAnchorElem}
-                              />
-                              <CodeActionMenuPlugin
-                                anchorElem={floatingAnchorElem}
-                              />
-                              <FloatingLinkEditorPlugin
-                                anchorElem={floatingAnchorElem}
-                                isLinkEditMode={isLinkEditMode}
-                                setIsLinkEditMode={setIsLinkEditMode}
-                              />
-                              <TableActionMenuPlugin
-                                anchorElem={floatingAnchorElem}
-                                cellMerge={true}
-                              />
-                              <FloatingTextFormatToolbarPlugin
-                                anchorElem={floatingAnchorElem}
-                                setIsLinkEditMode={setIsLinkEditMode}
-                              />
-                            </>
+                          {activeSidebar && (
+                            <SidebarWrapper
+                              ref={sidebarRef}
+                              className="shadow-lg"
+                              onClose={() => setActiveSidebar(null)}
+                              title={getSidebarTitle(activeSidebar)}
+                              initialWidth={currentSidebarWidth}
+                              minWidth={200}
+                              maxWidth={800}
+                              onWidthChange={setCurrentSidebarWidth}
+                            >
+                              {activeSidebar === "llm" && <LlmChatPlugin />}
+                              {activeSidebar === "comments" && <CommentUI />}
+                              {activeSidebar === "toc" && (
+                                <TableOfContentsPlugin />
+                              )}
+                            </SidebarWrapper>
                           )}
-                          {autocomplete && <AutocompletePlugin />}
-                          <ContextMenuPlugin />
-                          {showTreeView &&
-                            createPortal(
-                              <div className="absolute top-[60%] left-0 h-full w-full z-10 overflow-y-auto">
-                                <TreeViewPlugin />
-                              </div>,
-                              document.body,
-                            )}
+                          <ConditionalCommentInputBoxRenderer />
                         </div>
-
-                        {activeSidebar && (
-                          <SidebarWrapper
-                            ref={sidebarRef}
-                            className="shadow-lg"
-                            onClose={() => setActiveSidebar(null)}
-                            title={getSidebarTitle(activeSidebar)}
-                            initialWidth={currentSidebarWidth}
-                            minWidth={200}
-                            maxWidth={800}
-                            onWidthChange={setCurrentSidebarWidth}
-                          >
-                            {activeSidebar === "llm" && <LlmChatPlugin />}
-                            {activeSidebar === "comments" && (
-                              <CommentLexicalPlugin />
-                            )}
-                            {activeSidebar === "toc" && (
-                              <TableOfContentsPlugin />
-                            )}
-                          </SidebarWrapper>
-                        )}
-                      </div>
+                      </CommentPluginProvider>
                     </LexicalImageProvider>
                   </ImageProvider>
                 </LexicalImageGenerationProvider>
