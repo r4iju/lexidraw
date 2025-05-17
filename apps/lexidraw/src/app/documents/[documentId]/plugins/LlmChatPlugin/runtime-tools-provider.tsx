@@ -1,6 +1,12 @@
 import { createContext, PropsWithChildren, useContext, useEffect } from "react";
 import { tool } from "ai";
 import { z } from "zod";
+import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import {
+  MermaidConfig,
+  ExcalidrawConfig,
+} from "@excalidraw/mermaid-to-excalidraw";
 
 /** Lexical utils */
 import {
@@ -71,6 +77,7 @@ import type { Thread } from "../../commenting";
 import { CommentStore } from "../../commenting";
 import { useCommentPlugin } from "../../plugins/CommentPlugin";
 import { ThreadNode } from "../../nodes/ThreadNode";
+import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -2615,136 +2622,137 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   });
 
   /* --------------------------------------------------------------
-   * Insert ExcalidrawNode Tool
+   * Insert Excalidraw diagram from Mermaid schema
    * --------------------------------------------------------------*/
-  const insertExcalidrawNode = tool({
-    description:
-      "Inserts a new Excalidraw canvas. ExcalidrawNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
-      data: z
-        .string()
-        .optional()
-        .describe(
-          "The Excalidraw JSON data string. Defaults to an empty drawing '[]'.",
-        ),
-      width: z
-        .union([z.number(), z.literal("inherit")])
-        .optional()
-        .describe(
-          "Optional width for the Excalidraw embed. Can be a number (pixels) or 'inherit'. Defaults to 'inherit'.",
-        ),
-      height: z
-        .union([z.number(), z.literal("inherit")])
-        .optional()
-        .describe(
-          "Optional height for the Excalidraw embed. Can be a number (pixels) or 'inherit'. Defaults to 'inherit'.",
-        ),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-    }),
-    execute: async ({
-      data,
-      width,
-      height,
-      relation,
-      anchor,
-    }): ExecuteResult => {
+  const DEFAULT_EXCALIDRAW_CFG: Required<ExcalidrawConfig> = {
+    fontSize: 20,
+  };
+
+  const DEFAULT_CANVAS_WIDTH: number | "inherit" = "inherit";
+  const DEFAULT_CANVAS_HEIGHT: number | "inherit" = "inherit";
+
+  const insertExcalidrawDiagram = tool({
+    description: `Parses a Mermaid DSL string into an Excalidraw canvas and inserts it at the desired location.  
+        – Fully supports \`MermaidConfig\` (theme variables, edge limits, etc.).  
+        – Supports \`ExcalidrawConfig\` (font sizing).`,
+    parameters: z
+      .object({
+        mermaidLines: z
+          .array(z.string())
+          .describe(
+            `A list of Mermaid DSL strings. 
+            Mermaid ER diagrams aren't yet supported - please supply a flowchart / class diagram.
+            Example: [
+            "graph TD",
+            "  User([User]) -->|HTTPS| BrowserUI[Browser UI (Frontend)]",
+            "  BrowserUI -->|API Calls| APIServer[API Server (Backend)]",
+            "  …"
+          ]`,
+          )
+          .nonempty("Mermaid definition must not be empty."),
+        mermaidConfig: z
+          .object({}) // allow any shape – full validation happens at runtime merge
+          .passthrough()
+          .optional(),
+        excalidrawConfig: z
+          .object({ fontSize: z.number().optional() })
+          .passthrough()
+          .optional(),
+        width: z
+          .union([z.number(), z.literal("inherit")])
+          .optional()
+          .default(DEFAULT_CANVAS_WIDTH),
+        height: z
+          .union([z.number(), z.literal("inherit")])
+          .optional()
+          .default(DEFAULT_CANVAS_HEIGHT),
+        relation: InsertionRelationSchema,
+        anchor: InsertionAnchorSchema.optional(),
+      })
+      .transform(({ mermaidLines, ...rest }) => ({
+        ...rest,
+        mermaid: mermaidLines.join("\n"),
+      })),
+    execute: async (args) => {
+      // -------------------- Merge / validate configuration -------------------
+      const mermaidCfg: MermaidConfig = {
+        ...(args.mermaidConfig ?? {}),
+      };
+
+      const excaliCfg: ExcalidrawConfig = {
+        ...DEFAULT_EXCALIDRAW_CFG,
+        ...(args.excalidrawConfig ?? {}),
+      };
+
+      // -------------------------- Parse Mermaid ----------------------------
+      let parseResult: MermaidToExcalidrawResult;
       try {
-        console.log("[insertExcalidrawNode] Starting", {
-          data,
-          width,
-          height,
-          relation,
-          anchor,
-        });
-
-        const resolution = await resolveInsertionPoint(
-          editor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(
-            `❌ [insertExcalidrawNode] Error: ${resolution.message}`,
-          );
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        editor.update(() => {
-          // Use the constructor directly with defaults handled by it or by Zod's .default() if preferred later
-          const excalidrawData = data ?? "[]";
-          const excalidrawWidth = width ?? "inherit";
-          const excalidrawHeight = height ?? "inherit";
-
-          const newExcalidrawNode = new ExcalidrawNode(
-            excalidrawData,
-            excalidrawWidth,
-            excalidrawHeight,
-          );
-          newNodeKey = newExcalidrawNode.getKey();
-
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newExcalidrawNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // ExcalidrawNode is block-level
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newExcalidrawNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newExcalidrawNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? "Appended new Excalidraw canvas."
-            : `Inserted Excalidraw canvas ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertExcalidrawNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
+        parseResult = await parseMermaidToExcalidraw(args.mermaid, mermaidCfg);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertExcalidrawNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
+        const msg = err instanceof Error ? err.message : String(err);
         return {
           success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert Excalidraw canvas",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
+          error: `Mermaid parsing failed: ${msg}`,
+        } as const;
       }
+
+      // ------------------ Convert to Excalidraw elements ------------------
+      const elements = convertToExcalidrawElements(parseResult.elements, {
+        regenerateIds: true,
+        ...excaliCfg,
+      });
+      // NOTE: convertToExcalidrawElements already returns a *flat* element
+      // array – perfect for a single‑canvas Excalidraw JSON.
+
+      const excaliData = JSON.stringify({
+        type: "excalidraw",
+        version: 2,
+        source: "mermaid‑to‑excalidraw@latest",
+        elements,
+        files: parseResult.files ?? {},
+      });
+
+      // --------------- Figure out where to insert in the doc ---------------
+      const resolution = await resolveInsertionPoint(
+        editor,
+        args.relation,
+        args.anchor,
+      );
+      if (resolution.status === "error") {
+        return { success: false, error: resolution.message } as const;
+      }
+
+      // --------------------------- Perform insert --------------------------
+      let newNodeKey: string | null = null;
+      editor.update(() => {
+        const node = new ExcalidrawNode(
+          excaliData,
+          args.width ?? DEFAULT_CANVAS_WIDTH,
+          args.height ?? DEFAULT_CANVAS_HEIGHT,
+        );
+        newNodeKey = node.getKey();
+
+        if (resolution.type === "appendRoot") {
+          $getRoot().append(node);
+        } else {
+          const target = $getNodeByKey(resolution.targetKey);
+          if (!target)
+            throw new Error(`Target node ${resolution.targetKey} vanished.`);
+          if (resolution.type === "before") target.insertBefore(node);
+          else target.insertAfter(node);
+        }
+      });
+
+      // ----------------------------- Return -------------------------------
+      const stateJson = JSON.stringify(editor.getEditorState().toJSON());
+      return {
+        success: true,
+        content: {
+          summary: `Inserted Mermaid diagram as a single Excalidraw canvas (${elements.length} elements).`,
+          updatedEditorStateJson: stateJson,
+          newNodeKey: newNodeKey ?? undefined,
+        },
+      } as const;
     },
   });
 
@@ -3686,7 +3694,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertEquationNode && { insertEquationNode }),
     ...(insertFigmaNode && { insertFigmaNode }),
     ...(insertCollapsibleSection && { insertCollapsibleSection }),
-    ...(insertExcalidrawNode && { insertExcalidrawNode }),
+    ...(insertExcalidrawDiagram && { insertDiagram: insertExcalidrawDiagram }),
     ...(insertLayout && { insertLayout }),
     ...(insertPageBreakNode && { insertPageBreakNode }),
     ...(insertPollNode && { insertPollNode }),

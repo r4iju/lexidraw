@@ -149,7 +149,10 @@ export const useSendQuery = () => {
             convertEditorStateToMarkdown(currentEditorState);
           fullPrompt += `\n\nMARKDOWN_CONTEXT:\n${markdownContent}`;
         } else if (mode === "agent" && editorStateJson) {
-          console.log(" Attaching JSON state to prompt (Agent Mode).");
+          console.log(
+            " Attaching JSON state to prompt (Agent Mode).",
+            editorStateJson,
+          );
           fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
         }
         // --- End Prompt Construction ---
@@ -240,15 +243,16 @@ export const useSendQuery = () => {
             );
 
             if (
-              previousToolCallName &&
-              [
-                "summarizeExecution",
-                "requestClarificationOrPlan",
-                "sendReply",
-              ].includes(previousToolCallName)
+              (previousToolCallName &&
+                ["summarizeExecution", "sendReply"].includes(
+                  previousToolCallName,
+                )) ||
+              (previousToolCallName === "requestClarificationOrPlan" &&
+                previousStep?.toolResults?.at(-1)?.args?.operation ===
+                  "clarify")
             ) {
               console.log(
-                `Step ${stepNumber}: sendReply, summarizeExecution or requestClarificationOrPlan detected in previous step. Forcing toolChoice: 'none'`,
+                `Step ${stepNumber}: sendReply or summarizeExecution or requestClarificationOrPlan detected in previous step. Forcing toolChoice: 'none'`,
               );
               const error = new Error("TERMINAL_TOOL_CALL_DETECTED");
               error.name = "ExitError";
