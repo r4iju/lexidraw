@@ -1013,7 +1013,7 @@ export default function CommentPlugin(): JSX.Element | null {
   }, [editor, commentStore, $isCommentNode, $isThreadNode]);
 
   return (
-    <>
+    <div className="h-full p-4">
       {showCommentInput && (
         <CommentInputBox
           editor={editor}
@@ -1029,6 +1029,6 @@ export default function CommentPlugin(): JSX.Element | null {
         submitAddComment={submitAddComment}
         markNodeMap={markNodeMap}
       />
-    </>
+    </div>
   );
 }
