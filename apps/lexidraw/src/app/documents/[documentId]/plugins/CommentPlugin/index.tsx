@@ -22,7 +22,6 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { EditorRefPlugin } from "@lexical/react/LexicalEditorRefPlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { useCollaborationContext } from "@lexical/react/LexicalCollaborationContext";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $dfs,
@@ -77,6 +76,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
+import { useUserNameOrGuestName } from "~/hooks/use-user-name-or-guest-name";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -116,13 +116,6 @@ export const useCommentPlugin = (): CommentPluginContextType => {
   }
   return context;
 };
-
-function useCollabAuthorName(): string {
-  // For name or fallback
-  const collabContext = useCollaborationContext();
-  const { yjsDocMap, name } = collabContext;
-  return yjsDocMap.has("comments") ? name : "Playground User";
-}
 
 // PlainTextEditor + EscapeHandler, used in input box
 function EscapeHandlerPlugin({
@@ -218,7 +211,7 @@ export function CommentInputBox({
     selection?: RangeSelection | null,
   ) => void;
 }) {
-  const author = useCollabAuthorName();
+  const author = useUserNameOrGuestName();
   const boxRef = useRef<HTMLDivElement>(null);
 
   const [content, setContent] = useState("");
@@ -405,7 +398,7 @@ function CommentsComposer({
   const [content, setContent] = useState("");
   const [canSubmit, setCanSubmit] = useState(false);
   const editorRef = useRef<LexicalEditor>(null);
-  const author = useCollabAuthorName();
+  const author = useUserNameOrGuestName();
 
   const onChange = useOnChange(setContent, setCanSubmit);
   const doSubmit = useCallback(() => {
