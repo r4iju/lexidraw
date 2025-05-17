@@ -67,14 +67,16 @@ import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 import { useMemo } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { RuntimeToolMap } from "../../context/llm-context";
-
-// Commenting related imports
 import type { Thread } from "../../commenting";
 import { CommentStore } from "../../commenting";
 import { CommentNode } from "../../nodes/CommentNode";
 import { ThreadNode } from "../../nodes/ThreadNode";
 import { $isThreadNodeUtil } from "../../plugins/CommentPlugin";
 import { $dfs as lexicalDfs } from "@lexical/utils";
+import {
+  getCommentStore,
+  getCommentDeleteFunc,
+} from "../../plugins/CommentPlugin/comment-store-resgistry";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -217,16 +219,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const [editor] = useLexicalComposerContext();
 
   const { runtimeSpec } = useRuntimeSpec();
-
-  function getCommentStore(currentEditor: LexicalEditor): CommentStore {
-    const store = currentEditor._commentStore as CommentStore | undefined;
-    if (!store) {
-      throw new Error(
-        "CommentStore not found on editor instance. Ensure CommentPlugin is active and initialized before LlmChatPlugin tools.",
-      );
-    }
-    return store;
-  }
 
   function findNodeByKey(
     editor: LexicalEditor,
@@ -3417,6 +3409,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }): ExecuteResult => {
       try {
         const commentStore = getCommentStore(editor);
+        if (!commentStore) {
+          throw new Error(
+            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
+          );
+        }
         const author = authorName || "AI Assistant";
         let quote = "";
         let currentSelection: RangeSelection | null = null;
@@ -3551,6 +3548,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     execute: async ({ threadId, replyText, authorName }): ExecuteResult => {
       try {
         const commentStore = getCommentStore(editor);
+        if (!commentStore) {
+          throw new Error(
+            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
+          );
+        }
         const author = authorName || "AI Assistant";
 
         const threads = commentStore
@@ -3609,6 +3611,132 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  /* --------------------------------------------------------------
+   * Remove Comment from Thread Tool
+   * --------------------------------------------------------------*/
+  const removeCommentFromThread = tool({
+    description:
+      "Removes a specific comment from a thread using the thread ID and comment ID.",
+    parameters: z.object({
+      threadId: z.string().describe("The ID of the parent thread."),
+      commentId: z.string().describe("The ID of the comment to remove."),
+    }),
+    execute: async ({ threadId, commentId }): ExecuteResult => {
+      try {
+        const commentStore = getCommentStore(editor);
+        if (!commentStore) {
+          throw new Error(
+            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
+          );
+        }
+        const deleteFunc = getCommentDeleteFunc(editor); // Use registry getter
+        if (!deleteFunc) {
+          throw new Error(
+            "CommentPlugin delete function not found in registry. Ensure CommentPlugin is active and has exposed its deletion logic.",
+          );
+        }
+
+        const threads = commentStore
+          .getComments()
+          .filter((c) => c.type === "thread") as Thread[];
+        const targetThread = threads.find((t) => t.id === threadId);
+
+        if (!targetThread) {
+          return {
+            success: false,
+            error: `Thread with ID ${threadId} not found.`,
+          };
+        }
+
+        const targetComment = targetThread.comments.find(
+          (c) => c.id === commentId,
+        );
+
+        if (!targetComment) {
+          return {
+            success: false,
+            error: `Comment with ID ${commentId} not found in thread ${threadId}.`,
+          };
+        }
+
+        deleteFunc(targetComment, targetThread);
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        return {
+          success: true,
+          content: {
+            summary: `Removed comment ID ${commentId} from thread ID ${threadId}.`,
+            updatedEditorStateJson: stateJson,
+            threadId: threadId,
+            commentId: commentId,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [removeCommentFromThread] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Remove Comment Thread Tool
+   * --------------------------------------------------------------*/
+  const removeCommentThread = tool({
+    description:
+      "Removes an entire comment thread (including all its comments and associated highlights) using the thread ID.",
+    parameters: z.object({
+      threadId: z.string().describe("The ID of the comment thread to remove."),
+    }),
+    execute: async ({ threadId }): ExecuteResult => {
+      try {
+        const commentStore = getCommentStore(editor);
+        if (!commentStore) {
+          throw new Error(
+            "CommentStore not found in registry. Ensure CommentPlugin is active and initialized.",
+          );
+        }
+        const deleteFunc = getCommentDeleteFunc(editor); // Use registry getter
+        if (!deleteFunc) {
+          throw new Error(
+            "CommentPlugin delete function not found in registry. Ensure CommentPlugin is active and has exposed its deletion logic.",
+          );
+        }
+
+        const targetThread = commentStore
+          .getComments()
+          .find((c) => c.id === threadId && c.type === "thread") as
+          | Thread
+          | undefined;
+
+        if (!targetThread) {
+          return {
+            success: false,
+            error: `Comment thread with ID ${threadId} not found.`,
+          };
+        }
+
+        deleteFunc(targetThread);
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        return {
+          success: true,
+          content: {
+            summary: `Removed comment thread ID ${threadId}.`,
+            updatedEditorStateJson: stateJson,
+            threadId: threadId,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [removeCommentThread] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -3641,6 +3769,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(addCommentThread && { addCommentThread }),
     ...(addReplyToThread && { addReplyToThread }),
     ...(findAndSelectText && { findAndSelectText }),
+    ...(removeCommentFromThread && { removeCommentFromThread }), // Register new tool
+    ...(removeCommentThread && { removeCommentThread }), // Register new tool
   } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------

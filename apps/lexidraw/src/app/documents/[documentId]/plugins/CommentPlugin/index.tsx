@@ -77,7 +77,14 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import Ellipsis from "~/components/icons/ellipsis";
-import { clearCommentStore, setCommentStore } from "./comment-store-resgistry";
+import {
+  clearCommentStore,
+  setCommentStore,
+  setCommentDeleteFunc,
+  clearCommentDeleteFunc,
+  setMarkNodeMap,
+  clearMarkNodeMap,
+} from "./comment-store-resgistry";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -823,14 +830,18 @@ export function CommentPluginProvider({
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const commentStore = useMemo(() => new CommentStore(editor), [editor]);
+  const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => new Map(), []);
 
   useEffect(() => {
     setCommentStore(editor, commentStore);
-    return () => void clearCommentStore(editor);
-  }, [editor, commentStore]);
+    setMarkNodeMap(editor, markNodeMap);
+    return () => {
+      clearCommentStore(editor);
+      clearMarkNodeMap(editor);
+    };
+  }, [editor, commentStore, markNodeMap]);
 
   const comments = useCommentStore(commentStore);
-  const markNodeMap = useMemo<Map<string, Set<NodeKey>>>(() => new Map(), []);
   const [activeIDs, setActiveIDs] = useState<string[]>([]);
   const [showCommentInput, setShowCommentInput] = useState(false);
 
@@ -890,6 +901,13 @@ export function CommentPluginProvider({
     },
     [commentStore, markNodeMap, editor],
   );
+
+  useEffect(() => {
+    setCommentDeleteFunc(editor, deleteCommentOrThread);
+    return () => {
+      clearCommentDeleteFunc(editor);
+    };
+  }, [editor, deleteCommentOrThread]);
 
   const submitAddComment = useCallback(
     (
