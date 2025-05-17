@@ -393,7 +393,7 @@ export default function ToolbarPlugin({
   }, [editor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
   return (
-    <div className="flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible top-0">
+    <div className="flex flex-wrap gap-2 overflow-x-auto overflow-y-hidden max-h-[6rem] top-0">
       {/* Undo/Redo */}
       <div className="flex" role="group" aria-label="History actions">
         <TooltipButton

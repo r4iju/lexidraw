@@ -325,7 +325,7 @@ function EditorHandler({
                     <LexicalImageProvider>
                       <CommentProvider>
                         <TocProvider>
-                          <div className="flex h-screen w-full overflow-hidden">
+                          <div className="absolute top-0 left-0 flex h-full w-full overflow-hidden">
                             <div className="flex-1 flex flex-col min-w-0">
                               <div
                                 className={cn(
@@ -342,7 +342,7 @@ function EditorHandler({
                                 <div className="bg-white sticky dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs shrink-0">
                                   <div className="flex justify-between items-start px-4 md:px-8 py-2 max-w-(--breakpoint-xl) rounded-md shadow-xs gap-2 mx-auto">
                                     <OptionsDropdown
-                                      className="flex h-12 md:h-10 min-w-12 md:w-10"
+                                      className="flex h-12 md:h-10 min-w-12 md:min-w-10"
                                       onSaveDocument={handleSave}
                                       isSavingDocument={isUploading}
                                     />
@@ -356,7 +356,7 @@ function EditorHandler({
                                         setIsLinkEditMode={setIsLinkEditMode}
                                       />
                                     </TooltipProvider>
-                                    <ModeToggle className="hidden md:flex" />
+                                    <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
                                   </div>
                                 </div>
                                 <div className="relative flex-1 overflow-y-auto border-x border-border">
@@ -465,9 +465,7 @@ function EditorHandler({
                               >
                                 {activeSidebar === "llm" && <LlmChatPlugin />}
                                 {activeSidebar === "comments" && (
-                                  <div className="p-4 h-full">
-                                    <CommentPlugin />
-                                  </div>
+                                  <CommentPlugin />
                                 )}
                                 {activeSidebar === "toc" && (
                                   <TableOfContentsPlugin />
