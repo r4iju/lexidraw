@@ -10,12 +10,12 @@ import React, {
   useEffect,
 } from "react";
 
-export type ActiveSidebar = "llm" | "comments" | "toc" | null;
+export type ActiveSidebar = "llm" | "comments" | "toc" | "tree" | null;
 
 interface SidebarManagerContextProps {
   activeSidebar: ActiveSidebar;
   setActiveSidebar: (sidebar: ActiveSidebar) => void;
-  toggleSidebar: (sidebar: Exclude<ActiveSidebar, null>) => void; // Helper to toggle specific sidebar
+  toggleSidebar: (sidebar: Exclude<ActiveSidebar, null>) => void;
 }
 
 const SidebarManagerContext = createContext<
@@ -27,7 +27,6 @@ const SIDEBAR_LOCALSTORAGE_KEY = "lexidraw.sidebar";
 export const SidebarManagerProvider: React.FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  // Initialize from localStorage on mount
   const [activeSidebar, setActiveSidebarState] = useState<ActiveSidebar>(() => {
     if (typeof window !== "undefined") {
       const stored = window.localStorage.getItem(SIDEBAR_LOCALSTORAGE_KEY);
@@ -38,7 +37,7 @@ export const SidebarManagerProvider: React.FC<PropsWithChildren<unknown>> = ({
     return null;
   });
 
-  // Persist to localStorage when activeSidebar changes
+  // persist to localStorage when activeSidebar changes
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (activeSidebar) {

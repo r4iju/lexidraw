@@ -20,11 +20,13 @@ import {
   StickyNote,
   ChevronRight,
   Settings,
+  ChartScatter,
 } from "lucide-react";
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
 import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
+import { INSERT_MERMAID_COMMAND } from "../MermaidPlugin";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
 import { $getRoot, LexicalEditor } from "lexical";
 import { InsertImageDialog, InsertImagePayload } from "../ImagesPlugin";
@@ -180,6 +182,18 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           >
             <PencilRuler className="size-4" />
             <span className="text">Excalidraw</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              activeEditor.dispatchCommand(
+                INSERT_MERMAID_COMMAND,
+                undefined,
+              );
+            }}
+            className="flex gap-2"
+          >
+            <ChartScatter className="size-4" />
+            <span className="text">Mermaid</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {

@@ -7,7 +7,6 @@ import {
   MermaidConfig,
   ExcalidrawConfig,
 } from "@excalidraw/mermaid-to-excalidraw";
-import mermaid from "mermaid";
 /** Lexical utils */
 import {
   $createParagraphNode,
@@ -78,7 +77,7 @@ import { CommentStore } from "../../commenting";
 import { useCommentPlugin } from "../../plugins/CommentPlugin";
 import { ThreadNode } from "../../nodes/ThreadNode";
 import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
-import { ImageNode } from "../../nodes/ImageNode/ImageNode";
+import { MermaidNode } from "../../nodes/MermaidNode";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -2660,11 +2659,17 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           .passthrough()
           .optional(),
         width: z
-          .union([z.number(), z.literal("inherit")])
+          .union([z.number().min(100), z.literal("inherit")])
+          .describe(
+            "Optional. The width of the Excalidraw canvas. If 'inherit', the width will be determined by the parent container. Minimum width is 100px.",
+          )
           .optional()
           .default(DEFAULT_CANVAS_WIDTH),
         height: z
-          .union([z.number(), z.literal("inherit")])
+          .union([z.number().min(100), z.literal("inherit")])
+          .describe(
+            "Optional. The height of the Excalidraw canvas. If 'inherit', the height will be determined by the parent container. Minimum height is 100px.",
+          )
           .optional()
           .default(DEFAULT_CANVAS_HEIGHT),
         relation: InsertionRelationSchema,
@@ -2758,28 +2763,20 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   });
 
   /* --------------------------------------------------------------
-   * Insert Mermaid SVG Tool
+   * Insert Mermaid ER Diagram Tool
    * --------------------------------------------------------------*/
-  const insertMermaidSvg = tool({
-    description: `Renders Mermaid DSL to a self-contained SVG <img>.
-                  Stores the original Mermaid text in the image’s alt attribute
-                  so you can re-edit or regenerate later.`,
+  const insertMermaidDiagram = tool({
+    description:
+      "Insert a Mermaid diagram using the custom MermaidNode (schema only, no SVG in state).",
     parameters: z
       .object({
         mermaidLines: z.array(z.string()).nonempty(),
-        mermaidConfig: z.record(z.any()).optional(),
         width: z
           .union([z.number().min(100), z.literal("inherit")])
-          .describe(
-            "Optional. The width of the SVG image. If 'inherit', the width will be determined by the parent container. Minimum width is 100px.",
-          )
           .optional()
           .default("inherit"),
         height: z
           .union([z.number().min(100), z.literal("inherit")])
-          .describe(
-            "Optional. The height of the SVG image. If 'inherit', the height will be determined by the parent container. Minimum height is 100px.",
-          )
           .optional()
           .default("inherit"),
         relation: InsertionRelationSchema,
@@ -2787,70 +2784,50 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       })
       .transform(({ mermaidLines, ...rest }) => ({
         ...rest,
-        mermaid: mermaidLines.join("\n"),
+        schema: mermaidLines.join("\n"),
       })),
     execute: async (args) => {
-      /* ------------ 1 · render Mermaid → SVG string --------------- */
-      mermaid.initialize({
-        startOnLoad: false,
-        ...(args.mermaidConfig ?? {}),
-      });
-
-      const uniqueId = "mmd-" + crypto.randomUUID().replace(/-/g, "");
-      let svg: string;
-      try {
-        const rendered = await mermaid.render(uniqueId, args.mermaid);
-        svg = rendered.svg; // { svg, bindFunctions }
-      } catch (err) {
-        return {
-          success: false,
-          error: `Mermaid render failed: ${String(err)}`,
-        };
-      }
-
-      /* ------------ 2 · encode as data-URI ------------------------- */
-      const svgUri =
-        "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
-
-      /* ------------ 3 · insert an ImageNode ------------------------ */
+      /* ------------ 1 · locate insertion point -------------------- */
       const resolution = await resolveInsertionPoint(
         editor,
         args.relation,
         args.anchor,
       );
-      if (resolution.status === "error")
+      if (resolution.status === "error") {
         return { success: false, error: resolution.message };
+      }
 
+      /* ------------ 2 · create & insert MermaidNode --------------- */
       let nodeKey: string | undefined;
       editor.update(() => {
-        const imageNode = ImageNode.$createImageNode({
-          src: svgUri,
-          altText: args.mermaid, // keep original DSL here
-          width: args.width,
-          height: args.height,
-          captionsEnabled: true,
-        });
-        nodeKey = imageNode.getKey();
+        const mermaidNode = MermaidNode.$createMermaidNode(
+          args.schema,
+          args.width,
+          args.height,
+        );
+        nodeKey = mermaidNode.getKey();
 
-        if (resolution.type === "appendRoot") $getRoot().append(imageNode);
-        else {
+        if (resolution.type === "appendRoot") {
+          $getRoot().append(mermaidNode);
+        } else {
           const target = $getNodeByKey(resolution.targetKey);
-          if (!target)
+          if (!target) {
             throw new Error(`Target node ${resolution.targetKey} vanished.`);
-
+          }
           if (resolution.type === "before") {
-            target.insertBefore(imageNode);
+            target.insertBefore(mermaidNode);
           } else {
-            target.insertAfter(imageNode);
+            target.insertAfter(mermaidNode);
           }
         }
       });
 
+      /* ------------ 3 · return updated editor state --------------- */
       const stateJson = JSON.stringify(editor.getEditorState().toJSON());
       return {
         success: true,
         content: {
-          summary: `Inserted Mermaid diagram as inline SVG (${args.width}×${args.height}).`,
+          summary: `Inserted Mermaid diagram (${args.width}×${args.height}).`,
           updatedEditorStateJson: stateJson,
           newNodeKey: nodeKey,
         },
@@ -3799,7 +3776,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertExcalidrawDiagram && {
       insertExcalidrawDiagram: insertExcalidrawDiagram,
     }),
-    ...(insertMermaidSvg && { insertMermaidSvg }),
+    ...(insertMermaidDiagram && { insertMermaidDiagram }),
     ...(insertLayout && { insertLayout }),
     ...(insertPageBreakNode && { insertPageBreakNode }),
     ...(insertPollNode && { insertPollNode }),

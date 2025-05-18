@@ -9,7 +9,7 @@ type ImageResizerProps = {
   onResizeStart?: () => void;
   onResizeEnd: (width: "inherit" | number, height: "inherit" | number) => void;
   buttonRef: React.RefObject<HTMLButtonElement>;
-  imageRef: React.RefObject<HTMLImageElement>;
+  imageRef: React.RefObject<HTMLImageElement | HTMLDivElement>;
   maxWidth?: number;
   editor: LexicalEditor;
   showCaption: boolean;

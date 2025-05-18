@@ -11,23 +11,21 @@ import {
   useState,
 } from "react";
 
-import { DEFAULT_SETTINGS } from "./app-settings";
+import { DEFAULT_SETTINGS, Settings } from "./app-settings";
 
 const SETTINGS_STORAGE_KEY = "lexidraw-settings";
 
+/* ⬇︎ Create the bare context WITHOUT a default value.
+   (That way we cannot accidentally read from it before a provider exists.) */
 type SettingsContextShape = {
+  settings: Settings;
   setOption: (name: SettingName, value: boolean) => void;
-  settings: Record<SettingName, boolean>;
 };
+const SettingsContext = createContext<SettingsContextShape | undefined>(
+  undefined,
+);
 
-const Context: React.Context<SettingsContextShape> = createContext({
-  setOption: (_name: SettingName, _value: boolean) => {
-    return;
-  },
-  settings: DEFAULT_SETTINGS,
-});
-
-export const SettingsContext = ({
+export const SettingsProvider = ({
   children,
 }: {
   children: ReactNode;
@@ -68,6 +66,7 @@ export const SettingsContext = ({
   }, [settings]);
 
   const setOption = useCallback((setting: SettingName, value: boolean) => {
+    console.log("setOption", setting, value);
     setSettings((options) => {
       const newOptions = {
         ...options,
@@ -81,9 +80,13 @@ export const SettingsContext = ({
     return { setOption, settings };
   }, [setOption, settings]);
 
-  return <Context.Provider value={contextValue}>{children}</Context.Provider>;
+  return <SettingsContext.Provider value={contextValue}>{children}</SettingsContext.Provider>;
 };
 
 export const useSettings = (): SettingsContextShape => {
-  return useContext(Context);
+  const context = useContext(SettingsContext);
+  if (!context) {
+    throw new Error("useSettings must be used within a SettingsContext");
+  }
+  return context;
 };
