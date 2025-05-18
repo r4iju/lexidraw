@@ -400,9 +400,11 @@ function EditorHandler({
                             <PollPlugin />
                             <CodeHighlightPlugin />
                             <TabIndentationPlugin />
-                            <SessionUUIDProvider>
-                              <AutocompletePlugin />
-                            </SessionUUIDProvider>
+                            {autocomplete && (
+                              <SessionUUIDProvider>
+                                <AutocompletePlugin />
+                              </SessionUUIDProvider>
+                            )}
                             <AutoEmbedPlugin />
                             <AutoLinkPlugin />
                             <HorizontalRulePlugin />
@@ -460,7 +462,6 @@ function EditorHandler({
                               />
                             </>
                           )}
-                          {autocomplete && <AutocompletePlugin />}
                           <ContextMenuPlugin />
                         </div>
 
