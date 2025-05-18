@@ -100,17 +100,9 @@ export default function ExcalidrawInlineEditor({
     const els = apiRef.current.getSceneElements();
     const fls = apiRef.current.getFiles();
 
-    // If everything is deleted treat it like discard
-    if (!els || els.filter((e) => !e.isDeleted).length === 0) {
-      onDelete();
-      onClose();
-      return;
-    }
-
     const partialState = buildPartialAppState(apiRef.current.getAppState());
     onSave(els, partialState, fls ?? {});
-    onClose();
-  }, [onSave, onDelete, onClose]);
+  }, [onSave]);
 
   const saveAndClose = () => {
     save();
@@ -121,6 +113,13 @@ export default function ExcalidrawInlineEditor({
 
   const handleDiscardConfirmed = () => {
     closeDiscardConfirm();
+    // if everything is deleted, treat it like discard
+    if (
+      apiRef.current?.getSceneElements().filter((e) => !e.isDeleted).length ===
+      0
+    ) {
+      onDelete();
+    }
     onClose();
   };
 
@@ -132,7 +131,6 @@ export default function ExcalidrawInlineEditor({
       initialData: {
         appState: {
           ...initialAppState,
-          zenModeEnabled: true,
           openMenu: null,
           theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
           exportWithDarkMode: false,

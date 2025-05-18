@@ -2733,6 +2733,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       editor.update(() => {
         const node = new ExcalidrawNode(
           excaliData,
+          false /** keep closed by default */,
           args.width ?? DEFAULT_CANVAS_WIDTH,
           args.height ?? DEFAULT_CANVAS_HEIGHT,
         );
