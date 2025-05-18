@@ -110,6 +110,7 @@
   --input: oklch(0.9278 0.0058 264.5deg);
   --ring: oklch(0.5409 0.2468 293deg);
   --radius: 1rem;
+  --dynamic-viewport-height: 100dvh;
 }
 
 .dark {

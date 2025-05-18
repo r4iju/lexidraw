@@ -43,10 +43,6 @@ export default function MermaidComponent({
     useLexicalNodeSelection(nodeKey);
   const [isResizing, setIsResizing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [dims, setDims] = useState<{ width: Dimension; height: Dimension }>({
-    width,
-    height,
-  });
   const [selection, setSelection] = useState<BaseSelection | null>(null);
 
   /* delete key */
@@ -92,22 +88,6 @@ export default function MermaidComponent({
     );
   }, [editor, onDelete, isSelected, clearSelection, setSelected]);
 
-  /* live-update dimensions while dragging */
-  const onDims = ({
-    width,
-    height,
-  }: {
-    width: Dimension;
-    height: Dimension;
-  }) => {
-    const container = containerRef.current;
-    if (container) {
-      container.style.width = width === "inherit" ? "auto" : `${width}px`;
-      container.style.height = height === "inherit" ? "auto" : `${height}px`;
-    }
-    setDims({ width, height });
-  };
-
   const onResizeEnd = (w: Dimension, h: Dimension) => {
     setTimeout(() => setIsResizing(false), 200);
     editor.update(() => {
@@ -134,6 +114,19 @@ export default function MermaidComponent({
     setModalOpen(false);
   };
 
+  const onDims = ({
+    width,
+    height,
+  }: {
+    width: Dimension;
+    height: Dimension;
+  }) => {
+    editor.update(() => {
+      const n = $getNodeByKey(nodeKey) as MermaidNode;
+      n.setWidthAndHeight({ width, height });
+    });
+  };
+
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       setSelection(editorState.read(() => $getSelection()));
@@ -147,16 +140,19 @@ export default function MermaidComponent({
           "cursor-move":
             isSelected && !isResizing && $isNodeSelection(selection),
         })}
+        ref={containerRef}
         draggable={isSelected && !isResizing && $isNodeSelection(selection)}
       >
         <MermaidImage
+          nodeKey={nodeKey}
           schema={schema}
-          width={dims.width}
-          height={dims.height}
-          containerRef={containerRef as RefObject<HTMLDivElement>}
-          className={
-            isSelected || isResizing ? "ring-1 ring-muted-foreground" : ""
-          }
+          width={width}
+          height={height}
+          className={cn(
+            typeof width === "number" && "w-full",
+            typeof height === "number" && "h-full",
+            isSelected || isResizing ? "ring-1 ring-muted-foreground" : null,
+          )}
         />
 
         {/* small “Edit” pill, like the image plugin */}
@@ -180,7 +176,6 @@ export default function MermaidComponent({
             captionsEnabled={false}
             showCaption={false}
             setShowCaption={() => null}
-            bottomOffset
           />
         )}
       </div>
