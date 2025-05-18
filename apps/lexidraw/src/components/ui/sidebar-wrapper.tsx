@@ -239,7 +239,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
         )}
 
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-border shrink-0 pl-12 md:pl-0 px-4 py-2 w-full">
+        <header className="flex items-center justify-between border-b border-border shrink-0 pl-12 md:pl-4 px-4 py-2 w-full">
           <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
           <Button
             variant="ghost"

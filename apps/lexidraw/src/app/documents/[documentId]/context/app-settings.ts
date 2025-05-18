@@ -13,7 +13,6 @@ export const DEFAULT_SETTINGS = {
   shouldUseLexicalContextMenu: true,
   showNestedEditorTreeView: false,
   showTableOfContents: true,
-  showTreeView: false,
 };
 
 export type SettingName = keyof typeof DEFAULT_SETTINGS;
