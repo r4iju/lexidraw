@@ -66,7 +66,6 @@ export const SettingsProvider = ({
   }, [settings]);
 
   const setOption = useCallback((setting: SettingName, value: boolean) => {
-    console.log("setOption", setting, value);
     setSettings((options) => {
       const newOptions = {
         ...options,
@@ -80,7 +79,11 @@ export const SettingsProvider = ({
     return { setOption, settings };
   }, [setOption, settings]);
 
-  return <SettingsContext.Provider value={contextValue}>{children}</SettingsContext.Provider>;
+  return (
+    <SettingsContext.Provider value={contextValue}>
+      {children}
+    </SettingsContext.Provider>
+  );
 };
 
 export const useSettings = (): SettingsContextShape => {

@@ -67,7 +67,7 @@ export function SettingsDropdown({ className }: { className?: string }) {
           <span>Document Tree</span>
           <Switch
             checked={activeSidebar === "tree"}
-            onCheckedChange={() => toggleSidebar("tree")}
+            // toggled by onSelect above
           />
         </DropdownMenuItem>
       </DropdownMenuContent>
