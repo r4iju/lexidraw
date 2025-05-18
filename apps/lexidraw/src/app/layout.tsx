@@ -12,6 +12,7 @@ import { Toaster } from "~/components/ui/sonner";
 import Script from "next/script";
 import env from "@packages/env";
 import type { Metadata } from "next";
+import LayoutListener from "./layout-listener";
 
 const fredoka = Fredoka({
   subsets: ["latin"],
@@ -49,7 +50,7 @@ export default async function RootLayout({ children }: Props) {
       </head>
       <body
         className={cn(
-          "min-h-[100svh] w-[100vw] flex flex-col font-fredoka bg-background text-foreground antialiased",
+          "h-[var(--dynamic-viewport-height)] w-[100vw] flex flex-col font-fredoka bg-background text-foreground antialiased",
           fredoka.variable,
         )}
       >
@@ -64,6 +65,7 @@ export default async function RootLayout({ children }: Props) {
               <TooltipProvider>
                 {children}
                 <Toaster />
+                <LayoutListener />
                 <Analytics />
               </TooltipProvider>
             </ThemeProvider>

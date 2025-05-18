@@ -59,8 +59,8 @@ export class MermaidNode extends DecoratorNode<JSX.Element> {
   ) {
     super(key);
     this.__schema = schema;
-    this.__width = width;
-    this.__height = height;
+    this.__width = width === 0 ? "inherit" : width;
+    this.__height = height === 0 ? "inherit" : height;
   }
 
   // ────────────────────────────────────────────────────────────
@@ -86,9 +86,10 @@ export class MermaidNode extends DecoratorNode<JSX.Element> {
     width: number | "inherit";
     height: number | "inherit";
   }) {
-    const writable = this.getWritable();
-    writable.__width = width;
-    writable.__height = height;
+    const w = width === 0 ? "inherit" : width;
+    const h = height === 0 ? "inherit" : height;
+    this.getWritable().__width = w;
+    this.getWritable().__height = h;
   }
 
   // ────────────────────────────────────────────────────────────
@@ -115,15 +116,14 @@ export class MermaidNode extends DecoratorNode<JSX.Element> {
    *  continues to work unchanged. */
   createDOM(config: EditorConfig): HTMLElement {
     const span = document.createElement("span");
-    const klass = config.theme.image; // same class as images
+    const cls = config.theme.image;
 
     span.style.display = "inline-block";
     span.style.width =
-      this.__width === "inherit" ? "inherit" : `${this.__width}px`;
+      typeof this.__width === "number" ? `${this.__width}px` : "auto";
     span.style.height =
-      this.__height === "inherit" ? "inherit" : `${this.__height}px`;
-
-    if (klass) span.className = klass;
+      typeof this.__height === "number" ? `${this.__height}px` : "auto";
+    if (cls) span.className = cls;
     return span;
   }
 
@@ -132,13 +132,13 @@ export class MermaidNode extends DecoratorNode<JSX.Element> {
   updateDOM(prev: MermaidNode, dom: HTMLElement): boolean {
     if (prev.__width !== this.__width) {
       dom.style.width =
-        this.__width === "inherit" ? "inherit" : `${this.__width}px`;
+        typeof this.__width === "number" ? `${this.__width}px` : "auto";
     }
     if (prev.__height !== this.__height) {
       dom.style.height =
-        this.__height === "inherit" ? "inherit" : `${this.__height}px`;
+        typeof this.__height === "number" ? `${this.__height}px` : "auto";
     }
-    return false; // we didn’t replace the element
+    return false;
   }
 
   // ────────────────────────────────────────────────────────────

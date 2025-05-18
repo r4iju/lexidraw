@@ -50,11 +50,11 @@ export default function MermaidModal({
   const [svgUri, setSvgUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [widthAndHeight, setWidthAndHeight] = useState<{
-    width: number | "inherit";
-    height: number | "inherit";
+    width: string;
+    height: string;
   }>({
-    width: initialWidth,
-    height: initialHeight,
+    width: initialWidth === "inherit" ? "" : String(initialWidth),
+    height: initialHeight === "inherit" ? "" : String(initialHeight),
   });
 
   // ───────────── live preview ─────────────
@@ -95,11 +95,23 @@ export default function MermaidModal({
     e: React.ChangeEvent<HTMLInputElement>,
     key: "width" | "height",
   ) => {
-    const value = e.target.value;
     setWidthAndHeight((prev) => ({
       ...prev,
-      [key]: value,
+      [key]: e.target.value, // just keep the text
     }));
+  };
+
+  const handleSave = () => {
+    const toNumberOrInherit = (raw: string): number | "inherit" =>
+      raw.trim() === "" ? "inherit" : Number(raw);
+
+    onSave({
+      schema,
+      widthAndHeight: {
+        width: toNumberOrInherit(widthAndHeight.width),
+        height: toNumberOrInherit(widthAndHeight.height),
+      },
+    });
   };
 
   if (!isOpen) return null;
@@ -147,6 +159,8 @@ export default function MermaidModal({
               <Label>Width</Label>
               <Input
                 type="number"
+                placeholder="auto"
+                step={50}
                 value={widthAndHeight.width}
                 onChange={(e) => handleWidthOrHeightChange(e, "width")}
               />
@@ -155,6 +169,8 @@ export default function MermaidModal({
               <Label>Height</Label>
               <Input
                 type="number"
+                placeholder="auto"
+                step={50}
                 value={widthAndHeight.height}
                 onChange={(e) => handleWidthOrHeightChange(e, "height")}
               />
@@ -166,10 +182,7 @@ export default function MermaidModal({
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
-          <Button
-            disabled={saveDisabled}
-            onClick={() => onSave({ schema, widthAndHeight })}
-          >
+          <Button disabled={saveDisabled} onClick={handleSave}>
             Save
           </Button>
         </div>
