@@ -14,8 +14,7 @@ import { useSidebarManager } from "~/context/sidebar-manager-context";
 
 export function SettingsDropdown({ className }: { className?: string }) {
   const { settings, setOption } = useSettings();
-  const { setActiveSidebar, activeSidebar, toggleSidebar } =
-    useSidebarManager();
+  const { activeSidebar, toggleSidebar } = useSidebarManager();
 
   const camelToTitle = (camelCase: string): string => {
     return camelCase
