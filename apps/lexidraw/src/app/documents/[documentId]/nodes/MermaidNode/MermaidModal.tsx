@@ -5,6 +5,7 @@ import {
   DialogOverlay,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
@@ -15,6 +16,14 @@ import { useDebounceValue } from "~/lib/client-utils";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Label } from "~/components/ui/label";
 import { Input } from "~/components/ui/input";
+import { Ubuntu_Mono } from "next/font/google";
+import { cn } from "~/lib/utils";
+
+const mono = Ubuntu_Mono({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  variable: "--font-mono",
+});
 
 type Props = {
   isOpen: boolean;
@@ -120,12 +129,12 @@ export default function MermaidModal({
   return (
     <Dialog open onOpenChange={onCancel}>
       <DialogOverlay />
-      <DialogContent className="max-w-screen-xl h-[80dvh] w-full flex flex-col">
+      <DialogContent className="max-w-[95dvw] h-[95dvh] md:h-[80dvh] w-full flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit Mermaid diagram</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 grid grid-rows-[58%_30%_10%] gap-4 overflow-hidden p-1">
+        <div className="flex-1 grid grid-rows-[56%_40%] gap-4 overflow-hidden p-1">
           {/* Preview */}
           <div className="relative border rounded bg-background overflow-auto">
             {svgUri ? (
@@ -150,12 +159,18 @@ export default function MermaidModal({
           <Textarea
             value={schema}
             onChange={(e) => setSchema(e.target.value)}
-            className="font-mono text-xs resize-none w-full h-full overflow-visible"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
+            className={cn(
+              "resize-none w-full h-full overflow-visible font-mono font-semibold",
+              mono.className,
+            )}
           />
-
-          {/* width and height */}
+        </div>
+        <DialogFooter className="mt-4 flex justify-between gap-2 items-end">
           <div className="flex flex-row gap-2">
-            <div className="flex flex-col items-center gap-1 justify-start">
+            <div className="flex flex-col gap-1 justify-start">
               <Label>Width</Label>
               <Input
                 type="number"
@@ -165,7 +180,7 @@ export default function MermaidModal({
                 onChange={(e) => handleWidthOrHeightChange(e, "width")}
               />
             </div>
-            <div className="flex flex-col items-center gap-1 justify-start">
+            <div className="flex flex-col gap-1 justify-start">
               <Label>Height</Label>
               <Input
                 type="number"
@@ -176,16 +191,11 @@ export default function MermaidModal({
               />
             </div>
           </div>
-        </div>
 
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
           <Button disabled={saveDisabled} onClick={handleSave}>
             Save
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
