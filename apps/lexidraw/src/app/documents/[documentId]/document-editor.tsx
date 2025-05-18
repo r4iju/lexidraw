@@ -117,7 +117,7 @@ import { VideoNode } from "./nodes/VideoNode/VideoNode";
 import {
   Noto_Sans_JP,
   Inter,
-  Anonymous_Pro,
+  Ubuntu_Mono,
   M_PLUS_Rounded_1c,
   Yusei_Magic,
   Kosugi_Maru,
@@ -136,8 +136,8 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const mono = Anonymous_Pro({
-  weight: "700",
+const mono = Ubuntu_Mono({
+  weight: ["400", "700"],
   subsets: ["latin"],
   variable: "--font-mono",
 });

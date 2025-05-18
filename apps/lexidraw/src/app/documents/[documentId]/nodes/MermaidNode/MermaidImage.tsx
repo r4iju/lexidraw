@@ -78,7 +78,7 @@ export default function MermaidImage({
 
       /* ── clamp ──────────────────────────────────────────────── */
       const root = editor.getRootElement();
-      const maxW = root?.clientWidth ?? 600; // fallback for SSR
+      const maxW = (root?.clientWidth ?? 600) - 40; // fallback for SSR
       const scale = naturalWidth > maxW ? maxW / naturalWidth : 1;
       const width = Math.round(naturalWidth * scale);
       const height = Math.round(naturalHeight * scale);
@@ -103,10 +103,7 @@ export default function MermaidImage({
       alt="Mermaid diagram"
       onLoad={handleLoad}
       draggable={false}
-      className={cn(
-        "select-none object-contain block",
-        className,
-      )}
+      className={cn("select-none object-contain block", className)}
       style={{
         width: typeof width === "number" ? `${width}px` : "auto",
         height: typeof height === "number" ? `${height}px` : "auto",
