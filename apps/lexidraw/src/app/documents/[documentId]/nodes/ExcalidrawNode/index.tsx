@@ -20,6 +20,7 @@ type Dimension = number | "inherit";
 export type SerializedExcalidrawNode = Spread<
   {
     data: string;
+    justInserted?: boolean;
     width: Dimension;
     height: Dimension;
   },
@@ -28,6 +29,7 @@ export type SerializedExcalidrawNode = Spread<
 
 export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
   __data: string;
+  __justInserted?: boolean;
   __width: Dimension;
   __height: Dimension;
 
@@ -38,6 +40,7 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
   static clone(node: ExcalidrawNode): ExcalidrawNode {
     return new ExcalidrawNode(
       node.__data,
+      false,
       node.__width,
       node.__height,
       node.__key,
@@ -47,6 +50,7 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
   static importJSON(serializedNode: SerializedExcalidrawNode): ExcalidrawNode {
     return new ExcalidrawNode(
       serializedNode.data,
+      false,
       serializedNode.width,
       serializedNode.height,
     );
@@ -64,12 +68,14 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
 
   constructor(
     data = "[]",
+    justInserted = false,
     width: Dimension = "inherit",
     height: Dimension = "inherit",
     key?: NodeKey,
   ) {
     super(key);
     this.__data = data;
+    this.__justInserted = justInserted;
     this.__width = width;
     this.__height = height;
   }
@@ -173,6 +179,7 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
         <ExcalidrawComponent
           nodeKey={this.getKey()}
           data={this.__data}
+          defaultOpen={this.__justInserted}
           width={this.__width}
           height={this.__height}
         />
@@ -180,8 +187,8 @@ export class ExcalidrawNode extends DecoratorNode<React.JSX.Element> {
     );
   }
 
-  static $createExcalidrawNode(): ExcalidrawNode {
-    return new ExcalidrawNode();
+  static $createExcalidrawNode(justInserted = true): ExcalidrawNode {
+    return new ExcalidrawNode(undefined, justInserted);
   }
 
   static $isExcalidrawNode(node: LexicalNode | null): node is ExcalidrawNode {

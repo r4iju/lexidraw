@@ -31,16 +31,18 @@ import ExcalidrawModal from "./ExcalidrawModal";
 export default function ExcalidrawComponent({
   nodeKey,
   data,
+  defaultOpen,
   width,
   height,
 }: {
   data: string;
   nodeKey: NodeKey;
+  defaultOpen?: boolean;
   width: number | "inherit";
   height: number | "inherit";
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState<boolean>(defaultOpen ?? false);
   const imageContainerRef = useRef<HTMLImageElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const captionButtonRef = useRef<HTMLButtonElement | null>(null);

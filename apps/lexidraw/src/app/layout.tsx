@@ -50,7 +50,7 @@ export default async function RootLayout({ children }: Props) {
       </head>
       <body
         className={cn(
-          "h-[var(--dynamic-viewport-height)] w-[100vw] flex flex-col font-fredoka bg-background text-foreground antialiased",
+          "h-[var(--dynamic-viewport-height)] max-w-[100dvw] flex flex-col font-fredoka bg-background text-foreground antialiased",
           fredoka.variable,
         )}
       >
