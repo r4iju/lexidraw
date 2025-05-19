@@ -11,6 +11,7 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
 import { RefObject, useState } from "react";
 import { EditorState } from "lexical";
+import { useDocumentSettings } from "./document-settings-context";
 
 export function useSaveAndExportDocument({
   entity,
@@ -28,6 +29,7 @@ export function useSaveAndExportDocument({
   const { mutate: updateEntity } = api.entities.update.useMutation();
   const { exportWebp } = useExportWebp();
   const [isUploading, setIsUploading] = useState(false);
+  const { defaultFontFamily } = useDocumentSettings();
 
   const exportDocumentAsImage = async () => {
     setIsUploading(true);
@@ -103,6 +105,7 @@ export function useSaveAndExportDocument({
       {
         id: entity.id,
         elements: JSON.stringify(editorStateRef.current),
+        appState: JSON.stringify({ defaultFontFamily }),
         entityType: "document",
       },
       {
@@ -129,6 +132,7 @@ export function useSaveAndExportDocument({
       {
         id: entity.id,
         elements: JSON.stringify(editorStateRef.current),
+        appState: JSON.stringify({ defaultFontFamily }),
         entityType: "document",
       },
       {

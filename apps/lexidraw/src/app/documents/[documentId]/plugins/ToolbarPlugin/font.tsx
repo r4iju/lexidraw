@@ -21,6 +21,8 @@ import { Label } from "~/components/ui/label";
 import useModal from "~/hooks/useModal";
 import { useToolbarUtils } from "./utils";
 import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
+import { useDocumentSettings } from "../../context/document-settings-context";
+import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Fredoka", "Fredoka"],
@@ -68,6 +70,9 @@ export function FontDropDown({
   const [customFonts, setCustomFonts] = useState<[string, string][]>([]);
   const { dropDownActiveClass } = useToolbarUtils();
   const { parseStyleString } = useLexicalStyleUtils();
+  const { setDefaultFontFamily } = useDocumentSettings();
+  const { markDirty } = useUnsavedChanges();
+
   const handleClick = useCallback(
     (option: string) => {
       editor.update(() => {
@@ -108,6 +113,19 @@ export function FontDropDown({
       />
     ));
   }, [showModal]);
+
+  const handleSetDefaultFont = useCallback(() => {
+    showModal("Set Default Document Font", (onClose) => (
+      <DefaultFontImportModal
+        onClose={onClose}
+        onImport={(fontName) => {
+          setDefaultFontFamily(fontName);
+          markDirty();
+          // The effect in document-editor.tsx will handle loading and applying it
+        }}
+      />
+    ));
+  }, [showModal, setDefaultFontFamily, markDirty]);
 
   useEffect(() => {
     editor.getEditorState().read(() => {
@@ -225,6 +243,12 @@ export function FontDropDown({
               >
                 + Import Google Font…
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleSetDefaultFont}
+                className="item font-semibold text-primary"
+              >
+                Set Default Document Font…
+              </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
@@ -280,6 +304,57 @@ function FontImportModal({
       {error && <Label className="text-xs text-destructive">{error}</Label>}
       <Button type="submit" className="mt-2">
         Import
+      </Button>
+    </form>
+  );
+}
+
+function DefaultFontImportModal({
+  onClose,
+  onImport,
+}: {
+  onClose: () => void;
+  onImport: (fontName: string) => void;
+}) {
+  const [fontName, setFontName] = useState("");
+  const [error, setError] = useState("");
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!fontName.trim()) {
+          setError("Font name required");
+          return;
+        }
+        onImport(fontName);
+        onClose();
+      }}
+      className="flex flex-col gap-2"
+    >
+      <Button variant="link" asChild rel="noopener noreferrer">
+        <Link
+          className="text-sm pl-0 pr-0"
+          target="_blank"
+          href="https://fonts.google.com/"
+        >
+          Find a font on Google Fonts
+        </Link>
+      </Button>
+      <Label className="font-medium">Google Font Name for Document</Label>
+
+      <Input
+        value={fontName}
+        onChange={(e) => {
+          setFontName(e.target.value);
+          setError("");
+        }}
+        placeholder="e.g. Roboto"
+        autoFocus
+      />
+      {error && <Label className="text-xs text-destructive">{error}</Label>}
+      <Button type="submit" className="mt-2">
+        Set as Default
       </Button>
     </form>
   );

@@ -114,17 +114,23 @@ export const entityRouter = createTRPCRouter({
         message: "You are not authorized to save this drawing",
       });
     }
+
     let appState: null | string = null;
+    const parsedAppState = JSON.parse(input.appState ?? "{}");
     if (input.appState) {
       appState = JSON.stringify({
-        ...(input.appState as unknown as AppState),
-        collaborators: (input.appState as unknown as AppState).collaborators
-          ? Object.fromEntries(
-              (input.appState as unknown as AppState).collaborators.entries(),
-            )
-          : undefined,
+        ...(parsedAppState as unknown as AppState),
+        collaborators:
+          (parsedAppState as unknown as AppState).collaborators instanceof Map
+            ? Object.fromEntries(
+                (parsedAppState as unknown as AppState).collaborators.entries(),
+              )
+            : undefined,
       });
     }
+
+    console.log("appState", appState);
+
     await ctx.drizzle
       .update(schema.entities)
       .set({

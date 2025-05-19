@@ -1,5 +1,6 @@
 "use client";
 
+import { z } from "zod";
 import { RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { debounce } from "@packages/lib";
 import { MessageStructure, PublicAccess } from "@packages/types";
@@ -41,7 +42,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
-import { EditorState } from "lexical";
+import { EditorState, EditorThemeClasses, Klass, LexicalNode } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
@@ -129,6 +130,10 @@ import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 import { CommentInputBox } from "./plugins/CommentPlugin";
 import MermaidPlugin from "./plugins/MermaidPlugin";
 import { MermaidNode } from "./nodes/MermaidNode";
+import {
+  DocumentSettingsProvider,
+  useDocumentSettings,
+} from "./context/document-settings-context";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -270,6 +275,13 @@ function EditorHandler({
   const sidebarRef = useRef<HTMLElement>(null);
 
   const { markDirty } = useUnsavedChanges();
+  const { defaultFontFamily } = useDocumentSettings();
+  const [dynamicPageStyle, setDynamicPageStyle] = useState<React.CSSProperties>(
+    {},
+  );
+  const [previousDefaultFontFamily, setPreviousDefaultFontFamily] = useState<
+    string | null
+  >(null);
 
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
     if (_floatingAnchorElem !== null) {
@@ -334,6 +346,57 @@ function EditorHandler({
     }
   }, [canCollaborate, initializeConnection, isCollaborating]);
 
+  useEffect(() => {
+    if (defaultFontFamily) {
+      if (
+        previousDefaultFontFamily &&
+        previousDefaultFontFamily !== defaultFontFamily
+      ) {
+        const oldFontSlug = previousDefaultFontFamily
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "-");
+        const oldLinkId = `google-font-link-doc-default-${oldFontSlug}`;
+        const oldLinkElement = document.getElementById(oldLinkId);
+        if (oldLinkElement) {
+          oldLinkElement.remove();
+        }
+      }
+
+      const fontSlug = defaultFontFamily
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-");
+      const linkId = `google-font-link-doc-default-${fontSlug}`;
+
+      if (!document.getElementById(linkId)) {
+        const link = document.createElement("link");
+        link.id = linkId;
+        link.rel = "stylesheet";
+        link.href = `https://fonts.googleapis.com/css2?family=${defaultFontFamily.trim().replace(/\s+/g, "+")}:wght@400;700&display=swap`;
+        document.head.appendChild(link);
+      }
+      setDynamicPageStyle({
+        fontFamily: `'${defaultFontFamily.trim()}', sans-serif`,
+      });
+      setPreviousDefaultFontFamily(defaultFontFamily);
+    } else {
+      if (previousDefaultFontFamily) {
+        const oldFontSlug = previousDefaultFontFamily
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "-");
+        const oldLinkId = `google-font-link-doc-default-${oldFontSlug}`;
+        const oldLinkElement = document.getElementById(oldLinkId);
+        if (oldLinkElement) {
+          oldLinkElement.remove();
+        }
+      }
+      setDynamicPageStyle({});
+      setPreviousDefaultFontFamily(null);
+    }
+  }, [defaultFontFamily, previousDefaultFontFamily]);
+
   return (
     <FlashMessageContext>
       <TableContext>
@@ -348,6 +411,7 @@ function EditorHandler({
                   <LexicalImageProvider>
                     <CommentPluginProvider>
                       <div
+                        style={dynamicPageStyle}
                         className={cn(
                           "page-frame z-0 flex flex-col h-screen overflow-hidden",
                           inter.variable,
@@ -512,18 +576,23 @@ type Props = {
   initialLlmConfig: StoredLlmConfig;
 };
 
-export default function DocumentEditor({
+function EditorScaffold({
   entity,
+  editorStateRef,
+  setEditorStateRef,
   iceServers,
   initialLlmConfig,
-}: Props) {
-  console.log("🔄 DocumentEditor re-rendered");
-
-  const editorStateRef = useRef<EditorState>(undefined);
-  const setEditorStateRef = useCallback((editorState: EditorState) => {
-    editorStateRef.current = editorState;
-  }, []);
-
+  nodes,
+  lexicalTheme,
+}: {
+  entity: RouterOutputs["entities"]["load"];
+  editorStateRef: RefObject<EditorState | undefined>;
+  setEditorStateRef: (editorState: EditorState) => void;
+  iceServers: RTCIceServer[];
+  initialLlmConfig: StoredLlmConfig;
+  nodes: Klass<LexicalNode>[];
+  lexicalTheme: EditorThemeClasses;
+}) {
   const { handleSaveAndLeave, handleSave, isUploading } =
     useSaveAndExportDocument({ entity, editorStateRef });
 
@@ -536,42 +605,8 @@ export default function DocumentEditor({
           onError: (error: unknown) => {
             console.error("Error in LexicalComposer: ", error);
           },
-          nodes: [
-            CommentNode,
-            ThreadNode,
-            HeadingNode,
-            QuoteNode,
-            ListItemNode,
-            ListNode,
-            HorizontalRuleNode,
-            MarkNode,
-            CodeNode,
-            CodeHighlightNode,
-            TableNode,
-            TableCellNode,
-            TableRowNode,
-            ImageNode,
-            InlineImageNode,
-            VideoNode,
-            AutocompleteNode,
-            LinkNode,
-            AutoLinkNode,
-            TweetNode,
-            YouTubeNode,
-            ExcalidrawNode,
-            MermaidNode,
-            FigmaNode,
-            EquationNode,
-            PageBreakNode,
-            PollNode,
-            StickyNode,
-            CollapsibleContainerNode,
-            CollapsibleContentNode,
-            CollapsibleTitleNode,
-            LayoutContainerNode,
-            LayoutItemNode,
-          ],
-          theme: theme,
+          nodes: nodes,
+          theme: lexicalTheme,
         }}
       >
         <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
@@ -589,5 +624,77 @@ export default function DocumentEditor({
         </UnsavedChangesProvider>
       </LexicalComposer>
     </SettingsProvider>
+  );
+}
+
+export default function DocumentEditor({
+  entity,
+  iceServers,
+  initialLlmConfig,
+}: Props) {
+  console.log("🔄 DocumentEditor re-rendered");
+
+  const editorStateRef = useRef<EditorState | undefined>(undefined);
+  const setEditorStateRef = useCallback((editorState: EditorState) => {
+    editorStateRef.current = editorState;
+  }, []);
+
+  const appStateSchema = z.object({
+    defaultFontFamily: z.string().optional().nullable(),
+  });
+
+  const appState = appStateSchema.parse(JSON.parse(entity.appState ?? "{}"));
+
+  const lexicalNodes = [
+    CommentNode,
+    ThreadNode,
+    HeadingNode,
+    QuoteNode,
+    ListItemNode,
+    ListNode,
+    HorizontalRuleNode,
+    MarkNode,
+    CodeNode,
+    CodeHighlightNode,
+    TableNode,
+    TableCellNode,
+    TableRowNode,
+    ImageNode,
+    InlineImageNode,
+    VideoNode,
+    AutocompleteNode,
+    LinkNode,
+    AutoLinkNode,
+    TweetNode,
+    YouTubeNode,
+    ExcalidrawNode,
+    MermaidNode,
+    FigmaNode,
+    EquationNode,
+    PageBreakNode,
+    PollNode,
+    StickyNode,
+    CollapsibleContainerNode,
+    CollapsibleContentNode,
+    CollapsibleTitleNode,
+    LayoutContainerNode,
+    LayoutItemNode,
+  ];
+  const lexicalTheme = theme;
+
+  return (
+    <DocumentSettingsProvider
+      initialDefaultFontFamily={appState.defaultFontFamily ?? null}
+    >
+      <EditorScaffold
+        entity={entity}
+        editorStateRef={editorStateRef}
+        setEditorStateRef={setEditorStateRef}
+        iceServers={iceServers}
+        initialLlmConfig={initialLlmConfig}
+        nodes={lexicalNodes}
+        lexicalTheme={lexicalTheme}
+      />
+    </DocumentSettingsProvider>
   );
 }
