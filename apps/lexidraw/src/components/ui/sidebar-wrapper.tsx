@@ -219,8 +219,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
         }}
         style={{ width: `${width}px` }}
         className={cn(
-          "sticky top-0 h-[100dvh] flex flex-col border-l border-border bg-popover shadow-lg touch-none",
-          isMobile ? "border-l-0" : "", // Remove border on mobile if it's full width
+          "sticky top-0 h-full flex flex-col border-l border-border bg-popover shadow-lg touch-none",
           className,
         )}
       >

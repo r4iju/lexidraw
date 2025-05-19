@@ -4,9 +4,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ▼ NEW variants — one line each, note the semicolon at the end */
-@custom-variant details-open (&[open] &) ;
-@custom-variant details-open-summary (details[open] > summary &) ;
-@custom-variant details-open-content (details[open] > &) ;
+@custom-variant details-open (&[open] &);
+@custom-variant details-open-summary (details[open] > summary &);
+@custom-variant details-open-content (details[open] > &);
 
 @theme {
   --list-style-type-*: initial;

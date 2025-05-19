@@ -35,8 +35,15 @@ import {
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
 } from "lexical";
-import { Dispatch, useCallback, useEffect, useState } from "react";
-import type { JSX } from "react";
+import {
+  Dispatch,
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  useLayoutEffect,
+  type JSX,
+} from "react";
 import { IS_APPLE } from "../../shared/environment";
 import { ColorPickerButton } from "~/components/ui/color-picker";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";

@@ -100,4 +100,10 @@ export class ThreadNode extends DecoratorNode<JSX.Element> {
     node.setIndent(serializedNode.indent);
     return node;
   }
+
+  static $isThreadNode = (
+    node: LexicalNode | null | undefined,
+  ): node is ThreadNode => {
+    return node?.getType?.() === "thread";
+  };
 }

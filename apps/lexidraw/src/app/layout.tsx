@@ -50,9 +50,10 @@ export default async function RootLayout({ children }: Props) {
       </head>
       <body
         className={cn(
-          "h-[var(--dynamic-viewport-height)] max-w-[100dvw] flex flex-col font-fredoka bg-background text-foreground antialiased",
+          "h-[var(--dynamic-viewport-height)] max-w-[100dvw] flex flex-col font-fredoka bg-background text-foreground antialiased overflow-y-hidden",
           fredoka.variable,
         )}
+        style={{ scrollbarGutter: "stable", scrollbarWidth: "thin" }}
       >
         <SessionProvider>
           <TRPCReactProvider headers={plainHeaders}>
