@@ -788,19 +788,6 @@ export function CommentsPanel({
   );
 }
 
-// Utility functions (moved from old CommentLexicalPlugin or ensure they are in scope)
-export const $isCommentNodeUtil = (
-  node: LexicalNode | null | undefined,
-): node is CommentNode => {
-  return node?.getType?.() === "comment";
-};
-
-export const $isThreadNodeUtil = (
-  node: LexicalNode | null | undefined,
-): node is ThreadNode => {
-  return node?.getType?.() === "thread";
-};
-
 export function CommentPluginProvider({
   children,
 }: {
@@ -832,7 +819,10 @@ export function CommentPluginProvider({
           const root = $getRoot();
           const dfsNodes = $dfs(root);
           for (const { node } of dfsNodes) {
-            if ($isCommentNodeUtil(node) && node.__comment.id === commentId) {
+            if (
+              CommentNode.$isCommentNode(node) &&
+              node.__comment.id === commentId
+            ) {
               node.remove();
             }
           }
@@ -843,7 +833,10 @@ export function CommentPluginProvider({
           const root = $getRoot();
           const dfsNodes = $dfs(root);
           for (const { node } of dfsNodes) {
-            if ($isThreadNodeUtil(node) && node.__thread.id === threadId) {
+            if (
+              ThreadNode.$isThreadNode(node) &&
+              node.__thread.id === threadId
+            ) {
               node.remove();
             }
           }
@@ -894,7 +887,7 @@ export function CommentPluginProvider({
             const allNodes = $dfs(root);
             for (const { node: maybeThread } of allNodes) {
               if (
-                $isThreadNodeUtil(maybeThread) &&
+                ThreadNode.$isThreadNode(maybeThread) &&
                 maybeThread.__thread.id === parentThread.id
               ) {
                 maybeThread.append(commentNode);
@@ -1015,10 +1008,13 @@ export function CommentPluginProvider({
       const root = $getRoot();
       const allNodes = $dfs(root);
       for (const { node } of allNodes) {
-        if ($isCommentNodeUtil(node) && !knownIds.has(node.__comment.id)) {
+        if (CommentNode.$isCommentNode(node) && !knownIds.has(node.__comment.id)) {
           commentStore.addComment(node.__comment);
           knownIds.add(node.__comment.id);
-        } else if ($isThreadNodeUtil(node) && !knownIds.has(node.__thread.id)) {
+        } else if (
+          ThreadNode.$isThreadNode(node) &&
+          !knownIds.has(node.__thread.id)
+        ) {
           const thr = node.__thread;
           // Ensure all comments within the thread are also processed
           commentStore.addComment(thr); // Add thread first

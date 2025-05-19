@@ -85,4 +85,10 @@ export class CommentNode extends DecoratorNode<JSX.Element> {
     node.setIndent(serializedNode.indent);
     return node;
   }
+
+  static $isCommentNode = (
+    node: LexicalNode | null | undefined,
+  ): node is CommentNode => {
+    return node?.getType?.() === "comment";
+  };
 }
