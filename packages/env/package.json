@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@t3-oss/env-nextjs": "^0.7.3",
-    "zod": "^3.24.2"
+    "zod": "^3.25.1"
   },
   "typesVersions": {
     "*": {
@@ -45,7 +45,7 @@
     "dist"
   ],
   "devDependencies": {
-    "@types/node": "^22.14.1",
+    "@types/node": "^22.15.19",
     "typescript": "^5.8.3"
   }
 }
