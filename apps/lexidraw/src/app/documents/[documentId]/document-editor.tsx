@@ -360,28 +360,25 @@ function EditorHandler({
                         )}
                       >
                         {/* toolbar */}
-                        <div className="sticky bg-white dark:bg-zinc-900 top-0 left-0 z-10 w-full shadow-xs shrink-0">
-                          <div
-                            className="flex items-start gap-2 w-full overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center"
-                            data-component-name="Toolbar"
-                          >
-                            <OptionsDropdown
-                              className="flex h-12 md:h-10 min-w-12 md:min-w-10"
-                              onSaveDocument={handleSave}
-                              isSavingDocument={isUploading}
-                            />
-
-                            <ShortcutsPlugin
-                              editor={editor}
+                        <div
+                          className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-zinc-900 shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center"
+                          data-component-name="Toolbar"
+                        >
+                          <OptionsDropdown
+                            className="flex h-12 md:h-10 min-w-12 md:min-w-10"
+                            onSaveDocument={handleSave}
+                            isSavingDocument={isUploading}
+                          />
+                          <ShortcutsPlugin
+                            editor={editor}
+                            setIsLinkEditMode={setIsLinkEditMode}
+                          />
+                          <TooltipProvider>
+                            <ToolbarPlugin
                               setIsLinkEditMode={setIsLinkEditMode}
                             />
-                            <TooltipProvider>
-                              <ToolbarPlugin
-                                setIsLinkEditMode={setIsLinkEditMode}
-                              />
-                            </TooltipProvider>
-                            <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
-                          </div>
+                          </TooltipProvider>
+                          <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
                         </div>
 
                         {/* editor + sidebar container */}
