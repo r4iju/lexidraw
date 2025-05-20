@@ -22,7 +22,6 @@ import {
 import * as React from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import LinkPlugin from "../../plugins/LinkPlugin";
-
 import {
   Dialog,
   DialogContent,
