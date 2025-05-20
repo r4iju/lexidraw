@@ -12,6 +12,9 @@ import {
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
+import { KeywordNode } from "../KeywordNode";
+import { HashtagNode } from "@lexical/hashtag";
+import { EmojiNode } from "../EmojiNode";
 import { ImageNode } from "../ImageNode/ImageNode";
 import { InlineImageNode } from "../InlineImageNode/InlineImageNode";
 import { TableNode, TableRowNode, TableCellNode } from "@lexical/table";
@@ -21,6 +24,15 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
+import EmojisPlugin from "../../plugins/EmojisPlugin";
+import KeywordsPlugin from "../../plugins/KeywordsPlugin";
+import LinkPlugin from "../../plugins/LinkPlugin";
+import MentionsPlugin from "../../plugins/MentionsPlugin";
+import TreeViewPlugin from "../../plugins/TreeViewPlugin";
+import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
+import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
+import { useSettings } from "../../context/settings-context";
+import { useSharedHistoryContext } from "../../context/shared-history-context";
 import {
   SlideContainerNode,
   useSlideParentEditor,
@@ -28,6 +40,14 @@ import {
   type SlideElementSpec,
 } from "./SlideNode";
 import { Button } from "~/components/ui/button";
+import {
+  DndContext,
+  useDraggable,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 
 interface SlideComponentProps {
   nodeKey: NodeKey;
@@ -52,24 +72,13 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({
   );
 
   const slideNode = editor.getEditorState().read(() => {
-    const node = $getNodeByKey(nodeKey);
-    return SlideContainerNode.$isSlideContainerNode(node) ? node : null;
+    const n = $getNodeByKey(nodeKey);
+    return SlideContainerNode.$isSlideContainerNode(n) ? n : null;
   });
-
   if (!slideNode) return null;
 
-  const handleClick = () => {
-    if (activeKey !== nodeKey) {
-      setActiveKey(nodeKey);
-    }
-  };
-
   return (
-    <div
-      className="absolute inset-0 bg-background"
-      style={{ display: nodeKey === activeKey ? "block" : "none" }}
-      onClick={handleClick}
-    >
+    <SlideBody>
       {activeKey !== null && slideKeys.length > 0 && (
         <Controls
           editor={editor}
@@ -81,19 +90,9 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({
       {slideNode.__elements.map((el) => {
         if (el.kind === "text") {
           return (
-            <div
-              key={el.id}
-              style={{
-                position: "absolute",
-                left: el.x,
-                top: el.y,
-                width: el.width,
-                height: el.height,
-              }}
-              className="outline-1 outline-transparent hover:outline-primary"
-            >
+            <DraggableBox key={el.id} el={el} slideKey={nodeKey}>
               <NestedTextEditor element={el} slideNodeKey={nodeKey} />
-            </div>
+            </DraggableBox>
           );
         }
         if (el.kind === "image") {
@@ -116,7 +115,7 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({
         }
         return null;
       })}
-    </div>
+    </SlideBody>
   );
 };
 
@@ -130,11 +129,17 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
   slideNodeKey,
 }) => {
   const parentEditor = useSlideParentEditor();
-
+  const {
+    settings: { showNestedEditorTreeView },
+  } = useSettings();
+  const { historyState } = useSharedHistoryContext();
   const initialEditor = React.useMemo(() => {
     const editor = createEditor({
       namespace: `slide-text-${element.id}`,
       nodes: [
+        KeywordNode,
+        HashtagNode,
+        EmojiNode,
         ParagraphNode,
         TextNode,
         LineBreakNode,
@@ -191,7 +196,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
     <LexicalNestedComposer initialEditor={initialEditor}>
       <RichTextPlugin
         contentEditable={
-          <ContentEditable className="w-full h-full p-1 outline-none" />
+          <ContentEditable className="w-full h-full p-1 focus:outline-1 focus:outline-primary" />
         }
         placeholder={
           <div className="absolute top-1 left-1 text-muted-foreground select-none pointer-events-none">
@@ -201,7 +206,17 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         ErrorBoundary={LexicalErrorBoundary}
       />
       <OnChangePlugin onChange={persist} />
-      <HistoryPlugin />
+      <HistoryPlugin externalHistoryState={historyState} />
+      <AutoFocusPlugin />
+      <MentionsPlugin />
+      <LinkPlugin />
+      <EmojisPlugin />
+      <HashtagPlugin />
+      <KeywordsPlugin />
+
+      {showNestedEditorTreeView && <TreeViewPlugin />}
+
+      {/*  */}
     </LexicalNestedComposer>
   );
 };
@@ -273,3 +288,143 @@ const Controls: React.FC<{
     </div>
   );
 };
+
+function DraggableBox({
+  el,
+  slideKey,
+  children,
+}: {
+  el: Extract<SlideElementSpec, { kind: "text" }>;
+  slideKey: NodeKey;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: el.id,
+  });
+
+  // translate from dnd-kit
+  const style = {
+    width: el.width,
+    height: el.height,
+    transform: transform
+      ? `translate(${el.x + transform.x}px, ${el.y + transform.y}px)`
+      : `translate(${el.x}px, ${el.y}px)`,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={style}
+      className="absolute border border-transparent hover:border-primary cursor-move"
+    >
+      {children}
+      {(["nw", "ne", "sw", "se"] as const).map((c) => (
+        <CornerHandle key={c} corner={c} el={el} slideKey={slideKey} />
+      ))}
+    </div>
+  );
+}
+
+function CornerHandle({
+  corner,
+  el,
+  slideKey,
+}: {
+  corner: "nw" | "ne" | "sw" | "se";
+  el: Extract<SlideElementSpec, { kind: "text" }>;
+  slideKey: NodeKey;
+}) {
+  const editor = useSlideParentEditor();
+
+  /* position + cursor type */
+  const pos: Record<typeof corner, string> = {
+    nw: "left-0 top-0 cursor-nwse-resize",
+    ne: "right-0 top-0 cursor-nesw-resize",
+    sw: "left-0 bottom-0 cursor-nesw-resize",
+    se: "right-0 bottom-0 cursor-nwse-resize",
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation(); // prevents drag start
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const { x: startLeft, y: startTop, width: startW, height: startH } = el;
+
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      let nx = startLeft;
+      let ny = startTop;
+      let nw = startW;
+      let nh = startH;
+
+      if (corner.includes("w")) {
+        nw = Math.max(40, startW - dx);
+        nx = startLeft + dx;
+      } else if (corner.includes("e")) {
+        nw = Math.max(40, startW + dx);
+      }
+      if (corner.includes("n")) {
+        nh = Math.max(20, startH - dy);
+        ny = startTop + dy;
+      } else if (corner.includes("s")) {
+        nh = Math.max(20, startH + dy);
+      }
+
+      editor.update(() => {
+        const n = $getNodeByKey(slideKey);
+        if (SlideContainerNode.$isSlideContainerNode(n)) {
+          n.updateElement(el.id, { x: nx, y: ny, width: nw, height: nh });
+        }
+      });
+    };
+
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      className={`absolute w-3 h-3 bg-transparent ${pos[corner]} z-10`}
+    />
+  );
+}
+
+function SlideBody({ children }: { children: React.ReactNode }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 2 } }),
+  );
+  const editor = useSlideParentEditor();
+  const { activeKey } = useActiveSlideKey();
+
+  const onDragEnd = (e: DragEndEvent) => {
+    if (!activeKey) return;
+    const id = e.active.id as string;
+    const { delta } = e;
+    editor.update(() => {
+      const slide = $getNodeByKey(activeKey);
+      if (SlideContainerNode.$isSlideContainerNode(slide)) {
+        const it = slide.__elements.find(
+          (x) => x.id === id && x.kind === "text",
+        );
+        if (it)
+          slide.updateElement(id, { x: it.x + delta.x, y: it.y + delta.y });
+      }
+    });
+  };
+
+  return (
+    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      {children}
+    </DndContext>
+  );
+}
