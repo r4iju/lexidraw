@@ -4,7 +4,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { TextNode } from "lexical";
 import { useCallback, useEffect, useMemo } from "react";
 
-import { $createEmojiNode, EmojiNode } from "../../nodes/EmojiNode";
+import { EmojiNode } from "../../nodes/EmojiNode";
 
 function useEmojis(editor: LexicalEditor): void {
   const emojis = useMemo(
@@ -36,7 +36,7 @@ function useEmojis(editor: LexicalEditor): void {
             [, targetNode] = node.splitText(i, i + 2);
           }
 
-          const emojiNode = $createEmojiNode(emojiStyle, emojiText);
+          const emojiNode = EmojiNode.$createEmojiNode(emojiStyle, emojiText);
           targetNode?.replace(emojiNode);
           return emojiNode;
         }
