@@ -44,6 +44,7 @@ import {
   OPEN_INSERT_VIDEO_DIALOG_COMMAND,
   InsertVideoSettingsDialog,
 } from "../VideosPlugin";
+import { INSERT_SLIDE_COMMAND } from "../SlidePlugin";
 
 // -------------------------------------------------------------------------------------------------
 // TODO: fix style
@@ -236,6 +237,16 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           >
             <Columns className="size-4" />
             <span className="text">Columns Layout</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => {
+              activeEditor.dispatchCommand(INSERT_SLIDE_COMMAND, undefined);
+            }}
+            className="flex gap-2"
+          >
+            <Columns className="size-4" />
+            <span className="text">Slide</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
