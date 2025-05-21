@@ -4,22 +4,27 @@ import {
   createCommand,
   COMMAND_PRIORITY_EDITOR,
   $insertNodes,
-  $isRootOrShadowRoot,
-  $createParagraphNode,
-  $getRoot,
   NodeKey,
+  $getNodeByKey,
+  $getRoot,
 } from "lexical";
+import { $dfs } from "@lexical/utils";
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $dfs, $wrapNodeInElement, mergeRegister } from "@lexical/utils";
+import { mergeRegister } from "@lexical/utils";
+import { SlidePageNode as SlidePageNode } from "../nodes/SlideNode/SlidePageNode";
 import {
-  SlideContainerNode,
   SlideParentEditorProvider,
   ActiveSlideContext,
-} from "../nodes/SlideNode/SlideNode";
+} from "../nodes/SlideNode/slide-context";
+import { SlideDeckNode } from "../nodes/SlideNode/SlideDeckNode";
 
-export const INSERT_SLIDE_COMMAND: LexicalCommand<void> = createCommand(
-  "INSERT_SLIDE_COMMAND",
+export const INSERT_SLIDEDECK_COMMAND: LexicalCommand<void> = createCommand(
+  "INSERT_SLIDEDECK_COMMAND",
+);
+
+export const INSERT_PAGE_COMMAND: LexicalCommand<void> = createCommand(
+  "INSERT_PAGE_COMMAND",
 );
 
 export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
@@ -29,22 +34,23 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
   const [slideKeys, setSlideKeys] = useState<NodeKey[]>([]);
   const [activeKey, setActiveKey] = useState<NodeKey | null>(null);
 
-  /** gather slide keys from current editorState */
+  useEffect(() => {
+    console.log("activeKey", activeKey);
+    console.log("slideKeys", slideKeys);
+  }, [activeKey, slideKeys]);
+
   const refreshSlideKeys = useCallback(() => {
     editor.getEditorState().read(() => {
       const keys: NodeKey[] = [];
-      const root = $getRoot();
-      for (const { node } of $dfs(root)) {
-        if (SlideContainerNode.$isSlideContainerNode(node)) {
-          keys.push(node.getKey());
-        }
+      for (const { node } of $dfs($getRoot())) {
+        if (SlidePageNode.$isSlideContainerNode(node)) keys.push(node.getKey());
       }
       setSlideKeys(keys);
-      if ((!activeKey || !keys.includes(activeKey)) && keys.length) {
-        setActiveKey(keys[0] as string);
-      }
+      setActiveKey((prev) =>
+        prev && keys.includes(prev) ? prev : (keys[0] ?? null),
+      );
     });
-  }, [editor, activeKey]);
+  }, [editor]);
 
   useEffect(() => {
     refreshSlideKeys(); // Initial refresh
@@ -57,7 +63,7 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
 
   /** Command to insert a new slide */
   useEffect(() => {
-    if (!editor.hasNodes([SlideContainerNode])) {
+    if (!editor.hasNodes([SlidePageNode])) {
       console.error(
         "SlideDeckPlugin: SlideContainerNode not registered on the editor.",
       );
@@ -66,21 +72,43 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
 
     return mergeRegister(
       editor.registerCommand(
-        INSERT_SLIDE_COMMAND,
+        INSERT_SLIDEDECK_COMMAND,
         () => {
           editor.update(() => {
-            const slide = SlideContainerNode.$create();
-            $insertNodes([slide]);
-            if ($isRootOrShadowRoot(slide.getParentOrThrow())) {
-              $wrapNodeInElement(slide, $createParagraphNode).selectEnd();
-            }
+            const deck = SlideDeckNode.$create();
+            const page1 = SlidePageNode.$create();
+            deck.append(page1);
+            $insertNodes([deck]);
+            page1.selectStart();
+            setActiveKey(page1.getKey());
           });
           return true;
         },
         COMMAND_PRIORITY_EDITOR,
       ),
+      editor.registerCommand(
+        INSERT_PAGE_COMMAND,
+        () => {
+          editor.update(() => {
+            if (!activeKey) return;
+            const activePage = $getNodeByKey(activeKey);
+            if (SlidePageNode.$isSlideContainerNode(activePage)) {
+              const deck = activePage.getParent();
+              if (SlideDeckNode.$isSlideDeckNode(deck)) {
+                const newPage = SlidePageNode.$create();
+                activePage.insertAfter(newPage);
+                newPage.selectStart();
+                setActiveKey(newPage.getKey());
+              }
+            }
+          });
+
+          return true;
+        },
+        COMMAND_PRIORITY_EDITOR,
+      ),
     );
-  }, [editor]);
+  }, [editor, activeKey]);
 
   return (
     <SlideParentEditorProvider editor={editor}>

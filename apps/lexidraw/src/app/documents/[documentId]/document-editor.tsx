@@ -90,10 +90,9 @@ import { LayoutItemNode } from "./nodes/LayoutItemNode";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { SlideDeckPlugin } from "./plugins/SlidePlugin";
-import {
-  SlideContainerNode,
-  SlideParentEditorProvider,
-} from "./nodes/SlideNode/SlideNode";
+import { SlidePageNode } from "./nodes/SlideNode/SlidePageNode";
+import { SlideDeckNode } from "./nodes/SlideNode/SlideDeckNode";
+import { SlideParentEditorProvider } from "./nodes/SlideNode/slide-context";
 import { CommentNode } from "./nodes/CommentNode";
 import { ThreadNode } from "./nodes/ThreadNode";
 import { SessionUUIDProvider } from "./plugins/AutocompletePlugin/session-uuid-provider";
@@ -662,7 +661,8 @@ export default function DocumentEditor({
   const appState = appStateSchema.parse(JSON.parse(entity.appState ?? "{}"));
 
   const lexicalNodes = [
-    SlideContainerNode,
+    SlidePageNode,
+    SlideDeckNode,
     CommentNode,
     ThreadNode,
     HeadingNode,
