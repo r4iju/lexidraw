@@ -44,7 +44,7 @@ import {
   OPEN_INSERT_VIDEO_DIALOG_COMMAND,
   InsertVideoSettingsDialog,
 } from "../VideosPlugin";
-import { INSERT_SLIDE_COMMAND } from "../SlidePlugin";
+import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
 
 // -------------------------------------------------------------------------------------------------
 // TODO: fix style
@@ -186,10 +186,7 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              activeEditor.dispatchCommand(
-                INSERT_MERMAID_COMMAND,
-                undefined,
-              );
+              activeEditor.dispatchCommand(INSERT_MERMAID_COMMAND, undefined);
             }}
             className="flex gap-2"
           >
@@ -241,7 +238,7 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
 
           <DropdownMenuItem
             onClick={() => {
-              activeEditor.dispatchCommand(INSERT_SLIDE_COMMAND, undefined);
+              activeEditor.dispatchCommand(INSERT_SLIDEDECK_COMMAND, undefined);
             }}
             className="flex gap-2"
           >
