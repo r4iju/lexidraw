@@ -140,6 +140,10 @@
   touch-action: none;
 }
 
+.halo {
+  pointer-events: none;
+}
+
 hr {
   border: none;
   border-top-width: 1px;

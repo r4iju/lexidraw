@@ -9,8 +9,8 @@ import {
   SerializedLexicalNode,
   Spread,
 } from "lexical";
-import { SlideComponent } from "./SlideComponent";
-import { SelectionProvider } from "./slide-context";
+import { SlideComponent } from "./SlideComponent"; // Adjust path as necessary
+
 export type SlideElementSpec =
   | {
       kind: "text";
@@ -31,10 +31,8 @@ export type SlideElementSpec =
       height: number;
     };
 
-export type SerializedSlideContainerNode = Spread<
-  {
-    elements: SlideElementSpec[];
-  },
+export type SerializedSlidePageNode = Spread<
+  { elements: SlideElementSpec[] },
   SerializedLexicalNode
 >;
 
@@ -42,7 +40,7 @@ export class SlidePageNode extends DecoratorNode<JSX.Element> {
   __elements: SlideElementSpec[];
 
   static getType(): string {
-    return "slide-container";
+    return "slide-page";
   }
 
   static clone(node: SlidePageNode): SlidePageNode {
@@ -54,39 +52,37 @@ export class SlidePageNode extends DecoratorNode<JSX.Element> {
     this.__elements = elements;
   }
 
-  exportJSON(): SerializedSlideContainerNode {
+  exportJSON(): SerializedSlidePageNode {
     return {
-      type: "slide-container",
-      version: 1,
       elements: this.__elements,
+      type: SlidePageNode.getType(),
+      version: 1,
     };
   }
 
-  static importJSON(json: SerializedSlideContainerNode): SlidePageNode {
+  static importJSON(json: SerializedSlidePageNode): SlidePageNode {
     return new SlidePageNode(json.elements);
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
     const div = document.createElement("section");
-    div.className = "absolute inset-0";
+    div.className = "slide-page-lexical-node";
     return div;
   }
 
   updateDOM(): false {
-    return false; // DOM handled by React component
+    return false;
   }
 
   decorate(editor: LexicalEditor): JSX.Element {
     return (
       <Suspense fallback={null}>
-        <SelectionProvider>
-          <SlideComponent nodeKey={this.__key} editor={editor} />
-        </SelectionProvider>
+        {/* SelectionProvider is removed */}
+        <SlideComponent nodeKey={this.__key} editor={editor} />
       </Suspense>
     );
   }
 
-  /** -------------- Mutating API -------------- */
   addElement(element: SlideElementSpec): void {
     const self = this.getWritable();
     self.__elements = [...self.__elements, element];
@@ -108,7 +104,8 @@ export class SlidePageNode extends DecoratorNode<JSX.Element> {
     return new SlidePageNode();
   }
 
-  static $isSlideContainerNode(
+  static $isSlidePageNode(
+    // Ensure method name is consistent
     node: LexicalNode | null | undefined,
   ): node is SlidePageNode {
     return node instanceof SlidePageNode;

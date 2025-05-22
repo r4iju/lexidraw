@@ -1,7 +1,7 @@
-import { createContext, useContext, useState } from "react";
-import { LexicalEditor } from "lexical";
-import { NodeKey } from "lexical";
+import { createContext, useContext } from "react";
+import { LexicalEditor, NodeKey } from "lexical";
 
+// SlideParentEditorContext remains the same
 const SlideParentEditorContext = createContext<{
   editor: LexicalEditor;
 } | null>(null);
@@ -24,41 +24,24 @@ export function useSlideParentEditor() {
   return ctx.editor;
 }
 
+// Updated ActiveSlideContext
 export const ActiveSlideContext = createContext<{
-  activeKey: NodeKey | null;
-  setActiveKey: (k: NodeKey | null) => void;
+  activeKey: NodeKey | null; // Key of the currently selected/active slide
+  setActiveKey: (
+    key: NodeKey | null,
+    newSelectedElementId?: string | null,
+  ) => void;
   slideKeys: NodeKey[];
   deckEditor: LexicalEditor | null;
+  selectedElementId: string | null; // ID of the selected element *within* the active slide
+  setSelectedElementId: (id: string | null) => void;
 } | null>(null);
 
 export function useActiveSlideKey() {
   const ctx = useContext(ActiveSlideContext);
   if (!ctx)
     throw new Error(
-      "useActiveSlideKey must be used within a ActiveSlideContext.Provider",
+      "useActiveSlideKey must be used within an ActiveSlideContext.Provider",
     );
-  return ctx;
-}
-
-const SelectionCtx = createContext<{
-  selectedId: string | null;
-  setSelectedId: (s: string | null) => void;
-} | null>(null);
-
-export const SelectionProvider: React.FC<{
-  children: React.ReactNode;
-}> = ({ children }) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  return (
-    <SelectionCtx.Provider value={{ selectedId, setSelectedId }}>
-      {children}
-    </SelectionCtx.Provider>
-  );
-};
-
-export function useSelection() {
-  const ctx = useContext(SelectionCtx);
-  if (!ctx)
-    throw new Error("useSelection must be used within a SelectionCtx.Provider");
   return ctx;
 }

@@ -1,9 +1,14 @@
-import { ElementNode, SerializedElementNode, Spread } from "lexical";
+import {
+  ElementNode,
+  SerializedElementNode,
+  Spread,
+  LexicalNode, // For isLastChildOfType
+  $createParagraphNode, // For insertNewAfter
+  ParagraphNode,
+} from "lexical";
 
 export type SerializedSlideDeckNode = Spread<
-  {
-    type: "slide-deck";
-  },
+  { type: "slide-deck" },
   SerializedElementNode
 >;
 
@@ -14,6 +19,35 @@ export class SlideDeckNode extends ElementNode {
 
   static clone(n: SlideDeckNode) {
     return new SlideDeckNode(n.__key);
+  }
+
+  createDOM() {
+    const el = document.createElement("section");
+    // Ensure this class helps identify the deck for click outside logic if necessary
+    el.className =
+      "slide-deck-lexical-node relative mx-auto w-[1280px] h-[720px] max-w-full max-h-full overflow-hidden";
+    return el;
+  }
+
+  updateDOM() {
+    return false;
+  }
+
+  // Method to ensure there's content after this node
+  insertNewAfter(): ParagraphNode {
+    const newBlock = $createParagraphNode();
+    const direction = this.getDirection();
+    newBlock.setDirection(direction);
+    this.insertAfter(newBlock, true);
+    return newBlock;
+  }
+
+  canBeEmpty(): boolean {
+    return false; // A slide deck itself isn't "empty" in terms of user content like a paragraph
+  }
+
+  isInline(): boolean {
+    return false; // Explicitly a block node
   }
 
   exportJSON(): SerializedSlideDeckNode {
@@ -28,20 +62,10 @@ export class SlideDeckNode extends ElementNode {
     return new SlideDeckNode();
   }
 
-  createDOM() {
-    const el = document.createElement("section");
-    el.className = "relative mx-auto w-[1280px] h-[720px] max-w-full max-h-full";
-    return el;
-  }
-  updateDOM() {
-    return false;
-  }
-
-  /* Factory */
   static $create() {
     return new SlideDeckNode();
   }
-  static $isSlideDeckNode(node: unknown): node is SlideDeckNode {
+  static $isSlideDeckNode(node?: LexicalNode | null): node is SlideDeckNode {
     return node instanceof SlideDeckNode;
   }
 }
