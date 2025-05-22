@@ -1,16 +1,18 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import {
   $getNodeByKey,
   LexicalEditor,
   NodeKey,
   type EditorState,
+  KEY_DELETE_COMMAND,
+  KEY_BACKSPACE_COMMAND,
+  COMMAND_PRIORITY_EDITOR,
+  createEditor,
   ParagraphNode,
   TextNode,
   LineBreakNode,
-  createEditor,
-  KEY_DELETE_COMMAND,
-  KEY_BACKSPACE_COMMAND,
 } from "lexical";
+// ... other imports remain the same
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
@@ -20,11 +22,26 @@ import { EmojiNode } from "../EmojiNode";
 import { ImageNode } from "../ImageNode/ImageNode";
 import { InlineImageNode } from "../InlineImageNode/InlineImageNode";
 import { TableNode, TableRowNode, TableCellNode } from "@lexical/table";
+import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import MarkdownShortcutPlugin from "../../plugins/MarkdownShortcutPlugin";
+import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
+import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
+// tweet
+import TwitterPlugin from "../../plugins/TwitterPlugin";
+import YouTubePlugin from "../../plugins/YouTubePlugin";
+import { TweetNode } from "../../nodes/TweetNode";
+import { YouTubeNode } from "../../nodes/YouTubeNode";
+import ExcalidrawPlugin from "../../plugins/ExcalidrawPlugin";
+import { ExcalidrawNode } from "../../nodes/ExcalidrawNode";
+import { FigmaNode } from "../../nodes/FigmaNode";
+import { EquationNode } from "../../nodes/EquationNode";
+import FigmaPlugin from "../../plugins/FigmaPlugin";
+import EquationsPlugin from "../../plugins/EquationsPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import EmojisPlugin from "../../plugins/EmojisPlugin";
 import KeywordsPlugin from "../../plugins/KeywordsPlugin";
@@ -37,19 +54,15 @@ import { useSettings } from "../../context/settings-context";
 import { useSharedHistoryContext } from "../../context/shared-history-context";
 import { SlidePageNode, type SlideElementSpec } from "./SlidePageNode";
 import { INSERT_PAGE_COMMAND } from "../../plugins/SlidePlugin";
-import {
-  useActiveSlideKey,
-  useSelection,
-  useSlideParentEditor,
-} from "./slide-context";
+import { useActiveSlideKey, useSlideParentEditor } from "./slide-context";
 import { Button } from "~/components/ui/button";
 import {
   DndContext,
-  useDraggable,
-  DragEndEvent,
   PointerSensor,
   useSensor,
   useSensors,
+  useDraggable,
+  DragEndEvent,
 } from "@dnd-kit/core";
 import { mergeRegister } from "@lexical/utils";
 import { cn } from "~/lib/utils";
@@ -59,105 +72,177 @@ interface SlideComponentProps {
   editor: LexicalEditor;
 }
 
-export const SlideComponent: React.FC<SlideComponentProps> = ({
-  nodeKey,
-  editor,
-}) => {
-  const { activeKey, setActiveKey, slideKeys } = useActiveSlideKey();
-  const { selectedId, setSelectedId } = useSelection();
-  const [, force] = useState(0);
+export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
+  const { activeKey, slideKeys, selectedElementId, setSelectedElementId } =
+    useActiveSlideKey();
 
-  const onDelete = useCallback(() => {
-    editor.update(() => {
-      const slide = $getNodeByKey(nodeKey);
-      if (!SlidePageNode.$isSlideContainerNode(slide)) return;
-      if (selectedId) slide.removeElement(selectedId);
-      if (!selectedId) slide.remove();
-    });
-    setSelectedId(null);
-    return true;
-  }, [editor, nodeKey, selectedId, setSelectedId]);
-
-  useEffect(() => {
-    return mergeRegister(
-      editor.registerCommand(KEY_DELETE_COMMAND, onDelete, 0),
-      editor.registerCommand(KEY_BACKSPACE_COMMAND, onDelete, 0),
-    );
-  }, [editor, onDelete]);
-
-  useEffect(
-    () =>
-      editor.registerMutationListener(SlidePageNode, (mutatedNodes) => {
-        if ([...mutatedNodes.keys()].includes(nodeKey)) {
-          force((c) => c + 1);
-        }
-      }),
-    [editor, nodeKey],
+  const slideIndex = useMemo(
+    () => slideKeys.indexOf(nodeKey),
+    [slideKeys, nodeKey],
+  );
+  const activeIndex = useMemo(
+    () => (activeKey ? slideKeys.indexOf(activeKey) : -1),
+    [slideKeys, activeKey],
   );
 
-  useEffect(() => {
-    const clear = () => setSelectedId(null);
-    window.addEventListener("click", clear);
-    return () => window.removeEventListener("click", clear);
-  }, [setSelectedId]);
+  const isThisSlideActive = activeIndex !== -1 && activeIndex === slideIndex;
 
-  const slideNode = editor.getEditorState().read(() => {
-    const n = $getNodeByKey(nodeKey);
-    return SlidePageNode.$isSlideContainerNode(n) ? n : null;
-  });
+  const parentEditor = useSlideParentEditor();
+
+  const [mutationCounter, setMutationCounter] = useState(0);
+
+  let translateXPercentage = 0;
+  if (activeIndex !== -1 && slideIndex !== -1) {
+    translateXPercentage = (slideIndex - activeIndex) * 100;
+  }
+
+  const onDelete = useCallback(() => {
+    parentEditor.update(() => {
+      const slideNodeInstance = $getNodeByKey(nodeKey);
+      if (!SlidePageNode.$isSlidePageNode(slideNodeInstance)) return;
+
+      if (selectedElementId) {
+        slideNodeInstance.removeElement(selectedElementId);
+        setSelectedElementId(null);
+      } else {
+        slideNodeInstance.remove();
+        // Active key update will be handled by SlideDeckPlugin's refresh logic
+      }
+    });
+    return true;
+  }, [parentEditor, nodeKey, selectedElementId, setSelectedElementId]);
+
+  useEffect(() => {
+    if (isThisSlideActive && parentEditor) {
+      return mergeRegister(
+        parentEditor.registerCommand(
+          KEY_DELETE_COMMAND,
+          onDelete,
+          COMMAND_PRIORITY_EDITOR,
+        ),
+        parentEditor.registerCommand(
+          KEY_BACKSPACE_COMMAND,
+          onDelete,
+          COMMAND_PRIORITY_EDITOR,
+        ),
+      );
+    }
+  }, [parentEditor, onDelete, isThisSlideActive]);
+
+  useEffect(() => {
+    if (!parentEditor) return;
+    const unregister = parentEditor.registerMutationListener(
+      SlidePageNode,
+      (mutatedNodes) => {
+        if (mutatedNodes.has(nodeKey)) {
+          setMutationCounter((c) => c + 1);
+        }
+      },
+    );
+    return () => unregister();
+  }, [parentEditor, nodeKey]);
+
+  // Memoize slideNode data, re-calculate when nodeKey or mutationCounter changes
+  const slideNode = useMemo(() => {
+    if (!parentEditor) return null;
+    return parentEditor.getEditorState().read(() => {
+      const n = $getNodeByKey(nodeKey);
+      return SlidePageNode.$isSlidePageNode(n) ? n : null;
+    });
+  }, [parentEditor, nodeKey, mutationCounter]);
+
+  const handleSlideClick = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
+      if (selectedElementId) {
+        setSelectedElementId(null); // Click on slide background deselects element
+      }
+    },
+    [selectedElementId, setSelectedElementId],
+  );
+
+  const isSlideItselfSelected = isThisSlideActive && !selectedElementId;
+
+  const shouldRenderContent = useMemo(() => {
+    if (activeIndex === -1 || slideIndex === -1) return false; // Not ready or slide not found
+    return Math.abs(slideIndex - activeIndex) <= 1 || isThisSlideActive;
+  }, [slideIndex, activeIndex, isThisSlideActive]);
+
   if (!slideNode) return null;
 
   return (
     <div
       className={cn(
-        activeKey === nodeKey
-          ? "block pointer-events-auto"
-          : "hidden pointer-events-none",
-        "relative size-full pointer-events-auto bg-background shadow border border-border rounded-lg overflow-hidden ",
-        "transition-all duration-150",
+        "slide-component-root",
+        "absolute inset-0 size-full bg-background shadow border border-border rounded-lg overflow-hidden",
+        "transition-transform duration-200 ease-in-out",
+
+        isThisSlideActive &&
+          !isSlideItselfSelected &&
+          "hover:ring-2 hover:ring-primary/40",
+        isSlideItselfSelected && "ring-2 ring-primary outline-none",
       )}
-      onClick={() => {
-        setSelectedId("slide-container");
+      style={{
+        transform: `translateX(${translateXPercentage}%)`,
+        pointerEvents: isThisSlideActive ? "auto" : "none", // Interact only with active slide
       }}
+      onClick={isThisSlideActive ? handleSlideClick : undefined}
+      tabIndex={isThisSlideActive ? -1 : undefined}
     >
-      <SlideBody>
-        {activeKey !== null && slideKeys.length > 0 && (
-          <Controls
-            editor={editor}
-            slideKeys={slideKeys}
-            activeKey={activeKey}
-            setActiveKey={setActiveKey}
-          />
-        )}
-        {slideNode.__elements.map((el) => {
-          if (el.kind === "text") {
-            return (
-              <DraggableBox key={el.id} el={el} slideKey={nodeKey}>
-                <NestedTextEditor element={el} slideNodeKey={nodeKey} />
-              </DraggableBox>
-            );
-          }
-          if (el.kind === "image") {
-            return (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={el.id}
-                src={el.src}
-                style={{
-                  position: "absolute",
-                  left: el.x,
-                  top: el.y,
-                  width: el.width,
-                  height: el.height,
-                }}
-                alt="slide visual"
-                draggable={false}
-              />
-            );
-          }
-          return null;
-        })}
-      </SlideBody>
+      {shouldRenderContent ? (
+        <SlideBody slideNodeKey={nodeKey} slideElements={slideNode.__elements}>
+          {isThisSlideActive && <Controls />}
+          {slideNode.__elements.map((el) => {
+            if (el.kind === "text") {
+              return (
+                <DraggableBox key={el.id} el={el} slideKey={nodeKey}>
+                  <NestedTextEditor element={el} slideNodeKey={nodeKey} />
+                </DraggableBox>
+              );
+            }
+            if (el.kind === "image") {
+              const isImageSelected =
+                isThisSlideActive && selectedElementId === el.id;
+              return (
+                <div
+                  key={el.id}
+                  className={cn(
+                    "slide-element-image absolute",
+                    isImageSelected && "ring-2 ring-primary",
+                  )}
+                  style={{
+                    left: el.x,
+                    top: el.y,
+                    width: el.width,
+                    height: el.height,
+                    cursor: isThisSlideActive ? "pointer" : "default",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Only allow selecting the image if this slide is currently active
+                    if (isThisSlideActive) {
+                      setSelectedElementId(el.id);
+                    }
+                    // DO NOT call setActiveKey here, to prevent navigation by clicking images
+                    // on adjacent, non-active (but visible for transition) slides.
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={el.src}
+                    alt="slide visual"
+                    draggable={false}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              );
+            }
+            return null;
+          })}
+        </SlideBody>
+      ) : (
+        <div className="size-full bg-background opacity-0" />
+      )}
     </div>
   );
 };
@@ -171,11 +256,19 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
   element,
   slideNodeKey,
 }) => {
+  const editorRef = React.useRef<HTMLDivElement | null>(null);
   const parentEditor = useSlideParentEditor();
   const {
     settings: { showNestedEditorTreeView },
   } = useSettings();
   const { historyState } = useSharedHistoryContext();
+  const {
+    activeKey: globalActiveSlideKey,
+    setActiveKey: contextSetActiveKey,
+    selectedElementId: contextSelectedElementId,
+  } = useActiveSlideKey();
+  const isParentSlideActive = globalActiveSlideKey === slideNodeKey;
+
   const initialEditor = React.useMemo(() => {
     const editor = createEditor({
       namespace: `slide-text-${element.id}`,
@@ -197,6 +290,14 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         LinkNode,
         ListItemNode,
         ListNode,
+        HorizontalRuleNode,
+        EquationNode,
+        TweetNode,
+        YouTubeNode,
+        ExcalidrawNode,
+        FigmaNode,
+        CodeNode,
+        CodeHighlightNode,
       ],
       onError(error: Error) {
         console.error(
@@ -206,6 +307,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         throw error;
       },
       theme: {},
+      editable: isParentSlideActive,
     });
 
     if (element.editorStateJSON) {
@@ -213,136 +315,175 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         const state = editor.parseEditorState(element.editorStateJSON);
         if (!state.isEmpty()) editor.setEditorState(state);
       } catch (e) {
-        console.warn("Bad stored JSON – starting empty", e);
+        console.warn(
+          `Bad stored JSON for element ${element.id} – starting empty`,
+          e,
+        );
       }
     }
 
     return editor;
-  }, [element.id, element.editorStateJSON]);
+  }, [element.id, element.editorStateJSON, isParentSlideActive]);
 
   const persist = useCallback(
     (editorState: EditorState) => {
+      if (!isParentSlideActive) return;
+
       const json = editorState.toJSON();
       parentEditor.update(() => {
         const node = $getNodeByKey(slideNodeKey);
-        if (SlidePageNode.$isSlideContainerNode(node)) {
+        if (SlidePageNode.$isSlidePageNode(node)) {
           node.updateElement(element.id, {
             editorStateJSON: JSON.stringify(json),
           });
         }
       });
     },
-    [parentEditor, element.id, slideNodeKey],
+    [parentEditor, element.id, slideNodeKey, isParentSlideActive],
   );
 
+  const handleFocus = useCallback(() => {
+    if (isParentSlideActive) {
+      // Check if this element is already selected to avoid redundant updates
+      if (contextSelectedElementId !== element.id) {
+        contextSetActiveKey(slideNodeKey, element.id);
+      }
+    }
+  }, [
+    isParentSlideActive,
+    contextSetActiveKey,
+    slideNodeKey,
+    element.id,
+    contextSelectedElementId,
+  ]);
+
   return (
-    <LexicalNestedComposer initialEditor={initialEditor}>
-      <RichTextPlugin
-        contentEditable={
-          <ContentEditable className="w-full h-full p-1 focus:outline-1 focus:outline-primary" />
-        }
-        placeholder={
-          <div className="absolute top-1 left-1 text-muted-foreground select-none pointer-events-none">
-            Text...
-          </div>
-        }
-        ErrorBoundary={LexicalErrorBoundary}
-      />
-      <OnChangePlugin onChange={persist} />
-      <HistoryPlugin externalHistoryState={historyState} />
-      <AutoFocusPlugin />
-      <MentionsPlugin />
-      <LinkPlugin />
-      <EmojisPlugin />
-      <HashtagPlugin />
-      <KeywordsPlugin />
-
-      {showNestedEditorTreeView && <TreeViewPlugin />}
-
-      {/*  */}
+    <LexicalNestedComposer
+      initialEditor={initialEditor}
+      key={`${slideNodeKey}-${element.id}-${isParentSlideActive}`}
+    >
+      <div onFocusCapture={handleFocus} className="h-full w-full">
+        <RichTextPlugin
+          contentEditable={
+            <ContentEditable
+              ref={editorRef}
+              className="w-full h-full p-1 focus:outline-none outline-none"
+            />
+          }
+          placeholder={
+            isParentSlideActive ? (
+              <div className="absolute top-1 left-1 text-muted-foreground select-none pointer-events-none">
+                Text...
+              </div>
+            ) : null
+          }
+          ErrorBoundary={LexicalErrorBoundary}
+        />
+        {isParentSlideActive && (
+          <>
+            <OnChangePlugin onChange={persist} />
+            <MarkdownShortcutPlugin />
+            <HorizontalRulePlugin />
+            <EquationsPlugin />
+            <HistoryPlugin externalHistoryState={historyState} />
+            <AutoFocusPlugin />
+            <MentionsPlugin />
+            <LinkPlugin />
+            <EmojisPlugin />
+            <HashtagPlugin />
+            <KeywordsPlugin />
+            <TwitterPlugin />
+            <YouTubePlugin />
+            <ExcalidrawPlugin />
+            <FigmaPlugin />
+          </>
+        )}
+        {showNestedEditorTreeView && <TreeViewPlugin />}
+      </div>
     </LexicalNestedComposer>
   );
 };
 
-const Controls: React.FC<{
-  editor: LexicalEditor;
-  slideKeys: NodeKey[];
-  activeKey: NodeKey | null;
-  setActiveKey: (k: NodeKey) => void;
-}> = ({ editor, slideKeys, activeKey, setActiveKey }) => {
-  const prev = () => {
-    if (!slideKeys.length) {
-      console.warn("No slide keys");
-      return;
+// NestedTextEditor, Controls, DraggableBox, CornerHandle, SlideBody remain largely the same
+// Ensure Controls uses useActiveSlideKey to get slideKeys for disabling prev/next buttons.
+
+// Minor update to Controls to ensure deckEditor is available for dispatchCommand
+const Controls: React.FC = () => {
+  const {
+    activeKey,
+    setActiveKey,
+    slideKeys, // Added for disabling buttons
+    deckEditor,
+    setSelectedElementId,
+  } = useActiveSlideKey();
+
+  const navigate = (direction: "prev" | "next") => {
+    if (!deckEditor || !activeKey || !slideKeys || slideKeys.length <= 1)
+      return; // Check slideKeys
+    const currentIndex = slideKeys.indexOf(activeKey);
+    const newIndex =
+      direction === "prev"
+        ? (currentIndex - 1 + slideKeys.length) % slideKeys.length
+        : (currentIndex + 1) % slideKeys.length;
+
+    const newKey = slideKeys[newIndex];
+    if (newKey) {
+      setActiveKey(newKey, null);
+      // deckEditor.update(() => $getNodeByKey(newKey)?.selectStart()); // Optional: focus node
     }
-    if (!activeKey) {
-      console.warn("No active key");
-      return;
-    }
-    const i = slideKeys.indexOf(activeKey);
-    setActiveKey(
-      slideKeys[(i - 1 + slideKeys.length) % slideKeys.length] as string,
-    );
   };
 
-  const next = () => {
-    if (!slideKeys.length) {
-      console.warn("No slide keys");
-      return;
-    }
-    if (!activeKey) {
-      console.warn("No active key");
-      return;
-    }
-    console.log("next");
-    console.log("index", slideKeys.indexOf(activeKey));
-    const i = slideKeys.indexOf(activeKey);
-    console.log(
-      "setActiveKey",
-      slideKeys[(i + 1) % slideKeys.length] as string,
-    );
-    setActiveKey(slideKeys[(i + 1) % slideKeys.length] as string);
-  };
+  const createUID = (): string => Math.random().toString(36).substring(2, 9);
 
-  const createUID = (): string => {
-    return Math.random()
-      .toString(36)
-      .replace(/[^a-z]+/g, "")
-      .substring(0, 5);
-  };
   const addTextBox = () => {
-    if (!activeKey) return;
-    editor.update(() => {
+    if (!deckEditor || !activeKey) return;
+    deckEditor.update(() => {
       const node = $getNodeByKey(activeKey);
-      if (SlidePageNode.$isSlideContainerNode(node)) {
-        console.log("adding text box");
+      if (SlidePageNode.$isSlidePageNode(node)) {
+        const newId = createUID();
         node.addElement({
           kind: "text",
-          id: createUID(),
+          id: newId,
           x: 100,
           y: 100,
-          width: 400,
-          height: 120,
+          width: 300,
+          height: 100,
           editorStateJSON: null,
         });
+        setSelectedElementId(newId);
       }
     });
   };
 
   return (
-    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 flex gap-2 p-2 bg-background border border-border rounded-md mb-2 shadow">
-      <Button type="button" onClick={prev} variant="outline">
-        Prev Slide
+    <div className="slide-controls absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-2 p-2 bg-background/80 backdrop-blur-sm border border-border rounded-md shadow-lg">
+      <Button
+        type="button"
+        onClick={() => navigate("prev")}
+        variant="outline"
+        disabled={!slideKeys || slideKeys.length <= 1}
+      >
+        Prev
       </Button>
-      <Button type="button" onClick={next} variant="outline">
-        Next Slide
+      <Button
+        type="button"
+        onClick={() => navigate("next")}
+        variant="outline"
+        disabled={!slideKeys || slideKeys.length <= 1}
+      >
+        Next
       </Button>
       <Button type="button" onClick={addTextBox} variant="default">
-        Add Text Box
+        Add Text
       </Button>
       <Button
         variant="default"
-        onClick={() => editor.dispatchCommand(INSERT_PAGE_COMMAND, undefined)}
+        onClick={() => {
+          if (deckEditor) {
+            // Ensure deckEditor exists
+            deckEditor.dispatchCommand(INSERT_PAGE_COMMAND, undefined);
+          }
+        }}
       >
         Add Slide
       </Button>
@@ -350,70 +491,115 @@ const Controls: React.FC<{
   );
 };
 
-function DraggableBox({
-  el,
-  slideKey,
-  children,
-}: {
+interface DraggableBoxProps {
   el: Extract<SlideElementSpec, { kind: "text" }>;
   slideKey: NodeKey;
   children: React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+}
+function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
+  const {
+    activeKey: globalActiveSlideKey,
+    selectedElementId,
+    setActiveKey,
+  } = useActiveSlideKey();
+
+  const isParentSlideActive = globalActiveSlideKey === slideKey;
+  const isThisBoxSelected = isParentSlideActive && selectedElementId === el.id;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    active: dndKitActiveElement,
+  } = useDraggable({
     id: el.id,
+    disabled: !isParentSlideActive, // Disable dragging if the parent slide is not active
   });
-  const { selectedId, setSelectedId } = useSelection();
-  const isSelected = selectedId === el.id;
+  const isDragging = Boolean(
+    dndKitActiveElement && dndKitActiveElement.id === el.id,
+  );
+
+  const style: React.CSSProperties = {
+    position: "absolute",
+    left: el.x,
+    top: el.y,
+    width: el.width,
+    height: el.height,
+    boxSizing: "border-box",
+    transform: transform
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+      : undefined,
+    // Cursor indicates non-interactivity if parent slide is not active
+    cursor: !isParentSlideActive
+      ? "default"
+      : isDragging
+        ? "grabbing"
+        : isThisBoxSelected
+          ? "move"
+          : "grab",
+    zIndex: isThisBoxSelected || isDragging ? 20 : 10,
+  };
 
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      style={{
-        width: el.width,
-        height: el.height,
-        transform: transform
-          ? `translate(${el.x + transform.x}px, ${el.y + transform.y}px)`
-          : `translate(${el.x}px, ${el.y}px)`,
-      }}
-      className="absolute"
+      {...(isParentSlideActive ? attributes : {})}
+      {...(isParentSlideActive ? listeners : {})}
+      style={style}
+      className={cn(
+        "group slide-element-draggable", // Class for potential targeting by handleClickOutside
+        "p-1", // Padding to create the "border" area for the grab/move cursor
+      )}
+      onClick={
+        isParentSlideActive
+          ? (e) => {
+              e.stopPropagation();
+              if (!isThisBoxSelected) {
+                // Parent slide is active, but this box isn't selected yet. Select it.
+                // setActiveKey will be called with slideKey, which is globalActiveSlideKey here,
+                // so this action will not change the active slide, only the selected element.
+                setActiveKey(slideKey, el.id);
+              }
+            }
+          : (e) => {
+              // If parent slide is not active, a click here should ideally not happen.
+              // If it does, stop propagation and do nothing to prevent unintended slide changes.
+              e.stopPropagation();
+            }
+      }
     >
+      {/* CONTENT — is always editable */}
+      <div data-uid={el.id} className="relative w-full h-full bg-background">
+        {children}
+      </div>
+      {/* VISUAL HALO (รอบๆ) */}
       <div
-        onClick={(e) => {
-          e.stopPropagation();
-          setSelectedId(el.id);
-        }}
         className={cn(
-          "absolute -inset-1 cursor-move", // 6 px halo
-          "transition-opacity duration-150",
-          isSelected
-            ? "ring-2 ring-primary"
-            : "hover:ring hover:ring-primary/70",
+          "absolute inset-0 rounded pointer-events-none transition-all duration-100",
+          isThisBoxSelected // Halo only if selected (which implies parent is active)
+            ? "ring-2 ring-primary/90 opacity-100"
+            : "opacity-0 group-hover:opacity-100 group-hover:ring-2 group-hover:ring-primary/40",
+          !isParentSlideActive && "hidden", // Explicitly hide halo if parent slide not active
         )}
       />
-
-      <div className="relative w-full h-full">{children}</div>
-      {(["nw", "ne", "sw", "se"] as const).map((c) => (
-        <CornerHandle key={c} corner={c} el={el} slideKey={slideKey} />
-      ))}
+      {/* RESIZE HANDLES */}
+      {isThisBoxSelected &&
+        (["nw", "ne", "sw", "se"] as const).map((k) => (
+          <CornerHandle key={k} corner={k} el={el} slideKey={slideKey} />
+        ))}
     </div>
   );
 }
 
-function CornerHandle({
-  corner,
-  el,
-  slideKey,
-}: {
+interface CornerHandleProps {
   corner: "nw" | "ne" | "sw" | "se";
-  el: Extract<SlideElementSpec, { kind: "text" }>;
+  el: Extract<SlideElementSpec, { kind: "text" | "image" }>; // Generalize for other elements if needed
   slideKey: NodeKey;
-}) {
+}
+function CornerHandle({ corner, el, slideKey }: CornerHandleProps) {
   const editor = useSlideParentEditor();
-
-  /* position + cursor type */
-  const pos: Record<typeof corner, string> = {
+  const posStyles: Record<typeof corner, string> = {
     nw: "left-0 top-0 cursor-nwse-resize",
     ne: "right-0 top-0 cursor-nesw-resize",
     sw: "left-0 bottom-0 cursor-nesw-resize",
@@ -421,46 +607,52 @@ function CornerHandle({
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation(); // prevents drag start
+    e.stopPropagation();
+    e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const { x: startLeft, y: startTop, width: startW, height: startH } = el;
+    const { x: initialX, y: initialY, width: initialW, height: initialH } = el;
 
     const move = (ev: PointerEvent) => {
+      ev.stopPropagation();
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
-
-      let nx = startLeft;
-      let ny = startTop;
-      let nw = startW;
-      let nh = startH;
+      let newX = initialX,
+        newY = initialY,
+        newW = initialW,
+        newH = initialH;
+      const minW = 40,
+        minH = 20;
 
       if (corner.includes("w")) {
-        nw = Math.max(40, startW - dx);
-        nx = startLeft + dx;
+        newW = Math.max(minW, initialW - dx);
+        newX = initialX + (initialW - newW);
       } else if (corner.includes("e")) {
-        nw = Math.max(40, startW + dx);
+        newW = Math.max(minW, initialW + dx);
       }
       if (corner.includes("n")) {
-        nh = Math.max(20, startH - dy);
-        ny = startTop + dy;
+        newH = Math.max(minH, initialH - dy);
+        newY = initialY + (initialH - newH);
       } else if (corner.includes("s")) {
-        nh = Math.max(20, startH + dy);
+        newH = Math.max(minH, initialH + dy);
       }
 
       editor.update(() => {
-        const n = $getNodeByKey(slideKey);
-        if (SlidePageNode.$isSlideContainerNode(n)) {
-          n.updateElement(el.id, { x: nx, y: ny, width: nw, height: nh });
+        const node = $getNodeByKey(slideKey);
+        if (SlidePageNode.$isSlidePageNode(node)) {
+          node.updateElement(el.id, {
+            x: newX,
+            y: newY,
+            width: newW,
+            height: newH,
+          });
         }
       });
     };
-
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
@@ -468,36 +660,50 @@ function CornerHandle({
   return (
     <div
       onPointerDown={onPointerDown}
-      className={`absolute w-3 h-3 bg-transparent ${pos[corner]} z-20`}
+      className={cn(
+        "absolute w-3 h-3 bg-transparent rounded-full -m-1.5 z-30",
+        posStyles[corner],
+      )}
     />
   );
 }
 
-function SlideBody({ children }: { children: React.ReactNode }) {
+interface SlideBodyProps {
+  children: React.ReactNode;
+  slideNodeKey: NodeKey;
+  slideElements: SlideElementSpec[];
+}
+function SlideBody({ children, slideNodeKey }: SlideBodyProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 2 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
   );
   const editor = useSlideParentEditor();
-  const { activeKey } = useActiveSlideKey();
 
-  const onDragEnd = (e: DragEndEvent) => {
-    if (!activeKey) return;
-    const id = e.active.id as string;
-    const { delta } = e;
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, delta } = event;
+    if (!active || (!delta.x && !delta.y)) return; // No movement or no active element
+    const id = active.id as string;
+
     editor.update(() => {
-      const slide = $getNodeByKey(activeKey);
-      if (SlidePageNode.$isSlideContainerNode(slide)) {
-        const it = slide.__elements.find(
-          (x) => x.id === id && x.kind === "text",
-        );
-        if (it)
-          slide.updateElement(id, { x: it.x + delta.x, y: it.y + delta.y });
+      const slide = $getNodeByKey(slideNodeKey);
+      if (SlidePageNode.$isSlidePageNode(slide)) {
+        const currentElement = slide.__elements.find((item) => item.id === id);
+        if (currentElement) {
+          slide.updateElement(id, {
+            x: (currentElement.x || 0) + delta.x,
+            y: (currentElement.y || 0) + delta.y,
+          });
+        }
       }
     });
   };
 
   return (
-    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragEnd={onDragEnd} /* collisionDetection={closestCenter} */
+    >
+      {" "}
       {children}
     </DndContext>
   );
