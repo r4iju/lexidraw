@@ -80,7 +80,17 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
         }
       }
 
-      setSlideKeys(keys);
+      setSlideKeys((prevKeys) => {
+        if (
+          prevKeys.length === keys.length &&
+          prevKeys.every((key, index) => key === keys[index])
+        ) {
+          // no changes, return previous array
+          return prevKeys;
+        }
+        return keys;
+      });
+
       _setActiveKeyInternal((prevActiveKey) => {
         if (prevActiveKey && keys.includes(prevActiveKey)) {
           return prevActiveKey;
@@ -96,16 +106,6 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     refreshSlideKeys();
-    const unregisterUpdate = editor.registerUpdateListener(
-      ({ editorState }) => {
-        // Avoid refreshSlideKeys on every minor change if possible.
-        // This can be performance intensive. Consider specific triggers.
-        // For now, let's assume it's needed for dynamic slide addition/removal.
-        editorState.read(() => {
-          refreshSlideKeys();
-        });
-      },
-    );
     // More targeted refresh:
     const unregisterMutation = editor.registerMutationListener(
       SlideDeckNode,
@@ -117,7 +117,6 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
     );
 
     return () => {
-      unregisterUpdate();
       unregisterMutation();
       unregisterPageMutation();
     };

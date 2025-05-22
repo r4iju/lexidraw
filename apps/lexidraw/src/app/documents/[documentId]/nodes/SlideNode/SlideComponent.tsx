@@ -84,8 +84,13 @@ interface SlideComponentProps {
 }
 
 export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
-  const { activeKey, slideKeys, selectedElementId, setSelectedElementId } =
-    useActiveSlideKey();
+  const {
+    activeKey,
+    slideKeys,
+    selectedElementId,
+    setSelectedElementId,
+    deckEditor: parentEditor,
+  } = useActiveSlideKey();
 
   const slideIndex = useMemo(
     () => slideKeys.indexOf(nodeKey),
@@ -98,9 +103,45 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
 
   const isThisSlideActive = activeIndex !== -1 && activeIndex === slideIndex;
 
-  const parentEditor = useSlideParentEditor();
+  const [currentElements, setCurrentElements] = useState<SlideElementSpec[]>(
+    [],
+  );
 
-  const [mutationCounter, setMutationCounter] = useState(0);
+  useEffect(() => {
+    if (!parentEditor) {
+      setCurrentElements([]);
+      return;
+    }
+    const editorState = parentEditor.getEditorState();
+    editorState.read(() => {
+      const node = $getNodeByKey(nodeKey);
+      if (SlidePageNode.$isSlidePageNode(node)) {
+        setCurrentElements([...node.__elements]);
+      } else {
+        setCurrentElements([]);
+      }
+    });
+  }, [parentEditor, nodeKey]);
+
+  useEffect(() => {
+    if (!parentEditor) return;
+    const unregister = parentEditor.registerMutationListener(
+      SlidePageNode,
+      (mutatedNodes) => {
+        if (mutatedNodes.has(nodeKey)) {
+          parentEditor.getEditorState().read(() => {
+            const n = $getNodeByKey(nodeKey);
+            if (SlidePageNode.$isSlidePageNode(n)) {
+              setCurrentElements([...n.__elements]);
+            } else {
+              setCurrentElements([]);
+            }
+          });
+        }
+      },
+    );
+    return () => unregister();
+  }, [parentEditor, nodeKey]);
 
   let translateXPercentage = 0;
   if (activeIndex !== -1 && slideIndex !== -1) {
@@ -108,6 +149,7 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
   }
 
   const onDelete = useCallback(() => {
+    if (!parentEditor) return false;
     parentEditor.update(() => {
       const slideNodeInstance = $getNodeByKey(nodeKey);
       if (!SlidePageNode.$isSlidePageNode(slideNodeInstance)) return;
@@ -140,28 +182,6 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
     }
   }, [parentEditor, onDelete, isThisSlideActive]);
 
-  useEffect(() => {
-    if (!parentEditor) return;
-    const unregister = parentEditor.registerMutationListener(
-      SlidePageNode,
-      (mutatedNodes) => {
-        if (mutatedNodes.has(nodeKey)) {
-          setMutationCounter((c) => c + 1);
-        }
-      },
-    );
-    return () => unregister();
-  }, [parentEditor, nodeKey]);
-
-  // Memoize slideNode data, re-calculate when nodeKey or mutationCounter changes
-  const slideNode = useMemo(() => {
-    if (!parentEditor) return null;
-    return parentEditor.getEditorState().read(() => {
-      const n = $getNodeByKey(nodeKey);
-      return SlidePageNode.$isSlidePageNode(n) ? n : null;
-    });
-  }, [parentEditor, nodeKey, mutationCounter]);
-
   const handleSlideClick = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation();
@@ -179,19 +199,16 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
     return Math.abs(slideIndex - activeIndex) <= 1 || isThisSlideActive;
   }, [slideIndex, activeIndex, isThisSlideActive]);
 
-  if (!slideNode) return null;
-
   return (
     <div
       className={cn(
         "slide-component-root",
-        "absolute inset-0 size-full bg-background shadow border border-border rounded-lg overflow-hidden",
-        "transition-transform duration-200 ease-in-out",
-
+        "absolute inset-0 outline-none size-full bg-background shadow rounded-lg overflow-visible",
+        "transition-transform duration-150 ease-in-out border-2 border-transparent",
         isThisSlideActive &&
           !isSlideItselfSelected &&
-          "hover:ring-2 hover:ring-primary/40",
-        isSlideItselfSelected && "ring-2 ring-primary outline-none",
+          "hover:border-primary/40",
+        isSlideItselfSelected && "border-primary outline-none",
       )}
       style={{
         transform: `translateX(${translateXPercentage}%)`,
@@ -201,9 +218,9 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
       tabIndex={isThisSlideActive ? -1 : undefined}
     >
       {shouldRenderContent ? (
-        <SlideBody slideNodeKey={nodeKey} slideElements={slideNode.__elements}>
+        <SlideBody slideNodeKey={nodeKey} slideElements={currentElements}>
           {isThisSlideActive && <Controls />}
-          {slideNode.__elements.map((el) => {
+          {currentElements.map((el) => {
             if (el.kind === "text") {
               return (
                 <DraggableBox key={el.id} el={el} slideKey={nodeKey}>
@@ -340,7 +357,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
     }
 
     return editor;
-  }, [element.id, element.editorStateJSON, isParentSlideActive]);
+  }, [element, isParentSlideActive]);
 
   const persist = useCallback(
     (editorState: EditorState) => {
