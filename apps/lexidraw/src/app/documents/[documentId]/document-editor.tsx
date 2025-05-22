@@ -54,7 +54,7 @@ import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { TableContext } from "./plugins/TablePlugin";
 import TableCellResizer from "./plugins/TableCellResizer";
 import { ImageNode } from "./nodes/ImageNode/ImageNode";
-import ImagesPlugin from "./plugins/ImagesPlugin";
+import ImagePlugin from "./plugins/ImagePlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
 import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
 import { AutocompleteNode } from "./nodes/AutocompleteNode";
@@ -117,7 +117,7 @@ import {
   LexicalImageProvider,
   ImageProvider,
 } from "~/hooks/use-image-insertion";
-import VideosPlugin from "./plugins/VideosPlugin";
+import VideoPlugin from "./plugins/VideoPlugin";
 import { VideoNode } from "./nodes/VideoNode/VideoNode";
 import {
   Noto_Sans_JP,
@@ -481,9 +481,9 @@ function EditorHandler({
                                   hasCellBackgroundColor
                                 />
                                 <TableCellResizer />
-                                <ImagesPlugin />
+                                <ImagePlugin />
                                 <InlineImagePlugin />
-                                <VideosPlugin />
+                                <VideoPlugin />
                                 <LinkPlugin />
                                 <ClickableLinkPlugin disabled={isEditable} />
                                 <TwitterPlugin />

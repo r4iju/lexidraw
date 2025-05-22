@@ -262,7 +262,7 @@ function VideoProcessingMonitor({
   return null;
 }
 
-export default function VideosPlugin(): React.JSX.Element | null {
+export default function VideoPlugin(): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [processingJobs, setProcessingJobs] = useState<

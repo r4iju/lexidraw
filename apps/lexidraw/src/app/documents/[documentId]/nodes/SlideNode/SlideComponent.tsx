@@ -16,11 +16,14 @@ import {
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
+import { LayoutContainerNode } from "../../nodes/LayoutContainerNode";
+import { LayoutItemNode } from "../../nodes/LayoutItemNode";
 import { KeywordNode } from "../KeywordNode";
 import { HashtagNode } from "@lexical/hashtag";
 import { EmojiNode } from "../EmojiNode";
 import { ImageNode } from "../ImageNode/ImageNode";
 import { InlineImageNode } from "../InlineImageNode/InlineImageNode";
+import { VideoNode } from "../VideoNode/VideoNode";
 import { TableNode, TableRowNode, TableCellNode } from "@lexical/table";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
@@ -66,6 +69,14 @@ import {
 } from "@dnd-kit/core";
 import { mergeRegister } from "@lexical/utils";
 import { cn } from "~/lib/utils";
+import InlineImagePlugin from "../../plugins/InlineImagePlugin";
+import ImagePlugin from "../../plugins/ImagePlugin";
+import VideoPlugin from "../../plugins/VideoPlugin";
+import { LayoutPlugin } from "../../plugins/LayoutPlugin/LayoutPlugin";
+import CollapsiblePlugin from "../../plugins/CollapsiblePlugin";
+import { CollapsibleContainerNode } from "../../plugins/CollapsiblePlugin/CollapsibleContainerNode";
+import { CollapsibleContentNode } from "../../plugins/CollapsiblePlugin/CollapsibleContentNode";
+import { CollapsibleTitleNode } from "../../plugins/CollapsiblePlugin/CollapsibleTitleNode";
 
 interface SlideComponentProps {
   nodeKey: NodeKey;
@@ -283,6 +294,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         QuoteNode,
         ImageNode,
         InlineImageNode,
+        VideoNode,
         TableNode,
         TableRowNode,
         TableCellNode,
@@ -298,6 +310,11 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         FigmaNode,
         CodeNode,
         CodeHighlightNode,
+        LayoutContainerNode,
+        LayoutItemNode,
+        CollapsibleContainerNode,
+        CollapsibleContentNode,
+        CollapsibleTitleNode,
       ],
       onError(error: Error) {
         console.error(
@@ -396,6 +413,11 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
             <YouTubePlugin />
             <ExcalidrawPlugin />
             <FigmaPlugin />
+            <ImagePlugin />
+            <InlineImagePlugin />
+            <VideoPlugin />
+            <LayoutPlugin />
+            <CollapsiblePlugin />
           </>
         )}
         {showNestedEditorTreeView && <TreeViewPlugin />}

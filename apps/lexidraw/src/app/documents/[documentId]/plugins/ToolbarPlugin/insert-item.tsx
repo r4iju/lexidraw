@@ -28,8 +28,13 @@ import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
 import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
 import { INSERT_MERMAID_COMMAND } from "../MermaidPlugin";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
-import { $getRoot, LexicalEditor } from "lexical";
-import { InsertImageDialog, InsertImagePayload } from "../ImagesPlugin";
+import {
+  $getRoot,
+  LexicalEditor,
+  $getSelection,
+  $isRangeSelection,
+} from "lexical";
+import { InsertImageDialog, InsertImagePayload } from "../ImagePlugin";
 import useModal from "~/hooks/useModal";
 import { InsertInlineImageDialog } from "../InlineImagePlugin";
 import { InsertTableDialog } from "../TablePlugin";
@@ -38,12 +43,11 @@ import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
 import { InsertEquationDialog } from "../EquationsPlugin";
 import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
-import { INSERT_IMAGE_COMMAND } from "../ImagesPlugin/commands";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { INSERT_IMAGE_COMMAND } from "../ImagePlugin/commands";
 import {
   OPEN_INSERT_VIDEO_DIALOG_COMMAND,
   InsertVideoSettingsDialog,
-} from "../VideosPlugin";
+} from "../VideoPlugin";
 import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
 
 // -------------------------------------------------------------------------------------------------
@@ -58,7 +62,6 @@ type InsertItemProps = {
 export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
   const [modal, showModal] = useModal();
   const EmbedConfigs = useEmbedConfigs();
-  const [editor] = useLexicalComposerContext();
 
   const insertGifOnClick = (payload: InsertImagePayload) => {
     activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
@@ -262,10 +265,15 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              editor.update(() => {
-                const root = $getRoot();
+              activeEditor.update(() => {
+                const selection = $getSelection();
                 const stickyNode = StickyNode.$createStickyNode(0, 0);
-                root.append(stickyNode);
+                if ($isRangeSelection(selection)) {
+                  selection.insertNodes([stickyNode]);
+                } else {
+                  const root = $getRoot();
+                  root.append(stickyNode);
+                }
               });
             }}
             className="flex gap-2"
@@ -275,7 +283,10 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, undefined);
+              activeEditor.dispatchCommand(
+                INSERT_COLLAPSIBLE_COMMAND,
+                undefined,
+              );
             }}
             className="flex gap-2"
           >
