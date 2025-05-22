@@ -235,6 +235,8 @@ export default function ToolbarPlugin({
       SELECTION_CHANGE_COMMAND,
       (_payload, newEditor) => {
         $updateToolbar();
+        console.log("ToolbarPlugin: Selection changed to new editor");
+        console.log({ newEditor });
         setActiveEditor(newEditor);
         return false;
       },
