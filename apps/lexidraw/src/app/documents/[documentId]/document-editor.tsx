@@ -47,12 +47,12 @@ import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import FloatingLinkEditorPlugin from "./plugins/FloatingLinkEditorPlugin";
-import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
 import AutoEmbedPlugin from "./plugins/AutoEmbedPlugin";
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { TableContext } from "./plugins/TablePlugin";
 import TableCellResizer from "./plugins/TableCellResizer";
+import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
 import { ImageNode } from "./nodes/ImageNode/ImageNode";
 import ImagePlugin from "./plugins/ImagePlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
@@ -494,7 +494,7 @@ function EditorHandler({
                                 <EquationsPlugin />
                                 <RichTextPlugin
                                   contentEditable={
-                                    <article ref={onRef}>
+                                    <article ref={onRef} className="relative">
                                       <ContentEditable
                                         id="lexical-content"
                                         className="py-4 px-4 md:px-8 text-foreground outline-muted outline-2 outline-offset-12 min-h-[calc(100svh-4rem)]"

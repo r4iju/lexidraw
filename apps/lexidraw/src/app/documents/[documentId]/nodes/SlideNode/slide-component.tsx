@@ -15,14 +15,15 @@ import {
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
-import { LayoutContainerNode } from "../../nodes/LayoutContainerNode";
-import { LayoutItemNode } from "../../nodes/LayoutItemNode";
+import { LayoutContainerNode } from "../LayoutContainerNode";
+import { LayoutItemNode } from "../LayoutItemNode";
 import { KeywordNode } from "../KeywordNode";
 import { HashtagNode } from "@lexical/hashtag";
 import { EmojiNode } from "../EmojiNode";
 import { ImageNode } from "../ImageNode/ImageNode";
 import { InlineImageNode } from "../InlineImageNode/InlineImageNode";
 import { VideoNode } from "../VideoNode/VideoNode";
+import { PollNode } from "../PollNode";
 import { TableNode, TableRowNode, TableCellNode } from "@lexical/table";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
@@ -36,12 +37,12 @@ import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 // tweet
 import TwitterPlugin from "../../plugins/TwitterPlugin";
 import YouTubePlugin from "../../plugins/YouTubePlugin";
-import { TweetNode } from "../../nodes/TweetNode";
-import { YouTubeNode } from "../../nodes/YouTubeNode";
+import { TweetNode } from "../TweetNode";
+import { YouTubeNode } from "../YouTubeNode";
 import ExcalidrawPlugin from "../../plugins/ExcalidrawPlugin";
-import { ExcalidrawNode } from "../../nodes/ExcalidrawNode";
-import { FigmaNode } from "../../nodes/FigmaNode";
-import { EquationNode } from "../../nodes/EquationNode";
+import { ExcalidrawNode } from "../ExcalidrawNode";
+import { FigmaNode } from "../FigmaNode";
+import { EquationNode } from "../EquationNode";
 import FigmaPlugin from "../../plugins/FigmaPlugin";
 import EquationsPlugin from "../../plugins/EquationsPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -55,9 +56,7 @@ import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
 import { useSettings } from "../../context/settings-context";
 import { useSharedHistoryContext } from "../../context/shared-history-context";
 import { SlidePageNode, type SlideElementSpec } from "./SlidePageNode";
-import { INSERT_PAGE_COMMAND } from "../../plugins/SlidePlugin";
 import { useActiveSlideKey, useSlideParentEditor } from "./slide-context";
-import { Button } from "~/components/ui/button";
 import {
   DndContext,
   PointerSensor,
@@ -76,6 +75,10 @@ import CollapsiblePlugin from "../../plugins/CollapsiblePlugin";
 import { CollapsibleContainerNode } from "../../plugins/CollapsiblePlugin/CollapsibleContainerNode";
 import { CollapsibleContentNode } from "../../plugins/CollapsiblePlugin/CollapsibleContentNode";
 import { CollapsibleTitleNode } from "../../plugins/CollapsiblePlugin/CollapsibleTitleNode";
+import { Controls } from "./slide-controls";
+import PollPlugin from "../../plugins/PollPlugin";
+import TableCellResizer from "../../plugins/TableCellResizer";
+import TableActionMenuPlugin from "../../plugins/TableActionMenuPlugin";
 
 interface SlideComponentProps {
   nodeKey: NodeKey;
@@ -331,6 +334,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         CollapsibleContainerNode,
         CollapsibleContentNode,
         CollapsibleTitleNode,
+        PollNode,
       ],
       onError(error: Error) {
         console.error(
@@ -425,7 +429,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
           contentEditable={
             <ContentEditable
               ref={editorRef}
-              className="w-full h-full p-1 focus:outline-none outline-none"
+              className="w-full h-full focus:outline-none outline-none"
             />
           }
           placeholder={
@@ -459,98 +463,14 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
             <VideoPlugin />
             <LayoutPlugin />
             <CollapsiblePlugin />
+            <PollPlugin />
+            <TableCellResizer />
+            <TableActionMenuPlugin />
           </>
         )}
         {showNestedEditorTreeView && <TreeViewPlugin />}
       </div>
     </LexicalNestedComposer>
-  );
-};
-
-// NestedTextEditor, Controls, DraggableBox, CornerHandle, SlideBody remain largely the same
-// Ensure Controls uses useActiveSlideKey to get slideKeys for disabling prev/next buttons.
-
-// Minor update to Controls to ensure deckEditor is available for dispatchCommand
-const Controls: React.FC = () => {
-  const {
-    activeKey,
-    setActiveKey,
-    slideKeys, // Added for disabling buttons
-    deckEditor,
-    setSelectedElementId,
-  } = useActiveSlideKey();
-
-  const navigate = (direction: "prev" | "next") => {
-    if (!deckEditor || !activeKey || !slideKeys || slideKeys.length <= 1)
-      return; // Check slideKeys
-    const currentIndex = slideKeys.indexOf(activeKey);
-    const newIndex =
-      direction === "prev"
-        ? (currentIndex - 1 + slideKeys.length) % slideKeys.length
-        : (currentIndex + 1) % slideKeys.length;
-
-    const newKey = slideKeys[newIndex];
-    if (newKey) {
-      setActiveKey(newKey, null);
-      // deckEditor.update(() => $getNodeByKey(newKey)?.selectStart()); // Optional: focus node
-    }
-  };
-
-  const createUID = (): string => Math.random().toString(36).substring(2, 9);
-
-  const addTextBox = () => {
-    if (!deckEditor || !activeKey) return;
-    deckEditor.update(() => {
-      const node = $getNodeByKey(activeKey);
-      if (SlidePageNode.$isSlidePageNode(node)) {
-        const newId = createUID();
-        node.addElement({
-          kind: "text",
-          id: newId,
-          x: 100,
-          y: 100,
-          width: 300,
-          height: 100,
-          editorStateJSON: null,
-        });
-        setSelectedElementId(newId);
-      }
-    });
-  };
-
-  return (
-    <div className="slide-controls absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-2 p-2 bg-background/80 backdrop-blur-sm border border-border rounded-md shadow-lg">
-      <Button
-        type="button"
-        onClick={() => navigate("prev")}
-        variant="outline"
-        disabled={!slideKeys || slideKeys.length <= 1}
-      >
-        Prev
-      </Button>
-      <Button
-        type="button"
-        onClick={() => navigate("next")}
-        variant="outline"
-        disabled={!slideKeys || slideKeys.length <= 1}
-      >
-        Next
-      </Button>
-      <Button type="button" onClick={addTextBox} variant="default">
-        Add Text
-      </Button>
-      <Button
-        variant="default"
-        onClick={() => {
-          if (deckEditor) {
-            // Ensure deckEditor exists
-            deckEditor.dispatchCommand(INSERT_PAGE_COMMAND, undefined);
-          }
-        }}
-      >
-        Add Slide
-      </Button>
-    </div>
   );
 };
 
@@ -611,7 +531,7 @@ function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
       {...(isParentSlideActive ? listeners : {})}
       style={style}
       className={cn(
-        "group slide-element-draggable", // Class for potential targeting by handleClickOutside
+        "group slide-element-draggable",
         "p-1", // Padding to create the "border" area for the grab/move cursor
       )}
       onClick={
@@ -633,7 +553,7 @@ function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
       }
     >
       {/* CONTENT — is always editable */}
-      <div data-uid={el.id} className="relative w-full h-full bg-background">
+      <div data-uid={el.id} className="relative size-full">
         {children}
       </div>
       {/* VISUAL HALO (รอบๆ) */}
@@ -762,11 +682,7 @@ function SlideBody({ children, slideNodeKey }: SlideBodyProps) {
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      onDragEnd={onDragEnd} /* collisionDetection={closestCenter} */
-    >
-      {" "}
+    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       {children}
     </DndContext>
   );

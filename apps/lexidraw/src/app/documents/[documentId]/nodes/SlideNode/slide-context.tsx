@@ -1,7 +1,6 @@
 import { createContext, useContext } from "react";
 import { LexicalEditor, NodeKey } from "lexical";
 
-// SlideParentEditorContext remains the same
 const SlideParentEditorContext = createContext<{
   editor: LexicalEditor;
 } | null>(null);
@@ -26,14 +25,14 @@ export function useSlideParentEditor() {
 
 // Updated ActiveSlideContext
 export const ActiveSlideContext = createContext<{
-  activeKey: NodeKey | null; // Key of the currently selected/active slide
+  activeKey: NodeKey | null;
   setActiveKey: (
     key: NodeKey | null,
     newSelectedElementId?: string | null,
   ) => void;
   slideKeys: NodeKey[];
   deckEditor: LexicalEditor | null;
-  selectedElementId: string | null; // ID of the selected element *within* the active slide
+  selectedElementId: string | null;
   setSelectedElementId: (id: string | null) => void;
 } | null>(null);
 
