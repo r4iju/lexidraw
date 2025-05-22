@@ -2,8 +2,8 @@ import {
   ElementNode,
   SerializedElementNode,
   Spread,
-  LexicalNode, // For isLastChildOfType
-  $createParagraphNode, // For insertNewAfter
+  LexicalNode,
+  $createParagraphNode,
   ParagraphNode,
 } from "lexical";
 
@@ -23,7 +23,6 @@ export class SlideDeckNode extends ElementNode {
 
   createDOM() {
     const el = document.createElement("section");
-    // Ensure this class helps identify the deck for click outside logic if necessary
     el.className =
       "slide-deck-lexical-node relative mx-auto w-[1280px] h-[720px] max-w-full max-h-full overflow-hidden";
     return el;

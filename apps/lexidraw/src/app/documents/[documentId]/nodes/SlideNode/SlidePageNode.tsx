@@ -9,7 +9,7 @@ import {
   SerializedLexicalNode,
   Spread,
 } from "lexical";
-import { SlideComponent } from "./SlideComponent"; // Adjust path as necessary
+import { SlideComponent } from "./slide-component"; // Adjust path as necessary
 
 export type SlideElementSpec =
   | {
@@ -77,7 +77,6 @@ export class SlidePageNode extends DecoratorNode<JSX.Element> {
   decorate(editor: LexicalEditor): JSX.Element {
     return (
       <Suspense fallback={null}>
-        {/* SelectionProvider is removed */}
         <SlideComponent nodeKey={this.__key} editor={editor} />
       </Suspense>
     );

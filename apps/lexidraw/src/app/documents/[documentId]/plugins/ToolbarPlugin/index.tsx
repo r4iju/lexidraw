@@ -86,6 +86,7 @@ export default function ToolbarPlugin({
   setIsLinkEditMode: Dispatch<boolean>;
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
+  const [activeEditor, setActiveEditor] = useState(editor);
   const [blockType, setBlockType] = useState<BlockType>("paragraph");
   const [rootType, setRootType] =
     useState<keyof typeof rootTypeToRootName>("root");
@@ -111,7 +112,7 @@ export default function ToolbarPlugin({
   const [canRedo, setCanRedo] = useState(false);
   const [isRTL, setIsRTL] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState<string>("");
-  const [isEditable, setIsEditable] = useState(() => editor.isEditable());
+  const [isEditable, setIsEditable] = useState(() => activeEditor.isEditable());
 
   const { activeSidebar, toggleSidebar } = useSidebarManager();
 
@@ -134,7 +135,7 @@ export default function ToolbarPlugin({
       }
 
       const elementKey = element.getKey();
-      const elementDOM = editor.getElementByKey(elementKey);
+      const elementDOM = activeEditor.getElementByKey(elementKey);
 
       // Update text format
       setIsBold(selection.hasFormat("bold"));
@@ -227,36 +228,32 @@ export default function ToolbarPlugin({
         $getSelectionStyleValueForProperty(selection, "font-size", "15px"),
       );
     }
-  }, [editor, getSelectedNode]);
+  }, [activeEditor, getSelectedNode]);
 
   useEffect(() => {
-    return editor.registerCommand<typeof SELECTION_CHANGE_COMMAND>(
+    return editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
-      (_payload, newEditor) => {
-        // only run on *this* top-level editor, ignore nested ones:
-        if (newEditor !== editor) {
-          return false;
+      (_payload, newEditorInstance) => {
+        if (activeEditor !== newEditorInstance) {
+          setActiveEditor(newEditorInstance);
         }
-        // now it really *is* the main editor’s selection changing
-        $updateToolbar();
-        console.log("ToolbarPlugin: real root selection change");
-        return false; // allow other handlers
+        return false;
       },
       COMMAND_PRIORITY_CRITICAL,
     );
-  }, [editor, $updateToolbar]);
+  }, [editor, activeEditor, setActiveEditor]);
 
   useEffect(() => {
     return mergeRegister(
-      editor.registerEditableListener((editable) => {
+      activeEditor.registerEditableListener((editable) => {
         setIsEditable(editable);
       }),
-      editor.registerUpdateListener(({ editorState }) => {
+      activeEditor.registerUpdateListener(({ editorState }) => {
         editorState.read(() => {
           $updateToolbar();
         });
       }),
-      editor.registerCommand<boolean>(
+      activeEditor.registerCommand<boolean>(
         CAN_UNDO_COMMAND,
         (payload) => {
           setCanUndo(payload);
@@ -264,7 +261,7 @@ export default function ToolbarPlugin({
         },
         COMMAND_PRIORITY_CRITICAL,
       ),
-      editor.registerCommand<boolean>(
+      activeEditor.registerCommand<boolean>(
         CAN_REDO_COMMAND,
         (payload) => {
           setCanRedo(payload);
@@ -273,10 +270,10 @@ export default function ToolbarPlugin({
         COMMAND_PRIORITY_CRITICAL,
       ),
     );
-  }, [$updateToolbar, editor]);
+  }, [$updateToolbar, activeEditor]);
 
   useEffect(() => {
-    return editor.registerCommand(
+    return activeEditor.registerCommand(
       KEY_MODIFIER_COMMAND,
       (payload) => {
         const event: KeyboardEvent = payload;
@@ -292,17 +289,17 @@ export default function ToolbarPlugin({
             setIsLinkEditMode(false);
             url = null;
           }
-          return editor.dispatchCommand(TOGGLE_LINK_COMMAND, url);
+          return activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, url);
         }
         return false;
       },
       COMMAND_PRIORITY_NORMAL,
     );
-  }, [editor, isLink, sanitizeUrl, setIsLinkEditMode]);
+  }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
   const applyStyleText = useCallback(
     (styles: Record<string, string>, skipHistoryStack?: boolean) => {
-      editor.update(
+      activeEditor.update(
         () => {
           const selection = $getSelection();
           if (selection !== null) {
@@ -312,11 +309,11 @@ export default function ToolbarPlugin({
         skipHistoryStack ? { tag: "historic" } : {},
       );
     },
-    [editor],
+    [activeEditor],
   );
 
   const clearFormatting = useCallback(() => {
-    editor.update(() => {
+    activeEditor.update(() => {
       const selection = $getSelection();
       if ($isRangeSelection(selection) || $isTableSelection(selection)) {
         const anchor = selection.anchor;
@@ -369,7 +366,7 @@ export default function ToolbarPlugin({
         });
       }
     });
-  }, [editor]);
+  }, [activeEditor]);
 
   const onFontColorSelect = useCallback(
     (value: string, skipHistoryStack: boolean) => {
@@ -388,12 +385,15 @@ export default function ToolbarPlugin({
   const insertLink = useCallback(() => {
     if (!isLink) {
       setIsLinkEditMode(true);
-      editor.dispatchCommand(TOGGLE_LINK_COMMAND, sanitizeUrl("https://"));
+      activeEditor.dispatchCommand(
+        TOGGLE_LINK_COMMAND,
+        sanitizeUrl("https://"),
+      );
     } else {
       setIsLinkEditMode(false);
-      editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+      activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
     }
-  }, [editor, isLink, sanitizeUrl, setIsLinkEditMode]);
+  }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
   return (
     <div className="flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible top-0">
@@ -401,7 +401,7 @@ export default function ToolbarPlugin({
       <div className="flex" role="group" aria-label="History actions">
         <TooltipButton
           onClick={() => {
-            editor.dispatchCommand(UNDO_COMMAND, undefined);
+            activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
           }}
           className="w-10 md:w-8 h-12 md:h-10 rounded-r-none"
           disabled={!canUndo || !isEditable}
@@ -411,7 +411,7 @@ export default function ToolbarPlugin({
         />
         <TooltipButton
           onClick={() => {
-            editor.dispatchCommand(REDO_COMMAND, undefined);
+            activeEditor.dispatchCommand(REDO_COMMAND, undefined);
           }}
           className="w-10 md:w-8 h-12 md:h-10 rounded-l-none"
           disabled={!canRedo || !isEditable}
@@ -426,7 +426,7 @@ export default function ToolbarPlugin({
       {blockType === "code" ? (
         <>
           <CodeSelector
-            activeEditor={editor}
+            activeEditor={activeEditor}
             selectedElementKey={selectedElementKey}
             isEditable={isEditable}
             codeLanguage={codeLanguage}
@@ -439,7 +439,7 @@ export default function ToolbarPlugin({
             <ElementFormatDropdown
               disabled={!isEditable}
               value={elementFormat}
-              editor={editor}
+              editor={activeEditor}
               isRTL={isRTL}
               className="rounded-r-none border-r-0"
             />
@@ -447,14 +447,14 @@ export default function ToolbarPlugin({
               disabled={!isEditable}
               blockType={blockType}
               rootType={rootType}
-              editor={editor}
+              editor={activeEditor}
               className="rounded-none border-x-0"
             />
             <FontDropDown
               disabled={!isEditable}
               style={"font-family"}
               value={fontFamily}
-              editor={editor}
+              editor={activeEditor}
               className="rounded-l-none border-l-0"
             />
           </div>
@@ -466,13 +466,13 @@ export default function ToolbarPlugin({
           >
             <FontSize
               selectionFontSize={fontSize.slice(0, -2)}
-              editor={editor}
+              editor={activeEditor}
               disabled={!isEditable}
               className=""
             />
             <TooltipButton
               onClick={() => {
-                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
+                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
               }}
               className={cn(
                 "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
@@ -485,7 +485,7 @@ export default function ToolbarPlugin({
             />
             <TooltipButton
               onClick={() => {
-                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
+                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
               }}
               className={cn(
                 "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
@@ -498,7 +498,7 @@ export default function ToolbarPlugin({
             />
             <TooltipButton
               onClick={() => {
-                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
+                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
               }}
               className={cn(
                 "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
@@ -547,7 +547,7 @@ export default function ToolbarPlugin({
                 <DropdownMenuContent>
                   <DropdownMenuItem
                     onClick={() => {
-                      editor.dispatchCommand(
+                      activeEditor.dispatchCommand(
                         FORMAT_TEXT_COMMAND,
                         "strikethrough",
                       );
@@ -561,7 +561,10 @@ export default function ToolbarPlugin({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
-                      editor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript");
+                      activeEditor.dispatchCommand(
+                        FORMAT_TEXT_COMMAND,
+                        "subscript",
+                      );
                     }}
                     className={"item " + dropDownActiveClass(isSubscript)}
                     title="Subscript"
@@ -572,7 +575,7 @@ export default function ToolbarPlugin({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
-                      editor.dispatchCommand(
+                      activeEditor.dispatchCommand(
                         FORMAT_TEXT_COMMAND,
                         "superscript",
                       );
@@ -600,10 +603,10 @@ export default function ToolbarPlugin({
           <Divider />
 
           <div className="flex gap-0 h-12 md:h-10">
-            <InsertItem activeEditor={editor} isEditable={isEditable} />
+            <InsertItem activeEditor={activeEditor} isEditable={isEditable} />
             <TooltipButton
               onClick={() => {
-                editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
+                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
               }}
               className={cn(
                 "w-10 md:w-8 h-12 md:h-10 border-x-0 rounded-none",

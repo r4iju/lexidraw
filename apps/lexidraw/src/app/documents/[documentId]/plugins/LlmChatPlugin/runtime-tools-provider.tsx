@@ -3391,9 +3391,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   /* --------------------------------------------------------------
    * Find and Select Text Tool
    * --------------------------------------------------------------*/
-  const findAndSelectText = tool({
+  const findAndSelectTextForComment = tool({
     description:
-      "Finds the first occurrence of the specified text in the document and selects it. Subsequent calls to tools like 'addCommentThread' will use this selection.",
+      "Finds the first occurrence of the specified text in the document and selects it. Subsequent tool calls for 'addCommentThread' will use this selection.",
     parameters: z.object({
       textToFind: z
         .string()
@@ -3800,7 +3800,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(sendReply && { sendReply }),
     ...(addCommentThread && { addCommentThread }),
     ...(addReplyToThread && { addReplyToThread }),
-    ...(findAndSelectText && { findAndSelectText }),
+    ...(findAndSelectTextForComment && {
+      findAndSelectTextForComment: findAndSelectTextForComment,
+    }),
     ...(removeCommentFromThread && { removeCommentFromThread }), // Register new tool
     ...(removeCommentThread && { removeCommentThread }), // Register new tool
   } as unknown as RuntimeToolMap;
