@@ -12,7 +12,6 @@ import {
   TextNode,
   LineBreakNode,
 } from "lexical";
-// ... other imports remain the same
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
@@ -359,21 +358,46 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
     return editor;
   }, [element, isParentSlideActive]);
 
+  const DRAGGABLE_BOX_VERTICAL_PADDING = 8; // Assuming p-1 class (0.25rem padding) and 1rem = 16px, so 0.25*16*2 = 8px for top+bottom.
+  const MIN_TEXT_ELEMENT_HEIGHT = 40; // Minimum overall height for the text element box.
+
   const persist = useCallback(
     (editorState: EditorState) => {
       if (!isParentSlideActive) return;
 
       const json = editorState.toJSON();
+      let newHeight = element.height;
+
+      if (editorRef.current) {
+        const contentEditableScrollHeight = editorRef.current.scrollHeight;
+
+        const calculatedOuterHeight = Math.max(
+          MIN_TEXT_ELEMENT_HEIGHT,
+          contentEditableScrollHeight + DRAGGABLE_BOX_VERTICAL_PADDING,
+        );
+
+        if (calculatedOuterHeight !== element.height) {
+          newHeight = calculatedOuterHeight;
+        }
+      }
+
       parentEditor.update(() => {
         const node = $getNodeByKey(slideNodeKey);
         if (SlidePageNode.$isSlidePageNode(node)) {
           node.updateElement(element.id, {
             editorStateJSON: JSON.stringify(json),
+            height: newHeight,
           });
         }
       });
     },
-    [parentEditor, element.id, slideNodeKey, isParentSlideActive],
+    [
+      parentEditor,
+      element.id,
+      element.height,
+      slideNodeKey,
+      isParentSlideActive,
+    ],
   );
 
   const handleFocus = useCallback(() => {
