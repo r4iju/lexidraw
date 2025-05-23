@@ -96,8 +96,8 @@ export default function ToolbarPlugin({
   const { dropDownActiveClass } = useToolbarUtils();
   const getSelectedNode = useGetSelectedNode();
   const [fontSize, setFontSize] = useState<string>("15px");
-  const [fontColor, setFontColor] = useState<string>("#000");
-  const [bgColor, setBgColor] = useState<string>("#fff");
+  const [fontColor, setFontColor] = useState<string>("");
+  const [bgColor, setBgColor] = useState<string>("");
   const [fontFamily, setFontFamily] = useState<string>("Fredoka");
   const [elementFormat, setElementFormat] = useState<ElementFormatType>("left");
   const [isLink, setIsLink] = useState(false);
@@ -192,15 +192,9 @@ export default function ToolbarPlugin({
         }
       }
       // Handle buttons
-      setFontColor(
-        $getSelectionStyleValueForProperty(selection, "color", "#000"),
-      );
+      setFontColor($getSelectionStyleValueForProperty(selection, "color", ""));
       setBgColor(
-        $getSelectionStyleValueForProperty(
-          selection,
-          "background-color",
-          "#fff",
-        ),
+        $getSelectionStyleValueForProperty(selection, "background-color", ""),
       );
       setFontFamily(
         $getSelectionStyleValueForProperty(selection, "font-family", "Fredoka"),
@@ -298,7 +292,7 @@ export default function ToolbarPlugin({
   }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
   const applyStyleText = useCallback(
-    (styles: Record<string, string>, skipHistoryStack?: boolean) => {
+    (styles: Record<string, string | null>, skipHistoryStack?: boolean) => {
       activeEditor.update(
         () => {
           const selection = $getSelection();
@@ -370,14 +364,17 @@ export default function ToolbarPlugin({
 
   const onFontColorSelect = useCallback(
     (value: string, skipHistoryStack: boolean) => {
-      applyStyleText({ color: value }, skipHistoryStack);
+      applyStyleText({ color: value === "" ? null : value }, skipHistoryStack);
     },
     [applyStyleText],
   );
 
   const onBgColorSelect = useCallback(
     (value: string, skipHistoryStack: boolean) => {
-      applyStyleText({ "background-color": value }, skipHistoryStack);
+      applyStyleText(
+        { "background-color": value === "" ? null : value },
+        skipHistoryStack,
+      );
     },
     [applyStyleText],
   );
