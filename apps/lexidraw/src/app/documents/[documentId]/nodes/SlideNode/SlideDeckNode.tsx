@@ -24,7 +24,10 @@ export class SlideDeckNode extends ElementNode {
   createDOM() {
     const el = document.createElement("section");
     el.className =
-      "slide-deck-lexical-node relative mx-auto w-[1280px] h-[720px] max-w-full max-h-full overflow-hidden";
+      "slide-deck-lexical-node relative flex overflow-hidden w-full";
+    el.style.overflowX = "hidden";
+    el.style.scrollSnapType = "x mandatory";
+
     return el;
   }
 

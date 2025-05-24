@@ -1,17 +1,48 @@
+import { useState, useLayoutEffect } from "react";
 import { useActiveSlideKey } from "./slide-context";
 import { Button } from "~/components/ui/button";
 import { INSERT_PAGE_COMMAND } from "../../plugins/SlidePlugin";
 import { $getNodeByKey } from "lexical";
 import { SlidePageNode } from "./SlidePageNode";
 
-export const Controls: React.FC = () => {
+export const SlideControls: React.FC<{ deckElement?: HTMLElement | null }> = ({
+  deckElement,
+}) => {
   const {
     activeKey,
     setActiveKey,
     slideKeys,
-    deckEditor,
     setSelectedElementId,
+    deckEditor,
   } = useActiveSlideKey();
+
+  const [style, setStyle] = useState<React.CSSProperties>({
+    opacity: 0,
+    pointerEvents: "none", // Start hidden and non-interactive
+  });
+
+  useLayoutEffect(() => {
+    if (deckElement && activeKey) {
+      // Get the position and size of the deck on the screen.
+      const rect = deckElement.getBoundingClientRect();
+
+      // We want to position the controls at the bottom-center of the deck.
+      setStyle({
+        position: "fixed", // Use fixed positioning to escape parent containers.
+        left: `${rect.left + rect.width / 2}px`, // Horizontally center on the deck.
+        top: `${rect.bottom - 8}px`, // Position near the bottom edge of the deck.
+        transform: "translate(-50%, -100%)", // Adjust for centering and positioning above the bottom edge.
+        zIndex: 100, // Ensure it's on top of other UI.
+        opacity: 1,
+        transition: "opacity 150ms ease-in-out",
+      });
+    } else {
+      // If there's no deck or active slide, make it invisible.
+      setStyle((prev) => ({ ...prev, opacity: 0, pointerEvents: "none" }));
+    }
+
+    // This effect should re-run if the deck appears/disappears or if the window is resized.
+  }, [deckElement, activeKey]);
 
   const navigate = (direction: "prev" | "next") => {
     if (!deckEditor || !activeKey || !slideKeys || slideKeys.length <= 1)
@@ -44,7 +75,7 @@ export const Controls: React.FC = () => {
       if (SlidePageNode.$isSlidePageNode(node)) {
         const newId = createUID();
         node.addElement({
-          kind: "text",
+          kind: "box",
           id: newId,
           x: 100,
           y: 100,
@@ -52,15 +83,24 @@ export const Controls: React.FC = () => {
           height: 100,
           editorStateJSON: null,
         });
-        setSelectedElementId(newId); // Select the new text box
+        setSelectedElementId(newId); // Select the new box
       }
     });
   };
 
   const currentSlideIndex = activeKey ? slideKeys.indexOf(activeKey) : -1;
 
+  if (!activeKey) return null;
+
+  console.log("render slide controls");
+
   return (
-    <div className="slide-controls absolute bottom-2 left-1/2 -translate-x-1/2 z-50 flex gap-2 p-2 bg-card/80 backdrop-blur-sm border border-border rounded-lg shadow-xl">
+    <div
+      id="slide-controls"
+      style={style}
+      data-lexical-ignore="true"
+      className="slide-controls absolute top-2 z-50 flex gap-2 p-2 bg-card/80 backdrop-blur-sm border border-border rounded-lg shadow-xl"
+    >
       <Button
         type="button"
         onClick={() => navigate("prev")}

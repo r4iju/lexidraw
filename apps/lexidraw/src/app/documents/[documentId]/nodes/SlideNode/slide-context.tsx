@@ -34,6 +34,7 @@ export const ActiveSlideContext = createContext<{
   deckEditor: LexicalEditor | null;
   selectedElementId: string | null;
   setSelectedElementId: (id: string | null) => void;
+  setDeckElement: (element: HTMLElement | null) => void;
 } | null>(null);
 
 export function useActiveSlideKey() {

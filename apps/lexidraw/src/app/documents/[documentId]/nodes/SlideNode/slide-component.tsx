@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+} from "react";
 import {
   $getNodeByKey,
   LexicalEditor,
@@ -75,10 +81,10 @@ import CollapsiblePlugin from "../../plugins/CollapsiblePlugin";
 import { CollapsibleContainerNode } from "../../plugins/CollapsiblePlugin/CollapsibleContainerNode";
 import { CollapsibleContentNode } from "../../plugins/CollapsiblePlugin/CollapsibleContentNode";
 import { CollapsibleTitleNode } from "../../plugins/CollapsiblePlugin/CollapsibleTitleNode";
-import { Controls } from "./slide-controls";
 import PollPlugin from "../../plugins/PollPlugin";
 import TableCellResizer from "../../plugins/TableCellResizer";
 import TableActionMenuPlugin from "../../plugins/TableActionMenuPlugin";
+import { SlideScaleWrapper } from "./slide-scale-wrapper";
 
 interface SlideComponentProps {
   nodeKey: NodeKey;
@@ -92,6 +98,7 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
     selectedElementId,
     setSelectedElementId,
     deckEditor: parentEditor,
+    setDeckElement,
   } = useActiveSlideKey();
 
   const slideIndex = useMemo(
@@ -103,7 +110,17 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
     [slideKeys, activeKey],
   );
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const isThisSlideActive = activeIndex !== -1 && activeIndex === slideIndex;
+
+  useEffect(() => {
+    // Only the active slide should perform this action.
+    if (isThisSlideActive) {
+      // Find the deck element and report it up to the plugin's state.
+      const deck = rootRef.current?.closest(".slide-deck-lexical-node");
+      setDeckElement(deck as HTMLElement | null);
+    }
+  }, [isThisSlideActive, setDeckElement]);
 
   const [currentElements, setCurrentElements] = useState<SlideElementSpec[]>(
     [],
@@ -145,11 +162,6 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
     return () => unregister();
   }, [parentEditor, nodeKey]);
 
-  let translateXPercentage = 0;
-  if (activeIndex !== -1 && slideIndex !== -1) {
-    translateXPercentage = (slideIndex - activeIndex) * 100;
-  }
-
   const onDelete = useCallback(() => {
     if (!parentEditor) return false;
     parentEditor.update(() => {
@@ -188,7 +200,7 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
     (event: React.MouseEvent) => {
       event.stopPropagation();
       if (selectedElementId) {
-        setSelectedElementId(null); // Click on slide background deselects element
+        setSelectedElementId(null);
       }
     },
     [selectedElementId, setSelectedElementId],
@@ -202,83 +214,44 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
   }, [slideIndex, activeIndex, isThisSlideActive]);
 
   return (
-    <div
-      className={cn(
-        "slide-component-root",
-        "absolute inset-0 outline-none size-full bg-background shadow rounded-lg overflow-visible",
-        "transition-transform duration-150 ease-in-out border-2 border-transparent",
-        isThisSlideActive &&
-          !isSlideItselfSelected &&
-          "hover:border-primary/40",
-        isSlideItselfSelected && "border-primary outline-none",
-      )}
-      style={{
-        transform: `translateX(${translateXPercentage}%)`,
-        pointerEvents: isThisSlideActive ? "auto" : "none", // Interact only with active slide
-      }}
-      onClick={isThisSlideActive ? handleSlideClick : undefined}
-      tabIndex={isThisSlideActive ? -1 : undefined}
-    >
-      {shouldRenderContent ? (
-        <SlideBody slideNodeKey={nodeKey} slideElements={currentElements}>
-          {isThisSlideActive && <Controls />}
-          {currentElements.map((el) => {
-            if (el.kind === "text") {
+    <SlideScaleWrapper>
+      <div
+        ref={rootRef}
+        className={cn(
+          "slide-component-root",
+          "relative outline-none size-full bg-background shadow rounded-lg overflow-visible",
+          "transition-transform duration-150 ease-in-out border-2 border-transparent",
+          isThisSlideActive &&
+            !isSlideItselfSelected &&
+            "hover:border-primary/40",
+          isSlideItselfSelected && "border-primary outline-none",
+        )}
+        style={{
+          pointerEvents: isThisSlideActive ? "auto" : "none", // Interact only with active slide
+        }}
+        onClick={isThisSlideActive ? handleSlideClick : undefined}
+        tabIndex={isThisSlideActive ? -1 : undefined}
+      >
+        {shouldRenderContent ? (
+          <SlideBody slideNodeKey={nodeKey} slideElements={currentElements}>
+            {currentElements.map((el) => {
               return (
                 <DraggableBox key={el.id} el={el} slideKey={nodeKey}>
                   <NestedTextEditor element={el} slideNodeKey={nodeKey} />
                 </DraggableBox>
               );
-            }
-            if (el.kind === "image") {
-              const isImageSelected =
-                isThisSlideActive && selectedElementId === el.id;
-              return (
-                <div
-                  key={el.id}
-                  className={cn(
-                    "slide-element-image absolute",
-                    isImageSelected && "ring-2 ring-primary",
-                  )}
-                  style={{
-                    left: el.x,
-                    top: el.y,
-                    width: el.width,
-                    height: el.height,
-                    cursor: isThisSlideActive ? "pointer" : "default",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Only allow selecting the image if this slide is currently active
-                    if (isThisSlideActive) {
-                      setSelectedElementId(el.id);
-                    }
-                    // DO NOT call setActiveKey here, to prevent navigation by clicking images
-                    // on adjacent, non-active (but visible for transition) slides.
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={el.src}
-                    alt="slide visual"
-                    draggable={false}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              );
-            }
-            return null;
-          })}
-        </SlideBody>
-      ) : (
-        <div className="size-full bg-background opacity-0" />
-      )}
-    </div>
+            })}
+          </SlideBody>
+        ) : (
+          <div className="size-full bg-background opacity-0" />
+        )}
+      </div>
+    </SlideScaleWrapper>
   );
 };
 
 interface NestedTextEditorProps {
-  element: Extract<SlideElementSpec, { kind: "text" }>;
+  element: Extract<SlideElementSpec, { kind: "box" }>;
   slideNodeKey: NodeKey;
 }
 
@@ -475,7 +448,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
 };
 
 interface DraggableBoxProps {
-  el: Extract<SlideElementSpec, { kind: "text" }>;
+  el: Extract<SlideElementSpec, { kind: "box" }>;
   slideKey: NodeKey;
   children: React.ReactNode;
 }
@@ -577,7 +550,7 @@ function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
 
 interface CornerHandleProps {
   corner: "nw" | "ne" | "sw" | "se";
-  el: Extract<SlideElementSpec, { kind: "text" | "image" }>; // Generalize for other elements if needed
+  el: Extract<SlideElementSpec, { kind: "box" }>;
   slideKey: NodeKey;
 }
 function CornerHandle({ corner, el, slideKey }: CornerHandleProps) {
