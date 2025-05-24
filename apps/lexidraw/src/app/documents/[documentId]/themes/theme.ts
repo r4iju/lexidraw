@@ -1,35 +1,32 @@
 import { type EditorThemeClasses } from "lexical";
 
 export const theme = {
-  code: `
-  bg-input
-  dark:bg-muted
-  font-mono
-  block
-  overflow-x-auto
-  my-2
-  px-2
-  pl-[52px]
-  py-2
-  text-[13px]
-  leading-[1.53]
-  relative
-  tab-size-[2]
-  text-red-500
-
-  before:absolute
-  before:content-[attr(data-gutter)]
-  before:left-0
-  before:top-0
-  before:bg-gray-200 dark:before:bg-gray-800
-  before:border-r
-  before:border-gray-300 dark:before:border-gray-700
-  before:p-2
-  before:text-gray-500 dark:before:text-gray-400
-  before:whitespace-pre-wrap
-  before:text-right
-  before:min-w-[25px]
-`,
+  code: `bg-input
+    dark:bg-muted
+    font-mono
+    block
+    overflow-x-auto
+    my-2
+    px-2
+    pl-[52px]
+    py-2
+    text-[13px]
+    leading-[1.53]
+    relative
+    tab-size-[2]
+    before:absolute
+    before:content-[attr(data-gutter)]
+    before:left-0
+    before:top-0
+    before:bg-gray-200 dark:before:bg-gray-800
+    before:border-r
+    before:border-gray-300 dark:before:border-gray-700
+    before:p-2
+    before:text-gray-500 dark:before:text-gray-400
+    before:whitespace-pre-wrap
+    before:text-right
+    before:min-w-[25px]
+    `,
   codeHighlight: {
     atrule: "text-indigo-600 dark:text-indigo-400",
     attr: "text-blue-600 dark:text-blue-400",
@@ -189,6 +186,17 @@ export const theme = {
   quote: `m-0 ml-5 border-l-4 border-gray-200 dark:border-gray-700 px-5 py-3 text-foreground`,
   rtl: "text-right",
   text: {
+    code: `
+      rounded-2xs
+      text-muted-foreground
+      bg-muted
+      dark:bg-muted
+      font-mono
+      font-semibold
+      overflow-x-auto
+      py-0.5
+      px-1.5
+    `,
     bold: "font-bold text-foreground",
     hashtag: "editor-text-hashtag text-blue-600 dark:text-blue-400",
     italic: "italic text-foreground",

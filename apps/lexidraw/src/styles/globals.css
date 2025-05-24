@@ -47,9 +47,12 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
+  --radius-xl: calc(var(--radius) + 2px);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+  --radius-xs: calc(var(--radius) - 6px);
+  --radius-2xs: calc(var(--radius) - 8px);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;

@@ -9,27 +9,17 @@ import {
   SerializedLexicalNode,
   Spread,
 } from "lexical";
-import { SlideComponent } from "./slide-component"; // Adjust path as necessary
+import { SlideComponent } from "./slide-component";
 
-export type SlideElementSpec =
-  | {
-      kind: "text";
-      id: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      editorStateJSON: string | null;
-    }
-  | {
-      kind: "image";
-      id: string;
-      src: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    };
+export type SlideElementSpec = {
+  kind: "box";
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  editorStateJSON: string | null;
+};
 
 export type SerializedSlidePageNode = Spread<
   { elements: SlideElementSpec[] },
@@ -65,8 +55,8 @@ export class SlidePageNode extends DecoratorNode<JSX.Element> {
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
-    const div = document.createElement("section");
-    div.className = "slide-page-lexical-node";
+    const div = document.createElement("div");
+    div.className = "contents";
     return div;
   }
 
