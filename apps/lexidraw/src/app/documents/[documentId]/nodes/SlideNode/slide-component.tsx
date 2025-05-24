@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import {
   $getNodeByKey,
-  LexicalEditor,
   NodeKey,
   type EditorState,
   KEY_DELETE_COMMAND,
@@ -17,6 +16,7 @@ import {
   ParagraphNode,
   TextNode,
   LineBreakNode,
+  LexicalEditor,
 } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
@@ -62,7 +62,7 @@ import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
 import { useSettings } from "../../context/settings-context";
 import { useSharedHistoryContext } from "../../context/shared-history-context";
 import { SlidePageNode, type SlideElementSpec } from "./SlidePageNode";
-import { useActiveSlideKey, useSlideParentEditor } from "./slide-context";
+import { useActiveSlideKey, useSlideModal } from "./slide-context";
 import {
   DndContext,
   PointerSensor,
@@ -85,86 +85,206 @@ import PollPlugin from "../../plugins/PollPlugin";
 import TableCellResizer from "../../plugins/TableCellResizer";
 import TableActionMenuPlugin from "../../plugins/TableActionMenuPlugin";
 import { SlideScaleWrapper } from "./slide-scale-wrapper";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import { Button } from "~/components/ui/button";
+import { SlideControls } from "./slide-controls";
+import { INSERT_PAGE_COMMAND } from "../../plugins/SlidePlugin";
 
 interface SlideComponentProps {
   nodeKey: NodeKey;
   editor: LexicalEditor;
 }
 
-export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
+const SlideModal: React.FC<{
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  initialElements: SlideElementSpec[];
+  onSave: (newElements: SlideElementSpec[]) => void;
+  slideNodeKey: NodeKey;
+  slideIndex: number;
+  editor: LexicalEditor;
+  onAddSlide?: () => void;
+}> = ({
+  isOpen,
+  onOpenChange,
+  initialElements,
+  onSave,
+  slideNodeKey,
+  slideIndex,
+  editor,
+  onAddSlide,
+}) => {
+  const [modalElements, setModalElements] = useState(initialElements);
+  const [modalSelectedElementId, setModalSelectedElementId] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setModalElements(initialElements);
+      setModalSelectedElementId(null);
+    }
+  }, [isOpen, initialElements]);
+
+  const handleElementUpdateInModal = (
+    elementId: string,
+    updates: Partial<SlideElementSpec>,
+  ) => {
+    setModalElements((prevElements) =>
+      prevElements.map((el) =>
+        el.id === elementId ? { ...el, ...updates } : el,
+      ),
+    );
+  };
+
+  const handleSave = () => {
+    onSave(modalElements);
+    onOpenChange(false);
+  };
+
+  const handleAddSlideClick = () => {
+    if (onAddSlide) {
+      onAddSlide();
+    }
+  };
+
+  const addTextBoxToModalState = (newElement: SlideElementSpec) => {
+    setModalElements((prevElements) => [...prevElements, newElement]);
+    setModalSelectedElementId(newElement.id);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="flex flex-col justify-center items-center max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-hidden">
+        <DialogTitle>Editing Slide {slideIndex + 1}</DialogTitle>
+        <div className="w-[1280px] h-[720px] bg-background relative">
+          <SlideBody
+            slideNodeKey={slideNodeKey}
+            slideElements={modalElements}
+            editor={editor}
+            isModalContext={true}
+            setModalElements={setModalElements}
+          >
+            {modalElements.map((el) => {
+              if (el.kind === "box") {
+                return (
+                  <DraggableBox
+                    key={el.id}
+                    el={el}
+                    slideKey={slideNodeKey}
+                    editor={editor}
+                    isModalContext={true}
+                    modalSelectedElementId={modalSelectedElementId}
+                    onModalElementSelect={setModalSelectedElementId}
+                    onModalElementUpdate={handleElementUpdateInModal}
+                  >
+                    <NestedTextEditor
+                      element={el}
+                      slideNodeKey={slideNodeKey}
+                      editor={editor}
+                      isModalContext={true}
+                      onModalChange={(updates) =>
+                        handleElementUpdateInModal(el.id, updates)
+                      }
+                    />
+                  </DraggableBox>
+                );
+              }
+              return null;
+            })}
+          </SlideBody>
+        </div>
+        <SlideControls
+          isModalContext={true}
+          onAddTextBoxInModal={addTextBoxToModalState}
+          onAddSlideInModal={onAddSlide ? handleAddSlideClick : undefined}
+        />
+        <DialogFooter className="w-full justify-between">
+          <div>{/* Modal-specific controls could go here */}</div>
+          <div>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleSave} className="ml-2">
+              Save Changes
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export const SlideComponent: React.FC<SlideComponentProps> = ({
+  nodeKey,
+  editor,
+}) => {
   const {
     activeKey,
+    setActiveKey,
+    visibleKey,
     slideKeys,
     selectedElementId,
     setSelectedElementId,
-    deckEditor: parentEditor,
     setDeckElement,
   } = useActiveSlideKey();
-
-  const slideIndex = useMemo(
-    () => slideKeys.indexOf(nodeKey),
-    [slideKeys, nodeKey],
-  );
-  const activeIndex = useMemo(
-    () => (activeKey ? slideKeys.indexOf(activeKey) : -1),
-    [slideKeys, activeKey],
-  );
-
+  const { isModalOpen, setIsModalOpen } = useSlideModal();
   const rootRef = useRef<HTMLDivElement>(null);
-  const isThisSlideActive = activeIndex !== -1 && activeIndex === slideIndex;
-
-  useEffect(() => {
-    // Only the active slide should perform this action.
-    if (isThisSlideActive) {
-      // Find the deck element and report it up to the plugin's state.
-      const deck = rootRef.current?.closest(".slide-deck-lexical-node");
-      setDeckElement(deck as HTMLElement | null);
-    }
-  }, [isThisSlideActive, setDeckElement]);
 
   const [currentElements, setCurrentElements] = useState<SlideElementSpec[]>(
     [],
   );
 
+  const slideIndex = useMemo(
+    () => slideKeys.indexOf(nodeKey),
+    [slideKeys, nodeKey],
+  );
+  const visibleIndex = useMemo(
+    () => (visibleKey ? slideKeys.indexOf(visibleKey) : -1),
+    [slideKeys, visibleKey],
+  );
+
+  const isThisSlideActive = activeKey === nodeKey;
+
   useEffect(() => {
-    if (!parentEditor) {
-      setCurrentElements([]);
-      return;
+    if (isThisSlideActive) {
+      const deck = rootRef.current?.closest(".slide-deck-lexical-node");
+      setDeckElement(deck as HTMLElement | null);
     }
-    const editorState = parentEditor.getEditorState();
-    editorState.read(() => {
+  }, [isThisSlideActive, setDeckElement]);
+
+  useEffect(() => {
+    editor.getEditorState().read(() => {
       const node = $getNodeByKey(nodeKey);
       if (SlidePageNode.$isSlidePageNode(node)) {
-        setCurrentElements([...node.__elements]);
-      } else {
-        setCurrentElements([]);
+        setCurrentElements(node.getElements());
       }
     });
-  }, [parentEditor, nodeKey]);
-
-  useEffect(() => {
-    if (!parentEditor) return;
-    const unregister = parentEditor.registerMutationListener(
-      SlidePageNode,
-      (mutatedNodes) => {
-        if (mutatedNodes.has(nodeKey)) {
-          parentEditor.getEditorState().read(() => {
-            const n = $getNodeByKey(nodeKey);
-            if (SlidePageNode.$isSlidePageNode(n)) {
-              setCurrentElements([...n.__elements]);
-            } else {
-              setCurrentElements([]);
+    const unregister = editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const node = $getNodeByKey(nodeKey);
+        if (SlidePageNode.$isSlidePageNode(node)) {
+          const newElements = [...node.getElements()];
+          setCurrentElements((prevElements) => {
+            if (JSON.stringify(prevElements) !== JSON.stringify(newElements)) {
+              return newElements;
             }
+            return prevElements;
           });
         }
-      },
-    );
-    return () => unregister();
-  }, [parentEditor, nodeKey]);
+      });
+    });
+    return unregister;
+  }, [editor, nodeKey]);
 
   const onDelete = useCallback(() => {
-    if (!parentEditor) return false;
-    parentEditor.update(() => {
+    editor.update(() => {
       const slideNodeInstance = $getNodeByKey(nodeKey);
       if (!SlidePageNode.$isSlidePageNode(slideNodeInstance)) return;
 
@@ -173,94 +293,159 @@ export const SlideComponent: React.FC<SlideComponentProps> = ({ nodeKey }) => {
         setSelectedElementId(null);
       } else {
         slideNodeInstance.remove();
-        // Active key update will be handled by SlideDeckPlugin's refresh logic
       }
     });
     return true;
-  }, [parentEditor, nodeKey, selectedElementId, setSelectedElementId]);
+  }, [editor, nodeKey, selectedElementId, setSelectedElementId]);
 
   useEffect(() => {
-    if (isThisSlideActive && parentEditor) {
+    if (isThisSlideActive) {
       return mergeRegister(
-        parentEditor.registerCommand(
+        editor.registerCommand(
           KEY_DELETE_COMMAND,
           onDelete,
           COMMAND_PRIORITY_EDITOR,
         ),
-        parentEditor.registerCommand(
+        editor.registerCommand(
           KEY_BACKSPACE_COMMAND,
           onDelete,
           COMMAND_PRIORITY_EDITOR,
         ),
       );
     }
-  }, [parentEditor, onDelete, isThisSlideActive]);
+  }, [editor, onDelete, isThisSlideActive]);
 
-  const handleSlideClick = useCallback(
+  const handleRootClick = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation();
-      if (selectedElementId) {
-        setSelectedElementId(null);
+      if (isThisSlideActive) {
+        if (selectedElementId !== null) {
+          setSelectedElementId(null);
+        }
+      } else {
+        setActiveKey(nodeKey, null);
       }
     },
-    [selectedElementId, setSelectedElementId],
+    [
+      isThisSlideActive,
+      selectedElementId,
+      nodeKey,
+      setActiveKey,
+      setSelectedElementId,
+    ],
   );
 
   const isSlideItselfSelected = isThisSlideActive && !selectedElementId;
 
   const shouldRenderContent = useMemo(() => {
-    if (activeIndex === -1 || slideIndex === -1) return false; // Not ready or slide not found
-    return Math.abs(slideIndex - activeIndex) <= 1 || isThisSlideActive;
-  }, [slideIndex, activeIndex, isThisSlideActive]);
+    if (visibleIndex === -1 || slideIndex === -1) return false;
+    return Math.abs(slideIndex - visibleIndex) <= 1;
+  }, [slideIndex, visibleIndex]);
+
+  const handleModalSave = (newElements: SlideElementSpec[]) => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+      if (SlidePageNode.$isSlidePageNode(node)) {
+        node.setElements(newElements);
+      }
+    });
+  };
+
+  const handleAddSlideFromModal = () => {
+    if (editor) {
+      editor.dispatchCommand(INSERT_PAGE_COMMAND, undefined);
+    }
+  };
+
+  const shouldOpenModal = isModalOpen && activeKey === nodeKey;
 
   return (
-    <SlideScaleWrapper>
-      <div
-        ref={rootRef}
-        className={cn(
-          "slide-component-root",
-          "relative outline-none size-full bg-background shadow rounded-lg overflow-visible",
-          "transition-transform duration-150 ease-in-out border-2 border-transparent",
-          isThisSlideActive &&
-            !isSlideItselfSelected &&
-            "hover:border-primary/40",
-          isSlideItselfSelected && "border-primary outline-none",
-        )}
-        style={{
-          pointerEvents: isThisSlideActive ? "auto" : "none", // Interact only with active slide
-        }}
-        onClick={isThisSlideActive ? handleSlideClick : undefined}
-        tabIndex={isThisSlideActive ? -1 : undefined}
-      >
-        {shouldRenderContent ? (
-          <SlideBody slideNodeKey={nodeKey} slideElements={currentElements}>
-            {currentElements.map((el) => {
-              return (
-                <DraggableBox key={el.id} el={el} slideKey={nodeKey}>
-                  <NestedTextEditor element={el} slideNodeKey={nodeKey} />
-                </DraggableBox>
-              );
-            })}
-          </SlideBody>
-        ) : (
-          <div className="size-full bg-background opacity-0" />
-        )}
-      </div>
-    </SlideScaleWrapper>
+    <>
+      <SlideScaleWrapper>
+        <div
+          ref={rootRef}
+          className={cn(
+            "slide-component-root",
+            "relative outline-none size-full bg-background shadow rounded-lg overflow-visible",
+            "transition-transform duration-150 ease-in-out border-2 border-border",
+            isThisSlideActive &&
+              !isSlideItselfSelected &&
+              "hover:border-primary/40",
+            isSlideItselfSelected && "border-primary outline-none",
+          )}
+          style={{
+            pointerEvents:
+              isThisSlideActive || activeKey === null ? "auto" : "none",
+          }}
+          onClick={handleRootClick}
+          tabIndex={-1}
+        >
+          {shouldRenderContent ? (
+            <SlideBody
+              slideNodeKey={nodeKey}
+              slideElements={currentElements}
+              editor={editor}
+            >
+              {currentElements.map((el) => {
+                if (el.kind === "box") {
+                  return (
+                    <DraggableBox
+                      key={el.id}
+                      el={el}
+                      slideKey={nodeKey}
+                      editor={editor}
+                    >
+                      <NestedTextEditor
+                        element={el}
+                        slideNodeKey={nodeKey}
+                        editor={editor}
+                      />
+                    </DraggableBox>
+                  );
+                }
+                return null;
+              })}
+            </SlideBody>
+          ) : (
+            <div className="size-full bg-background opacity-0" />
+          )}
+        </div>
+      </SlideScaleWrapper>
+
+      {shouldOpenModal && (
+        <SlideModal
+          isOpen={shouldOpenModal}
+          onOpenChange={setIsModalOpen}
+          initialElements={currentElements}
+          onSave={handleModalSave}
+          slideNodeKey={nodeKey}
+          slideIndex={slideIndex}
+          editor={editor}
+          onAddSlide={handleAddSlideFromModal}
+        />
+      )}
+    </>
   );
 };
 
 interface NestedTextEditorProps {
   element: Extract<SlideElementSpec, { kind: "box" }>;
   slideNodeKey: NodeKey;
+  editor: LexicalEditor;
+  isModalContext?: boolean;
+  onModalChange?: (
+    updates: Partial<Extract<SlideElementSpec, { kind: "box" }>>,
+  ) => void;
 }
 
 const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
   element,
   slideNodeKey,
+  editor,
+  isModalContext = false,
+  onModalChange,
 }) => {
   const editorRef = React.useRef<HTMLDivElement | null>(null);
-  const parentEditor = useSlideParentEditor();
   const {
     settings: { showNestedEditorTreeView },
   } = useSettings();
@@ -270,11 +455,12 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
     setActiveKey: contextSetActiveKey,
     selectedElementId: contextSelectedElementId,
   } = useActiveSlideKey();
-  const isParentSlideActive = globalActiveSlideKey === slideNodeKey;
+
+  const isParentSlideGloballyActive = globalActiveSlideKey === slideNodeKey;
 
   const initialEditor = React.useMemo(() => {
-    const editor = createEditor({
-      namespace: `slide-text-${element.id}`,
+    const nestedLexicalEditor = createEditor({
+      namespace: `slide-text-${element.id}${isModalContext ? "-modal" : ""}`,
       nodes: [
         KeywordNode,
         HashtagNode,
@@ -310,92 +496,101 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
         PollNode,
       ],
       onError(error: Error) {
-        console.error(
-          `[NestedTextEditor ${element.id}] Error in createEditor for nested editor:`,
-          error,
-        );
+        console.error(`[NestedTextEditor ${element.id}] Error:`, error);
         throw error;
       },
       theme: {},
-      editable: isParentSlideActive,
+      editable: isModalContext || isParentSlideGloballyActive,
     });
 
     if (element.editorStateJSON) {
       try {
-        const state = editor.parseEditorState(element.editorStateJSON);
-        if (!state.isEmpty()) editor.setEditorState(state);
-      } catch (e) {
-        console.warn(
-          `Bad stored JSON for element ${element.id} – starting empty`,
-          e,
+        const state = nestedLexicalEditor.parseEditorState(
+          element.editorStateJSON,
         );
+        if (!state.isEmpty()) nestedLexicalEditor.setEditorState(state);
+      } catch (e) {
+        console.warn(`Bad JSON for element ${element.id}`, e);
       }
     }
+    return nestedLexicalEditor;
+  }, [
+    element.id,
+    element.editorStateJSON,
+    isModalContext,
+    isParentSlideGloballyActive,
+  ]);
 
-    return editor;
-  }, [element, isParentSlideActive]);
-
-  const DRAGGABLE_BOX_VERTICAL_PADDING = 8; // Assuming p-1 class (0.25rem padding) and 1rem = 16px, so 0.25*16*2 = 8px for top+bottom.
-  const MIN_TEXT_ELEMENT_HEIGHT = 40; // Minimum overall height for the text element box.
+  const DRAGGABLE_BOX_VERTICAL_PADDING = 8;
+  const MIN_TEXT_ELEMENT_HEIGHT = 40;
 
   const persist = useCallback(
     (editorState: EditorState) => {
-      if (!isParentSlideActive) return;
-
       const json = editorState.toJSON();
       let newHeight = element.height;
 
       if (editorRef.current) {
         const contentEditableScrollHeight = editorRef.current.scrollHeight;
-
         const calculatedOuterHeight = Math.max(
           MIN_TEXT_ELEMENT_HEIGHT,
           contentEditableScrollHeight + DRAGGABLE_BOX_VERTICAL_PADDING,
         );
-
         if (calculatedOuterHeight !== element.height) {
           newHeight = calculatedOuterHeight;
         }
       }
 
-      parentEditor.update(() => {
-        const node = $getNodeByKey(slideNodeKey);
-        if (SlidePageNode.$isSlidePageNode(node)) {
-          node.updateElement(element.id, {
-            editorStateJSON: JSON.stringify(json),
-            height: newHeight,
-          });
-        }
-      });
+      const updates = {
+        editorStateJSON: JSON.stringify(json),
+        height: newHeight,
+      };
+
+      if (isModalContext && onModalChange) {
+        onModalChange(updates);
+      } else if (!isModalContext && isParentSlideGloballyActive) {
+        editor.update(() => {
+          const node = $getNodeByKey(slideNodeKey);
+          if (SlidePageNode.$isSlidePageNode(node)) {
+            node.updateElement(element.id, updates);
+          }
+        });
+      }
     },
     [
-      parentEditor,
+      editor,
       element.id,
       element.height,
       slideNodeKey,
-      isParentSlideActive,
+      isModalContext,
+      onModalChange,
+      isParentSlideGloballyActive,
     ],
   );
 
   const handleFocus = useCallback(() => {
-    if (isParentSlideActive) {
-      // Check if this element is already selected to avoid redundant updates
+    if (isModalContext) {
+      // Modal manages its own focus/selection internally if needed
+      // For now, NestedTextEditor focus is enough.
+    } else if (isParentSlideGloballyActive) {
       if (contextSelectedElementId !== element.id) {
         contextSetActiveKey(slideNodeKey, element.id);
       }
     }
   }, [
-    isParentSlideActive,
+    isModalContext,
+    isParentSlideGloballyActive,
     contextSetActiveKey,
     slideNodeKey,
     element.id,
     contextSelectedElementId,
   ]);
 
+  const showPlugins = isModalContext || isParentSlideGloballyActive;
+
   return (
     <LexicalNestedComposer
       initialEditor={initialEditor}
-      key={`${slideNodeKey}-${element.id}-${isParentSlideActive}`}
+      key={`${slideNodeKey}-${element.id}-${isModalContext}-${isParentSlideGloballyActive}`}
     >
       <div onFocusCapture={handleFocus} className="h-full w-full">
         <RichTextPlugin
@@ -406,7 +601,7 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
             />
           }
           placeholder={
-            isParentSlideActive ? (
+            showPlugins ? (
               <div className="absolute top-1 left-1 text-muted-foreground select-none pointer-events-none">
                 Text...
               </div>
@@ -414,9 +609,13 @@ const NestedTextEditor: React.FC<NestedTextEditorProps> = ({
           }
           ErrorBoundary={LexicalErrorBoundary}
         />
-        {isParentSlideActive && (
+        {showPlugins && (
           <>
-            <OnChangePlugin onChange={persist} />
+            <OnChangePlugin
+              onChange={persist}
+              ignoreHistoryMergeTagChange
+              ignoreSelectionChange
+            />
             <MarkdownShortcutPlugin />
             <HorizontalRulePlugin />
             <EquationsPlugin />
@@ -451,16 +650,39 @@ interface DraggableBoxProps {
   el: Extract<SlideElementSpec, { kind: "box" }>;
   slideKey: NodeKey;
   children: React.ReactNode;
+  editor: LexicalEditor;
+  isModalContext?: boolean;
+  modalSelectedElementId?: string | null;
+  onModalElementSelect?: (id: string | null) => void;
+  onModalElementUpdate?: (
+    id: string,
+    updates: Partial<SlideElementSpec>,
+  ) => void;
 }
-function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
+
+function DraggableBox({
+  el,
+  slideKey,
+  children,
+  editor,
+  isModalContext = false,
+  modalSelectedElementId,
+  onModalElementSelect,
+  onModalElementUpdate,
+}: DraggableBoxProps) {
   const {
     activeKey: globalActiveSlideKey,
-    selectedElementId,
-    setActiveKey,
+    selectedElementId: globalSelectedElementId,
+    setActiveKey: globalSetActiveKey,
   } = useActiveSlideKey();
 
-  const isParentSlideActive = globalActiveSlideKey === slideKey;
-  const isThisBoxSelected = isParentSlideActive && selectedElementId === el.id;
+  const isParentSlideGloballyActive = globalActiveSlideKey === slideKey;
+
+  const isThisBoxSelected = isModalContext
+    ? modalSelectedElementId === el.id
+    : isParentSlideGloballyActive && globalSelectedElementId === el.id;
+
+  const isDraggable = isModalContext || isParentSlideGloballyActive;
 
   const {
     attributes,
@@ -470,7 +692,7 @@ function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
     active: dndKitActiveElement,
   } = useDraggable({
     id: el.id,
-    disabled: !isParentSlideActive, // Disable dragging if the parent slide is not active
+    disabled: !isDraggable,
   });
   const isDragging = Boolean(
     dndKitActiveElement && dndKitActiveElement.id === el.id,
@@ -486,8 +708,7 @@ function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
       : undefined,
-    // Cursor indicates non-interactivity if parent slide is not active
-    cursor: !isParentSlideActive
+    cursor: !isDraggable
       ? "default"
       : isDragging
         ? "grabbing"
@@ -497,52 +718,52 @@ function DraggableBox({ el, slideKey, children }: DraggableBoxProps) {
     zIndex: isThisBoxSelected || isDragging ? 20 : 10,
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isModalContext) {
+      if (onModalElementSelect) {
+        onModalElementSelect(el.id);
+      }
+    } else if (isParentSlideGloballyActive) {
+      if (!isThisBoxSelected) {
+        globalSetActiveKey(slideKey, el.id);
+      }
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
-      {...(isParentSlideActive ? attributes : {})}
-      {...(isParentSlideActive ? listeners : {})}
+      {...(isDraggable ? attributes : {})}
+      {...(isDraggable ? listeners : {})}
       style={style}
-      className={cn(
-        "group slide-element-draggable",
-        "p-1", // Padding to create the "border" area for the grab/move cursor
-      )}
-      onClick={
-        isParentSlideActive
-          ? (e) => {
-              e.stopPropagation();
-              if (!isThisBoxSelected) {
-                // Parent slide is active, but this box isn't selected yet. Select it.
-                // setActiveKey will be called with slideKey, which is globalActiveSlideKey here,
-                // so this action will not change the active slide, only the selected element.
-                setActiveKey(slideKey, el.id);
-              }
-            }
-          : (e) => {
-              // If parent slide is not active, a click here should ideally not happen.
-              // If it does, stop propagation and do nothing to prevent unintended slide changes.
-              e.stopPropagation();
-            }
-      }
+      className={cn("group slide-element-draggable", "p-1")}
+      onClick={handleClick}
     >
-      {/* CONTENT — is always editable */}
       <div data-uid={el.id} className="relative size-full">
         {children}
       </div>
-      {/* VISUAL HALO (รอบๆ) */}
       <div
         className={cn(
           "absolute inset-0 rounded pointer-events-none transition-all duration-100",
-          isThisBoxSelected // Halo only if selected (which implies parent is active)
+          isThisBoxSelected
             ? "ring-2 ring-primary/90 opacity-100"
             : "opacity-0 group-hover:opacity-100 group-hover:ring-2 group-hover:ring-primary/40",
-          !isParentSlideActive && "hidden", // Explicitly hide halo if parent slide not active
+          !isDraggable && "hidden",
         )}
       />
-      {/* RESIZE HANDLES */}
       {isThisBoxSelected &&
+        isDraggable &&
         (["nw", "ne", "sw", "se"] as const).map((k) => (
-          <CornerHandle key={k} corner={k} el={el} slideKey={slideKey} />
+          <CornerHandle
+            key={k}
+            corner={k}
+            el={el}
+            slideKey={slideKey}
+            editor={editor}
+            isModalContext={isModalContext}
+            onModalElementUpdate={onModalElementUpdate}
+          />
         ))}
     </div>
   );
@@ -552,9 +773,22 @@ interface CornerHandleProps {
   corner: "nw" | "ne" | "sw" | "se";
   el: Extract<SlideElementSpec, { kind: "box" }>;
   slideKey: NodeKey;
+  editor: LexicalEditor;
+  isModalContext?: boolean;
+  onModalElementUpdate?: (
+    id: string,
+    updates: Partial<SlideElementSpec>,
+  ) => void;
 }
-function CornerHandle({ corner, el, slideKey }: CornerHandleProps) {
-  const editor = useSlideParentEditor();
+
+function CornerHandle({
+  corner,
+  el,
+  slideKey,
+  editor,
+  isModalContext = false,
+  onModalElementUpdate,
+}: CornerHandleProps) {
   const posStyles: Record<typeof corner, string> = {
     nw: "left-0 top-0 cursor-nwse-resize",
     ne: "right-0 top-0 cursor-nesw-resize",
@@ -593,17 +827,18 @@ function CornerHandle({ corner, el, slideKey }: CornerHandleProps) {
         newH = Math.max(minH, initialH + dy);
       }
 
-      editor.update(() => {
-        const node = $getNodeByKey(slideKey);
-        if (SlidePageNode.$isSlidePageNode(node)) {
-          node.updateElement(el.id, {
-            x: newX,
-            y: newY,
-            width: newW,
-            height: newH,
-          });
-        }
-      });
+      const updates = { x: newX, y: newY, width: newW, height: newH };
+
+      if (isModalContext && onModalElementUpdate) {
+        onModalElementUpdate(el.id, updates);
+      } else if (!isModalContext) {
+        editor.update(() => {
+          const node = $getNodeByKey(slideKey);
+          if (SlidePageNode.$isSlidePageNode(node)) {
+            node.updateElement(el.id, updates);
+          }
+        });
+      }
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -628,30 +863,57 @@ interface SlideBodyProps {
   children: React.ReactNode;
   slideNodeKey: NodeKey;
   slideElements: SlideElementSpec[];
+  editor: LexicalEditor;
+  isModalContext?: boolean;
+  setModalElements?: React.Dispatch<React.SetStateAction<SlideElementSpec[]>>;
 }
-function SlideBody({ children, slideNodeKey }: SlideBodyProps) {
+
+function SlideBody({
+  children,
+  slideNodeKey,
+  slideElements,
+  editor,
+  isModalContext = false,
+  setModalElements,
+}: SlideBodyProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
   );
-  const editor = useSlideParentEditor();
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, delta } = event;
-    if (!active || (!delta.x && !delta.y)) return; // No movement or no active element
+    if (!active || (!delta.x && !delta.y)) return;
     const id = active.id as string;
 
-    editor.update(() => {
-      const slide = $getNodeByKey(slideNodeKey);
-      if (SlidePageNode.$isSlidePageNode(slide)) {
-        const currentElement = slide.__elements.find((item) => item.id === id);
-        if (currentElement) {
-          slide.updateElement(id, {
-            x: (currentElement.x || 0) + delta.x,
-            y: (currentElement.y || 0) + delta.y,
-          });
+    if (isModalContext && setModalElements) {
+      setModalElements((prevElements) =>
+        prevElements.map((item) => {
+          if (item.id === id) {
+            const currentX = typeof item.x === "number" ? item.x : 0;
+            const currentY = typeof item.y === "number" ? item.y : 0;
+            return { ...item, x: currentX + delta.x, y: currentY + delta.y };
+          }
+          return item;
+        }),
+      );
+    } else if (!isModalContext) {
+      editor.update(() => {
+        const slide = $getNodeByKey(slideNodeKey);
+        if (SlidePageNode.$isSlidePageNode(slide)) {
+          const currentElement = slideElements.find((item) => item.id === id);
+          if (currentElement) {
+            const currentX =
+              typeof currentElement.x === "number" ? currentElement.x : 0;
+            const currentY =
+              typeof currentElement.y === "number" ? currentElement.y : 0;
+            slide.updateElement(id, {
+              x: currentX + delta.x,
+              y: currentY + delta.y,
+            });
+          }
         }
-      }
-    });
+      });
+    }
   };
 
   return (
