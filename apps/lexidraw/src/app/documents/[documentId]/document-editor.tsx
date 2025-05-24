@@ -89,7 +89,7 @@ import { LayoutContainerNode } from "./nodes/LayoutContainerNode";
 import { LayoutItemNode } from "./nodes/LayoutItemNode";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
-import { SlideDeckPlugin } from "./plugins/SlidePlugin";
+import { SlidePlugin } from "./plugins/SlidePlugin";
 import { SlidePageNode } from "./nodes/SlideNode/SlidePageNode";
 import { SlideDeckNode } from "./nodes/SlideNode/SlideDeckNode";
 import { SlideParentEditorProvider } from "./nodes/SlideNode/slide-context";
@@ -414,7 +414,7 @@ function EditorHandler({
                 <ImageProvider>
                   <LexicalImageProvider>
                     <CommentPluginProvider>
-                      <SlideDeckPlugin>
+                      <SlidePlugin>
                         <SlideParentEditorProvider editor={editor}>
                           <div
                             style={dynamicPageStyle}
@@ -564,7 +564,7 @@ function EditorHandler({
                             <ConditionalCommentInputBoxRenderer />
                           </div>
                         </SlideParentEditorProvider>
-                      </SlideDeckPlugin>
+                      </SlidePlugin>
                     </CommentPluginProvider>
                   </LexicalImageProvider>
                 </ImageProvider>

@@ -3,7 +3,7 @@ import {
   LexicalCommand,
   createCommand,
   COMMAND_PRIORITY_EDITOR,
-  COMMAND_PRIORITY_LOW, // For SELECTION_CHANGE_COMMAND
+  COMMAND_PRIORITY_LOW,
   NodeKey,
   $getNodeByKey,
   $getRoot,
@@ -11,17 +11,15 @@ import {
   $isNodeSelection,
   $isRangeSelection,
   SELECTION_CHANGE_COMMAND,
-  $createParagraphNode, // For adding paragraph after deck
+  $createParagraphNode,
 } from "lexical";
-import { $dfs, $findMatchingParent } from "@lexical/utils"; // $findMatchingParent
+import { $dfs, $findMatchingParent } from "@lexical/utils";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { mergeRegister } from "@lexical/utils";
 import { SlidePageNode } from "../nodes/SlideNode/SlidePageNode";
-import {
-  SlideParentEditorProvider,
-  ActiveSlideContext,
-} from "../nodes/SlideNode/slide-context";
+import { ActiveSlideContext } from "../nodes/SlideNode/slide-context";
 import { SlideDeckNode } from "../nodes/SlideNode/SlideDeckNode";
+import { SlideControls } from "../nodes/SlideNode/slide-controls";
 
 export const INSERT_SLIDEDECK_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_SLIDEDECK_COMMAND",
@@ -31,7 +29,7 @@ export const INSERT_PAGE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_PAGE_COMMAND",
 );
 
-export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
+export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [editor] = useLexicalComposerContext();
@@ -40,9 +38,13 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
   const [selectedElementId, setSelectedElementId] = useState<string | null>(
     null,
   );
+  const [deckElement, setDeckElement] = useState<HTMLElement | null>(null);
 
   const setActiveKey = useCallback(
     (key: NodeKey | null, newSelectedElementId: string | null = null) => {
+      if (key === null) {
+        setDeckElement(null);
+      }
       _setActiveKeyInternal((currentActiveKey) => {
         if (currentActiveKey !== key) {
           setSelectedElementId(newSelectedElementId);
@@ -292,22 +294,32 @@ export const SlideDeckPlugin: React.FC<{ children: ReactNode }> = ({
     return () => {
       document.removeEventListener("click", handleClickOutside, true);
     };
-  }, [editor, activeKey, setActiveKey, setSelectedElementId]); // Added setActiveKey dependency
+  }, [editor, activeKey, setActiveKey, setSelectedElementId]);
+
+  useEffect(() => {
+    const deck = document.querySelector<HTMLElement>(
+      ".slide-deck-lexical-node",
+    );
+    if (!deck) return;
+    const index = activeKey ? slideKeys.indexOf(activeKey) : 0;
+    const target = index * deck.clientWidth;
+    deck.scrollTo({ left: target, behavior: "smooth" });
+  }, [activeKey, slideKeys]);
 
   return (
-    <SlideParentEditorProvider editor={editor}>
-      <ActiveSlideContext.Provider
-        value={{
-          activeKey,
-          setActiveKey,
-          slideKeys,
-          deckEditor: editor,
-          selectedElementId,
-          setSelectedElementId,
-        }}
-      >
-        {children}
-      </ActiveSlideContext.Provider>
-    </SlideParentEditorProvider>
+    <ActiveSlideContext.Provider
+      value={{
+        activeKey,
+        setActiveKey,
+        slideKeys,
+        deckEditor: editor,
+        selectedElementId,
+        setSelectedElementId,
+        setDeckElement,
+      }}
+    >
+      {children}
+      <SlideControls deckElement={deckElement} />
+    </ActiveSlideContext.Provider>
   );
 };
