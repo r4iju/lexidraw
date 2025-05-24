@@ -1,5 +1,4 @@
 import { type EditorThemeClasses } from "lexical";
-import "./playground-theme.css";
 
 export const theme = {
   code: `
@@ -16,6 +15,7 @@ export const theme = {
   leading-[1.53]
   relative
   tab-size-[2]
+  text-red-500
 
   before:absolute
   before:content-[attr(data-gutter)]
@@ -107,7 +107,7 @@ export const theme = {
     checklist: "p-0 m-0 list-none",
 
     // Common <li> base styling
-    listitem: "mx-8 my-1",
+    listitem: "ml-8 my-1",
 
     // Checklists:
     listitemUnchecked: `
@@ -199,8 +199,7 @@ export const theme = {
   },
   layoutContainer: "grid gap-2 my-2",
   layoutItem: "border border-dashed border-muted p-2",
-  codeBlock:
-    "bg-muted font-mono block px-2 pl-13 py-2 leading-[1.53] text-[13px] my-2 overflow-x-auto relative tab-size-[2]",
+  // codeBlock: "bg-muted font-mono block px-2 pl-13 py-2 leading-[1.53] text-[13px] my-2 overflow-x-auto relative tab-size-[2]",
   codeGutter:
     "absolute bg-accent left-0 top-0 border-r border-muted px-2 text-muted-foreground whitespace-pre-wrap text-right min-w-[25px]",
 } satisfies EditorThemeClasses;

@@ -2,7 +2,6 @@ import type {
   EditorState,
   LexicalCommand,
   LexicalEditor,
-  LexicalNode,
   NodeKey,
   RangeSelection,
 } from "lexical";
@@ -62,7 +61,6 @@ import {
 import ContentEditable from "~/components/ui/content-editable";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import CommentEditorTheme from "../../themes/CommentEditorTheme";
 import useLayoutEffect from "../../shared/useLayoutEffect";
 import useModal from "~/hooks/useModal";
 import { CommentNode } from "../../nodes/CommentNode";
@@ -172,7 +170,6 @@ function PlainTextEditor({
     onError: (error: Error) => {
       throw error;
     },
-    theme: CommentEditorTheme,
   };
 
   return (
@@ -1008,7 +1005,10 @@ export function CommentPluginProvider({
       const root = $getRoot();
       const allNodes = $dfs(root);
       for (const { node } of allNodes) {
-        if (CommentNode.$isCommentNode(node) && !knownIds.has(node.__comment.id)) {
+        if (
+          CommentNode.$isCommentNode(node) &&
+          !knownIds.has(node.__comment.id)
+        ) {
           commentStore.addComment(node.__comment);
           knownIds.add(node.__comment.id);
         } else if (

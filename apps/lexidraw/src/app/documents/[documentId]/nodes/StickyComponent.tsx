@@ -9,7 +9,6 @@ import { calculateZoomLevel } from "@lexical/utils";
 import { $getNodeByKey } from "lexical";
 import * as React from "react";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import StickyEditorTheme from "../themes/sticky-editor-theme";
 
 import { StickyNode } from "./StickyNode";
 import LexicalContentEditable from "~/components/ui/content-editable";
@@ -257,10 +256,7 @@ export default function StickyComponent({
           </Button>
         </div>
         <div className="px-2">
-          <LexicalNestedComposer
-            initialEditor={caption}
-            initialTheme={StickyEditorTheme}
-          >
+          <LexicalNestedComposer initialEditor={caption}>
             <PlainTextPlugin
               contentEditable={
                 <LexicalContentEditable

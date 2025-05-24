@@ -42,7 +42,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
-import { EditorState, EditorThemeClasses, Klass, LexicalNode } from "lexical";
+import { EditorState, Klass, LexicalNode } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
@@ -598,7 +598,6 @@ function EditorScaffold({
   iceServers,
   initialLlmConfig,
   nodes,
-  lexicalTheme,
 }: {
   entity: RouterOutputs["entities"]["load"];
   editorStateRef: RefObject<EditorState | undefined>;
@@ -606,7 +605,6 @@ function EditorScaffold({
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
   nodes: Klass<LexicalNode>[];
-  lexicalTheme: EditorThemeClasses;
 }) {
   const { handleSaveAndLeave, handleSave, isUploading } =
     useSaveAndExportDocument({ entity, editorStateRef });
@@ -620,8 +618,8 @@ function EditorScaffold({
           onError: (error: unknown) => {
             console.error("Error in LexicalComposer: ", error);
           },
-          nodes: nodes,
-          theme: lexicalTheme,
+          nodes,
+          theme,
         }}
       >
         <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
@@ -697,7 +695,6 @@ export default function DocumentEditor({
     LayoutContainerNode,
     LayoutItemNode,
   ];
-  const lexicalTheme = theme;
 
   return (
     <DocumentSettingsProvider
@@ -710,7 +707,6 @@ export default function DocumentEditor({
         iceServers={iceServers}
         initialLlmConfig={initialLlmConfig}
         nodes={lexicalNodes}
-        lexicalTheme={lexicalTheme}
       />
     </DocumentSettingsProvider>
   );
