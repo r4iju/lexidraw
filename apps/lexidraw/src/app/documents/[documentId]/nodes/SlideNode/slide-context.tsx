@@ -1,4 +1,10 @@
-import { createContext, useContext } from "react";
+import {
+  createContext,
+  type Dispatch,
+  type SetStateAction,
+  useContext,
+  useState,
+} from "react";
 import { LexicalEditor, NodeKey } from "lexical";
 
 const SlideParentEditorContext = createContext<{
@@ -23,9 +29,9 @@ export function useSlideParentEditor() {
   return ctx.editor;
 }
 
-// Updated ActiveSlideContext
 export const ActiveSlideContext = createContext<{
   activeKey: NodeKey | null;
+  visibleKey: NodeKey | null;
   setActiveKey: (
     key: NodeKey | null,
     newSelectedElementId?: string | null,
@@ -42,6 +48,31 @@ export function useActiveSlideKey() {
   if (!ctx)
     throw new Error(
       "useActiveSlideKey must be used within an ActiveSlideContext.Provider",
+    );
+  return ctx;
+}
+
+const slideModalContext = createContext<{
+  isModalOpen: boolean;
+  setIsModalOpen: Dispatch<SetStateAction<boolean>>;
+} | null>(null);
+
+export const SlideModalProvider: React.FC<{
+  children: React.ReactNode;
+}> = ({ children }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  return (
+    <slideModalContext.Provider value={{ isModalOpen, setIsModalOpen }}>
+      {children}
+    </slideModalContext.Provider>
+  );
+};
+
+export function useSlideModal() {
+  const ctx = useContext(slideModalContext);
+  if (!ctx)
+    throw new Error(
+      "useModalContent must be used within a modalContent.Provider",
     );
   return ctx;
 }

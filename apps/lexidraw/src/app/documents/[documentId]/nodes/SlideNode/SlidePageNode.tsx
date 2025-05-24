@@ -89,6 +89,15 @@ export class SlidePageNode extends DecoratorNode<JSX.Element> {
     self.__elements = self.__elements.filter((el) => el.id !== id);
   }
 
+  getElements(): SlideElementSpec[] {
+    return this.__elements;
+  }
+
+  setElements(elements: SlideElementSpec[]): void {
+    const self = this.getWritable();
+    self.__elements = elements;
+  }
+
   static $create(): SlidePageNode {
     return new SlidePageNode();
   }

@@ -17,7 +17,10 @@ import { $dfs, $findMatchingParent } from "@lexical/utils";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { mergeRegister } from "@lexical/utils";
 import { SlidePageNode } from "../nodes/SlideNode/SlidePageNode";
-import { ActiveSlideContext } from "../nodes/SlideNode/slide-context";
+import {
+  ActiveSlideContext,
+  SlideModalProvider,
+} from "../nodes/SlideNode/slide-context";
 import { SlideDeckNode } from "../nodes/SlideNode/SlideDeckNode";
 import { SlideControls } from "../nodes/SlideNode/slide-controls";
 
@@ -35,6 +38,7 @@ export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
   const [editor] = useLexicalComposerContext();
   const [slideKeys, setSlideKeys] = useState<NodeKey[]>([]);
   const [activeKey, _setActiveKeyInternal] = useState<NodeKey | null>(null);
+  const [visibleKey, setVisibleKey] = useState<NodeKey | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(
     null,
   );
@@ -44,6 +48,9 @@ export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
     (key: NodeKey | null, newSelectedElementId: string | null = null) => {
       if (key === null) {
         setDeckElement(null);
+      } else {
+        // When a slide becomes active, it must also become the visible one.
+        setVisibleKey(key);
       }
       _setActiveKeyInternal((currentActiveKey) => {
         if (currentActiveKey !== key) {
@@ -56,7 +63,7 @@ export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
         return key;
       });
     },
-    [],
+    [setDeckElement],
   );
 
   const refreshSlideKeys = useCallback(() => {
@@ -102,6 +109,13 @@ export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
           setSelectedElementId(null);
         }
         return newActiveKey;
+      });
+
+      setVisibleKey((prevVisibleKey) => {
+        if (prevVisibleKey && keys.includes(prevVisibleKey)) {
+          return prevVisibleKey; // Keep the current visible slide if it still exists
+        }
+        return keys.length > 0 && keys[0] ? keys[0] : null; // Otherwise, default to the first slide
       });
     });
   }, [editor]);
@@ -264,29 +278,69 @@ export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
     );
   }, [editor, activeKey, setActiveKey, refreshSlideKeys, selectedElementId]);
 
+  // Effect to handle clicks on the deck background for deselecting elements
+  useEffect(() => {
+    const editorRootElem = editor.getRootElement();
+    if (!editorRootElem) return;
+
+    // Query for the deck element within the editor's root
+    const deckMainElement = editorRootElem.querySelector<HTMLElement>(
+      ".slide-deck-lexical-node",
+    );
+
+    if (deckMainElement) {
+      const handleDeckBackgroundClick = (event: MouseEvent) => {
+        // Check if the click target is the deck itself.
+        // Clicks on children (slides, elements within slides, controls) should have their own
+        // handlers that call event.stopPropagation(), meaning this listener should primarily catch
+        // clicks directly on the deck's background area.
+        if (event.target === deckMainElement) {
+          if (selectedElementId !== null) {
+            setSelectedElementId(null); // Deselect the element, keep slide active
+          }
+        }
+      };
+
+      deckMainElement.addEventListener("click", handleDeckBackgroundClick);
+      return () => {
+        deckMainElement.removeEventListener("click", handleDeckBackgroundClick);
+      };
+    }
+    // Adding selectedElementId and setSelectedElementId to dependencies
+    // ensures the listener uses the latest state if it were to be re-bound, though typically
+    // this effect binds once per editor/deck presence.
+  }, [editor, selectedElementId, setSelectedElementId]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       const editorElement = editor.getRootElement();
 
-      // Check if click is outside the editor entirely or specific slide UI elements
-      if (
-        (editorElement && !editorElement.contains(target)) || // Clicked outside the editor
-        !target.closest(
-          // Clicked inside editor, but not on slide-related elements
-          ".slide-deck-lexical-node, .slide-component-root, .slide-element-draggable, .slide-controls, .slide-element-image, .lexical-nested-content-editable",
-        )
-      ) {
-        // If the SELECTION_CHANGE_COMMAND handles activeKey=null,
-        // this might only need to handle selectedElementId.
-        // However, SELECTION_CHANGE might not fire for all "outside" clicks if selection doesn't change (e.g. clicking body)
-        // So, it's safer to potentially deselect both here if the click is truly "outside".
+      // If the editor isn't mounted yet, do nothing.
+      if (!editorElement) {
+        return;
+      }
+
+      // If the click is on any modal (identified by role="dialog"),
+      // do not proceed with deactivating the active slide.
+      // The modal itself will handle its close operations.
+      if (target.closest('[role="dialog"]')) {
+        return;
+      }
+
+      // Define what counts as being "inside" the slide UI.
+      // The two key components are the deck itself and our external controls.
+      const isClickOnSlideUI = target.closest(
+        ".slide-deck-lexical-node, .slide-controls",
+      );
+
+      // If the click is NOT on any slide-related UI (and not on a modal),
+      // we should deselect.
+      if (!isClickOnSlideUI) {
+        // Only update state if a slide is currently active to avoid needless re-renders.
         if (activeKey !== null) {
-          // console.log("Global click outside detected, deselecting active slide and element.");
-          // setActiveKey(null, null); // This might be too aggressive if SELECTION_CHANGE handles it
+          setActiveKey(null, null);
         }
-        // Always deselect element if click is outside its specific context
-        setSelectedElementId(null);
       }
     };
 
@@ -294,22 +348,24 @@ export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
     return () => {
       document.removeEventListener("click", handleClickOutside, true);
     };
-  }, [editor, activeKey, setActiveKey, setSelectedElementId]);
+  }, [editor, activeKey, setActiveKey]);
 
   useEffect(() => {
     const deck = document.querySelector<HTMLElement>(
       ".slide-deck-lexical-node",
     );
     if (!deck) return;
-    const index = activeKey ? slideKeys.indexOf(activeKey) : 0;
+    const index = visibleKey ? slideKeys.indexOf(visibleKey) : 0;
+    if (index === -1) return; // no visible slide, do nothing
     const target = index * deck.clientWidth;
     deck.scrollTo({ left: target, behavior: "smooth" });
-  }, [activeKey, slideKeys]);
+  }, [visibleKey, slideKeys]);
 
   return (
     <ActiveSlideContext.Provider
       value={{
         activeKey,
+        visibleKey,
         setActiveKey,
         slideKeys,
         deckEditor: editor,
@@ -318,8 +374,10 @@ export const SlidePlugin: React.FC<{ children: ReactNode }> = ({
         setDeckElement,
       }}
     >
-      {children}
-      <SlideControls deckElement={deckElement} />
+      <SlideModalProvider>
+        {children}
+        <SlideControls deckElement={deckElement} />
+      </SlideModalProvider>
     </ActiveSlideContext.Provider>
   );
 };
