@@ -14,7 +14,7 @@ export const ModeTabs: React.FC = () => {
   return (
     <Tabs value={mode} onValueChange={handleValueChange} className="w-full">
       <TabsList className="w-full rounded-sm">
-        {(["chat", "agent"] as const).map((m) => (
+        {(["chat", "agent", "debug"] as const).map((m) => (
           <TabsTrigger
             key={m}
             value={m}
