@@ -4,7 +4,10 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { type SlideElementSpec } from "./SlideNode";
+import {
+  type SlideElementSpec,
+  DEFAULT_BOX_EDITOR_STATE_STRING,
+} from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
 
@@ -30,21 +33,42 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
           error,
         ),
     });
+
     try {
-      const initialEditorState = editor.parseEditorState(
-        element.editorStateJSON || "",
-      );
+      if (
+        element.pendingMarkdownContent !== undefined &&
+        element.pendingMarkdownContent.trim() !== ""
+      ) {
+        console.warn(
+          `[SlideElementView] Element ${element.id} has pendingMarkdownContent. Displaying current editorStateJSON. Content will update once processed by the main editor.`,
+        );
+      }
+
+      // Always try to parse editorStateJSON. If it's null/undefined or invalid, use default.
+      const stateToParse =
+        element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE_STRING;
+      const initialEditorState = editor.parseEditorState(stateToParse);
       editor.setEditorState(initialEditorState);
     } catch (e) {
       console.error(
         `[SlideElementView] Failed to parse state for read-only element ${element.id}:`,
         e,
       );
+      // Fallback to default empty state on any error
+      const defaultStateOnError = editor.parseEditorState(
+        DEFAULT_BOX_EDITOR_STATE_STRING,
+      );
+      editor.setEditorState(defaultStateOnError);
     }
     return editor;
-  }, [element.id, element.editorStateJSON, parentEditor]);
+  }, [
+    element.id,
+    element.editorStateJSON,
+    element.pendingMarkdownContent,
+    parentEditor,
+  ]);
 
-  if (element.kind !== "box" || !element.editorStateJSON) {
+  if (element.kind !== "box") {
     return null;
   }
 

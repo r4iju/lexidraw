@@ -29,6 +29,8 @@ import {
   TextNode,
   LineBreakNode,
   LexicalEditor,
+  $getRoot,
+  $createParagraphNode,
 } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
@@ -106,7 +108,13 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { ColorPickerContent } from "~/components/ui/color-picker";
-import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogHeader,
+} from "~/components/ui/dialog";
+import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 
 export const NESTED_EDITOR_NODES = [
   HeadingNode,
@@ -468,6 +476,10 @@ export default function SlideDeckEditorComponent({
     null,
   );
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showSlideBgColorPicker, setShowSlideBgColorPicker] = useState(false);
+  const [editingElementIdForColor, setEditingElementIdForColor] = useState<
+    string | null
+  >(null);
 
   const currentSlideIndex = useMemo(() => {
     if (!deckData.slides || deckData.slides.length === 0) return -1;
@@ -489,10 +501,17 @@ export default function SlideDeckEditorComponent({
       const currentEditorsMapInRef = elementEditorsRef.current;
       const newEditorIds = new Set(currentSlide.elements.map((el) => el.id));
       let editorsChanged = false;
+      let deckDataNeedsUpdate = false;
+      const updatedElementsThisCycle: SlideElementSpec[] = [
+        ...currentSlide.elements,
+      ];
 
-      currentSlide.elements.forEach((element) => {
-        if (!currentEditorsMapInRef.has(element.id)) {
-          const newNestedEditor = createEditor({
+      currentSlide.elements.forEach((element, index) => {
+        let nestedEditor = currentEditorsMapInRef.get(element.id);
+        let isNewEditor = false;
+
+        if (!nestedEditor) {
+          nestedEditor = createEditor({
             parentEditor: parentEditor,
             nodes: NESTED_EDITOR_NODES,
             theme: editorTheme,
@@ -502,25 +521,85 @@ export default function SlideDeckEditorComponent({
                 error,
               ),
           });
-          if (element.editorStateJSON) {
+          currentEditorsMapInRef.set(element.id, nestedEditor);
+          editorsChanged = true;
+          isNewEditor = true; // Mark as new editor
+        }
+
+        let stateToSetInEditor: string | null = element.editorStateJSON;
+        let forceSetState = isNewEditor; // Always set state for new editors
+
+        if (element.pendingMarkdownContent !== undefined) {
+          const markdownToProcess = element.pendingMarkdownContent;
+          nestedEditor.update(() => {
+            const root = $getRoot();
+            root.clear();
+            $convertFromMarkdownString(markdownToProcess, TRANSFORMERS, root);
+            if (root.getChildrenSize() === 0) {
+              root.append($createParagraphNode());
+            }
+          });
+          const newJsonState = JSON.stringify(
+            nestedEditor.getEditorState().toJSON(),
+          );
+          updatedElementsThisCycle[index] = {
+            ...element,
+            editorStateJSON: newJsonState,
+            pendingMarkdownContent: undefined,
+            version: (element.version || 0) + 1,
+          };
+          deckDataNeedsUpdate = true;
+          stateToSetInEditor = newJsonState; // This is the state we want in the editor now
+          forceSetState = true; // Markdown was processed, force update editor state
+        }
+
+        // Set editor state if forced (new editor or markdown processed) or if JSON differs
+        if (stateToSetInEditor) {
+          // Ensure there's a state to set
+          if (
+            forceSetState ||
+            JSON.stringify(nestedEditor.getEditorState().toJSON()) !==
+              stateToSetInEditor
+          ) {
             try {
-              const initialEditorState = newNestedEditor.parseEditorState(
-                element.editorStateJSON,
-              );
-              newNestedEditor.setEditorState(initialEditorState);
+              const newLexicalState =
+                nestedEditor.parseEditorState(stateToSetInEditor);
+              nestedEditor.setEditorState(newLexicalState);
             } catch (e) {
               console.error(
-                `Failed to parse state for element ${element.id}:`,
+                `Failed to parse state for element ${element.id} in useEffect (stateToSet: ${stateToSetInEditor}):`,
                 e,
               );
-              const emptyState = newNestedEditor.parseEditorState(
-                DEFAULT_BOX_EDITOR_STATE_STRING,
-              );
-              newNestedEditor.setEditorState(emptyState);
+              try {
+                const fallbackState = nestedEditor.parseEditorState(
+                  DEFAULT_BOX_EDITOR_STATE_STRING,
+                );
+                nestedEditor.setEditorState(fallbackState);
+              } catch (fallbackError) {
+                console.error(
+                  `FATAL: Failed to set even DEFAULT_BOX_EDITOR_STATE_STRING for element ${element.id}:`,
+                  fallbackError,
+                );
+              }
             }
           }
-          currentEditorsMapInRef.set(element.id, newNestedEditor);
-          editorsChanged = true;
+        } else if (isNewEditor) {
+          // If it's a new editor and there was no pending markdown and no existing editorStateJSON (shouldn't happen with defaults)
+          // Still ensure it gets a default state.
+          console.warn(
+            `[SlideDeckEditor] New editor for ${element.id} had no stateToSet. Applying default.`,
+          );
+          try {
+            const defaultState = nestedEditor.parseEditorState(
+              DEFAULT_BOX_EDITOR_STATE_STRING,
+            );
+            nestedEditor.setEditorState(defaultState);
+          } catch (e) {
+            console.error(
+              `FATAL: Failed to set DEFAULT_BOX_EDITOR_STATE_STRING for new element ${element.id}:`,
+              e,
+            );
+          }
         }
       });
 
@@ -534,13 +613,24 @@ export default function SlideDeckEditorComponent({
       if (editorsChanged) {
         setActiveElementEditors(new Map(currentEditorsMapInRef));
       }
+
+      if (deckDataNeedsUpdate) {
+        const newSlides = deckData.slides.map((s) =>
+          s.id === currentSlide.id
+            ? { ...s, elements: updatedElementsThisCycle }
+            : s,
+        );
+        const newDeckData = { ...deckData, slides: newSlides };
+        setDeckData(newDeckData); // Update local state
+        onDeckDataChange(newDeckData); // Propagate change
+      }
     } else {
       if (elementEditorsRef.current.size > 0) {
         elementEditorsRef.current.clear();
         setActiveElementEditors(new Map());
       }
     }
-  }, [currentSlide, parentEditor]);
+  }, [currentSlide, parentEditor, deckData, onDeckDataChange]); // Added deckData and onDeckDataChange dependencies
 
   const handleBoxContentChange = (
     elementId: string,
@@ -729,6 +819,20 @@ export default function SlideDeckEditorComponent({
     [currentSlide, deckData, onDeckDataChange],
   );
 
+  const handleSlideBackgroundColorChange = useCallback(
+    (newColor: string) => {
+      if (!currentSlide) return;
+      const updatedSlideData = { ...currentSlide, backgroundColor: newColor };
+      const newSlides = deckData.slides.map((s) =>
+        s.id === currentSlide.id ? updatedSlideData : s,
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [currentSlide, deckData, onDeckDataChange],
+  );
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, delta } = event;
@@ -775,6 +879,9 @@ export default function SlideDeckEditorComponent({
         </div>
         <div
           className="slide-canvas-area bg-background border border-border rounded w-[1280px] h-[720px] mb-2 relative flex-grow overflow-hidden"
+          style={{
+            backgroundColor: currentSlide.backgroundColor || "transparent",
+          }}
           onClick={deselectElement}
         >
           {currentSlide.elements.map((element) => {
@@ -783,11 +890,16 @@ export default function SlideDeckEditorComponent({
               return (
                 <>
                   <Dialog
-                    open={showColorPicker}
-                    onOpenChange={setShowColorPicker}
+                    open={
+                      showColorPicker && editingElementIdForColor === element.id
+                    }
+                    onOpenChange={(isOpen) => {
+                      if (!isOpen) setEditingElementIdForColor(null);
+                      setShowColorPicker(isOpen);
+                    }}
                   >
                     <DialogContent className="p-4">
-                      <DialogTitle>Background Color</DialogTitle>
+                      <DialogTitle>Box Background Color</DialogTitle>
                       <ColorPickerContent
                         color={element.backgroundColor || "#ffffff"}
                         onChange={(newColor) => {
@@ -806,7 +918,10 @@ export default function SlideDeckEditorComponent({
                     onSelect={setSelectedElementId}
                     onElementUpdate={handleElementUpdate}
                     onElementDelete={handleElementDelete}
-                    setShowColorPicker={setShowColorPicker}
+                    setShowColorPicker={(show) => {
+                      setEditingElementIdForColor(element.id);
+                      setShowColorPicker(show);
+                    }}
                     isLinkEditMode={isLinkEditMode}
                     setIsLinkEditMode={setIsLinkEditMode}
                     deselectElement={deselectElement}
@@ -817,6 +932,22 @@ export default function SlideDeckEditorComponent({
             return null;
           })}
         </div>
+
+        {/* Dialog for Slide Background Color Picker */}
+        <Dialog
+          open={showSlideBgColorPicker}
+          onOpenChange={setShowSlideBgColorPicker}
+        >
+          <DialogContent className="p-4">
+            <DialogHeader>
+              <DialogTitle>Slide Background Color</DialogTitle>
+            </DialogHeader>
+            <ColorPickerContent
+              color={currentSlide.backgroundColor || "#ffffff"}
+              onChange={handleSlideBackgroundColorChange}
+            />
+          </DialogContent>
+        </Dialog>
 
         <div className="slide-controls flex items-center justify-between p-2 mt-auto">
           <div className="flex items-center gap-2">
@@ -855,6 +986,14 @@ export default function SlideDeckEditorComponent({
               className="mr-4"
             >
               <PlusSquareIcon className="mr-2 h-4 w-4" /> Add Box
+            </Button>
+            <Button
+              onClick={() => setShowSlideBgColorPicker(true)}
+              variant="outline"
+              size="sm"
+              className="mr-4"
+            >
+              <PaintBucketIcon className="mr-2 h-4 w-4" /> Set Slide Background
             </Button>
             <Button onClick={addSlide} variant="outline" size="sm">
               <PlusCircleIcon className="mr-2 h-4 w-4" /> Add Slide
