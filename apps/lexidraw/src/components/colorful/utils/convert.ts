@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from "react";
-import { useRoundUtils } from "./round";
 import {
   RgbaColor,
   RgbColor,
@@ -10,7 +9,12 @@ import {
 } from "../types";
 
 export const useConvertUtils = () => {
-  const { round } = useRoundUtils();
+  const round = useCallback(
+    (number: number, digits = 0, base = Math.pow(10, digits)): number => {
+      return Math.round(base * number) / base;
+    },
+    [],
+  );
 
   /**
    * Valid CSS <angle> units.
@@ -79,7 +83,11 @@ export const useConvertUtils = () => {
   );
 
   const hexToHsva = useCallback(
-    (hex: string): HsvaColor => rgbaToHsva(hexToRgba(hex)),
+    (hex: string): HsvaColor => {
+      const rgba = hexToRgba(hex);
+      const hsva = rgbaToHsva(rgba);
+      return hsva;
+    },
     [rgbaToHsva, hexToRgba],
   );
 

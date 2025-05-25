@@ -106,6 +106,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { ColorPickerContent } from "~/components/ui/color-picker";
+import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 
 export const NESTED_EDITOR_NODES = [
   HeadingNode,
@@ -218,10 +219,10 @@ interface DraggableBoxWrapperProps {
     updates: Partial<SlideElementSpec>,
   ) => void;
   onElementDelete: (elementId: string) => void;
-  onBackgroundColorChange: (elementId: string, newColor: string) => void;
+  setShowColorPicker: Dispatch<SetStateAction<boolean>>;
   isLinkEditMode: boolean;
   setIsLinkEditMode: Dispatch<SetStateAction<boolean>>;
-  onModalActivityChange?: (isActive: boolean) => void;
+  deselectElement: () => void;
 }
 
 const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
@@ -233,9 +234,10 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   onSelect,
   onElementUpdate,
   onElementDelete,
-  onBackgroundColorChange,
+  setShowColorPicker,
   isLinkEditMode,
   setIsLinkEditMode,
+  deselectElement,
 }) => {
   const { attributes, listeners, setNodeRef, transform, active } = useDraggable(
     {
@@ -245,7 +247,6 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   );
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement>();
-  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
     if (_floatingAnchorElem !== null) {
@@ -323,30 +324,24 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => onElementDelete(element.id)}>
+              <DropdownMenuItem
+                onClick={() => {
+                  onElementDelete(element.id);
+                  deselectElement();
+                }}
+              >
                 <Trash2Icon className="h-4 w-4 mr-2" />
                 Delete
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={(e) => {
-                  e.preventDefault();
-                  setShowColorPicker(!showColorPicker);
+                onClick={() => {
+                  deselectElement();
+                  setShowColorPicker(true);
                 }}
               >
                 <PaintBucketIcon className="h-4 w-4 mr-2" />
                 Background Color
               </DropdownMenuItem>
-              {showColorPicker && (
-                <div className="p-0">
-                  <ColorPickerContent
-                    color={element.backgroundColor || "#ffffff"}
-                    onChange={(newColor) => {
-                      onBackgroundColorChange(element.id, newColor);
-                    }}
-                    className="min-w-[200px] shadow-none border-none"
-                  />
-                </div>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <LexicalNestedComposer
@@ -472,6 +467,7 @@ export default function SlideDeckEditorComponent({
   const [selectedElementId, setSelectedElementId] = useState<string | null>(
     null,
   );
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const currentSlideIndex = useMemo(() => {
     if (!deckData.slides || deckData.slides.length === 0) return -1;
@@ -754,7 +750,7 @@ export default function SlideDeckEditorComponent({
     [currentSlide, handleElementUpdate],
   );
 
-  const handleCanvasClick = () => {
+  const deselectElement = () => {
     setSelectedElementId(null);
   };
 
@@ -779,26 +775,43 @@ export default function SlideDeckEditorComponent({
         </div>
         <div
           className="slide-canvas-area bg-background border border-border rounded w-[1280px] h-[720px] mb-2 relative flex-grow overflow-hidden"
-          onClick={handleCanvasClick}
+          onClick={deselectElement}
         >
           {currentSlide.elements.map((element) => {
             const nestedEditor = activeElementEditors.get(element.id);
             if (element.kind === "box" && nestedEditor) {
               return (
-                <DraggableBoxWrapper
-                  key={element.id}
-                  element={element}
-                  nestedEditor={nestedEditor}
-                  onBoxContentChange={handleBoxContentChange}
-                  historyState={historyState}
-                  isSelected={selectedElementId === element.id}
-                  onSelect={setSelectedElementId}
-                  onElementUpdate={handleElementUpdate}
-                  onElementDelete={handleElementDelete}
-                  onBackgroundColorChange={handleBackgroundColorChange}
-                  isLinkEditMode={isLinkEditMode}
-                  setIsLinkEditMode={setIsLinkEditMode}
-                />
+                <>
+                  <Dialog
+                    open={showColorPicker}
+                    onOpenChange={setShowColorPicker}
+                  >
+                    <DialogContent className="p-4">
+                      <DialogTitle>Background Color</DialogTitle>
+                      <ColorPickerContent
+                        color={element.backgroundColor || "#ffffff"}
+                        onChange={(newColor) => {
+                          handleBackgroundColorChange(element.id, newColor);
+                        }}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                  <DraggableBoxWrapper
+                    key={element.id}
+                    element={element}
+                    nestedEditor={nestedEditor}
+                    onBoxContentChange={handleBoxContentChange}
+                    historyState={historyState}
+                    isSelected={selectedElementId === element.id}
+                    onSelect={setSelectedElementId}
+                    onElementUpdate={handleElementUpdate}
+                    onElementDelete={handleElementDelete}
+                    setShowColorPicker={setShowColorPicker}
+                    isLinkEditMode={isLinkEditMode}
+                    setIsLinkEditMode={setIsLinkEditMode}
+                    deselectElement={deselectElement}
+                  />
+                </>
               );
             }
             return null;

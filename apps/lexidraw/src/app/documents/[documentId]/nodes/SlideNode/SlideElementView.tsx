@@ -54,7 +54,11 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
     top: `${element.y}px`,
     width: `${element.width}px`,
     height: `${element.height}px`,
-    backgroundColor: "transparent",
+    backgroundColor: element.backgroundColor || "transparent",
+    border:
+      "borderColor" in element && element.borderColor
+        ? `1px solid ${element.borderColor}`
+        : "none",
     overflow: "hidden",
     boxSizing: "border-box",
   };

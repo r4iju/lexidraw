@@ -10,11 +10,11 @@ interface HexColorInputProps extends ColorInputBaseProps {
   alpha?: boolean;
 }
 
-/** Adds "#" symbol to the beginning of the string */
-const prefix = (value: string) => "#" + value;
-
 export const HexColorInput = (props: HexColorInputProps): JSX.Element => {
   const { prefixed, alpha, ...rest } = props;
+
+  /** Adds "#" symbol to the beginning of the string */
+  const prefix = useCallback((value: string) => "#" + value, []);
 
   /** Escapes all non-hexadecimal characters including "#" */
   const escape = useCallback(
@@ -29,7 +29,6 @@ export const HexColorInput = (props: HexColorInputProps): JSX.Element => {
     (value: string, alpha?: boolean): boolean => {
       const match = matcher.exec(value);
       const length = match && match[1] ? match[1].length : 0;
-
       return (
         length === 3 || // '#rgb' format
         length === 6 || // '#rrggbb' format

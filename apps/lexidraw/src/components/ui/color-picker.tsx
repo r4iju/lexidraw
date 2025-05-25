@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import * as React from "react";
-import { Label } from "./label"; // Your existing Label
+import { Label } from "./label";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "./dropdown-menu"; // Your existing Dropdown
-import { Button } from "./button"; // Your existing Button
+} from "./dropdown-menu";
+import { Button } from "./button";
 import type { LucideIcon } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip"; // Your existing Tooltip
-import { cn } from "~/lib/utils"; // Your existing cn utility
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import { cn } from "~/lib/utils";
 import { RefreshCcwIcon } from "lucide-react";
 import { Saturation as RcSaturation } from "../colorful/common/Saturation";
 import { Hue as RcHue } from "../colorful/common/Hue";
 import { HexColorInput as RcHexColorInput } from "../colorful/HexColorInput";
-import { HsvaColor, HexColor } from "../colorful/types"; // Use HsvaColor
+import { HsvaColor, HexColor } from "../colorful/types";
 import { useConvertUtils } from "../colorful/utils/convert";
 
 import "../colorful/css/styles.css";
