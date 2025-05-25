@@ -82,8 +82,10 @@ import { SettingsDropdown } from "./settings-dropdown";
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
+  className,
 }: {
   setIsLinkEditMode: Dispatch<boolean>;
+  className?: string;
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [activeEditor, setActiveEditor] = useState(editor);
@@ -393,7 +395,12 @@ export default function ToolbarPlugin({
   }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
 
   return (
-    <div className="flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible top-0">
+    <div
+      className={cn(
+        "flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible top-0",
+        className,
+      )}
+    >
       {/* Undo/Redo */}
       <div className="flex" role="group" aria-label="History actions">
         <TooltipButton
