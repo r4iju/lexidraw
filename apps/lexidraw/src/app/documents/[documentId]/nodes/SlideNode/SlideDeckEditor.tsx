@@ -92,7 +92,7 @@ import {
 import { cn } from "~/lib/utils";
 import ToolbarPlugin from "../../plugins/ToolbarPlugin";
 
-const NESTED_EDITOR_NODES = [
+export const NESTED_EDITOR_NODES = [
   HeadingNode,
   QuoteNode,
   ListItemNode,
@@ -376,7 +376,6 @@ export default function SlideDeckEditorComponent({
       return defaultData;
     }
   });
-  const [isLinkEditMode, setIsLinkEditMode] = useState(false);
 
   const elementEditorsRef = useRef<Map<string, LexicalEditor>>(new Map());
   const [activeElementEditors, setActiveElementEditors] = useState<
@@ -653,7 +652,11 @@ export default function SlideDeckEditorComponent({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="slide-deck-display bg-muted/20 p-2 flex flex-col">
         <div className="w-full flex justify-center mb-2">
-          <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
+          <ToolbarPlugin
+            setIsLinkEditMode={() => {
+              /* No-op */
+            }}
+          />
         </div>
         <div
           className="slide-canvas-area bg-background border border-border rounded w-[1280px] h-[720px] mb-2 relative flex-grow overflow-hidden"

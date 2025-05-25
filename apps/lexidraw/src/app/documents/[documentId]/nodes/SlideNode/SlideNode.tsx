@@ -227,7 +227,7 @@ function SlideNodeInner({
   return (
     <>
       <div onDoubleClick={handleOpenModal} className="cursor-pointer">
-        <SlideView initialDataString={dataString} />
+        <SlideView initialDataString={dataString} editor={editor} />
       </div>
       {isModalOpen && (
         <SlideModal
