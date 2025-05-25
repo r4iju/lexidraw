@@ -19,6 +19,8 @@ import {
   PlusCircleIcon,
   Trash2Icon,
   PlusSquareIcon,
+  EllipsisVerticalIcon,
+  PaintBucketIcon,
 } from "lucide-react";
 import {
   type EditorState,
@@ -97,6 +99,13 @@ import { DisableChecklistSpacebarPlugin } from "../../plugins/list-spacebar-plug
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import EmojiPickerPlugin from "../../plugins/EmojiPickerPlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { ColorPickerContent } from "~/components/ui/color-picker";
 
 export const NESTED_EDITOR_NODES = [
   HeadingNode,
@@ -208,6 +217,8 @@ interface DraggableBoxWrapperProps {
     elementId: string,
     updates: Partial<SlideElementSpec>,
   ) => void;
+  onElementDelete: (elementId: string) => void;
+  onBackgroundColorChange: (elementId: string, newColor: string) => void;
   isLinkEditMode: boolean;
   setIsLinkEditMode: Dispatch<SetStateAction<boolean>>;
   onModalActivityChange?: (isActive: boolean) => void;
@@ -221,6 +232,8 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   isSelected,
   onSelect,
   onElementUpdate,
+  onElementDelete,
+  onBackgroundColorChange,
   isLinkEditMode,
   setIsLinkEditMode,
 }) => {
@@ -232,6 +245,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   );
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement>();
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
     if (_floatingAnchorElem !== null) {
@@ -249,7 +263,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     height: element.height,
     border: "1px solid #ccc",
     overflow: "hidden",
-    backgroundColor: "white",
+    backgroundColor: element.backgroundColor || "white",
     boxSizing: "border-box",
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
@@ -300,84 +314,118 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
       className={cn("group slide-element-box", "p-1")}
       onClick={handleBoxClick}
     >
-      <div data-uid={element.id} className="relative size-full bg-white">
-        <LexicalNestedComposer
-          key={element.id}
-          initialEditor={nestedEditor}
-          initialNodes={NESTED_EDITOR_NODES}
-          initialTheme={editorTheme}
-          skipCollabChecks={true}
-        >
-          <DisableChecklistSpacebarPlugin />
-          <TabIndentationPlugin />
-          <EmojiPickerPlugin />
-          <RichTextPlugin
-            contentEditable={
-              <div ref={onRef}>
-                <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
+      <div data-uid={element.id} className="relative size-full">
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="absolute top-0 right-0 p-1 cursor-pointer z-10">
+                <EllipsisVerticalIcon className="h-4 w-4" />
               </div>
-            }
-            placeholder={
-              <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
-                Type...
-              </div>
-            }
-            ErrorBoundary={LexicalErrorBoundary}
-          />
-          <OnChangePlugin
-            onChange={(editorState) =>
-              onBoxContentChange(element.id, editorState)
-            }
-            ignoreHistoryMergeTagChange
-            ignoreSelectionChange
-          />
-          <HistoryPlugin externalHistoryState={historyState} />
-          <MarkdownShortcutPlugin />
-          <HorizontalRulePlugin />
-          <EquationsPlugin />
-          <AutoFocusPlugin />
-          <TablePlugin hasCellMerge hasCellBackgroundColor />
-          <MentionsPlugin />
-          <LinkPlugin />
-          <EmojisPlugin />
-          <HashtagPlugin />
-          <KeywordsPlugin />
-          <TwitterPlugin />
-          <YouTubePlugin />
-          <ExcalidrawPlugin />
-          <FigmaPlugin />
-          <ImagePlugin />
-          <InlineImagePlugin />
-          <VideoPlugin />
-          <LayoutPlugin />
-          <CollapsiblePlugin />
-          <PollPlugin />
-          <TableCellResizer />
-          {floatingAnchorElem && (
-            <>
-              <TableActionMenuPlugin
-                anchorElem={floatingAnchorElem}
-                cellMerge={true}
-              />
-              <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
-              <FloatingLinkEditorPlugin
-                anchorElem={floatingAnchorElem}
-                isLinkEditMode={isLinkEditMode}
-                setIsLinkEditMode={setIsLinkEditMode}
-              />
-              <TableActionMenuPlugin
-                anchorElem={floatingAnchorElem}
-                cellMerge={true}
-              />
-              <FloatingTextFormatToolbarPlugin
-                anchorElem={floatingAnchorElem}
-                setIsLinkEditMode={setIsLinkEditMode}
-              />
-            </>
-          )}
-        </LexicalNestedComposer>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => onElementDelete(element.id)}>
+                <Trash2Icon className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowColorPicker(!showColorPicker);
+                }}
+              >
+                <PaintBucketIcon className="h-4 w-4 mr-2" />
+                Background Color
+              </DropdownMenuItem>
+              {showColorPicker && (
+                <div className="p-0">
+                  <ColorPickerContent
+                    color={element.backgroundColor || "#ffffff"}
+                    onChange={(newColor) => {
+                      onBackgroundColorChange(element.id, newColor);
+                    }}
+                    className="min-w-[200px] shadow-none border-none"
+                  />
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <LexicalNestedComposer
+            key={element.id}
+            initialEditor={nestedEditor}
+            initialNodes={NESTED_EDITOR_NODES}
+            initialTheme={editorTheme}
+            skipCollabChecks={true}
+          >
+            <DisableChecklistSpacebarPlugin />
+            <TabIndentationPlugin />
+            <EmojiPickerPlugin />
+            <RichTextPlugin
+              contentEditable={
+                <div ref={onRef}>
+                  <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
+                </div>
+              }
+              placeholder={
+                <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
+                  Type...
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+            <OnChangePlugin
+              onChange={(editorState) =>
+                onBoxContentChange(element.id, editorState)
+              }
+              ignoreHistoryMergeTagChange
+              ignoreSelectionChange
+            />
+            <HistoryPlugin externalHistoryState={historyState} />
+            <MarkdownShortcutPlugin />
+            <HorizontalRulePlugin />
+            <EquationsPlugin />
+            <AutoFocusPlugin />
+            <TablePlugin hasCellMerge hasCellBackgroundColor />
+            <MentionsPlugin />
+            <LinkPlugin />
+            <EmojisPlugin />
+            <HashtagPlugin />
+            <KeywordsPlugin />
+            <TwitterPlugin />
+            <YouTubePlugin />
+            <ExcalidrawPlugin />
+            <FigmaPlugin />
+            <ImagePlugin />
+            <InlineImagePlugin />
+            <VideoPlugin />
+            <LayoutPlugin />
+            <CollapsiblePlugin />
+            <PollPlugin />
+            <TableCellResizer />
+            {floatingAnchorElem && (
+              <>
+                <TableActionMenuPlugin
+                  anchorElem={floatingAnchorElem}
+                  cellMerge={true}
+                />
+                <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+                <FloatingLinkEditorPlugin
+                  anchorElem={floatingAnchorElem}
+                  isLinkEditMode={isLinkEditMode}
+                  setIsLinkEditMode={setIsLinkEditMode}
+                />
+                <TableActionMenuPlugin
+                  anchorElem={floatingAnchorElem}
+                  cellMerge={true}
+                />
+                <FloatingTextFormatToolbarPlugin
+                  anchorElem={floatingAnchorElem}
+                  setIsLinkEditMode={setIsLinkEditMode}
+                />
+              </>
+            )}
+          </LexicalNestedComposer>
+        </>
       </div>
-      {/* selection/hover rings */}
       <div
         className={cn(
           "absolute inset-0 rounded pointer-events-none transition-all duration-100",
@@ -386,7 +434,6 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
             : "opacity-0 group-hover:opacity-100 group-hover:ring-2 group-hover:ring-primary/40",
         )}
       />
-      {/* corner handles for resizing when selected */}
       {isSelected &&
         (["nw", "ne", "sw", "se"] as const).map((corner) => (
           <CornerHandle
@@ -409,7 +456,10 @@ export default function SlideDeckEditorComponent({
     const parsed = JSON.parse(initialDataString) as SlideDeckData;
     parsed.slides = parsed.slides.map((s) => ({
       ...s,
-      elements: s.elements || [],
+      elements: (s.elements || []).map((el) => ({
+        ...el,
+        backgroundColor: el.backgroundColor || "#ffffff",
+      })),
     }));
     return parsed;
   });
@@ -651,6 +701,38 @@ export default function SlideDeckEditorComponent({
     [currentSlide, deckData, onDeckDataChange],
   );
 
+  const handleElementDelete = useCallback(
+    (elementId: string) => {
+      if (!currentSlide) return;
+      const newElements = currentSlide.elements.filter(
+        (el) => el.id !== elementId,
+      );
+      const newSlides = deckData.slides.map((s) =>
+        s.id === currentSlide.id ? { ...s, elements: newElements } : s,
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [currentSlide, deckData, onDeckDataChange],
+  );
+
+  const handleBackgroundColorChange = useCallback(
+    (elementId: string, newColor: string) => {
+      if (!currentSlide) return;
+      const newElements = currentSlide.elements.map((el) =>
+        el.id === elementId ? { ...el, backgroundColor: newColor } : el,
+      );
+      const newSlides = deckData.slides.map((s) =>
+        s.id === currentSlide.id ? { ...s, elements: newElements } : s,
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [currentSlide, deckData, onDeckDataChange],
+  );
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, delta } = event;
@@ -712,6 +794,8 @@ export default function SlideDeckEditorComponent({
                   isSelected={selectedElementId === element.id}
                   onSelect={setSelectedElementId}
                   onElementUpdate={handleElementUpdate}
+                  onElementDelete={handleElementDelete}
+                  onBackgroundColorChange={handleBackgroundColorChange}
                   isLinkEditMode={isLinkEditMode}
                   setIsLinkEditMode={setIsLinkEditMode}
                 />
@@ -721,7 +805,6 @@ export default function SlideDeckEditorComponent({
           })}
         </div>
 
-        {/* slide navigation and global controls */}
         <div className="slide-controls flex items-center justify-between p-2 mt-auto">
           <div className="flex items-center gap-2">
             <Button

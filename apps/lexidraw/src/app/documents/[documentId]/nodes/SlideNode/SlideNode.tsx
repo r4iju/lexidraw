@@ -35,6 +35,7 @@ export interface SlideElementSpec {
   height: number;
   editorStateJSON: string | null;
   version?: number;
+  backgroundColor?: string;
 }
 
 export interface SlideData {
