@@ -1,7 +1,7 @@
-import React, { useRef, useMemo, useEffect } from "react";
+import React, { useRef, useMemo, useEffect, useCallback } from "react";
 
 import { useEventCallback } from "../hooks/useEventCallback";
-import { clamp } from "../utils/clamp";
+import { useClampUtils } from "../utils/clamp";
 
 export interface Interaction {
   left: number;
@@ -23,31 +23,6 @@ const getTouchPoint = (touches: TouchList, touchId: null | number): Touch => {
 // Finds the proper window object to fix iframe embedding issues
 const getParentWindow = (node?: HTMLDivElement | null): Window => {
   return (node && node.ownerDocument.defaultView) || self;
-};
-
-// Returns a relative position of the pointer inside the node's bounding box
-const getRelativePosition = (
-  node: HTMLDivElement,
-  event: MouseEvent | TouchEvent,
-  touchId: null | number,
-): Interaction => {
-  const rect = node.getBoundingClientRect();
-
-  // Get user's pointer position from `touches` array if it's a `TouchEvent`
-  const pointer = isTouch(event)
-    ? getTouchPoint(event.touches, touchId)
-    : (event as MouseEvent);
-
-  return {
-    left: clamp(
-      (pointer.pageX - (rect.left + getParentWindow(node).pageXOffset)) /
-        rect.width,
-    ),
-    top: clamp(
-      (pointer.pageY - (rect.top + getParentWindow(node).pageYOffset)) /
-        rect.height,
-    ),
-  };
 };
 
 // Browsers introduced an intervention, making touch events passive by default.
@@ -73,11 +48,39 @@ interface Props {
 }
 
 const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
+  const { clamp } = useClampUtils();
   const container = useRef<HTMLDivElement>(null);
   const onMoveCallback = useEventCallback<Interaction>(onMove);
   const onKeyCallback = useEventCallback<Interaction>(onKey);
   const touchId = useRef<null | number>(null);
   const hasTouch = useRef(false);
+
+  const getRelativePosition = useCallback(
+    (
+      node: HTMLDivElement,
+      event: MouseEvent | TouchEvent,
+      touchId: null | number,
+    ): Interaction => {
+      const rect = node.getBoundingClientRect();
+
+      // Get user's pointer position from `touches` array if it's a `TouchEvent`
+      const pointer = isTouch(event)
+        ? getTouchPoint(event.touches, touchId)
+        : (event as MouseEvent);
+
+      return {
+        left: clamp(
+          (pointer.pageX - (rect.left + getParentWindow(node).pageXOffset)) /
+            rect.width,
+        ),
+        top: clamp(
+          (pointer.pageY - (rect.top + getParentWindow(node).pageYOffset)) /
+            rect.height,
+        ),
+      };
+    },
+    [clamp],
+  );
 
   const [handleMoveStart, handleKeyDown, toggleDocumentEvents] = useMemo(() => {
     const handleMoveStart = ({
@@ -158,7 +161,7 @@ const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
     }
 
     return [handleMoveStart, handleKeyDown, toggleDocumentEvents];
-  }, [onKeyCallback, onMoveCallback]);
+  }, [onKeyCallback, onMoveCallback, getRelativePosition]);
 
   // Remove window event listeners before unmounting
   useEffect(() => toggleDocumentEvents, [toggleDocumentEvents]);

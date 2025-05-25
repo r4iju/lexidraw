@@ -1,10 +1,10 @@
 import React from "react";
 import { Interactive, Interaction } from "./Interactive";
 import { Pointer } from "./Pointer";
-import { hsvaToHslString } from "../utils/convert";
-import { clamp } from "../utils/clamp";
-import { round } from "../utils/round";
+import { useConvertUtils } from "../utils/convert";
+import { useClampUtils } from "../utils/clamp";
 import { cn } from "~/lib/utils";
+import { useRoundUtils } from "../utils/round";
 
 interface Props {
   className?: string;
@@ -13,6 +13,10 @@ interface Props {
 }
 
 const HueBase = ({ className, hue, onChange }: Props) => {
+  const { round } = useRoundUtils();
+  const { hsvaToHslString } = useConvertUtils();
+  const { clamp } = useClampUtils();
+
   const handleMove = (interaction: Interaction) => {
     onChange({ h: 360 * interaction.left });
   };

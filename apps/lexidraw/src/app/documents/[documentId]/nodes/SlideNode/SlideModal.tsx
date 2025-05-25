@@ -36,18 +36,25 @@ export const SlideModal: React.FC<SlideModalProps> = ({
     useState<string>(initialDataString);
 
   useEffect(() => {
-    setDeckDataString(initialDataString);
-    try {
-      setCurrentDeckData(JSON.parse(initialDataString));
-    } catch (e) {
-      console.error("Failed to parse initialDataString in SlideModal", e);
-      setCurrentDeckData(null);
+    if (isOpen) {
+      setDeckDataString(initialDataString);
+      try {
+        const parsedData = JSON.parse(initialDataString);
+        setCurrentDeckData(parsedData);
+      } catch (e) {
+        console.error(
+          "[SlideModal] Failed to parse initialDataString in useEffect",
+          e,
+        );
+        setCurrentDeckData(null);
+      }
     }
   }, [initialDataString, isOpen]);
 
   const handleDeckDataChange = useCallback((newDeckData: SlideDeckData) => {
+    const newDeckDataString = JSON.stringify(newDeckData);
     setCurrentDeckData(newDeckData);
-    setDeckDataString(JSON.stringify(newDeckData));
+    setDeckDataString(newDeckDataString);
   }, []);
 
   const handleSave = () => {

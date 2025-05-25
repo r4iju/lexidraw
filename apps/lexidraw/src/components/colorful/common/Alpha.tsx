@@ -1,9 +1,9 @@
 import type { JSX } from "react";
 import { Interactive, Interaction } from "./Interactive";
 import { Pointer } from "./Pointer";
-import { hsvaToHslaString } from "../utils/convert";
-import { clamp } from "../utils/clamp";
-import { round } from "../utils/round";
+import { useConvertUtils } from "../utils/convert";
+import { useClampUtils } from "../utils/clamp";
+import { useRoundUtils } from "../utils/round";
 import { HsvaColor } from "../types";
 import { cn } from "~/lib/utils";
 
@@ -29,6 +29,10 @@ const PointerBackground = ({ className }: { className?: string }) => {
 };
 
 export const Alpha = ({ className, hsva, onChange }: Props): JSX.Element => {
+  const { hsvaToHslaString } = useConvertUtils();
+  const { clamp } = useClampUtils();
+  const { round } = useRoundUtils();
+
   const handleMove = (interaction: Interaction) => {
     onChange({ a: interaction.left });
   };

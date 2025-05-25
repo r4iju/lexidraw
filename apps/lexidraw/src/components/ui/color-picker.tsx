@@ -15,7 +15,7 @@ import { Saturation as RcSaturation } from "../colorful/common/Saturation";
 import { Hue as RcHue } from "../colorful/common/Hue";
 import { HexColorInput as RcHexColorInput } from "../colorful/HexColorInput";
 import { HsvaColor, HexColor } from "../colorful/types"; // Use HsvaColor
-import { hsvaToHex, hexToHsva } from "../colorful/utils/convert";
+import { useConvertUtils } from "../colorful/utils/convert";
 
 import "../colorful/css/styles.css";
 
@@ -62,6 +62,8 @@ export function ColorPickerContent({
   className,
   pickerWidth = DEFAULT_PICKER_WIDTH,
 }: Readonly<ColorPickerContentProps>): React.JSX.Element {
+  const { hexToHsva, hsvaToHex } = useConvertUtils();
+
   const [currentHsva, setCurrentHsva] = useState<HsvaColor>(() =>
     hexToHsva(color || "#000000"),
   );
@@ -81,7 +83,14 @@ export function ColorPickerContent({
       console.error("Error converting hex to hsva in useEffect:", _e);
       setCurrentHsva(hexToHsva("#000000"));
     }
-  }, [color, currentHsva.h, currentHsva.s, currentHsva.v, currentHsva.a]);
+  }, [
+    color,
+    currentHsva.h,
+    currentHsva.s,
+    currentHsva.v,
+    currentHsva.a,
+    hexToHsva,
+  ]);
 
   const handleSaturationChange = useCallback(
     (newSaturationValue: { s: number; v: number }) => {
@@ -93,7 +102,7 @@ export function ColorPickerContent({
       setCurrentHsva(newHsvaColor);
       onChange?.(hsvaToHex(newHsvaColor), true);
     },
-    [currentHsva, onChange],
+    [currentHsva, hsvaToHex, onChange],
   );
 
   // Corrected: RcHue's onChange provides newHue as a number
@@ -107,7 +116,7 @@ export function ColorPickerContent({
       setCurrentHsva(newHsvaColor);
       onChange?.(hsvaToHex(newHsvaColor), true);
     },
-    [currentHsva, onChange],
+    [currentHsva, hsvaToHex, onChange],
   );
 
   const handleHexInputChange = useCallback(
@@ -116,12 +125,12 @@ export function ColorPickerContent({
       setCurrentHsva(newHsvaColor);
       onChange?.(newHex, false);
     },
-    [onChange],
+    [hexToHsva, onChange],
   );
 
   const currentHexForDisplay = useMemo(
     () => hsvaToHex(currentHsva),
-    [currentHsva],
+    [currentHsva, hsvaToHex],
   );
 
   return (

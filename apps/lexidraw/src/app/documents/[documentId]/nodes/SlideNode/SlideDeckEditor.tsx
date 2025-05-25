@@ -466,7 +466,11 @@ export default function SlideDeckEditorComponent({
     if (!currentSlide) return;
     const newElements = currentSlide.elements.map((el) =>
       el.id === elementId
-        ? { ...el, editorStateJSON: JSON.stringify(newEditorState) }
+        ? {
+            ...el,
+            editorStateJSON: JSON.stringify(newEditorState),
+            version: (el.version || 0) + 1,
+          }
         : el,
     );
     const newSlides = deckData.slides.map((s) =>
