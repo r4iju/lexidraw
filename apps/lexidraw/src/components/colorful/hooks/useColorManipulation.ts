@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ColorModel, AnyColor, HsvaColor } from "../types";
-import { equalColorObjects } from "../utils/compare";
+import { useCompareUtils } from "../utils/compare";
 import { useEventCallback } from "./useEventCallback";
 
 export function useColorManipulation<T extends AnyColor>(
@@ -8,6 +8,8 @@ export function useColorManipulation<T extends AnyColor>(
   color: T,
   onChange?: (color: T) => void,
 ): [HsvaColor, (color: Partial<HsvaColor>) => void] {
+  const { equalColorObjects } = useCompareUtils();
+
   // Save onChange callback in the ref for avoiding "useCallback hell"
   const onChangeCallback = useEventCallback<T>(onChange);
 
@@ -45,7 +47,7 @@ export function useColorManipulation<T extends AnyColor>(
       cache.current = { hsva, color: newColor };
       onChangeCallback(newColor);
     }
-  }, [hsva, colorModel, onChangeCallback]);
+  }, [hsva, colorModel, onChangeCallback, equalColorObjects]);
 
   // Merge the current HSVA color object with updated params.
   // For example, when a child component sends `h` or `s` only

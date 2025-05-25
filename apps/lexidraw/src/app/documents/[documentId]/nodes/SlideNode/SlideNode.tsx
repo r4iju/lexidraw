@@ -9,6 +9,10 @@ import {
   LexicalEditor,
   SerializedLexicalNode,
   $getNodeByKey,
+  $getSelection,
+  $isNodeSelection,
+  $createNodeSelection,
+  $setSelection,
 } from "lexical";
 import React, {
   type JSX,
@@ -20,6 +24,7 @@ import React, {
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import SlideView from "./SlideView";
 import { SlideModal } from "./SlideModal";
+import { cn } from "~/lib/utils";
 
 export interface SlideElementSpec {
   kind: "box";
@@ -29,6 +34,7 @@ export interface SlideElementSpec {
   width: number;
   height: number;
   editorStateJSON: string | null;
+  version?: number;
 }
 
 export interface SlideData {
@@ -98,7 +104,8 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
   }
 
   static clone(node: SlideNode): SlideNode {
-    return new SlideNode(node.__data, node.__key);
+    const clonedNode = new SlideNode(node.__data, node.__key);
+    return clonedNode;
   }
 
   constructor(data?: string, key?: NodeKey) {
@@ -131,18 +138,21 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
     );
   }
 
-  // Data management methods
   setData(data: SlideDeckData): void {
     const writable = this.getWritable();
-    writable.__data = JSON.stringify(data);
+    const newDataString = JSON.stringify(data);
+    writable.__data = newDataString;
   }
 
   getData(): SlideDeckData {
     try {
       return JSON.parse(this.__data) as SlideDeckData;
     } catch (e) {
-      console.error("Error parsing SlideDeckNode data:", e);
-      return DEFAULT_SLIDE_DECK_DATA; // Return default on error
+      console.error(
+        "[SlideNode] Error parsing SlideDeckNode data in getData:",
+        e,
+      );
+      return DEFAULT_SLIDE_DECK_DATA;
     }
   }
 
@@ -194,28 +204,62 @@ function SlideNodeInner({
   initialDataString: string;
 }) {
   const [editor] = useLexicalComposerContext();
-  const [dataString, setDataString] = useState(initialDataString);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSelectionUI, setShowSelectionUI] = useState(false);
 
   useEffect(() => {
-    setDataString(initialDataString);
-  }, [initialDataString]);
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const selection = $getSelection();
+        if ($isNodeSelection(selection)) {
+          const selectedNodes = selection.getNodes();
+          if (
+            selectedNodes.length === 1 &&
+            selectedNodes[0] &&
+            selectedNodes[0].getKey() === nodeKey
+          ) {
+            setShowSelectionUI(true);
+            return;
+          }
+        }
+        setShowSelectionUI(false);
+      });
+    });
+  }, [editor, nodeKey]);
 
   const handleOpenModal = useCallback(() => {
     setIsModalOpen(true);
   }, []);
 
+  const handleSelect = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
+      editor.update(() => {
+        editor.focus();
+        const selection = $getSelection();
+        if (
+          !$isNodeSelection(selection) ||
+          !selection.getNodes().find((node) => node.getKey() === nodeKey)
+        ) {
+          const nodeSelection = $createNodeSelection();
+          nodeSelection.add(nodeKey);
+          $setSelection(nodeSelection);
+        }
+      });
+    },
+    [editor, nodeKey],
+  );
+
   const handleSaveModal = useCallback(
     (updatedDataString: string) => {
       editor.update(() => {
-        const node = $getNodeByKey(nodeKey) as SlideNode | null;
-        if (SlideNode.$isSlideDeckNode(node)) {
+        const node = $getNodeByKey<SlideNode>(nodeKey);
+        if (node) {
           try {
             const parsedData = JSON.parse(updatedDataString) as SlideDeckData;
             node.setData(parsedData);
-            setDataString(updatedDataString);
           } catch (e) {
-            console.error("Error saving slide data:", e);
+            console.error("[SlideNodeInner] Error saving slide data:", e);
           }
         }
       });
@@ -226,13 +270,19 @@ function SlideNodeInner({
 
   return (
     <>
-      <div onDoubleClick={handleOpenModal} className="cursor-pointer">
-        <SlideView initialDataString={dataString} editor={editor} />
+      <div
+        onDoubleClick={handleOpenModal}
+        onClick={handleSelect}
+        className={cn("cursor-pointer relative", {
+          "ring-1 ring-primary box-content": showSelectionUI,
+        })}
+      >
+        <SlideView initialDataString={initialDataString} editor={editor} />
       </div>
       {isModalOpen && (
         <SlideModal
           nodeKey={nodeKey}
-          initialDataString={dataString}
+          initialDataString={initialDataString}
           editor={editor}
           onSave={handleSaveModal}
           onOpenChange={setIsModalOpen}

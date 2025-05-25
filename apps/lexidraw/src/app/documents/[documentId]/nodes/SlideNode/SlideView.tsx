@@ -20,16 +20,21 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
     try {
       const parsed = JSON.parse(initialDataString);
       if (parsed.slides && Array.isArray(parsed.slides)) {
-        parsed.slides = parsed.slides.map((s: SlideData) => ({
-          ...s,
-          elements: s.elements || [],
+        parsed.slides = parsed.slides.map((slide: SlideData) => ({
+          ...slide,
+          elements: slide.elements
+            ? slide.elements.map((el) => ({ ...el, version: el.version || 0 }))
+            : [],
         }));
       } else {
         parsed.slides = [];
       }
       return parsed;
-    } catch (e) {
-      console.error("Error parsing slide data in SlideView: ", e);
+    } catch (error) {
+      console.error(
+        "[SlideView] Error parsing initialDataString in useState for deckData:",
+        error,
+      );
       return { ...DEFAULT_SLIDE_DECK_DATA };
     }
   });
@@ -37,22 +42,31 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
   const [viewingSlideIndex, setViewingSlideIndex] = useState(0);
 
   useEffect(() => {
+    // console.log(
+    //   "[SlideView] useEffect (dependency: initialDataString) - New initialDataString:",
+    //   initialDataString,
+    // );
     try {
       const parsed = JSON.parse(initialDataString);
       if (parsed.slides && Array.isArray(parsed.slides)) {
-        parsed.slides = parsed.slides.map((s: SlideData) => ({
-          ...s,
-          elements: s.elements || [],
+        parsed.slides = parsed.slides.map((slide: SlideData) => ({
+          ...slide,
+          elements: slide.elements
+            ? slide.elements.map((el) => ({ ...el, version: el.version || 0 }))
+            : [],
         }));
       } else {
         parsed.slides = [];
       }
       setDeckData(parsed);
+      // console.log(
+      //   "[SlideView] useEffect - Called setDeckData. Resetting viewingSlideIndex to 0.",
+      // );
       setViewingSlideIndex(0);
-    } catch (e) {
+    } catch (error) {
       console.error(
-        "Error updating slide data in SlideView from initialDataString: ",
-        e,
+        "[SlideView] Error in useEffect from initialDataString: ",
+        error,
       );
       setDeckData({ ...DEFAULT_SLIDE_DECK_DATA });
       setViewingSlideIndex(0);
@@ -70,7 +84,7 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
     };
 
     if (containerRef.current) {
-      updateActualWidth(); // Initial width
+      updateActualWidth();
       const resizeObserver = new ResizeObserver(updateActualWidth);
       resizeObserver.observe(containerRef.current);
       return () => resizeObserver.disconnect();
@@ -90,6 +104,7 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
   };
 
   if (!deckData || !deckData.slides || deckData.slides.length === 0) {
+    // console.log("[SlideView] Rendering: No slides to display.");
     return (
       <div
         className="p-4 border border-dashed border-muted text-muted-foreground"
@@ -105,8 +120,10 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
   }
 
   const currentSlide = deckData.slides[viewingSlideIndex];
+  // console.log("[SlideView] Rendering with viewingSlideIndex:", viewingSlideIndex, "currentSlide ID:", currentSlide?.id);
 
   if (!currentSlide) {
+    // console.log("[SlideView] Rendering: Current slide data is missing for index", viewingSlideIndex);
     return (
       <div
         className="p-4 border border-dashed border-destructive text-destructive-foreground"
@@ -143,7 +160,7 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
       >
         {currentSlide.elements.map((element) => (
           <SlideElementView
-            key={`${currentSlide.id}-${element.id}`}
+            key={`${currentSlide.id}-${element.id}-${element.version}`}
             element={element}
             parentEditor={editor}
           />

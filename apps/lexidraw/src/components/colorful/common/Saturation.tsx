@@ -3,9 +3,9 @@ import { cn } from "~/lib/utils";
 import { Interactive, Interaction } from "./Interactive";
 import { Pointer } from "./Pointer";
 import { HsvaColor } from "../types";
-import { hsvaToHslString } from "../utils/convert";
-import { clamp } from "../utils/clamp";
-import { round } from "../utils/round";
+import { useConvertUtils } from "../utils/convert";
+import { useClampUtils } from "../utils/clamp";
+import { useRoundUtils } from "../utils/round";
 
 interface Props {
   hsva: HsvaColor;
@@ -14,6 +14,8 @@ interface Props {
 }
 
 const SaturationBase = ({ hsva, onChange, className }: Props) => {
+  const { round } = useRoundUtils();
+  const { clamp } = useClampUtils();
   const handleMove = (interaction: Interaction) => {
     onChange({
       s: interaction.left * 100,
@@ -28,6 +30,8 @@ const SaturationBase = ({ hsva, onChange, className }: Props) => {
       v: clamp(hsva.v - offset.top * 100, 0, 100),
     });
   };
+
+  const { hsvaToHslString } = useConvertUtils();
 
   const pureHueBackgroundColor = hsvaToHslString({
     h: hsva.h,

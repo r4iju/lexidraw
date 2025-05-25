@@ -4,7 +4,7 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { SlideElementSpec } from "./SlideNode";
+import { DEFAULT_BOX_EDITOR_STATE_STRING, SlideElementSpec } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
 
@@ -26,23 +26,22 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
       namespace: `slide-element-view-${element.id}`,
       onError: (error: Error) =>
         console.error(
-          `Error in read-only nested editor for element ${element.id}:`,
+          `[SlideElementView] Error in read-only nested editor for element ${element.id}:`,
           error,
         ),
     });
     try {
       const initialEditorState = editor.parseEditorState(
-        element.editorStateJSON ||
-          '{"root":{"children":[{"type":"paragraph","version":1,"children":[]}],"direction":null,"format":"","indent":0,"type":"root","version":1}}',
+        element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE_STRING,
       );
       editor.setEditorState(initialEditorState);
     } catch (e) {
       console.error(
-        `Failed to parse state for read-only element ${element.id}:`,
+        `[SlideElementView] Failed to parse state for read-only element ${element.id}:`,
         e,
       );
       const emptyState = editor.parseEditorState(
-        '{"root":{"children":[{"type":"paragraph","version":1,"children":[]}],"direction":null,"format":"","indent":0,"type":"root","version":1}}',
+        DEFAULT_BOX_EDITOR_STATE_STRING,
       );
       editor.setEditorState(emptyState);
     }
@@ -67,7 +66,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
   return (
     <div style={elementStyle} data-element-id={element.id}>
       <LexicalNestedComposer
-        key={element.id}
+        key={`${element.id}-${element.version}`}
         initialEditor={viewEditor}
         initialNodes={NESTED_EDITOR_NODES}
         initialTheme={editorTheme}
@@ -75,12 +74,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
       >
         <RichTextPlugin
           contentEditable={
-            <ContentEditable
-              className="p-1 h-full w-full outline-none select-none caret-transparent"
-              style={{
-                fontSize: "10px",
-              }}
-            />
+            <ContentEditable className="p-1 h-full w-full outline-none select-none caret-transparent pointer-events-none" />
           }
           placeholder={null}
           ErrorBoundary={LexicalErrorBoundary}
