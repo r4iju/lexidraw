@@ -153,6 +153,7 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
           transform: `scale(${scale})`,
           transformOrigin: "0 0",
           position: "relative",
+          backgroundColor: currentSlide.backgroundColor || "transparent",
         }}
       >
         {currentSlide.elements.map((element) => (

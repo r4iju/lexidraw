@@ -36,11 +36,13 @@ export interface SlideElementSpec {
   editorStateJSON: string | null;
   version?: number;
   backgroundColor?: string;
+  pendingMarkdownContent?: string;
 }
 
 export interface SlideData {
   id: string;
   elements: SlideElementSpec[];
+  backgroundColor?: string;
 }
 
 export interface SlideDeckData {

@@ -63,6 +63,12 @@ import { PageBreakNode } from "../../nodes/PageBreakNode";
 import { PollNode } from "../../nodes/PollNode";
 import { TweetNode } from "../../nodes/TweetNode";
 import { YouTubeNode } from "../../nodes/YouTubeNode";
+import {
+  SlideNode,
+  DEFAULT_SLIDE_DECK_DATA,
+  SlideDeckData,
+  SlideData,
+} from "../../nodes/SlideNode/SlideNode";
 
 import { useChatDispatch } from "./llm-chat-context";
 import { useRuntimeSpec } from "./reflect-editor-runtime";
@@ -3389,6 +3395,126 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   });
 
   /* --------------------------------------------------------------
+   * Insert SlideDeckNode Tool
+   * --------------------------------------------------------------*/
+  const insertSlideDeckNode = tool({
+    description:
+      "Inserts a new SlideDeckNode. SlideDeckNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, initial slide data can be provided as a JSON string.",
+    parameters: z.object({
+      initialDataJSON: z
+        .string()
+        .optional()
+        .describe(
+          "Optional JSON string of SlideDeckData. If not provided, uses default slide deck data.",
+        ),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+    }),
+    execute: async ({ initialDataJSON, relation, anchor }): ExecuteResult => {
+      try {
+        console.log("[insertSlideDeckNode] Starting", {
+          initialDataJSON,
+          relation,
+          anchor,
+        });
+
+        const resolution = await resolveInsertionPoint(
+          editor,
+          relation,
+          anchor,
+        );
+
+        if (resolution.status === "error") {
+          console.error(
+            `❌ [insertSlideDeckNode] Error: ${resolution.message}`,
+          );
+          return { success: false, error: resolution.message };
+        }
+
+        let targetKeyForSummary: string | null = null;
+        let newNodeKey: string | null = null;
+
+        editor.update(() => {
+          let slideData: SlideDeckData;
+          if (initialDataJSON) {
+            try {
+              slideData = JSON.parse(initialDataJSON) as SlideDeckData;
+            } catch (e) {
+              console.warn(
+                "[insertSlideDeckNode] Failed to parse initialDataJSON, using default data.",
+                e,
+              );
+              slideData = DEFAULT_SLIDE_DECK_DATA;
+            }
+          } else {
+            slideData = DEFAULT_SLIDE_DECK_DATA;
+          }
+
+          const newSlideDeckNode = SlideNode.$createSlideNode(slideData);
+          newNodeKey = newSlideDeckNode.getKey();
+
+          if (resolution.type === "appendRoot") {
+            $getRoot().append(newSlideDeckNode);
+            targetKeyForSummary = $getRoot().getKey();
+          } else {
+            const targetNode = $getNodeByKey(resolution.targetKey);
+            targetKeyForSummary = resolution.targetKey;
+
+            if (!targetNode) {
+              throw new Error(
+                `Target node with key ${resolution.targetKey} not found within editor update.`,
+              );
+            }
+
+            // SlideDeckNode is block-level
+            if (resolution.type === "before") {
+              targetNode.insertBefore(newSlideDeckNode);
+            } else {
+              // 'after'
+              targetNode.insertAfter(newSlideDeckNode);
+            }
+          }
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+
+        const summary =
+          resolution.type === "appendRoot"
+            ? "Appended new Slide Deck."
+            : `Inserted Slide Deck ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+        console.log(`✅ [insertSlideDeckNode] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newNodeKey ?? undefined,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [insertSlideDeckNode] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (stateErr) {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to insert Slide Deck",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
    * Find and Select Text Tool
    * --------------------------------------------------------------*/
   const findAndSelectTextForComment = tool({
@@ -3766,6 +3892,427 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  /* --------------------------------------------------------------
+   * Add Slide Page Tool
+   * --------------------------------------------------------------*/
+  const addSlidePage = tool({
+    description:
+      "Adds a new, empty slide page to an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      newSlideId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional ID for the new slide. If not provided, a unique ID (e.g., 'slide-<timestamp>') will be generated.",
+        ),
+      insertionIndex: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe(
+          "Optional 0-based index at which to insert the new slide. If undefined or out of bounds, the slide is appended to the end.",
+        ),
+      focusNewSlide: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe(
+          "If true (default), the 'currentSlideId' of the deck will be set to the ID of the newly added slide.",
+        ),
+      backgroundColor: z
+        .string()
+        .optional()
+        .describe(
+          "Optional background color for the new slide (e.g., '#FF0000', 'blue'). Defaults to transparent/white.",
+        ),
+    }),
+    execute: async ({
+      deckNodeKey,
+      newSlideId,
+      insertionIndex,
+      focusNewSlide,
+      backgroundColor,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+        let updatedDeckData: SlideDeckData | null = null;
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          const newId = newSlideId || `slide-${Date.now()}`;
+          const newPage: SlideData = {
+            id: newId,
+            elements: [],
+            backgroundColor: backgroundColor,
+          };
+
+          const newSlides = [...currentDeckData.slides];
+          let actualInsertionIndex = insertionIndex;
+
+          if (
+            actualInsertionIndex === undefined ||
+            actualInsertionIndex < 0 ||
+            actualInsertionIndex > newSlides.length
+          ) {
+            actualInsertionIndex = newSlides.length; // Append to end
+          }
+          newSlides.splice(actualInsertionIndex, 0, newPage);
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: newSlides,
+            currentSlideId: focusNewSlide
+              ? newId
+              : currentDeckData.currentSlideId,
+          };
+          deckNode.setData(finalDeckData);
+          updatedDeckData = finalDeckData;
+          summary = `Added new slide page (ID: ${newId}) to deck ${deckNodeKey} at index ${actualInsertionIndex}.`;
+          if (focusNewSlide) {
+            summary += ` Focused new slide.`;
+          }
+        });
+
+        if (!updatedDeckData) {
+          // Should not happen if update runs
+          throw new Error("Failed to update slide deck data.");
+        }
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [addSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: deckNodeKey,
+          }, // deckNodeKey as newNodeKey as the deck itself was modified
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [addSlidePage] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Remove Slide Page Tool
+   * --------------------------------------------------------------*/
+  const removeSlidePage = tool({
+    description:
+      "Removes a specific slide page from an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide. Cannot remove the last slide.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideIdToRemove: z
+        .string()
+        .describe("The ID of the slide page to remove."),
+    }),
+    execute: async ({ deckNodeKey, slideIdToRemove }): ExecuteResult => {
+      try {
+        let summary = "";
+        let updatedDeckData: SlideDeckData | null = null;
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          if (currentDeckData.slides.length <= 1) {
+            throw new Error("Cannot remove the last slide from a deck.");
+          }
+
+          const slideToRemoveIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideIdToRemove,
+          );
+
+          if (slideToRemoveIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideIdToRemove} not found in deck ${deckNodeKey}.`,
+            );
+          }
+
+          const newSlides = currentDeckData.slides.filter(
+            (s) => s.id !== slideIdToRemove,
+          );
+
+          let newCurrentSlideId = currentDeckData.currentSlideId;
+          if (currentDeckData.currentSlideId === slideIdToRemove) {
+            if (newSlides.length > 0) {
+              // Focus previous or the new first slide
+              const newFocusIndex = Math.max(0, slideToRemoveIndex - 1);
+              newCurrentSlideId = newSlides[newFocusIndex]?.id ?? null;
+              if (!newCurrentSlideId && newSlides[0]?.id) {
+                // Should always find one if newSlides not empty
+                newCurrentSlideId = newSlides[0].id;
+              }
+            } else {
+              // This case should be prevented by the "length <= 1" check,
+              // but as a fallback, if somehow all slides are gone (which is an error state).
+              newCurrentSlideId = null;
+            }
+          }
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: newSlides,
+            currentSlideId: newCurrentSlideId,
+          };
+          deckNode.setData(finalDeckData);
+          updatedDeckData = finalDeckData;
+          summary = `Removed slide page (ID: ${slideIdToRemove}) from deck ${deckNodeKey}.`;
+          if (
+            currentDeckData.currentSlideId === slideIdToRemove &&
+            newCurrentSlideId
+          ) {
+            summary += ` New current slide is ${newCurrentSlideId}.`;
+          } else if (
+            currentDeckData.currentSlideId === slideIdToRemove &&
+            !newCurrentSlideId
+          ) {
+            summary += ` Current slide focus cleared (should not happen if slides remain).`;
+          }
+        });
+
+        if (!updatedDeckData) {
+          throw new Error("Failed to update slide deck data during removal.");
+        }
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [removeSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: deckNodeKey,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [removeSlidePage] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Reorder Slide Page Tool
+   * --------------------------------------------------------------*/
+  const reorderSlidePage = tool({
+    description:
+      "Reorders a slide page within an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideIdToMove: z
+        .string()
+        .describe("The ID of the slide page to reorder."),
+      newIndex: z
+        .number()
+        .int()
+        .min(0)
+        .describe(
+          "The new 0-based index for the slide. The slide will be moved to this position.",
+        ),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideIdToMove,
+      newIndex,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+        let updatedDeckData: SlideDeckData | null = null;
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          const slideToMove = currentDeckData.slides.find(
+            (s) => s.id === slideIdToMove,
+          );
+
+          if (!slideToMove) {
+            throw new Error(
+              `Slide with ID ${slideIdToMove} not found in deck ${deckNodeKey}.`,
+            );
+          }
+
+          const tempSlides = currentDeckData.slides.filter(
+            (s) => s.id !== slideIdToMove,
+          );
+
+          // Clamp newIndex to be within the bounds of the modified array
+          const actualNewIndex = Math.max(
+            0,
+            Math.min(newIndex, tempSlides.length),
+          );
+
+          tempSlides.splice(actualNewIndex, 0, slideToMove);
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: tempSlides,
+            // currentSlideId remains unchanged by reordering
+          };
+          deckNode.setData(finalDeckData);
+          updatedDeckData = finalDeckData;
+          summary = `Reordered slide page (ID: ${slideIdToMove}) in deck ${deckNodeKey} to new index ${actualNewIndex}.`;
+        });
+
+        if (!updatedDeckData) {
+          throw new Error("Failed to update slide deck data during reorder.");
+        }
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [reorderSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: deckNodeKey,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [reorderSlidePage] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Set Slide Page Background Tool
+   * --------------------------------------------------------------*/
+  const setSlidePageBackground = tool({
+    description:
+      "Sets the background color of a specific slide page within a SlideDeckNode.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideTarget: z
+        .union([
+          z.object({ type: z.literal("id"), slideId: z.string() }),
+          z.object({
+            type: z.literal("index"),
+            slideIndex: z.number().int().min(0),
+          }),
+        ])
+        .describe("Identifier for the target slide (by ID or index)."),
+      backgroundColor: z
+        .string()
+        .describe(
+          "The new background color for the slide (e.g., '#FF0000', 'blue').",
+        ),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideTarget,
+      backgroundColor,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+        let updatedDeckData: SlideDeckData | null = null;
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          let targetSlideIndex = -1;
+
+          if (slideTarget.type === "id") {
+            targetSlideIndex = currentDeckData.slides.findIndex(
+              (s) => s.id === slideTarget.slideId,
+            );
+            if (targetSlideIndex === -1) {
+              throw new Error(
+                `Slide with ID ${slideTarget.slideId} not found in deck ${deckNodeKey}.`,
+              );
+            }
+          } else {
+            targetSlideIndex = slideTarget.slideIndex;
+            if (
+              targetSlideIndex < 0 ||
+              targetSlideIndex >= currentDeckData.slides.length
+            ) {
+              throw new Error(
+                `Slide index ${targetSlideIndex} is out of bounds for deck ${deckNodeKey}. Number of slides: ${currentDeckData.slides.length}`,
+              );
+            }
+          }
+
+          const targetSlide = currentDeckData.slides[targetSlideIndex];
+          if (!targetSlide) {
+            throw new Error(
+              `Target slide at index ${targetSlideIndex} could not be retrieved for deck ${deckNodeKey}.`,
+            );
+          }
+
+          const updatedSlideData = {
+            ...targetSlide,
+            backgroundColor: backgroundColor,
+          };
+
+          const newSlides = [...currentDeckData.slides];
+          newSlides[targetSlideIndex] = updatedSlideData;
+
+          const finalDeckData = { ...currentDeckData, slides: newSlides };
+          deckNode.setData(finalDeckData);
+          updatedDeckData = finalDeckData;
+          summary = `Set background color of slide ${slideTarget.type === "id" ? slideTarget.slideId : `index ${targetSlideIndex}`} in deck ${deckNodeKey} to ${backgroundColor}.`;
+        });
+
+        if (!updatedDeckData) {
+          throw new Error(
+            "Failed to update slide deck data after setting background color.",
+          );
+        }
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [setSlidePageBackground] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: deckNodeKey,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [setSlidePageBackground] Error:`, errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+  });
+
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -3783,6 +4330,13 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertPollNode && { insertPollNode }),
     ...(insertTweetNode && { insertTweetNode }),
     ...(insertYouTubeNode && { insertYouTubeNode }),
+    ...(insertSlideDeckNode && { insertSlideDeckNode }),
+    ...(addSlidePage && { addSlidePage }),
+    ...(removeSlidePage && { removeSlidePage }),
+    ...(reorderSlidePage && { reorderSlidePage }),
+    // ...(addBoxToSlidePage && { addBoxToSlidePage }),
+    // ...(updateBoxOnSlidePage && { updateBoxOnSlidePage }),
+    ...(setSlidePageBackground && { setSlidePageBackground }),
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
