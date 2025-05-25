@@ -192,9 +192,8 @@ export function ColorPickerContent({
         variant="outline"
         className="w-full flex items-center justify-center gap-2"
         onClick={() => {
-          const resetHsva = hexToHsva("#000000");
-          setCurrentHsva(resetHsva);
-          onChange?.("#000000", false);
+          // Reset to transparent/no color
+          onChange?.("", false);
         }}
       >
         <RefreshCcwIcon className="size-4" />
