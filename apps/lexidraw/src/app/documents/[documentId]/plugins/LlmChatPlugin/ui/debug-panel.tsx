@@ -12,6 +12,50 @@ import { Textarea } from "~/components/ui/textarea";
 import { useRuntimeTools } from "../runtime-tools-provider";
 import { useSerializeEditorState } from "../use-serialized-editor-state";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { ZodTypeAny } from "zod";
+
+interface ParsedParam {
+  name: string;
+  type: string;
+  description?: string;
+  optional: boolean;
+  defaultValue?: unknown;
+}
+
+function parseZodSchema(schema: ZodTypeAny): ParsedParam[] | string {
+  if (!schema || !schema._def) {
+    return "Not a Zod schema or invalid structure.";
+  }
+
+  if (schema._def.typeName === "ZodObject") {
+    // @ts-expect-error - _def.schema is present for ZodEffects
+    const shape = schema.shape as Record<string, ZodTypeAny>;
+    if (!shape) return "ZodObject has no shape.";
+
+    return Object.entries(shape).map(([name, paramSchema]) => {
+      let defaultValue = undefined;
+      if (paramSchema._def.defaultValue) {
+        try {
+          defaultValue = paramSchema._def.defaultValue();
+        } catch {
+          // ignore if default value is a function that errors without context
+        }
+      }
+      return {
+        name,
+        type: paramSchema._def.typeName,
+        description: paramSchema.description,
+        optional: paramSchema.isOptional(),
+        defaultValue: defaultValue,
+      };
+    });
+  } else if (schema._def.typeName === "ZodEffects") {
+    // Handle schemas wrapped with .transform()
+    return parseZodSchema(schema._def.schema as ZodTypeAny);
+  }
+  // Add more handlers for other Zod types if needed (e.g., ZodArray, ZodUnion)
+  return `Unsupported Zod schema type: ${schema._def.typeName}`;
+}
 
 export const DebugPanel: React.FC = () => {
   const [editor] = useLexicalComposerContext();
@@ -21,6 +65,7 @@ export const DebugPanel: React.FC = () => {
   const [toolArgsJson, setToolArgsJson] = useState<string>("");
   const [toolResult, setToolResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [parsedSchemaView, setParsedSchemaView] = useState<string>("");
 
   const availableToolNames = useMemo(() => {
     return Object.keys(runtimeTools).sort();
@@ -44,17 +89,18 @@ export const DebugPanel: React.FC = () => {
       parsedArgs = toolArgsJson.trim() ? JSON.parse(toolArgsJson) : {};
     } catch (e: unknown) {
       setError(
-        `Error parsing arguments JSON: ${e instanceof Error ? e.message : String(e)}`,
+        `Error parsing arguments JSON: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
       );
       return;
     }
 
     try {
-      // @ts-expect-error - aintnobodygottimeforthat
+      // @ts-expect-error - tool parameters are typed as `any` for execute
       const result = await selectedTool.execute(parsedArgs);
       setToolResult(JSON.stringify(result, null, 2));
       if (result.success && result.content?.updatedEditorStateJson) {
-        // Potentially dispatch an update or notify the user if the state was changed
         console.log("Tool execution resulted in editor state update.");
       }
       if (!result.success && result.error) {
@@ -71,10 +117,7 @@ export const DebugPanel: React.FC = () => {
   const handleLogEditorState = useCallback(() => {
     const editorState = editor.getEditorState();
     const serialized = serializeEditorStateWithKeys(editorState);
-    console.log(
-      "Current Editor State JSON:",
-      JSON.stringify(serialized, null, 2),
-    );
+    console.log("Current Editor State JSON:", serialized);
     setToolResult(
       "Editor state logged to console. " +
         "See browser developer tools for details.",
@@ -84,29 +127,35 @@ export const DebugPanel: React.FC = () => {
 
   const handleToolSelectionChange = (toolName: string) => {
     setSelectedToolName(toolName);
-    setToolArgsJson(""); // Clear args when tool changes
-    setToolResult(null); // Clear previous result
-    setError(null); // Clear previous error
+    setToolArgsJson("");
+    setToolResult(null);
+    setError(null);
 
-    // Pre-fill args with a template based on the tool's parameters
     const tool = runtimeTools[toolName];
-    // @ts-expect-error - aintnobodygottimeforthat
-    if (tool && tool.parameters && tool.parameters.parameters) {
-      // @ts-expect-error - aintnobodygottimeforthat
-      const params = tool.parameters.parameters;
-      const templateArgs: Record<string, unknown> = {};
+    if (tool && tool.parameters) {
+      const parsed = parseZodSchema(tool.parameters as ZodTypeAny);
+      if (Array.isArray(parsed)) {
+        const schemaString = parsed
+          .map(
+            (p) =>
+              `- ${p.name} (${p.type})${p.optional ? " (optional)" : ""}: ${
+                p.description || "No description"
+              }${p.defaultValue !== undefined ? ` (default: ${JSON.stringify(p.defaultValue)})` : ""}`,
+          )
+          .join("\n");
+        setParsedSchemaView(schemaString);
 
-      // Check if params is an object and then iterate
-      if (typeof params === "object" && params !== null) {
-        for (const key in params) {
-          if (Object.prototype.hasOwnProperty.call(params, key)) {
-            const paramDetails = params[key];
-            templateArgs[key] = paramDetails.default ?? ""; // Use default if available, else empty string
-          }
-        }
+        const templateArgs: Record<string, unknown> = {};
+        parsed.forEach((p) => {
+          templateArgs[p.name] = p.defaultValue ?? "";
+        });
+        setToolArgsJson(JSON.stringify(templateArgs, null, 2));
+      } else {
+        setParsedSchemaView(parsed); // Show error or unsupported message
+        setToolArgsJson("{}");
       }
-      setToolArgsJson(JSON.stringify(templateArgs, null, 2));
     } else {
+      setParsedSchemaView("No parameters schema found for this tool.");
       setToolArgsJson("{}");
     }
   };
@@ -136,14 +185,14 @@ export const DebugPanel: React.FC = () => {
       </Select>
 
       {selectedTool && (
-        <ScrollArea className="h-32 p-2 border rounded-md bg-muted">
+        <ScrollArea className="h-48 p-2 border rounded-md bg-muted">
           <p className="text-sm font-semibold">Description:</p>
           <p className="text-xs mb-2">
             {selectedTool.description || "No description provided."}
           </p>
-          <p className="text-sm font-semibold">Parameters Schema:</p>
+          <p className="text-sm font-semibold">Parameters:</p>
           <pre className="text-xs whitespace-pre-wrap break-all">
-            {JSON.stringify(selectedTool.parameters, null, 2)}
+            {parsedSchemaView}
           </pre>
         </ScrollArea>
       )}
@@ -156,9 +205,7 @@ export const DebugPanel: React.FC = () => {
           id="tool-args"
           value={toolArgsJson}
           onChange={(e) => setToolArgsJson(e.target.value)}
-          placeholder='{
-  "argName": "value"
-}'
+          placeholder='{\n  "argName": "value"\n}'
           rows={5}
           className="font-mono text-xs"
           disabled={!selectedTool}
