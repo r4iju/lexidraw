@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   LexicalCommand,
   createCommand,
@@ -13,7 +13,6 @@ import { mergeRegister } from "@lexical/utils";
 
 import {
   SlideNode,
-  $createSlideDeckNode,
   DEFAULT_SLIDE_DECK_DATA,
 } from "../nodes/SlideNode/SlideNode";
 
@@ -37,7 +36,9 @@ export function SlidePlugin(): null {
             const selection = $getSelection();
             const root = $getRoot();
 
-            const slideDeckNode = $createSlideDeckNode(DEFAULT_SLIDE_DECK_DATA);
+            const slideDeckNode = SlideNode.$createSlideNode(
+              DEFAULT_SLIDE_DECK_DATA,
+            );
 
             if ($isRangeSelection(selection)) {
               const { anchor } = selection;
