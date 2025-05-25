@@ -3,9 +3,9 @@ import { Interactive, Interaction } from "./Interactive";
 import { Pointer } from "./Pointer";
 import { useConvertUtils } from "../utils/convert";
 import { useClampUtils } from "../utils/clamp";
-import { useRoundUtils } from "../utils/round";
 import { HsvaColor } from "../types";
 import { cn } from "~/lib/utils";
+import { useRoundUtils } from "../utils/round";
 
 interface Props {
   className?: string;
