@@ -199,19 +199,10 @@ export function ColorPickerContent({
         <RefreshCcwIcon className="size-4" />
         Reset
       </Button>
-
-      {/* Preview, maybe not needed */}
-      {/* <div
-        className="border border-foreground mt-3 w-full h-8 rounded-sm"
-        style={{ backgroundColor: currentHexForDisplay }}
-        aria-label={`Current selected color preview: ${currentHexForDisplay}`}
-      /> */}
     </div>
   );
 }
 
-// ColorPickerButton remains the same as your last version, it seems fine.
-// ... (ColorPickerButton code as provided in the prompt)
 export function ColorPickerButton({
   buttonAriaLabel = "Choose color",
   title,
