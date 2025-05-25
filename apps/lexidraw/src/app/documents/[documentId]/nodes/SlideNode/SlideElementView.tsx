@@ -4,7 +4,7 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { DEFAULT_BOX_EDITOR_STATE_STRING, SlideElementSpec } from "./SlideNode";
+import { type SlideElementSpec } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
 
@@ -32,7 +32,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
     });
     try {
       const initialEditorState = editor.parseEditorState(
-        element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE_STRING,
+        element.editorStateJSON || "",
       );
       editor.setEditorState(initialEditorState);
     } catch (e) {
@@ -40,10 +40,6 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
         `[SlideElementView] Failed to parse state for read-only element ${element.id}:`,
         e,
       );
-      const emptyState = editor.parseEditorState(
-        DEFAULT_BOX_EDITOR_STATE_STRING,
-      );
-      editor.setEditorState(emptyState);
     }
     return editor;
   }, [element.id, element.editorStateJSON, parentEditor]);

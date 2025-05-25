@@ -70,6 +70,7 @@ const config = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
   images: {
     dangerouslyAllowSVG: false, // true
     remotePatterns: [

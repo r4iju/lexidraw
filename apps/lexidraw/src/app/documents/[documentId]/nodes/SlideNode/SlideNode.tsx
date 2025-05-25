@@ -108,9 +108,9 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
     return clonedNode;
   }
 
-  constructor(data?: string, key?: NodeKey) {
+  constructor(data: string, key?: NodeKey) {
     super(key);
-    this.__data = data || JSON.stringify(DEFAULT_SLIDE_DECK_DATA);
+    this.__data = data;
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -152,7 +152,7 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
         "[SlideNode] Error parsing SlideDeckNode data in getData:",
         e,
       );
-      return DEFAULT_SLIDE_DECK_DATA;
+      throw e;
     }
   }
 
@@ -184,10 +184,8 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
     return node;
   }
 
-  static $createSlideDeckNode(data?: SlideDeckData): SlideNode {
-    const jsonData = data
-      ? JSON.stringify(data)
-      : JSON.stringify(DEFAULT_SLIDE_DECK_DATA);
+  static $createSlideNode(data: SlideDeckData): SlideNode {
+    const jsonData = JSON.stringify(data);
     return new SlideNode(jsonData);
   }
 
@@ -291,8 +289,4 @@ function SlideNodeInner({
       )}
     </>
   );
-}
-
-export function $createSlideDeckNode(data?: SlideDeckData): SlideNode {
-  return SlideNode.$createSlideDeckNode(data);
 }

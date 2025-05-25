@@ -3,7 +3,6 @@ import React, { useRef, useState, useEffect } from "react";
 import { LexicalEditor } from "lexical";
 import type { SlideDeckData, SlideData } from "./SlideNode";
 import SlideElementView from "./SlideElementView";
-import { DEFAULT_SLIDE_DECK_DATA } from "./SlideNode";
 import { Button } from "~/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
@@ -35,7 +34,6 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
         "[SlideView] Error parsing initialDataString in useState for deckData:",
         error,
       );
-      return { ...DEFAULT_SLIDE_DECK_DATA };
     }
   });
 
@@ -68,7 +66,6 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
         "[SlideView] Error in useEffect from initialDataString: ",
         error,
       );
-      setDeckData({ ...DEFAULT_SLIDE_DECK_DATA });
       setViewingSlideIndex(0);
     }
   }, [initialDataString]);

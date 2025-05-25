@@ -9,7 +9,6 @@ import React, {
 import {
   SlideDeckData,
   SlideData,
-  DEFAULT_SLIDE_DECK_DATA,
   SlideElementSpec,
   DEFAULT_BOX_EDITOR_STATE_STRING,
 } from "./SlideNode";
@@ -359,22 +358,12 @@ export default function SlideDeckEditorComponent({
   parentEditor,
 }: SlideDeckEditorProps): JSX.Element {
   const [deckData, setDeckData] = useState<SlideDeckData>(() => {
-    try {
-      const parsed = JSON.parse(initialDataString) as SlideDeckData;
-      parsed.slides = parsed.slides.map((s) => ({
-        ...s,
-        elements: s.elements || [],
-      }));
-      return parsed;
-    } catch (e) {
-      console.error("Failed to parse initial slide deck data:", e);
-      const defaultData = { ...DEFAULT_SLIDE_DECK_DATA };
-      defaultData.slides = defaultData.slides.map((s) => ({
-        ...s,
-        elements: s.elements || [],
-      }));
-      return defaultData;
-    }
+    const parsed = JSON.parse(initialDataString) as SlideDeckData;
+    parsed.slides = parsed.slides.map((s) => ({
+      ...s,
+      elements: s.elements || [],
+    }));
+    return parsed;
   });
 
   const elementEditorsRef = useRef<Map<string, LexicalEditor>>(new Map());
