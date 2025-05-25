@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import type { JSX, SetStateAction, Dispatch } from "react";
 import React, {
   useCallback,
   useEffect,
@@ -90,6 +90,13 @@ import {
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
 import ToolbarPlugin from "../../plugins/ToolbarPlugin";
+import FloatingLinkEditorPlugin from "../../plugins/FloatingLinkEditorPlugin";
+import CodeActionMenuPlugin from "../../plugins/CodeActionMenuPlugin";
+import FloatingTextFormatToolbarPlugin from "../../plugins/FloatingTextFormatToolbarPlugin";
+import { DisableChecklistSpacebarPlugin } from "../../plugins/list-spacebar-plugin";
+import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
+import EmojiPickerPlugin from "../../plugins/EmojiPickerPlugin";
+import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 
 export const NESTED_EDITOR_NODES = [
   HeadingNode,
@@ -201,6 +208,9 @@ interface DraggableBoxWrapperProps {
     elementId: string,
     updates: Partial<SlideElementSpec>,
   ) => void;
+  isLinkEditMode: boolean;
+  setIsLinkEditMode: Dispatch<SetStateAction<boolean>>;
+  onModalActivityChange?: (isActive: boolean) => void;
 }
 
 const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
@@ -211,12 +221,23 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   isSelected,
   onSelect,
   onElementUpdate,
+  isLinkEditMode,
+  setIsLinkEditMode,
 }) => {
   const { attributes, listeners, setNodeRef, transform, active } = useDraggable(
     {
       id: element.id,
+      disabled: isLinkEditMode,
     },
   );
+  const [floatingAnchorElem, setFloatingAnchorElem] =
+    useState<HTMLDivElement>();
+
+  const onRef = (_floatingAnchorElem: HTMLDivElement) => {
+    if (_floatingAnchorElem !== null) {
+      setFloatingAnchorElem(_floatingAnchorElem);
+    }
+  };
 
   const isDragging = active?.id === element.id;
 
@@ -287,9 +308,14 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
           initialTheme={editorTheme}
           skipCollabChecks={true}
         >
+          <DisableChecklistSpacebarPlugin />
+          <TabIndentationPlugin />
+          <EmojiPickerPlugin />
           <RichTextPlugin
             contentEditable={
-              <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
+              <div ref={onRef}>
+                <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
+              </div>
             }
             placeholder={
               <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
@@ -310,6 +336,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
           <HorizontalRulePlugin />
           <EquationsPlugin />
           <AutoFocusPlugin />
+          <TablePlugin hasCellMerge hasCellBackgroundColor />
           <MentionsPlugin />
           <LinkPlugin />
           <EmojisPlugin />
@@ -326,7 +353,28 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
           <CollapsiblePlugin />
           <PollPlugin />
           <TableCellResizer />
-          <TableActionMenuPlugin />
+          {floatingAnchorElem && (
+            <>
+              <TableActionMenuPlugin
+                anchorElem={floatingAnchorElem}
+                cellMerge={true}
+              />
+              <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+              <FloatingLinkEditorPlugin
+                anchorElem={floatingAnchorElem}
+                isLinkEditMode={isLinkEditMode}
+                setIsLinkEditMode={setIsLinkEditMode}
+              />
+              <TableActionMenuPlugin
+                anchorElem={floatingAnchorElem}
+                cellMerge={true}
+              />
+              <FloatingTextFormatToolbarPlugin
+                anchorElem={floatingAnchorElem}
+                setIsLinkEditMode={setIsLinkEditMode}
+              />
+            </>
+          )}
         </LexicalNestedComposer>
       </div>
       {/* selection/hover rings */}
@@ -365,7 +413,7 @@ export default function SlideDeckEditorComponent({
     }));
     return parsed;
   });
-
+  const [isLinkEditMode, setIsLinkEditMode] = useState(false);
   const elementEditorsRef = useRef<Map<string, LexicalEditor>>(new Map());
   const [activeElementEditors, setActiveElementEditors] = useState<
     Map<string, LexicalEditor>
@@ -645,11 +693,7 @@ export default function SlideDeckEditorComponent({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="slide-deck-display bg-muted/20 p-2 flex flex-col">
         <div className="w-full flex justify-center mb-2">
-          <ToolbarPlugin
-            setIsLinkEditMode={() => {
-              /* No-op */
-            }}
-          />
+          <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
         </div>
         <div
           className="slide-canvas-area bg-background border border-border rounded w-[1280px] h-[720px] mb-2 relative flex-grow overflow-hidden"
@@ -668,6 +712,8 @@ export default function SlideDeckEditorComponent({
                   isSelected={selectedElementId === element.id}
                   onSelect={setSelectedElementId}
                   onElementUpdate={handleElementUpdate}
+                  isLinkEditMode={isLinkEditMode}
+                  setIsLinkEditMode={setIsLinkEditMode}
                 />
               );
             }
