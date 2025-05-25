@@ -26,6 +26,19 @@ import SlideView from "./SlideView";
 import { SlideModal } from "./SlideModal";
 import { cn } from "~/lib/utils";
 
+type EditorStateJSONChild = {
+  children: EditorStateJSONChild[];
+  direction: string | null;
+  format: string;
+  indent: number;
+  type: string;
+  version: number;
+};
+
+export type EditorStateJSON = {
+  root: EditorStateJSONChild;
+};
+
 export interface SlideElementSpec {
   kind: "box";
   id: string;
@@ -33,7 +46,7 @@ export interface SlideElementSpec {
   y: number;
   width: number;
   height: number;
-  editorStateJSON: string | null;
+  editorStateJSON: EditorStateJSON | null;
   version?: number;
   backgroundColor?: string;
   pendingMarkdownContent?: string;
@@ -50,7 +63,7 @@ export interface SlideDeckData {
   currentSlideId: string | null;
 }
 
-export const DEFAULT_BOX_EDITOR_STATE_STRING = JSON.stringify({
+export const DEFAULT_BOX_EDITOR_STATE = {
   root: {
     children: [
       {
@@ -68,7 +81,7 @@ export const DEFAULT_BOX_EDITOR_STATE_STRING = JSON.stringify({
     type: "root",
     version: 1,
   },
-});
+} satisfies EditorStateJSON;
 
 export const DEFAULT_SLIDE_DECK_DATA: SlideDeckData = {
   slides: [
@@ -82,7 +95,7 @@ export const DEFAULT_SLIDE_DECK_DATA: SlideDeckData = {
           y: 50,
           width: 300,
           height: 150,
-          editorStateJSON: DEFAULT_BOX_EDITOR_STATE_STRING,
+          editorStateJSON: DEFAULT_BOX_EDITOR_STATE,
         },
       ],
     },

@@ -4,10 +4,7 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import {
-  type SlideElementSpec,
-  DEFAULT_BOX_EDITOR_STATE_STRING,
-} from "./SlideNode";
+import { type SlideElementSpec, DEFAULT_BOX_EDITOR_STATE } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
 
@@ -45,9 +42,10 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
       }
 
       // Always try to parse editorStateJSON. If it's null/undefined or invalid, use default.
-      const stateToParse =
-        element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE_STRING;
-      const initialEditorState = editor.parseEditorState(stateToParse);
+      const stateToUse = element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE;
+      const initialEditorState = editor.parseEditorState(
+        JSON.stringify(stateToUse),
+      );
       editor.setEditorState(initialEditorState);
     } catch (e) {
       console.error(
@@ -56,7 +54,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
       );
       // Fallback to default empty state on any error
       const defaultStateOnError = editor.parseEditorState(
-        DEFAULT_BOX_EDITOR_STATE_STRING,
+        JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
       );
       editor.setEditorState(defaultStateOnError);
     }

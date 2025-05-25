@@ -10,7 +10,8 @@ import {
   SlideDeckData,
   SlideData,
   SlideElementSpec,
-  DEFAULT_BOX_EDITOR_STATE_STRING,
+  DEFAULT_BOX_EDITOR_STATE,
+  EditorStateJSON,
 } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import {
@@ -461,7 +462,7 @@ export default function SlideDeckEditorComponent({
       ...s,
       elements: (s.elements || []).map((el) => ({
         ...el,
-        backgroundColor: el.backgroundColor || "#ffffff",
+        backgroundColor: el.backgroundColor || "transparent",
       })),
     }));
     return parsed;
@@ -526,7 +527,8 @@ export default function SlideDeckEditorComponent({
           isNewEditor = true; // Mark as new editor
         }
 
-        let stateToSetInEditor: string | null = element.editorStateJSON;
+        let stateToSetInEditor: EditorStateJSON | null =
+          element.editorStateJSON;
         let forceSetState = isNewEditor; // Always set state for new editors
 
         if (element.pendingMarkdownContent !== undefined) {
@@ -539,9 +541,9 @@ export default function SlideDeckEditorComponent({
               root.append($createParagraphNode());
             }
           });
-          const newJsonState = JSON.stringify(
-            nestedEditor.getEditorState().toJSON(),
-          );
+          const newJsonState = nestedEditor
+            .getEditorState()
+            .toJSON() as EditorStateJSON;
           updatedElementsThisCycle[index] = {
             ...element,
             editorStateJSON: newJsonState,
@@ -549,21 +551,26 @@ export default function SlideDeckEditorComponent({
             version: (element.version || 0) + 1,
           };
           deckDataNeedsUpdate = true;
-          stateToSetInEditor = newJsonState; // This is the state we want in the editor now
-          forceSetState = true; // Markdown was processed, force update editor state
+          stateToSetInEditor = newJsonState;
+          forceSetState = true;
         }
 
         // Set editor state if forced (new editor or markdown processed) or if JSON differs
         if (stateToSetInEditor) {
           // Ensure there's a state to set
+          const currentNestedEditorStateJSONString = JSON.stringify(
+            nestedEditor.getEditorState().toJSON(),
+          );
+          const stateToSetInEditorString = JSON.stringify(stateToSetInEditor);
+
           if (
             forceSetState ||
-            JSON.stringify(nestedEditor.getEditorState().toJSON()) !==
-              stateToSetInEditor
+            currentNestedEditorStateJSONString !== stateToSetInEditorString // Compare stringified versions
           ) {
             try {
-              const newLexicalState =
-                nestedEditor.parseEditorState(stateToSetInEditor);
+              const newLexicalState = nestedEditor.parseEditorState(
+                stateToSetInEditorString, // Use the already stringified version
+              );
               nestedEditor.setEditorState(newLexicalState);
             } catch (e) {
               console.error(
@@ -572,7 +579,7 @@ export default function SlideDeckEditorComponent({
               );
               try {
                 const fallbackState = nestedEditor.parseEditorState(
-                  DEFAULT_BOX_EDITOR_STATE_STRING,
+                  JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
                 );
                 nestedEditor.setEditorState(fallbackState);
               } catch (fallbackError) {
@@ -591,7 +598,7 @@ export default function SlideDeckEditorComponent({
           );
           try {
             const defaultState = nestedEditor.parseEditorState(
-              DEFAULT_BOX_EDITOR_STATE_STRING,
+              JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
             );
             nestedEditor.setEditorState(defaultState);
           } catch (e) {
@@ -638,10 +645,11 @@ export default function SlideDeckEditorComponent({
   ) => {
     if (!currentSlide) return;
     const newElements = currentSlide.elements.map((el) =>
-      el.id === elementId
+      el.id === elementId && el.kind === "box"
         ? {
             ...el,
-            editorStateJSON: JSON.stringify(newEditorState),
+            editorStateJSON: newEditorState.toJSON() as EditorStateJSON,
+            pendingMarkdownContent: undefined,
             version: (el.version || 0) + 1,
           }
         : el,
@@ -712,7 +720,7 @@ export default function SlideDeckEditorComponent({
       y: 20,
       width: 200,
       height: 100,
-      editorStateJSON: DEFAULT_BOX_EDITOR_STATE_STRING,
+      editorStateJSON: DEFAULT_BOX_EDITOR_STATE,
     };
 
     const updatedElements = [...currentSlide.elements, newBoxElement];
@@ -888,7 +896,7 @@ export default function SlideDeckEditorComponent({
             const nestedEditor = activeElementEditors.get(element.id);
             if (element.kind === "box" && nestedEditor) {
               return (
-                <>
+                <React.Fragment key={element.id}>
                   <Dialog
                     open={
                       showColorPicker && editingElementIdForColor === element.id
@@ -909,7 +917,7 @@ export default function SlideDeckEditorComponent({
                     </DialogContent>
                   </Dialog>
                   <DraggableBoxWrapper
-                    key={element.id}
+                    key={`${element.id}-draggable`}
                     element={element}
                     nestedEditor={nestedEditor}
                     onBoxContentChange={handleBoxContentChange}
@@ -926,7 +934,7 @@ export default function SlideDeckEditorComponent({
                     setIsLinkEditMode={setIsLinkEditMode}
                     deselectElement={deselectElement}
                   />
-                </>
+                </React.Fragment>
               );
             }
             return null;

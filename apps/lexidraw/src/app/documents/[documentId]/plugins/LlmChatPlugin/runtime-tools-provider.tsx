@@ -68,6 +68,7 @@ import {
   DEFAULT_SLIDE_DECK_DATA,
   SlideDeckData,
   SlideData,
+  SlideElementSpec, // Added SlideElementSpec
 } from "../../nodes/SlideNode/SlideNode";
 
 import { useChatDispatch } from "./llm-chat-context";
@@ -4313,6 +4314,393 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  /* --------------------------------------------------------------
+   * Add Box to Slide Page Tool
+   * --------------------------------------------------------------*/
+  const addBoxToSlidePage = tool({
+    description:
+      "Adds a new box element to a specific slide page within an existing SlideDeckNode. The content for the box should be provided as Markdown.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page to add the box to."),
+      initialMarkdownContent: z
+        .string()
+        .describe("The initial content for the box, formatted as Markdown."),
+      boxId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional ID for the new box. If not provided, a unique ID (e.g., 'box-<timestamp>') will be generated.",
+        ),
+      x: z
+        .number()
+        .optional()
+        .default(50)
+        .describe(
+          "Optional X coordinate for the top-left corner of the box. Defaults to 50.",
+        ),
+      y: z
+        .number()
+        .optional()
+        .default(50)
+        .describe(
+          "Optional Y coordinate for the top-left corner of the box. Defaults to 50.",
+        ),
+      width: z
+        .number()
+        .optional()
+        .default(300)
+        .describe("Optional width of the box. Defaults to 300."),
+      height: z
+        .number()
+        .optional()
+        .default(150)
+        .describe("Optional height of the box. Defaults to 150."),
+      backgroundColor: z
+        .string()
+        .optional()
+        .default("transparent") // Default to transparent as per recent change
+        .describe(
+          "Optional background color for the box (e.g., '#FF0000', 'blue'). Defaults to transparent.",
+        ),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideId,
+      initialMarkdownContent,
+      boxId,
+      x,
+      y,
+      width,
+      height,
+      backgroundColor,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+        let newBoxGeneratedId: string | undefined;
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          const targetSlideIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+            );
+          }
+
+          const newGeneratedId = boxId || `box-${Date.now()}`;
+          newBoxGeneratedId = newGeneratedId; // Store for returning
+
+          const newBoxElement: SlideElementSpec = {
+            kind: "box",
+            id: newGeneratedId,
+            x: x || 50, // Redundant due to zod default, but safe
+            y: y || 50,
+            width: width || 300,
+            height: height || 150,
+            editorStateJSON: null, // Will be populated from pendingMarkdownContent by SlideDeckEditor
+            pendingMarkdownContent: initialMarkdownContent,
+            backgroundColor: backgroundColor || "transparent", // Redundant due to zod default
+            version: 1,
+          };
+
+          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              return {
+                ...slide,
+                elements: [...(slide.elements || []), newBoxElement],
+              };
+            }
+            return slide;
+          });
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: updatedSlides,
+          };
+          deckNode.setData(finalDeckData);
+          summary = `Added new box (ID: ${newGeneratedId}) with Markdown content to slide ${slideId} in deck ${deckNodeKey}.`;
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [addBoxToSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newBoxGeneratedId, // Return the new box ID as newNodeKey for consistency with other insertion tools
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [addBoxToSlidePage] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error(
+            "[addBoxToSlidePage] Failed to serialize state on error:",
+            stateErr,
+          );
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to add box to slide page",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Update Box Content on Slide Page Tool
+   * --------------------------------------------------------------*/
+  const updateBoxContentOnSlidePage = tool({
+    description:
+      "Updates the content of an existing box element on a specific slide page using new Markdown content.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page containing the box."),
+      boxId: z.string().describe("The ID of the box element to update."),
+      newMarkdownContent: z
+        .string()
+        .describe("The new Markdown content for the box."),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideId,
+      boxId,
+      newMarkdownContent,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          const targetSlideIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+            );
+          }
+
+          let boxFoundAndUpdated = false;
+          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              const newElements = (slide.elements || []).map((el) => {
+                if (el.id === boxId && el.kind === "box") {
+                  boxFoundAndUpdated = true;
+                  return {
+                    ...el,
+                    pendingMarkdownContent: newMarkdownContent,
+                    editorStateJSON: null, // Clear old state, will be replaced by pending markdown
+                    version: (el.version || 0) + 1,
+                  };
+                }
+                return el;
+              });
+              return { ...slide, elements: newElements };
+            }
+            return slide;
+          });
+
+          if (!boxFoundAndUpdated) {
+            throw new Error(
+              `Box with ID ${boxId} not found on slide ${slideId} in deck ${deckNodeKey}.`,
+            );
+          }
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: updatedSlides,
+          };
+          deckNode.setData(finalDeckData);
+          summary = `Updated content of box (ID: ${boxId}) on slide ${slideId} in deck ${deckNodeKey}.`;
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [updateBoxContentOnSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            // No new node key, as we are updating an existing one. We could return boxId if needed.
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [updateBoxContentOnSlidePage] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error(
+            "[updateBoxContentOnSlidePage] Failed to serialize state on error:",
+            stateErr,
+          );
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to update box content on slide page",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Update Box Properties on Slide Page Tool
+   * --------------------------------------------------------------*/
+  const updateBoxPropertiesOnSlidePage = tool({
+    description:
+      "Updates the properties (like position, size, background color) of an existing box element on a specific slide page.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page containing the box."),
+      boxId: z.string().describe("The ID of the box element to update."),
+      properties: z
+        .object({
+          x: z.number().optional(),
+          y: z.number().optional(),
+          width: z.number().optional(),
+          height: z.number().optional(),
+          backgroundColor: z.string().optional(),
+        })
+        .describe(
+          "An object containing the properties to update. Only provided properties will be changed.",
+        ),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideId,
+      boxId,
+      properties,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          const targetSlideIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+            );
+          }
+
+          let boxFoundAndUpdated = false;
+          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              const newElements = (slide.elements || []).map((el) => {
+                if (el.id === boxId && el.kind === "box") {
+                  boxFoundAndUpdated = true;
+                  return {
+                    ...el,
+                    ...properties, // Spread the new properties
+                    version: (el.version || 0) + 1,
+                  };
+                }
+                return el;
+              });
+              return { ...slide, elements: newElements };
+            }
+            return slide;
+          });
+
+          if (!boxFoundAndUpdated) {
+            throw new Error(
+              `Box with ID ${boxId} not found on slide ${slideId} in deck ${deckNodeKey}.`,
+            );
+          }
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: updatedSlides,
+          };
+          deckNode.setData(finalDeckData);
+          summary = `Updated properties of box (ID: ${boxId}) on slide ${slideId} in deck ${deckNodeKey}. Changed: ${Object.keys(properties).join(", ")}`;
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [updateBoxPropertiesOnSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [updateBoxPropertiesOnSlidePage] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error(
+            "[updateBoxPropertiesOnSlidePage] Failed to serialize state on error:",
+            stateErr,
+          );
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to update box properties on slide page",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -4334,8 +4722,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(addSlidePage && { addSlidePage }),
     ...(removeSlidePage && { removeSlidePage }),
     ...(reorderSlidePage && { reorderSlidePage }),
-    // ...(addBoxToSlidePage && { addBoxToSlidePage }),
-    // ...(updateBoxOnSlidePage && { updateBoxOnSlidePage }),
+    ...(addBoxToSlidePage && { addBoxToSlidePage }), // Register the new tool
     ...(setSlidePageBackground && { setSlidePageBackground }),
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
@@ -4359,6 +4746,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }),
     ...(removeCommentFromThread && { removeCommentFromThread }), // Register new tool
     ...(removeCommentThread && { removeCommentThread }), // Register new tool
+    ...(updateBoxContentOnSlidePage && { updateBoxContentOnSlidePage }), // Register new tool
+    ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }), // Register new tool
   } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------
@@ -4385,7 +4774,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       try {
         console.log(
           `[combinedTools] Starting execution of ${calls.length} calls.`,
-        );
+          );
 
         for (let i = 0; i < calls.length; i++) {
           const call = calls[i];
@@ -4447,7 +4836,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           console.log(
             `[combinedTools] Step ${i + 1} (${toolName}) succeeded: ${summary}`,
           );
-        } // End loop
+      } // End loop
 
         // If all calls succeeded
         const combinedSummary = results
