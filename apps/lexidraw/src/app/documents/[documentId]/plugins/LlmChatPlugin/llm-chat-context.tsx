@@ -11,7 +11,7 @@ export type ChatState = {
   }[];
   streaming: boolean;
   sidebarOpen: boolean;
-  mode: "chat" | "agent";
+  mode: "chat" | "agent" | "debug";
   streamingMessageId: string | null;
 };
 
@@ -56,7 +56,7 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
       case "toggleSidebar":
         return { ...s, sidebarOpen: !s.sidebarOpen };
       case "setMode":
-        if (a.mode !== "chat" && a.mode !== "agent") {
+        if (a.mode !== "chat" && a.mode !== "agent" && a.mode !== "debug") {
           console.warn("Invalid mode set:", a.mode);
           return s;
         }

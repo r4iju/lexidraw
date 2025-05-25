@@ -14,7 +14,7 @@ import { useRuntimeTools } from "./runtime-tools-provider";
  *   • Uses runtime tools to mutate the document.
  *   • Filters tools to those relevant to the current node set.
  */
-export function useSystemPrompt(mode: "chat" | "agent") {
+export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
   const [editor] = useLexicalComposerContext();
   const tools = useRuntimeTools();
   const { runtimeSpec } = useRuntimeSpec();
@@ -72,6 +72,18 @@ export function useSystemPrompt(mode: "chat" | "agent") {
         `### Interaction Guidelines\n` +
         `- Respond directly in **Markdown**.\n` +
         `- **Do not** emit JSON or call any tools.`
+      ).trim();
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Debug Mode prompt (New)
+    // ────────────────────────────────────────────────────────────────
+    if (mode === "debug") {
+      return (
+        `You are in **Debug Mode**.\n\n` +
+        `This mode is for testing individual tools. Interaction is through the UI elements.
+` +
+        `No direct chat interaction is expected in this mode.`
       ).trim();
     }
 
