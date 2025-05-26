@@ -85,6 +85,7 @@ import { useCommentPlugin } from "../../plugins/CommentPlugin";
 import { ThreadNode } from "../../nodes/ThreadNode";
 import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
 import { MermaidNode } from "../../nodes/MermaidNode";
+import { useEditorRegistry } from "../../context/editors-context";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -106,6 +107,12 @@ const InsertionAnchorSchema = z.discriminatedUnion("type", [
   }),
 ]);
 type InsertionAnchor = z.infer<typeof InsertionAnchorSchema>;
+
+const EditorKeySchema = z
+  .string()
+  .describe(
+    "Key to target a nested editor, e.g., 'deckNodeKey/slideId/boxId'. Defaults to the main editor.",
+  );
 
 // Schema for relation used in insertion tools
 const InsertionRelationSchema = z
@@ -226,20 +233,27 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const { submitAddComment, deleteCommentOrThread, commentStore } =
     useCommentPlugin();
   const [editor] = useLexicalComposerContext();
-
+  const { getEditor: getRegisteredEditor } = useEditorRegistry();
   const { runtimeSpec } = useRuntimeSpec();
 
+  function getTargetEditorInstance(editorKey?: string): LexicalEditor {
+    if (editorKey) {
+      return getRegisteredEditor(editorKey);
+    }
+    return editor;
+  }
+
   function findNodeByKey(
-    editor: LexicalEditor,
+    currentEditor: LexicalEditor,
     key?: string,
   ): LexicalNode | null {
     if (!key) return null;
-    const node = editor.getEditorState()._nodeMap.get(key);
+    const node = currentEditor.getEditorState()._nodeMap.get(key);
     return node ?? null;
   }
 
   function findFirstNodeByText(
-    editor: LexicalEditor,
+    currentEditor: LexicalEditor,
     text?: string,
   ): ElementNode | null {
     if (!text) return null;
@@ -263,9 +277,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
    * It returns the target node's key for safe use within an update cycle.
    */
   async function resolveInsertionPoint(
-    editor: LexicalEditor,
+    currentEditor: LexicalEditor,
     relation: InsertionRelation,
-    anchor?: InsertionAnchor, // Anchor is optional only if relation is appendRoot
+    anchor?: InsertionAnchor,
   ): Promise<InsertionPointResolution> {
     if (relation === "appendRoot") {
       return { status: "success", type: "appendRoot" };
@@ -282,11 +296,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     // Note: This happens outside editor.update, so we use the editor state directly
     let target: LexicalNode | null = null;
     if (anchor.type === "key") {
-      target = findNodeByKey(editor, anchor.key);
+      target = findNodeByKey(currentEditor, anchor.key);
     } else {
       // findFirstNodeByText needs to run within an update cycle to use $ commands
-      editor.getEditorState().read(() => {
-        target = findFirstNodeByText(editor, anchor.text);
+      currentEditor.getEditorState().read(() => {
+        target = findFirstNodeByText(currentEditor, anchor.text);
       });
     }
 
@@ -612,15 +626,18 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     parameters: z.object({
       text: z.string(),
       relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(), // Make anchor optional, validate based on relation
+      anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ text, relation, anchor }): ExecuteResult => {
+    execute: async ({ text, relation, anchor, editorKey }): ExecuteResult => {
       try {
         console.log("[insertTextNode] Starting", { text, relation, anchor });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         // 1. Resolve insertion point *outside* update cycle
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -633,7 +650,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         // 2. Perform insertion *inside* update cycle
         let targetKey: string | null = null; // For summary
         let newNodeKey: string | null = null; // To return
-        editor.update(() => {
+        targetEditor.update(() => {
           const newTextNode = $createTextNode(text);
           newNodeKey = newTextNode.getKey(); // Store text node key initially
 
@@ -651,7 +668,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             if (!targetNode) {
               // Should ideally not happen if resolution succeeded, but defensive check
               throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
+                `Target node with key ${resolution.targetKey} not found within targetEditor update.`,
               );
             }
 
@@ -724,8 +741,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       tag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ text, tag, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      text,
+      tag,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertHeadingNode] Starting", {
           text,
@@ -734,9 +758,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
-        // 1. Resolve insertion point *outside* update cycle
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -749,7 +774,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         // 2. Perform insertion *inside* update cycle
         let targetKey: string | null = null; // For summary
         let newNodeKey: string | null = null; // To return
-        editor.update(() => {
+        targetEditor.update(() => {
           const newHeadingNode = $createHeadingNode(tag).append(
             $createTextNode(text),
           );
@@ -828,8 +853,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       text: z.string().describe("Text for the initial list item."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ listType, text, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      listType,
+      text,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertListNode] Starting", {
           listType,
@@ -838,8 +870,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -852,7 +886,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKey: string | null = null;
         let newListKey: string | null = null; // Key of the inserted list node
         let newFirstItemKey: string | null = null; // Key of the first item
-        editor.update(() => {
+        targetEditor.update(() => {
           const listItem = $createListItemNode(
             listType === "check" ? false : undefined,
           );
@@ -934,9 +968,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "'before'/'after' relative to an existing ListItemNode; 'appendToList' adds to the end of the specified ListNode.",
         ),
-      anchor: ListItemAnchorSchema, // Anchor is required
+      anchor: ListItemAnchorSchema, // anchor is required
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ text, relation, anchor }): ExecuteResult => {
+    execute: async ({ text, relation, anchor, editorKey }): ExecuteResult => {
       try {
         console.log("[insertListItemNode] Starting", {
           text,
@@ -950,15 +985,17 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let checkValue: boolean | undefined;
         let validationError: string | null = null;
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         // --- Resolve anchor and perform validation INSIDE editor.read ---
-        editor.read(() => {
+        targetEditor.read(() => {
           let resolvedTargetNode: LexicalNode | null = null;
           if (anchor.type === "key") {
             // Find node by key directly within read
             resolvedTargetNode = $getNodeByKey(anchor.key);
           } else {
             // Find node by text directly within read
-            resolvedTargetNode = findFirstNodeByText(editor, anchor.text);
+            resolvedTargetNode = findFirstNodeByText(targetEditor, anchor.text);
             // Try finding parent list/item if initial find is not one
             if (
               resolvedTargetNode &&
@@ -1030,7 +1067,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
         // --- Perform update using validated data ---
         const finalTargetKey = targetKey; // Use a const variable inside update closure
-        editor.update(() => {
+        targetEditor.update(() => {
           const resolvedTarget = $getNodeByKey(finalTargetKey);
           if (!resolvedTarget) {
             // This error implies the node was removed between read and update, which is rare but possible
@@ -1107,12 +1144,14 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("Optional initial text content for the code block."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       language,
       initialText,
       relation,
       anchor,
+      editorKey,
     }): ExecuteResult => {
       try {
         console.log("[insertCodeBlock] Starting", {
@@ -1122,9 +1161,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
-        // 1. Resolve insertion point *outside* update cycle
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -1137,7 +1177,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         // 2. Perform insertion *inside* update cycle
         let targetKey: string | null = null; // For summary
         let newCodeNodeKey: string | null = null; // For result content
-        editor.update(() => {
+        targetEditor.update(() => {
           // Create the CodeNode - language might be set via a method if not constructor
           const newCodeNode = $createCodeNode();
           // Safely check for and call setLanguage if it exists
@@ -1228,8 +1268,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       text: z.string().describe("The text content for the CodeHighlightNode."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ text, relation, anchor }): ExecuteResult => {
+    execute: async ({ text, relation, anchor, editorKey }): ExecuteResult => {
       try {
         console.log("[insertCodeHighlightNode] Starting", {
           text,
@@ -1237,9 +1278,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
-        // 1. Resolve insertion point *outside* update cycle
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -1254,7 +1296,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         // 2. Perform insertion *inside* update cycle
         let targetKey: string | null = null; // For summary
         let newNodeKey: string | null = null; // To return
-        editor.update(() => {
+        targetEditor.update(() => {
           const newHighlightNode = $createCodeHighlightNode(text);
           newNodeKey = newHighlightNode.getKey(); // Store highlight node key initially
 
@@ -1344,8 +1386,14 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("The Markdown content to parse and insert."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ markdownText, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      markdownText,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertMarkdown] Starting", {
           markdownText,
@@ -1353,9 +1401,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
-        // 1. Resolve insertion point *outside* update cycle
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -1375,7 +1424,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
               ? resolution.targetKey
               : null;
 
-        editor.update(
+        targetEditor.update(
           () => {
             let targetNodeForConversion: ElementNode | null = null;
 
@@ -1523,19 +1572,21 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("The number of columns for the table."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       rows,
       columns,
       relation,
       anchor,
+      editorKey,
     }: {
       rows: number;
       columns: number;
       relation: InsertionRelation;
       anchor?: InsertionAnchor;
+      editorKey?: string;
     }): ExecuteResult => {
-      // editor and resolveInsertionPoint are accessed from the useRuntimeToolsFactory closure
       try {
         console.log("[insertTableNode - corrected] Starting", {
           rows,
@@ -1544,8 +1595,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -1560,7 +1613,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newTableNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const newTable = $createTableNode(); // Create an empty table
           newTableNodeKey = newTable.getKey();
 
@@ -1654,22 +1707,26 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         ),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       text,
       relation,
       anchor,
+      editorKey,
     }: {
       text: string;
       relation: InsertionRelation;
       anchor?: InsertionAnchor;
+      editorKey?: string;
     }): ExecuteResult => {
       try {
         console.log("[insertHashtagNode] Starting", { text, relation, anchor });
 
-        // Use editor and resolveInsertionPoint from the useRuntimeToolsFactory closure
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -1682,7 +1739,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let finalInsertedNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const newHashtagNode = $createHashtagNode(text);
 
           if (resolution.type === "appendRoot") {
@@ -1775,11 +1832,13 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     description: "Removes a node from the document using its key.",
     parameters: z.object({
       nodeKey: z.string().describe("The key of the node to remove."),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ nodeKey }): ExecuteResult => {
+    execute: async ({ nodeKey, editorKey }): ExecuteResult => {
       try {
         let removed = false;
-        editor.update(() => {
+        const targetEditor = getTargetEditorInstance(editorKey);
+        targetEditor.update(() => {
           const node = $getNodeByKey(nodeKey);
           if (node) {
             node.remove();
@@ -1817,12 +1876,19 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       relation: z
         .enum(["before", "after"])
         .describe("Whether to move the node before or after the anchor."),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ nodeKey, anchorKey, relation }): ExecuteResult => {
+    execute: async ({
+      nodeKey,
+      anchorKey,
+      relation,
+      editorKey,
+    }): ExecuteResult => {
       try {
         let moved = false;
         let errorMsg: string | null = null;
-        editor.update(() => {
+        const targetEditor = getTargetEditorInstance(editorKey);
+        targetEditor.update(() => {
           const nodeToMove = $getNodeByKey(nodeKey);
           const anchorNode = $getNodeByKey(anchorKey);
 
@@ -1897,6 +1963,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       "Applies specific CSS styles (like font family, size, color) to an existing TextNode identified by its key. Provide style values as strings (e.g., 'Arial, sans-serif', '14px', '#FF0000'). To remove a specific style, provide an empty string ('') for its value.",
     parameters: z.object({
       anchorKey: z.string().describe("The key of the target TextNode."),
+      editorKey: EditorKeySchema.optional(),
       fontFamily: z
         .string()
         .optional()
@@ -1923,11 +1990,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }),
     execute: async ({
       anchorKey,
+      editorKey,
       fontFamily,
       fontSize,
       color,
       backgroundColor,
-      // Add other destructured params here
     }): ExecuteResult => {
       try {
         console.log("[applyTextStyle] Starting", {
@@ -1941,7 +2008,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let finalSummary = "";
         let errorMsg: string | null = null;
 
-        editor.update(() => {
+        const targetEditor = getTargetEditorInstance(editorKey);
+
+        targetEditor.update(() => {
           const targetNode = $getNodeByKey(anchorKey);
 
           if (!targetNode) {
@@ -2103,6 +2172,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("Optional HTML attributes for the link."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       url,
@@ -2110,6 +2180,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       attributes,
       relation,
       anchor,
+      editorKey,
     }): ExecuteResult => {
       try {
         console.log("[insertLinkNode] Starting", {
@@ -2120,8 +2191,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -2134,7 +2207,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let finalInsertedNodeKey: string | null = null; // Key of the LinkNode or its wrapper Paragraph
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const actualLinkText = linkText || url;
           const newLinkNode = $createLinkNode(url, attributes);
           newLinkNode.append($createTextNode(actualLinkText));
@@ -2237,8 +2310,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         ),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ equation, inline, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      equation,
+      inline,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertEquationNode] Starting", {
           equation,
@@ -2247,8 +2327,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -2261,7 +2343,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let finalInsertedNodeKey: string | null = null; // Key of the EquationNode or its wrapper Paragraph
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const newEquationNode = EquationNode.$createEquationNode(
             equation,
             inline,
@@ -2382,12 +2464,14 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("Optional alignment format for the Figma embed."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       documentID,
       format,
       relation,
       anchor,
+      editorKey,
     }): ExecuteResult => {
       try {
         console.log("[insertFigmaNode] Starting", {
@@ -2397,8 +2481,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -2411,7 +2497,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const newFigmaNode = FigmaNode.$createFigmaNode(documentID); // Use static method from FigmaNode.tsx
           if (format) {
             newFigmaNode.setFormat(format);
@@ -2500,6 +2586,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("Whether the section is open by default. Defaults to false."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       titleText,
@@ -2507,6 +2594,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       initiallyOpen,
       relation,
       anchor,
+      editorKey,
     }): ExecuteResult => {
       try {
         console.log("[insertCollapsibleSection] Starting", {
@@ -2516,6 +2604,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           relation,
           anchor,
         });
+
+        const targetEditor = getTargetEditorInstance(editorKey);
 
         const resolution = await resolveInsertionPoint(
           editor,
@@ -2533,7 +2623,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null; // Key of the CollapsibleContainerNode
 
-        editor.update(() => {
+        targetEditor.update(() => {
           // 1. Create the container
           const containerNode =
             CollapsibleContainerNode.$createCollapsibleContainerNode(
@@ -2681,26 +2771,36 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           .default(DEFAULT_CANVAS_HEIGHT),
         relation: InsertionRelationSchema,
         anchor: InsertionAnchorSchema.optional(),
+        editorKey: EditorKeySchema.optional(),
       })
       .transform(({ mermaidLines, ...rest }) => ({
         ...rest,
         mermaid: mermaidLines.join("\n"),
       })),
-    execute: async (args) => {
+    execute: async ({
+      mermaid,
+      mermaidConfig,
+      excalidrawConfig,
+      width,
+      height,
+      relation,
+      anchor,
+      editorKey,
+    }) => {
       // -------------------- Merge / validate configuration -------------------
       const mermaidCfg: MermaidConfig = {
-        ...(args.mermaidConfig ?? {}),
+        ...(mermaidConfig ?? {}),
       };
 
       const excaliCfg: ExcalidrawConfig = {
         ...DEFAULT_EXCALIDRAW_CFG,
-        ...(args.excalidrawConfig ?? {}),
+        ...(excalidrawConfig ?? {}),
       };
 
       // -------------------------- Parse Mermaid ----------------------------
       let parseResult: MermaidToExcalidrawResult;
       try {
-        parseResult = await parseMermaidToExcalidraw(args.mermaid, mermaidCfg);
+        parseResult = await parseMermaidToExcalidraw(mermaid, mermaidCfg);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
@@ -2725,11 +2825,12 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         files: parseResult.files ?? {},
       });
 
-      // --------------- Figure out where to insert in the doc ---------------
+      const targetEditor = getTargetEditorInstance(editorKey);
+
       const resolution = await resolveInsertionPoint(
-        editor,
-        args.relation,
-        args.anchor,
+        targetEditor,
+        relation,
+        anchor,
       );
       if (resolution.status === "error") {
         return { success: false, error: resolution.message } as const;
@@ -2741,8 +2842,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         const node = new ExcalidrawNode(
           excaliData,
           false /** keep closed by default */,
-          args.width ?? DEFAULT_CANVAS_WIDTH,
-          args.height ?? DEFAULT_CANVAS_HEIGHT,
+          width ?? DEFAULT_CANVAS_WIDTH,
+          height ?? DEFAULT_CANVAS_HEIGHT,
         );
         newNodeKey = node.getKey();
 
@@ -2789,17 +2890,20 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           .default("inherit"),
         relation: InsertionRelationSchema,
         anchor: InsertionAnchorSchema.optional(),
+        editorKey: EditorKeySchema.optional(),
       })
       .transform(({ mermaidLines, ...rest }) => ({
         ...rest,
         schema: mermaidLines.join("\n"),
       })),
-    execute: async (args) => {
+    execute: async ({ schema, width, height, relation, anchor, editorKey }) => {
       /* ------------ 1 · locate insertion point -------------------- */
+      const targetEditor = getTargetEditorInstance(editorKey);
+
       const resolution = await resolveInsertionPoint(
-        editor,
-        args.relation,
-        args.anchor,
+        targetEditor,
+        relation,
+        anchor,
       );
       if (resolution.status === "error") {
         return { success: false, error: resolution.message };
@@ -2809,9 +2913,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       let nodeKey: string | undefined;
       editor.update(() => {
         const mermaidNode = MermaidNode.$createMermaidNode(
-          args.schema,
-          args.width,
-          args.height,
+          schema,
+          width,
+          height,
         );
         nodeKey = mermaidNode.getKey();
 
@@ -2835,7 +2939,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       return {
         success: true,
         content: {
-          summary: `Inserted Mermaid diagram (${args.width}×${args.height}).`,
+          summary: `Inserted Mermaid diagram (${width}×${height}).`,
           updatedEditorStateJson: stateJson,
           newNodeKey: nodeKey,
         },
@@ -2857,8 +2961,14 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         ),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ templateColumns, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      templateColumns,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertLayout] Starting", {
           templateColumns,
@@ -2866,8 +2976,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -2880,7 +2992,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null; // Key of the LayoutContainerNode
 
-        editor.update(() => {
+        targetEditor.update(() => {
           // 1. Create the container
           const containerNode =
             LayoutContainerNode.$createLayoutContainerNode(templateColumns);
@@ -2977,13 +3089,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     parameters: z.object({
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ relation, anchor }): ExecuteResult => {
+    execute: async ({ relation, anchor, editorKey }): ExecuteResult => {
       try {
         console.log("[insertPageBreakNode] Starting", { relation, anchor });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -2998,7 +3113,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const newPageBreak = PageBreakNode.$createPageBreakNode();
           newNodeKey = newPageBreak.getKey();
 
@@ -3079,12 +3194,14 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         ),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       question,
       optionTexts,
       relation,
       anchor,
+      editorKey,
     }): ExecuteResult => {
       try {
         console.log("[insertPollNode] Starting", {
@@ -3094,8 +3211,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -3108,7 +3227,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const options = optionTexts.map((text) =>
             PollNode.createPollOption(text),
           );
@@ -3193,8 +3312,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("Optional alignment format for the Tweet embed."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ tweetID, format, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      tweetID,
+      format,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertTweetNode] Starting", {
           tweetID,
@@ -3203,8 +3329,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -3217,7 +3345,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const newTweetNode = TweetNode.$createTweetNode(tweetID);
           if (format) {
             newTweetNode.setFormat(format);
@@ -3303,8 +3431,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe("Optional alignment format for the YouTube video embed."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ videoID, format, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      videoID,
+      format,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertYouTubeNode] Starting", {
           videoID,
@@ -3313,8 +3448,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -3327,7 +3464,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           const newYouTubeNode = YouTubeNode.$createYouTubeNode(videoID);
           if (format) {
             newYouTubeNode.setFormat(format);
@@ -3410,8 +3547,14 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         ),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ initialDataJSON, relation, anchor }): ExecuteResult => {
+    execute: async ({
+      initialDataJSON,
+      relation,
+      anchor,
+      editorKey,
+    }): ExecuteResult => {
       try {
         console.log("[insertSlideDeckNode] Starting", {
           initialDataJSON,
@@ -3419,8 +3562,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           relation,
           anchor,
         );
@@ -3435,7 +3580,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let targetKeyForSummary: string | null = null;
         let newNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           let slideData: SlideDeckData;
           if (initialDataJSON) {
             try {
@@ -3526,14 +3671,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .string()
         .min(1)
         .describe("The exact text to find and select in the document."),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ textToFind }): ExecuteResult => {
+    execute: async ({ textToFind, editorKey }): ExecuteResult => {
       let success = false;
       let foundText: string | undefined;
       let errorMessage: string | undefined;
 
       try {
-        editor.update(() => {
+        const targetEditor = getTargetEditorInstance(editorKey);
+        targetEditor.update(() => {
           const root = $getRoot();
           const queue: LexicalNode[] = [root]; // LexicalNode import needed if not already present
           let targetNode: TextNode | null = null;
@@ -3610,19 +3757,23 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       threadNodePlacementAnchor: InsertionAnchorSchema.optional().describe(
         "Anchor for placing the ThreadNode (decorator) in the document structure.",
       ),
+      editorKey: EditorKeySchema.optional(),
     }),
     execute: async ({
       initialCommentText,
       authorName,
       threadNodePlacementRelation,
       threadNodePlacementAnchor,
+      editorKey,
     }): ExecuteResult => {
       try {
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const author = authorName || "AI Assistant";
         let quote = "";
         let currentSelection: RangeSelection | null = null;
 
-        editor.getEditorState().read(() => {
+        targetEditor.getEditorState().read(() => {
           const sel = $getSelection();
           if ($isRangeSelection(sel) && !sel.isCollapsed()) {
             currentSelection = sel.clone();
@@ -3652,7 +3803,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         const placementRelationResolved =
           threadNodePlacementRelation || "appendRoot";
         const resolution = await resolveInsertionPoint(
-          editor,
+          targetEditor,
           placementRelationResolved,
           threadNodePlacementAnchor,
         );
@@ -3669,7 +3820,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
         let threadNodeKey: string | null = null;
 
-        editor.update(() => {
+        targetEditor.update(() => {
           // Re-fetch selection within update to ensure it's the latest
           const activeSelection = $getSelection();
           if (
@@ -3746,9 +3897,17 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .string()
         .optional()
         .describe("Author name for the reply. Defaults to 'AI Assistant'."),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ threadId, replyText, authorName }): ExecuteResult => {
+    execute: async ({
+      threadId,
+      replyText,
+      authorName,
+      editorKey,
+    }): ExecuteResult => {
       try {
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const author = authorName || "AI Assistant";
 
         if (!commentStore) {
@@ -3774,7 +3933,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
         submitAddComment(newReply, false /* isInlineComment */, targetThread);
 
-        const latestState = editor.getEditorState();
+        const latestState = targetEditor.getEditorState();
         const stateJson = JSON.stringify(latestState.toJSON());
         return {
           success: true,
@@ -3802,9 +3961,12 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     parameters: z.object({
       threadId: z.string().describe("The ID of the parent thread."),
       commentId: z.string().describe("The ID of the comment to remove."),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ threadId, commentId }): ExecuteResult => {
+    execute: async ({ threadId, commentId, editorKey }): ExecuteResult => {
       try {
+        const targetEditor = getTargetEditorInstance(editorKey);
+
         const threads = commentStore
           .getComments()
           .filter((c) => c.type === "thread") as Thread[];
@@ -3830,7 +3992,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
         deleteCommentOrThread(targetComment, targetThread);
 
-        const latestState = editor.getEditorState();
+        const latestState = targetEditor.getEditorState();
         const stateJson = JSON.stringify(latestState.toJSON());
         return {
           success: true,
@@ -4342,25 +4504,25 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .optional()
         .default(50)
         .describe(
-          "Optional X coordinate for the top-left corner of the box. Defaults to 50.",
+          "Optional X coordinate for the top-left corner of the box. Defaults to 50. The slide itself is 1280px wide.",
         ),
       y: z
         .number()
         .optional()
         .default(50)
         .describe(
-          "Optional Y coordinate for the top-left corner of the box. Defaults to 50.",
+          "Optional Y coordinate for the top-left corner of the box. Defaults to 50. The slide itself is 720px tall.",
         ),
       width: z
         .number()
         .optional()
         .default(300)
-        .describe("Optional width of the box. Defaults to 300."),
+        .describe("Optional width of the box. Defaults to 300. The slide itself is 1280px wide."),
       height: z
         .number()
         .optional()
         .default(150)
-        .describe("Optional height of the box. Defaults to 150."),
+        .describe("Optional height of the box. Defaults to 150. The slide itself is 720px tall."),
       backgroundColor: z
         .string()
         .optional()
@@ -4624,164 +4786,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
-  /* --------------------------------------------------------------
-   * New: Update Box Content with Structured Data Tool
-   * --------------------------------------------------------------*/
-  const updateBoxContentWithStructuredData = tool({
-    description:
-      "Updates the content of an existing box element on a specific slide page using structured data to build a simple text paragraph.",
-    parameters: z.object({
-      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
-      slideId: z
-        .string()
-        .describe("The ID of the slide page containing the box."),
-      boxId: z.string().describe("The ID of the box element to update."),
-      textContent: z
-        .string()
-        .optional()
-        .describe(
-          "The text content for the box. A single paragraph with this text will be created. If empty or undefined, an empty paragraph will be created.",
-        ),
-    }),
-    execute: async ({
-      deckNodeKey,
-      slideId,
-      boxId,
-      textContent,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        const textForNode = textContent || "";
-
-        const newEditorStateJSON: EditorStateJSON = {
-          root: {
-            type: "root",
-            version: 1,
-            direction: null,
-            format: "",
-            indent: 0,
-            children: [
-              {
-                type: "paragraph",
-                version: 1,
-                direction: null,
-                format: "",
-                indent: 0,
-                children: [
-                  {
-                    type: "text",
-                    version: 1,
-                    text: textForNode,
-                    detail: 0,
-                    format: "0", // Ensure format is a string if required by type, or number 0
-                    mode: "normal",
-                    style: "",
-                    direction: null, // Added to match generated JSON from addBox
-                    indent: 0, // Added to match generated JSON from addBox
-                  },
-                ],
-              },
-            ],
-          },
-        };
-
-        console.log(
-          `[updateBoxContentWithStructuredData] Constructed EditorStateJSON for box ${boxId}:`,
-          JSON.stringify(newEditorStateJSON, null, 2),
-        );
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
-          const targetSlideIndex = currentDeckData.slides.findIndex(
-            (s) => s.id === slideId,
-          );
-
-          if (targetSlideIndex === -1) {
-            throw new Error(
-              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
-            );
-          }
-
-          let boxFoundAndUpdated = false;
-          const updatedSlides = currentDeckData.slides.map((slide, index) => {
-            if (index === targetSlideIndex) {
-              const newElements = (slide.elements || []).map((el) => {
-                if (el.id === boxId && el.kind === "box") {
-                  boxFoundAndUpdated = true;
-                  return {
-                    ...el,
-                    editorStateJSON: newEditorStateJSON,
-                    version: (el.version || 0) + 1,
-                  };
-                }
-                return el;
-              });
-              return { ...slide, elements: newElements };
-            }
-            return slide;
-          });
-
-          if (!boxFoundAndUpdated) {
-            throw new Error(
-              `Box with ID ${boxId} not found on slide ${slideId} in deck ${deckNodeKey}.`,
-            );
-          }
-
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: updatedSlides,
-          };
-          deckNode.setData(finalDeckData);
-          summary = `Updated content of box (ID: ${boxId}) with new structured text on slide ${slideId} in deck ${deckNodeKey}.`;
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(
-          `✅ [updateBoxContentWithStructuredData] Success: ${summary}`,
-        );
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `❌ [updateBoxContentWithStructuredData] Error:`,
-          errorMsg,
-        );
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error(
-            "[updateBoxContentWithStructuredData] Failed to serialize state on error:",
-            stateErr,
-          );
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary:
-              "Failed to update box content with structured data on slide page",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
-    },
-  });
-
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -4825,12 +4829,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(findAndSelectTextForComment && {
       findAndSelectTextForComment: findAndSelectTextForComment,
     }),
-    ...(removeCommentFromThread && { removeCommentFromThread }), // Register new tool
-    ...(removeCommentThread && { removeCommentThread }), // Register new tool
-    ...(updateBoxContentWithStructuredData && {
-      updateBoxContentWithStructuredData,
-    }), // Register new tool
-    ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }), // Register new tool
+    ...(removeCommentFromThread && { removeCommentFromThread }),
+    ...(removeCommentThread && { removeCommentThread }),
+    ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
   } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------
