@@ -5,6 +5,7 @@ import type { SlideDeckData, SlideData } from "./SlideNode";
 import SlideElementView from "./SlideElementView";
 import { Button } from "~/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { cn } from "~/lib/utils";
 
 interface SlideViewProps {
   initialDataString: string;
@@ -169,6 +170,10 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
       <div className="absolute bottom-0 left-0 right-0 flex items-center justify-end gap-2 p-2">
         <Button
           onClick={handlePrevSlide}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           disabled={viewingSlideIndex <= 0}
           variant="outline"
           size="icon"
@@ -181,6 +186,10 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
         </span>
         <Button
           onClick={handleNextSlide}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           disabled={viewingSlideIndex >= deckData.slides.length - 1}
           variant="outline"
           size="icon"

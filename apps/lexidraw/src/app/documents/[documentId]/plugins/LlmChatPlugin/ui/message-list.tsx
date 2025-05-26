@@ -13,6 +13,9 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { AppToolCall, AppToolResult } from "../../../context/llm-context";
 
 type Message = ChatState["messages"][number];
 
@@ -38,19 +41,72 @@ function splitMarkdownSafely(raw: string) {
 }
 // /****************************************************************/
 
+const ToolCallDisplay: React.FC<{
+  toolCall: AppToolCall;
+  toolResult?: AppToolResult;
+}> = ({ toolCall, toolResult }) => {
+  let statusIcon = (
+    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+  );
+  let statusColor = "text-muted-foreground";
+  let statusText = "Running...";
+
+  if (toolResult) {
+    if (toolResult.ok) {
+      statusIcon = <CheckCircle className="h-4 w-4 text-green-500" />;
+      statusColor = "text-green-500";
+      statusText = "Success";
+    } else {
+      statusIcon = <AlertCircle className="h-4 w-4 text-red-500" />;
+      statusColor = "text-red-500";
+      statusText = "Error";
+    }
+  }
+
+  return (
+    <Card className="mt-2">
+      <CardHeader className="flex flex-row items-center justify-between p-3">
+        <CardTitle className="text-sm font-medium">
+          {toolCall.toolName}
+        </CardTitle>
+        <div className={`flex items-center text-xs ${statusColor}`}>
+          {statusIcon}
+          <span className="ml-1">{statusText}</span>
+        </div>
+      </CardHeader>
+      <CardContent className="p-3 text-xs">
+        <div className="font-mono bg-muted p-2 rounded">
+          <p className="font-semibold">Arguments:</p>
+          <pre className="whitespace-pre-wrap break-all">
+            {JSON.stringify(toolCall.args, null, 2)}
+          </pre>
+        </div>
+        {toolResult && (
+          <div className="mt-2 font-mono bg-muted p-2 rounded">
+            <p className="font-semibold">Result:</p>
+            <pre className="whitespace-pre-wrap break-all">
+              {String(toolResult.result)}
+            </pre>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 export const MessageList: React.FC<{ className?: string }> = ({
   className,
 }) => {
   // Get messages from the new context hook
-  const { messages, streamingMessageId } = useChatState();
+  const { messages, streamingMessageId, streaming, mode } = useChatState();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when messages change or streaming starts/stops
+  // Scroll to bottom when messages change or streaming starts/stops or mode changes
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, streaming, mode]);
 
   return (
     <div
@@ -90,7 +146,9 @@ export const MessageList: React.FC<{ className?: string }> = ({
                 }}
               >
                 <RichTextPlugin
-                  contentEditable={<ContentEditable className="outline-hidden" />}
+                  contentEditable={
+                    <ContentEditable className="outline-hidden" />
+                  }
                   placeholder={null}
                   ErrorBoundary={LexicalErrorBoundary}
                 />
@@ -167,9 +225,39 @@ export const MessageList: React.FC<{ className?: string }> = ({
             )}
           >
             {contentElement}
+            {m.toolCalls && m.toolCalls.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {m.toolCalls.map((toolCall) => {
+                  const toolResult = m.toolResults?.find(
+                    (res) => res.toolCallId === toolCall.toolCallId,
+                  );
+                  return (
+                    <ToolCallDisplay
+                      key={toolCall.toolCallId}
+                      toolCall={toolCall}
+                      toolResult={toolResult}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
+      {/* Agent Working Indicator */}
+      {streaming && mode === "agent" && (
+        <div
+          key="agent-working-indicator"
+          className={cn(
+            "rounded-b-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] break-words",
+            "bg-muted text-muted-foreground mr-auto rounded-tr-lg opacity-75",
+            "flex items-center",
+          )}
+        >
+          <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" />
+          <span>Agent is working...</span>
+        </div>
+      )}
     </div>
   );
 };
