@@ -111,6 +111,12 @@ export const useSendQuery = () => {
         msg: { id: userMessageId, role: "user", content: userMessageContent },
       });
 
+      // For agent mode, set streaming state for the whole operation
+      const agentOperationId = mode === "agent" ? crypto.randomUUID() : null;
+      if (mode === "agent" && agentOperationId) {
+        dispatch({ type: "startStreaming", id: agentOperationId });
+      }
+
       try {
         // --- Construct the full initial prompt string ---
         const historyToInclude = messages
@@ -403,6 +409,10 @@ export const useSendQuery = () => {
             content: "An error occurred while processing your request.",
           },
         });
+      } finally {
+        if (mode === "agent" && agentOperationId) {
+          dispatch({ type: "stopStreaming" });
+        }
       }
     },
     [

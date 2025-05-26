@@ -47,12 +47,18 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   console.log("🔄 LlmChatProvider re-rendered");
   const reducer = useCallback((s: ChatState, a: Action): ChatState => {
     switch (a.type) {
-      case "push":
+      case "push": {
         if (s.messages.some((m) => m.id === a.msg.id)) {
           console.warn("Attempted to push duplicate message:", a.msg);
           return s;
         }
-        return { ...s, messages: [...s.messages, a.msg] };
+        const newMessage = {
+          ...a.msg,
+          toolCalls: a.msg.toolCalls ?? [],
+          toolResults: a.msg.toolResults ?? [],
+        };
+        return { ...s, messages: [...s.messages, newMessage] };
+      }
       case "toggleSidebar":
         return { ...s, sidebarOpen: !s.sidebarOpen };
       case "setMode":
