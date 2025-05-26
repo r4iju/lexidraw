@@ -27,12 +27,13 @@ import { SlideModal } from "./SlideModal";
 import { cn } from "~/lib/utils";
 
 type EditorStateJSONChild = {
-  children: EditorStateJSONChild[];
+  children?: EditorStateJSONChild[];
   direction: string | null;
   format: string;
   indent: number;
   type: string;
   version: number;
+  [key: string]: unknown;
 };
 
 export type EditorStateJSON = {
@@ -154,6 +155,10 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
   }
 
   setData(data: SlideDeckData): void {
+    console.log(
+      "[SlideNode setData] Received data to set:",
+      JSON.stringify(data, null, 2),
+    );
     const writable = this.getWritable();
     const newDataString = JSON.stringify(data);
     writable.__data = newDataString;

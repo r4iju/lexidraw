@@ -34,6 +34,10 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
     try {
       // Always try to parse editorStateJSON. If it's null/undefined or invalid, use default.
       const stateToUse = element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE;
+      console.log(
+        `[SlideElementView useMemo for ${element.id}] stateToUse before stringify:`,
+        JSON.stringify(stateToUse, null, 2),
+      );
       const initialEditorState = editor.parseEditorState(
         JSON.stringify(stateToUse),
       );
@@ -44,6 +48,9 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
         e,
       );
       // Fallback to default empty state on any error
+      console.warn(
+        `[SlideElementView useMemo for ${element.id}] Attempting to set DEFAULT_BOX_EDITOR_STATE after error.`,
+      );
       const defaultStateOnError = editor.parseEditorState(
         JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
       );

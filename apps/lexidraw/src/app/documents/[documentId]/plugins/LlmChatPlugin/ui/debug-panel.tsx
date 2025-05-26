@@ -117,7 +117,11 @@ export const DebugPanel: React.FC = () => {
   const handleLogEditorState = useCallback(() => {
     const editorState = editor.getEditorState();
     const serialized = serializeEditorStateWithKeys(editorState);
-    console.log("Current Editor State JSON:", serialized);
+    console.log(
+      "Current Editor State JSON:",
+      serialized,
+      JSON.stringify(serialized, null, 2),
+    );
     setToolResult(
       "Editor state logged to console. " +
         "See browser developer tools for details.",
