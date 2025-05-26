@@ -30,8 +30,6 @@ import {
   TextNode,
   LineBreakNode,
   LexicalEditor,
-  $getRoot,
-  $createParagraphNode,
 } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
@@ -115,7 +113,6 @@ import {
   DialogTitle,
   DialogHeader,
 } from "~/components/ui/dialog";
-import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 
 export const NESTED_EDITOR_NODES = [
   HeadingNode,
@@ -502,12 +499,8 @@ export default function SlideDeckEditorComponent({
       const currentEditorsMapInRef = elementEditorsRef.current;
       const newEditorIds = new Set(currentSlide.elements.map((el) => el.id));
       let editorsChanged = false;
-      let deckDataNeedsUpdate = false;
-      const updatedElementsThisCycle: SlideElementSpec[] = [
-        ...currentSlide.elements,
-      ];
 
-      currentSlide.elements.forEach((element, index) => {
+      currentSlide.elements.forEach((element) => {
         let nestedEditor = currentEditorsMapInRef.get(element.id);
         let isNewEditor = false;
 
@@ -527,33 +520,9 @@ export default function SlideDeckEditorComponent({
           isNewEditor = true; // Mark as new editor
         }
 
-        let stateToSetInEditor: EditorStateJSON | null =
+        const stateToSetInEditor: EditorStateJSON | null =
           element.editorStateJSON;
-        let forceSetState = isNewEditor; // Always set state for new editors
-
-        if (element.pendingMarkdownContent !== undefined) {
-          const markdownToProcess = element.pendingMarkdownContent;
-          nestedEditor.update(() => {
-            const root = $getRoot();
-            root.clear();
-            $convertFromMarkdownString(markdownToProcess, TRANSFORMERS, root);
-            if (root.getChildrenSize() === 0) {
-              root.append($createParagraphNode());
-            }
-          });
-          const newJsonState = nestedEditor
-            .getEditorState()
-            .toJSON() as EditorStateJSON;
-          updatedElementsThisCycle[index] = {
-            ...element,
-            editorStateJSON: newJsonState,
-            pendingMarkdownContent: undefined,
-            version: (element.version || 0) + 1,
-          };
-          deckDataNeedsUpdate = true;
-          stateToSetInEditor = newJsonState;
-          forceSetState = true;
-        }
+        const forceSetState = isNewEditor; // Always set state for new editors
 
         // Set editor state if forced (new editor or markdown processed) or if JSON differs
         if (stateToSetInEditor) {
@@ -619,17 +588,6 @@ export default function SlideDeckEditorComponent({
 
       if (editorsChanged) {
         setActiveElementEditors(new Map(currentEditorsMapInRef));
-      }
-
-      if (deckDataNeedsUpdate) {
-        const newSlides = deckData.slides.map((s) =>
-          s.id === currentSlide.id
-            ? { ...s, elements: updatedElementsThisCycle }
-            : s,
-        );
-        const newDeckData = { ...deckData, slides: newSlides };
-        setDeckData(newDeckData); // Update local state
-        onDeckDataChange(newDeckData); // Propagate change
       }
     } else {
       if (elementEditorsRef.current.size > 0) {
