@@ -24,18 +24,23 @@ import {
   TextNode,
   RangeSelection,
   LexicalNode,
+  ParagraphNode,
 } from "lexical";
 import {
   $createCodeNode,
-  $createCodeHighlightNode,
+  CodeHighlightNode,
   $isCodeHighlightNode,
+  CodeNode,
+  $createCodeHighlightNode,
 } from "@lexical/code";
-import { $createHeadingNode } from "@lexical/rich-text";
+import { $createHeadingNode, HeadingNode, QuoteNode } from "@lexical/rich-text";
 import {
   $createListNode,
   $createListItemNode,
   $isListNode,
+  ListItemNode,
   $isListItemNode,
+  ListNode,
 } from "@lexical/list";
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import {
@@ -44,8 +49,9 @@ import {
   $createTableRowNode,
 } from "@lexical/table";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
-import { $createLinkNode } from "@lexical/link";
+import { $createLinkNode, LinkNode } from "@lexical/link";
 import { $wrapSelectionInMarkNode } from "@lexical/mark";
+import { createEditor, $getRoot as $getEditorRoot } from "lexical"; // Added createEditor and $getEditorRoot alias
 
 /** Standard Nodes */
 import { ElementNode } from "lexical";
@@ -68,7 +74,8 @@ import {
   DEFAULT_SLIDE_DECK_DATA,
   SlideDeckData,
   SlideData,
-  SlideElementSpec, // Added SlideElementSpec
+  SlideElementSpec,
+  EditorStateJSON, // Added SlideElementSpec
 } from "../../nodes/SlideNode/SlideNode";
 
 import { useChatDispatch } from "./llm-chat-context";
@@ -4380,6 +4387,56 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       try {
         let summary = "";
         let newBoxGeneratedId: string | undefined;
+        let generatedEditorStateJSON: EditorStateJSON | null = null;
+
+        if (initialMarkdownContent && initialMarkdownContent.trim() !== "") {
+          const tempEditor = createEditor({
+            nodes: [
+              ParagraphNode,
+              TextNode,
+              ListNode,
+              ListItemNode,
+              HeadingNode,
+              QuoteNode,
+              CodeNode,
+              CodeHighlightNode,
+              LinkNode,
+            ],
+            onError: (e) => {
+              console.error("Temporary editor error during box creation:", e);
+            },
+          });
+          tempEditor.update(() => {
+            const root = $getEditorRoot();
+            $convertFromMarkdownString(
+              initialMarkdownContent,
+              TRANSFORMERS,
+              root,
+            );
+            if (root.isEmpty() && root.getChildrenSize() === 0) {
+              root.append($createParagraphNode().append($createTextNode("")));
+            }
+            generatedEditorStateJSON = tempEditor
+              .getEditorState()
+              .toJSON() as EditorStateJSON;
+          });
+        } else {
+          // Create a default empty state (paragraph)
+          const tempEditor = createEditor({
+            nodes: [ParagraphNode, TextNode],
+            onError: (e) => {
+              console.error("Temporary editor error for empty box:", e);
+            },
+          });
+          tempEditor.update(() => {
+            $getEditorRoot().append(
+              $createParagraphNode().append($createTextNode("")),
+            );
+            generatedEditorStateJSON = tempEditor
+              .getEditorState()
+              .toJSON() as EditorStateJSON;
+          });
+        }
 
         editor.update(() => {
           const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
@@ -4410,8 +4467,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             y: y || 50,
             width: width || 300,
             height: height || 150,
-            editorStateJSON: null, // Will be populated from pendingMarkdownContent by SlideDeckEditor
-            pendingMarkdownContent: initialMarkdownContent,
+            editorStateJSON: generatedEditorStateJSON,
             backgroundColor: backgroundColor || "transparent", // Redundant due to zod default
             version: 1,
           };
@@ -4493,6 +4549,52 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }): ExecuteResult => {
       try {
         let summary = "";
+        let generatedEditorStateJSON: EditorStateJSON | null = null;
+
+        if (newMarkdownContent && newMarkdownContent.trim() !== "") {
+          const tempEditor = createEditor({
+            nodes: [
+              ParagraphNode,
+              TextNode,
+              ListNode,
+              ListItemNode,
+              HeadingNode,
+              QuoteNode,
+              CodeNode,
+              CodeHighlightNode,
+              LinkNode, // Common nodes for markdown
+            ],
+            onError: (e) => {
+              console.error("Temporary editor error during box update:", e);
+            },
+          });
+          tempEditor.update(() => {
+            const root = $getEditorRoot();
+            $convertFromMarkdownString(newMarkdownContent, TRANSFORMERS, root);
+            if (root.isEmpty() && root.getChildrenSize() === 0) {
+              root.append($createParagraphNode().append($createTextNode("")));
+            }
+            generatedEditorStateJSON = tempEditor
+              .getEditorState()
+              .toJSON() as EditorStateJSON;
+          });
+        } else {
+          // Create a default empty state (paragraph) if markdown is empty
+          const tempEditor = createEditor({
+            nodes: [ParagraphNode, TextNode],
+            onError: (e) => {
+              console.error("Temporary editor error for empty box update:", e);
+            },
+          });
+          tempEditor.update(() => {
+            $getEditorRoot().append(
+              $createParagraphNode().append($createTextNode("")),
+            );
+            generatedEditorStateJSON = tempEditor
+              .getEditorState()
+              .toJSON() as EditorStateJSON;
+          });
+        }
 
         editor.update(() => {
           const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
@@ -4521,8 +4623,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
                   boxFoundAndUpdated = true;
                   return {
                     ...el,
-                    pendingMarkdownContent: newMarkdownContent,
-                    editorStateJSON: null, // Clear old state, will be replaced by pending markdown
+                    editorStateJSON: generatedEditorStateJSON,
                     version: (el.version || 0) + 1,
                   };
                 }
@@ -4774,7 +4875,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       try {
         console.log(
           `[combinedTools] Starting execution of ${calls.length} calls.`,
-          );
+        );
 
         for (let i = 0; i < calls.length; i++) {
           const call = calls[i];
@@ -4836,7 +4937,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           console.log(
             `[combinedTools] Step ${i + 1} (${toolName}) succeeded: ${summary}`,
           );
-      } // End loop
+        } // End loop
 
         // If all calls succeeded
         const combinedSummary = results

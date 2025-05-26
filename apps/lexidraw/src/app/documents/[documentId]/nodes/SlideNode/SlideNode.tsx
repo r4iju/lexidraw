@@ -49,7 +49,6 @@ export interface SlideElementSpec {
   editorStateJSON: EditorStateJSON | null;
   version?: number;
   backgroundColor?: string;
-  pendingMarkdownContent?: string;
 }
 
 export interface SlideData {

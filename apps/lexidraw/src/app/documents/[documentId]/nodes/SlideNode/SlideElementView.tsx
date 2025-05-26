@@ -32,15 +32,6 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
     });
 
     try {
-      if (
-        element.pendingMarkdownContent !== undefined &&
-        element.pendingMarkdownContent.trim() !== ""
-      ) {
-        console.warn(
-          `[SlideElementView] Element ${element.id} has pendingMarkdownContent. Displaying current editorStateJSON. Content will update once processed by the main editor.`,
-        );
-      }
-
       // Always try to parse editorStateJSON. If it's null/undefined or invalid, use default.
       const stateToUse = element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE;
       const initialEditorState = editor.parseEditorState(
@@ -59,12 +50,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
       editor.setEditorState(defaultStateOnError);
     }
     return editor;
-  }, [
-    element.id,
-    element.editorStateJSON,
-    element.pendingMarkdownContent,
-    parentEditor,
-  ]);
+  }, [element.id, element.editorStateJSON, parentEditor]);
 
   if (element.kind !== "box") {
     return null;
