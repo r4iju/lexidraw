@@ -113,8 +113,27 @@ import {
   DialogTitle,
   DialogHeader,
 } from "~/components/ui/dialog";
+import { MarkNode } from "@lexical/mark";
+import { AutocompleteNode } from "../AutocompleteNode";
+import { ThreadNode } from "../ThreadNode";
+import { CommentNode } from "../CommentNode";
+import { MermaidNode } from "../MermaidNode";
+import { PageBreakNode } from "../PageBreakNode";
+import { StickyNode } from "../StickyNode";
+import PageBreakPlugin from "../../plugins/PageBreakPlugin";
+import MermaidPlugin from "../../plugins/MermaidPlugin";
+import AutocompletePlugin from "../../plugins/AutocompletePlugin";
+import { SessionUUIDProvider } from "../../plugins/AutocompletePlugin/session-uuid-provider";
 
 export const NESTED_EDITOR_NODES = [
+  // SlideNode,
+  MarkNode,
+  AutocompleteNode,
+  CommentNode,
+  ThreadNode,
+  PageBreakNode,
+  StickyNode,
+  MermaidNode,
   HeadingNode,
   QuoteNode,
   ListItemNode,
@@ -380,6 +399,11 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
               ignoreHistoryMergeTagChange
               ignoreSelectionChange
             />
+            <SessionUUIDProvider>
+              <AutocompletePlugin />
+            </SessionUUIDProvider>
+            <PageBreakPlugin />
+            <MermaidPlugin />
             <HistoryPlugin externalHistoryState={historyState} />
             <MarkdownShortcutPlugin />
             <HorizontalRulePlugin />
@@ -524,6 +548,15 @@ export default function SlideDeckEditorComponent({
           element.editorStateJSON;
         const forceSetState = isNewEditor; // Always set state for new editors
 
+        // Log before attempting to parse/set state
+        console.log(
+          `[SlideDeckEditor useEffect] Processing element ${element.id}:`,
+          `isNewEditor: ${isNewEditor}, forceSetState: ${forceSetState}, ` +
+            `has editorStateJSON: ${!!stateToSetInEditor}, ` +
+            `editorStateJSON to be used:`,
+          JSON.stringify(stateToSetInEditor, null, 2),
+        );
+
         // Set editor state if forced (new editor or markdown processed) or if JSON differs
         if (stateToSetInEditor) {
           // Ensure there's a state to set
@@ -537,6 +570,9 @@ export default function SlideDeckEditorComponent({
             currentNestedEditorStateJSONString !== stateToSetInEditorString // Compare stringified versions
           ) {
             try {
+              console.log(
+                `[SlideDeckEditor useEffect] Attempting to parse and set state for ${element.id}.`,
+              );
               const newLexicalState = nestedEditor.parseEditorState(
                 stateToSetInEditorString, // Use the already stringified version
               );
@@ -547,6 +583,9 @@ export default function SlideDeckEditorComponent({
                 e,
               );
               try {
+                console.warn(
+                  `[SlideDeckEditor useEffect] Attempting to set DEFAULT_BOX_EDITOR_STATE for ${element.id} after error.`,
+                );
                 const fallbackState = nestedEditor.parseEditorState(
                   JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
                 );
@@ -566,6 +605,9 @@ export default function SlideDeckEditorComponent({
             `[SlideDeckEditor] New editor for ${element.id} had no stateToSet. Applying default.`,
           );
           try {
+            console.warn(
+              `[SlideDeckEditor useEffect] Attempting to set DEFAULT_BOX_EDITOR_STATE for new editor ${element.id} (no initial state).`,
+            );
             const defaultState = nestedEditor.parseEditorState(
               JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
             );

@@ -24,23 +24,18 @@ import {
   TextNode,
   RangeSelection,
   LexicalNode,
-  ParagraphNode,
 } from "lexical";
 import {
   $createCodeNode,
-  CodeHighlightNode,
   $isCodeHighlightNode,
-  CodeNode,
   $createCodeHighlightNode,
 } from "@lexical/code";
-import { $createHeadingNode, HeadingNode, QuoteNode } from "@lexical/rich-text";
+import { $createHeadingNode } from "@lexical/rich-text";
 import {
   $createListNode,
   $createListItemNode,
   $isListNode,
-  ListItemNode,
   $isListItemNode,
-  ListNode,
 } from "@lexical/list";
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import {
@@ -49,10 +44,8 @@ import {
   $createTableRowNode,
 } from "@lexical/table";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
-import { $createLinkNode, LinkNode } from "@lexical/link";
+import { $createLinkNode } from "@lexical/link";
 import { $wrapSelectionInMarkNode } from "@lexical/mark";
-import { createEditor, $getRoot as $getEditorRoot } from "lexical"; // Added createEditor and $getEditorRoot alias
-
 /** Standard Nodes */
 import { ElementNode } from "lexical";
 
@@ -75,7 +68,7 @@ import {
   SlideDeckData,
   SlideData,
   SlideElementSpec,
-  EditorStateJSON, // Added SlideElementSpec
+  EditorStateJSON,
 } from "../../nodes/SlideNode/SlideNode";
 
 import { useChatDispatch } from "./llm-chat-context";
@@ -4332,9 +4325,12 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       slideId: z
         .string()
         .describe("The ID of the slide page to add the box to."),
-      initialMarkdownContent: z
+      initialTextContent: z
         .string()
-        .describe("The initial content for the box, formatted as Markdown."),
+        .optional()
+        .describe(
+          "The initial text content for the box. A single paragraph will be created.",
+        ),
       boxId: z
         .string()
         .optional()
@@ -4368,7 +4364,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       backgroundColor: z
         .string()
         .optional()
-        .default("transparent") // Default to transparent as per recent change
+        .default("transparent")
         .describe(
           "Optional background color for the box (e.g., '#FF0000', 'blue'). Defaults to transparent.",
         ),
@@ -4376,7 +4372,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     execute: async ({
       deckNodeKey,
       slideId,
-      initialMarkdownContent,
+      initialTextContent,
       boxId,
       x,
       y,
@@ -4387,56 +4383,43 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       try {
         let summary = "";
         let newBoxGeneratedId: string | undefined;
-        let generatedEditorStateJSON: EditorStateJSON | null = null;
 
-        if (initialMarkdownContent && initialMarkdownContent.trim() !== "") {
-          const tempEditor = createEditor({
-            nodes: [
-              ParagraphNode,
-              TextNode,
-              ListNode,
-              ListItemNode,
-              HeadingNode,
-              QuoteNode,
-              CodeNode,
-              CodeHighlightNode,
-              LinkNode,
+        // Create a simple EditorStateJSON: root > paragraph > text
+        // If initialTextContent is null, undefined, or an empty string,
+        // an empty text node will be created, which is valid.
+        const textForNode = initialTextContent || "";
+
+        const generatedEditorStateJSON: EditorStateJSON = {
+          root: {
+            type: "root",
+            version: 1,
+            direction: null,
+            format: "",
+            indent: 0,
+            children: [
+              {
+                type: "paragraph",
+                version: 1,
+                direction: null,
+                format: "",
+                indent: 0,
+                children: [
+                  {
+                    type: "text",
+                    version: 1,
+                    text: textForNode,
+                    detail: 0,
+                    format: "0",
+                    mode: "normal",
+                    style: "",
+                    direction: null,
+                    indent: 0,
+                  },
+                ],
+              },
             ],
-            onError: (e) => {
-              console.error("Temporary editor error during box creation:", e);
-            },
-          });
-          tempEditor.update(() => {
-            const root = $getEditorRoot();
-            $convertFromMarkdownString(
-              initialMarkdownContent,
-              TRANSFORMERS,
-              root,
-            );
-            if (root.isEmpty() && root.getChildrenSize() === 0) {
-              root.append($createParagraphNode().append($createTextNode("")));
-            }
-            generatedEditorStateJSON = tempEditor
-              .getEditorState()
-              .toJSON() as EditorStateJSON;
-          });
-        } else {
-          // Create a default empty state (paragraph)
-          const tempEditor = createEditor({
-            nodes: [ParagraphNode, TextNode],
-            onError: (e) => {
-              console.error("Temporary editor error for empty box:", e);
-            },
-          });
-          tempEditor.update(() => {
-            $getEditorRoot().append(
-              $createParagraphNode().append($createTextNode("")),
-            );
-            generatedEditorStateJSON = tempEditor
-              .getEditorState()
-              .toJSON() as EditorStateJSON;
-          });
-        }
+          },
+        } satisfies EditorStateJSON;
 
         editor.update(() => {
           const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
@@ -4445,7 +4428,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
               `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
             );
           }
-
           const currentDeckData = deckNode.getData();
           const targetSlideIndex = currentDeckData.slides.findIndex(
             (s) => s.id === slideId,
@@ -4457,18 +4439,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             );
           }
 
-          const newGeneratedId = boxId || `box-${Date.now()}`;
-          newBoxGeneratedId = newGeneratedId; // Store for returning
-
+          newBoxGeneratedId = boxId || `box-${Date.now()}`;
           const newBoxElement: SlideElementSpec = {
             kind: "box",
-            id: newGeneratedId,
-            x: x || 50, // Redundant due to zod default, but safe
+            id: newBoxGeneratedId,
+            x: x || 50,
             y: y || 50,
             width: width || 300,
             height: height || 150,
             editorStateJSON: generatedEditorStateJSON,
-            backgroundColor: backgroundColor || "transparent", // Redundant due to zod default
+            backgroundColor: backgroundColor || "transparent",
             version: 1,
           };
 
@@ -4487,7 +4467,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             slides: updatedSlides,
           };
           deckNode.setData(finalDeckData);
-          summary = `Added new box (ID: ${newGeneratedId}) with Markdown content to slide ${slideId} in deck ${deckNodeKey}.`;
+          summary = `Added new box (ID: ${newBoxGeneratedId}) with text content to slide ${slideId} in deck ${deckNodeKey}.`;
         });
 
         const latestState = editor.getEditorState();
@@ -4498,12 +4478,12 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           content: {
             summary,
             updatedEditorStateJson: stateJson,
-            newNodeKey: newBoxGeneratedId, // Return the new box ID as newNodeKey for consistency with other insertion tools
+            newNodeKey: newBoxGeneratedId,
           },
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [addBoxToSlidePage] Error:`, errorMsg);
+        console.error(`❌ [addBoxToSlidePage] Error:`, errorMsg, err);
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
@@ -4518,164 +4498,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           error: errorMsg,
           content: {
             summary: "Failed to add box to slide page",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
-    },
-  });
-
-  /* --------------------------------------------------------------
-   * Update Box Content on Slide Page Tool
-   * --------------------------------------------------------------*/
-  const updateBoxContentOnSlidePage = tool({
-    description:
-      "Updates the content of an existing box element on a specific slide page using new Markdown content.",
-    parameters: z.object({
-      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
-      slideId: z
-        .string()
-        .describe("The ID of the slide page containing the box."),
-      boxId: z.string().describe("The ID of the box element to update."),
-      newMarkdownContent: z
-        .string()
-        .describe("The new Markdown content for the box."),
-    }),
-    execute: async ({
-      deckNodeKey,
-      slideId,
-      boxId,
-      newMarkdownContent,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        let generatedEditorStateJSON: EditorStateJSON | null = null;
-
-        if (newMarkdownContent && newMarkdownContent.trim() !== "") {
-          const tempEditor = createEditor({
-            nodes: [
-              ParagraphNode,
-              TextNode,
-              ListNode,
-              ListItemNode,
-              HeadingNode,
-              QuoteNode,
-              CodeNode,
-              CodeHighlightNode,
-              LinkNode, // Common nodes for markdown
-            ],
-            onError: (e) => {
-              console.error("Temporary editor error during box update:", e);
-            },
-          });
-          tempEditor.update(() => {
-            const root = $getEditorRoot();
-            $convertFromMarkdownString(newMarkdownContent, TRANSFORMERS, root);
-            if (root.isEmpty() && root.getChildrenSize() === 0) {
-              root.append($createParagraphNode().append($createTextNode("")));
-            }
-            generatedEditorStateJSON = tempEditor
-              .getEditorState()
-              .toJSON() as EditorStateJSON;
-          });
-        } else {
-          // Create a default empty state (paragraph) if markdown is empty
-          const tempEditor = createEditor({
-            nodes: [ParagraphNode, TextNode],
-            onError: (e) => {
-              console.error("Temporary editor error for empty box update:", e);
-            },
-          });
-          tempEditor.update(() => {
-            $getEditorRoot().append(
-              $createParagraphNode().append($createTextNode("")),
-            );
-            generatedEditorStateJSON = tempEditor
-              .getEditorState()
-              .toJSON() as EditorStateJSON;
-          });
-        }
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
-          const targetSlideIndex = currentDeckData.slides.findIndex(
-            (s) => s.id === slideId,
-          );
-
-          if (targetSlideIndex === -1) {
-            throw new Error(
-              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
-            );
-          }
-
-          let boxFoundAndUpdated = false;
-          const updatedSlides = currentDeckData.slides.map((slide, index) => {
-            if (index === targetSlideIndex) {
-              const newElements = (slide.elements || []).map((el) => {
-                if (el.id === boxId && el.kind === "box") {
-                  boxFoundAndUpdated = true;
-                  return {
-                    ...el,
-                    editorStateJSON: generatedEditorStateJSON,
-                    version: (el.version || 0) + 1,
-                  };
-                }
-                return el;
-              });
-              return { ...slide, elements: newElements };
-            }
-            return slide;
-          });
-
-          if (!boxFoundAndUpdated) {
-            throw new Error(
-              `Box with ID ${boxId} not found on slide ${slideId} in deck ${deckNodeKey}.`,
-            );
-          }
-
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: updatedSlides,
-          };
-          deckNode.setData(finalDeckData);
-          summary = `Updated content of box (ID: ${boxId}) on slide ${slideId} in deck ${deckNodeKey}.`;
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [updateBoxContentOnSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            // No new node key, as we are updating an existing one. We could return boxId if needed.
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [updateBoxContentOnSlidePage] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error(
-            "[updateBoxContentOnSlidePage] Failed to serialize state on error:",
-            stateErr,
-          );
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to update box content on slide page",
             updatedEditorStateJson: stateJsonOnError,
           },
         };
@@ -4802,6 +4624,164 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  /* --------------------------------------------------------------
+   * New: Update Box Content with Structured Data Tool
+   * --------------------------------------------------------------*/
+  const updateBoxContentWithStructuredData = tool({
+    description:
+      "Updates the content of an existing box element on a specific slide page using structured data to build a simple text paragraph.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page containing the box."),
+      boxId: z.string().describe("The ID of the box element to update."),
+      textContent: z
+        .string()
+        .optional()
+        .describe(
+          "The text content for the box. A single paragraph with this text will be created. If empty or undefined, an empty paragraph will be created.",
+        ),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideId,
+      boxId,
+      textContent,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+        const textForNode = textContent || "";
+
+        const newEditorStateJSON: EditorStateJSON = {
+          root: {
+            type: "root",
+            version: 1,
+            direction: null,
+            format: "",
+            indent: 0,
+            children: [
+              {
+                type: "paragraph",
+                version: 1,
+                direction: null,
+                format: "",
+                indent: 0,
+                children: [
+                  {
+                    type: "text",
+                    version: 1,
+                    text: textForNode,
+                    detail: 0,
+                    format: "0", // Ensure format is a string if required by type, or number 0
+                    mode: "normal",
+                    style: "",
+                    direction: null, // Added to match generated JSON from addBox
+                    indent: 0, // Added to match generated JSON from addBox
+                  },
+                ],
+              },
+            ],
+          },
+        };
+
+        console.log(
+          `[updateBoxContentWithStructuredData] Constructed EditorStateJSON for box ${boxId}:`,
+          JSON.stringify(newEditorStateJSON, null, 2),
+        );
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          const targetSlideIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+            );
+          }
+
+          let boxFoundAndUpdated = false;
+          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              const newElements = (slide.elements || []).map((el) => {
+                if (el.id === boxId && el.kind === "box") {
+                  boxFoundAndUpdated = true;
+                  return {
+                    ...el,
+                    editorStateJSON: newEditorStateJSON,
+                    version: (el.version || 0) + 1,
+                  };
+                }
+                return el;
+              });
+              return { ...slide, elements: newElements };
+            }
+            return slide;
+          });
+
+          if (!boxFoundAndUpdated) {
+            throw new Error(
+              `Box with ID ${boxId} not found on slide ${slideId} in deck ${deckNodeKey}.`,
+            );
+          }
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: updatedSlides,
+          };
+          deckNode.setData(finalDeckData);
+          summary = `Updated content of box (ID: ${boxId}) with new structured text on slide ${slideId} in deck ${deckNodeKey}.`;
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(
+          `✅ [updateBoxContentWithStructuredData] Success: ${summary}`,
+        );
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `❌ [updateBoxContentWithStructuredData] Error:`,
+          errorMsg,
+        );
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error(
+            "[updateBoxContentWithStructuredData] Failed to serialize state on error:",
+            stateErr,
+          );
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary:
+              "Failed to update box content with structured data on slide page",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -4847,7 +4827,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }),
     ...(removeCommentFromThread && { removeCommentFromThread }), // Register new tool
     ...(removeCommentThread && { removeCommentThread }), // Register new tool
-    ...(updateBoxContentOnSlidePage && { updateBoxContentOnSlidePage }), // Register new tool
+    ...(updateBoxContentWithStructuredData && {
+      updateBoxContentWithStructuredData,
+    }), // Register new tool
     ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }), // Register new tool
   } as unknown as RuntimeToolMap;
 
