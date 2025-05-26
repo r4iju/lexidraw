@@ -22,7 +22,7 @@ interface SlideModalProps {
 }
 
 export const SlideModal: React.FC<SlideModalProps> = ({
-  // nodeKey,
+  nodeKey,
   initialDataString,
   editor,
   onSave,
@@ -81,6 +81,7 @@ export const SlideModal: React.FC<SlideModalProps> = ({
             initialDataString={deckDataString}
             onDeckDataChange={handleDeckDataChange}
             parentEditor={editor}
+            nodeKey={nodeKey}
           />
         </div>
         <DialogFooter className="p-6 pt-2 border-t border-border">

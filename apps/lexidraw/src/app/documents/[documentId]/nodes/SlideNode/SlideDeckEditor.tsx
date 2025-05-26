@@ -12,6 +12,7 @@ import {
   SlideElementSpec,
   DEFAULT_BOX_EDITOR_STATE,
   EditorStateJSON,
+  SlideNode,
 } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import {
@@ -30,6 +31,9 @@ import {
   TextNode,
   LineBreakNode,
   LexicalEditor,
+  EditorThemeClasses,
+  $getNodeByKey,
+  SerializedEditorState,
 } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
@@ -124,6 +128,8 @@ import PageBreakPlugin from "../../plugins/PageBreakPlugin";
 import MermaidPlugin from "../../plugins/MermaidPlugin";
 import AutocompletePlugin from "../../plugins/AutocompletePlugin";
 import { SessionUUIDProvider } from "../../plugins/AutocompletePlugin/session-uuid-provider";
+import { useEditorRegistry } from "../../context/editors-context";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
 export const NESTED_EDITOR_NODES = [
   // SlideNode,
@@ -167,12 +173,6 @@ export const NESTED_EDITOR_NODES = [
   CollapsibleTitleNode,
   PollNode,
 ];
-
-interface SlideDeckEditorProps {
-  initialDataString: string;
-  onDeckDataChange: (data: SlideDeckData) => void;
-  parentEditor: LexicalEditor;
-}
 
 interface CornerHandleProps {
   corner: "nw" | "ne" | "sw" | "se";
@@ -233,6 +233,8 @@ const CornerHandle: React.FC<CornerHandleProps> = ({
 };
 
 interface DraggableBoxWrapperProps {
+  deckNodeKey: string;
+  slideId: string;
   element: SlideElementSpec;
   nestedEditor: LexicalEditor;
   onBoxContentChange: (elementId: string, newEditorState: EditorState) => void;
@@ -251,6 +253,8 @@ interface DraggableBoxWrapperProps {
 }
 
 const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
+  deckNodeKey,
+  slideId,
   element,
   nestedEditor,
   onBoxContentChange,
@@ -278,6 +282,18 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
       setFloatingAnchorElem(_floatingAnchorElem);
     }
   };
+
+  const [editor] = useLexicalComposerContext();
+  const { registerEditor, unregisterEditor } = useEditorRegistry();
+  const editorKey = `${deckNodeKey}/${slideId}/${element.id}`;
+
+  useEffect(() => {
+    registerEditor(editorKey, editor);
+
+    return () => {
+      unregisterEditor(editorKey);
+    };
+  }, [editor, editorKey, registerEditor, unregisterEditor]);
 
   const isDragging = active?.id === element.id;
 
@@ -472,10 +488,18 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   );
 };
 
+interface SlideDeckEditorProps {
+  initialDataString: string;
+  onDeckDataChange: (data: SlideDeckData) => void;
+  parentEditor: LexicalEditor;
+  nodeKey: string;
+}
+
 export default function SlideDeckEditorComponent({
   initialDataString,
   onDeckDataChange,
   parentEditor,
+  nodeKey,
 }: SlideDeckEditorProps): JSX.Element {
   const [deckData, setDeckData] = useState<SlideDeckData>(() => {
     const parsed = JSON.parse(initialDataString) as SlideDeckData;
@@ -917,6 +941,8 @@ export default function SlideDeckEditorComponent({
                     </DialogContent>
                   </Dialog>
                   <DraggableBoxWrapper
+                    deckNodeKey={nodeKey}
+                    slideId={currentSlide.id}
                     key={`${element.id}-draggable`}
                     element={element}
                     nestedEditor={nestedEditor}
@@ -1019,4 +1045,135 @@ export default function SlideDeckEditorComponent({
       </div>
     </DndContext>
   );
+}
+
+interface NestedEditorPath {
+  deckNodeKey: string;
+  slideId: string;
+  boxId: string;
+}
+
+interface HeadlessEditorConfig {
+  theme?: EditorThemeClasses;
+}
+
+/**
+ * Retrieves the editorStateJSON for a specific box within a SlideNode.
+ * This operation is performed within a read cycle of the main editor.
+ *
+ * @param mainEditor The main LexicalEditor instance.
+ * @param path Path to the nested box.
+ * @returns The EditorStateJSON for the target box, or null if not found/applicable.
+ * @throws If path components are invalid.
+ */
+export function getSlideBoxEditorStateJSON(
+  mainEditor: LexicalEditor,
+  path: NestedEditorPath,
+): EditorStateJSON {
+  let extractedJson: EditorStateJSON | null = null;
+
+  mainEditor.getEditorState().read(() => {
+    const slideDeckNode = $getNodeByKey<SlideNode>(path.deckNodeKey);
+    if (!SlideNode.$isSlideDeckNode(slideDeckNode)) {
+      throw new Error(
+        `SlideDeckNode with key '${path.deckNodeKey}' not found or is not a valid SlideNode.`,
+      );
+    }
+
+    const deckData: SlideDeckData = slideDeckNode.getData();
+
+    const slide: SlideData | undefined = deckData.slides.find(
+      (s) => s.id === path.slideId,
+    );
+    if (!slide) {
+      throw new Error(
+        `Slide with ID '${path.slideId}' not found in deck '${path.deckNodeKey}'.`,
+      );
+    }
+
+    const boxElement: SlideElementSpec | undefined = slide.elements.find(
+      (el) => el.id === path.boxId,
+    );
+    if (!boxElement) {
+      throw new Error(
+        `Box element with ID '${path.boxId}' not found in slide '${path.slideId}'.`,
+      );
+    }
+
+    if (boxElement.kind !== "box") {
+      throw new Error(
+        `Element with ID '${path.boxId}' in slide '${path.slideId}' is not of kind 'box'. Found kind: '${boxElement.kind}'.`,
+      );
+    }
+    extractedJson = boxElement.editorStateJSON || DEFAULT_BOX_EDITOR_STATE;
+  });
+
+  if (!extractedJson) {
+    // Should be caught by earlier checks or DEFAULT_BOX_EDITOR_STATE
+    throw new Error(
+      `Failed to extract editorStateJSON for path: ${JSON.stringify(path)}`,
+    );
+  }
+  return extractedJson;
+}
+
+/**
+ * Creates and initializes a headless LexicalEditor instance for a specified
+ * box within a SlideNode. This editor is intended for "offline" modifications
+ * of the box's content.
+ *
+ * @param mainEditorInstance The main editor of the document.
+ * @param path An object specifying the deckNodeKey, slideId, and boxId.
+ * @param config Configuration for the headless editor (theme).
+ * @returns A configured, headless LexicalEditor instance.
+ * @throws If the path is invalid, data cannot be retrieved, or editor initialization fails.
+ */
+export function createHeadlessEditorForSlideBox(
+  mainEditorInstance: LexicalEditor,
+  path: NestedEditorPath,
+  config?: HeadlessEditorConfig,
+): LexicalEditor {
+  // 1. Get the serialized editor state JSON for the target box
+  // This uses the main editor's read cycle to safely access node data.
+  const targetEditorStateJSON = getSlideBoxEditorStateJSON(
+    mainEditorInstance,
+    path,
+  );
+
+  // 2. Create a new headless LexicalEditor instance
+  const headlessEditor = createEditor({
+    nodes: NESTED_EDITOR_NODES,
+    theme: config?.theme,
+    onError: (error: Error) => {
+      console.error(
+        `Headless editor error for path ${JSON.stringify(path)}:`,
+        error,
+      );
+    },
+  });
+
+  // 3. Parse and set the editor state on the headless editor
+  try {
+    if (!targetEditorStateJSON) {
+      throw new Error(
+        `Failed to get editor state JSON for path ${JSON.stringify(path)}`,
+      );
+    }
+
+    const initialEditorState: EditorState = headlessEditor.parseEditorState(
+      targetEditorStateJSON as SerializedEditorState,
+    );
+    headlessEditor.setEditorState(initialEditorState);
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    console.error(
+      `Failed to parse/set EditorState for headless editor (path: ${JSON.stringify(path)}): ${errorMessage}`,
+      targetEditorStateJSON, // Log the problematic JSON
+    );
+    throw new Error(
+      `Failed to initialize headless editor state for path '${JSON.stringify(path)}': ${errorMessage}`,
+    );
+  }
+
+  return headlessEditor;
 }
