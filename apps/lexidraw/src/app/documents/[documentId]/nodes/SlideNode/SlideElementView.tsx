@@ -7,6 +7,8 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { type SlideElementSpec, DEFAULT_BOX_EDITOR_STATE } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
+import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
+import type { ChartConfig } from "~/components/ui/chart";
 
 interface SlideElementViewProps {
   element: SlideElementSpec;
@@ -75,6 +77,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
         : "none", // Assuming borderColor is only for boxes for now
     overflow: "hidden",
     boxSizing: "border-box",
+    zIndex: element.zIndex,
   };
 
   if (element.kind === "box" && viewEditor) {
@@ -108,6 +111,40 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
           alt={`Slide image ${element.id}`}
           style={{ width: "100%", height: "100%", objectFit: "contain" }}
           draggable={false} // Prevent native image drag interference
+        />
+      </div>
+    );
+  }
+
+  if (element.kind === "chart") {
+    // Attempt to parse chartData and chartConfig, with fallbacks for safety
+    let chartData: unknown[] = [];
+    let chartConfig: ChartConfig = {};
+    try {
+      chartData = JSON.parse(element.chartData) as unknown[];
+    } catch (e) {
+      console.error(
+        `[SlideElementView] Error parsing chartData for element ${element.id}:`,
+        e,
+      );
+    }
+    try {
+      chartConfig = JSON.parse(element.chartConfig) as ChartConfig;
+    } catch (e) {
+      console.error(
+        `[SlideElementView] Error parsing chartConfig for element ${element.id}:`,
+        e,
+      );
+    }
+
+    return (
+      <div style={elementStyle} data-element-id={element.id}>
+        <DynamicChartRenderer
+          chartType={element.chartType}
+          data={chartData}
+          config={chartConfig}
+          width={element.width}
+          height={element.height}
         />
       </div>
     );

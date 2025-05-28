@@ -236,13 +236,9 @@ export const EditorRegistryProvider = ({
 
   const registerEditorCb = useCallback(
     (id: string, editorToRegister: LexicalEditor) => {
-      console.log(`[EditorRegistry] Registering live editor: ${id}`);
       // if a headless listener exists for this ID, it means a headless instance was created before.
       // now that a live editor is being registered, the headless listener is no longer needed.
       if (headlessListenersRef.current.has(id)) {
-        console.log(
-          `[EditorRegistry] Removing headless listener for ${id} as a live editor is now registered.`,
-        );
         headlessListenersRef.current.get(id)?.();
         headlessListenersRef.current.delete(id);
       }
@@ -252,7 +248,6 @@ export const EditorRegistryProvider = ({
   );
 
   const unregisterEditorCb = useCallback((id: string) => {
-    console.log(`[EditorRegistry] Unregistering live editor: ${id}`);
     if (headlessListenersRef.current.has(id)) {
       headlessListenersRef.current.get(id)?.();
       headlessListenersRef.current.delete(id);

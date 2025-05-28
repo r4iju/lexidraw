@@ -61,8 +61,6 @@ export default function DynamicChartRenderer({
   width: _width, // unused
   height,
 }: DynamicChartRendererProps) {
-  console.log("[DynamicChartRenderer] Data for chart:", data);
-
   // attempt to find a suitable key for XAxis
   const getXAxisDataKey = () => {
     if (data.length === 0) return "name"; // Default if no data
@@ -117,10 +115,6 @@ export default function DynamicChartRenderer({
         color: `hsl(var(--chart-${(index % 5) + 1}))`, // cycle through chart-1 to chart-5
       };
     });
-    console.log(
-      "[DynamicChartRenderer] Auto-generated config:",
-      generatedConfig,
-    );
     return generatedConfig;
   };
 
