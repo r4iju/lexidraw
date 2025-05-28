@@ -4976,7 +4976,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .optional()
         .default("[]")
         .describe(
-          'JSON string representing the chart data. Defaults to an empty array. Example: [{"month": "Jan", "sales": 100, "cost": 50}, {"month": "Feb", "sales": 200, "cost": 100}]',
+          'JSON string representing the chart data. Defaults to an empty array. Example: [{"month":"January","desktop":186,"mobile":80},{"month":"February","desktop":305,"mobile":200},{"month":"March","desktop":237,"mobile":120},{"month":"April","desktop":73,"mobile":190},{"month":"May","desktop":209,"mobile":130},{"month":"June","desktop":214,"mobile":140}]',
         ),
       chartConfigJSON: z
         .string()
