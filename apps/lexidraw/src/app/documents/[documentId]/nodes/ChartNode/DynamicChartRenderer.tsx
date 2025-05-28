@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -121,13 +121,21 @@ export default function DynamicChartRenderer({
   const chartConfig = getGeneratedChartConfig();
   const containerHeight = typeof height === "number" ? height : 200;
 
+  const message = useMemo(() => {
+    switch (true) {
+      case data === undefined || data === null:
+        return "No data provided";
+      case !Array.isArray(data):
+        return "Data is not an array";
+      case data.length === 0:
+        return "Data is empty";
+      default:
+        return "Unsupported chart data";
+    }
+  }, [data]);
+
   if (!data || data.length === 0 || !Array.isArray(data)) {
-    return (
-      <Placeholder
-        message="No data provided or data is not an array."
-        height={containerHeight}
-      />
-    );
+    return <Placeholder message={message} height={containerHeight} />;
   }
 
   const renderChart = () => {
