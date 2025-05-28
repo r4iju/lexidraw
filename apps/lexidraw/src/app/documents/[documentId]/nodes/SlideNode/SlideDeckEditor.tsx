@@ -24,6 +24,12 @@ import {
   EllipsisVerticalIcon,
   PaintBucketIcon,
   ImagePlusIcon,
+  BarChartBigIcon,
+  PencilIcon,
+  ArrowDownToLine,
+  ArrowUpToLine,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 import {
   type EditorState,
@@ -135,9 +141,14 @@ import {
   InsertImageDialog,
   type InsertImagePayload,
 } from "../../plugins/ImagePlugin";
+import { ChartNode } from "../ChartNode";
+import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
+import type { ChartConfig } from "~/components/ui/chart";
+import SlideChartEditModal from "./SlideChartEditModal";
+import ChartPlugin from "../../plugins/ChartPlugin";
 
 export const NESTED_EDITOR_NODES = [
-  // SlideNode,
+  ChartNode,
   MarkNode,
   AutocompleteNode,
   CommentNode,
@@ -178,6 +189,13 @@ export const NESTED_EDITOR_NODES = [
   CollapsibleTitleNode,
   PollNode,
 ];
+
+const getNextZIndex = (elements: SlideElementSpec[]): number => {
+  if (!elements || elements.length === 0) {
+    return 0;
+  }
+  return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+};
 
 interface CornerHandleProps {
   corner: "nw" | "ne" | "sw" | "se";
@@ -255,6 +273,14 @@ interface DraggableBoxWrapperProps {
   isLinkEditMode: boolean;
   setIsLinkEditMode: Dispatch<SetStateAction<boolean>>;
   deselectElement: () => void;
+  setShowChartEditModal: Dispatch<SetStateAction<boolean>>;
+  setEditingChartElement: Dispatch<
+    SetStateAction<Extract<SlideElementSpec, { kind: "chart" }> | null>
+  >;
+  onBringForward: (elementId: string) => void;
+  onSendBackward: (elementId: string) => void;
+  onBringToFront: (elementId: string) => void;
+  onSendToBack: (elementId: string) => void;
 }
 
 const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
@@ -272,6 +298,12 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   isLinkEditMode,
   setIsLinkEditMode,
   deselectElement,
+  setShowChartEditModal,
+  setEditingChartElement,
+  onBringForward,
+  onSendBackward,
+  onBringToFront,
+  onSendToBack,
 }) => {
   const { attributes, listeners, setNodeRef, transform, active } = useDraggable(
     {
@@ -322,7 +354,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
       : undefined,
-    zIndex: isSelected || isDragging ? 20 : 10,
+    zIndex: isSelected || isDragging ? element.zIndex + 1000 : element.zIndex,
     cursor: isDragging ? "grabbing" : isSelected ? "move" : "grab",
   } as const satisfies React.CSSProperties;
 
@@ -342,7 +374,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   ) => {
     let { x: newX, y: newY, width: newW, height: newH } = initialElement;
     const minW = 40,
-      minH = 20; // Minimum dimensions
+      minH = 20;
 
     if (corner.includes("w") && typeof initialElement.width === "number") {
       newW = Math.max(minW, initialElement.width - dx);
@@ -403,6 +435,56 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
                   Background Color
                 </DropdownMenuItem>
               )}
+              {element.kind === "chart" && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditingChartElement(
+                      element as Extract<SlideElementSpec, { kind: "chart" }>,
+                    );
+                    setShowChartEditModal(true);
+                    deselectElement();
+                  }}
+                >
+                  <PencilIcon className="h-4 w-4 mr-2" />
+                  Edit Chart
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => {
+                  onBringForward(element.id);
+                  deselectElement();
+                }}
+              >
+                <ChevronsUpDown className="h-4 w-4 mr-2" />
+                Bring Forward
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  onSendBackward(element.id);
+                  deselectElement();
+                }}
+              >
+                <ChevronsDownUp className="h-4 w-4 mr-2" />
+                Send Backward
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  onBringToFront(element.id);
+                  deselectElement();
+                }}
+              >
+                <ArrowUpToLine className="h-4 w-4 mr-2" />
+                Bring to Front
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  onSendToBack(element.id);
+                  deselectElement();
+                }}
+              >
+                <ArrowDownToLine className="h-4 w-4 mr-2" />
+                Send to Back
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           {element.kind === "box" && nestedEditor && (
@@ -416,6 +498,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
               <DisableChecklistSpacebarPlugin />
               <TabIndentationPlugin />
               <EmojiPickerPlugin />
+              <ChartPlugin />
               <RichTextPlugin
                 contentEditable={
                   <div ref={onRef}>
@@ -495,6 +578,15 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
               className="w-full h-full object-contain pointer-events-none"
             />
           )}
+          {element.kind === "chart" && (
+            <DynamicChartRenderer
+              chartType={element.chartType}
+              data={JSON.parse(element.chartData) as unknown[]}
+              config={JSON.parse(element.chartConfig) as ChartConfig}
+              width={element.width}
+              height={element.height}
+            />
+          )}
         </>
       </div>
       <div
@@ -552,6 +644,13 @@ export default function SlideDeckEditorComponent({
   const [activeEditorForImageInsert, setActiveEditorForImageInsert] =
     useState<LexicalEditor | null>(null);
 
+  // State for Chart Edit Modal
+  const [showChartEditModal, setShowChartEditModal] = useState(false);
+  const [editingChartElement, setEditingChartElement] = useState<Extract<
+    SlideElementSpec,
+    { kind: "chart" }
+  > | null>(null);
+
   const currentSlideIndex = useMemo(() => {
     if (!deckData.slides || deckData.slides.length === 0) return -1;
     const idx = deckData.slides.findIndex(
@@ -574,98 +673,76 @@ export default function SlideDeckEditorComponent({
       let editorsChanged = false;
 
       currentSlide.elements.forEach((element) => {
-        let nestedEditor = currentEditorsMapInRef.get(element.id);
-        let isNewEditor = false;
+        // Only manage nested Lexical editors for 'box' elements
+        if (element.kind === "box") {
+          let nestedEditor = currentEditorsMapInRef.get(element.id);
+          let isNewEditor = false;
 
-        if (!nestedEditor) {
-          nestedEditor = createEditor({
-            parentEditor: parentEditor,
-            nodes: NESTED_EDITOR_NODES,
-            theme: editorTheme,
-            onError: (error) =>
-              console.error(
-                `Error in nested editor for element ${element.id}:`,
-                error,
-              ),
-          });
-          currentEditorsMapInRef.set(element.id, nestedEditor);
-          editorsChanged = true;
-          isNewEditor = true; // Mark as new editor
-        }
-
-        const stateToSetInEditor: EditorStateJSON | null =
-          element.kind === "box" ? element.editorStateJSON : null;
-        const forceSetState = isNewEditor; // Always set state for new editors
-
-        // Log before attempting to parse/set state
-        console.log(
-          `[SlideDeckEditor useEffect] Processing element ${element.id}:`,
-          `isNewEditor: ${isNewEditor}, forceSetState: ${forceSetState}, ` +
-            `has editorStateJSON: ${!!stateToSetInEditor}, ` +
-            `editorStateJSON to be used:`,
-          JSON.stringify(stateToSetInEditor, null, 2),
-        );
-
-        // Set editor state if forced (new editor or markdown processed) or if JSON differs
-        if (stateToSetInEditor) {
-          // Ensure there's a state to set
-          const currentNestedEditorStateJSONString = JSON.stringify(
-            nestedEditor.getEditorState().toJSON(),
-          );
-          const stateToSetInEditorString = JSON.stringify(stateToSetInEditor);
-
-          if (
-            forceSetState ||
-            currentNestedEditorStateJSONString !== stateToSetInEditorString // Compare stringified versions
-          ) {
-            try {
-              console.log(
-                `[SlideDeckEditor useEffect] Attempting to parse and set state for ${element.id}.`,
-              );
-              const newLexicalState = nestedEditor.parseEditorState(
-                stateToSetInEditorString, // Use the already stringified version
-              );
-              nestedEditor.setEditorState(newLexicalState);
-            } catch (e) {
-              console.error(
-                `Failed to parse state for element ${element.id} in useEffect (stateToSet: ${stateToSetInEditor}):`,
-                e,
-              );
-              try {
-                console.warn(
-                  `[SlideDeckEditor useEffect] Attempting to set DEFAULT_BOX_EDITOR_STATE for ${element.id} after error.`,
-                );
-                const fallbackState = nestedEditor.parseEditorState(
-                  JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
-                );
-                nestedEditor.setEditorState(fallbackState);
-              } catch (fallbackError) {
+          if (!nestedEditor) {
+            nestedEditor = createEditor({
+              parentEditor: parentEditor,
+              nodes: NESTED_EDITOR_NODES,
+              theme: editorTheme,
+              onError: (error) =>
                 console.error(
-                  `FATAL: Failed to set even DEFAULT_BOX_EDITOR_STATE_STRING for element ${element.id}:`,
-                  fallbackError,
+                  `Error in nested editor for element ${element.id}:`,
+                  error,
+                ),
+            });
+            currentEditorsMapInRef.set(element.id, nestedEditor);
+            editorsChanged = true;
+            isNewEditor = true;
+          }
+
+          const stateToSetInEditor: EditorStateJSON | null =
+            element.editorStateJSON; // No longer checking element.kind here as it's confirmed "box"
+          const forceSetState = isNewEditor;
+
+          if (stateToSetInEditor) {
+            const currentNestedEditorStateJSONString = JSON.stringify(
+              nestedEditor.getEditorState().toJSON(),
+            );
+            const stateToSetInEditorString = JSON.stringify(stateToSetInEditor);
+
+            if (
+              forceSetState ||
+              currentNestedEditorStateJSONString !== stateToSetInEditorString
+            ) {
+              try {
+                const newLexicalState = nestedEditor.parseEditorState(
+                  stateToSetInEditorString,
                 );
+                nestedEditor.setEditorState(newLexicalState);
+              } catch (e) {
+                console.error(
+                  `Failed to parse state for BOX element ${element.id} (stateToSet: ${stateToSetInEditor}):`,
+                  e,
+                );
+                try {
+                  const fallbackState = nestedEditor.parseEditorState(
+                    JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
+                  );
+                  nestedEditor.setEditorState(fallbackState);
+                } catch (fallbackError) {
+                  console.error(
+                    `FATAL: Failed to set even DEFAULT_BOX_EDITOR_STATE_STRING for BOX element ${element.id}:`,
+                    fallbackError,
+                  );
+                }
               }
             }
-          }
-        } else if (isNewEditor) {
-          // If it's a new editor and there was no pending markdown and no existing editorStateJSON (shouldn't happen with defaults)
-          // Still ensure it gets a default state.
-          console.warn(
-            `[SlideDeckEditor] New editor for ${element.id} had no stateToSet. Applying default.`,
-          );
-          try {
-            console.warn(
-              `[SlideDeckEditor useEffect] Attempting to set DEFAULT_BOX_EDITOR_STATE for new editor ${element.id} (no initial state).`,
-            );
-            const defaultState = nestedEditor.parseEditorState(
-              JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
-            );
-            nestedEditor.setEditorState(defaultState);
-          } catch (e) {
-            console.error(
-              `FATAL: Failed to set DEFAULT_BOX_EDITOR_STATE_STRING for new element ${element.id}:`,
-              e,
-            );
+          } else if (isNewEditor) {
+            try {
+              const defaultState = nestedEditor.parseEditorState(
+                JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
+              );
+              nestedEditor.setEditorState(defaultState);
+            } catch (e) {
+              console.error(
+                `FATAL: Failed to set DEFAULT_BOX_EDITOR_STATE_STRING for new BOX element ${element.id}:`,
+                e,
+              );
+            }
           }
         }
       });
@@ -770,6 +847,7 @@ export default function SlideDeckEditorComponent({
       width: 200,
       height: 100,
       editorStateJSON: DEFAULT_BOX_EDITOR_STATE,
+      zIndex: getNextZIndex(currentSlide.elements),
     };
 
     const updatedElements = [...currentSlide.elements, newBoxElement];
@@ -781,6 +859,36 @@ export default function SlideDeckEditorComponent({
     setDeckData(newDeckData);
     onDeckDataChange(newDeckData);
     setSelectedElementId(newBoxId);
+  };
+
+  const handleAddChart = () => {
+    if (!currentSlide) {
+      alert("Please select or add a slide first!");
+      return;
+    }
+    const newChartId = `chart-${Date.now()}`;
+    const newChartElement: SlideElementSpec = {
+      kind: "chart",
+      id: newChartId,
+      x: 40, // Default position
+      y: 40,
+      width: 400, // Default size
+      height: 300,
+      chartType: "bar", // Default chart type
+      chartData: "[]", // Default empty data
+      chartConfig: "{}", // Default empty config
+      zIndex: getNextZIndex(currentSlide.elements),
+    };
+
+    const updatedElements = [...currentSlide.elements, newChartElement];
+    const updatedSlides = deckData.slides.map((s) =>
+      s.id === currentSlide.id ? { ...s, elements: updatedElements } : s,
+    );
+    const newDeckData = { ...deckData, slides: updatedSlides };
+
+    setDeckData(newDeckData);
+    onDeckDataChange(newDeckData);
+    setSelectedElementId(newChartId);
   };
 
   const openImageInsertDialog = () => {
@@ -803,6 +911,7 @@ export default function SlideDeckEditorComponent({
       width: payload.width || 250,
       height: payload.height || 150,
       url: payload.src,
+      zIndex: getNextZIndex(currentSlide.elements),
     };
 
     const updatedElements = [...currentSlide.elements, newImageElement];
@@ -816,6 +925,233 @@ export default function SlideDeckEditorComponent({
     setSelectedElementId(newImageId);
     setShowImageInsertDialog(false);
   };
+
+  const handleElementDelete = useCallback(
+    (elementId: string) => {
+      if (!currentSlide) return;
+
+      const reorderAndNormalizeZIndexesOnDelete = (
+        elements: SlideElementSpec[],
+      ): SlideElementSpec[] => {
+        const sortedElements = [...elements].sort(
+          (a, b) => a.zIndex - b.zIndex,
+        );
+        return sortedElements.map((el, index) => ({ ...el, zIndex: index }));
+      };
+
+      const newElements = currentSlide.elements.filter(
+        (el) => el.id !== elementId,
+      );
+      const reorderedElements =
+        reorderAndNormalizeZIndexesOnDelete(newElements);
+
+      const newSlides = deckData.slides.map((s) =>
+        s.id === currentSlide.id ? { ...s, elements: reorderedElements } : s,
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [currentSlide, deckData, onDeckDataChange],
+  );
+
+  const handleBackgroundColorChange = useCallback(
+    (elementId: string, newColor: string) => {
+      if (!currentSlide) return;
+      const newElements = currentSlide.elements.map((el) =>
+        el.id === elementId ? { ...el, backgroundColor: newColor } : el,
+      );
+      const newSlides = deckData.slides.map((s) =>
+        s.id === currentSlide.id ? { ...s, elements: newElements } : s,
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [currentSlide, deckData, onDeckDataChange],
+  );
+
+  const handleSlideBackgroundColorChange = useCallback(
+    (newColor: string) => {
+      if (!currentSlide) return;
+      const updatedSlideData = { ...currentSlide, backgroundColor: newColor };
+      const newSlides = deckData.slides.map((s) =>
+        s.id === currentSlide.id ? updatedSlideData : s,
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [currentSlide, deckData, onDeckDataChange],
+  );
+
+  const handleElementUpdate = useCallback(
+    (
+      elementId: string,
+      updates: Partial<Pick<SlideElementSpec, "x" | "y" | "width" | "height">>,
+    ) => {
+      if (!currentSlide) return;
+      const newElements = currentSlide.elements.map((el) =>
+        el.id === elementId ? { ...el, ...updates } : el,
+      );
+      const newSlides = deckData.slides.map((s) =>
+        s.id === currentSlide.id ? { ...s, elements: newElements } : s,
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [currentSlide, deckData, onDeckDataChange],
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, delta } = event;
+      if (!currentSlide || !active || (!delta.x && !delta.y)) return;
+
+      const elementId = active.id as string;
+
+      const originalElement = currentSlide.elements.find(
+        (el) => el.id === elementId,
+      );
+      if (!originalElement) return;
+
+      const updates = {
+        x: originalElement.x + delta.x,
+        y: originalElement.y + delta.y,
+      };
+      handleElementUpdate(elementId, updates);
+    },
+    [currentSlide, handleElementUpdate],
+  );
+
+  const deselectElement = () => {
+    setSelectedElementId(null);
+  };
+
+  const handleSaveChartChanges = (
+    updatedChartElement: Extract<SlideElementSpec, { kind: "chart" }>,
+  ) => {
+    if (!currentSlide || !editingChartElement) return;
+
+    const newElements = currentSlide.elements.map((el) =>
+      el.id === editingChartElement.id ? updatedChartElement : el,
+    );
+    const newSlides = deckData.slides.map((s) =>
+      s.id === currentSlide.id ? { ...s, elements: newElements } : s,
+    );
+    const newDeckData = { ...deckData, slides: newSlides };
+    setDeckData(newDeckData);
+    onDeckDataChange(newDeckData);
+    setShowChartEditModal(false);
+    setEditingChartElement(null);
+  };
+
+  // Helper function to reorder elements and normalize z-indexes
+  const reorderAndNormalizeZIndexes = useCallback(
+    (elements: SlideElementSpec[]): SlideElementSpec[] => {
+      const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
+      return sortedElements.map((el, index) => ({ ...el, zIndex: index }));
+    },
+    [],
+  );
+
+  // Z-index manipulation functions
+  const createZIndexChanger = useCallback(
+    (
+      direction: "forward" | "backward" | "front" | "back",
+    ): ((elementId: string) => void) => {
+      return (elementId: string) => {
+        if (!currentSlide) return;
+
+        const newElements = [...currentSlide.elements];
+        const targetElementIndex = newElements.findIndex(
+          (el) => el.id === elementId,
+        );
+        if (targetElementIndex === -1) return;
+
+        const targetElement = newElements[targetElementIndex];
+        if (!targetElement) return;
+
+        if (direction === "forward") {
+          const elementAbove = newElements
+            .filter((el) => el.zIndex > targetElement.zIndex)
+            .sort((a, b) => a.zIndex - b.zIndex)[0];
+          if (elementAbove) {
+            // swap zIndexes
+            const tempZ = targetElement.zIndex;
+            newElements[targetElementIndex] = {
+              ...targetElement,
+              zIndex: elementAbove.zIndex,
+            };
+            const elementAboveIndex = newElements.findIndex(
+              (el) => el.id === elementAbove.id,
+            );
+            if (elementAboveIndex !== -1) {
+              newElements[elementAboveIndex] = {
+                ...elementAbove,
+                zIndex: tempZ,
+              };
+            }
+          }
+        } else if (direction === "backward") {
+          const elementBelow = newElements
+            .filter((el) => el.zIndex < targetElement.zIndex)
+            .sort((a, b) => b.zIndex - a.zIndex)[0];
+          if (elementBelow) {
+            // swap zIndexes
+            const tempZ = targetElement.zIndex;
+            newElements[targetElementIndex] = {
+              ...targetElement,
+              zIndex: elementBelow.zIndex,
+            };
+            const elementBelowIndex = newElements.findIndex(
+              (el) => el.id === elementBelow.id,
+            );
+            if (elementBelowIndex !== -1) {
+              newElements[elementBelowIndex] = {
+                ...elementBelow,
+                zIndex: tempZ,
+              };
+            }
+          }
+        } else if (direction === "front") {
+          const maxZ = Math.max(...newElements.map((el) => el.zIndex), -1); // ensure there's always a number
+          if (targetElement.zIndex < maxZ || newElements.length === 1) {
+            newElements[targetElementIndex] = {
+              ...targetElement,
+              zIndex: maxZ + 1, // temporarily make it highest
+            };
+          }
+        } else if (direction === "back") {
+          const minZ = Math.min(
+            ...newElements.map((el) => el.zIndex),
+            Infinity,
+          ); // ensure there's always a number
+          if (targetElement.zIndex > minZ || newElements.length === 1) {
+            newElements[targetElementIndex] = {
+              ...targetElement,
+              zIndex: minZ - 1, // temporarily make it lowest
+            };
+          }
+        }
+
+        const finalElements = reorderAndNormalizeZIndexes(newElements);
+        const newSlides = deckData.slides.map((s) =>
+          s.id === currentSlide.id ? { ...s, elements: finalElements } : s,
+        );
+        const newDeckData = { ...deckData, slides: newSlides };
+        setDeckData(newDeckData);
+        onDeckDataChange(newDeckData);
+      };
+    },
+    [currentSlide, deckData, onDeckDataChange, reorderAndNormalizeZIndexes],
+  );
+
+  const handleBringForward = createZIndexChanger("forward");
+  const handleSendBackward = createZIndexChanger("backward");
+  const handleBringToFront = createZIndexChanger("front");
+  const handleSendToBack = createZIndexChanger("back");
 
   const deleteSlide = () => {
     setSelectedElementId(null);
@@ -861,96 +1197,6 @@ export default function SlideDeckEditorComponent({
       },
     }),
   );
-
-  const handleElementUpdate = useCallback(
-    (
-      elementId: string,
-      updates: Partial<Pick<SlideElementSpec, "x" | "y" | "width" | "height">>,
-    ) => {
-      if (!currentSlide) return;
-      const newElements = currentSlide.elements.map((el) =>
-        el.id === elementId ? { ...el, ...updates } : el,
-      );
-      const newSlides = deckData.slides.map((s) =>
-        s.id === currentSlide.id ? { ...s, elements: newElements } : s,
-      );
-      const newDeckData = { ...deckData, slides: newSlides };
-      setDeckData(newDeckData);
-      onDeckDataChange(newDeckData);
-    },
-    [currentSlide, deckData, onDeckDataChange],
-  );
-
-  const handleElementDelete = useCallback(
-    (elementId: string) => {
-      if (!currentSlide) return;
-      const newElements = currentSlide.elements.filter(
-        (el) => el.id !== elementId,
-      );
-      const newSlides = deckData.slides.map((s) =>
-        s.id === currentSlide.id ? { ...s, elements: newElements } : s,
-      );
-      const newDeckData = { ...deckData, slides: newSlides };
-      setDeckData(newDeckData);
-      onDeckDataChange(newDeckData);
-    },
-    [currentSlide, deckData, onDeckDataChange],
-  );
-
-  const handleBackgroundColorChange = useCallback(
-    (elementId: string, newColor: string) => {
-      if (!currentSlide) return;
-      const newElements = currentSlide.elements.map((el) =>
-        el.id === elementId ? { ...el, backgroundColor: newColor } : el,
-      );
-      const newSlides = deckData.slides.map((s) =>
-        s.id === currentSlide.id ? { ...s, elements: newElements } : s,
-      );
-      const newDeckData = { ...deckData, slides: newSlides };
-      setDeckData(newDeckData);
-      onDeckDataChange(newDeckData);
-    },
-    [currentSlide, deckData, onDeckDataChange],
-  );
-
-  const handleSlideBackgroundColorChange = useCallback(
-    (newColor: string) => {
-      if (!currentSlide) return;
-      const updatedSlideData = { ...currentSlide, backgroundColor: newColor };
-      const newSlides = deckData.slides.map((s) =>
-        s.id === currentSlide.id ? updatedSlideData : s,
-      );
-      const newDeckData = { ...deckData, slides: newSlides };
-      setDeckData(newDeckData);
-      onDeckDataChange(newDeckData);
-    },
-    [currentSlide, deckData, onDeckDataChange],
-  );
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, delta } = event;
-      if (!currentSlide || !active || (!delta.x && !delta.y)) return;
-
-      const elementId = active.id as string;
-
-      const originalElement = currentSlide.elements.find(
-        (el) => el.id === elementId,
-      );
-      if (!originalElement) return;
-
-      const updates = {
-        x: originalElement.x + delta.x,
-        y: originalElement.y + delta.y,
-      };
-      handleElementUpdate(elementId, updates);
-    },
-    [currentSlide, handleElementUpdate],
-  );
-
-  const deselectElement = () => {
-    setSelectedElementId(null);
-  };
 
   if (!currentSlide) {
     return (
@@ -1021,6 +1267,12 @@ export default function SlideDeckEditorComponent({
                     isLinkEditMode={isLinkEditMode}
                     setIsLinkEditMode={setIsLinkEditMode}
                     deselectElement={deselectElement}
+                    setShowChartEditModal={setShowChartEditModal}
+                    setEditingChartElement={setEditingChartElement}
+                    onBringForward={handleBringForward}
+                    onSendBackward={handleSendBackward}
+                    onBringToFront={handleBringToFront}
+                    onSendToBack={handleSendToBack}
                   />
                 </React.Fragment>
               );
@@ -1047,6 +1299,50 @@ export default function SlideDeckEditorComponent({
                     /* No-op for images */
                   }}
                   deselectElement={deselectElement}
+                  setShowChartEditModal={setShowChartEditModal}
+                  setEditingChartElement={setEditingChartElement}
+                  onBringForward={handleBringForward}
+                  onSendBackward={handleSendBackward}
+                  onBringToFront={handleBringToFront}
+                  onSendToBack={handleSendToBack}
+                />
+              );
+            } else if (element.kind === "chart") {
+              return (
+                <DraggableBoxWrapper
+                  deckNodeKey={nodeKey}
+                  slideId={currentSlide.id}
+                  key={`${element.id}-draggable`}
+                  element={element}
+                  nestedEditor={null}
+                  onBoxContentChange={() => {
+                    /* No-op for charts, content managed via modal */
+                  }}
+                  isSelected={selectedElementId === element.id}
+                  onSelect={setSelectedElementId}
+                  onElementUpdate={handleElementUpdate}
+                  onElementDelete={handleElementDelete}
+                  setShowColorPicker={() => {
+                    /* No-op for charts, or handle chart-specific styling differently */
+                  }}
+                  isLinkEditMode={false}
+                  setIsLinkEditMode={() => {
+                    /* No-op */
+                  }}
+                  deselectElement={deselectElement}
+                  setShowChartEditModal={setShowChartEditModal}
+                  setEditingChartElement={
+                    setEditingChartElement as Dispatch<
+                      SetStateAction<Extract<
+                        SlideElementSpec,
+                        { kind: "chart" }
+                      > | null>
+                    >
+                  }
+                  onBringForward={handleBringForward}
+                  onSendBackward={handleSendBackward}
+                  onBringToFront={handleBringToFront}
+                  onSendToBack={handleSendToBack}
                 />
               );
             }
@@ -1087,6 +1383,19 @@ export default function SlideDeckEditorComponent({
               />
             </DialogContent>
           </Dialog>
+        )}
+
+        {/* Chart Edit Modal */}
+        {showChartEditModal && editingChartElement && (
+          <SlideChartEditModal
+            isOpen={showChartEditModal}
+            chartElement={editingChartElement}
+            onCancel={() => {
+              setShowChartEditModal(false);
+              setEditingChartElement(null);
+            }}
+            onSave={handleSaveChartChanges}
+          />
         )}
 
         <div className="slide-controls flex items-center justify-between p-2 mt-auto">
@@ -1131,9 +1440,17 @@ export default function SlideDeckEditorComponent({
               onClick={openImageInsertDialog}
               variant="outline"
               size="sm"
-              className="mr-4"
+              className="mr-2"
             >
               <ImagePlusIcon className="mr-2 h-4 w-4" /> Add Image
+            </Button>
+            <Button
+              onClick={handleAddChart}
+              variant="outline"
+              size="sm"
+              className="mr-4"
+            >
+              <BarChartBigIcon className="mr-2 h-4 w-4" /> Add Chart
             </Button>
             <Button
               onClick={() => setShowSlideBgColorPicker(true)}
@@ -1171,15 +1488,6 @@ interface HeadlessEditorConfig {
   theme?: EditorThemeClasses;
 }
 
-/**
- * Retrieves the editorStateJSON for a specific box within a SlideNode.
- * This operation is performed within a read cycle of the main editor.
- *
- * @param mainEditor The main LexicalEditor instance.
- * @param path Path to the nested box.
- * @returns The EditorStateJSON for the target box, or null if not found/applicable.
- * @throws If path components are invalid.
- */
 export function getSlideBoxEditorStateJSON(
   mainEditor: LexicalEditor,
   path: NestedEditorPath,
@@ -1223,7 +1531,6 @@ export function getSlideBoxEditorStateJSON(
   });
 
   if (!extractedJson) {
-    // Should be caught by earlier checks or DEFAULT_BOX_EDITOR_STATE
     throw new Error(
       `Failed to extract editorStateJSON for path: ${JSON.stringify(path)}`,
     );
@@ -1231,30 +1538,16 @@ export function getSlideBoxEditorStateJSON(
   return extractedJson;
 }
 
-/**
- * Creates and initializes a headless LexicalEditor instance for a specified
- * box within a SlideNode. This editor is intended for "offline" modifications
- * of the box's content.
- *
- * @param mainEditorInstance The main editor of the document.
- * @param path An object specifying the deckNodeKey, slideId, and boxId.
- * @param config Configuration for the headless editor (theme).
- * @returns A configured, headless LexicalEditor instance.
- * @throws If the path is invalid, data cannot be retrieved, or editor initialization fails.
- */
 export function createHeadlessEditorForSlideBox(
   mainEditorInstance: LexicalEditor,
   path: NestedEditorPath,
   config?: HeadlessEditorConfig,
 ): LexicalEditor {
-  // 1. Get the serialized editor state JSON for the target box
-  // This uses the main editor's read cycle to safely access node data.
   const targetEditorStateJSON = getSlideBoxEditorStateJSON(
     mainEditorInstance,
     path,
   );
 
-  // 2. Create a new headless LexicalEditor instance
   const headlessEditor = createEditor({
     nodes: NESTED_EDITOR_NODES,
     theme: config?.theme,
@@ -1266,7 +1559,6 @@ export function createHeadlessEditorForSlideBox(
     },
   });
 
-  // 3. Parse and set the editor state on the headless editor
   try {
     if (!targetEditorStateJSON) {
       throw new Error(
@@ -1282,7 +1574,7 @@ export function createHeadlessEditorForSlideBox(
     const errorMessage = e instanceof Error ? e.message : String(e);
     console.error(
       `Failed to parse/set EditorState for headless editor (path: ${JSON.stringify(path)}): ${errorMessage}`,
-      targetEditorStateJSON, // Log the problematic JSON
+      targetEditorStateJSON,
     );
     throw new Error(
       `Failed to initialize headless editor state for path '${JSON.stringify(path)}': ${errorMessage}`,

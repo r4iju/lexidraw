@@ -25,6 +25,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import SlideView from "./SlideView";
 import { SlideModal } from "./SlideModal";
 import { cn } from "~/lib/utils";
+import type { ChartType } from "../ChartNode";
 
 type EditorStateJSONChild = {
   children?: EditorStateJSONChild[];
@@ -51,6 +52,7 @@ export type SlideElementSpec =
       editorStateJSON: EditorStateJSON | null;
       version?: number;
       backgroundColor?: string;
+      zIndex: number;
     }
   | {
       kind: "image";
@@ -61,6 +63,20 @@ export type SlideElementSpec =
       height: number | "inherit";
       url: string;
       version?: number;
+      zIndex: number;
+    }
+  | {
+      kind: "chart";
+      id: string;
+      x: number;
+      y: number;
+      width: number | "inherit";
+      height: number | "inherit";
+      chartType: ChartType;
+      chartData: string;
+      chartConfig: string;
+      version?: number;
+      zIndex: number;
     };
 
 export interface SlideData {
@@ -107,6 +123,7 @@ export const DEFAULT_SLIDE_DECK_DATA: SlideDeckData = {
           width: 300,
           height: 150,
           editorStateJSON: DEFAULT_BOX_EDITOR_STATE,
+          zIndex: 0,
         },
       ],
     },
