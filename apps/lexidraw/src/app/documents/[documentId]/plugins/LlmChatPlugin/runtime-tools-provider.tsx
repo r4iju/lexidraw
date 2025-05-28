@@ -4983,7 +4983,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .optional()
         .default("{}")
         .describe(
-          "JSON string representing the chart configuration. Defaults to an empty object.",
+          "JSON string representing the chart configuration for recharts. Defaults to an empty object. Example: {value: {label: 'Value', color: 'hsl(var(--chart-1))'}} Besides css variables for chart-1 to chart-5, you can also use hex colors.",
         ),
       chartId: z
         .string()
@@ -5136,6 +5136,181 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  /* --------------------------------------------------------------
+   * Update Slide Element Properties Tool
+   * --------------------------------------------------------------*/
+  const updateSlideElementProperties = tool({
+    description:
+      "Updates properties of an existing image or chart element on a specific slide page.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page containing the element."),
+      elementId: z
+        .string()
+        .describe("The ID of the image or chart element to update."),
+      kind: z
+        .enum(["image", "chart"])
+        .describe("The kind of element to update."),
+      properties: z
+        .object({
+          // Common properties
+          x: z.number().optional(),
+          y: z.number().optional(),
+          width: z.union([z.number(), z.literal("inherit")]).optional(),
+          height: z.union([z.number(), z.literal("inherit")]).optional(),
+          // Image specific
+          url: z.string().optional(),
+          // Chart specific
+          chartType: z.enum(["bar", "line", "pie"]).optional(),
+          chartDataJSON: z.string().optional(), // Should be valid JSON string
+          chartConfigJSON: z.string().optional(), // Should be valid JSON string
+        })
+        .describe(
+          "An object containing the properties to update. Only provided properties will be changed.",
+        ),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideId,
+      elementId,
+      kind,
+      properties,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+
+        // Validate JSON strings if provided for charts
+        if (kind === "chart") {
+          if (properties.chartDataJSON) {
+            try {
+              JSON.parse(properties.chartDataJSON);
+            } catch (e) {
+              throw new Error(`Invalid chartDataJSON: ${(e as Error).message}`);
+            }
+          }
+          if (properties.chartConfigJSON) {
+            try {
+              JSON.parse(properties.chartConfigJSON);
+            } catch (e) {
+              throw new Error(
+                `Invalid chartConfigJSON: ${(e as Error).message}`,
+              );
+            }
+          }
+        }
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+
+          const currentDeckData = deckNode.getData();
+          const targetSlideIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+            );
+          }
+
+          let elementFoundAndUpdated = false;
+          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              const newElements = (slide.elements || []).map((el) => {
+                if (el.id === elementId) {
+                  if (el.kind !== kind) {
+                    throw new Error(
+                      `Element ${elementId} is of kind ${el.kind}, but update specified kind ${kind}.`,
+                    );
+                  }
+                  elementFoundAndUpdated = true;
+                  // Prepare updates, carefully merging based on kind
+                  let specificUpdates = {};
+                  if (kind === "image" && el.kind === "image") {
+                    specificUpdates = {
+                      url: properties.url ?? el.url,
+                    };
+                  }
+                  if (kind === "chart" && el.kind === "chart") {
+                    specificUpdates = {
+                      chartType: properties.chartType ?? el.chartType,
+                      chartData: properties.chartDataJSON ?? el.chartData,
+                      chartConfig: properties.chartConfigJSON ?? el.chartConfig,
+                    };
+                  }
+
+                  return {
+                    ...el,
+                    x: properties.x ?? el.x,
+                    y: properties.y ?? el.y,
+                    width: properties.width ?? el.width,
+                    height: properties.height ?? el.height,
+                    ...specificUpdates,
+                    version: (el.version || 0) + 1,
+                  };
+                }
+                return el;
+              });
+              return { ...slide, elements: newElements };
+            }
+            return slide;
+          });
+
+          if (!elementFoundAndUpdated) {
+            throw new Error(
+              `Element with ID ${elementId} of kind ${kind} not found on slide ${slideId}.`,
+            );
+          }
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: updatedSlides,
+          };
+          deckNode.setData(finalDeckData);
+          summary = `Updated properties of ${kind} element (ID: ${elementId}) on slide ${slideId}. Changed: ${Object.keys(properties).join(", ")}`;
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [updateSlideElementProperties] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [updateSlideElementProperties] Error:`, errorMsg);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error(
+            "[updateSlideElementProperties] Failed to serialize state on error:",
+            stateErr,
+          );
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to update slide element properties",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -5184,6 +5359,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(removeCommentFromThread && { removeCommentFromThread }),
     ...(removeCommentThread && { removeCommentThread }),
     ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
+    ...(updateSlideElementProperties && { updateSlideElementProperties }),
   } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------
