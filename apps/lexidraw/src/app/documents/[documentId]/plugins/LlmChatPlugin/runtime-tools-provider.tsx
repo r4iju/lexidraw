@@ -4517,12 +4517,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .number()
         .optional()
         .default(300)
-        .describe("Optional width of the box. Defaults to 300. The slide itself is 1280px wide."),
+        .describe(
+          "Optional width of the box. Defaults to 300. The slide itself is 1280px wide.",
+        ),
       height: z
         .number()
         .optional()
         .default(150)
-        .describe("Optional height of the box. Defaults to 150. The slide itself is 720px tall."),
+        .describe(
+          "Optional height of the box. Defaults to 150. The slide itself is 720px tall.",
+        ),
       backgroundColor: z
         .string()
         .optional()
@@ -4545,6 +4549,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       try {
         let summary = "";
         let newBoxGeneratedId: string | undefined;
+
+        // Helper function to get the next zIndex for the new element
+        const getNextZIndexForSlideElements = (
+          elements: SlideElementSpec[],
+        ): number => {
+          if (!elements || elements.length === 0) {
+            return 0;
+          }
+          return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+        };
 
         // Create a simple EditorStateJSON: root > paragraph > text
         // If initialTextContent is null, undefined, or an empty string,
@@ -4601,6 +4615,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             );
           }
 
+          const targetSlide = currentDeckData.slides[targetSlideIndex];
+
           newBoxGeneratedId = boxId || `box-${Date.now()}`;
           const newBoxElement: SlideElementSpec = {
             kind: "box",
@@ -4612,6 +4628,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             editorStateJSON: generatedEditorStateJSON,
             backgroundColor: backgroundColor || "transparent",
             version: 1,
+            zIndex: getNextZIndexForSlideElements(
+              targetSlide ? targetSlide.elements : [],
+            ),
           };
 
           const updatedSlides = currentDeckData.slides.map((slide, index) => {
@@ -4786,6 +4805,337 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  /* --------------------------------------------------------------
+   * Add Image to Slide Page Tool
+   * --------------------------------------------------------------*/
+  const addImageToSlidePage = tool({
+    description:
+      "Adds a new image element to a specific slide page within an existing SlideDeckNode.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page to add the image to."),
+      imageUrl: z.string().describe("The URL of the image."),
+      imageId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional ID for the new image. If not provided, a unique ID (e.g., 'image-<timestamp>') will be generated.",
+        ),
+      x: z
+        .number()
+        .optional()
+        .default(50)
+        .describe(
+          "Optional X coordinate for the top-left corner. Defaults to 50.",
+        ),
+      y: z
+        .number()
+        .optional()
+        .default(50)
+        .describe(
+          "Optional Y coordinate for the top-left corner. Defaults to 50.",
+        ),
+      width: z
+        .number()
+        .optional()
+        .default(250)
+        .describe("Optional width. Defaults to 250."),
+      height: z
+        .number()
+        .optional()
+        .default(150)
+        .describe("Optional height. Defaults to 150."),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideId,
+      imageUrl,
+      imageId,
+      x,
+      y,
+      width,
+      height,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+        let newImageGeneratedId: string | undefined;
+
+        const getNextZIndexForSlideElements = (
+          elements: SlideElementSpec[],
+        ): number => {
+          if (!elements || elements.length === 0) return 0;
+          return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+        };
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+          const currentDeckData = deckNode.getData();
+          const targetSlideIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+            );
+          }
+          const targetSlide = currentDeckData.slides[targetSlideIndex];
+
+          newImageGeneratedId = imageId || `image-${Date.now()}`;
+          const newImageElement: SlideElementSpec = {
+            kind: "image",
+            id: newImageGeneratedId,
+            x: x || 50,
+            y: y || 50,
+            width: width || 250,
+            height: height || 150,
+            url: imageUrl,
+            version: 1,
+            zIndex: getNextZIndexForSlideElements(
+              targetSlide ? targetSlide.elements : [],
+            ),
+          };
+
+          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              return {
+                ...slide,
+                elements: [...(slide.elements || []), newImageElement],
+              };
+            }
+            return slide;
+          });
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: updatedSlides,
+          };
+          deckNode.setData(finalDeckData);
+          summary = `Added new image (ID: ${newImageGeneratedId}, URL: ${imageUrl.substring(0, 50)}...) to slide ${slideId} in deck ${deckNodeKey}.`;
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [addImageToSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newImageGeneratedId,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [addImageToSlidePage] Error:`, errorMsg, err);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error(
+            "[addImageToSlidePage] Failed to serialize state on error:",
+            stateErr,
+          );
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to add image to slide page",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Add Chart to Slide Page Tool
+   * --------------------------------------------------------------*/
+  const addChartToSlidePage = tool({
+    description:
+      "Adds a new chart element to a specific slide page within an existing SlideDeckNode.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page to add the chart to."),
+      chartType: z
+        .enum(["bar", "line", "pie"])
+        .default("bar")
+        .describe("Type of chart (bar, line, pie). Defaults to bar."),
+      chartDataJSON: z
+        .string()
+        .optional()
+        .default("[]")
+        .describe(
+          'JSON string representing the chart data. Defaults to an empty array. Example: [{"month": "Jan", "sales": 100, "cost": 50}, {"month": "Feb", "sales": 200, "cost": 100}]',
+        ),
+      chartConfigJSON: z
+        .string()
+        .optional()
+        .default("{}")
+        .describe(
+          "JSON string representing the chart configuration. Defaults to an empty object.",
+        ),
+      chartId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional ID for the new chart. If not provided, a unique ID (e.g., 'chart-<timestamp>') will be generated.",
+        ),
+      x: z
+        .number()
+        .optional()
+        .default(50)
+        .describe("X coordinate. Defaults to 50."),
+      y: z
+        .number()
+        .optional()
+        .default(50)
+        .describe("Y coordinate. Defaults to 50."),
+      width: z
+        .number()
+        .optional()
+        .default(400)
+        .describe("Width. Defaults to 400."),
+      height: z
+        .number()
+        .optional()
+        .default(300)
+        .describe("Height. Defaults to 300."),
+    }),
+    execute: async ({
+      deckNodeKey,
+      slideId,
+      chartType,
+      chartDataJSON,
+      chartConfigJSON,
+      chartId,
+      x,
+      y,
+      width,
+      height,
+    }): ExecuteResult => {
+      try {
+        let summary = "";
+        let newChartGeneratedId: string | undefined;
+
+        const getNextZIndexForSlideElements = (
+          elements: SlideElementSpec[],
+        ): number => {
+          if (!elements || elements.length === 0) return 0;
+          return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+        };
+
+        // Validate JSON strings early
+        try {
+          JSON.parse(chartDataJSON || "[]");
+        } catch (e) {
+          throw new Error(`Invalid chartDataJSON: ${(e as Error).message}`);
+        }
+        try {
+          JSON.parse(chartConfigJSON || "{}");
+        } catch (e) {
+          throw new Error(`Invalid chartConfigJSON: ${(e as Error).message}`);
+        }
+
+        editor.update(() => {
+          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            throw new Error(
+              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+            );
+          }
+          const currentDeckData = deckNode.getData();
+          const targetSlideIndex = currentDeckData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+            );
+          }
+          const targetSlide = currentDeckData.slides[targetSlideIndex];
+
+          newChartGeneratedId = chartId || `chart-${Date.now()}`;
+          const newChartElement: SlideElementSpec = {
+            kind: "chart",
+            id: newChartGeneratedId,
+            x: x || 50,
+            y: y || 50,
+            width: width || 400,
+            height: height || 300,
+            chartType: chartType || "bar",
+            chartData: chartDataJSON || "[]",
+            chartConfig: chartConfigJSON || "{}",
+            version: 1,
+            zIndex: getNextZIndexForSlideElements(
+              targetSlide ? targetSlide.elements : [],
+            ),
+          };
+
+          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              return {
+                ...slide,
+                elements: [...(slide.elements || []), newChartElement],
+              };
+            }
+            return slide;
+          });
+
+          const finalDeckData: SlideDeckData = {
+            ...currentDeckData,
+            slides: updatedSlides,
+          };
+          deckNode.setData(finalDeckData);
+          summary = `Added new ${chartType} chart (ID: ${newChartGeneratedId}) to slide ${slideId} in deck ${deckNodeKey}.`;
+        });
+
+        const latestState = editor.getEditorState();
+        const stateJson = JSON.stringify(latestState.toJSON());
+        console.log(`✅ [addChartToSlidePage] Success: ${summary}`);
+        return {
+          success: true,
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newChartGeneratedId,
+          },
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`❌ [addChartToSlidePage] Error:`, errorMsg, err);
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+        } catch (stateErr) {
+          console.error(
+            "[addChartToSlidePage] Failed to serialize state on error:",
+            stateErr,
+          );
+        }
+        return {
+          success: false,
+          error: errorMsg,
+          content: {
+            summary: "Failed to add chart to slide page",
+            updatedEditorStateJson: stateJsonOnError,
+          },
+        };
+      }
+    },
+  });
+
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
     ...(insertTextNode && { insertTextNode }),
@@ -4809,6 +5159,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(reorderSlidePage && { reorderSlidePage }),
     ...(addBoxToSlidePage && { addBoxToSlidePage }), // Register the new tool
     ...(setSlidePageBackground && { setSlidePageBackground }),
+    ...(addImageToSlidePage && { addImageToSlidePage }),
+    ...(addChartToSlidePage && { addChartToSlidePage }),
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
