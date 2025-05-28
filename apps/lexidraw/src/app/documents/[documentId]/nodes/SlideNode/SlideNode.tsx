@@ -40,17 +40,28 @@ export type EditorStateJSON = {
   root: EditorStateJSONChild;
 };
 
-export interface SlideElementSpec {
-  kind: "box";
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  editorStateJSON: EditorStateJSON | null;
-  version?: number;
-  backgroundColor?: string;
-}
+export type SlideElementSpec =
+  | {
+      kind: "box";
+      id: string;
+      x: number;
+      y: number;
+      width: number | "inherit";
+      height: number | "inherit";
+      editorStateJSON: EditorStateJSON | null;
+      version?: number;
+      backgroundColor?: string;
+    }
+  | {
+      kind: "image";
+      id: string;
+      x: number;
+      y: number;
+      width: number | "inherit";
+      height: number | "inherit";
+      url: string;
+      version?: number;
+    };
 
 export interface SlideData {
   id: string;
@@ -58,10 +69,10 @@ export interface SlideData {
   backgroundColor?: string;
 }
 
-export interface SlideDeckData {
+export type SlideDeckData = {
   slides: SlideData[];
   currentSlideId: string | null;
-}
+};
 
 export const DEFAULT_BOX_EDITOR_STATE = {
   root: {

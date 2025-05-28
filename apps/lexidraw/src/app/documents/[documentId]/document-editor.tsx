@@ -137,6 +137,8 @@ import {
   useDocumentSettings,
 } from "./context/document-settings-context";
 import { EditorRegistryProvider } from "./context/editors-context";
+import ChartPlugin from "./plugins/ChartPlugin";
+import { ChartNode } from "./nodes/ChartNode";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -489,6 +491,7 @@ function EditorHandler({
                               <YouTubePlugin />
                               <ExcalidrawPlugin />
                               <MermaidPlugin />
+                              <ChartPlugin />
                               <FigmaPlugin />
                               <EquationsPlugin />
                               <RichTextPlugin
@@ -677,6 +680,7 @@ export default function DocumentEditor({
     YouTubeNode,
     ExcalidrawNode,
     MermaidNode,
+    ChartNode,
     FigmaNode,
     EquationNode,
     PageBreakNode,
