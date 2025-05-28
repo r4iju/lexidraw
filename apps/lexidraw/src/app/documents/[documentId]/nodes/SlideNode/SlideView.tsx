@@ -5,7 +5,6 @@ import type { SlideDeckData, SlideData } from "./SlideNode";
 import SlideElementView from "./SlideElementView";
 import { Button } from "~/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { cn } from "~/lib/utils";
 
 interface SlideViewProps {
   initialDataString: string;

@@ -23,6 +23,7 @@ import {
   PlusSquareIcon,
   EllipsisVerticalIcon,
   PaintBucketIcon,
+  ImagePlusIcon,
 } from "lucide-react";
 import {
   type EditorState,
@@ -130,6 +131,10 @@ import AutocompletePlugin from "../../plugins/AutocompletePlugin";
 import { SessionUUIDProvider } from "../../plugins/AutocompletePlugin/session-uuid-provider";
 import { useEditorRegistry } from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import {
+  InsertImageDialog,
+  type InsertImagePayload,
+} from "../../plugins/ImagePlugin";
 
 export const NESTED_EDITOR_NODES = [
   // SlideNode,
@@ -236,9 +241,9 @@ interface DraggableBoxWrapperProps {
   deckNodeKey: string;
   slideId: string;
   element: SlideElementSpec;
-  nestedEditor: LexicalEditor;
+  nestedEditor: LexicalEditor | null;
   onBoxContentChange: (elementId: string, newEditorState: EditorState) => void;
-  historyState: ReturnType<typeof useSharedHistoryContext>["historyState"];
+  historyState?: ReturnType<typeof useSharedHistoryContext>["historyState"];
   isSelected: boolean;
   onSelect: (elementId: string | null) => void;
   onElementUpdate: (
@@ -271,7 +276,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   const { attributes, listeners, setNodeRef, transform, active } = useDraggable(
     {
       id: element.id,
-      disabled: isLinkEditMode,
+      disabled: element.kind === "box" && isLinkEditMode,
     },
   );
   const [floatingAnchorElem, setFloatingAnchorElem] =
@@ -288,12 +293,16 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   const editorKey = `${deckNodeKey}/${slideId}/${element.id}`;
 
   useEffect(() => {
-    registerEditor(editorKey, editor);
-
+    if (element.kind === "box" && editor) {
+      registerEditor(editorKey, editor);
+      return () => {
+        unregisterEditor(editorKey);
+      };
+    }
     return () => {
-      unregisterEditor(editorKey);
+      /**  do nothing */
     };
-  }, [editor, editorKey, registerEditor, unregisterEditor]);
+  }, [editor, editorKey, registerEditor, unregisterEditor, element.kind]);
 
   const isDragging = active?.id === element.id;
 
@@ -305,7 +314,10 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     height: element.height,
     border: "1px solid #ccc",
     overflow: "hidden",
-    backgroundColor: element.backgroundColor || "white",
+    backgroundColor:
+      element.kind === "box"
+        ? element.backgroundColor || "white"
+        : "transparent",
     boxSizing: "border-box",
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
@@ -332,16 +344,22 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     const minW = 40,
       minH = 20; // Minimum dimensions
 
-    if (corner.includes("w")) {
+    if (corner.includes("w") && typeof initialElement.width === "number") {
       newW = Math.max(minW, initialElement.width - dx);
       newX = initialElement.x + (initialElement.width - newW);
-    } else if (corner.includes("e")) {
+    } else if (
+      corner.includes("e") &&
+      typeof initialElement.width === "number"
+    ) {
       newW = Math.max(minW, initialElement.width + dx);
     }
-    if (corner.includes("n")) {
+    if (corner.includes("n") && typeof initialElement.height === "number") {
       newH = Math.max(minH, initialElement.height - dy);
       newY = initialElement.y + (initialElement.height - newH);
-    } else if (corner.includes("s")) {
+    } else if (
+      corner.includes("s") &&
+      typeof initialElement.height === "number"
+    ) {
       newH = Math.max(minH, initialElement.height + dy);
     }
     onElementUpdate(elementId, { x: newX, y: newY, width: newW, height: newH });
@@ -374,97 +392,109 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
                 <Trash2Icon className="h-4 w-4 mr-2" />
                 Delete
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  deselectElement();
-                  setShowColorPicker(true);
-                }}
-              >
-                <PaintBucketIcon className="h-4 w-4 mr-2" />
-                Background Color
-              </DropdownMenuItem>
+              {element.kind === "box" && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    deselectElement();
+                    setShowColorPicker(true);
+                  }}
+                >
+                  <PaintBucketIcon className="h-4 w-4 mr-2" />
+                  Background Color
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <LexicalNestedComposer
-            key={element.id}
-            initialEditor={nestedEditor}
-            initialNodes={NESTED_EDITOR_NODES}
-            initialTheme={editorTheme}
-            skipCollabChecks={true}
-          >
-            <DisableChecklistSpacebarPlugin />
-            <TabIndentationPlugin />
-            <EmojiPickerPlugin />
-            <RichTextPlugin
-              contentEditable={
-                <div ref={onRef}>
-                  <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
-                </div>
-              }
-              placeholder={
-                <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
-                  Type...
-                </div>
-              }
-              ErrorBoundary={LexicalErrorBoundary}
+          {element.kind === "box" && nestedEditor && (
+            <LexicalNestedComposer
+              key={element.id}
+              initialEditor={nestedEditor}
+              initialNodes={NESTED_EDITOR_NODES}
+              initialTheme={editorTheme}
+              skipCollabChecks={true}
+            >
+              <DisableChecklistSpacebarPlugin />
+              <TabIndentationPlugin />
+              <EmojiPickerPlugin />
+              <RichTextPlugin
+                contentEditable={
+                  <div ref={onRef}>
+                    <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
+                  </div>
+                }
+                placeholder={
+                  <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
+                    Type...
+                  </div>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+              <OnChangePlugin
+                onChange={(editorState) =>
+                  onBoxContentChange(element.id, editorState)
+                }
+                ignoreHistoryMergeTagChange
+                ignoreSelectionChange
+              />
+              <SessionUUIDProvider>
+                <AutocompletePlugin />
+              </SessionUUIDProvider>
+              <PageBreakPlugin />
+              <MermaidPlugin />
+              <HistoryPlugin externalHistoryState={historyState} />
+              <MarkdownShortcutPlugin />
+              <HorizontalRulePlugin />
+              <EquationsPlugin />
+              <AutoFocusPlugin />
+              <TablePlugin hasCellMerge hasCellBackgroundColor />
+              <MentionsPlugin />
+              <LinkPlugin />
+              <EmojisPlugin />
+              <HashtagPlugin />
+              <KeywordsPlugin />
+              <TwitterPlugin />
+              <YouTubePlugin />
+              <ExcalidrawPlugin />
+              <FigmaPlugin />
+              <ImagePlugin />
+              <InlineImagePlugin />
+              <VideoPlugin />
+              <LayoutPlugin />
+              <CollapsiblePlugin />
+              <PollPlugin />
+              <TableCellResizer />
+              {floatingAnchorElem && (
+                <>
+                  <TableActionMenuPlugin
+                    anchorElem={floatingAnchorElem}
+                    cellMerge={true}
+                  />
+                  <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+                  <FloatingLinkEditorPlugin
+                    anchorElem={floatingAnchorElem}
+                    isLinkEditMode={isLinkEditMode}
+                    setIsLinkEditMode={setIsLinkEditMode}
+                  />
+                  <TableActionMenuPlugin
+                    anchorElem={floatingAnchorElem}
+                    cellMerge={true}
+                  />
+                  <FloatingTextFormatToolbarPlugin
+                    anchorElem={floatingAnchorElem}
+                    setIsLinkEditMode={setIsLinkEditMode}
+                  />
+                </>
+              )}
+            </LexicalNestedComposer>
+          )}
+          {element.kind === "image" && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={element.url}
+              alt={`Slide content ${element.id}`}
+              className="w-full h-full object-contain pointer-events-none"
             />
-            <OnChangePlugin
-              onChange={(editorState) =>
-                onBoxContentChange(element.id, editorState)
-              }
-              ignoreHistoryMergeTagChange
-              ignoreSelectionChange
-            />
-            <SessionUUIDProvider>
-              <AutocompletePlugin />
-            </SessionUUIDProvider>
-            <PageBreakPlugin />
-            <MermaidPlugin />
-            <HistoryPlugin externalHistoryState={historyState} />
-            <MarkdownShortcutPlugin />
-            <HorizontalRulePlugin />
-            <EquationsPlugin />
-            <AutoFocusPlugin />
-            <TablePlugin hasCellMerge hasCellBackgroundColor />
-            <MentionsPlugin />
-            <LinkPlugin />
-            <EmojisPlugin />
-            <HashtagPlugin />
-            <KeywordsPlugin />
-            <TwitterPlugin />
-            <YouTubePlugin />
-            <ExcalidrawPlugin />
-            <FigmaPlugin />
-            <ImagePlugin />
-            <InlineImagePlugin />
-            <VideoPlugin />
-            <LayoutPlugin />
-            <CollapsiblePlugin />
-            <PollPlugin />
-            <TableCellResizer />
-            {floatingAnchorElem && (
-              <>
-                <TableActionMenuPlugin
-                  anchorElem={floatingAnchorElem}
-                  cellMerge={true}
-                />
-                <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
-                <FloatingLinkEditorPlugin
-                  anchorElem={floatingAnchorElem}
-                  isLinkEditMode={isLinkEditMode}
-                  setIsLinkEditMode={setIsLinkEditMode}
-                />
-                <TableActionMenuPlugin
-                  anchorElem={floatingAnchorElem}
-                  cellMerge={true}
-                />
-                <FloatingTextFormatToolbarPlugin
-                  anchorElem={floatingAnchorElem}
-                  setIsLinkEditMode={setIsLinkEditMode}
-                />
-              </>
-            )}
-          </LexicalNestedComposer>
+          )}
         </>
       </div>
       <div
@@ -502,15 +532,7 @@ export default function SlideDeckEditorComponent({
   nodeKey,
 }: SlideDeckEditorProps): JSX.Element {
   const [deckData, setDeckData] = useState<SlideDeckData>(() => {
-    const parsed = JSON.parse(initialDataString) as SlideDeckData;
-    parsed.slides = parsed.slides.map((s) => ({
-      ...s,
-      elements: (s.elements || []).map((el) => ({
-        ...el,
-        backgroundColor: el.backgroundColor || "transparent",
-      })),
-    }));
-    return parsed;
+    return JSON.parse(initialDataString) as SlideDeckData;
   });
   const [isLinkEditMode, setIsLinkEditMode] = useState(false);
   const elementEditorsRef = useRef<Map<string, LexicalEditor>>(new Map());
@@ -526,6 +548,9 @@ export default function SlideDeckEditorComponent({
   const [editingElementIdForColor, setEditingElementIdForColor] = useState<
     string | null
   >(null);
+  const [showImageInsertDialog, setShowImageInsertDialog] = useState(false);
+  const [activeEditorForImageInsert, setActiveEditorForImageInsert] =
+    useState<LexicalEditor | null>(null);
 
   const currentSlideIndex = useMemo(() => {
     if (!deckData.slides || deckData.slides.length === 0) return -1;
@@ -569,7 +594,7 @@ export default function SlideDeckEditorComponent({
         }
 
         const stateToSetInEditor: EditorStateJSON | null =
-          element.editorStateJSON;
+          element.kind === "box" ? element.editorStateJSON : null;
         const forceSetState = isNewEditor; // Always set state for new editors
 
         // Log before attempting to parse/set state
@@ -661,7 +686,7 @@ export default function SlideDeckEditorComponent({
         setActiveElementEditors(new Map());
       }
     }
-  }, [currentSlide, parentEditor, deckData, onDeckDataChange]); // Added deckData and onDeckDataChange dependencies
+  }, [currentSlide, parentEditor, deckData, onDeckDataChange]);
 
   const handleBoxContentChange = (
     elementId: string,
@@ -758,6 +783,40 @@ export default function SlideDeckEditorComponent({
     setSelectedElementId(newBoxId);
   };
 
+  const openImageInsertDialog = () => {
+    setActiveEditorForImageInsert(parentEditor);
+    setShowImageInsertDialog(true);
+  };
+
+  const handleInsertImageFromDialog = (payload: InsertImagePayload) => {
+    if (!currentSlide) {
+      console.error("Cannot insert image, no current slide selected.");
+      setShowImageInsertDialog(false);
+      return;
+    }
+    const newImageId = `image-${Date.now()}`;
+    const newImageElement: SlideElementSpec = {
+      kind: "image",
+      id: newImageId,
+      x: 30,
+      y: 30,
+      width: payload.width || 250,
+      height: payload.height || 150,
+      url: payload.src,
+    };
+
+    const updatedElements = [...currentSlide.elements, newImageElement];
+    const updatedSlides = deckData.slides.map((s) =>
+      s.id === currentSlide.id ? { ...s, elements: updatedElements } : s,
+    );
+    const newDeckData = { ...deckData, slides: updatedSlides };
+
+    setDeckData(newDeckData);
+    onDeckDataChange(newDeckData);
+    setSelectedElementId(newImageId);
+    setShowImageInsertDialog(false);
+  };
+
   const deleteSlide = () => {
     setSelectedElementId(null);
     if (!currentSlide || deckData.slides.length <= 1) {
@@ -804,7 +863,10 @@ export default function SlideDeckEditorComponent({
   );
 
   const handleElementUpdate = useCallback(
-    (elementId: string, updates: Partial<SlideElementSpec>) => {
+    (
+      elementId: string,
+      updates: Partial<Pick<SlideElementSpec, "x" | "y" | "width" | "height">>,
+    ) => {
       if (!currentSlide) return;
       const newElements = currentSlide.elements.map((el) =>
         el.id === elementId ? { ...el, ...updates } : el,
@@ -962,6 +1024,31 @@ export default function SlideDeckEditorComponent({
                   />
                 </React.Fragment>
               );
+            } else if (element.kind === "image") {
+              return (
+                <DraggableBoxWrapper
+                  deckNodeKey={nodeKey}
+                  slideId={currentSlide.id}
+                  key={`${element.id}-draggable`}
+                  element={element}
+                  nestedEditor={null}
+                  onBoxContentChange={() => {
+                    /* No-op for images */
+                  }}
+                  isSelected={selectedElementId === element.id}
+                  onSelect={setSelectedElementId}
+                  onElementUpdate={handleElementUpdate}
+                  onElementDelete={handleElementDelete}
+                  setShowColorPicker={() => {
+                    /* No-op for images, or handle differently */
+                  }}
+                  isLinkEditMode={false}
+                  setIsLinkEditMode={() => {
+                    /* No-op for images */
+                  }}
+                  deselectElement={deselectElement}
+                />
+              );
             }
             return null;
           })}
@@ -982,6 +1069,25 @@ export default function SlideDeckEditorComponent({
             />
           </DialogContent>
         </Dialog>
+
+        {/* Dialog for Image Insertion */}
+        {showImageInsertDialog && activeEditorForImageInsert && (
+          <Dialog
+            open={showImageInsertDialog}
+            onOpenChange={setShowImageInsertDialog}
+          >
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Insert Image into Slide</DialogTitle>
+              </DialogHeader>
+              <InsertImageDialog
+                activeEditor={activeEditorForImageInsert}
+                onClose={() => setShowImageInsertDialog(false)}
+                onInsert={handleInsertImageFromDialog}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
 
         <div className="slide-controls flex items-center justify-between p-2 mt-auto">
           <div className="flex items-center gap-2">
@@ -1017,9 +1123,17 @@ export default function SlideDeckEditorComponent({
               onClick={handleAddBox}
               variant="outline"
               size="sm"
-              className="mr-4"
+              className="mr-2"
             >
               <PlusSquareIcon className="mr-2 h-4 w-4" /> Add Box
+            </Button>
+            <Button
+              onClick={openImageInsertDialog}
+              variant="outline"
+              size="sm"
+              className="mr-4"
+            >
+              <ImagePlusIcon className="mr-2 h-4 w-4" /> Add Image
             </Button>
             <Button
               onClick={() => setShowSlideBgColorPicker(true)}

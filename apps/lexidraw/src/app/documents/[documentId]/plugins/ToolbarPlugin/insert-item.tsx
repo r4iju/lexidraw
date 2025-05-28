@@ -49,6 +49,7 @@ import {
   InsertVideoSettingsDialog,
 } from "../VideoPlugin";
 import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
+import { INSERT_CHART_COMMAND } from "../ChartPlugin";
 
 // -------------------------------------------------------------------------------------------------
 // TODO: fix style
@@ -137,10 +138,29 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
+              activeEditor.dispatchCommand(INSERT_CHART_COMMAND, {
+                type: "bar",
+                data: "[]",
+                config: "{}",
+                width: "inherit",
+                height: "inherit",
+              });
+            }}
+            className="flex gap-2"
+          >
+            <ChartScatter className="size-4" />
+            <span className="text">Chart</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
               showModal("Insert Image", (onClose) => (
                 <InsertImageDialog
                   activeEditor={activeEditor}
                   onClose={onClose}
+                  onInsert={(payload) => {
+                    activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
+                    onClose();
+                  }}
                 />
               ));
             }}

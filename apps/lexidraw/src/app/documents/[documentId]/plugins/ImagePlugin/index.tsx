@@ -309,9 +309,11 @@ export function InsertImageGeneratedDialogBody({
 export function InsertImageDialog({
   activeEditor,
   onClose,
+  onInsert,
 }: {
   activeEditor: LexicalEditor;
   onClose: () => void;
+  onInsert: (payload: InsertImagePayload) => void;
 }): React.JSX.Element {
   const [mode, setMode] = useState<
     null | "url" | "file" | "unsplash" | "generate"
@@ -370,14 +372,6 @@ export function InsertImageDialog({
     };
   }, [activeEditor]);
 
-  const insertImage = useCallback(
-    (payload: InsertImagePayload) => {
-      activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
-      onClose();
-    },
-    [activeEditor, onClose],
-  );
-
   const handleGenerateImage = useCallback(
     async (prompt: string) => {
       if (!prompt) return;
@@ -405,10 +399,8 @@ export function InsertImageDialog({
           </Button>
         </div>
       )}
-      {mode === "url" && <InsertImageUriDialogBody onClick={insertImage} />}
-      {mode === "file" && (
-        <InsertImageUploadedDialogBody onClick={insertImage} />
-      )}
+      {mode === "url" && <InsertImageUriDialogBody onClick={onInsert} />}
+      {mode === "file" && <InsertImageUploadedDialogBody onClick={onInsert} />}
       {mode === "unsplash" && (
         <InsertImageUnsplashDialogBody
           onImageSelect={handleUnsplashImageSelect}
@@ -432,6 +424,15 @@ export default function ImagePlugin({
 }): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const modalOnCloseRef = useRef<(() => void) | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleInsertByCommand = useCallback(
+    (payload: InsertImagePayload) => {
+      editor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
+      setIsModalOpen(false);
+    },
+    [editor],
+  );
 
   useEffect(() => {
     modalOnCloseRef.current = () => setIsModalOpen(false);
@@ -497,8 +498,6 @@ export default function ImagePlugin({
     };
   }, [editor, captionsEnabled]);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
   }, []);
@@ -509,11 +508,15 @@ export default function ImagePlugin({
 
   return isModalOpen ? (
     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] min-w-[300px]">
         <DialogHeader>
           <DialogTitle>Insert Image</DialogTitle>
         </DialogHeader>
-        <InsertImageDialog activeEditor={editor} onClose={closeModal} />
+        <InsertImageDialog
+          activeEditor={editor}
+          onClose={closeModal}
+          onInsert={handleInsertByCommand}
+        />
       </DialogContent>
     </Dialog>
   ) : null;

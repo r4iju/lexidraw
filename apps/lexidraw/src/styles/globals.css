@@ -47,6 +47,12 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
   --radius-xl: calc(var(--radius) + 2px);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -114,6 +120,11 @@
   --ring: oklch(0.5409 0.2468 293deg);
   --radius: 1rem;
   --dynamic-viewport-height: 100dvh;
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
 }
 
 .dark {
@@ -136,6 +147,11 @@
   --border: oklch(0.2784 0.0296 256.8deg);
   --input: oklch(0.2784 0.0296 256.8deg);
   --ring: oklch(0.4907 0.2413 292.6deg);
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
 }
 
 /* ensures iOS won't allow scrolling while dragging */
