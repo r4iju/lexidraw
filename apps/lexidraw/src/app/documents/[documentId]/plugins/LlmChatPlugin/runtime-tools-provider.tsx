@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useContext, useEffect } from "react";
+import { createContext, PropsWithChildren, useContext } from "react";
 import { tool } from "ai";
 import { z } from "zod";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
@@ -70,13 +70,10 @@ import {
   SlideElementSpec,
   EditorStateJSON,
 } from "../../nodes/SlideNode/SlideNode";
-
 import { useChatDispatch } from "./llm-chat-context";
-import { useRuntimeSpec } from "./reflect-editor-runtime";
 import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
 import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
 import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
-import { useMemo } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { RuntimeToolMap } from "../../context/llm-context";
 import type { Thread } from "../../commenting";
@@ -92,20 +89,24 @@ import { useEditorRegistry } from "../../context/editors-context";
  * -----------------------------------------------------------------*/
 
 // Schema for anchor used in insertion tools
-const InsertionAnchorSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z
-      .literal("key")
-      .describe('type can be "key" or "text", never heading'),
-    key: z.string(),
-  }),
-  z.object({
-    type: z
-      .literal("text")
-      .describe('type can be "key" or "text", never heading'),
-    text: z.string(),
-  }),
-]);
+const InsertionAnchorSchema = z
+  .discriminatedUnion("type", [
+    z.object({
+      type: z
+        .literal("key")
+        .describe('type can be "key" or "text", never heading'),
+      key: z.string(),
+    }),
+    z.object({
+      type: z
+        .literal("text")
+        .describe('type can be "key" or "text", never heading'),
+      text: z.string(),
+    }),
+  ])
+  .describe(
+    "Anchor for insertion tools. Key is the key of the target node's key. Text is the text content of the target node.",
+  );
 type InsertionAnchor = z.infer<typeof InsertionAnchorSchema>;
 
 const EditorKeySchema = z
@@ -217,6 +218,30 @@ const SingleCallSchema = z.object({
 
 type ExecuteResult = Promise<z.infer<typeof ResultSchema>>;
 
+// Define the result structure for the core node insertion logic
+type NodeInsertionResult = {
+  primaryNodeKey: string | null; // This will populate content.newNodeKey
+  summaryContext?: string;
+  additionalContent?: Record<string, string | undefined>; // For other keys like listNodeKey, firstItemKey
+};
+
+// Define a type for the core logic of each insertion tool
+type NodeInserter<O extends Record<string, unknown>> = (
+  resolution: Exclude<InsertionPointResolution, { status: "error" }>, // The resolved success location
+  options: O, // The specific arguments for the tool
+  currentEditor: LexicalEditor, // Pass the current editor instance
+) => NodeInsertionResult;
+
+// The mutator function receives the current data and must return the new data.
+type SlideDeckMutator<O extends Record<string, unknown>> = (
+  currentData: SlideDeckData,
+  options: O,
+) => {
+  newData: SlideDeckData;
+  summary: string;
+  newNodeKey?: string; // For things like adding a new box or slide
+};
+
 /* ------------------------------------------------------------------
  * Factory
  * -----------------------------------------------------------------*/
@@ -234,7 +259,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     useCommentPlugin();
   const [editor] = useLexicalComposerContext();
   const { getEditor: getRegisteredEditor } = useEditorRegistry();
-  const { runtimeSpec } = useRuntimeSpec();
 
   function getTargetEditorInstance(editorKey?: string): LexicalEditor {
     if (editorKey) {
@@ -269,6 +293,87 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         queue.push(...n.getChildren().filter($isElementNode));
     }
     return null;
+  }
+
+  async function updateSlideDeckExecutor<
+    O extends Record<string, unknown>, // Represents specific options for the mutator
+    FullOptions extends O & { deckNodeKey: string; editorKey?: string }, // All options passed to execute
+  >(
+    toolName: string,
+    baseEditor: LexicalEditor, // The base editor instance from useLexicalComposerContext
+    options: FullOptions,
+    mutator: SlideDeckMutator<O>,
+    getEditorInstance: (editorKey?: string) => LexicalEditor, // Function to get target editor
+  ): ExecuteResult {
+    const { deckNodeKey, editorKey, ...specificMutatorOptions } = options;
+
+    try {
+      let result: { summary: string; newNodeKey?: string } | null = null;
+
+      // SlideDeckNode modifications are typically on the main editor instance,
+      // but we use getEditorInstance if editorKey was provided.
+      const targetEditor = getEditorInstance(editorKey);
+
+      targetEditor.update(() => {
+        const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+        if (!SlideNode.$isSlideDeckNode(deckNode)) {
+          throw new Error(
+            `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
+          );
+        }
+
+        const currentData = deckNode.getData();
+        const mutatorResult = mutator(currentData, specificMutatorOptions as O);
+
+        deckNode.setData(mutatorResult.newData);
+        result = {
+          summary: mutatorResult.summary,
+          newNodeKey: mutatorResult.newNodeKey,
+        };
+      });
+
+      if (result === null) {
+        // Explicitly check for null
+        throw new Error(
+          `[${toolName}] Update failed to produce a result for deck ${deckNodeKey}.`,
+        );
+      }
+
+      // Assert the type of result after the null check
+      const assertedResult = result as { summary: string; newNodeKey?: string };
+
+      // Use baseEditor for getting the overall state
+      const latestState = baseEditor.getEditorState();
+      const stateJson = JSON.stringify(latestState.toJSON());
+
+      console.log(`✅ [${toolName}] Success: ${assertedResult.summary}`);
+      return {
+        success: true,
+        content: {
+          summary: assertedResult.summary,
+          updatedEditorStateJson: stateJson,
+          newNodeKey: assertedResult.newNodeKey,
+        },
+      };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `❌ [${toolName}] Error for deck ${deckNodeKey}:`,
+        errorMsg,
+      );
+      // Use baseEditor for getting the overall state on error.
+      const stateJsonOnError = JSON.stringify(
+        baseEditor.getEditorState().toJSON(),
+      );
+      return {
+        success: false,
+        error: errorMsg,
+        content: {
+          summary: `Failed to execute ${toolName} on deck ${deckNodeKey}`,
+          updatedEditorStateJson: stateJsonOnError,
+        },
+      };
+    }
   }
 
   /**
@@ -316,29 +421,122 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     return { status: "success", type: relation, targetKey: target.getKey() };
   }
 
-  /* 1.  build enums / spec */
-  const { NodeSpecByType } = useMemo(() => {
-    // Block vs inline
-    const blockTypes = runtimeSpec.nodes
-      .filter((n) => !n.isInline && !n.isDecorator)
-      .map((n) => n.type) as [string, ...string[]];
+  /** The generic executor function. */
+  async function insertionExecutor<O extends Record<string, unknown>>(
+    toolName: string,
+    baseEditor: LexicalEditor, // The base editor instance from useLexicalComposerContext
+    options: O & {
+      relation: InsertionRelation;
+      anchor?: InsertionAnchor;
+      editorKey?: string;
+    },
+    inserter: NodeInserter<O>,
+    getEditorInstance: (editorKey?: string) => LexicalEditor, // Function to get target editor
+    resolveInsertionPt: (
+      currentEditor: LexicalEditor,
+      relation: InsertionRelation,
+      anchor?: InsertionAnchor,
+    ) => Promise<InsertionPointResolution>, // Function to resolve insertion point
+  ): ExecuteResult {
+    const { relation, anchor, editorKey, ...specificOptions } = options;
 
-    const inlineTypes = runtimeSpec.nodes
-      .filter((n) => n.isInline)
-      .map((n) => n.type) as [string, ...string[]];
+    try {
+      console.log(`[${toolName}] Starting`, options);
 
-    return {
-      BlockTypeE: z.enum(blockTypes),
-      InlineTypeE: z.enum(inlineTypes),
-      NodeSpecByType: Object.fromEntries(
-        runtimeSpec.nodes.map((n) => [n.type, n]),
-      ),
-    };
-  }, [runtimeSpec]);
+      const targetEditor = getEditorInstance(editorKey);
 
-  useEffect(() => {
-    console.log("🛠️ [ToolFactory] NodeSpecByType changed:", NodeSpecByType);
-  }, [NodeSpecByType]);
+      const resolution = await resolveInsertionPt(
+        targetEditor,
+        relation,
+        anchor,
+      );
+
+      if (resolution.status === "error") {
+        console.error(`❌ [${toolName}] Error: ${resolution.message}`);
+        return { success: false, error: resolution.message };
+      }
+
+      // After the status check, resolution is guaranteed to be a success type
+      const successResolution = resolution as Exclude<
+        InsertionPointResolution,
+        { status: "error" }
+      >;
+
+      let insertionOutcome: NodeInsertionResult = {
+        primaryNodeKey: null,
+      };
+      targetEditor.update(() => {
+        insertionOutcome = inserter(
+          successResolution,
+          specificOptions as unknown as O,
+          targetEditor,
+        );
+      });
+
+      // Use baseEditor for getting the overall state, as targetEditor might be a nested one.
+      const latestState = baseEditor.getEditorState();
+      const stateJson = JSON.stringify(latestState.toJSON());
+
+      const targetKeyForSummary =
+        successResolution.type === "appendRoot"
+          ? "root"
+          : successResolution.targetKey;
+      let summary: string;
+      if (successResolution.type === "appendRoot") {
+        summary = `Appended new ${insertionOutcome.summaryContext ?? toolName}.`;
+      } else {
+        summary = `Inserted ${insertionOutcome.summaryContext ?? toolName} ${successResolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+      }
+
+      console.log(`✅ [${toolName}] Success: ${summary}`);
+
+      return {
+        success: true,
+        content: {
+          summary,
+          updatedEditorStateJson: stateJson,
+          newNodeKey: insertionOutcome.primaryNodeKey ?? undefined, // Use newNodeKey for the final output as per ResultSchema
+          ...(insertionOutcome.additionalContent ?? {}), // Spread additional specific keys
+        },
+      };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`❌ [${toolName}] Error:`, errorMsg);
+      // Use baseEditor for getting the overall state on error.
+      const stateJson = JSON.stringify(baseEditor.getEditorState().toJSON());
+      return {
+        success: false,
+        error: errorMsg,
+        content: {
+          summary: `Failed to insert ${toolName}`,
+          updatedEditorStateJson: stateJson,
+        },
+      };
+    }
+  }
+
+  // Helper function to perform the actual node insertion based on resolution
+  function $insertNodeAtResolvedPoint(
+    resolution: Exclude<InsertionPointResolution, { status: "error" }>,
+    nodeToInsert: LexicalNode,
+  ): void {
+    if (resolution.type === "appendRoot") {
+      $getRoot().append(nodeToInsert);
+    } else {
+      const targetNode = $getNodeByKey(resolution.targetKey);
+      if (!targetNode) {
+        throw new Error(
+          `Target node with key ${resolution.targetKey} vanished during insertion.`,
+        );
+      }
+      if (resolution.type === "before") {
+        targetNode.insertBefore(nodeToInsert);
+      } else {
+        // 'after'
+        targetNode.insertAfter(nodeToInsert);
+      }
+    }
+  }
 
   /* --------------------------------------------------------------
    * Plan or Clarify Tool
@@ -629,104 +827,59 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ text, relation, anchor, editorKey }): ExecuteResult => {
-      try {
-        console.log("[insertTextNode] Starting", { text, relation, anchor });
-
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        // 1. Resolve insertion point *outside* update cycle
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertTextNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        // 2. Perform insertion *inside* update cycle
-        let targetKey: string | null = null; // For summary
-        let newNodeKey: string | null = null; // To return
-        targetEditor.update(() => {
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertTextNode",
+        editor,
+        options,
+        (resolution, specificOptions, currentTargetEditor) => {
+          const { text } = specificOptions as { text: string };
           const newTextNode = $createTextNode(text);
-          newNodeKey = newTextNode.getKey(); // Store text node key initially
+          let nodeToInsert: LexicalNode = newTextNode;
+          let summaryCtx = "text content";
+          let finalNewNodeKey = newTextNode.getKey();
 
           if (resolution.type === "appendRoot") {
             const paragraph = $createParagraphNode();
             paragraph.append(newTextNode);
-            $getRoot().append(paragraph);
-            targetKey = $getRoot().getKey(); // Technically root, but signifies append
-            newNodeKey = paragraph.getKey(); // Return the paragraph key for appendRoot
+            nodeToInsert = paragraph;
+            finalNewNodeKey = paragraph.getKey();
+            summaryCtx = "paragraph containing text";
           } else {
             // Relative insertion ('before' or 'after')
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKey = resolution.targetKey; // For summary
+            // Accessing targetNode needs to be within an update/read cycle if using $getNodeByKey from top-level lexical scope.
+            // However, resolution.targetKey is resolved outside, so we get the node here.
+            const targetNode = currentTargetEditor
+              .getEditorState()
+              .read(() => $getNodeByKey(resolution.targetKey));
 
             if (!targetNode) {
-              // Should ideally not happen if resolution succeeded, but defensive check
               throw new Error(
-                `Target node with key ${resolution.targetKey} not found within targetEditor update.`,
+                `Target node with key ${resolution.targetKey} not found within editor update for insertTextNode.`,
               );
             }
 
-            if ($isTextNode(targetNode)) {
-              // Insert text inline relative to existing text
-              if (resolution.type === "before") {
-                targetNode.insertBefore(newTextNode);
-              } else {
-                // 'after'
-                targetNode.insertAfter(newTextNode);
-              }
-              newNodeKey = targetNode.getKey(); // Return the text node key
-            } else {
-              // Insert text wrapped in a paragraph relative to other node types
+            if (!$isTextNode(targetNode)) {
+              // If target is not a text node, wrap new text in a paragraph
               const paragraph = $createParagraphNode();
               paragraph.append(newTextNode);
-              if (resolution.type === "before") {
-                targetNode.insertBefore(paragraph);
-              } else {
-                // 'after'
-                targetNode.insertAfter(paragraph);
-              }
-              newNodeKey = paragraph.getKey(); // Return the paragraph key
+              nodeToInsert = paragraph;
+              finalNewNodeKey = paragraph.getKey();
+              summaryCtx = "paragraph containing text";
             }
+            // If target IS a TextNode, nodeToInsert remains newTextNode, and finalNewNodeKey is already newTextNode.getKey()
           }
-        });
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+          $insertNodeAtResolvedPoint(resolution, nodeToInsert);
 
-        const summary =
-          resolution.type === "appendRoot"
-            ? "Appended new paragraph containing text."
-            : `Inserted text content ${resolution.type} target (key: ${targetKey ?? "N/A"}).`;
-        console.log(`✅ [insertTextNode] Success: ${summary}`);
-        // Return summary and state in content
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertTextNode] Error:`, errorMsg);
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert text node",
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: finalNewNodeKey,
+            summaryContext: summaryCtx,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -743,98 +896,30 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      text,
-      tag,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertHeadingNode] Starting", {
-          text,
-          tag,
-          relation,
-          anchor,
-        });
-
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertHeadingNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        // 2. Perform insertion *inside* update cycle
-        let targetKey: string | null = null; // For summary
-        let newNodeKey: string | null = null; // To return
-        targetEditor.update(() => {
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertHeadingNode",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { text, tag } = specificOptions as {
+            text: string;
+            tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+          };
           const newHeadingNode = $createHeadingNode(tag).append(
             $createTextNode(text),
           );
-          newNodeKey = newHeadingNode.getKey(); // Store the key
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newHeadingNode);
-            targetKey = $getRoot().getKey();
-          } else {
-            // Relative insertion ('before' or 'after')
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKey = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, newHeadingNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // Headings should always be block-level, so insert before/after the target block
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newHeadingNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newHeadingNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new ${tag} heading.`
-            : `Inserted ${tag} heading ${resolution.type} target (key: ${targetKey ?? "N/A"}).`;
-        console.log(`✅ [insertHeadingNode] Success: ${summary}`);
-        // Return summary and state in content
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertHeadingNode] Error:`, errorMsg);
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert heading node",
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newHeadingNode.getKey(),
+            summaryContext: `${tag} heading`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -855,103 +940,39 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      listType,
-      text,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertListNode] Starting", {
-          listType,
-          text,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertListNode",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { listType, text } = specificOptions as {
+            listType: ListType;
+            text: string;
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertListNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKey: string | null = null;
-        let newListKey: string | null = null; // Key of the inserted list node
-        let newFirstItemKey: string | null = null; // Key of the first item
-        targetEditor.update(() => {
           const listItem = $createListItemNode(
             listType === "check" ? false : undefined,
           );
           listItem.append($createTextNode(text));
+
           const newList = $createListNode(listType);
           newList.append(listItem);
 
-          // Store keys
-          newListKey = newList.getKey();
-          newFirstItemKey = listItem.getKey();
+          $insertNodeAtResolvedPoint(resolution, newList);
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newList);
-            targetKey = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKey = resolution.targetKey;
-
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newList);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newList);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new ${listType} list.`
-            : `Inserted ${listType} list ${resolution.type} target (key: ${targetKey ?? "N/A"}).`;
-        console.log(`✅ [insertListNode] Success: ${summary}`);
-        // Return summary, state, and NEW KEYS in content
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            listNodeKey: newListKey ?? undefined,
-            firstItemKey: newFirstItemKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertListNode] Error:`, errorMsg);
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert list node",
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newList.getKey(),
+            summaryContext: `${listType} list`,
+            additionalContent: {
+              listNodeKey: newList.getKey(),
+              firstItemKey: listItem.getKey(),
+            },
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -979,80 +1000,67 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
-        let targetKey: string | null = null;
-        let targetType: string | null = null;
-        let listType: ListType | undefined;
+        const targetEditor = getTargetEditorInstance(editorKey);
+        let validatedTargetKey: string | null = null;
         let checkValue: boolean | undefined;
         let validationError: string | null = null;
-
-        const targetEditor = getTargetEditorInstance(editorKey);
 
         // --- Resolve anchor and perform validation INSIDE editor.read ---
         targetEditor.read(() => {
           let resolvedTargetNode: LexicalNode | null = null;
           if (anchor.type === "key") {
-            // Find node by key directly within read
             resolvedTargetNode = $getNodeByKey(anchor.key);
           } else {
-            // Find node by text directly within read
             resolvedTargetNode = findFirstNodeByText(targetEditor, anchor.text);
-            // Try finding parent list/item if initial find is not one
+            // Attempt to find parent list/item if initial find is not suitable
             if (
               resolvedTargetNode &&
               !$isListItemNode(resolvedTargetNode) &&
               !$isListNode(resolvedTargetNode)
             ) {
-              const parent = resolvedTargetNode.getParent();
-              if ($isListNode(parent)) {
-                resolvedTargetNode = parent;
-              } else {
-                let searchNode: LexicalNode | null = resolvedTargetNode;
-                while (searchNode && !$isRootNode(searchNode)) {
-                  if ($isListItemNode(searchNode)) {
-                    resolvedTargetNode = searchNode;
-                    break;
-                  }
-                  searchNode = searchNode.getParent();
+              let searchNode: LexicalNode | null = resolvedTargetNode;
+              while (searchNode && !$isRootNode(searchNode)) {
+                if ($isListItemNode(searchNode) || $isListNode(searchNode)) {
+                  resolvedTargetNode = searchNode;
+                  break;
                 }
-                // If still not list/listitem, might be null or the original node
+                searchNode = searchNode.getParent();
               }
             }
           }
 
-          // --- Validation ---
           if (!resolvedTargetNode) {
             const anchorDesc =
               anchor.type === "key"
                 ? `key "${anchor.key}"`
                 : `text "${anchor.text}"`;
             validationError = `Anchor node ${anchorDesc} not found.`;
-            return; // Exit read block early on error
+            return;
           }
 
-          targetKey = resolvedTargetNode.getKey(); // Store key
-          targetType = resolvedTargetNode.getType(); // Store type
+          validatedTargetKey = resolvedTargetNode.getKey();
+          const targetType = resolvedTargetNode.getType();
 
           if (relation === "appendToList") {
             if (!$isListNode(resolvedTargetNode)) {
               validationError = `Anchor must resolve to a ListNode for relation 'appendToList', but found ${targetType}.`;
-              return; // Exit read block early on error
+              return;
             }
-            listType = resolvedTargetNode.getListType();
-            checkValue = listType === "check" ? false : undefined;
+            checkValue =
+              resolvedTargetNode.getListType() === "check" ? false : undefined;
           } else {
             // 'before' or 'after'
             if (!$isListItemNode(resolvedTargetNode)) {
               validationError = `Anchor must resolve to a ListItemNode for relation '${relation}', but found ${targetType}.`;
-              return; // Exit read block early on error
+              return;
             }
             checkValue =
               typeof resolvedTargetNode.getChecked() === "boolean"
                 ? false
                 : undefined;
           }
-        }); // --- End editor.read ---
+        });
 
-        // Check if validation failed within the read block
         if (validationError) {
           console.error(
             `❌ [insertListItemNode] Validation Error: ${validationError}`,
@@ -1060,17 +1068,20 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           return { success: false, error: validationError };
         }
 
-        // Ensure targetKey was set (should be if no validation error)
-        if (!targetKey) {
-          throw new Error("Target key was not set after validation.");
+        if (!validatedTargetKey) {
+          // Should not happen if validationError is null, but as a safeguard
+          throw new Error(
+            "[insertListItemNode] Target key was not set after validation despite no error.",
+          );
         }
 
+        const finalTargetKey = validatedTargetKey; // Use a const for closure
+        let newListItemKey: string | null = null;
+
         // --- Perform update using validated data ---
-        const finalTargetKey = targetKey; // Use a const variable inside update closure
         targetEditor.update(() => {
           const resolvedTarget = $getNodeByKey(finalTargetKey);
           if (!resolvedTarget) {
-            // This error implies the node was removed between read and update, which is rare but possible
             throw new Error(
               `Target node ${finalTargetKey} disappeared between validation and update.`,
             );
@@ -1078,6 +1089,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
           const newListItem = $createListItemNode(checkValue);
           newListItem.append($createTextNode(text));
+          newListItemKey = newListItem.getKey();
 
           if ($isListNode(resolvedTarget) && relation === "appendToList") {
             resolvedTarget.append(newListItem);
@@ -1091,7 +1103,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
               resolvedTarget.insertAfter(newListItem);
             }
           } else {
-            // This state should be unreachable due to prior validation
             throw new Error(
               `Invalid state: Cannot insert list item with relation '${relation}' relative to node type ${resolvedTarget.getType()} after validation. Target Key: ${finalTargetKey}`,
             );
@@ -1100,25 +1111,32 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
         const latestState = editor.getEditorState();
         const stateJson = JSON.stringify(latestState.toJSON());
-
         const summary = `Inserted list item ${relation} target (key: ${finalTargetKey}).`;
         console.log(`✅ [insertListItemNode] Success: ${summary}`);
-        // Return summary and state in content
         return {
           success: true,
-          content: { summary, updatedEditorStateJson: stateJson },
+          content: {
+            summary,
+            updatedEditorStateJson: stateJson,
+            newNodeKey: newListItemKey ?? undefined,
+          },
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`❌ [insertListItemNode] Error:`, errorMsg);
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        let stateJsonOnError = "{}";
+        try {
+          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_stateErr) {
+          /* ignore */
+        }
         return {
           success: false,
           error: errorMsg,
           content: {
             summary: "Failed to insert list item",
-            updatedEditorStateJson: stateJson,
+            updatedEditorStateJson: stateJsonOnError,
           },
         };
       }
@@ -1146,42 +1164,20 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      language,
-      initialText,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertCodeBlock] Starting", {
-          language,
-          initialText,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertCodeBlock",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { language, initialText } = specificOptions as {
+            language?: string;
+            initialText?: string;
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertCodeBlock] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        // 2. Perform insertion *inside* update cycle
-        let targetKey: string | null = null; // For summary
-        let newCodeNodeKey: string | null = null; // For result content
-        targetEditor.update(() => {
-          // Create the CodeNode - language might be set via a method if not constructor
           const newCodeNode = $createCodeNode();
-          // Safely check for and call setLanguage if it exists
           if (language) {
+            // Safely check for and call setLanguage if it exists
             if (
               "setLanguage" in newCodeNode &&
               typeof newCodeNode.setLanguage === "function"
@@ -1189,72 +1185,24 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
               newCodeNode.setLanguage(language);
             } else {
               console.warn(
-                `[insertCodeBlock] Could not set language '${language}' on CodeNode. Method setLanguage might not exist or is not callable.`,
+                `[insertCodeBlock:inserter] Could not set language '${language}' on CodeNode. Method setLanguage might not exist or is not callable.`,
               );
             }
           }
-
-          // Add initial text if provided
           if (initialText) {
             newCodeNode.append($createTextNode(initialText));
           }
-          newCodeNodeKey = newCodeNode.getKey(); // Store the new key
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newCodeNode);
-            targetKey = $getRoot().getKey();
-          } else {
-            // Relative insertion ('before' or 'after')
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKey = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, newCodeNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // Insert the code block before/after the target block
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newCodeNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newCodeNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new Code Block${language ? ` (${language})` : ""}.`
-            : `Inserted Code Block${language ? ` (${language})` : ""} ${resolution.type} target (key: ${targetKey ?? "N/A"}).`;
-        console.log(`✅ [insertCodeBlock] Success: ${summary}`);
-        // Return summary, state, and new node key
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newCodeNodeKey ?? undefined, // Optional: Return the key (null -> undefined)
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertCodeBlock] Error:`, errorMsg);
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert code block",
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newCodeNode.getKey(),
+            summaryContext: `Code Block${language ? ` (${language})` : ""}`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -1270,107 +1218,58 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ text, relation, anchor, editorKey }): ExecuteResult => {
-      try {
-        console.log("[insertCodeHighlightNode] Starting", {
-          text,
-          relation,
-          anchor,
-        });
-
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(
-            `❌ [insertCodeHighlightNode] Error: ${resolution.message}`,
-          );
-          return { success: false, error: resolution.message };
-        }
-
-        // 2. Perform insertion *inside* update cycle
-        let targetKey: string | null = null; // For summary
-        let newNodeKey: string | null = null; // To return
-        targetEditor.update(() => {
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertCodeHighlightNode",
+        editor,
+        options,
+        (resolution, specificOptions, currentTargetEditor) => {
+          const { text } = specificOptions as { text: string };
           const newHighlightNode = $createCodeHighlightNode(text);
-          newNodeKey = newHighlightNode.getKey(); // Store highlight node key initially
+          let nodeToInsert: LexicalNode = newHighlightNode;
+          let summaryCtx = "CodeHighlightNode";
+          let finalNewNodeKey = newHighlightNode.getKey();
 
           if (resolution.type === "appendRoot") {
             const paragraph = $createParagraphNode();
             paragraph.append(newHighlightNode);
-            $getRoot().append(paragraph);
-            targetKey = $getRoot().getKey(); // Technically root, but signifies append
-            newNodeKey = paragraph.getKey(); // Return the paragraph key for appendRoot
+            nodeToInsert = paragraph;
+            finalNewNodeKey = paragraph.getKey();
+            summaryCtx = "paragraph containing CodeHighlightNode";
           } else {
-            // Relative insertion ('before' or 'after')
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKey = resolution.targetKey; // For summary
-
+            // Relative insertion
+            const targetNode = currentTargetEditor
+              .getEditorState()
+              .read(() => $getNodeByKey(resolution.targetKey));
             if (!targetNode) {
               throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
+                `Target node with key ${resolution.targetKey} not found for insertCodeHighlightNode.`,
               );
             }
 
-            if ($isTextNode(targetNode) || $isCodeHighlightNode(targetNode)) {
-              // Insert highlight node inline relative to existing text or highlight node
-              if (resolution.type === "before") {
-                targetNode.insertBefore(newHighlightNode);
-              } else {
-                // 'after'
-                targetNode.insertAfter(newHighlightNode);
-              }
-              // newNodeKey remains the highlight node's key (set initially)
-            } else {
-              // Insert highlight node wrapped in a paragraph relative to other node types
+            // If target is not suitable for direct inline insertion, wrap in a paragraph.
+            if (
+              !($isTextNode(targetNode) || $isCodeHighlightNode(targetNode))
+            ) {
               const paragraph = $createParagraphNode();
               paragraph.append(newHighlightNode);
-              if (resolution.type === "before") {
-                targetNode.insertBefore(paragraph);
-              } else {
-                // 'after'
-                targetNode.insertAfter(paragraph);
-              }
-              newNodeKey = paragraph.getKey(); // Return the paragraph key
+              nodeToInsert = paragraph;
+              finalNewNodeKey = paragraph.getKey();
+              summaryCtx = "paragraph containing CodeHighlightNode";
             }
+            // If target IS a TextNode or CodeHighlightNode, nodeToInsert remains newHighlightNode
           }
-        });
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+          $insertNodeAtResolvedPoint(resolution, nodeToInsert);
 
-        const summary =
-          resolution.type === "appendRoot"
-            ? "Appended new paragraph containing a CodeHighlightNode."
-            : `Inserted CodeHighlightNode ${resolution.type} target (key: ${targetKey ?? "N/A"}).`;
-        console.log(`✅ [insertCodeHighlightNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertCodeHighlightNode] Error:`, errorMsg);
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert CodeHighlightNode",
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: finalNewNodeKey,
+            summaryContext: summaryCtx,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -1416,122 +1315,60 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           return { success: false, error: resolution.message };
         }
 
-        // 2. Perform insertion *inside* update cycle
-        let targetKeyForSummary: string | null =
-          resolution.type === "appendRoot"
-            ? "root"
-            : resolution.status === "success"
-              ? resolution.targetKey
-              : null;
+        // After status check, resolution is of success type
+        const successResolution = resolution as Exclude<
+          InsertionPointResolution,
+          { status: "error" }
+        >;
 
         targetEditor.update(
           () => {
-            let targetNodeForConversion: ElementNode | null = null;
+            const placeholderNode = $createParagraphNode();
+            // Insert the placeholder first using our helper
+            $insertNodeAtResolvedPoint(successResolution, placeholderNode);
 
-            if (resolution.type === "appendRoot") {
-              // For appendRoot, create a new paragraph at the end and use it as the target node.
-              const newParagraph = $createParagraphNode();
-              $getRoot().append(newParagraph);
-              targetNodeForConversion = newParagraph; // Target the new paragraph directly
-              targetKeyForSummary = newParagraph.getKey(); // Update summary key to the new node
-              console.log(
-                "[insertMarkdown] Mode: appendRoot - created target paragraph:",
-                targetKeyForSummary,
-              );
-            } else {
-              // Relative insertion ('before' or 'after')
-              // We already checked resolution.status !== 'error'
-              const targetNodeKey = (resolution as { targetKey: string })
-                .targetKey;
-              const targetNode = $getNodeByKey(targetNodeKey);
-
-              if (!targetNode) {
-                throw new Error(
-                  `Target node with key ${targetNodeKey} not found within editor update.`,
-                );
-              }
-
-              const targetBlock = targetNode.getTopLevelElement() ?? targetNode;
-              if (
-                !targetBlock ||
-                !$isElementNode(targetBlock) ||
-                targetBlock.isInline()
-              ) {
-                throw new Error(
-                  `Target node (key: ${targetNodeKey}) or its top-level element is not a valid block node for relative insertion.`,
-                );
-              }
-
-              // Create a paragraph node to hold the converted content.
-              const insertionPointNode = $createParagraphNode();
-              targetNodeForConversion = insertionPointNode; // Target this new node
-
-              if (resolution.type === "before") {
-                targetBlock.insertBefore(insertionPointNode);
-                console.log(
-                  `[insertMarkdown] Mode: before ${targetNodeKey} - inserted target paragraph:`,
-                  insertionPointNode.getKey(),
-                );
-              } else {
-                // 'after'
-                targetBlock.insertAfter(insertionPointNode);
-                console.log(
-                  `[insertMarkdown] Mode: after ${targetNodeKey} - inserted target paragraph:`,
-                  insertionPointNode.getKey(),
-                );
-              }
-            }
-
-            // Ensure we have a node to target for conversion
-            if (!targetNodeForConversion) {
-              // This should be unreachable if logic above is correct
-              throw new Error(
-                "Failed to determine target node for Markdown conversion.",
-              );
-            }
-
-            // Perform the conversion, passing the target node explicitly
-            // This should replace the content *of* targetNodeForConversion
+            // Now, convert markdown targeting the placeholder.
+            // $convertFromMarkdownString may replace placeholderNode or fill it.
             console.log(
-              `[insertMarkdown] Calling $convertFromMarkdownString, targeting node: ${targetNodeForConversion.getKey()}`,
+              `[insertMarkdown] Calling $convertFromMarkdownString, targeting placeholder node: ${placeholderNode.getKey()}`,
             );
             $convertFromMarkdownString(
               markdownText,
               TRANSFORMERS,
-              targetNodeForConversion,
+              placeholderNode, // Target the placeholder
             );
 
-            // If the conversion resulted in an empty target node (e.g., empty markdown string), remove it.
-            // Need to get a fresh instance as conversion might replace the node object.
-            const potentiallyEmptyNode = $getNodeByKey(
-              targetNodeForConversion.getKey(),
-            );
+            // Check the node by key again as it might have been replaced or removed
+            // and then re-added by $convertFromMarkdownString if markdown was empty.
+            const finalNode = $getNodeByKey(placeholderNode.getKey());
             if (
-              potentiallyEmptyNode &&
-              $isElementNode(potentiallyEmptyNode) &&
-              potentiallyEmptyNode.isAttached() &&
-              potentiallyEmptyNode.isEmpty()
+              finalNode &&
+              $isElementNode(finalNode) &&
+              finalNode.isAttached() &&
+              finalNode.isEmpty()
             ) {
               console.log(
-                `[insertMarkdown] Conversion target node ${potentiallyEmptyNode.getKey()} is empty, removing it.`,
+                `[insertMarkdown] Placeholder node ${finalNode.getKey()} is empty after conversion, removing it.`,
               );
-              potentiallyEmptyNode.remove();
+              finalNode.remove();
             }
           },
           { tag: "llm-insert-markdown" },
-        ); // Add a tag for debugging history
+        );
 
-        // Capture state *after* the update completes
         const latestState = editor.getEditorState();
         const stateJson = JSON.stringify(latestState.toJSON());
 
+        const targetKeyForSummary =
+          successResolution.type === "appendRoot"
+            ? "root"
+            : successResolution.targetKey;
         const summary =
-          resolution.type === "appendRoot"
+          successResolution.type === "appendRoot"
             ? `Appended content from Markdown.`
-            : `Inserted content from Markdown ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
+            : `Inserted content from Markdown ${successResolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
         console.log(`✅ [insertMarkdown] Success: ${summary}`);
 
-        // Return summary and state in content
         return {
           success: true,
           content: { summary, updatedEditorStateJson: stateJson },
@@ -1539,7 +1376,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`❌ [insertMarkdown] Error:`, errorMsg);
-        // Capture state even on error if possible
         let stateJsonOnError = "{}";
         try {
           stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
@@ -1574,122 +1410,41 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      rows,
-      columns,
-      relation,
-      anchor,
-      editorKey,
-    }: {
-      rows: number;
-      columns: number;
-      relation: InsertionRelation;
-      anchor?: InsertionAnchor;
-      editorKey?: string;
-    }): ExecuteResult => {
-      try {
-        console.log("[insertTableNode - corrected] Starting", {
-          rows,
-          columns,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertTable",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { rows, columns } = specificOptions as {
+            rows: number;
+            columns: number;
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
+          const newTable = $createTableNode();
 
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(
-            `❌ [insertTableNode - corrected] Error: ${resolution.message}`,
-          );
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newTableNodeKey: string | null = null;
-
-        targetEditor.update(() => {
-          const newTable = $createTableNode(); // Create an empty table
-          newTableNodeKey = newTable.getKey();
-
-          // Populate the table with rows and cells
           for (let i = 0; i < rows; i++) {
             const tableRow = $createTableRowNode();
             for (let j = 0; j < columns; j++) {
               const tableCell = $createTableCellNode();
-              // Add a paragraph with an empty text node or line break to make cells editable
               const paragraph = $createParagraphNode();
-              // Option 1: Empty Text Node (often preferred)
-              paragraph.append($createTextNode(""));
-              // Option 2: LineBreakNode (can also work)
-              // paragraph.append($createLineBreakNode());
+              paragraph.append($createTextNode("")); // Ensure cell is editable
               tableCell.append(paragraph);
               tableRow.append(tableCell);
             }
             newTable.append(tableRow);
           }
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newTable);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, newTable);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newTable);
-            } else {
-              targetNode.insertAfter(newTable);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new ${rows}x${columns} table.`
-            : `Inserted ${rows}x${columns} table ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertTableNode - corrected] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newTableNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertTableNode - corrected] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error("Failed to serialize state on error:", stateErr);
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert table node",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newTable.getKey(),
+            summaryContext: `${rows}x${columns} table`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -1709,119 +1464,55 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      text,
-      relation,
-      anchor,
-      editorKey,
-    }: {
-      text: string;
-      relation: InsertionRelation;
-      anchor?: InsertionAnchor;
-      editorKey?: string;
-    }): ExecuteResult => {
-      try {
-        console.log("[insertHashtagNode] Starting", { text, relation, anchor });
-
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertHashtagNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let finalInsertedNodeKey: string | null = null;
-
-        targetEditor.update(() => {
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertHashtag",
+        editor,
+        options,
+        (resolution, specificOptions, currentTargetEditor) => {
+          const { text } = specificOptions as { text: string };
           const newHashtagNode = $createHashtagNode(text);
+          let nodeToInsert: LexicalNode = newHashtagNode;
+          let summaryCtx = `hashtag '#${text}'`;
+          let finalNewNodeKey = newHashtagNode.getKey();
 
           if (resolution.type === "appendRoot") {
             const paragraph = $createParagraphNode();
             paragraph.append(newHashtagNode);
-            $getRoot().append(paragraph);
-            targetKeyForSummary = $getRoot().getKey();
-            finalInsertedNodeKey = paragraph.getKey(); // Key of the wrapper paragraph
+            nodeToInsert = paragraph;
+            finalNewNodeKey = paragraph.getKey();
+            summaryCtx = `paragraph containing hashtag '#${text}'`;
           } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
+            const targetNode = currentTargetEditor
+              .getEditorState()
+              .read(() => $getNodeByKey(resolution.targetKey));
             if (!targetNode) {
               throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
+                `Target node with key ${resolution.targetKey} not found for insertHashtag.`,
               );
             }
-
-            // Check if target is suitable for inline insertion (e.g., TextNode, or even another HashtagNode)
-            // Or if the target is a block node that can accept a paragraph as a child.
-            if (
-              $isTextNode(targetNode) ||
-              $isHashtagNode(targetNode) /* Add other inline types if needed */
-            ) {
-              // Insert inline
-              if (resolution.type === "before") {
-                targetNode.insertBefore(newHashtagNode);
-              } else {
-                // 'after'
-                targetNode.insertAfter(newHashtagNode);
-              }
-              finalInsertedNodeKey = newHashtagNode.getKey(); // Key of the hashtag node itself
-            } else {
-              // Target is likely a block node, or something else where direct inline insertion isn't appropriate.
-              // Wrap the HashtagNode in a paragraph.
+            // If target is not suitable for direct inline insertion (e.g., not a TextNode or another HashtagNode),
+            // wrap the HashtagNode in a paragraph.
+            if (!($isTextNode(targetNode) || $isHashtagNode(targetNode))) {
               const paragraph = $createParagraphNode();
               paragraph.append(newHashtagNode);
-              if (resolution.type === "before") {
-                targetNode.insertBefore(paragraph);
-              } else {
-                // 'after'
-                targetNode.insertAfter(paragraph);
-              }
-              finalInsertedNodeKey = paragraph.getKey(); // Key of the wrapper paragraph
+              nodeToInsert = paragraph;
+              finalNewNodeKey = paragraph.getKey();
+              summaryCtx = `paragraph containing hashtag '#${text}'`;
             }
+            // If target IS a TextNode/HashtagNode, nodeToInsert remains newHashtagNode
           }
-        });
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+          $insertNodeAtResolvedPoint(resolution, nodeToInsert);
 
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new paragraph containing hashtag '#${text}'.`
-            : `Inserted hashtag '#${text}' ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertHashtagNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: finalInsertedNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertHashtagNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error("Failed to serialize state on error:", stateErr);
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert hashtag node",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: finalNewNodeKey,
+            summaryContext: summaryCtx,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -2174,120 +1865,65 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      url,
-      linkText,
-      attributes,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertLinkNode] Starting", {
-          url,
-          linkText,
-          attributes,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertLinkNode",
+        editor,
+        options,
+        (resolution, specificOptions, currentTargetEditor) => {
+          const { url, linkText, attributes } = specificOptions as {
+            url: string;
+            linkText?: string;
+            attributes?: { rel?: string; target?: string; title?: string };
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertLinkNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let finalInsertedNodeKey: string | null = null; // Key of the LinkNode or its wrapper Paragraph
-
-        targetEditor.update(() => {
           const actualLinkText = linkText || url;
           const newLinkNode = $createLinkNode(url, attributes);
           newLinkNode.append($createTextNode(actualLinkText));
 
+          let nodeToInsert: LexicalNode = newLinkNode;
+          let summaryCtx = `link to '${url}'`;
+          let finalNewNodeKey = newLinkNode.getKey();
+
           if (resolution.type === "appendRoot") {
             const paragraph = $createParagraphNode();
             paragraph.append(newLinkNode);
-            $getRoot().append(paragraph);
-            targetKeyForSummary = $getRoot().getKey();
-            finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
+            nodeToInsert = paragraph;
+            finalNewNodeKey = paragraph.getKey();
+            summaryCtx = `paragraph containing a link to '${url}'`;
           } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
+            const targetNode = currentTargetEditor
+              .getEditorState()
+              .read(() => $getNodeByKey(resolution.targetKey));
             if (!targetNode) {
               throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
+                `Target node with key ${resolution.targetKey} not found for insertLinkNode.`,
               );
             }
-
             if (
-              $isTextNode(targetNode) ||
-              ($isElementNode(targetNode) && targetNode.isInline())
+              !(
+                $isTextNode(targetNode) ||
+                ($isElementNode(targetNode) && targetNode.isInline())
+              )
             ) {
-              if (resolution.type === "before") {
-                targetNode.insertBefore(newLinkNode);
-              } else {
-                // 'after'
-                targetNode.insertAfter(newLinkNode);
-              }
-              finalInsertedNodeKey = newLinkNode.getKey(); // The LinkNode itself
-            } else {
               const paragraph = $createParagraphNode();
               paragraph.append(newLinkNode);
-              if (resolution.type === "before") {
-                targetNode.insertBefore(paragraph);
-              } else {
-                // 'after'
-                targetNode.insertAfter(paragraph);
-              }
-              finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
+              nodeToInsert = paragraph;
+              finalNewNodeKey = paragraph.getKey();
+              summaryCtx = `paragraph containing a link to '${url}'`;
             }
           }
-        });
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+          $insertNodeAtResolvedPoint(resolution, nodeToInsert);
 
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new paragraph containing a link to '${url}'.`
-            : `Inserted link to '${url}' ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertLinkNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: finalInsertedNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertLinkNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert link node",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: finalNewNodeKey,
+            summaryContext: summaryCtx,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -2312,137 +1948,72 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      equation,
-      inline,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertEquationNode] Starting", {
-          equation,
-          inline,
-          relation,
-          anchor,
-        });
-
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertEquationNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let finalInsertedNodeKey: string | null = null; // Key of the EquationNode or its wrapper Paragraph
-
-        targetEditor.update(() => {
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertEquationNode",
+        editor,
+        options,
+        (resolution, specificOptions, currentTargetEditor) => {
+          const { equation, inline } = specificOptions as {
+            equation: string;
+            inline?: boolean;
+          };
           const newEquationNode = EquationNode.$createEquationNode(
             equation,
-            inline,
-          ); // Use the static method from EquationNode.tsx
+            inline ?? false,
+          );
+
+          let nodeToInsert: LexicalNode = newEquationNode;
+          let finalNewNodeKey = newEquationNode.getKey();
+          let summaryCtx = `${inline ? "inline" : "block"} equation`;
 
           if (resolution.type === "appendRoot") {
-            targetKeyForSummary = $getRoot().getKey();
             if (inline) {
               const paragraph = $createParagraphNode();
               paragraph.append(newEquationNode);
-              $getRoot().append(paragraph);
-              finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
-            } else {
-              $getRoot().append(newEquationNode);
-              finalInsertedNodeKey = newEquationNode.getKey(); // EquationNode itself
+              nodeToInsert = paragraph;
+              finalNewNodeKey = paragraph.getKey();
+              summaryCtx = `paragraph containing an inline equation`;
             }
+            // If block, nodeToInsert remains newEquationNode
           } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
+            // Relative insertion
+            const targetNode = currentTargetEditor
+              .getEditorState()
+              .read(() => $getNodeByKey(resolution.targetKey));
             if (!targetNode) {
               throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
+                `Target node with key ${resolution.targetKey} not found for insertEquationNode.`,
               );
             }
 
             if (inline) {
-              // Inline equation handling: similar to LinkNode or TextNode
+              // For inline equations, wrap in a paragraph if the target isn't suitable for inline insertion.
               if (
-                $isTextNode(targetNode) ||
-                ($isElementNode(targetNode) && targetNode.isInline())
+                !(
+                  $isTextNode(targetNode) ||
+                  ($isElementNode(targetNode) && targetNode.isInline())
+                )
               ) {
-                if (resolution.type === "before") {
-                  targetNode.insertBefore(newEquationNode);
-                } else {
-                  // 'after'
-                  targetNode.insertAfter(newEquationNode);
-                }
-                finalInsertedNodeKey = newEquationNode.getKey(); // The EquationNode itself
-              } else {
-                // Target is block-level, wrap inline equation in a paragraph
                 const paragraph = $createParagraphNode();
                 paragraph.append(newEquationNode);
-                if (resolution.type === "before") {
-                  targetNode.insertBefore(paragraph);
-                } else {
-                  // 'after'
-                  targetNode.insertAfter(paragraph);
-                }
-                finalInsertedNodeKey = paragraph.getKey(); // Wrapper paragraph
+                nodeToInsert = paragraph;
+                finalNewNodeKey = paragraph.getKey();
+                summaryCtx = `paragraph containing an inline equation`;
               }
-            } else {
-              // Block equation handling: similar to CodeBlock
-              if (resolution.type === "before") {
-                targetNode.insertBefore(newEquationNode);
-              } else {
-                // 'after'
-                targetNode.insertAfter(newEquationNode);
-              }
-              finalInsertedNodeKey = newEquationNode.getKey(); // EquationNode itself
             }
           }
-        });
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+          $insertNodeAtResolvedPoint(resolution, nodeToInsert);
 
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new ${inline ? "inline" : "block"} equation.`
-            : `Inserted ${inline ? "inline" : "block"} equation ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertEquationNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: finalInsertedNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertEquationNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert equation node",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: finalNewNodeKey,
+            summaryContext: summaryCtx,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -2466,102 +2037,31 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      documentID,
-      format,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertFigmaNode] Starting", {
-          documentID,
-          format,
-          relation,
-          anchor,
-        });
-
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertFigmaNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        targetEditor.update(() => {
-          const newFigmaNode = FigmaNode.$createFigmaNode(documentID); // Use static method from FigmaNode.tsx
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertFigmaNode",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { documentID, format } = specificOptions as {
+            documentID: string;
+            format?: "left" | "center" | "right" | "justify";
+          };
+          const newFigmaNode = FigmaNode.$createFigmaNode(documentID);
           if (format) {
             newFigmaNode.setFormat(format);
           }
-          newNodeKey = newFigmaNode.getKey();
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newFigmaNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, newFigmaNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // FigmaNode is block-level
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newFigmaNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newFigmaNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new Figma embed (ID: ${documentID}).`
-            : `Inserted Figma embed (ID: ${documentID}) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertFigmaNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertFigmaNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert Figma embed",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newFigmaNode.getKey(),
+            summaryContext: `Figma embed (ID: ${documentID})`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -2588,56 +2088,29 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      titleText,
-      initialContentMarkdown,
-      initiallyOpen,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertCollapsibleSection] Starting", {
-          titleText,
-          initialContentMarkdown,
-          initiallyOpen,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertCollapsibleSection",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { titleText, initialContentMarkdown, initiallyOpen } =
+            specificOptions as {
+              titleText: string;
+              initialContentMarkdown?: string;
+              initiallyOpen?: boolean;
+            };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          editor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(
-            `❌ [insertCollapsibleSection] Error: ${resolution.message}`,
-          );
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null; // Key of the CollapsibleContainerNode
-
-        targetEditor.update(() => {
-          // 1. Create the container
           const containerNode =
             CollapsibleContainerNode.$createCollapsibleContainerNode(
               initiallyOpen ?? false,
             );
-          newNodeKey = containerNode.getKey();
-
-          // 2. Create the title
           const titleNode = CollapsibleTitleNode.$createCollapsibleTitleNode();
-          const titleParagraph = $createParagraphNode();
-          titleParagraph.append($createTextNode(titleText));
+          const titleParagraph = $createParagraphNode().append(
+            $createTextNode(titleText),
+          );
           titleNode.append(titleParagraph);
 
-          // 3. Create the content
           const contentNode =
             CollapsibleContentNode.$createCollapsibleContentNode();
           if (initialContentMarkdown && initialContentMarkdown.trim() !== "") {
@@ -2646,75 +2119,24 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
               TRANSFORMERS,
               contentNode,
             );
-            if (contentNode.isEmpty()) {
-              // If markdown was empty or only whitespace, add a paragraph
-              contentNode.append($createParagraphNode());
-            }
-          } else {
-            contentNode.append($createParagraphNode()); // Default empty paragraph
+          }
+          if (contentNode.isEmpty()) {
+            // Ensure content is not empty
+            contentNode.append($createParagraphNode());
           }
 
-          // 4. Assemble the structure
-          containerNode.append(titleNode);
-          containerNode.append(contentNode);
+          containerNode.append(titleNode, contentNode);
 
-          // 5. Insert the container
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(containerNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, containerNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-            if (resolution.type === "before") {
-              targetNode.insertBefore(containerNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(containerNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new collapsible section titled '${titleText}'.`
-            : `Inserted collapsible section titled '${titleText}' ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertCollapsibleSection] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertCollapsibleSection] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert collapsible section",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: containerNode.getKey(),
+            summaryContext: `collapsible section titled '${titleText}'`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -2775,47 +2197,41 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       })
       .transform(({ mermaidLines, ...rest }) => ({
         ...rest,
-        mermaid: mermaidLines.join("\n"),
+        mermaid: mermaidLines.join("\n"), // Add mermaid string property
       })),
-    execute: async ({
-      mermaid,
-      mermaidConfig,
-      excalidrawConfig,
-      width,
-      height,
-      relation,
-      anchor,
-      editorKey,
-    }) => {
-      // -------------------- Merge / validate configuration -------------------
-      const mermaidCfg: MermaidConfig = {
-        ...(mermaidConfig ?? {}),
-      };
+    execute: async (options): ExecuteResult => {
+      const {
+        mermaid,
+        mermaidConfig,
+        excalidrawConfig,
+        width,
+        height,
+        relation,
+        anchor,
+        editorKey,
+      } = options;
+
+      // Perform asynchronous parsing before calling insertionExecutor
+      let parseResult: MermaidToExcalidrawResult;
+      try {
+        const mermaidCfg: MermaidConfig = { ...(mermaidConfig ?? {}) };
+        parseResult = await parseMermaidToExcalidraw(mermaid, mermaidCfg);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `❌ [insertExcalidrawDiagram] Mermaid parsing failed: ${msg}`,
+        );
+        return { success: false, error: `Mermaid parsing failed: ${msg}` };
+      }
 
       const excaliCfg: ExcalidrawConfig = {
         ...DEFAULT_EXCALIDRAW_CFG,
         ...(excalidrawConfig ?? {}),
       };
-
-      // -------------------------- Parse Mermaid ----------------------------
-      let parseResult: MermaidToExcalidrawResult;
-      try {
-        parseResult = await parseMermaidToExcalidraw(mermaid, mermaidCfg);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return {
-          success: false,
-          error: `Mermaid parsing failed: ${msg}`,
-        } as const;
-      }
-
-      // ------------------ Convert to Excalidraw elements ------------------
       const elements = convertToExcalidrawElements(parseResult.elements, {
         regenerateIds: true,
         ...excaliCfg,
       });
-      // NOTE: convertToExcalidrawElements already returns a *flat* element
-      // array – perfect for a single‑canvas Excalidraw JSON.
 
       const excaliData = JSON.stringify({
         type: "excalidraw",
@@ -2825,49 +2241,58 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         files: parseResult.files ?? {},
       });
 
-      const targetEditor = getTargetEditorInstance(editorKey);
+      // Define the options that the synchronous inserter will receive
+      type ExcalidrawInserterPayload = {
+        width?: number | "inherit";
+        height?: number | "inherit";
+        excaliData: string;
+        elementsLength: number;
+      };
 
-      const resolution = await resolveInsertionPoint(
-        targetEditor,
+      const inserterOptions: ExcalidrawInserterPayload & {
+        relation: InsertionRelation;
+        anchor?: InsertionAnchor;
+        editorKey?: string;
+      } = {
+        width,
+        height,
+        excaliData,
+        elementsLength: elements.length,
         relation,
         anchor,
-      );
-      if (resolution.status === "error") {
-        return { success: false, error: resolution.message } as const;
-      }
+        editorKey,
+      };
 
-      // --------------------------- Perform insert --------------------------
-      let newNodeKey: string | null = null;
-      editor.update(() => {
-        const node = new ExcalidrawNode(
-          excaliData,
-          false /** keep closed by default */,
-          width ?? DEFAULT_CANVAS_WIDTH,
-          height ?? DEFAULT_CANVAS_HEIGHT,
-        );
-        newNodeKey = node.getKey();
+      return insertionExecutor<ExcalidrawInserterPayload>( // Type of specificOptions for the inserter
+        "insertExcalidrawDiagram",
+        editor,
+        inserterOptions, // Pass the processed options
+        (resolution, specificOptions, _currentTargetEditor) => {
+          // This inserter is now synchronous
+          const {
+            width: w,
+            height: h,
+            excaliData: ed,
+            elementsLength,
+          } = specificOptions;
 
-        if (resolution.type === "appendRoot") {
-          $getRoot().append(node);
-        } else {
-          const target = $getNodeByKey(resolution.targetKey);
-          if (!target)
-            throw new Error(`Target node ${resolution.targetKey} vanished.`);
-          if (resolution.type === "before") target.insertBefore(node);
-          else target.insertAfter(node);
-        }
-      });
+          const node = new ExcalidrawNode(
+            ed,
+            false /** keep closed by default */,
+            w ?? DEFAULT_CANVAS_WIDTH,
+            h ?? DEFAULT_CANVAS_HEIGHT,
+          );
 
-      // ----------------------------- Return -------------------------------
-      const stateJson = JSON.stringify(editor.getEditorState().toJSON());
-      return {
-        success: true,
-        content: {
-          summary: `Inserted Mermaid diagram as a single Excalidraw canvas (${elements.length} elements).`,
-          updatedEditorStateJson: stateJson,
-          newNodeKey: newNodeKey ?? undefined,
+          $insertNodeAtResolvedPoint(resolution, node);
+
+          return {
+            primaryNodeKey: node.getKey(),
+            summaryContext: `Excalidraw diagram from Mermaid (${elementsLength} elements)`,
+          };
         },
-      } as const;
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -2896,54 +2321,36 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         ...rest,
         schema: mermaidLines.join("\n"),
       })),
-    execute: async ({ schema, width, height, relation, anchor, editorKey }) => {
-      /* ------------ 1 · locate insertion point -------------------- */
-      const targetEditor = getTargetEditorInstance(editorKey);
+    execute: async (options): ExecuteResult => {
+      // 'schema' is added by the transform. Define options for the inserter.
+      type InserterOptions = Omit<
+        typeof options,
+        "relation" | "anchor" | "editorKey"
+      > & { schema: string };
 
-      const resolution = await resolveInsertionPoint(
-        targetEditor,
-        relation,
-        anchor,
-      );
-      if (resolution.status === "error") {
-        return { success: false, error: resolution.message };
-      }
+      return insertionExecutor(
+        "insertMermaidDiagram",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { schema, width, height } = specificOptions as InserterOptions;
 
-      /* ------------ 2 · create & insert MermaidNode --------------- */
-      let nodeKey: string | undefined;
-      editor.update(() => {
-        const mermaidNode = MermaidNode.$createMermaidNode(
-          schema,
-          width,
-          height,
-        );
-        nodeKey = mermaidNode.getKey();
+          const mermaidNode = MermaidNode.$createMermaidNode(
+            schema,
+            width,
+            height,
+          );
 
-        if (resolution.type === "appendRoot") {
-          $getRoot().append(mermaidNode);
-        } else {
-          const target = $getNodeByKey(resolution.targetKey);
-          if (!target) {
-            throw new Error(`Target node ${resolution.targetKey} vanished.`);
-          }
-          if (resolution.type === "before") {
-            target.insertBefore(mermaidNode);
-          } else {
-            target.insertAfter(mermaidNode);
-          }
-        }
-      });
+          $insertNodeAtResolvedPoint(resolution, mermaidNode);
 
-      /* ------------ 3 · return updated editor state --------------- */
-      const stateJson = JSON.stringify(editor.getEditorState().toJSON());
-      return {
-        success: true,
-        content: {
-          summary: `Inserted Mermaid diagram (${width}×${height}).`,
-          updatedEditorStateJson: stateJson,
-          newNodeKey: nodeKey,
+          return {
+            primaryNodeKey: mermaidNode.getKey(),
+            summaryContext: `Mermaid diagram (${width}×${height})`,
+          };
         },
-      };
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -2963,54 +2370,27 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      templateColumns,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertLayout] Starting", {
-          templateColumns,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertLayout",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { templateColumns } = specificOptions as {
+            templateColumns: string;
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertLayout] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null; // Key of the LayoutContainerNode
-
-        targetEditor.update(() => {
-          // 1. Create the container
           const containerNode =
             LayoutContainerNode.$createLayoutContainerNode(templateColumns);
-          newNodeKey = containerNode.getKey();
 
-          // 2. Determine number of columns and create items
           const columnDefinitions = templateColumns
             .split(" ")
             .filter((def) => def.trim() !== "");
           const numberOfColumns = columnDefinitions.length;
 
           if (numberOfColumns === 0) {
-            // Avoid creating a layout with no columns, though templateColumns schema should prevent empty string ideally.
-            // Or, default to a single column if that's preferred behavior for empty/invalid input.
-            // For now, let's assume valid input means at least one column definition.
-            // If needed, add a paragraph directly to the container or throw error.
             const emptyParagraph = $createParagraphNode();
-            containerNode.append(emptyParagraph); // Fallback: add one empty paragraph to make it usable
+            containerNode.append(emptyParagraph);
           } else {
             for (let i = 0; i < numberOfColumns; i++) {
               const itemNode = LayoutItemNode.$createLayoutItemNode();
@@ -3020,63 +2400,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             }
           }
 
-          // 3. Insert the container
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(containerNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, containerNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-            if (resolution.type === "before") {
-              targetNode.insertBefore(containerNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(containerNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new layout with columns: ${templateColumns}.`
-            : `Inserted layout with columns: ${templateColumns} ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertLayout] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertLayout] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert layout",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: containerNode.getKey(),
+            summaryContext: `layout with columns: ${templateColumns}`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -3091,90 +2424,22 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({ relation, anchor, editorKey }): ExecuteResult => {
-      try {
-        console.log("[insertPageBreakNode] Starting", { relation, anchor });
-
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(
-            `❌ [insertPageBreakNode] Error: ${resolution.message}`,
-          );
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        targetEditor.update(() => {
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertPageBreakNode",
+        editor,
+        options,
+        (resolution, _specificOptions, _currentTargetEditor) => {
           const newPageBreak = PageBreakNode.$createPageBreakNode();
-          newNodeKey = newPageBreak.getKey();
-
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newPageBreak);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // PageBreakNode is block-level
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newPageBreak);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newPageBreak);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? "Appended new Page Break."
-            : `Inserted Page Break ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertPageBreakNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertPageBreakNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert Page Break",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          $insertNodeAtResolvedPoint(resolution, newPageBreak);
+          return {
+            primaryNodeKey: newPageBreak.getKey(),
+            summaryContext: "Page Break",
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -3196,102 +2461,32 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      question,
-      optionTexts,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertPollNode] Starting", {
-          question,
-          optionTexts,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertPollNode",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { question, optionTexts } = specificOptions as {
+            question: string;
+            optionTexts: string[];
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertPollNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        targetEditor.update(() => {
-          const options = optionTexts.map((text) =>
+          const pollOptions = optionTexts.map((text) =>
             PollNode.createPollOption(text),
           );
-          const newPollNode = PollNode.$createPollNode(question, options);
-          newNodeKey = newPollNode.getKey();
+          const newPollNode = PollNode.$createPollNode(question, pollOptions);
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newPollNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, newPollNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // PollNode is treated as block-level for insertion
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newPollNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newPollNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new poll: "${question}".`
-            : `Inserted poll: "${question}" ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertPollNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertPollNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert poll",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newPollNode.getKey(),
+            summaryContext: `poll: "${question}"`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -3314,102 +2509,32 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      tweetID,
-      format,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertTweetNode] Starting", {
-          tweetID,
-          format,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertTweetNode",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { tweetID, format } = specificOptions as {
+            tweetID: string;
+            format?: "left" | "center" | "right" | "justify";
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertTweetNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        targetEditor.update(() => {
           const newTweetNode = TweetNode.$createTweetNode(tweetID);
           if (format) {
             newTweetNode.setFormat(format);
           }
-          newNodeKey = newTweetNode.getKey();
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newTweetNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, newTweetNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // TweetNode is block-level
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newTweetNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newTweetNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new Tweet embed (ID: ${tweetID}).`
-            : `Inserted Tweet embed (ID: ${tweetID}) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertTweetNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertTweetNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert Tweet embed",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newTweetNode.getKey(),
+            summaryContext: `Tweet embed (ID: ${tweetID})`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -3433,102 +2558,32 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      videoID,
-      format,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertYouTubeNode] Starting", {
-          videoID,
-          format,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertYouTubeNode",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { videoID, format } = specificOptions as {
+            videoID: string;
+            format?: "left" | "center" | "right" | "justify";
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(`❌ [insertYouTubeNode] Error: ${resolution.message}`);
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        targetEditor.update(() => {
           const newYouTubeNode = YouTubeNode.$createYouTubeNode(videoID);
           if (format) {
             newYouTubeNode.setFormat(format);
           }
-          newNodeKey = newYouTubeNode.getKey();
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newYouTubeNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
+          $insertNodeAtResolvedPoint(resolution, newYouTubeNode);
 
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // YouTubeNode is block-level
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newYouTubeNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newYouTubeNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? `Appended new YouTube video embed (ID: ${videoID}).`
-            : `Inserted YouTube video embed (ID: ${videoID}) ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertYouTubeNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertYouTubeNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert YouTube video embed",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newYouTubeNode.getKey(),
+            summaryContext: `YouTube video embed (ID: ${videoID})`,
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -3549,45 +2604,23 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      initialDataJSON,
-      relation,
-      anchor,
-      editorKey,
-    }): ExecuteResult => {
-      try {
-        console.log("[insertSlideDeckNode] Starting", {
-          initialDataJSON,
-          relation,
-          anchor,
-        });
+    execute: async (options): ExecuteResult => {
+      return insertionExecutor(
+        "insertSlideDeckNode",
+        editor,
+        options,
+        (resolution, specificOptions, _currentTargetEditor) => {
+          const { initialDataJSON } = specificOptions as {
+            initialDataJSON?: string;
+          };
 
-        const targetEditor = getTargetEditorInstance(editorKey);
-
-        const resolution = await resolveInsertionPoint(
-          targetEditor,
-          relation,
-          anchor,
-        );
-
-        if (resolution.status === "error") {
-          console.error(
-            `❌ [insertSlideDeckNode] Error: ${resolution.message}`,
-          );
-          return { success: false, error: resolution.message };
-        }
-
-        let targetKeyForSummary: string | null = null;
-        let newNodeKey: string | null = null;
-
-        targetEditor.update(() => {
           let slideData: SlideDeckData;
           if (initialDataJSON) {
             try {
               slideData = JSON.parse(initialDataJSON) as SlideDeckData;
             } catch (e) {
               console.warn(
-                "[insertSlideDeckNode] Failed to parse initialDataJSON, using default data.",
+                "[insertSlideDeckNode:inserter] Failed to parse initialDataJSON, using default data.",
                 e,
               );
               slideData = DEFAULT_SLIDE_DECK_DATA;
@@ -3597,66 +2630,16 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           }
 
           const newSlideDeckNode = SlideNode.$createSlideNode(slideData);
-          newNodeKey = newSlideDeckNode.getKey();
+          $insertNodeAtResolvedPoint(resolution, newSlideDeckNode);
 
-          if (resolution.type === "appendRoot") {
-            $getRoot().append(newSlideDeckNode);
-            targetKeyForSummary = $getRoot().getKey();
-          } else {
-            const targetNode = $getNodeByKey(resolution.targetKey);
-            targetKeyForSummary = resolution.targetKey;
-
-            if (!targetNode) {
-              throw new Error(
-                `Target node with key ${resolution.targetKey} not found within editor update.`,
-              );
-            }
-
-            // SlideDeckNode is block-level
-            if (resolution.type === "before") {
-              targetNode.insertBefore(newSlideDeckNode);
-            } else {
-              // 'after'
-              targetNode.insertAfter(newSlideDeckNode);
-            }
-          }
-        });
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-
-        const summary =
-          resolution.type === "appendRoot"
-            ? "Appended new Slide Deck."
-            : `Inserted Slide Deck ${resolution.type} target (key: ${targetKeyForSummary ?? "N/A"}).`;
-        console.log(`✅ [insertSlideDeckNode] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: newNodeKey ?? undefined,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [insertSlideDeckNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (stateErr) {
-          /* ignore */
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to insert Slide Deck",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            primaryNodeKey: newSlideDeckNode.getKey(),
+            summaryContext: "Slide Deck",
+          };
+        },
+        getTargetEditorInstance,
+        resolveInsertionPoint,
+      );
     },
   });
 
@@ -4090,35 +3073,25 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "Optional background color for the new slide (e.g., '#FF0000', 'blue'). Defaults to transparent/white.",
         ),
+      editorKey: EditorKeySchema.optional(), // Added editorKey to parameters
     }),
-    execute: async ({
-      deckNodeKey,
-      newSlideId,
-      insertionIndex,
-      focusNewSlide,
-      backgroundColor,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        let updatedDeckData: SlideDeckData | null = null;
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "addSlidePage",
+        editor,
+        options,
+        (currentData, opts) => {
+          const { newSlideId, insertionIndex, focusNewSlide, backgroundColor } =
+            opts;
           const newId = newSlideId || `slide-${Date.now()}`;
           const newPage: SlideData = {
             id: newId,
             elements: [],
-            backgroundColor: backgroundColor,
+            backgroundColor,
           };
 
-          const newSlides = [...currentDeckData.slides];
+          const newSlides = [...currentData.slides];
           let actualInsertionIndex = insertionIndex;
 
           if (
@@ -4130,42 +3103,24 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           }
           newSlides.splice(actualInsertionIndex, 0, newPage);
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: newSlides,
-            currentSlideId: focusNewSlide
-              ? newId
-              : currentDeckData.currentSlideId,
+          const summary =
+            `Added new slide page (ID: ${newId}) to deck ${options.deckNodeKey} at index ${actualInsertionIndex}.` +
+            (focusNewSlide ? " Focused new slide." : "");
+
+          return {
+            newData: {
+              ...currentData,
+              slides: newSlides,
+              currentSlideId: focusNewSlide
+                ? newId
+                : currentData.currentSlideId,
+            },
+            summary: summary,
+            newNodeKey: newId, // The key of the new slide page
           };
-          deckNode.setData(finalDeckData);
-          updatedDeckData = finalDeckData;
-          summary = `Added new slide page (ID: ${newId}) to deck ${deckNodeKey} at index ${actualInsertionIndex}.`;
-          if (focusNewSlide) {
-            summary += ` Focused new slide.`;
-          }
-        });
-
-        if (!updatedDeckData) {
-          // Should not happen if update runs
-          throw new Error("Failed to update slide deck data.");
-        }
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [addSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: deckNodeKey,
-          }, // deckNodeKey as newNodeKey as the deck itself was modified
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [addSlidePage] Error:`, errorMsg);
-        return { success: false, error: errorMsg };
-      }
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -4180,97 +3135,77 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       slideIdToRemove: z
         .string()
         .describe("The ID of the slide page to remove."),
+      editorKey: EditorKeySchema.optional(), // Ensure editorKey is part of params
     }),
-    execute: async ({ deckNodeKey, slideIdToRemove }): ExecuteResult => {
-      try {
-        let summary = "";
-        let updatedDeckData: SlideDeckData | null = null;
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "removeSlidePage",
+        editor,
+        options,
+        (currentData, opts) => {
+          const { slideIdToRemove } = opts;
 
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
-          if (currentDeckData.slides.length <= 1) {
+          if (currentData.slides.length <= 1) {
             throw new Error("Cannot remove the last slide from a deck.");
           }
 
-          const slideToRemoveIndex = currentDeckData.slides.findIndex(
+          const slideToRemoveIndex = currentData.slides.findIndex(
             (s) => s.id === slideIdToRemove,
           );
 
           if (slideToRemoveIndex === -1) {
+            // Access options.deckNodeKey from the outer scope for the error message if needed,
+            // or ensure deckNodeKey is passed into opts if mutator needs it directly.
+            // For this error, using the closure `options.deckNodeKey` is fine.
             throw new Error(
-              `Slide with ID ${slideIdToRemove} not found in deck ${deckNodeKey}.`,
+              `Slide with ID ${slideIdToRemove} not found in deck ${options.deckNodeKey}.`,
             );
           }
 
-          const newSlides = currentDeckData.slides.filter(
+          const newSlides = currentData.slides.filter(
             (s) => s.id !== slideIdToRemove,
           );
 
-          let newCurrentSlideId = currentDeckData.currentSlideId;
-          if (currentDeckData.currentSlideId === slideIdToRemove) {
+          let newCurrentSlideId = currentData.currentSlideId;
+          if (currentData.currentSlideId === slideIdToRemove) {
             if (newSlides.length > 0) {
-              // Focus previous or the new first slide
               const newFocusIndex = Math.max(0, slideToRemoveIndex - 1);
               newCurrentSlideId = newSlides[newFocusIndex]?.id ?? null;
               if (!newCurrentSlideId && newSlides[0]?.id) {
-                // Should always find one if newSlides not empty
                 newCurrentSlideId = newSlides[0].id;
               }
             } else {
-              // This case should be prevented by the "length <= 1" check,
-              // but as a fallback, if somehow all slides are gone (which is an error state).
               newCurrentSlideId = null;
             }
           }
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: newSlides,
-            currentSlideId: newCurrentSlideId,
-          };
-          deckNode.setData(finalDeckData);
-          updatedDeckData = finalDeckData;
-          summary = `Removed slide page (ID: ${slideIdToRemove}) from deck ${deckNodeKey}.`;
+          let summary = `Removed slide page (ID: ${slideIdToRemove}) from deck ${options.deckNodeKey}.`;
           if (
-            currentDeckData.currentSlideId === slideIdToRemove &&
+            currentData.currentSlideId === slideIdToRemove &&
             newCurrentSlideId
           ) {
             summary += ` New current slide is ${newCurrentSlideId}.`;
           } else if (
-            currentDeckData.currentSlideId === slideIdToRemove &&
+            currentData.currentSlideId === slideIdToRemove &&
             !newCurrentSlideId
           ) {
-            summary += ` Current slide focus cleared (should not happen if slides remain).`;
+            // This case should be rare if the deck can't be emptied by this operation.
+            summary += ` Current slide focus cleared (deck might be empty or in an unexpected state).`;
           }
-        });
 
-        if (!updatedDeckData) {
-          throw new Error("Failed to update slide deck data during removal.");
-        }
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [removeSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: deckNodeKey,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [removeSlidePage] Error:`, errorMsg);
-        return { success: false, error: errorMsg };
-      }
+          return {
+            newData: {
+              ...currentData,
+              slides: newSlides,
+              currentSlideId: newCurrentSlideId,
+            },
+            summary: summary,
+            // newNodeKey is typically not set for removal, but one could return slideIdToRemove if needed.
+          };
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -4292,77 +3227,49 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "The new 0-based index for the slide. The slide will be moved to this position.",
         ),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      deckNodeKey,
-      slideIdToMove,
-      newIndex,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        let updatedDeckData: SlideDeckData | null = null;
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
-          const slideToMove = currentDeckData.slides.find(
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "reorderSlidePage",
+        editor, // from RuntimeToolsProvider scope
+        options,
+        (currentData, opts) => {
+          const { slideIdToMove, newIndex } = opts;
+          const slideToMove = currentData.slides.find(
             (s) => s.id === slideIdToMove,
           );
 
           if (!slideToMove) {
             throw new Error(
-              `Slide with ID ${slideIdToMove} not found in deck ${deckNodeKey}.`,
+              `Slide with ID ${slideIdToMove} not found in deck ${options.deckNodeKey}.`,
             );
           }
 
-          const tempSlides = currentDeckData.slides.filter(
+          const tempSlides = currentData.slides.filter(
             (s) => s.id !== slideIdToMove,
           );
 
-          // Clamp newIndex to be within the bounds of the modified array
           const actualNewIndex = Math.max(
             0,
             Math.min(newIndex, tempSlides.length),
           );
 
           tempSlides.splice(actualNewIndex, 0, slideToMove);
+          const summary = `Reordered slide page (ID: ${slideIdToMove}) in deck ${options.deckNodeKey} to new index ${actualNewIndex}.`;
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: tempSlides,
-            // currentSlideId remains unchanged by reordering
+          return {
+            newData: {
+              ...currentData,
+              slides: tempSlides,
+            },
+            summary: summary,
+            // newNodeKey could be slideIdToMove if useful for the caller
           };
-          deckNode.setData(finalDeckData);
-          updatedDeckData = finalDeckData;
-          summary = `Reordered slide page (ID: ${slideIdToMove}) in deck ${deckNodeKey} to new index ${actualNewIndex}.`;
-        });
-
-        if (!updatedDeckData) {
-          throw new Error("Failed to update slide deck data during reorder.");
-        }
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [reorderSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: deckNodeKey,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [reorderSlidePage] Error:`, errorMsg);
-        return { success: false, error: errorMsg };
-      }
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -4388,52 +3295,43 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "The new background color for the slide (e.g., '#FF0000', 'blue').",
         ),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      deckNodeKey,
-      slideTarget,
-      backgroundColor,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        let updatedDeckData: SlideDeckData | null = null;
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "setSlidePageBackground",
+        editor, // from RuntimeToolsProvider scope
+        options,
+        (currentData, opts) => {
+          const { slideTarget, backgroundColor } = opts;
           let targetSlideIndex = -1;
 
           if (slideTarget.type === "id") {
-            targetSlideIndex = currentDeckData.slides.findIndex(
+            targetSlideIndex = currentData.slides.findIndex(
               (s) => s.id === slideTarget.slideId,
             );
             if (targetSlideIndex === -1) {
               throw new Error(
-                `Slide with ID ${slideTarget.slideId} not found in deck ${deckNodeKey}.`,
+                `Slide with ID ${slideTarget.slideId} not found in deck ${options.deckNodeKey}.`,
               );
             }
           } else {
             targetSlideIndex = slideTarget.slideIndex;
             if (
               targetSlideIndex < 0 ||
-              targetSlideIndex >= currentDeckData.slides.length
+              targetSlideIndex >= currentData.slides.length
             ) {
               throw new Error(
-                `Slide index ${targetSlideIndex} is out of bounds for deck ${deckNodeKey}. Number of slides: ${currentDeckData.slides.length}`,
+                `Slide index ${targetSlideIndex} is out of bounds for deck ${options.deckNodeKey}. Number of slides: ${currentData.slides.length}`,
               );
             }
           }
 
-          const targetSlide = currentDeckData.slides[targetSlideIndex];
+          const targetSlide = currentData.slides[targetSlideIndex];
           if (!targetSlide) {
             throw new Error(
-              `Target slide at index ${targetSlideIndex} could not be retrieved for deck ${deckNodeKey}.`,
+              `Target slide at index ${targetSlideIndex} could not be retrieved for deck ${options.deckNodeKey}.`,
             );
           }
 
@@ -4442,37 +3340,18 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             backgroundColor: backgroundColor,
           };
 
-          const newSlides = [...currentDeckData.slides];
+          const newSlides = [...currentData.slides];
           newSlides[targetSlideIndex] = updatedSlideData;
+          const summary = `Set background color of slide ${slideTarget.type === "id" ? slideTarget.slideId : `index ${targetSlideIndex}`} in deck ${options.deckNodeKey} to ${backgroundColor}.`;
 
-          const finalDeckData = { ...currentDeckData, slides: newSlides };
-          deckNode.setData(finalDeckData);
-          updatedDeckData = finalDeckData;
-          summary = `Set background color of slide ${slideTarget.type === "id" ? slideTarget.slideId : `index ${targetSlideIndex}`} in deck ${deckNodeKey} to ${backgroundColor}.`;
-        });
-
-        if (!updatedDeckData) {
-          throw new Error(
-            "Failed to update slide deck data after setting background color.",
-          );
-        }
-
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [setSlidePageBackground] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-            newNodeKey: deckNodeKey,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [setSlidePageBackground] Error:`, errorMsg);
-        return { success: false, error: errorMsg };
-      }
+          return {
+            newData: { ...currentData, slides: newSlides },
+            summary: summary,
+            // newNodeKey could be targetSlide.id if useful
+          };
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -4534,90 +3413,86 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "Optional background color for the box (e.g., '#FF0000', 'blue'). Defaults to transparent.",
         ),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      deckNodeKey,
-      slideId,
-      initialTextContent,
-      boxId,
-      x,
-      y,
-      width,
-      height,
-      backgroundColor,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        let newBoxGeneratedId: string | undefined;
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "addBoxToSlidePage",
+        editor,
+        options,
+        (currentData, opts) => {
+          const {
+            slideId,
+            initialTextContent,
+            boxId,
+            x,
+            y,
+            width,
+            height,
+            backgroundColor,
+          } = opts;
 
-        // Helper function to get the next zIndex for the new element
-        const getNextZIndexForSlideElements = (
-          elements: SlideElementSpec[],
-        ): number => {
-          if (!elements || elements.length === 0) {
-            return 0;
-          }
-          return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
-        };
-
-        // Create a simple EditorStateJSON: root > paragraph > text
-        // If initialTextContent is null, undefined, or an empty string,
-        // an empty text node will be created, which is valid.
-        const textForNode = initialTextContent || "";
-
-        const generatedEditorStateJSON: EditorStateJSON = {
-          root: {
-            type: "root",
-            version: 1,
-            direction: null,
-            format: "",
-            indent: 0,
-            children: [
-              {
-                type: "paragraph",
-                version: 1,
-                direction: null,
-                format: "",
-                indent: 0,
-                children: [
-                  {
-                    type: "text",
-                    version: 1,
-                    text: textForNode,
-                    detail: 0,
-                    format: "0",
-                    mode: "normal",
-                    style: "",
-                    direction: null,
-                    indent: 0,
-                  },
-                ],
-              },
-            ],
-          },
-        } satisfies EditorStateJSON;
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-          const currentDeckData = deckNode.getData();
-          const targetSlideIndex = currentDeckData.slides.findIndex(
+          const targetSlideIndex = currentData.slides.findIndex(
             (s) => s.id === slideId,
           );
 
           if (targetSlideIndex === -1) {
             throw new Error(
-              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+              `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
+            );
+          }
+          const targetSlide = currentData.slides[targetSlideIndex];
+          if (!targetSlide) {
+            // Should be caught by index check, but safeguard
+            throw new Error(
+              `Target slide ${slideId} could not be retrieved from deck ${options.deckNodeKey}.`,
             );
           }
 
-          const targetSlide = currentDeckData.slides[targetSlideIndex];
+          const getNextZIndexForSlideElements = (
+            elements: SlideElementSpec[],
+          ): number => {
+            if (!elements || elements.length === 0) {
+              return 0;
+            }
+            return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+          };
 
-          newBoxGeneratedId = boxId || `box-${Date.now()}`;
+          const textForNode = initialTextContent || "";
+          const generatedEditorStateJSON: EditorStateJSON = {
+            root: {
+              type: "root",
+              version: 1,
+              direction: null,
+              format: "",
+              indent: 0,
+              children: [
+                {
+                  type: "paragraph",
+                  version: 1,
+                  direction: null,
+                  format: "",
+                  indent: 0,
+                  children: [
+                    {
+                      type: "text",
+                      version: 1,
+                      text: textForNode,
+                      detail: 0,
+                      format: "0", // Default format for text node
+                      mode: "normal",
+                      style: "",
+                      direction: null, // Added direction
+                      indent: 0, // Added indent
+                    },
+                  ],
+                },
+              ],
+            },
+          };
+
+          const newBoxGeneratedId = boxId || `box-${Date.now()}`;
           const newBoxElement: SlideElementSpec = {
             kind: "box",
             id: newBoxGeneratedId,
@@ -4628,12 +3503,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             editorStateJSON: generatedEditorStateJSON,
             backgroundColor: backgroundColor || "transparent",
             version: 1,
-            zIndex: getNextZIndexForSlideElements(
-              targetSlide ? targetSlide.elements : [],
-            ),
+            zIndex: getNextZIndexForSlideElements(targetSlide.elements || []),
           };
 
-          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+          const updatedSlides = currentData.slides.map((slide, index) => {
             if (index === targetSlideIndex) {
               return {
                 ...slide,
@@ -4643,46 +3516,19 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             return slide;
           });
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: updatedSlides,
-          };
-          deckNode.setData(finalDeckData);
-          summary = `Added new box (ID: ${newBoxGeneratedId}) with text content to slide ${slideId} in deck ${deckNodeKey}.`;
-        });
+          const summary = `Added new box (ID: ${newBoxGeneratedId}) with content to slide ${slideId} in deck ${options.deckNodeKey}.`;
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [addBoxToSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
+          return {
+            newData: {
+              ...currentData,
+              slides: updatedSlides,
+            },
+            summary: summary,
             newNodeKey: newBoxGeneratedId,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [addBoxToSlidePage] Error:`, errorMsg, err);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error(
-            "[addBoxToSlidePage] Failed to serialize state on error:",
-            stateErr,
-          );
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to add box to slide page",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          };
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -4709,37 +3555,29 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "An object containing the properties to update. Only provided properties will be changed.",
         ),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      deckNodeKey,
-      slideId,
-      boxId,
-      properties,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "updateBoxPropertiesOnSlidePage",
+        editor,
+        options,
+        (currentData, opts) => {
+          const { slideId, boxId, properties } = opts;
 
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
-          const targetSlideIndex = currentDeckData.slides.findIndex(
+          const targetSlideIndex = currentData.slides.findIndex(
             (s) => s.id === slideId,
           );
 
           if (targetSlideIndex === -1) {
             throw new Error(
-              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+              `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
             );
           }
 
           let boxFoundAndUpdated = false;
-          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+          const updatedSlides = currentData.slides.map((slide, index) => {
             if (index === targetSlideIndex) {
               const newElements = (slide.elements || []).map((el) => {
                 if (el.id === boxId && el.kind === "box") {
@@ -4759,49 +3597,23 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
           if (!boxFoundAndUpdated) {
             throw new Error(
-              `Box with ID ${boxId} not found on slide ${slideId} in deck ${deckNodeKey}.`,
+              `Box with ID ${boxId} not found on slide ${slideId} in deck ${options.deckNodeKey}.`,
             );
           }
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: updatedSlides,
-          };
-          deckNode.setData(finalDeckData);
-          summary = `Updated properties of box (ID: ${boxId}) on slide ${slideId} in deck ${deckNodeKey}. Changed: ${Object.keys(properties).join(", ")}`;
-        });
+          const summary = `Updated properties of box (ID: ${boxId}) on slide ${slideId} in deck ${options.deckNodeKey}. Changed: ${Object.keys(properties).join(", ")}`;
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [updateBoxPropertiesOnSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [updateBoxPropertiesOnSlidePage] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error(
-            "[updateBoxPropertiesOnSlidePage] Failed to serialize state on error:",
-            stateErr,
-          );
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to update box properties on slide page",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            newData: {
+              ...currentData,
+              slides: updatedSlides,
+            },
+            summary: summary,
+            newNodeKey: boxId, // The key of the updated box
+          };
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -4847,48 +3659,41 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .optional()
         .default(150)
         .describe("Optional height. Defaults to 150."),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      deckNodeKey,
-      slideId,
-      imageUrl,
-      imageId,
-      x,
-      y,
-      width,
-      height,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        let newImageGeneratedId: string | undefined;
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "addImageToSlidePage",
+        editor,
+        options,
+        (currentData, opts) => {
+          const { slideId, imageUrl, imageId, x, y, width, height } = opts;
 
-        const getNextZIndexForSlideElements = (
-          elements: SlideElementSpec[],
-        ): number => {
-          if (!elements || elements.length === 0) return 0;
-          return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
-        };
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-          const currentDeckData = deckNode.getData();
-          const targetSlideIndex = currentDeckData.slides.findIndex(
+          const targetSlideIndex = currentData.slides.findIndex(
             (s) => s.id === slideId,
           );
 
           if (targetSlideIndex === -1) {
             throw new Error(
-              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+              `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
             );
           }
-          const targetSlide = currentDeckData.slides[targetSlideIndex];
+          const targetSlide = currentData.slides[targetSlideIndex];
+          if (!targetSlide) {
+            throw new Error(
+              `Target slide ${slideId} could not be retrieved from deck ${options.deckNodeKey}.`,
+            );
+          }
 
-          newImageGeneratedId = imageId || `image-${Date.now()}`;
+          const getNextZIndexForSlideElements = (
+            elements: SlideElementSpec[],
+          ): number => {
+            if (!elements || elements.length === 0) return 0;
+            return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+          };
+
+          const newImageGeneratedId = imageId || `image-${Date.now()}`;
           const newImageElement: SlideElementSpec = {
             kind: "image",
             id: newImageGeneratedId,
@@ -4898,12 +3703,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             height: height || 150,
             url: imageUrl,
             version: 1,
-            zIndex: getNextZIndexForSlideElements(
-              targetSlide ? targetSlide.elements : [],
-            ),
+            zIndex: getNextZIndexForSlideElements(targetSlide.elements || []),
           };
 
-          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+          const updatedSlides = currentData.slides.map((slide, index) => {
             if (index === targetSlideIndex) {
               return {
                 ...slide,
@@ -4913,46 +3716,19 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             return slide;
           });
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: updatedSlides,
-          };
-          deckNode.setData(finalDeckData);
-          summary = `Added new image (ID: ${newImageGeneratedId}, URL: ${imageUrl.substring(0, 50)}...) to slide ${slideId} in deck ${deckNodeKey}.`;
-        });
+          const summary = `Added new image (ID: ${newImageGeneratedId}, URL: ${imageUrl.substring(0, 50)}...) to slide ${slideId} in deck ${options.deckNodeKey}.`;
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [addImageToSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
+          return {
+            newData: {
+              ...currentData,
+              slides: updatedSlides,
+            },
+            summary: summary,
             newNodeKey: newImageGeneratedId,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [addImageToSlidePage] Error:`, errorMsg, err);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error(
-            "[addImageToSlidePage] Failed to serialize state on error:",
-            stateErr,
-          );
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to add image to slide page",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          };
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -5011,62 +3787,63 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .optional()
         .default(300)
         .describe("Height. Defaults to 300."),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      deckNodeKey,
-      slideId,
-      chartType,
-      chartDataJSON,
-      chartConfigJSON,
-      chartId,
-      x,
-      y,
-      width,
-      height,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
-        let newChartGeneratedId: string | undefined;
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "addChartToSlidePage",
+        editor,
+        options,
+        (currentData, opts) => {
+          const {
+            slideId,
+            chartType,
+            chartDataJSON,
+            chartConfigJSON,
+            chartId,
+            x,
+            y,
+            width,
+            height,
+          } = opts;
 
-        const getNextZIndexForSlideElements = (
-          elements: SlideElementSpec[],
-        ): number => {
-          if (!elements || elements.length === 0) return 0;
-          return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
-        };
-
-        // Validate JSON strings early
-        try {
-          JSON.parse(chartDataJSON || "[]");
-        } catch (e) {
-          throw new Error(`Invalid chartDataJSON: ${(e as Error).message}`);
-        }
-        try {
-          JSON.parse(chartConfigJSON || "{}");
-        } catch (e) {
-          throw new Error(`Invalid chartConfigJSON: ${(e as Error).message}`);
-        }
-
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
+          // Validate JSON strings early within the mutator to keep executor clean
+          try {
+            JSON.parse(chartDataJSON || "[]");
+          } catch (e) {
+            throw new Error(`Invalid chartDataJSON: ${(e as Error).message}`);
           }
-          const currentDeckData = deckNode.getData();
-          const targetSlideIndex = currentDeckData.slides.findIndex(
+          try {
+            JSON.parse(chartConfigJSON || "{}");
+          } catch (e) {
+            throw new Error(`Invalid chartConfigJSON: ${(e as Error).message}`);
+          }
+
+          const targetSlideIndex = currentData.slides.findIndex(
             (s) => s.id === slideId,
           );
 
           if (targetSlideIndex === -1) {
             throw new Error(
-              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+              `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
             );
           }
-          const targetSlide = currentDeckData.slides[targetSlideIndex];
+          const targetSlide = currentData.slides[targetSlideIndex];
+          if (!targetSlide) {
+            throw new Error(
+              `Target slide ${slideId} could not be retrieved from deck ${options.deckNodeKey}.`,
+            );
+          }
 
-          newChartGeneratedId = chartId || `chart-${Date.now()}`;
+          const getNextZIndexForSlideElements = (
+            elements: SlideElementSpec[],
+          ): number => {
+            if (!elements || elements.length === 0) return 0;
+            return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+          };
+
+          const newChartGeneratedId = chartId || `chart-${Date.now()}`;
           const newChartElement: SlideElementSpec = {
             kind: "chart",
             id: newChartGeneratedId,
@@ -5078,12 +3855,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             chartData: chartDataJSON || "[]",
             chartConfig: chartConfigJSON || "{}",
             version: 1,
-            zIndex: getNextZIndexForSlideElements(
-              targetSlide ? targetSlide.elements : [],
-            ),
+            zIndex: getNextZIndexForSlideElements(targetSlide.elements || []),
           };
 
-          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+          const updatedSlides = currentData.slides.map((slide, index) => {
             if (index === targetSlideIndex) {
               return {
                 ...slide,
@@ -5093,46 +3868,19 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             return slide;
           });
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: updatedSlides,
-          };
-          deckNode.setData(finalDeckData);
-          summary = `Added new ${chartType} chart (ID: ${newChartGeneratedId}) to slide ${slideId} in deck ${deckNodeKey}.`;
-        });
+          const summary = `Added new ${chartType} chart (ID: ${newChartGeneratedId}) to slide ${slideId} in deck ${options.deckNodeKey}.`;
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [addChartToSlidePage] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
+          return {
+            newData: {
+              ...currentData,
+              slides: updatedSlides,
+            },
+            summary: summary,
             newNodeKey: newChartGeneratedId,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [addChartToSlidePage] Error:`, errorMsg, err);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error(
-            "[addChartToSlidePage] Failed to serialize state on error:",
-            stateErr,
-          );
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to add chart to slide page",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          };
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -5170,58 +3918,50 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "An object containing the properties to update. Only provided properties will be changed.",
         ),
+      editorKey: EditorKeySchema.optional(),
     }),
-    execute: async ({
-      deckNodeKey,
-      slideId,
-      elementId,
-      kind,
-      properties,
-    }): ExecuteResult => {
-      try {
-        let summary = "";
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "updateSlideElementProperties",
+        editor,
+        options,
+        (currentData, opts) => {
+          const { slideId, elementId, kind, properties } = opts;
 
-        // Validate JSON strings if provided for charts
-        if (kind === "chart") {
-          if (properties.chartDataJSON) {
-            try {
-              JSON.parse(properties.chartDataJSON);
-            } catch (e) {
-              throw new Error(`Invalid chartDataJSON: ${(e as Error).message}`);
+          if (kind === "chart") {
+            if (properties.chartDataJSON) {
+              try {
+                JSON.parse(properties.chartDataJSON);
+              } catch (e) {
+                throw new Error(
+                  `Invalid chartDataJSON: ${(e as Error).message}`,
+                );
+              }
+            }
+            if (properties.chartConfigJSON) {
+              try {
+                JSON.parse(properties.chartConfigJSON);
+              } catch (e) {
+                throw new Error(
+                  `Invalid chartConfigJSON: ${(e as Error).message}`,
+                );
+              }
             }
           }
-          if (properties.chartConfigJSON) {
-            try {
-              JSON.parse(properties.chartConfigJSON);
-            } catch (e) {
-              throw new Error(
-                `Invalid chartConfigJSON: ${(e as Error).message}`,
-              );
-            }
-          }
-        }
 
-        editor.update(() => {
-          const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-          if (!SlideNode.$isSlideDeckNode(deckNode)) {
-            throw new Error(
-              `Node with key ${deckNodeKey} is not a valid SlideDeckNode.`,
-            );
-          }
-
-          const currentDeckData = deckNode.getData();
-          const targetSlideIndex = currentDeckData.slides.findIndex(
+          const targetSlideIndex = currentData.slides.findIndex(
             (s) => s.id === slideId,
           );
 
           if (targetSlideIndex === -1) {
             throw new Error(
-              `Slide with ID ${slideId} not found in deck ${deckNodeKey}.`,
+              `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
             );
           }
 
           let elementFoundAndUpdated = false;
-          const updatedSlides = currentDeckData.slides.map((slide, index) => {
+          const updatedSlides = currentData.slides.map((slide, index) => {
             if (index === targetSlideIndex) {
               const newElements = (slide.elements || []).map((el) => {
                 if (el.id === elementId) {
@@ -5231,7 +3971,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
                     );
                   }
                   elementFoundAndUpdated = true;
-                  // Prepare updates, carefully merging based on kind
                   let specificUpdates = {};
                   if (kind === "image" && el.kind === "image") {
                     specificUpdates = {
@@ -5265,49 +4004,23 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
           if (!elementFoundAndUpdated) {
             throw new Error(
-              `Element with ID ${elementId} of kind ${kind} not found on slide ${slideId}.`,
+              `Element with ID ${elementId} of kind ${kind} not found on slide ${slideId} in deck ${options.deckNodeKey}.`,
             );
           }
 
-          const finalDeckData: SlideDeckData = {
-            ...currentDeckData,
-            slides: updatedSlides,
-          };
-          deckNode.setData(finalDeckData);
-          summary = `Updated properties of ${kind} element (ID: ${elementId}) on slide ${slideId}. Changed: ${Object.keys(properties).join(", ")}`;
-        });
+          const summary = `Updated properties of ${kind} element (ID: ${elementId}) on slide ${slideId}. Changed: ${Object.keys(properties).join(", ")}`;
 
-        const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
-        console.log(`✅ [updateSlideElementProperties] Success: ${summary}`);
-        return {
-          success: true,
-          content: {
-            summary,
-            updatedEditorStateJson: stateJson,
-          },
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`❌ [updateSlideElementProperties] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
-        try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
-        } catch (stateErr) {
-          console.error(
-            "[updateSlideElementProperties] Failed to serialize state on error:",
-            stateErr,
-          );
-        }
-        return {
-          success: false,
-          error: errorMsg,
-          content: {
-            summary: "Failed to update slide element properties",
-            updatedEditorStateJson: stateJsonOnError,
-          },
-        };
-      }
+          return {
+            newData: {
+              ...currentData,
+              slides: updatedSlides,
+            },
+            summary: summary,
+            newNodeKey: elementId,
+          };
+        },
+        getTargetEditorInstance,
+      );
     },
   });
 
@@ -5319,9 +4032,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertEquationNode && { insertEquationNode }),
     ...(insertFigmaNode && { insertFigmaNode }),
     ...(insertCollapsibleSection && { insertCollapsibleSection }),
-    ...(insertExcalidrawDiagram && {
-      insertExcalidrawDiagram: insertExcalidrawDiagram,
-    }),
+    ...(insertExcalidrawDiagram && { insertExcalidrawDiagram }),
     ...(insertMermaidDiagram && { insertMermaidDiagram }),
     ...(insertLayout && { insertLayout }),
     ...(insertPageBreakNode && { insertPageBreakNode }),
@@ -5332,7 +4043,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(addSlidePage && { addSlidePage }),
     ...(removeSlidePage && { removeSlidePage }),
     ...(reorderSlidePage && { reorderSlidePage }),
-    ...(addBoxToSlidePage && { addBoxToSlidePage }), // Register the new tool
+    ...(addBoxToSlidePage && { addBoxToSlidePage }),
     ...(setSlidePageBackground && { setSlidePageBackground }),
     ...(addImageToSlidePage && { addImageToSlidePage }),
     ...(addChartToSlidePage && { addChartToSlidePage }),
@@ -5353,9 +4064,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(sendReply && { sendReply }),
     ...(addCommentThread && { addCommentThread }),
     ...(addReplyToThread && { addReplyToThread }),
-    ...(findAndSelectTextForComment && {
-      findAndSelectTextForComment: findAndSelectTextForComment,
-    }),
+    ...(findAndSelectTextForComment && { findAndSelectTextForComment }),
     ...(removeCommentFromThread && { removeCommentFromThread }),
     ...(removeCommentThread && { removeCommentThread }),
     ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
@@ -5458,7 +4167,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         // Capture final state if not captured by the last step
         if (lastStateJson === undefined && calls.length > 0) {
           editor.read(() => {
-            // Use 'editor' via closure
+            // Use 'editor' via closure from RuntimeToolsProvider
             lastStateJson = JSON.stringify(editor.getEditorState().toJSON());
           });
         }
@@ -5501,7 +4210,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       {children}
     </RuntimeToolsCtx.Provider>
   );
-}
+} // This should be the closing brace for RuntimeToolsProvider
 
 export function useRuntimeTools() {
   const tools = useContext(RuntimeToolsCtx);
