@@ -13,6 +13,7 @@ export type ChatState = {
   sidebarOpen: boolean;
   mode: "chat" | "agent" | "debug";
   streamingMessageId: string | null;
+  maxAgentSteps: number;
 };
 
 export type Action =
@@ -21,6 +22,7 @@ export type Action =
   | { type: "setMode"; mode: ChatState["mode"] }
   | { type: "reset" }
   | { type: "removeMessage"; id: string }
+  | { type: "setMaxAgentSteps"; steps: number }
   | { type: "startStreaming"; id: string }
   | { type: "stopStreaming" }
   | {
@@ -34,6 +36,7 @@ const initial: ChatState = {
   sidebarOpen: false,
   mode: "agent",
   streamingMessageId: null,
+  maxAgentSteps: 5,
 };
 
 export const ChatStateCtx = createContext<ChatState | undefined>(undefined);
@@ -67,9 +70,15 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
           return s;
         }
         return { ...s, mode: a.mode };
+      case "setMaxAgentSteps":
+        if (a.steps >= 1 && a.steps <= 25) {
+          return { ...s, maxAgentSteps: a.steps };
+        }
+        return s;
       case "reset":
         return {
           ...initial,
+          maxAgentSteps: s.maxAgentSteps,
           sidebarOpen: s.sidebarOpen,
           streamingMessageId: null,
         };

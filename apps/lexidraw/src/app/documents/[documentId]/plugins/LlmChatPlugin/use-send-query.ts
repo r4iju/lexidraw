@@ -82,7 +82,7 @@ interface SendQueryParams {
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
-  const { mode, messages } = useChatState();
+  const { mode, messages, maxAgentSteps } = useChatState();
   const { generateChatStream, generateChatResponse, llmConfig } = useLLM();
   const runtimeTools = useRuntimeTools();
   const [editor] = useLexicalComposerContext();
@@ -266,7 +266,7 @@ export const useSendQuery = () => {
             }
 
             // Allow up to maxSteps - 1 tool calls, then force summarize or none
-            const maxToolSteps = 5; // Allow tools up to step 4 (0, 1, 2, 3, 4)
+            const maxToolSteps = maxAgentSteps; // Use maxAgentSteps from context
             if (stepNumber >= maxToolSteps) {
               // On the last allowed step, prefer summarizeExecution if available
               if (
@@ -274,14 +274,14 @@ export const useSendQuery = () => {
                 stepNumber === maxToolSteps
               ) {
                 console.log(
-                  `Step ${stepNumber}: Reached max tool steps, forcing toolChoice: 'summarizeExecution'`,
+                  `Step ${stepNumber}: Reached max tool steps (${maxToolSteps}), forcing toolChoice: 'summarizeExecution'`,
                 );
                 return {
                   toolChoice: { type: "tool", toolName: "summarizeExecution" },
                 };
               } else {
                 console.log(
-                  `Step ${stepNumber}: Reached max steps or summarizeExecution unavailable. Forcing toolChoice: 'none'`,
+                  `Step ${stepNumber}: Reached max steps (${maxToolSteps}) or summarizeExecution unavailable. Forcing toolChoice: 'none'`,
                 );
                 return { toolChoice: "none" };
               }
@@ -302,7 +302,7 @@ export const useSendQuery = () => {
               temperature: llmConfig.chat.temperature,
               maxTokens: llmConfig.chat.maxTokens,
               tools: runtimeTools,
-              maxSteps: 5,
+              maxSteps: maxAgentSteps, // Use maxAgentSteps from context here
               prepareStep: prepareStepForMode,
               files: files,
               repairToolCall: async ({
@@ -425,6 +425,7 @@ export const useSendQuery = () => {
       llmConfig,
       runtimeTools,
       editor,
+      maxAgentSteps, // Add maxAgentSteps to dependency array
     ],
   );
 };

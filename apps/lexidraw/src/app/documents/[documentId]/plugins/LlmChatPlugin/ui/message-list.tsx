@@ -97,11 +97,9 @@ const ToolCallDisplay: React.FC<{
 export const MessageList: React.FC<{ className?: string }> = ({
   className,
 }) => {
-  // Get messages from the new context hook
   const { messages, streamingMessageId, streaming, mode } = useChatState();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when messages change or streaming starts/stops or mode changes
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -111,7 +109,11 @@ export const MessageList: React.FC<{ className?: string }> = ({
   return (
     <div
       ref={scrollRef}
-      className={cn("flex-1 overflow-y-auto space-y-3 px-2", className)}
+      className={cn(
+        "space-y-3 px-2 py-2",
+        mode === "chat" && "flex-1 overflow-y-auto",
+        className,
+      )}
     >
       {messages.map((m: Message) => {
         const isStreaming = m.id === streamingMessageId;
