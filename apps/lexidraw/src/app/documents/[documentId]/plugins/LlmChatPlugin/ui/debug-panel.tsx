@@ -22,41 +22,6 @@ interface ParsedParam {
   defaultValue?: unknown;
 }
 
-function parseZodSchema(schema: ZodTypeAny): ParsedParam[] | string {
-  if (!schema || !schema._def) {
-    return "Not a Zod schema or invalid structure.";
-  }
-
-  if (schema._def.typeName === "ZodObject") {
-    // @ts-expect-error - _def.schema is present for ZodEffects
-    const shape = schema.shape as Record<string, ZodTypeAny>;
-    if (!shape) return "ZodObject has no shape.";
-
-    return Object.entries(shape).map(([name, paramSchema]) => {
-      let defaultValue = undefined;
-      if (paramSchema._def.defaultValue) {
-        try {
-          defaultValue = paramSchema._def.defaultValue();
-        } catch {
-          // ignore if default value is a function that errors without context
-        }
-      }
-      return {
-        name,
-        type: paramSchema._def.typeName,
-        description: paramSchema.description,
-        optional: paramSchema.isOptional(),
-        defaultValue: defaultValue,
-      };
-    });
-  } else if (schema._def.typeName === "ZodEffects") {
-    // Handle schemas wrapped with .transform()
-    return parseZodSchema(schema._def.schema as ZodTypeAny);
-  }
-  // Add more handlers for other Zod types if needed (e.g., ZodArray, ZodUnion)
-  return `Unsupported Zod schema type: ${schema._def.typeName}`;
-}
-
 export const DebugPanel: React.FC = () => {
   const [editor] = useLexicalComposerContext();
   const runtimeTools = useRuntimeTools();
@@ -75,6 +40,44 @@ export const DebugPanel: React.FC = () => {
     if (!selectedToolName) return null;
     return runtimeTools[selectedToolName];
   }, [selectedToolName, runtimeTools]);
+
+  const parseZodSchema = useCallback(
+    (schema: ZodTypeAny): ParsedParam[] | string => {
+      if (!schema || !schema._def) {
+        return "Not a Zod schema or invalid structure.";
+      }
+
+      if (schema._def.typeName === "ZodObject") {
+        // @ts-expect-error - _def.schema is present for ZodEffects
+        const shape = schema.shape as Record<string, ZodTypeAny>;
+        if (!shape) return "ZodObject has no shape.";
+
+        return Object.entries(shape).map(([name, paramSchema]) => {
+          let defaultValue = undefined;
+          if (paramSchema._def.defaultValue) {
+            try {
+              defaultValue = paramSchema._def.defaultValue();
+            } catch {
+              // ignore if default value is a function that errors without context
+            }
+          }
+          return {
+            name,
+            type: paramSchema._def.typeName,
+            description: paramSchema.description,
+            optional: paramSchema.isOptional(),
+            defaultValue: defaultValue,
+          };
+        });
+      } else if (schema._def.typeName === "ZodEffects") {
+        // Handle schemas wrapped with .transform()
+        return parseZodSchema(schema._def.schema as ZodTypeAny);
+      }
+      // Add more handlers for other Zod types if needed (e.g., ZodArray, ZodUnion)
+      return `Unsupported Zod schema type: ${schema._def.typeName}`;
+    },
+    [],
+  );
 
   const handleRunTool = useCallback(async () => {
     if (!selectedTool || !selectedToolName) {
