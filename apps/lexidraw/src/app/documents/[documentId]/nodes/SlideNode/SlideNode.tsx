@@ -83,11 +83,53 @@ export interface SlideData {
   id: string;
   elements: SlideElementSpec[];
   backgroundColor?: string;
+  slideMetadata?: SlideStrategicMetadata;
 }
+
+export type ThemeSettings = {
+  templateName?: string;
+  colorPalette?: {
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    slideBackground?: string;
+    textHeader?: string;
+    textBody?: string;
+  };
+  fonts?: {
+    heading?: string;
+    body?: string;
+    caption?: string;
+  };
+  logoUrl?: string;
+  customTokens?: Record<string, string> | string;
+};
+
+export type DeckStrategicMetadata = {
+  bigIdea?: string;
+  audiencePersonaSummary?: string;
+  overallObjective?: string;
+  recommendedTone?: string;
+  originalUserPrompt?: string;
+  targetSlideCount?: number;
+  targetDurationMinutes?: number;
+  theme?: ThemeSettings;
+};
+
+export type SlideStrategicMetadata = {
+  purpose?: string;
+  storyboardTitle?: string;
+  keyVisualHint?: string;
+  takeAwayMessage?: string;
+  layoutTemplateHint?: string;
+  speakerNotes?: string;
+  sourceMaterialRefs?: string[];
+};
 
 export type SlideDeckData = {
   slides: SlideData[];
   currentSlideId: string | null;
+  deckMetadata?: DeckStrategicMetadata;
 };
 
 export const DEFAULT_BOX_EDITOR_STATE = {
