@@ -69,6 +69,9 @@ import {
   SlideData,
   SlideElementSpec,
   EditorStateJSON,
+  DeckStrategicMetadata,
+  SlideStrategicMetadata,
+  ThemeSettingsSchema,
 } from "../../nodes/SlideNode/SlideNode";
 import { useChatDispatch } from "./llm-chat-context";
 import { useLexicalStyleUtils } from "../../utils/lexical-style-utils";
@@ -215,6 +218,36 @@ const SingleCallSchema = z.object({
     ),
 });
 // ---------------------------------------------------------------------
+
+// Schema for a single slide outline, used by the saveStoryboardOutput tool
+const SlideOutlineSchema = z.object({
+  slideNumber: z
+    .number()
+    .int()
+    .positive()
+    .describe("Sequential slide number, starting from 1."),
+  title: z.string().describe("Concise and engaging title for the slide."),
+  keyMessage: z
+    .string()
+    .describe("Bullet points summarizing the core message, can use Markdown."),
+  visualIdea: z
+    .string()
+    .describe("Brief textual description of a potential visual or chart."),
+  speakerNotes: z.string().describe("Brief notes for the presenter."),
+});
+
+// Schema for the arguments of the saveSlideContentAndNotes tool
+const SlideContentAndNotesSchema = z.object({
+  pageId: z
+    .string()
+    .describe("The ID of the slide page this content belongs to."),
+  bodyContent: z
+    .string()
+    .describe("The main text content for the slide body, can be Markdown."),
+  refinedSpeakerNotes: z
+    .string()
+    .describe("The revised and improved speaker notes for the slide."),
+});
 
 type ExecuteResult = Promise<z.infer<typeof ResultSchema>>;
 
@@ -3039,6 +3072,107 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   });
 
   /* --------------------------------------------------------------
+   * Set Deck Metadata Tool
+   * --------------------------------------------------------------*/
+  const setDeckMetadata = tool({
+    description:
+      "Sets or updates the strategic metadata for an entire SlideDeckNode.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      deckMetadata: z
+        .custom<DeckStrategicMetadata>()
+        .describe("The strategic metadata object to set for the deck."),
+      editorKey: EditorKeySchema.optional(),
+    }),
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "setDeckMetadata",
+        editor,
+        options,
+        (currentData, opts) => {
+          const { deckMetadata } = opts;
+          const summary = `Set deck-level strategic metadata for deck ${options.deckNodeKey}.`;
+          return {
+            newData: {
+              ...currentData,
+              deckMetadata: {
+                // Merge with existing or set new
+                ...(currentData.deckMetadata || {}),
+                ...deckMetadata,
+              },
+            },
+            summary: summary,
+          };
+        },
+        getTargetEditorInstance,
+      );
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Set Slide Metadata Tool
+   * --------------------------------------------------------------*/
+  const setSlideMetadata = tool({
+    description:
+      "Sets or updates the strategic metadata for a specific slide within a SlideDeckNode.",
+    parameters: z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page to update the metadata for."),
+      slideMetadata: z
+        .custom<SlideStrategicMetadata>()
+        .describe("The strategic metadata object to set for the slide."),
+      editorKey: EditorKeySchema.optional(),
+    }),
+    execute: async (options): ExecuteResult => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+        "setSlideMetadata",
+        editor,
+        options,
+        (currentData, opts) => {
+          const { slideId, slideMetadata } = opts;
+          const targetSlideIndex = currentData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+
+          if (targetSlideIndex === -1) {
+            throw new Error(
+              `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
+            );
+          }
+
+          const updatedSlides = currentData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              return {
+                ...slide,
+                slideMetadata: {
+                  // Merge with existing or set new
+                  ...(slide.slideMetadata || {}),
+                  ...slideMetadata,
+                },
+              };
+            }
+            return slide;
+          });
+
+          const summary = `Set strategic metadata for slide ${slideId} in deck ${options.deckNodeKey}.`;
+          return {
+            newData: {
+              ...currentData,
+              slides: updatedSlides,
+            },
+            summary: summary,
+          };
+        },
+        getTargetEditorInstance,
+      );
+    },
+  });
+
+  /* --------------------------------------------------------------
    * Add Slide Page Tool
    * --------------------------------------------------------------*/
   const addSlidePage = tool({
@@ -3073,6 +3207,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "Optional background color for the new slide (e.g., '#FF0000', 'blue'). Defaults to transparent/white.",
         ),
+      slideMetadata: z
+        .custom<SlideStrategicMetadata>()
+        .optional()
+        .describe("Optional strategic metadata for the new slide."),
       editorKey: EditorKeySchema.optional(), // Added editorKey to parameters
     }),
     execute: async (options): ExecuteResult => {
@@ -3082,13 +3220,19 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         editor,
         options,
         (currentData, opts) => {
-          const { newSlideId, insertionIndex, focusNewSlide, backgroundColor } =
-            opts;
+          const {
+            newSlideId,
+            insertionIndex,
+            focusNewSlide,
+            backgroundColor,
+            slideMetadata,
+          } = opts;
           const newId = newSlideId || `slide-${Date.now()}`;
           const newPage: SlideData = {
             id: newId,
             elements: [],
             backgroundColor,
+            slideMetadata, // Store the metadata
           };
 
           const newSlides = [...currentData.slides];
@@ -4069,7 +4213,103 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(removeCommentThread && { removeCommentThread }),
     ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
     ...(updateSlideElementProperties && { updateSlideElementProperties }),
+    ...(setDeckMetadata && { setDeckMetadata }),
+    ...(setSlideMetadata && { setSlideMetadata }),
   } as unknown as RuntimeToolMap;
+
+  /* --------------------------------------------------------------
+   * Save Storyboard Output Tool (for runStep3_StoryboardArchitect)
+   * --------------------------------------------------------------*/
+  const saveStoryboardOutput = tool({
+    description:
+      "Saves the generated storyboard outline. Use this tool to provide the array of slide objects you have created. Each object must conform to the SlideOutlineSchema.",
+    parameters: z.object({
+      slides: z
+        .array(SlideOutlineSchema)
+        .describe("An array of slide outline objects."),
+    }),
+    execute: async ({ slides }): ExecuteResult => {
+      // This tool's primary job is to validate the input via its schema.
+      // The actual saving/processing of this data happens in the calling function (runStep3_StoryboardArchitect)
+      // by inspecting tool_calls and extracting the arguments.
+      if (!slides || slides.length === 0) {
+        return {
+          success: false,
+          error: "No slides provided to saveStoryboardOutput tool.",
+        };
+      }
+      return {
+        success: true,
+        content: {
+          summary: `Successfully received and validated ${slides.length} slide outlines via tool call.`,
+        },
+      };
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Save Slide Content and Notes Tool (for runStep4_SlideWriter)
+   * --------------------------------------------------------------*/
+  const saveSlideContentAndNotes = tool({
+    description:
+      "Saves the generated body content and refined speaker notes for a specific slide page. Use this tool to provide these details after generation.",
+    parameters: SlideContentAndNotesSchema, // Use the defined schema here
+    execute: async (args): ExecuteResult => {
+      // Zod validation is handled by the tool infrastructure before this execute is called.
+      // The calling function (runStep4_SlideWriter) will extract these args from the tool_call.
+      return {
+        success: true,
+        content: {
+          summary: `Successfully received and validated content for pageId: ${args.pageId}.`,
+        },
+      };
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Save Theme Style Suggestions Tool (for runStep5_StyleStylist)
+   * --------------------------------------------------------------*/
+  const saveThemeStyleSuggestions = tool({
+    description:
+      "Saves the suggested theme settings (colors, fonts, etc.) for the presentation. Use this tool to provide these details after generation.",
+    parameters: ThemeSettingsSchema, // Use the defined schema here
+    execute: async (args): ExecuteResult => {
+      // Zod validation is handled by the tool infrastructure.
+      // The calling function (runStep5_StyleStylist) will extract these args.
+      return {
+        success: true,
+        content: {
+          summary: `Successfully received and validated theme style suggestions. Template: ${args.templateName || "N/A"}`,
+        },
+      };
+    },
+  });
+
+  /* --------------------------------------------------------------
+   * Save Image Generation Request Tool (for runStep6_MediaGenerator)
+   * --------------------------------------------------------------*/
+  const saveImageGenerationRequest = tool({
+    description:
+      "Saves a request to generate an image for a specific slide. This captures the prompt and style hints. The actual image generation and insertion will be handled by the workflow using a dedicated service.",
+    parameters: z.object({
+      pageId: z
+        .string()
+        .describe("The ID of the slide page to generate an image for."),
+      imagePrompt: z.string().describe("The prompt for the image generation."),
+      styleHints: z
+        .string()
+        .describe("The style hints for the image generation."),
+    }),
+    execute: async (args): ExecuteResult => {
+      // This tool primarily validates. The workflow will use these args.
+      return {
+        success: true,
+        content: {
+          summary: `Successfully received and validated image generation request for pageId: ${args.pageId}. Prompt: "${args.imagePrompt.substring(0, 50)}..."`,
+        },
+      };
+    },
+  });
 
   /* --------------------------------------------------------------
    * Combined Tools Wrapper
@@ -4203,6 +4443,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const tools = {
     ...individualTools,
     combinedTools, // Ensure combinedTools is included here
+    saveStoryboardOutput, // Add the new tool here
+    saveSlideContentAndNotes, // Add the new tool here
+    saveThemeStyleSuggestions, // Add the new tool here
+    saveImageGenerationRequest, // Add the new tool here
   } as unknown as RuntimeToolMap;
 
   return (
@@ -4210,7 +4454,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       {children}
     </RuntimeToolsCtx.Provider>
   );
-} // This should be the closing brace for RuntimeToolsProvider
+}
 
 export function useRuntimeTools() {
   const tools = useContext(RuntimeToolsCtx);

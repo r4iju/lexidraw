@@ -13,6 +13,8 @@ import {
   DEFAULT_BOX_EDITOR_STATE,
   EditorStateJSON,
   SlideNode,
+  DeckStrategicMetadata,
+  SlideStrategicMetadata,
 } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import {
@@ -30,6 +32,7 @@ import {
   ArrowUpToLine,
   ChevronsDownUp,
   ChevronsUpDown,
+  InfoIcon,
 } from "lucide-react";
 import {
   type EditorState,
@@ -146,6 +149,14 @@ import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
 import type { ChartConfig } from "~/components/ui/chart";
 import SlideChartEditModal from "./SlideChartEditModal";
 import ChartPlugin from "../../plugins/ChartPlugin";
+import SlideDeckMetadataModal from "./SlideDeckMetadataModal";
+import { useMetadataModal } from "./MetadataModalContext";
+import {
+  Tooltip,
+  TooltipProvider,
+  TooltipTrigger,
+  TooltipContent,
+} from "~/components/ui/tooltip";
 
 export const NESTED_EDITOR_NODES = [
   ChartNode,
@@ -320,13 +331,12 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     }
   };
 
-  const [editor] = useLexicalComposerContext();
   const { registerEditor, unregisterEditor } = useEditorRegistry();
   const editorKey = `${deckNodeKey}/${slideId}/${element.id}`;
 
   useEffect(() => {
-    if (element.kind === "box" && editor) {
-      registerEditor(editorKey, editor);
+    if (element.kind === "box" && nestedEditor) {
+      registerEditor(editorKey, nestedEditor);
       return () => {
         unregisterEditor(editorKey);
       };
@@ -334,7 +344,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     return () => {
       /**  do nothing */
     };
-  }, [editor, editorKey, registerEditor, unregisterEditor, element.kind]);
+  }, [nestedEditor, editorKey, registerEditor, unregisterEditor, element.kind]);
 
   const isDragging = active?.id === element.id;
 
@@ -651,6 +661,9 @@ export default function SlideDeckEditorComponent({
     { kind: "chart" }
   > | null>(null);
 
+  const { openModal } = useMetadataModal();
+  const [editor] = useLexicalComposerContext();
+
   const currentSlideIndex = useMemo(() => {
     if (!deckData.slides || deckData.slides.length === 0) return -1;
     const idx = deckData.slides.findIndex(
@@ -673,7 +686,7 @@ export default function SlideDeckEditorComponent({
       let editorsChanged = false;
 
       currentSlide.elements.forEach((element) => {
-        // Only manage nested Lexical editors for 'box' elements
+        // only manage nested Lexical editors for 'box' elements
         if (element.kind === "box") {
           let nestedEditor = currentEditorsMapInRef.get(element.id);
           let isNewEditor = false;
@@ -695,7 +708,7 @@ export default function SlideDeckEditorComponent({
           }
 
           const stateToSetInEditor: EditorStateJSON | null =
-            element.editorStateJSON; // No longer checking element.kind here as it's confirmed "box"
+            element.editorStateJSON; // no longer checking element.kind here as it's confirmed "box"
           const forceSetState = isNewEditor;
 
           if (stateToSetInEditor) {
@@ -812,7 +825,7 @@ export default function SlideDeckEditorComponent({
   };
 
   const addSlide = () => {
-    setSelectedElementId(null); // Deselect element
+    setSelectedElementId(null); // deselect element
     const newSlideId = `slide-${Date.now()}`;
     const newSlideData: SlideData = {
       id: newSlideId,
@@ -870,13 +883,13 @@ export default function SlideDeckEditorComponent({
     const newChartElement: SlideElementSpec = {
       kind: "chart",
       id: newChartId,
-      x: 40, // Default position
+      x: 40, // default position
       y: 40,
-      width: 400, // Default size
+      width: 400, // default size
       height: 300,
-      chartType: "bar", // Default chart type
-      chartData: "[]", // Default empty data
-      chartConfig: "{}", // Default empty config
+      chartType: "bar", // default chart type
+      chartData: "[]", // default empty data
+      chartConfig: "{}", // default empty config
       zIndex: getNextZIndex(currentSlide.elements),
     };
 
@@ -1047,7 +1060,7 @@ export default function SlideDeckEditorComponent({
     setEditingChartElement(null);
   };
 
-  // Helper function to reorder elements and normalize z-indexes
+  // helper function to reorder elements and normalize z-indexes
   const reorderAndNormalizeZIndexes = useCallback(
     (elements: SlideElementSpec[]): SlideElementSpec[] => {
       const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
@@ -1056,7 +1069,7 @@ export default function SlideDeckEditorComponent({
     [],
   );
 
-  // Z-index manipulation functions
+  // z-index manipulation functions
   const createZIndexChanger = useCallback(
     (
       direction: "forward" | "backward" | "front" | "back",
@@ -1198,7 +1211,62 @@ export default function SlideDeckEditorComponent({
     }),
   );
 
-  if (!currentSlide) {
+  const handleSaveMetadata = ({
+    updatedMeta,
+    currentSlideId,
+  }: {
+    updatedMeta: DeckStrategicMetadata | SlideStrategicMetadata | undefined;
+    currentSlideId: string | null;
+  }) => {
+    editor.update(() => {
+      const deckNode = $getNodeByKey<SlideNode>(nodeKey);
+      if (SlideNode.$isSlideDeckNode(deckNode)) {
+        const currentData = deckNode.getData();
+        let newDeckMetadata = currentData.deckMetadata;
+        const newSlides = [...currentData.slides];
+
+        if (currentSlideId === null) {
+          newDeckMetadata = updatedMeta as DeckStrategicMetadata | undefined;
+          console.log("Deck metadata updated.");
+        } else {
+          const slideIndex = newSlides.findIndex(
+            (s) => s.id === currentSlideId,
+          );
+          if (slideIndex !== -1) {
+            const slideToUpdate = newSlides[slideIndex];
+            if (slideToUpdate && slideToUpdate.id) {
+              newSlides[slideIndex] = {
+                ...slideToUpdate,
+                slideMetadata: updatedMeta as
+                  | SlideStrategicMetadata
+                  | undefined,
+              };
+              console.log(
+                `Slide metadata updated for slide ID: ${currentSlideId}`,
+              );
+            } else {
+              console.warn(
+                `Slide to update (ID: ${currentSlideId}) or its ID is undefined, cannot save metadata.`,
+              );
+            }
+          } else {
+            console.warn(
+              `Slide with ID ${currentSlideId} not found, cannot save metadata.`,
+            );
+            return;
+          }
+        }
+
+        deckNode.setData({
+          ...currentData,
+          deckMetadata: newDeckMetadata,
+          slides: newSlides,
+        });
+      }
+    });
+  };
+
+  if (!currentSlide && deckData.slides.length > 0) {
     return (
       <div className="p-4 border border-dashed border-destructive text-destructive-foreground">
         {deckData.slides.length === 0
@@ -1220,11 +1288,11 @@ export default function SlideDeckEditorComponent({
         <div
           className="slide-canvas-area bg-background border border-border rounded w-[1280px] h-[720px] mb-2 relative flex-grow overflow-hidden"
           style={{
-            backgroundColor: currentSlide.backgroundColor || "transparent",
+            backgroundColor: currentSlide?.backgroundColor || "transparent",
           }}
           onClick={deselectElement}
         >
-          {currentSlide.elements.map((element) => {
+          {currentSlide?.elements.map((element) => {
             const nestedEditor = activeElementEditors.get(element.id);
             if (element.kind === "box" && nestedEditor) {
               return (
@@ -1285,18 +1353,18 @@ export default function SlideDeckEditorComponent({
                   element={element}
                   nestedEditor={null}
                   onBoxContentChange={() => {
-                    /* No-op for images */
+                    /* no-op for images */
                   }}
                   isSelected={selectedElementId === element.id}
                   onSelect={setSelectedElementId}
                   onElementUpdate={handleElementUpdate}
                   onElementDelete={handleElementDelete}
                   setShowColorPicker={() => {
-                    /* No-op for images, or handle differently */
+                    /* no-op for images, or handle differently */
                   }}
                   isLinkEditMode={false}
                   setIsLinkEditMode={() => {
-                    /* No-op for images */
+                    /* no-op for images */
                   }}
                   deselectElement={deselectElement}
                   setShowChartEditModal={setShowChartEditModal}
@@ -1316,18 +1384,18 @@ export default function SlideDeckEditorComponent({
                   element={element}
                   nestedEditor={null}
                   onBoxContentChange={() => {
-                    /* No-op for charts, content managed via modal */
+                    /* no-op for charts, content managed via modal */
                   }}
                   isSelected={selectedElementId === element.id}
                   onSelect={setSelectedElementId}
                   onElementUpdate={handleElementUpdate}
                   onElementDelete={handleElementDelete}
                   setShowColorPicker={() => {
-                    /* No-op for charts, or handle chart-specific styling differently */
+                    /* no-op for charts, or handle chart-specific styling differently */
                   }}
                   isLinkEditMode={false}
                   setIsLinkEditMode={() => {
-                    /* No-op */
+                    /* no-op */
                   }}
                   deselectElement={deselectElement}
                   setShowChartEditModal={setShowChartEditModal}
@@ -1350,7 +1418,7 @@ export default function SlideDeckEditorComponent({
           })}
         </div>
 
-        {/* Dialog for Slide Background Color Picker */}
+        {/* dialog for Slide Background Color Picker */}
         <Dialog
           open={showSlideBgColorPicker}
           onOpenChange={setShowSlideBgColorPicker}
@@ -1360,13 +1428,13 @@ export default function SlideDeckEditorComponent({
               <DialogTitle>Slide Background Color</DialogTitle>
             </DialogHeader>
             <ColorPickerContent
-              color={currentSlide.backgroundColor || "#ffffff"}
+              color={currentSlide?.backgroundColor || "#ffffff"}
               onChange={handleSlideBackgroundColorChange}
             />
           </DialogContent>
         </Dialog>
 
-        {/* Dialog for Image Insertion */}
+        {/* dialog for Image Insertion */}
         {showImageInsertDialog && activeEditorForImageInsert && (
           <Dialog
             open={showImageInsertDialog}
@@ -1385,7 +1453,7 @@ export default function SlideDeckEditorComponent({
           </Dialog>
         )}
 
-        {/* Chart Edit Modal */}
+        {/* chart Edit Modal */}
         {showChartEditModal && editingChartElement && (
           <SlideChartEditModal
             isOpen={showChartEditModal}
@@ -1397,6 +1465,8 @@ export default function SlideDeckEditorComponent({
             onSave={handleSaveChartChanges}
           />
         )}
+
+        <SlideDeckMetadataModal onSave={handleSaveMetadata} />
 
         <div className="slide-controls flex items-center justify-between p-2 mt-auto">
           <div className="flex items-center gap-2">
@@ -1428,6 +1498,26 @@ export default function SlideDeckEditorComponent({
             </Button>
           </div>
           <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() =>
+                      openModal(
+                        currentSlide?.slideMetadata,
+                        currentSlide?.id || null,
+                      )
+                    }
+                    variant="outline"
+                    size="icon"
+                    disabled={!currentSlide}
+                  >
+                    <InfoIcon className="size-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Slide Page Metadata</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button
               onClick={handleAddBox}
               variant="outline"

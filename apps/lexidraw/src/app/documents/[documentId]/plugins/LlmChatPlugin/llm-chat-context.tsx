@@ -11,7 +11,7 @@ export type ChatState = {
   }[];
   streaming: boolean;
   sidebarOpen: boolean;
-  mode: "chat" | "agent" | "debug";
+  mode: "chat" | "agent" | "debug" | "slide-agent";
   streamingMessageId: string | null;
   maxAgentSteps: number;
 };
@@ -65,7 +65,12 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
       case "toggleSidebar":
         return { ...s, sidebarOpen: !s.sidebarOpen };
       case "setMode":
-        if (a.mode !== "chat" && a.mode !== "agent" && a.mode !== "debug") {
+        if (
+          a.mode !== "chat" &&
+          a.mode !== "agent" &&
+          a.mode !== "debug" &&
+          a.mode !== "slide-agent"
+        ) {
           console.warn("Invalid mode set:", a.mode);
           return s;
         }
@@ -104,7 +109,6 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
         return { ...s, messages: updatedMessages };
       }
       default: {
-        // default case for type safety
         const unhandledAction = a as Action;
         console.warn("Unhandled action type:", unhandledAction?.type);
         return s;
