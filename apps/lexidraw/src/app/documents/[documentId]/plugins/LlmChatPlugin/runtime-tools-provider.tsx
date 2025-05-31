@@ -118,7 +118,6 @@ const EditorKeySchema = z
     "Key to target a nested editor, e.g., 'deckNodeKey/slideId/boxId'. Defaults to the main editor.",
   );
 
-// Schema for relation used in insertion tools
 const InsertionRelationSchema = z
   .enum(["before", "after", "appendRoot"])
   .default("appendRoot");
@@ -163,47 +162,42 @@ type InsertionPointResolution =
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ResultSchema = z.object({
-  success: z.boolean().describe("Whether the operation was successful."),
-  error: z
-    .string()
-    .optional()
-    .describe("An error message if the operation failed."),
-  // Content contains summary and optional state
+  success: z.boolean(),
+  error: z.string().optional(),
   content: z
     .object({
-      summary: z.string().describe("A brief summary of the action taken."),
+      summary: z.string().describe("Summary of the action taken."),
+      newNodeKey: z
+        .string()
+        .optional()
+        .describe("Key of the newly created primary node (e.g., Box, Slide)."),
+      textNodeKey: z // ADDED
+        .string()
+        .optional()
+        .describe("Key of the text node created within a box, if applicable."),
       updatedEditorStateJson: z
         .string()
         .optional()
         .describe(
-          "The full editor state serialized as JSON after the mutation.",
+          "The full editor state (JSON string) after the operation, if relevant.",
         ),
-      // Add optional keys for newly created list structures
+      // For list creation, to identify the list and its first item
       listNodeKey: z
         .string()
         .optional()
-        .describe("Key of the newly created ListNode (if applicable)."),
+        .describe("Key of the created list node."),
       firstItemKey: z
         .string()
         .optional()
-        .describe(
-          "Key of the first ListItemNode created within a new list (if applicable).",
-        ),
-      newNodeKey: z
-        .string()
-        .optional()
-        .describe("Key of the newly created node (if applicable)."),
-      // New fields for comment tools
+        .describe("Key of the first list item node."),
+      // For comment/thread creation
       threadId: z
         .string()
         .optional()
         .describe("ID of the created/affected thread."),
       commentId: z.string().optional().describe("ID of the created comment."),
     })
-    .optional()
-    .describe(
-      "Result content, including summary and potentially the updated editor state.",
-    ),
+    .optional(),
 });
 
 // --- ENSURE SCHEMA FOR A SINGLE CALL WITHIN THE COMBINED TOOL EXISTS ---
@@ -1714,6 +1708,18 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .describe(
           "CSS font-size value (e.g., '14px', '1.2em'). Empty string ('') removes.",
         ),
+      fontWeight: z // ADDED
+        .string()
+        .optional()
+        .describe(
+          "CSS font-weight value (e.g., 'bold', 'normal', '700'). Empty string ('') removes.",
+        ),
+      fontStyle: z // ADDED
+        .string()
+        .optional()
+        .describe(
+          "CSS font-style value (e.g., 'italic', 'normal'). Empty string ('') removes.",
+        ),
       color: z
         .string()
         .optional()
@@ -1724,13 +1730,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .string()
         .optional()
         .describe("CSS background-color value. Empty string ('') removes."),
-      // Add other common style properties as needed (fontWeight, fontStyle, textDecoration)
+      // Add other common style properties as needed (textDecoration)
     }),
     execute: async ({
       anchorKey,
       editorKey,
       fontFamily,
       fontSize,
+      fontWeight, // ADDED
+      fontStyle, // ADDED
       color,
       backgroundColor,
     }): ExecuteResult => {
@@ -1739,6 +1747,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchorKey,
           fontFamily,
           fontSize,
+          fontWeight, // ADDED
+          fontStyle, // ADDED
           color,
           backgroundColor,
         });
@@ -1789,6 +1799,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           // Apply updates for each provided parameter
           updateStyle("font-family", fontFamily);
           updateStyle("font-size", fontSize);
+          updateStyle("font-weight", fontWeight); // ADDED
+          updateStyle("font-style", fontStyle); // ADDED
           updateStyle("color", color);
           updateStyle("background-color", backgroundColor);
           // Add calls for other style properties here
@@ -3645,6 +3657,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             }
           }
 
+          const newBoxGeneratedId = boxId || `box-${Date.now()}`;
+          const initialTextNodeKey = `${newBoxGeneratedId}-text0`; // Conventional key for the text node
+
           const generatedEditorStateJSON: EditorStateJSON = {
             root: {
               type: "root",
@@ -3670,6 +3685,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
                       style: textNodeStyle, // Apply themed style
                       direction: null,
                       indent: 0,
+                      key: initialTextNodeKey, // <<< ASSIGN THE KEY HERE
                     },
                   ],
                 },
@@ -3677,7 +3693,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             },
           };
 
-          const newBoxGeneratedId = boxId || `box-${Date.now()}`;
           const newBoxElement: SlideElementSpec = {
             kind: "box",
             id: newBoxGeneratedId,
@@ -3710,6 +3725,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             },
             summary: summary,
             newNodeKey: newBoxGeneratedId,
+            textNodeKey: initialTextNodeKey, // <<< RETURN THE KEY HERE
           };
         },
         getTargetEditorInstance,

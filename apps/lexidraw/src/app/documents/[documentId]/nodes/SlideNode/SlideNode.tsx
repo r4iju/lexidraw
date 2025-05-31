@@ -185,14 +185,14 @@ export const DEFAULT_SLIDE_DECK_DATA: SlideDeckData = {
 export type SerializedSlideDeckNode = Spread<
   {
     type: "slide-deck";
-    data: string;
+    data: SlideDeckData;
     version: 1;
   },
   SerializedLexicalNode
 >;
 
 export class SlideNode extends DecoratorNode<JSX.Element> {
-  __data: string;
+  __data: SlideDeckData;
 
   static getType() {
     return "slide-deck";
@@ -203,7 +203,7 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
     return clonedNode;
   }
 
-  constructor(data: string, key?: NodeKey) {
+  constructor(data: SlideDeckData, key?: NodeKey) {
     super(key);
     this.__data = data;
   }
@@ -225,23 +225,19 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
     return (
       <Suspense fallback={<div>Loading Slides...</div>}>
-        <SlideNodeInner
-          nodeKey={this.getKey()}
-          initialDataString={this.__data}
-        />
+        <SlideNodeInner nodeKey={this.getKey()} initialData={this.__data} />
       </Suspense>
     );
   }
 
   setData(data: SlideDeckData): void {
     const writable = this.getWritable();
-    const newDataString = JSON.stringify(data);
-    writable.__data = newDataString;
+    writable.__data = data;
   }
 
   getData(): SlideDeckData {
     try {
-      return JSON.parse(this.__data) as SlideDeckData;
+      return this.__data;
     } catch (e) {
       console.error(
         "[SlideNode] Error parsing SlideDeckNode data in getData:",
@@ -280,8 +276,7 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
   }
 
   static $createSlideNode(data: SlideDeckData): SlideNode {
-    const jsonData = JSON.stringify(data);
-    return new SlideNode(jsonData);
+    return new SlideNode(data);
   }
 
   static $isSlideDeckNode(node?: LexicalNode | null): node is SlideNode {
@@ -291,10 +286,10 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
 
 function SlideNodeInner({
   nodeKey,
-  initialDataString,
+  initialData,
 }: {
   nodeKey: NodeKey;
-  initialDataString: string;
+  initialData: SlideDeckData;
 }) {
   const [editor] = useLexicalComposerContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -344,13 +339,12 @@ function SlideNodeInner({
   );
 
   const handleSaveModal = useCallback(
-    (updatedDataString: string) => {
+    (updatedData: SlideDeckData) => {
       editor.update(() => {
         const node = $getNodeByKey<SlideNode>(nodeKey);
         if (node) {
           try {
-            const parsedData = JSON.parse(updatedDataString) as SlideDeckData;
-            node.setData(parsedData);
+            node.setData(updatedData);
           } catch (e) {
             console.error("[SlideNodeInner] Error saving slide data:", e);
           }
@@ -370,13 +364,13 @@ function SlideNodeInner({
           "ring-1 ring-primary box-content": showSelectionUI,
         })}
       >
-        <SlideView initialDataString={initialDataString} editor={editor} />
+        <SlideView initialData={initialData} editor={editor} />
       </div>
       {isModalOpen && (
         <MetadataModalProvider>
           <SlideModal
             nodeKey={nodeKey}
-            initialDataString={initialDataString}
+            initialData={initialData}
             editor={editor}
             onSave={handleSaveModal}
             onOpenChange={setIsModalOpen}
