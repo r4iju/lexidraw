@@ -7,17 +7,17 @@ import { Button } from "~/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
 interface SlideViewProps {
-  initialDataString: string;
+  initialData: SlideDeckData;
   editor: LexicalEditor;
 }
 
 const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 720;
 
-const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
+const SlideView: React.FC<SlideViewProps> = ({ initialData, editor }) => {
   const [deckData, setDeckData] = useState<SlideDeckData>(() => {
     try {
-      const parsed = JSON.parse(initialDataString);
+      const parsed = { ...initialData };
       if (parsed.slides && Array.isArray(parsed.slides)) {
         parsed.slides = parsed.slides.map((slide: SlideData) => ({
           ...slide,
@@ -34,18 +34,15 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
         "[SlideView] Error parsing initialDataString in useState for deckData:",
         error,
       );
+      throw error;
     }
   });
 
   const [viewingSlideIndex, setViewingSlideIndex] = useState(0);
 
   useEffect(() => {
-    // console.log(
-    //   "[SlideView] useEffect (dependency: initialDataString) - New initialDataString:",
-    //   initialDataString,
-    // );
     try {
-      const parsed = JSON.parse(initialDataString);
+      const parsed = { ...initialData };
       if (parsed.slides && Array.isArray(parsed.slides)) {
         parsed.slides = parsed.slides.map((slide: SlideData) => ({
           ...slide,
@@ -57,18 +54,12 @@ const SlideView: React.FC<SlideViewProps> = ({ initialDataString, editor }) => {
         parsed.slides = [];
       }
       setDeckData(parsed);
-      // console.log(
-      //   "[SlideView] useEffect - Called setDeckData. Resetting viewingSlideIndex to 0.",
-      // );
       setViewingSlideIndex(0);
     } catch (error) {
-      console.error(
-        "[SlideView] Error in useEffect from initialDataString: ",
-        error,
-      );
+      console.error("[SlideView] Error in useEffect from initialData: ", error);
       setViewingSlideIndex(0);
     }
-  }, [initialDataString]);
+  }, [initialData]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [actualWidth, setActualWidth] = useState(0);

@@ -29,6 +29,7 @@ interface SlideOutline {
   visualIdea: string;
   speakerNotes: string;
   pageId?: string; // optional pageId, will be set after slide creation
+  styleHint?: string;
 }
 
 interface StoryboardData {
@@ -643,7 +644,8 @@ Example of the "bodyContent" argument value:
 Your response MUST be a call to the "saveSlideContentAndNotes" tool, providing the following arguments:
 - "pageId": "${slideOutline.pageId}"
 - "bodyContent": (JSON array of objects, the structured content as described above)
-- "refinedSpeakerNotes": (string, your improved speaker notes for this slide)`;
+- "refinedSpeakerNotes": (string, your improved speaker notes for this slide)
+Do NOT call any other tools, such as styling tools. Your sole purpose is to provide content via the "saveSlideContentAndNotes" tool.`;
 
         try {
           const response = await generateChatResponse({
@@ -884,7 +886,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
               if (
                 response.toolResults &&
                 response.toolResults.length === 1 &&
-                response.toolResults[0].toolName === "addChartToSlidePage"
+                response.toolResults[0]?.toolName === "addChartToSlidePage"
               ) {
                 const toolResult = response.toolResults[0];
                 // Cast toolResult.result to the expected structure
@@ -996,6 +998,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       currentDeckNodeKey: string,
       allSlideContents: SlideContentData[] | null,
       allVisualAssets: VisualAssetData[] | null,
+      currentThemeSettings: WorkflowThemeSettings | null,
     ): Promise<void> => {
       chatDispatch({
         type: "push",
@@ -1010,10 +1013,11 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       if (
         !runtimeTools.addBoxToSlidePage ||
         !runtimeTools.updateBoxPropertiesOnSlidePage ||
-        !runtimeTools.updateSlideElementProperties
+        !runtimeTools.updateSlideElementProperties ||
+        !runtimeTools.applyTextStyle
       ) {
         throw new Error(
-          "Required tools (addBoxToSlidePage, updateBoxPropertiesOnSlidePage, updateSlideElementProperties) are not available for Layout Engine.",
+          "Required tools (addBoxToSlidePage, updateBoxPropertiesOnSlidePage, updateSlideElementProperties, applyTextStyle) are not available for LayoutEngine.",
         );
       }
 
@@ -1064,6 +1068,15 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
             }
           }
 
+          let currentY = PADDING;
+          const availableWidth = SLIDE_WIDTH - 2 * PADDING;
+
+          const visualElementId =
+            visualAssetInfo?.assetType === "chart"
+              ? visualAssetInfo.chartId
+              : visualAssetInfo?.imageId;
+          const visualPresent = visualAssetInfo && visualElementId;
+
           for (const block of parsedContentBlocks) {
             if (
               !block.text ||
@@ -1091,7 +1104,66 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
             });
 
             if (boxResult.success && boxResult.content?.newNodeKey) {
-              createdContentBoxKeys.push(boxResult.content.newNodeKey);
+              const boxNodeKey = boxResult.content.newNodeKey;
+              // Ensure addBoxToSlidePage is updated to return textNodeKey in its content object
+              const textNodeKey = (
+                boxResult.content as unknown as { textNodeKey?: string }
+              )?.textNodeKey;
+
+              if (textNodeKey) {
+                // Determine styles based on block.type and theme
+                let fontSize = "1em"; // Default font size
+                let fontWeight = "normal";
+                const fontStyle = "normal";
+                // Use theme settings if available, otherwise undefined (applyTextStyle will skip)
+                let fontFamily = currentThemeSettings?.fonts?.body;
+                let color = currentThemeSettings?.colorPalette?.textBody;
+
+                switch (block.type) {
+                  case "heading1":
+                    fontFamily =
+                      currentThemeSettings?.fonts?.heading || fontFamily;
+                    color =
+                      currentThemeSettings?.colorPalette?.textHeader || color;
+                    fontSize = "2em";
+                    fontWeight = "bold";
+                    break;
+                  case "heading2":
+                    fontFamily =
+                      currentThemeSettings?.fonts?.heading || fontFamily;
+                    color =
+                      currentThemeSettings?.colorPalette?.textHeader || color;
+                    fontSize = "1.5em";
+                    fontWeight = "bold";
+                    break;
+                  case "paragraph":
+                  case "bulletList": // Base text style for list items
+                    // Defaults are already set based on theme's body/textBody
+                    break;
+                  default:
+                    console.warn(
+                      `[LayoutEngine] Unknown block type: ${block.type}. Applying default paragraph styles.`,
+                    );
+                    // Defaults are paragraph-like, so no specific changes needed here
+                    break;
+                }
+
+                // @ts-expect-error - tool parameters are typed as `any` for execute
+                await runtimeTools.applyTextStyle.execute({
+                  anchorKey: textNodeKey,
+                  editorKey: boxNodeKey, // Box node key acts as the editor context for the text node
+                  fontFamily,
+                  fontSize,
+                  fontWeight,
+                  fontStyle,
+                  color,
+                });
+              } else {
+                layoutErrors++;
+                console.error(
+                  `Failed to retrieve textNodeKey for slide ${pageId}: ${boxResult.error}`,
+                );
+              }
             } else {
               layoutErrors++;
               console.error(
@@ -1099,15 +1171,6 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
               );
             }
           }
-
-          let currentY = PADDING;
-          const availableWidth = SLIDE_WIDTH - 2 * PADDING;
-
-          const visualElementId =
-            visualAssetInfo?.assetType === "chart"
-              ? visualAssetInfo.chartId
-              : visualAssetInfo?.imageId;
-          const visualPresent = visualAssetInfo && visualElementId;
 
           if (createdContentBoxKeys.length > 0 && visualPresent) {
             const contentWidth = (availableWidth - GAP) / 2;
@@ -1296,6 +1359,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       });
 
       let resolvedDeckNodeKey: string | null = deckNodeKey;
+      let currentThemeSettings: WorkflowThemeSettings | null = null;
 
       try {
         if (params.existingDeckNodeKey) {
@@ -1395,11 +1459,12 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
             },
           });
         }
-        const step5Result = await runStep2_StyleStylist(
+        currentThemeSettings = await runStep2_StyleStylist(
           resolvedDeckNodeKey,
           step1Result,
         );
-        if (!step5Result) throw new Error("Style Stylist failed (step 5)");
+        if (!currentThemeSettings)
+          throw new Error("Style Stylist failed (step 2)");
 
         const step2Result = await runStep3_ResearchAgent(
           step1Result,
@@ -1421,17 +1486,20 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         );
         if (!step4Result) throw new Error("Slide Writer failed (step 4)");
 
-        const step6Result = await runStep6_MediaGenerator(
-          step3Result,
-          resolvedDeckNodeKey,
-          step5Result,
-        );
-        if (!step6Result) throw new Error("Media Generator failed (step 6)");
+        let visualAssetsData: VisualAssetData[] | null = null;
+        if (step3Result && resolvedDeckNodeKey && currentThemeSettings) {
+          visualAssetsData = await runStep6_MediaGenerator(
+            step3Result,
+            resolvedDeckNodeKey,
+            currentThemeSettings,
+          );
+        }
 
         await runStep7_LayoutEngine(
           resolvedDeckNodeKey,
           step4Result,
-          step6Result,
+          visualAssetsData,
+          currentThemeSettings,
         );
 
         const step8Result = await runStep8_ReviewRefine(
@@ -1439,8 +1507,8 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           step1Result,
           step3Result,
           step4Result,
-          step5Result,
-          step6Result,
+          currentThemeSettings,
+          visualAssetsData,
         );
         if (!step8Result) throw new Error("Review & Refine failed (step 8)");
 

@@ -22,16 +22,16 @@ import {
 
 interface SlideModalProps {
   nodeKey: NodeKey;
-  initialDataString: string;
+  initialData: SlideDeckData;
   editor: LexicalEditor;
-  onSave: (dataString: string) => void;
+  onSave: (data: SlideDeckData) => void;
   onOpenChange: (open: boolean) => void;
   isOpen: boolean;
 }
 
 export const SlideModal: React.FC<SlideModalProps> = ({
   nodeKey,
-  initialDataString,
+  initialData,
   editor,
   onSave,
   onOpenChange,
@@ -41,30 +41,28 @@ export const SlideModal: React.FC<SlideModalProps> = ({
     null,
   );
   const [deckDataString, setDeckDataString] =
-    useState<string>(initialDataString);
+    useState<SlideDeckData>(initialData);
 
   const { openModal: openMetadataModalFromHook } = useMetadataModal();
 
   useEffect(() => {
     if (isOpen) {
-      setDeckDataString(initialDataString);
+      setDeckDataString(initialData);
       try {
-        const parsedData = JSON.parse(initialDataString) as SlideDeckData;
-        setCurrentDeckData(parsedData);
+        setCurrentDeckData(initialData);
       } catch (e) {
         console.error(
-          "[SlideModal] Failed to parse initialDataString in useEffect",
+          "[SlideModal] Failed to parse initialData in useEffect",
           e,
         );
         setCurrentDeckData(null);
       }
     }
-  }, [initialDataString, isOpen]);
+  }, [initialData, isOpen]);
 
   const handleDeckDataChange = useCallback((newDeckData: SlideDeckData) => {
-    const newDeckDataString = JSON.stringify(newDeckData);
     setCurrentDeckData(newDeckData);
-    setDeckDataString(newDeckDataString);
+    setDeckDataString(newDeckData);
   }, []);
 
   const handleSave = () => {
@@ -88,7 +86,7 @@ export const SlideModal: React.FC<SlideModalProps> = ({
         </DialogHeader>
         <div className="flex-grow overflow-y-auto px-6 pb-2 min-h-0">
           <SlideDeckEditorComponent
-            initialDataString={deckDataString}
+            initialData={deckDataString}
             onDeckDataChange={handleDeckDataChange}
             parentEditor={editor}
             nodeKey={nodeKey}

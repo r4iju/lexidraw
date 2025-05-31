@@ -621,21 +621,19 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
 };
 
 interface SlideDeckEditorProps {
-  initialDataString: string;
+  initialData: SlideDeckData;
   onDeckDataChange: (data: SlideDeckData) => void;
   parentEditor: LexicalEditor;
   nodeKey: string;
 }
 
 export default function SlideDeckEditorComponent({
-  initialDataString,
+  initialData: initialData,
   onDeckDataChange,
   parentEditor,
   nodeKey,
 }: SlideDeckEditorProps): JSX.Element {
-  const [deckData, setDeckData] = useState<SlideDeckData>(() => {
-    return JSON.parse(initialDataString) as SlideDeckData;
-  });
+  const [deckData, setDeckData] = useState<SlideDeckData>(initialData);
   const [isLinkEditMode, setIsLinkEditMode] = useState(false);
   const elementEditorsRef = useRef<Map<string, LexicalEditor>>(new Map());
   const [activeElementEditors, setActiveElementEditors] = useState<
@@ -1578,7 +1576,7 @@ interface HeadlessEditorConfig {
   theme?: EditorThemeClasses;
 }
 
-export function getSlideBoxEditorStateJSON(
+function getSlideBoxEditorStateJSON(
   mainEditor: LexicalEditor,
   path: NestedEditorPath,
 ): EditorStateJSON {
