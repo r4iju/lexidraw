@@ -6,6 +6,7 @@ import { Reset } from "./reset";
 import { useChatState } from "../llm-chat-context";
 import { DebugPanel } from "./debug-panel";
 import { AgentSettings } from "./agent-settings";
+import { SlideGenerationForm } from "./slide-generation-form";
 
 export const Sidebar: React.FC = () => {
   const { mode } = useChatState();
@@ -16,9 +17,8 @@ export const Sidebar: React.FC = () => {
         <ModeTabs />
         <Reset />
       </div>
-      {mode === "debug" ? (
-        <DebugPanel />
-      ) : mode === "agent" ? (
+      {mode === "debug" && <DebugPanel />}
+      {mode === "agent" && (
         <>
           <div className="flex-1 overflow-y-auto">
             <AgentSettings />
@@ -26,7 +26,14 @@ export const Sidebar: React.FC = () => {
           </div>
           <MessageInput />
         </>
-      ) : (
+      )}
+      {mode === "slide-agent" && (
+        <div className="flex-1 flex flex-col overflow-y-auto">
+          <SlideGenerationForm />
+          <MessageList />
+        </div>
+      )}
+      {mode === "chat" && (
         <>
           <MessageList />
           <MessageInput />

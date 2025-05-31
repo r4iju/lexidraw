@@ -11,6 +11,14 @@ import {
 import { Button } from "~/components/ui/button";
 import SlideDeckEditorComponent from "./SlideDeckEditor";
 import type { SlideDeckData } from "./SlideNode";
+import { useMetadataModal } from "./MetadataModalContext";
+import { InfoIcon } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 
 interface SlideModalProps {
   nodeKey: NodeKey;
@@ -35,11 +43,13 @@ export const SlideModal: React.FC<SlideModalProps> = ({
   const [deckDataString, setDeckDataString] =
     useState<string>(initialDataString);
 
+  const { openModal: openMetadataModalFromHook } = useMetadataModal();
+
   useEffect(() => {
     if (isOpen) {
       setDeckDataString(initialDataString);
       try {
-        const parsedData = JSON.parse(initialDataString);
+        const parsedData = JSON.parse(initialDataString) as SlideDeckData;
         setCurrentDeckData(parsedData);
       } catch (e) {
         console.error(
@@ -85,11 +95,32 @@ export const SlideModal: React.FC<SlideModalProps> = ({
           />
         </div>
         <DialogFooter className="p-6 pt-2 border-t border-border">
-          <DialogClose asChild>
-            <Button type="button" variant="outline" onClick={handleCancel}>
-              Cancel
-            </Button>
-          </DialogClose>
+          <div className="flex items-center gap-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() =>
+                      openMetadataModalFromHook(
+                        currentDeckData?.deckMetadata,
+                        null,
+                      )
+                    }
+                    variant="outline"
+                    size="icon"
+                  >
+                    <InfoIcon className="size-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Deck Metadata</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <Button
             type="button"
             onClick={handleSave}

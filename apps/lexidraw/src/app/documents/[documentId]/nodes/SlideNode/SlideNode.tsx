@@ -26,6 +26,8 @@ import SlideView from "./SlideView";
 import { SlideModal } from "./SlideModal";
 import { cn } from "~/lib/utils";
 import type { ChartType } from "../ChartNode";
+import { z } from "zod";
+import { MetadataModalProvider } from "./MetadataModalContext";
 
 type EditorStateJSONChild = {
   children?: EditorStateJSONChild[];
@@ -86,24 +88,30 @@ export interface SlideData {
   slideMetadata?: SlideStrategicMetadata;
 }
 
-export type ThemeSettings = {
-  templateName?: string;
-  colorPalette?: {
-    primary?: string;
-    secondary?: string;
-    accent?: string;
-    slideBackground?: string;
-    textHeader?: string;
-    textBody?: string;
-  };
-  fonts?: {
-    heading?: string;
-    body?: string;
-    caption?: string;
-  };
-  logoUrl?: string;
-  customTokens?: Record<string, string> | string;
-};
+export const ThemeSettingsSchema = z.object({
+  templateName: z.string().optional(),
+  colorPalette: z
+    .object({
+      primary: z.string().optional(),
+      secondary: z.string().optional(),
+      accent: z.string().optional(),
+      slideBackground: z.string().optional(),
+      textHeader: z.string().optional(),
+      textBody: z.string().optional(),
+    })
+    .optional(),
+  fonts: z
+    .object({
+      heading: z.string().optional(),
+      body: z.string().optional(),
+      caption: z.string().optional(),
+    })
+    .optional(),
+  logoUrl: z.string().optional(),
+  customTokens: z.string().optional(),
+});
+
+export type ThemeSettings = z.infer<typeof ThemeSettingsSchema>;
 
 export type DeckStrategicMetadata = {
   bigIdea?: string;
@@ -119,6 +127,7 @@ export type DeckStrategicMetadata = {
 export type SlideStrategicMetadata = {
   purpose?: string;
   storyboardTitle?: string;
+  keyMessage?: string;
   keyVisualHint?: string;
   takeAwayMessage?: string;
   layoutTemplateHint?: string;
@@ -368,14 +377,16 @@ function SlideNodeInner({
         <SlideView initialDataString={initialDataString} editor={editor} />
       </div>
       {isModalOpen && (
-        <SlideModal
-          nodeKey={nodeKey}
-          initialDataString={initialDataString}
-          editor={editor}
-          onSave={handleSaveModal}
-          onOpenChange={setIsModalOpen}
-          isOpen={isModalOpen}
-        />
+        <MetadataModalProvider>
+          <SlideModal
+            nodeKey={nodeKey}
+            initialDataString={initialDataString}
+            editor={editor}
+            onSave={handleSaveModal}
+            onOpenChange={setIsModalOpen}
+            isOpen={isModalOpen}
+          />
+        </MetadataModalProvider>
       )}
     </>
   );

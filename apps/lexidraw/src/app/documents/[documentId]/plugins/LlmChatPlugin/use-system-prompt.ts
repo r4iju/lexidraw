@@ -5,22 +5,28 @@ import { $getRoot, $isElementNode, LexicalNode, EditorState } from "lexical";
 import { useRuntimeTools } from "./runtime-tools-provider";
 
 /**
- * Returns a system prompt tailored to the current operational mode.
+ * returns a system prompt tailored to the current operational mode.
  *
- * ─ Chat Mode  ────────────────────────────────────────────────────────────
- *   • Plain‑language Q&A, no tool usage.
+ * ─ chat mode  ────────────────────────────────────────────────────────────
+ *   • plain‑language Q&A, no tool usage.
  *
- * ─ Agent Mode ────────────────────────────────────────────────────────────
- *   • Uses runtime tools to mutate the document.
- *   • Filters tools to those relevant to the current node set.
+ * ─ agent mode ────────────────────────────────────────────────────────────
+ *   • uses runtime tools to mutate the document.
+ *   • filters tools to those relevant to the current node set.
+ *
+ * ─ slide agent mode ────────────────────────────────────────────────────
+ *  • orchestrates a multi-step slide generation workflow.
+ *  • may use specialized tools for research, media generation, etc.
  */
-export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
+export function useSystemPrompt(
+  mode: "chat" | "agent" | "debug" | "slide-agent",
+) {
   const [editor] = useLexicalComposerContext();
   const tools = useRuntimeTools();
   const { runtimeSpec } = useRuntimeSpec();
 
   /* -------------------------------------------------------------- */
-  /* 🗺️  Track node types currently present in the document        */
+  /* 🗺️  track node types currently present in the document        */
   /* -------------------------------------------------------------- */
   const [existingNodeTypes, setExistingNodeTypes] = useState(
     () => new Set<string>(),
@@ -55,7 +61,7 @@ export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
   }, [editor, collectTypes]);
 
   /* -------------------------------------------------------------- */
-  /* 📝 Build prompt                                                */
+  /* 📝 build prompt                                                */
   /* -------------------------------------------------------------- */
   return useMemo(() => {
     const nodeLines = runtimeSpec.nodes
@@ -63,7 +69,7 @@ export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
       .join("\n");
 
     // ────────────────────────────────────────────────────────────────
-    // Chat Mode prompt
+    // chat mode prompt
     // ────────────────────────────────────────────────────────────────
     if (mode === "chat") {
       return (
@@ -76,7 +82,7 @@ export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Debug Mode prompt (New)
+    // debug mode prompt (new)
     // ────────────────────────────────────────────────────────────────
     if (mode === "debug") {
       return (
@@ -87,7 +93,27 @@ export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
       ).trim();
     }
 
-    // Filter tools to only those relevant to the current document.
+    // ────────────────────────────────────────────────────────────────
+    // slide agent mode prompt
+    // ────────────────────────────────────────────────────────────────
+    if (mode === "slide-agent") {
+      // the system prompt for individual steps within the slide-agent workflow
+      // will be defined within useSlideCreationWorkflow.ts for each step's specific agent.
+      // this top-level system prompt for the "slide-agent" mode itself might be more general,
+      // or explain that it's in a workflow state if general chat is also allowed here.
+      return (
+        `You are currently in **Slide Agent Mode**.\n\n` +
+        `This mode is dedicated to a multi-step process for generating slide presentations.
+` +
+        `User interactions in this mode will typically initiate or provide input to this workflow.
+` +
+        `Follow the instructions from the workflow orchestrator.
+` +
+        `If a user provides general chat outside the workflow, respond concisely and guide them back to the slide generation task or suggest switching modes.`
+      ).trim();
+    }
+
+    // filter tools to only those relevant to the current document.
     const filtered = Object.keys(tools).filter((name) => {
       if (!name.startsWith("set")) return true;
       const node = name.split("-")[0]?.slice(3);
@@ -100,7 +126,7 @@ export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
         : filtered.map((t) => `• ${t}`).join("\n");
 
     // ────────────────────────────────────────────────────────────────
-    // Agent Mode prompt
+    // agent mode prompt
     // ────────────────────────────────────────────────────────────────
     return (
       `You are a document‑editing assistant in **Agent Mode**.\n\n` +

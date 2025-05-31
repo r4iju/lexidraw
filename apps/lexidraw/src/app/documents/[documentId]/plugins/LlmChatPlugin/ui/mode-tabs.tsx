@@ -14,14 +14,16 @@ export const ModeTabs: React.FC = () => {
   return (
     <Tabs value={mode} onValueChange={handleValueChange} className="w-full">
       <TabsList className="w-full rounded-sm">
-        {(["chat", "agent", "debug"] as const).map((m) => (
+        {(["chat", "agent", "slide-agent", "debug"] as const).map((m) => (
           <TabsTrigger
             key={m}
             value={m}
             className="flex-1 rounded-sm"
             aria-label={`Switch to ${m} mode`}
           >
-            <span className="text-xs capitalize">{m}</span>
+            <span className="text-xs capitalize">
+              {m === "slide-agent" ? "Slide Agent" : m}
+            </span>
           </TabsTrigger>
         ))}
       </TabsList>
