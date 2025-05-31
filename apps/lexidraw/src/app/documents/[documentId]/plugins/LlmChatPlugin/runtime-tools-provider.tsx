@@ -236,14 +236,28 @@ const SlideOutlineSchema = z.object({
   speakerNotes: z.string().describe("Brief notes for the presenter."),
 });
 
-// Schema for the arguments of the saveSlideContentAndNotes tool
 const SlideContentAndNotesSchema = z.object({
   pageId: z
     .string()
     .describe("The ID of the slide page this content belongs to."),
   bodyContent: z
-    .string()
-    .describe("The main text content for the slide body, can be Markdown."),
+    .array(
+      z.object({
+        type: z
+          .string()
+          .describe(
+            "Type of content block, e.g., 'heading1', 'paragraph', 'bulletList'.",
+          ),
+        text: z
+          .string()
+          .describe(
+            "Text content for the block. For bulletList, items are separated by newline characters.",
+          ),
+      }),
+    )
+    .describe(
+      "The main structured content for the slide body, as an array of content blocks.",
+    ),
   refinedSpeakerNotes: z
     .string()
     .describe("The revised and improved speaker notes for the slide."),
@@ -3224,15 +3238,26 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             newSlideId,
             insertionIndex,
             focusNewSlide,
-            backgroundColor,
+            backgroundColor: explicitBackgroundColor, // Renamed for clarity
             slideMetadata,
           } = opts;
           const newId = newSlideId || `slide-${Date.now()}`;
+
+          // Determine background color: explicit > theme > default (undefined)
+          let finalBackgroundColor = explicitBackgroundColor;
+          if (
+            finalBackgroundColor === undefined &&
+            currentData.deckMetadata?.theme?.colorPalette?.slideBackground
+          ) {
+            finalBackgroundColor =
+              currentData.deckMetadata.theme.colorPalette.slideBackground;
+          }
+
           const newPage: SlideData = {
             id: newId,
             elements: [],
-            backgroundColor,
-            slideMetadata, // Store the metadata
+            backgroundColor: finalBackgroundColor, // Use the determined background color
+            slideMetadata,
           };
 
           const newSlides = [...currentData.slides];
@@ -3604,6 +3629,22 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           };
 
           const textForNode = initialTextContent || "";
+          let textNodeStyle = "";
+          const theme = currentData.deckMetadata?.theme;
+
+          if (theme) {
+            const styleObj: Record<string, string> = {};
+            if (theme.fonts?.body) {
+              styleObj["font-family"] = theme.fonts.body;
+            }
+            if (theme.colorPalette?.textBody) {
+              styleObj["color"] = theme.colorPalette.textBody;
+            }
+            if (Object.keys(styleObj).length > 0) {
+              textNodeStyle = reconstructStyleString(styleObj);
+            }
+          }
+
           const generatedEditorStateJSON: EditorStateJSON = {
             root: {
               type: "root",
@@ -3626,9 +3667,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
                       detail: 0,
                       format: "0", // Default format for text node
                       mode: "normal",
-                      style: "",
-                      direction: null, // Added direction
-                      indent: 0, // Added indent
+                      style: textNodeStyle, // Apply themed style
+                      direction: null,
+                      indent: 0,
                     },
                   ],
                 },
