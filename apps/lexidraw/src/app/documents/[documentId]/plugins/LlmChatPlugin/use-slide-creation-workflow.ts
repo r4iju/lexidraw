@@ -115,7 +115,7 @@ class StepError extends Error {
 }
 
 const MAX_WORKFLOW_RETRIES = 3;
-const MAX_SLIDES_COUNT: number | undefined = 2; // for testing, e.g., 2
+const MAX_SLIDES_COUNT: number | undefined = undefined; // for testing
 
 export function useSlideCreationWorkflow() {
   const [editor] = useLexicalComposerContext();
