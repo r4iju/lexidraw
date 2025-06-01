@@ -4,7 +4,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { useSendQuery } from "../use-send-query";
 import { useChatState } from "../llm-chat-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useSerializeEditorState } from "../use-serialized-editor-state";
+import { useKeyedSerialization } from "../use-serialized-editor-state";
 import { SendIcon, PaperclipIcon, XIcon, FileIcon } from "lucide-react";
 import { useSidebarSize } from "~/components/ui/sidebar-wrapper";
 import { cn } from "~/lib/utils";
@@ -16,7 +16,7 @@ export const MessageInput = () => {
   const { streaming, mode } = useChatState();
   const { width } = useSidebarSize();
   const [editor] = useLexicalComposerContext();
-  const { serializeEditorStateWithKeys } = useSerializeEditorState();
+  const { serializeEditorStateWithKeys } = useKeyedSerialization();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {

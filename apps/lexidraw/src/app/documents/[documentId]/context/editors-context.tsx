@@ -1,5 +1,17 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getNodeByKey, LexicalEditor } from "lexical";
+import {
+  $getNodeByKey,
+  $getRoot,
+  $isElementNode,
+  createEditor,
+  LexicalEditor,
+  LexicalNode,
+  NodeKey,
+  SerializedEditorState as LexicalSerializedEditorState,
+  SerializedRootNode,
+  SerializedLexicalNode, // Renamed for clarity
+  $isTextNode,
+} from "lexical";
 import {
   createContext,
   useContext,
@@ -9,16 +21,110 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { createHeadlessEditorForSlideBox } from "../nodes/SlideNode/SlideDeckEditor";
-import { SlideDeckData, SlideNode } from "../nodes/SlideNode/SlideNode";
+import { SlideNode, SlideElementSpec } from "../nodes/SlideNode/SlideNode";
+import { useKeyedSerialization } from "../plugins/LlmChatPlugin/use-serialized-editor-state";
+import type {
+  KeyedSerializedEditorState,
+  SerializedNodeWithKey,
+} from "../types";
+import { NESTED_EDITOR_NODES } from "../nodes/SlideNode/SlideDeckEditor";
+
+export interface EditorRegistryEntry {
+  editor: LexicalEditor;
+  keyMap: Map<NodeKey, NodeKey> | null; // OriginalKey -> NewLiveKey
+  originalStateRoot: SerializedNodeWithKey | null; // The root of the KeyedSerializedEditorState it was created from
+}
 
 interface EditorRegistry {
-  registerEditor: (id: string, editor: LexicalEditor) => void;
+  registerEditor: (
+    id: string,
+    editor: LexicalEditor,
+    originalStateRoot?: SerializedNodeWithKey,
+  ) => void;
   unregisterEditor: (id: string) => void;
-  getEditor: (id: string) => LexicalEditor;
+  getEditorEntry: (id: string) => EditorRegistryEntry | undefined; // Changed to getEditorEntry
 }
 
 const EditorRegistryContext = createContext<EditorRegistry | null>(null);
+
+// Utility to transform our KeyedSerializedEditorState to Lexical's expected format
+function transformToLexicalSourcedStateRecursive(
+  keyedNode: SerializedNodeWithKey,
+): SerializedRootNode<SerializedLexicalNode> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { key: _key, children, ...lexicalProps } = keyedNode;
+  // 'key' is stripped as Lexical will assign its own internal ones on parse.
+  // We rely on keyMap to bridge this.
+  const result = { ...lexicalProps }; // type, version, and other props
+  if (children && children.length > 0) {
+    result.children = children.map(transformToLexicalSourcedStateRecursive);
+  }
+  return result as SerializedRootNode<SerializedLexicalNode>;
+}
+
+export function transformToLexicalSourcedJSON(
+  source: KeyedSerializedEditorState,
+): LexicalSerializedEditorState {
+  return {
+    root: transformToLexicalSourcedStateRecursive(source.root),
+  };
+}
+
+// Utility to build the key map
+function buildKeyMapRecursive(
+  originalNode: SerializedNodeWithKey,
+  liveNode: LexicalNode | null, // It might be null if structure mismatches, though ideally not for initial hydration
+  map: Map<NodeKey, NodeKey>,
+): void {
+  if (!liveNode) return; // Cannot map if live counterpart doesn't exist
+
+  map.set(originalNode.key, liveNode.getKey());
+
+  if (
+    $isElementNode(liveNode) &&
+    originalNode.children &&
+    originalNode.children.length > 0
+  ) {
+    const liveChildren = liveNode.getChildren();
+    for (let i = 0; i < originalNode.children.length; i++) {
+      const originalChild = originalNode.children[i];
+      if (originalChild && liveChildren[i]) {
+        buildKeyMapRecursive(
+          originalChild,
+          liveChildren[i] as LexicalNode,
+          map,
+        );
+      }
+    }
+  }
+}
+
+export function getSlideBoxKeyedState(
+  mainEditor: LexicalEditor,
+  deckNodeKey: string,
+  slideId: string,
+  boxId: string,
+): KeyedSerializedEditorState | null {
+  let keyedState: KeyedSerializedEditorState | null = null;
+  mainEditor.getEditorState().read(() => {
+    const slideDeckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+    if (!SlideNode.$isSlideDeckNode(slideDeckNode)) return;
+    const deckData = slideDeckNode.getData();
+    const slide = deckData.slides.find((s) => s.id === slideId);
+    if (!slide) return;
+    const boxElement = slide.elements.find((el) => el.id === boxId);
+    if (boxElement && boxElement.kind === "box") {
+      keyedState = boxElement.editorStateJSON;
+    }
+  });
+  if (!keyedState) {
+    console.warn(
+      `Could not find KeyedSerializedEditorState for ${deckNodeKey}/${slideId}/${boxId}`,
+    );
+    return null;
+  }
+  return keyedState;
+}
 
 export const EditorRegistryProvider = ({
   children,
@@ -27,16 +133,23 @@ export const EditorRegistryProvider = ({
 }) => {
   const [mainEditor] = useLexicalComposerContext();
   const [editorRegistry, setEditorRegistry] = useState<
-    Map<string, LexicalEditor>
-  >(new Map());
+    Map<string, EditorRegistryEntry>
+  >(() => new Map());
+  const { serializeEditorStateWithKeys } = useKeyedSerialization();
 
+  // For headless editors, to manage their update listeners
   const headlessListenersRef = useRef<Map<string, () => void>>(new Map());
 
   useEffect(() => {
     if (mainEditor) {
-      setEditorRegistry((prev) => new Map(prev).set("main", mainEditor));
+      setEditorRegistry((prev) =>
+        new Map(prev).set("main", {
+          editor: mainEditor,
+          keyMap: null,
+          originalStateRoot: null,
+        }),
+      );
     }
-
     return () => {
       headlessListenersRef.current.forEach((unregister) => unregister());
       headlessListenersRef.current.clear();
@@ -45,17 +158,15 @@ export const EditorRegistryProvider = ({
 
   const persistNestedEditorChanges = useCallback(
     (editorKey: string, nestedEditorInstance: LexicalEditor) => {
-      if (!mainEditor) {
-        console.error(
-          "[persistNestedEditorChanges] Main editor is not available.",
-        );
-        return;
-      }
+      if (!mainEditor || !serializeEditorStateWithKeys) return;
+      console.log(
+        `[persistNestedEditorChanges] Called for editorKey: ${editorKey}`,
+      );
+
       const pathParts = editorKey.split("/");
       if (pathParts.length !== 3) {
         console.error(
-          // Changed to error as this is a significant issue
-          `[persistNestedEditorChanges] Invalid editorKey format: ${editorKey}. Expected deckNodeKey/slideId/boxId.`,
+          `[persistNestedEditorChanges] Invalid editorKey format: ${editorKey}`,
         );
         return;
       }
@@ -65,15 +176,98 @@ export const EditorRegistryProvider = ({
         string,
       ];
 
-      const newNestedEditorStateJSON = nestedEditorInstance
-        .getEditorState()
-        .toJSON();
+      console.log(
+        `[persistNestedEditorChanges DEBUG] For ${editorKey}. About to serialize. Editor empty? ${nestedEditorInstance.getEditorState().isEmpty()}`,
+      );
+      let rawLexicalStateDump;
+      try {
+        rawLexicalStateDump = nestedEditorInstance.getEditorState().toJSON();
+        console.log(
+          `[persistNestedEditorChanges DEBUG] For ${editorKey}. Raw Lexical state before custom serialization:`,
+          JSON.stringify(rawLexicalStateDump, null, 2),
+        );
+      } catch (e) {
+        console.error(
+          `[persistNestedEditorChanges DEBUG] Error getting raw JSON state for ${editorKey}`,
+          e,
+        );
+      }
+
+      nestedEditorInstance.getEditorState().read(() => {
+        const root = $getRoot();
+        console.log(
+          `[persistNestedEditorChanges DEBUG] For ${editorKey}. Inside read for serialization: Root key: ${root.getKey()}, children count: ${root.getChildrenSize()}`,
+        );
+        const rootChildren = root.getChildren();
+        if (rootChildren.length > 0) {
+          const firstP = rootChildren[0];
+          if (firstP && $isElementNode(firstP)) {
+            console.log(
+              `[persistNestedEditorChanges DEBUG] First paragraph: Key: ${firstP.getKey()}, Type: ${firstP.getType()}, Children count: ${firstP.getChildrenSize()}`,
+            );
+            const pChildren = firstP.getChildren();
+            if (pChildren.length > 0) {
+              const firstText = pChildren[0];
+              if ($isTextNode(firstText)) {
+                console.log(
+                  `[persistNestedEditorChanges DEBUG] First text node: Key: ${firstText.getKey()}, Text: "${firstText.getTextContent()}", ExportedJSON:`,
+                  JSON.stringify(firstText.exportJSON(), null, 2),
+                );
+              } else if (firstText) {
+                console.log(
+                  `[persistNestedEditorChanges DEBUG] First child of paragraph is not TextNode. Type: ${firstText.getType()}, Key: ${firstText.getKey()}`,
+                );
+              }
+            } else {
+              console.log(
+                `[persistNestedEditorChanges DEBUG] First paragraph (key: ${firstP.getKey()}) has NO children.`,
+              );
+            }
+          } else if (firstP) {
+            console.log(
+              `[persistNestedEditorChanges DEBUG] First child of root is not ElementNode. Type: ${firstP.getType()}, Key: ${firstP.getKey()}`,
+            );
+          }
+        } else {
+          console.log(
+            `[persistNestedEditorChanges DEBUG] Root node for ${editorKey} has NO children.`,
+          );
+        }
+      });
+
+      const newKeyedState = serializeEditorStateWithKeys(
+        nestedEditorInstance.getEditorState(),
+      );
+
+      if (!newKeyedState) {
+        console.error(
+          `[persistNestedEditorChanges] Failed to serialize ${editorKey}. newKeyedState is null/undefined.`,
+        );
+        return;
+      }
+
+      // DETAILED LOG of what is about to be persisted
+      console.log(
+        `[persistNestedEditorChanges] For ${editorKey}, newKeyedState to be persisted:`,
+        JSON.stringify(newKeyedState, null, 2),
+      );
+      try {
+        const firstParagraphChildren =
+          newKeyedState.root.children?.[0]?.children;
+        console.log(
+          `[persistNestedEditorChanges] For ${editorKey}, first paragraph's children in newKeyedState:`,
+          JSON.stringify(firstParagraphChildren, null, 2),
+        );
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (e) {
+        // ignore if structure is unexpected for this specific log
+      }
 
       mainEditor.update(() => {
         const slideDeckNode = $getNodeByKey<SlideNode>(deckNodeKey);
         if (!SlideNode.$isSlideDeckNode(slideDeckNode)) {
-          console.error(
-            `[persistNestedEditorChanges] SlideDeckNode '${deckNodeKey}' not found or is not a SlideNode.`,
+          console.warn(
+            `[persistNestedEditorChanges] SlideDeckNode ${deckNodeKey} not found.`,
           );
           return;
         }
@@ -82,163 +276,182 @@ export const EditorRegistryProvider = ({
         const slideIndex = currentDeckData.slides.findIndex(
           (s) => s.id === slideId,
         );
-
         if (slideIndex === -1) {
-          console.error(
-            `[persistNestedEditorChanges] Slide '${slideId}' not found in deck '${deckNodeKey}'.`,
+          console.warn(
+            `[persistNestedEditorChanges] Slide ${slideId} not found in deck ${deckNodeKey}.`,
           );
           return;
         }
 
         const targetSlide = currentDeckData.slides[slideIndex];
-        if (!targetSlide) {
-          console.error(
-            `[persistNestedEditorChanges] Target slide data for '${slideId}' is unexpectedly missing.`,
-          );
-          return;
-        }
+        if (!targetSlide) return; // Should not happen if slideIndex is valid
 
         const boxIndex = targetSlide.elements.findIndex(
           (el) => el.id === boxId,
         );
-        const targetBoxElement = targetSlide.elements[boxIndex];
+        const targetBoxElement = targetSlide.elements[boxIndex] as
+          | Extract<SlideElementSpec, { kind: "box" }>
+          | undefined;
 
         if (!targetBoxElement || targetBoxElement.kind !== "box") {
-          console.error(
-            `[persistNestedEditorChanges] Box '${boxId}' not found or not a box in slide '${slideId}'. Current elements:`,
-            targetSlide.elements,
+          console.warn(
+            `[persistNestedEditorChanges] Target box ${boxId} on slide ${slideId} not found or not a box.`,
           );
           return;
         }
 
-        // Optimization: Only update if the content has actually changed
-        const currentBoxStateString = JSON.stringify(
-          targetBoxElement.editorStateJSON,
-        );
-        const newBoxStateString = JSON.stringify(newNestedEditorStateJSON);
-
-        if (currentBoxStateString === newBoxStateString) {
-          // console.log(`[persistNestedEditorChanges] No actual content change for ${editorKey}. Skipping update.`);
+        if (
+          JSON.stringify(targetBoxElement.editorStateJSON) ===
+          JSON.stringify(newKeyedState)
+        ) {
+          console.log(
+            `[persistNestedEditorChanges] No logical state change detected for ${editorKey} after stringify comparison. Bailing out of persistence.`,
+          );
           return;
         }
+        console.log(
+          `[persistNestedEditorChanges] Persisting changes for ${editorKey} as states differ.`,
+        );
 
         const newSlides = [...currentDeckData.slides];
         const newElements = [...targetSlide.elements];
-
         newElements[boxIndex] = {
           ...targetBoxElement,
-          editorStateJSON: newNestedEditorStateJSON,
+          editorStateJSON: newKeyedState, // Update with the state from headless editor
           version: (targetBoxElement.version || 0) + 1,
         };
-        newSlides[slideIndex] = {
-          ...targetSlide,
-          elements: newElements,
-        };
-        const newDeckData: SlideDeckData = {
-          ...currentDeckData,
-          slides: newSlides,
-        };
-
-        slideDeckNode.setData(newDeckData);
+        newSlides[slideIndex] = { ...targetSlide, elements: newElements };
+        slideDeckNode.setData({ ...currentDeckData, slides: newSlides });
         console.log(
-          `[EditorRegistryProvider] Automatically persisted changes from nested editor '${editorKey}' to SlideNode '${deckNodeKey}'.`,
+          `[persistNestedEditorChanges] setData called on main editor for deck ${deckNodeKey} due to changes in nested editor ${editorKey}`,
         );
       });
     },
-    [mainEditor],
+    [mainEditor, serializeEditorStateWithKeys],
   );
 
-  const getEditorCb = useCallback(
-    (id: string): LexicalEditor => {
-      if (id === "main" && mainEditor) {
-        return mainEditor;
+  const getEditorEntryCb = useCallback(
+    (id: string): EditorRegistryEntry | undefined => {
+      if (editorRegistry.has(id)) {
+        return editorRegistry.get(id);
       }
 
-      let editorInstance = editorRegistry.get(id);
-
-      if (editorInstance) {
-        return editorInstance;
-      }
-
-      // If not a live registered editor, try to create a headless one
-      console.log(
-        `[EditorRegistry] Headless instance requested for: ${id}. Creating...`,
-      );
+      // If not a live registered editor, try to create a headless one for a slide box
       const pathParts = id.split("/");
-      if (pathParts.length !== 3) {
-        throw new Error(
-          `Invalid editor id for headless creation: ${id}. Expected deckKey/slideId/boxId.`,
+      if (pathParts.length === 3 && mainEditor) {
+        const [deckNodeKey, slideId, boxId] = pathParts as [
+          string,
+          string,
+          string,
+        ];
+        const originalKeyedState = getSlideBoxKeyedState(
+          mainEditor,
+          deckNodeKey,
+          slideId,
+          boxId,
         );
-      }
-      const [deckNodeKey, slideId, boxId] = pathParts as [
-        string,
-        string,
-        string,
-      ];
 
-      if (!mainEditor) {
-        throw new Error(
-          "Main editor is not available for creating headless editor.",
+        if (!originalKeyedState) {
+          console.warn(
+            `No original state found for headless ${id}, cannot create.`,
+          );
+          return undefined;
+        }
+
+        const lexicalCompatibleJSON =
+          transformToLexicalSourcedJSON(originalKeyedState);
+
+        const headlessEditor = createEditor({
+          nodes: NESTED_EDITOR_NODES,
+          onError: (error) =>
+            console.error(`Headless editor error for ${id}:`, error),
+        });
+
+        try {
+          const initialEditorState = headlessEditor.parseEditorState(
+            lexicalCompatibleJSON,
+          );
+          headlessEditor.setEditorState(initialEditorState);
+        } catch (e) {
+          console.error(
+            `Failed to parse/set EditorState for headless ${id}:`,
+            e,
+            lexicalCompatibleJSON,
+          );
+          return undefined;
+        }
+
+        const keyMap = new Map<NodeKey, NodeKey>();
+        headlessEditor.getEditorState().read(() => {
+          buildKeyMapRecursive(originalKeyedState.root, $getRoot(), keyMap);
+        });
+
+        // Setup auto-persistence for this headless editor
+        if (headlessListenersRef.current.has(id)) {
+          headlessListenersRef.current.get(id)?.(); // Clear previous listener if any
+        }
+        const unregisterListener = headlessEditor.registerUpdateListener(
+          ({ editorState, prevEditorState }) => {
+            const currentEditorStateJSON = editorState.toJSON();
+            const prevEditorStateJSON = prevEditorState.toJSON();
+
+            // Short-circuit if states are identical string-wise (basic check)
+            const currentStr = JSON.stringify(currentEditorStateJSON);
+            const prevStr = JSON.stringify(prevEditorStateJSON);
+
+            if (currentStr === prevStr) {
+              console.log(
+                `[EditorRegistry Listener - SKIPPING PERSIST] Editor ID: ${id}. Current and prev states are identical string-wise.`,
+              );
+              return;
+            }
+
+            console.log(
+              `[EditorRegistry Listener - PERSISTING] Editor ID: ${id}. States differ.`,
+            );
+            // For debugging, you can log the differences or parts of the states:
+            // console.log(`[EditorRegistry Listener] Prev Editor State for ${id}:`, prevStr.substring(0, 300));
+            // console.log(`[EditorRegistry Listener] Curr Editor State for ${id}:`, currentStr.substring(0, 300));
+
+            persistNestedEditorChanges(id, headlessEditor);
+          },
         );
+        headlessListenersRef.current.set(id, unregisterListener);
+
+        const entry: EditorRegistryEntry = {
+          editor: headlessEditor,
+          keyMap,
+          originalStateRoot: originalKeyedState.root,
+        };
+        // DO NOT add to editorRegistry state, it's ephemeral and managed by headlessListenersRef for persistence
+        return entry;
       }
-
-      editorInstance = createHeadlessEditorForSlideBox(mainEditor, {
-        deckNodeKey,
-        slideId,
-        boxId,
-      });
-
-      if (headlessListenersRef.current.has(id)) {
-        headlessListenersRef.current.get(id)?.();
-      }
-
-      const unregisterListener = editorInstance.registerUpdateListener(
-        ({
-          editorState,
-          prevEditorState,
-          // dirtyElements,
-          // dirtyLeaves
-        }) => {
-          // only persist if there are actual content changes, not just selection.
-          // `dirtyElements` and `dirtyLeaves` can help determine this.
-          // A simple check is if the serialized JSON differs.
-          const newJson = JSON.stringify(editorState.toJSON());
-          const prevJson = JSON.stringify(prevEditorState.toJSON());
-
-          if (newJson !== prevJson) {
-            console.debug(
-              `[EditorRegistry] Update listener triggered for headless: ${id}. Propagating changes.`,
-            );
-            persistNestedEditorChanges(id, editorInstance as LexicalEditor);
-          } else {
-            console.debug(
-              `[EditorRegistry] Update listener for headless ${id}: no JSON change (likely selection).`,
-            );
-          }
-        },
-      );
-      headlessListenersRef.current.set(id, unregisterListener);
-      // --- End of auto-persistence setup ---
-
-      // IMPORTANT: Do NOT add this dynamically created headless editor to `editorRegistry` state.
-      // `editorRegistry` state is for live editors managed by React components.
-      // Headless editors are ephemeral; if needed again, they are recreated.
-      // Their listeners are managed via `headlessListenersRef`.
-
-      return editorInstance;
+      return undefined;
     },
     [editorRegistry, mainEditor, persistNestedEditorChanges],
   );
 
   const registerEditorCb = useCallback(
-    (id: string, editorToRegister: LexicalEditor) => {
-      // if a headless listener exists for this ID, it means a headless instance was created before.
-      // now that a live editor is being registered, the headless listener is no longer needed.
+    (
+      id: string,
+      editorToRegister: LexicalEditor,
+      originalStateRoot?: SerializedNodeWithKey,
+    ) => {
       if (headlessListenersRef.current.has(id)) {
         headlessListenersRef.current.get(id)?.();
         headlessListenersRef.current.delete(id);
       }
-      setEditorRegistry((prev) => new Map(prev).set(id, editorToRegister));
+      // For live editors, keyMap might be null if not initialized from specific keyed state or needs to be built by consumer
+      // Or, if originalStateRoot is provided, we could potentially build a keyMap here too.
+      // For now, keeping it simple: live editors registered this way don't automatically get a keyMap from the registry.
+      // The component registering it (e.g. SlideDeckEditor) would manage its own key mapping if needed.
+      setEditorRegistry((prev) =>
+        new Map(prev).set(id, {
+          editor: editorToRegister,
+          keyMap: null,
+          originalStateRoot: originalStateRoot ?? null,
+        }),
+      );
     },
     [],
   );
@@ -259,9 +472,9 @@ export const EditorRegistryProvider = ({
     () => ({
       registerEditor: registerEditorCb,
       unregisterEditor: unregisterEditorCb,
-      getEditor: getEditorCb,
+      getEditorEntry: getEditorEntryCb,
     }),
-    [registerEditorCb, unregisterEditorCb, getEditorCb],
+    [registerEditorCb, unregisterEditorCb, getEditorEntryCb],
   );
 
   return (

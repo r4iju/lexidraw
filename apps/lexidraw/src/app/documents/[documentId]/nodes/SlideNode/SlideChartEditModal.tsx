@@ -1,6 +1,6 @@
 "use client";
 import {
-  Dialog, // Already in SlideDeckEditor, ensure no duplicate import if merged
+  Dialog,
   DialogContent,
   DialogOverlay,
   DialogHeader,
@@ -21,11 +21,11 @@ import {
 import { Loader2 } from "lucide-react";
 import React, { useEffect, useMemo, useState, Suspense } from "react";
 import { useDebounceValue } from "~/lib/client-utils";
-import type { ChartType } from "../ChartNode"; // Relative path to ChartNode types
-import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer"; // Relative path
+import type { ChartType } from "../ChartNode";
+import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
 import type { ChartConfig } from "~/components/ui/chart";
 import { cn } from "~/lib/utils";
-import type { SlideElementSpec } from "./SlideNode"; // Import SlideElementSpec
+import type { SlideElementSpec } from "./SlideNode";
 
 const AVAILABLE_CHART_TYPES: ChartType[] = ["bar", "line", "pie"];
 type Dimension = number | "inherit";

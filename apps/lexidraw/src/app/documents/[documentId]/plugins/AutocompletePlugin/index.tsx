@@ -309,7 +309,6 @@ export default function AutocompletePlugin() {
 
   /** Cleanup suggestions on unmount or re-register. */
   const cleanup = useCallback(() => {
-    console.log("[AutocompletePlugin] cleanup");
     editor.update(() => {
       clearSuggestion();
     });

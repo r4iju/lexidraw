@@ -10,7 +10,7 @@ import {
 } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
 import { useRuntimeTools } from "../runtime-tools-provider";
-import { useSerializeEditorState } from "../use-serialized-editor-state";
+import { useKeyedSerialization } from "../use-serialized-editor-state";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { ZodTypeAny } from "zod";
 
@@ -25,7 +25,7 @@ interface ParsedParam {
 export const DebugPanel: React.FC = () => {
   const [editor] = useLexicalComposerContext();
   const runtimeTools = useRuntimeTools();
-  const { serializeEditorStateWithKeys } = useSerializeEditorState();
+  const { serializeEditorStateWithKeys } = useKeyedSerialization();
   const [selectedToolName, setSelectedToolName] = useState<string>("");
   const [toolArgsJson, setToolArgsJson] = useState<string>("");
   const [toolResult, setToolResult] = useState<string | null>(null);
