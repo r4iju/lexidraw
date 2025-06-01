@@ -7,7 +7,7 @@ import {
   type SlideStrategicMetadata,
 } from "../../nodes/SlideNode/SlideNode";
 import { NodeKey } from "lexical";
-import { getSlideBoxKeyedState } from "../../context/editors-context";
+import { useLexicalTransformation } from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
 interface AudienceData {
@@ -122,6 +122,7 @@ export function useSlideCreationWorkflow() {
   const { generateChatResponse } = useLLM();
   const chatDispatch = useChatDispatch();
   const runtimeTools = useRuntimeTools();
+  const { getSlideBoxKeyedState } = useLexicalTransformation();
 
   // global retry budget for workflow
   const workflowRetryBudgetRef = useRef(MAX_WORKFLOW_RETRIES);
@@ -1595,6 +1596,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
     [
       chatDispatch,
       editor,
+      getSlideBoxKeyedState,
       runtimeTools.addBoxToSlidePage,
       runtimeTools.applyTextStyle,
       runtimeTools.patchNodeByJSON,

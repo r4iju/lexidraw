@@ -29,102 +29,85 @@ import type {
 } from "../types";
 import { NESTED_EDITOR_NODES } from "../nodes/SlideNode/SlideDeckEditor";
 
-export interface EditorRegistryEntry {
+export type EditorRegistryEntry = {
   editor: LexicalEditor;
-  keyMap: Map<NodeKey, NodeKey> | null; // OriginalKey -> NewLiveKey
-  originalStateRoot: SerializedNodeWithKey | null; // The root of the KeyedSerializedEditorState it was created from
-}
+  keyMap: Map<NodeKey, NodeKey> | null; // originalKey -> newLiveKey
+  originalStateRoot: SerializedNodeWithKey | null; // the root of the KeyedSerializedEditorState it was created from
+};
 
-interface EditorRegistry {
+type EditorRegistry = {
   registerEditor: (
     id: string,
     editor: LexicalEditor,
     originalStateRoot?: SerializedNodeWithKey,
   ) => void;
   unregisterEditor: (id: string) => void;
-  getEditorEntry: (id: string) => EditorRegistryEntry | undefined; // Changed to getEditorEntry
-}
+  getEditorEntry: (id: string) => EditorRegistryEntry | undefined;
+};
 
 const EditorRegistryContext = createContext<EditorRegistry | null>(null);
 
-// Utility to transform our KeyedSerializedEditorState to Lexical's expected format
-function transformToLexicalSourcedStateRecursive(
-  keyedNode: SerializedNodeWithKey,
-): SerializedRootNode<SerializedLexicalNode> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { key: _key, children, ...lexicalProps } = keyedNode;
-  // 'key' is stripped as Lexical will assign its own internal ones on parse.
-  // We rely on keyMap to bridge this.
-  const result = { ...lexicalProps }; // type, version, and other props
-  if (children && children.length > 0) {
-    result.children = children.map(transformToLexicalSourcedStateRecursive);
-  }
-  return result as SerializedRootNode<SerializedLexicalNode>;
-}
+export const useLexicalTransformation = () => {
+  const transformToLexicalSourcedStateRecursive = useCallback(
+    (
+      keyedNode: SerializedNodeWithKey,
+    ): SerializedRootNode<SerializedLexicalNode> => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { key: _key, children, ...lexicalProps } = keyedNode;
 
-export function transformToLexicalSourcedJSON(
-  source: KeyedSerializedEditorState,
-): LexicalSerializedEditorState {
-  return {
-    root: transformToLexicalSourcedStateRecursive(source.root),
-  };
-}
-
-// Utility to build the key map
-function buildKeyMapRecursive(
-  originalNode: SerializedNodeWithKey,
-  liveNode: LexicalNode | null, // It might be null if structure mismatches, though ideally not for initial hydration
-  map: Map<NodeKey, NodeKey>,
-): void {
-  if (!liveNode) return; // Cannot map if live counterpart doesn't exist
-
-  map.set(originalNode.key, liveNode.getKey());
-
-  if (
-    $isElementNode(liveNode) &&
-    originalNode.children &&
-    originalNode.children.length > 0
-  ) {
-    const liveChildren = liveNode.getChildren();
-    for (let i = 0; i < originalNode.children.length; i++) {
-      const originalChild = originalNode.children[i];
-      if (originalChild && liveChildren[i]) {
-        buildKeyMapRecursive(
-          originalChild,
-          liveChildren[i] as LexicalNode,
-          map,
-        );
+      const result = { ...lexicalProps };
+      if (children && children.length > 0) {
+        result.children = children.map(transformToLexicalSourcedStateRecursive);
       }
-    }
-  }
-}
+      return result as SerializedRootNode<SerializedLexicalNode>;
+    },
+    [],
+  );
 
-export function getSlideBoxKeyedState(
-  mainEditor: LexicalEditor,
-  deckNodeKey: string,
-  slideId: string,
-  boxId: string,
-): KeyedSerializedEditorState | null {
-  let keyedState: KeyedSerializedEditorState | null = null;
-  mainEditor.getEditorState().read(() => {
-    const slideDeckNode = $getNodeByKey<SlideNode>(deckNodeKey);
-    if (!SlideNode.$isSlideDeckNode(slideDeckNode)) return;
-    const deckData = slideDeckNode.getData();
-    const slide = deckData.slides.find((s) => s.id === slideId);
-    if (!slide) return;
-    const boxElement = slide.elements.find((el) => el.id === boxId);
-    if (boxElement && boxElement.kind === "box") {
-      keyedState = boxElement.editorStateJSON;
-    }
-  });
-  if (!keyedState) {
-    console.warn(
-      `Could not find KeyedSerializedEditorState for ${deckNodeKey}/${slideId}/${boxId}`,
-    );
-    return null;
-  }
-  return keyedState;
-}
+  const transformToLexicalSourcedJSON = useCallback(
+    (source: KeyedSerializedEditorState): LexicalSerializedEditorState => {
+      return {
+        root: transformToLexicalSourcedStateRecursive(source.root),
+      };
+    },
+    [transformToLexicalSourcedStateRecursive],
+  );
+
+  const getSlideBoxKeyedState = useCallback(
+    (
+      mainEditor: LexicalEditor,
+      deckNodeKey: string,
+      slideId: string,
+      boxId: string,
+    ): KeyedSerializedEditorState | null => {
+      let keyedState: KeyedSerializedEditorState | null = null;
+      mainEditor.getEditorState().read(() => {
+        const slideDeckNode = $getNodeByKey<SlideNode>(deckNodeKey);
+        if (!SlideNode.$isSlideDeckNode(slideDeckNode)) return;
+        const deckData = slideDeckNode.getData();
+        const slide = deckData.slides.find((s) => s.id === slideId);
+        if (!slide) return;
+        const boxElement = slide.elements.find((el) => el.id === boxId);
+        if (boxElement && boxElement.kind === "box") {
+          keyedState = boxElement.editorStateJSON;
+        }
+      });
+      if (!keyedState) {
+        console.warn(
+          `Could not find KeyedSerializedEditorState for ${deckNodeKey}/${slideId}/${boxId}`,
+        );
+        return null;
+      }
+      return keyedState;
+    },
+    [],
+  );
+
+  return {
+    transformToLexicalSourcedJSON,
+    getSlideBoxKeyedState,
+  };
+};
 
 export const EditorRegistryProvider = ({
   children,
@@ -330,6 +313,40 @@ export const EditorRegistryProvider = ({
     [mainEditor, serializeEditorStateWithKeys],
   );
 
+  const { transformToLexicalSourcedJSON, getSlideBoxKeyedState } =
+    useLexicalTransformation();
+
+  const buildKeyMapRecursive = useCallback(
+    (
+      originalNode: SerializedNodeWithKey,
+      liveNode: LexicalNode | null, // It might be null if structure mismatches, though ideally not for initial hydration
+      map: Map<NodeKey, NodeKey>,
+    ): void => {
+      if (!liveNode) return; // Cannot map if live counterpart doesn't exist
+
+      map.set(originalNode.key, liveNode.getKey());
+
+      if (
+        $isElementNode(liveNode) &&
+        originalNode.children &&
+        originalNode.children.length > 0
+      ) {
+        const liveChildren = liveNode.getChildren();
+        for (let i = 0; i < originalNode.children.length; i++) {
+          const originalChild = originalNode.children[i];
+          if (originalChild && liveChildren[i]) {
+            buildKeyMapRecursive(
+              originalChild,
+              liveChildren[i] as LexicalNode,
+              map,
+            );
+          }
+        }
+      }
+    },
+    [],
+  );
+
   const getEditorEntryCb = useCallback(
     (id: string): EditorRegistryEntry | undefined => {
       if (editorRegistry.has(id)) {
@@ -428,7 +445,14 @@ export const EditorRegistryProvider = ({
       }
       return undefined;
     },
-    [editorRegistry, mainEditor, persistNestedEditorChanges],
+    [
+      buildKeyMapRecursive,
+      editorRegistry,
+      getSlideBoxKeyedState,
+      mainEditor,
+      persistNestedEditorChanges,
+      transformToLexicalSourcedJSON,
+    ],
   );
 
   const registerEditorCb = useCallback(

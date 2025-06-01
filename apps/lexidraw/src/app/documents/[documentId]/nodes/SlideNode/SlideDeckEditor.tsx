@@ -39,9 +39,7 @@ import {
   TextNode,
   LineBreakNode,
   LexicalEditor,
-  EditorThemeClasses,
   $getNodeByKey,
-  SerializedEditorState,
 } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
@@ -137,7 +135,7 @@ import MermaidPlugin from "../../plugins/MermaidPlugin";
 import AutocompletePlugin from "../../plugins/AutocompletePlugin";
 import { SessionUUIDProvider } from "../../plugins/AutocompletePlugin/session-uuid-provider";
 import {
-  transformToLexicalSourcedJSON,
+  useLexicalTransformation,
   useEditorRegistry,
 } from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -160,7 +158,6 @@ import {
 } from "~/components/ui/tooltip";
 import { emptyContent } from "../../initial-content";
 import { useKeyedSerialization } from "../../plugins/LlmChatPlugin/use-serialized-editor-state";
-import { KeyedSerializedEditorState } from "../../types";
 import { isEqual } from "@packages/lib";
 import { BlurPlugin } from "./BlurPlugin";
 
@@ -695,6 +692,8 @@ export default function SlideDeckEditorComponent({
     return emptyContent();
   }, []);
 
+  const { transformToLexicalSourcedJSON } = useLexicalTransformation();
+
   useEffect(() => {
     const newActiveElementEditors = new Map<string, LexicalEditor>();
     const currentEditorIdsInSlide = new Set<string>();
@@ -756,6 +755,7 @@ export default function SlideDeckEditorComponent({
     currentSlide?.elements,
     parentEditor,
     EMPTY_CONTENT_FOR_NEW_BOXES,
+    transformToLexicalSourcedJSON,
   ]);
 
   const handleBoxContentChange = useCallback(
@@ -818,7 +818,7 @@ export default function SlideDeckEditorComponent({
       serializeEditorStateWithKeys,
       deckData,
       onDeckDataChange,
-      // setDeckData, // Removed as per instructions, setDeckData comes from useState and doesn't need to be in deps
+      transformToLexicalSourcedJSON,
     ],
   );
 
@@ -1587,115 +1587,4 @@ export default function SlideDeckEditorComponent({
       </div>
     </DndContext>
   );
-}
-
-interface NestedEditorPath {
-  deckNodeKey: string;
-  slideId: string;
-  boxId: string;
-}
-
-interface HeadlessEditorConfig {
-  theme?: EditorThemeClasses;
-}
-
-function getSlideBoxEditorStateJSON(
-  mainEditor: LexicalEditor,
-  path: NestedEditorPath,
-): KeyedSerializedEditorState | null {
-  let extractedJson: KeyedSerializedEditorState | null = null;
-
-  mainEditor.getEditorState().read(() => {
-    const slideDeckNode = $getNodeByKey<SlideNode>(path.deckNodeKey);
-    if (!SlideNode.$isSlideDeckNode(slideDeckNode)) {
-      throw new Error(
-        `SlideDeckNode with key '${path.deckNodeKey}' not found or is not a valid SlideNode.`,
-      );
-    }
-
-    const deckData: SlideDeckData = slideDeckNode.getData();
-
-    const slide: SlideData | undefined = deckData.slides.find(
-      (s) => s.id === path.slideId,
-    );
-    if (!slide) {
-      throw new Error(
-        `Slide with ID '${path.slideId}' not found in deck '${path.deckNodeKey}'.`,
-      );
-    }
-
-    const boxElement: SlideElementSpec | undefined = slide.elements.find(
-      (el) => el.id === path.boxId,
-    );
-    if (!boxElement) {
-      throw new Error(
-        `Box element with ID '${path.boxId}' not found in slide '${path.slideId}'.`,
-      );
-    }
-
-    if (boxElement.kind !== "box") {
-      throw new Error(
-        `Element with ID '${path.boxId}' in slide '${path.slideId}' is not of kind 'box'. Found kind: '${boxElement.kind}'.`,
-      );
-    }
-    extractedJson = boxElement.editorStateJSON;
-    if (!extractedJson) {
-      throw new Error(
-        `Failed to extract editorStateJSON for path: ${JSON.stringify(path)}`,
-      );
-    }
-  });
-
-  if (!extractedJson) {
-    throw new Error(
-      `Failed to extract editorStateJSON for path: ${JSON.stringify(path)}`,
-    );
-  }
-  return extractedJson;
-}
-
-export function createHeadlessEditorForSlideBox(
-  mainEditorInstance: LexicalEditor,
-  path: NestedEditorPath,
-  config?: HeadlessEditorConfig,
-): LexicalEditor {
-  const targetEditorStateJSON = getSlideBoxEditorStateJSON(
-    mainEditorInstance,
-    path,
-  );
-
-  const headlessEditor = createEditor({
-    nodes: NESTED_EDITOR_NODES,
-    theme: config?.theme,
-    onError: (error: Error) => {
-      console.error(
-        `Headless editor error for path ${JSON.stringify(path)}:`,
-        error,
-      );
-    },
-  });
-
-  try {
-    if (!targetEditorStateJSON) {
-      throw new Error(
-        `Failed to get editor state JSON for path ${JSON.stringify(path)}`,
-      );
-    }
-
-    const initialEditorState: EditorState = headlessEditor.parseEditorState(
-      targetEditorStateJSON as SerializedEditorState,
-    );
-    headlessEditor.setEditorState(initialEditorState);
-  } catch (e: unknown) {
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    console.error(
-      `Failed to parse/set EditorState for headless editor (path: ${JSON.stringify(path)}): ${errorMessage}`,
-      targetEditorStateJSON,
-    );
-    throw new Error(
-      `Failed to initialize headless editor state for path '${JSON.stringify(path)}': ${errorMessage}`,
-    );
-  }
-
-  return headlessEditor;
 }
