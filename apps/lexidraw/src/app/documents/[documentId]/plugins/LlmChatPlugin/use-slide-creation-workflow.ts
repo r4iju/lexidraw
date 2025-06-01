@@ -9,6 +9,7 @@ import {
 import { NodeKey } from "lexical";
 import { useLexicalTransformation } from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useMarkdownTools } from "../../utils/markdown";
 
 interface AudienceData {
   bigIdea: string;
@@ -46,6 +47,7 @@ interface SlideContentData {
 }
 
 interface SlideGenerationParams {
+  attachCurrentDocument: boolean;
   topic: string;
   who: string;
   outcome: string;
@@ -123,6 +125,7 @@ export function useSlideCreationWorkflow() {
   const chatDispatch = useChatDispatch();
   const runtimeTools = useRuntimeTools();
   const { getSlideBoxKeyedState } = useLexicalTransformation();
+  const { convertEditorStateToMarkdown } = useMarkdownTools();
 
   // global retry budget for workflow
   const workflowRetryBudgetRef = useRef(MAX_WORKFLOW_RETRIES);
@@ -145,49 +148,31 @@ export function useSlideCreationWorkflow() {
   const [isLoading, setIsLoading] = useState(false);
 
   const executeStepWithRetries = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async <T extends (...args: any[]) => Promise<any>>(
-      stepFunction: T,
+    async <ArgType extends { errorContext?: string }, ReturnValue>(
+      stepFunction: (args: ArgType) => Promise<ReturnValue>,
       stepName: string,
-      ...args: Parameters<T>
-    ): Promise<Awaited<ReturnType<T>>> => {
+      initialArgs: Omit<ArgType, "errorContext">,
+    ): Promise<ReturnValue> => {
       let lastError: StepError | Error | null = null;
-      let errorContext: string | undefined = undefined;
-
-      // The last argument to a step function can be the errorContext
-      const potentialErrorContextArgIndex = args.length - 1;
+      let currentErrorContext: string | undefined = undefined;
 
       while (workflowRetryBudgetRef.current > 0) {
         try {
-          // If errorContext is available, pass it as the last argument
-          // This assumes step functions are designed to accept an optional errorContext string as their last param
-          const stepArgs = [...args];
-          if (
-            errorContext &&
-            stepArgs[potentialErrorContextArgIndex] === undefined
-          ) {
-            stepArgs[potentialErrorContextArgIndex] = errorContext;
-          } else if (
-            errorContext &&
-            typeof stepArgs[potentialErrorContextArgIndex] === "object" &&
-            stepArgs[potentialErrorContextArgIndex] !== null
-          ) {
-            // If the last arg is an object (e.g. options), try to add errorContext to it
-            // This is a more flexible approach but relies on step functions checking for this.
-            // For now, we'll stick to the simpler approach of replacing if undefined.
-            // A more robust solution might involve a dedicated options object for all steps.
-          }
+          const stepArgsObject = {
+            ...initialArgs,
+            ...(currentErrorContext && { errorContext: currentErrorContext }),
+          } as ArgType;
 
           chatDispatch({
             type: "push",
             msg: {
               id: crypto.randomUUID(),
               role: "system",
-              content: `Executing step: ${stepName}${errorContext ? ` (with error context from previous attempt)` : ""}. Retries remaining: ${workflowRetryBudgetRef.current}`,
+              content: `Executing step: ${stepName}${currentErrorContext ? ` (with error context from previous attempt)` : ""}. Retries remaining: ${workflowRetryBudgetRef.current}`,
             },
           });
 
-          const result = await stepFunction(...(stepArgs as Parameters<T>));
+          const result = await stepFunction(stepArgsObject);
           return result;
         } catch (error) {
           workflowRetryBudgetRef.current -= 1;
@@ -206,9 +191,9 @@ export function useSlideCreationWorkflow() {
           });
 
           if (error instanceof StepError && error.rawResponseText) {
-            errorContext = `Previous attempt for ${stepName} failed with error: ${error.message}. The raw response was: "${error.rawResponseText}". Please analyze this and try a different approach.`;
+            currentErrorContext = `Previous attempt for ${stepName} failed with error: ${error.message}. The raw response was: "${error.rawResponseText}". Please analyze this and try a different approach.`;
           } else if (error instanceof Error) {
-            errorContext = `Previous attempt for ${stepName} failed with error: ${error.message}. Please try a different approach.`;
+            currentErrorContext = `Previous attempt for ${stepName} failed with error: ${error.message}. Please try a different approach.`;
           }
 
           if (workflowRetryBudgetRef.current <= 0) {
@@ -222,29 +207,35 @@ export function useSlideCreationWorkflow() {
             });
             throw lastError; // Rethrow the last error if no retries are left
           }
-          // Implicitly continues to the next iteration of the while loop for a retry
         }
       }
-      // This part should ideally not be reached if the loop correctly throws or returns.
-      // If it is reached, it means retries were exhausted and the lastError should be thrown.
       if (lastError) throw lastError;
-      // Fallback throw, though logic implies this is unreachable.
       throw new Error(
         `Step ${stepName} failed critically after exhausting retries.`,
       );
     },
-    [chatDispatch], // generateChatResponse removed as it's not directly used here
+    [chatDispatch],
   );
 
   const runStep1_AudiencePlanner = useCallback(
-    async (
-      topic: string,
-      who: string,
-      outcome: string,
-      timebox: string,
-      errorContext?: string, // added errorcontext parameter
-    ): Promise<AudienceData> => {
+    async (args: {
+      topic: string;
+      who: string;
+      outcome: string;
+      timebox: string;
+      currentDocumentMarkdown?: string;
+      errorContext?: string;
+    }): Promise<AudienceData> => {
+      const {
+        topic,
+        who,
+        outcome,
+        timebox,
+        currentDocumentMarkdown,
+        errorContext,
+      } = args;
       const stepName = "AudiencePlanner";
+
       chatDispatch({
         type: "push",
         msg: {
@@ -258,7 +249,23 @@ Topic: "${topic}"
 Audience: ${who}
 Outcome: ${outcome}
 Time-box: ${timebox}
-${errorContext ? `\nImportant Context from Previous Attempt:\n${errorContext}\n` : ""}
+${
+  currentDocumentMarkdown
+    ? `
+
+The user has provided the following document as context:
+${currentDocumentMarkdown}
+`
+    : ""
+}
+${
+  errorContext
+    ? `
+Important Context from Previous Attempt:
+${errorContext}
+`
+    : ""
+}
 ▶︎ Provide your response as a JSON object with the keys "bigIdea", "persona", "slideCount" (number), and "tone". Example: {"bigIdea": "Your concise big idea", "persona": "Summary of the audience persona", "slideCount": 10, "tone": "Professional and engaging"}`;
 
       let rawResponseText = "N/A";
@@ -334,11 +341,12 @@ Tone: ${parsedData.tone}`,
   );
 
   const runStep2_StyleStylist = useCallback(
-    async (
-      currentDeckNodeKey: string,
-      currentAudienceData: AudienceData | null,
-      errorContext?: string,
-    ): Promise<WorkflowThemeSettings> => {
+    async (args: {
+      currentDeckNodeKey: string;
+      currentAudienceData: AudienceData | null;
+      errorContext?: string;
+    }): Promise<WorkflowThemeSettings> => {
+      const { currentDeckNodeKey, currentAudienceData, errorContext } = args;
       const stepName = "StyleStylist";
       chatDispatch({
         type: "push",
@@ -456,11 +464,18 @@ Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing 
   );
 
   const runStep3_ResearchAgent = useCallback(
-    async (
-      audienceDataParam: AudienceData,
-      files?: File[],
-      errorContext?: string,
-    ): Promise<ResearchData> => {
+    async (args: {
+      audienceDataParam: AudienceData;
+      files?: File[];
+      currentDocumentMarkdown?: string;
+      errorContext?: string;
+    }): Promise<ResearchData> => {
+      const {
+        audienceDataParam,
+        files,
+        currentDocumentMarkdown,
+        errorContext,
+      } = args;
       const stepName = "ResearchAgent";
       chatDispatch({
         type: "push",
@@ -470,13 +485,42 @@ Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing 
           content: `Starting Step 3: ${stepName}...${errorContext ? " (Retrying with error context)" : ""}`,
         },
       });
-      const scope = `Based on the Big Idea: '${audienceDataParam.bigIdea}' and audience persona: '${audienceDataParam.persona}', what information is needed?`;
+
+      const documentContextInfo = currentDocumentMarkdown
+        ? `
+
+Additional context from the user's current document is available:
+---BEGIN DOCUMENT CONTEXT---
+${currentDocumentMarkdown}
+---END DOCUMENT CONTEXT---
+This document can be referenced as "the provided document context".
+`
+        : "";
+
+      const filesInfo =
+        files && files.length > 0
+          ? `The following files have also been provided: ${files.map((f) => f.name).join(", ")}.
+`
+          : "No additional files were provided.";
+
       const prompt = `You are the *Research Agent*.
-Inputs: ${files?.map((f) => f.name).join(", ") ?? "None"}
-Scope: ${scope}
-Constraints: Cite every datum with source + date.
-${errorContext ? `\nImportant Context from Previous Attempt:\n${errorContext}\n` : ""}
-▶︎ Return bullet-point findings, sorted by slide section. If using tools, summarize their output clearly.`;
+Your task is to extract and synthesize key information to support the creation of a presentation.
+The presentation's Big Idea: '${audienceDataParam.bigIdea}'
+Target Audience Persona: '${audienceDataParam.persona}'
+
+${documentContextInfo}${filesInfo}
+${
+  errorContext
+    ? `
+Important Context from Previous Attempt:
+${errorContext}
+`
+    : ""
+}
+Based on the Big Idea, audience persona, and any provided document context or files, identify and list key research findings.
+These findings should directly inform the content of the presentation slides.
+▶︎ Return your findings as clear, concise bullet points. If possible, organize them by potential themes or topics relevant to the presentation structure.
+If specific data or facts are drawn from the "provided document context" or named files, try to implicitly ground your findings in that information.`;
       let rawResponseText = "N/A";
 
       try {
@@ -515,12 +559,18 @@ ${errorContext ? `\nImportant Context from Previous Attempt:\n${errorContext}\n`
   );
 
   const runStep4_StoryboardArchitect = useCallback(
-    async (
-      researchDataParam: ResearchData,
-      slideCount: number,
-      resolvedDeckKeyForThisStep: string,
-      errorContext?: string,
-    ): Promise<StoryboardData> => {
+    async (args: {
+      researchDataParam: ResearchData;
+      slideCount: number;
+      resolvedDeckKeyForThisStep: string;
+      errorContext?: string;
+    }): Promise<StoryboardData> => {
+      const {
+        researchDataParam,
+        slideCount,
+        resolvedDeckKeyForThisStep,
+        errorContext,
+      } = args;
       const stepName = "StoryboardArchitect";
       chatDispatch({
         type: "push",
@@ -713,11 +763,12 @@ Your entire response must be *only* this single tool call. Do not include any ot
   );
 
   const runStep5_SlideWriter = useCallback(
-    async (
-      storyboardDataParam: StoryboardData,
-      currentDeckNodeKey: string,
-      errorContext?: string,
-    ): Promise<SlideContentData[]> => {
+    async (args: {
+      storyboardDataParam: StoryboardData;
+      currentDeckNodeKey: string;
+      errorContext?: string;
+    }): Promise<SlideContentData[]> => {
+      const { storyboardDataParam, currentDeckNodeKey, errorContext } = args;
       const stepName = "SlideWriter";
       chatDispatch({
         type: "push",
@@ -926,12 +977,18 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
   );
 
   const runStep6_MediaGenerator = useCallback(
-    async (
-      storyboardDataParam: StoryboardData,
-      currentDeckNodeKey: string,
-      currentThemeSettings: WorkflowThemeSettings | null,
-      errorContext?: string,
-    ): Promise<VisualAssetData[]> => {
+    async (args: {
+      storyboardDataParam: StoryboardData;
+      currentDeckNodeKey: string;
+      currentThemeSettings: WorkflowThemeSettings | null;
+      errorContext?: string;
+    }): Promise<VisualAssetData[]> => {
+      const {
+        storyboardDataParam,
+        currentDeckNodeKey,
+        currentThemeSettings,
+        errorContext,
+      } = args;
       const stepName = "MediaGenerator";
       chatDispatch({
         type: "push",
@@ -1210,13 +1267,20 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
   );
 
   const runStep7_LayoutEngine = useCallback(
-    async (
-      currentDeckNodeKey: string,
-      allSlideContents: SlideContentData[] | null,
-      allVisualAssets: VisualAssetData[] | null,
-      currentThemeSettings: WorkflowThemeSettings | null,
-      errorContext?: string,
-    ): Promise<void> => {
+    async (args: {
+      currentDeckNodeKey: string;
+      allSlideContents: SlideContentData[] | null;
+      allVisualAssets: VisualAssetData[] | null;
+      currentThemeSettings: WorkflowThemeSettings | null;
+      errorContext?: string;
+    }): Promise<void> => {
+      const {
+        currentDeckNodeKey,
+        allSlideContents,
+        allVisualAssets,
+        currentThemeSettings,
+        errorContext,
+      } = args;
       const stepName = "LayoutEngine";
       chatDispatch({
         type: "push",
@@ -1606,15 +1670,24 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
   );
 
   const runStep8_ReviewRefine = useCallback(
-    async (
-      currentDeckNodeKey: string,
-      audienceData: AudienceData | null,
-      storyboardData: StoryboardData | null,
-      slideContents: SlideContentData[] | null,
-      themeSettings: WorkflowThemeSettings | null,
-      visualAssetsData: VisualAssetData[] | null,
-      errorContext?: string,
-    ): Promise<{ finalSummary: string }> => {
+    async (args: {
+      currentDeckNodeKey: string;
+      audienceData: AudienceData | null;
+      storyboardData: StoryboardData | null;
+      slideContents: SlideContentData[] | null;
+      themeSettings: WorkflowThemeSettings | null;
+      visualAssetsData: VisualAssetData[] | null;
+      errorContext?: string;
+    }): Promise<{ finalSummary: string }> => {
+      const {
+        currentDeckNodeKey,
+        audienceData,
+        storyboardData,
+        slideContents,
+        themeSettings,
+        visualAssetsData,
+        errorContext,
+      } = args;
       const stepName = "ReviewRefine";
       chatDispatch({
         type: "push",
@@ -1698,6 +1771,15 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       let currentThemeSettings: WorkflowThemeSettings | null = null;
 
       try {
+        const currentDocumentMarkdown = params.attachCurrentDocument
+          ? convertEditorStateToMarkdown(editor.getEditorState())
+          : undefined;
+
+        console.log({
+          attachCurrentDocument: params.attachCurrentDocument,
+          currentDocumentMarkdown,
+        });
+
         if (params.existingDeckNodeKey) {
           resolvedDeckNodeKey = params.existingDeckNodeKey;
           setDeckNodeKey(resolvedDeckNodeKey);
@@ -1749,10 +1831,13 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         const step1Result = await executeStepWithRetries(
           runStep1_AudiencePlanner,
           "AudiencePlanner",
-          params.topic,
-          params.who,
-          params.outcome,
-          params.timebox,
+          {
+            topic: params.topic,
+            who: params.who,
+            outcome: params.outcome,
+            timebox: params.timebox,
+            currentDocumentMarkdown,
+          },
         );
 
         const deckMetadataForStep1: DeckStrategicMetadata = {
@@ -1801,8 +1886,10 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         currentThemeSettings = await executeStepWithRetries(
           runStep2_StyleStylist,
           "StyleStylist",
-          resolvedDeckNodeKey,
-          step1Result,
+          {
+            currentDeckNodeKey: resolvedDeckNodeKey,
+            currentAudienceData: step1Result,
+          },
         );
         if (!currentThemeSettings)
           throw new StepError(
@@ -1814,8 +1901,11 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         const step2Result = await executeStepWithRetries(
           runStep3_ResearchAgent,
           "ResearchAgent",
-          step1Result,
-          params.files,
+          {
+            audienceDataParam: step1Result,
+            files: params.files,
+            currentDocumentMarkdown,
+          },
         );
         if (!step2Result) throw new Error("Research failed (step 2)");
 
@@ -1827,9 +1917,11 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         const step3Result = await executeStepWithRetries(
           runStep4_StoryboardArchitect,
           "StoryboardArchitect",
-          step2Result,
-          storyboardSlideCount, // Use the potentially overridden slide count
-          resolvedDeckNodeKey,
+          {
+            researchDataParam: step2Result,
+            slideCount: storyboardSlideCount,
+            resolvedDeckKeyForThisStep: resolvedDeckNodeKey,
+          },
         );
         if (!step3Result)
           throw new Error("Storyboard Architect failed (step 3)");
@@ -1837,8 +1929,10 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         const step4Result = await executeStepWithRetries(
           runStep5_SlideWriter,
           "SlideWriter",
-          step3Result,
-          resolvedDeckNodeKey,
+          {
+            storyboardDataParam: step3Result,
+            currentDeckNodeKey: resolvedDeckNodeKey,
+          },
         );
         if (!step4Result) throw new Error("Slide Writer failed (step 4)");
 
@@ -1847,9 +1941,11 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           visualAssetsDataResult = await executeStepWithRetries(
             runStep6_MediaGenerator,
             "MediaGenerator",
-            step3Result,
-            resolvedDeckNodeKey,
-            currentThemeSettings,
+            {
+              storyboardDataParam: step3Result,
+              currentDeckNodeKey: resolvedDeckNodeKey,
+              currentThemeSettings: currentThemeSettings,
+            },
           );
         } else {
           // This case should ideally not be hit if previous steps are mandatory and throw on failure.
@@ -1871,24 +1967,24 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           });
         }
 
-        await executeStepWithRetries(
-          runStep7_LayoutEngine,
-          "LayoutEngine",
-          resolvedDeckNodeKey,
-          step4Result,
-          visualAssetsDataResult,
-          currentThemeSettings,
-        );
+        await executeStepWithRetries(runStep7_LayoutEngine, "LayoutEngine", {
+          currentDeckNodeKey: resolvedDeckNodeKey,
+          allSlideContents: step4Result,
+          allVisualAssets: visualAssetsDataResult,
+          currentThemeSettings: currentThemeSettings,
+        });
 
         const step8Result = await executeStepWithRetries(
           runStep8_ReviewRefine,
           "ReviewRefine",
-          resolvedDeckNodeKey,
-          step1Result,
-          step3Result,
-          step4Result,
-          currentThemeSettings,
-          visualAssetsDataResult,
+          {
+            currentDeckNodeKey: resolvedDeckNodeKey,
+            audienceData: step1Result,
+            storyboardData: step3Result,
+            slideContents: step4Result,
+            themeSettings: currentThemeSettings,
+            visualAssetsData: visualAssetsDataResult,
+          },
         );
         if (!step8Result) throw new Error("Review & Refine failed (step 8)");
 
@@ -1919,18 +2015,21 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       }
     },
     [
+      deckNodeKey,
+      editor,
+      runtimeTools.setDeckMetadata,
+      runtimeTools.insertSlideDeckNode,
       chatDispatch,
+      convertEditorStateToMarkdown,
+      executeStepWithRetries,
       runStep1_AudiencePlanner,
+      runStep2_StyleStylist,
       runStep3_ResearchAgent,
       runStep4_StoryboardArchitect,
       runStep5_SlideWriter,
-      runStep2_StyleStylist,
-      runStep6_MediaGenerator,
       runStep7_LayoutEngine,
       runStep8_ReviewRefine,
-      deckNodeKey,
-      runtimeTools,
-      executeStepWithRetries,
+      runStep6_MediaGenerator,
     ],
   );
 

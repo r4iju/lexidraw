@@ -9,7 +9,7 @@ import {
   NodeKey,
   SerializedEditorState as LexicalSerializedEditorState,
   SerializedRootNode,
-  SerializedLexicalNode, // Renamed for clarity
+  SerializedLexicalNode,
   $isTextNode,
 } from "lexical";
 import {
