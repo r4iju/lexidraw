@@ -5,9 +5,10 @@ import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import { useSlideCreationWorkflow } from "../use-slide-creation-workflow";
 import { PaperclipIcon, XIcon, FileIcon, SparklesIcon } from "lucide-react";
-import { ScrollArea } from "~/components/ui/scroll-area";
+import { Switch } from "~/components/ui/switch";
 
 interface FormData {
+  attachCurrentDocument: boolean;
   topic: string;
   who: string;
   outcome: string;
@@ -16,10 +17,11 @@ interface FormData {
 
 export const SlideGenerationForm: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
-    topic: "The Future of AI",
-    who: "Tech Investors, Marketing Team",
-    outcome: "Secure funding, Align on Q3 strategy",
-    timebox: "20 minutes",
+    attachCurrentDocument: false,
+    topic: "",
+    who: "",
+    outcome: "",
+    timebox: "",
   });
   const [files, setFiles] = useState<File[] | null>(null);
   const { startSlideGeneration, isLoading } = useSlideCreationWorkflow();
@@ -30,6 +32,10 @@ export const SlideGenerationForm: React.FC = () => {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCheckedChange = (checked: boolean) => {
+    setFormData((prev) => ({ ...prev, attachCurrentDocument: checked }));
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,6 +79,13 @@ export const SlideGenerationForm: React.FC = () => {
   return (
     <>
       <form onSubmit={handleSubmit} className="p-3 space-y-4 text-sm">
+        <div className="space-x-2 flex items-center">
+          <Label htmlFor="attachCurrentDocument">Attach Current Document</Label>
+          <Switch
+            id="attachCurrentDocument"
+            onCheckedChange={handleCheckedChange}
+          />
+        </div>
         <div className="space-y-1">
           <Label htmlFor="topic">Topic</Label>
           <Input

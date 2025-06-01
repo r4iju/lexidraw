@@ -10,7 +10,7 @@ import {
 import { useRuntimeTools } from "./runtime-tools-provider";
 import { useSystemPrompt } from "./use-system-prompt";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { EditorState, $getRoot } from "lexical";
+import { useMarkdownTools } from "../../utils/markdown";
 
 // Define a more specific type for messages used in history building
 // (Matches the structure in llm-chat-context.tsx)
@@ -20,36 +20,6 @@ type HistoryMessage = {
   content: string;
   toolCalls?: AppToolCall[];
 };
-
-// Placeholder for Markdown conversion
-// TODO: Replace with actual implementation
-function convertEditorStateToMarkdown(editorState: EditorState): string {
-  console.warn(
-    "[convertEditorStateToMarkdown] Using placeholder implementation. Please implement actual conversion.",
-  );
-  return editorState.read(() => {
-    try {
-      // Attempt a very basic text extraction as a fallback
-      // Use more specific types where possible
-      const root = $getRoot();
-      const rootChildren = root.getChildren();
-      const textContent = rootChildren
-        .map((node) => node.getTextContent())
-        .join("\n");
-
-      return textContent.trim() !== ""
-        ? textContent
-        : "[Unable to generate basic Markdown preview - Empty Document?]";
-    } catch (e: unknown) {
-      // Type the error
-      console.error(
-        "[convertEditorStateToMarkdown] Error during placeholder conversion:",
-        e,
-      ); // Log the error
-      return "[Error generating Markdown preview]";
-    }
-  });
-}
 
 // Utility: if the whole response is a sendReply code-block, unwrap it
 function unwrapSendReply(jsonish: string): string | null {
@@ -88,6 +58,7 @@ export const useSendQuery = () => {
   const [editor] = useLexicalComposerContext();
 
   const systemPrompt = useSystemPrompt(mode);
+  const { convertEditorStateToMarkdown } = useMarkdownTools();
 
   return useCallback(
     async ({ prompt, editorStateJson, files }: SendQueryParams) => {
@@ -416,6 +387,7 @@ export const useSendQuery = () => {
       }
     },
     [
+      convertEditorStateToMarkdown,
       dispatch,
       messages,
       mode,
