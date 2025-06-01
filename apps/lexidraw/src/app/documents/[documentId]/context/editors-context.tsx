@@ -10,11 +10,7 @@ import {
   useRef,
 } from "react";
 import { createHeadlessEditorForSlideBox } from "../nodes/SlideNode/SlideDeckEditor";
-import {
-  EditorStateJSON,
-  SlideDeckData,
-  SlideNode,
-} from "../nodes/SlideNode/SlideNode";
+import { SlideDeckData, SlideNode } from "../nodes/SlideNode/SlideNode";
 
 interface EditorRegistry {
   registerEditor: (id: string, editor: LexicalEditor) => void;
@@ -131,7 +127,7 @@ export const EditorRegistryProvider = ({
 
         newElements[boxIndex] = {
           ...targetBoxElement,
-          editorStateJSON: newNestedEditorStateJSON as EditorStateJSON,
+          editorStateJSON: newNestedEditorStateJSON,
           version: (targetBoxElement.version || 0) + 1,
         };
         newSlides[slideIndex] = {

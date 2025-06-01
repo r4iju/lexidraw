@@ -4,7 +4,7 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { type SlideElementSpec, DEFAULT_BOX_EDITOR_STATE } from "./SlideNode";
+import { type SlideElementSpec } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
 import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
@@ -36,28 +36,13 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
           error,
         ),
     });
-
-    try {
-      const stateToUse = element.editorStateJSON || DEFAULT_BOX_EDITOR_STATE;
-      // console.log(
-      //   `[SlideElementView useMemo for ${element.id}] stateToUse before stringify:`,
-      //   JSON.stringify(stateToUse, null, 2),
-      // );
-      const initialEditorState = editor.parseEditorState(
-        JSON.stringify(stateToUse),
+    if (!element.editorStateJSON) {
+      throw new Error(
+        `[SlideElementView] No editorStateJSON for element ${element.id}`,
       );
-      editor.setEditorState(initialEditorState);
-    } catch (e) {
-      console.error(
-        `[SlideElementView] Failed to parse state for read-only element ${element.id}:`,
-        e,
-      );
-
-      const defaultStateOnError = editor.parseEditorState(
-        JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
-      );
-      editor.setEditorState(defaultStateOnError);
     }
+    const initialEditorState = editor.parseEditorState(element.editorStateJSON);
+    editor.setEditorState(initialEditorState);
     return editor;
   }, [element, parentEditor]); // Updated dependencies to use the whole element
 

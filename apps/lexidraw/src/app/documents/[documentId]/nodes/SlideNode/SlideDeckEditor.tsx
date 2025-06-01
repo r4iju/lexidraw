@@ -10,8 +10,6 @@ import {
   SlideDeckData,
   SlideData,
   SlideElementSpec,
-  DEFAULT_BOX_EDITOR_STATE,
-  EditorStateJSON,
   SlideNode,
   DeckStrategicMetadata,
   SlideStrategicMetadata,
@@ -157,6 +155,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "~/components/ui/tooltip";
+import { useEmptyContent } from "../../initial-content";
 
 export const NESTED_EDITOR_NODES = [
   ChartNode,
@@ -628,7 +627,7 @@ interface SlideDeckEditorProps {
 }
 
 export default function SlideDeckEditorComponent({
-  initialData: initialData,
+  initialData,
   onDeckDataChange,
   parentEditor,
   nodeKey,
@@ -678,19 +677,19 @@ export default function SlideDeckEditorComponent({
   }, [deckData.slides, currentSlideIndex]);
 
   useEffect(() => {
+    const newActiveElementEditors = new Map<string, LexicalEditor>();
+    const currentEditorIdsInSlide = new Set<string>();
+
+    // Phase 1: Iterate over current slide elements to create/update editors
     if (currentSlide?.elements) {
-      const currentEditorsMapInRef = elementEditorsRef.current;
-      const newEditorIds = new Set(currentSlide.elements.map((el) => el.id));
-      let editorsChanged = false;
-
       currentSlide.elements.forEach((element) => {
-        // only manage nested Lexical editors for 'box' elements
         if (element.kind === "box") {
-          let nestedEditor = currentEditorsMapInRef.get(element.id);
-          let isNewEditor = false;
+          currentEditorIdsInSlide.add(element.id);
+          let editorInstance = elementEditorsRef.current.get(element.id);
+          const isNewEditor = !editorInstance;
 
-          if (!nestedEditor) {
-            nestedEditor = createEditor({
+          if (isNewEditor) {
+            editorInstance = createEditor({
               parentEditor: parentEditor,
               nodes: NESTED_EDITOR_NODES,
               theme: editorTheme,
@@ -700,81 +699,56 @@ export default function SlideDeckEditorComponent({
                   error,
                 ),
             });
-            currentEditorsMapInRef.set(element.id, nestedEditor);
-            editorsChanged = true;
-            isNewEditor = true;
+            elementEditorsRef.current.set(element.id, editorInstance);
           }
 
-          const stateToSetInEditor: EditorStateJSON | null =
-            element.editorStateJSON; // no longer checking element.kind here as it's confirmed "box"
-          const forceSetState = isNewEditor;
+          // Ensure editorInstance is defined for TypeScript
+          if (!editorInstance) return;
 
-          if (stateToSetInEditor) {
-            const currentNestedEditorStateJSONString = JSON.stringify(
-              nestedEditor.getEditorState().toJSON(),
-            );
-            const stateToSetInEditorString = JSON.stringify(stateToSetInEditor);
+          newActiveElementEditors.set(element.id, editorInstance);
 
-            if (
-              forceSetState ||
-              currentNestedEditorStateJSONString !== stateToSetInEditorString
-            ) {
-              try {
-                const newLexicalState = nestedEditor.parseEditorState(
-                  stateToSetInEditorString,
-                );
-                nestedEditor.setEditorState(newLexicalState);
-              } catch (e) {
-                console.error(
-                  `Failed to parse state for BOX element ${element.id} (stateToSet: ${stateToSetInEditor}):`,
-                  e,
-                );
-                try {
-                  const fallbackState = nestedEditor.parseEditorState(
-                    JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
-                  );
-                  nestedEditor.setEditorState(fallbackState);
-                } catch (fallbackError) {
-                  console.error(
-                    `FATAL: Failed to set even DEFAULT_BOX_EDITOR_STATE_STRING for BOX element ${element.id}:`,
-                    fallbackError,
-                  );
-                }
-              }
-            }
-          } else if (isNewEditor) {
+          // Synchronize editor state
+          const stateToSetInEditor = element.editorStateJSON;
+          const currentEditorStateJsonString = JSON.stringify(
+            editorInstance.getEditorState().toJSON(),
+          );
+          const incomingStateJsonString = JSON.stringify(stateToSetInEditor);
+
+          if (
+            isNewEditor ||
+            currentEditorStateJsonString !== incomingStateJsonString
+          ) {
             try {
-              const defaultState = nestedEditor.parseEditorState(
-                JSON.stringify(DEFAULT_BOX_EDITOR_STATE),
+              const newLexicalState = editorInstance.parseEditorState(
+                stateToSetInEditor as SerializedEditorState,
               );
-              nestedEditor.setEditorState(defaultState);
+              editorInstance.setEditorState(newLexicalState);
             } catch (e) {
               console.error(
-                `FATAL: Failed to set DEFAULT_BOX_EDITOR_STATE_STRING for new BOX element ${element.id}:`,
+                `Error parsing/setting editor state for element ${element.id}:`,
                 e,
+                "State was:",
+                stateToSetInEditor,
               );
             }
           }
         }
       });
-
-      currentEditorsMapInRef.forEach((_, editorId) => {
-        if (!newEditorIds.has(editorId)) {
-          currentEditorsMapInRef.delete(editorId);
-          editorsChanged = true;
-        }
-      });
-
-      if (editorsChanged) {
-        setActiveElementEditors(new Map(currentEditorsMapInRef));
-      }
-    } else {
-      if (elementEditorsRef.current.size > 0) {
-        elementEditorsRef.current.clear();
-        setActiveElementEditors(new Map());
-      }
     }
-  }, [currentSlide, parentEditor, deckData, onDeckDataChange]);
+
+    // Phase 2: Clean up editors from elementEditorsRef.current that are no longer in the current slide
+    elementEditorsRef.current.forEach((_, editorId) => {
+      if (!currentEditorIdsInSlide.has(editorId)) {
+        elementEditorsRef.current.delete(editorId);
+        // If these editors had listeners (e.g. for headless persistence), unregister them here.
+        // For now, just deleting from the ref.
+      }
+    });
+
+    // Phase 3: Update the state variable that holds active editors for rendering
+    // This ensures that only relevant editors are passed to DraggableBoxWrapper components
+    setActiveElementEditors(newActiveElementEditors);
+  }, [currentSlide?.id, currentSlide?.elements, parentEditor]);
 
   const handleBoxContentChange = (
     elementId: string,
@@ -785,7 +759,7 @@ export default function SlideDeckEditorComponent({
       el.id === elementId && el.kind === "box"
         ? {
             ...el,
-            editorStateJSON: newEditorState.toJSON() as EditorStateJSON,
+            editorStateJSON: newEditorState.toJSON() as SerializedEditorState,
             pendingMarkdownContent: undefined,
             version: (el.version || 0) + 1,
           }
@@ -844,6 +818,8 @@ export default function SlideDeckEditorComponent({
     onDeckDataChange(newDeckData);
   };
 
+  const EMPTY_CONTENT = useEmptyContent();
+
   const handleAddBox = () => {
     if (!currentSlide) {
       alert("Please select or add a slide first!");
@@ -857,7 +833,7 @@ export default function SlideDeckEditorComponent({
       y: 20,
       width: 200,
       height: 100,
-      editorStateJSON: DEFAULT_BOX_EDITOR_STATE,
+      editorStateJSON: EMPTY_CONTENT as unknown as SerializedEditorState,
       zIndex: getNextZIndex(currentSlide.elements),
     };
 
@@ -1579,8 +1555,8 @@ interface HeadlessEditorConfig {
 function getSlideBoxEditorStateJSON(
   mainEditor: LexicalEditor,
   path: NestedEditorPath,
-): EditorStateJSON {
-  let extractedJson: EditorStateJSON | null = null;
+): SerializedEditorState {
+  let extractedJson: SerializedEditorState | null = null;
 
   mainEditor.getEditorState().read(() => {
     const slideDeckNode = $getNodeByKey<SlideNode>(path.deckNodeKey);
@@ -1615,7 +1591,12 @@ function getSlideBoxEditorStateJSON(
         `Element with ID '${path.boxId}' in slide '${path.slideId}' is not of kind 'box'. Found kind: '${boxElement.kind}'.`,
       );
     }
-    extractedJson = boxElement.editorStateJSON || DEFAULT_BOX_EDITOR_STATE;
+    extractedJson = boxElement.editorStateJSON;
+    if (!extractedJson) {
+      throw new Error(
+        `Failed to extract editorStateJSON for path: ${JSON.stringify(path)}`,
+      );
+    }
   });
 
   if (!extractedJson) {

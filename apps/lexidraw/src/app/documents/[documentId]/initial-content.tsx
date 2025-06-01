@@ -1,4 +1,5 @@
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
+import { useMemo } from "react";
 
 const initialMarkdown = `# Welcome to Lexical
 # Heading 1
@@ -27,24 +28,32 @@ export const initialEditorState = () => {
   return $convertFromMarkdownString(initialMarkdown, TRANSFORMERS);
 };
 
+const EMPTY_CONTENT = {
+  root: {
+    children: [
+      {
+        children: [],
+        direction: null,
+        format: "",
+        indent: 0,
+        type: "paragraph",
+        version: 1,
+      },
+    ],
+    direction: null,
+    format: "",
+    indent: 0,
+    type: "root",
+    version: 1,
+  },
+} as const;
+
 export const emptyContent = () => {
-  return {
-    root: {
-      children: [
-        {
-          children: [],
-          direction: null,
-          format: "",
-          indent: 0,
-          type: "paragraph",
-          version: 1,
-        },
-      ],
-      direction: null,
-      format: "",
-      indent: 0,
-      type: "root",
-      version: 1,
-    },
-  };
+  return EMPTY_CONTENT;
+};
+
+export const useEmptyContent = () => {
+  return useMemo(() => {
+    return EMPTY_CONTENT;
+  }, []);
 };

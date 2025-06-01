@@ -11,10 +11,7 @@ import {
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { mergeRegister } from "@lexical/utils";
 
-import {
-  SlideNode,
-  DEFAULT_SLIDE_DECK_DATA,
-} from "../nodes/SlideNode/SlideNode";
+import { SlideNode } from "../nodes/SlideNode/SlideNode";
 
 export const INSERT_SLIDEDECK_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_SLIDEDECK_COMMAND",
@@ -36,9 +33,7 @@ export function SlidePlugin(): null {
             const selection = $getSelection();
             const root = $getRoot();
 
-            const slideDeckNode = SlideNode.$createSlideNode(
-              DEFAULT_SLIDE_DECK_DATA,
-            );
+            const slideDeckNode = SlideNode.$createSlideNode();
 
             if ($isRangeSelection(selection)) {
               const { anchor } = selection;
