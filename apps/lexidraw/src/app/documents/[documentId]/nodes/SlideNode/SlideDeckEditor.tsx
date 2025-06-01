@@ -721,10 +721,6 @@ export default function SlideDeckEditorComponent({
           newActiveElementEditors.set(element.id, editorInstance);
 
           const incomingKeyedState = element.editorStateJSON;
-          console.log(
-            `[SlideDeckEditorComponent useEffect] For box ${element.id}, incomingKeyedState from SlideDeckData:`,
-            JSON.stringify(incomingKeyedState, null, 2),
-          );
 
           const currentEditorState = editorInstance.getEditorState();
           const currentLiveLexicalJSON = currentEditorState.toJSON();
@@ -732,18 +728,11 @@ export default function SlideDeckEditorComponent({
           const incomingLexicalJSON = transformToLexicalSourcedJSON(
             incomingKeyedState || EMPTY_CONTENT_FOR_NEW_BOXES,
           );
-          console.log(
-            `[SlideDeckEditorComponent useEffect] For box ${element.id}, incomingLexicalJSON for parse:`,
-            JSON.stringify(incomingLexicalJSON, null, 2),
-          );
 
           if (
             isNewEditor ||
             !isEqual(currentLiveLexicalJSON, incomingLexicalJSON)
           ) {
-            console.log(
-              `[SlideDeckEditorComponent useEffect] State for box ${element.id} differs or isNewEditor. Setting editor state.`,
-            );
             try {
               const newLexicalState =
                 editorInstance.parseEditorState(incomingLexicalJSON);
@@ -756,10 +745,6 @@ export default function SlideDeckEditorComponent({
                 incomingLexicalJSON,
               );
             }
-          } else {
-            console.log(
-              `[SlideDeckEditorComponent useEffect] State for box ${element.id} is equal. No update to editor instance needed.`,
-            );
           }
         }
       });

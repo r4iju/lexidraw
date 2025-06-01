@@ -65,23 +65,40 @@ export default function DynamicChartRenderer({
   const getXAxisDataKey = () => {
     if (data.length === 0) return "name"; // Default if no data
     const firstItem = data[0] as Record<string, unknown>;
-    if (typeof firstItem.month === "string") return "month";
-    if (typeof firstItem.name === "string") return "name";
-    if (typeof firstItem.date === "string") return "date";
-    if (typeof firstItem.category === "string") return "category";
-    // fallback: find first key with string value
-    for (const key in firstItem) {
-      if (
-        Object.prototype.hasOwnProperty.call(firstItem, key) &&
-        typeof firstItem[key] === "string"
-      ) {
-        return key;
+
+    const commonKeys = ["year", "month", "name", "date", "category"];
+    for (const commonKey of commonKeys) {
+      if (Object.prototype.hasOwnProperty.call(firstItem, commonKey)) {
+        // Check if it's string or number, as Recharts can handle both for dataKey
+        if (
+          typeof firstItem[commonKey] === "string" ||
+          typeof firstItem[commonKey] === "number"
+        ) {
+          return commonKey;
+        }
       }
     }
-    return "name"; // ultimate fallback
+
+    for (const key in firstItem) {
+      if (Object.prototype.hasOwnProperty.call(firstItem, key)) {
+        if (
+          typeof firstItem[key] === "string" ||
+          typeof firstItem[key] === "number"
+        ) {
+          return key;
+        }
+      }
+    }
+    return "name"; // Ultimate fallback
   };
 
   const xAxisDataKey = getXAxisDataKey();
+
+  const slugify = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^\w-]+/g, "");
 
   // determine the chart configuration
   const getGeneratedChartConfig = (): ChartConfig => {
@@ -157,7 +174,7 @@ export default function DynamicChartRenderer({
               <Bar
                 key={key}
                 dataKey={key}
-                fill={`var(--color-${key})`}
+                fill={`var(--color-${slugify(key)})`}
                 radius={4}
               />
             ))}
@@ -181,7 +198,21 @@ export default function DynamicChartRenderer({
                 key={key}
                 type="monotone"
                 dataKey={key}
-                stroke={`var(--color-${key})`}
+                stroke={`var(--color-${slugify(key)})`}
+                strokeWidth={4}
+                dot={{
+                  // Style for the dots on the line
+                  r: 5, // Radius of the dot
+                  strokeWidth: 2,
+                  // fill: `var(--color-${slugify(key)})` // Dot will inherit line color by default
+                }}
+                activeDot={{
+                  // Style for the dot when hovered/active
+                  r: 5, // Larger radius for active dot
+                  strokeWidth: 2,
+                  // fill: `var(--color-${slugify(key)})`, // Can also be a different color e.g. white with line color stroke
+                  // stroke: `var(--color-${slugify(key)})`
+                }}
               />
             ))}
           </LineChart>
@@ -200,7 +231,7 @@ export default function DynamicChartRenderer({
               cx="50%"
               cy="50%"
               outerRadius={"80%"}
-              fill={`var(--color-${pieDataKey})`} // simplistic fill
+              fill={`var(--color-${slugify(pieDataKey)})`}
             />
             <ShadcnChartLegend content={<ChartLegendContent />} />
           </PieChart>

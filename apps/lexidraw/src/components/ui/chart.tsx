@@ -76,6 +76,12 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     ([, config]) => config.theme || config.color,
   );
 
+  const slugify = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/\s+/g, "-") // replace spaces with hyphens
+      .replace(/[^\w-]+/g, ""); // remove non-alphanumeric characters except hyphens
+
   if (!colorConfig.length) {
     return null;
   }
@@ -92,7 +98,7 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    return color ? `  --color-${slugify(key)}: ${color};` : null;
   })
   .join("\n")}
 }
