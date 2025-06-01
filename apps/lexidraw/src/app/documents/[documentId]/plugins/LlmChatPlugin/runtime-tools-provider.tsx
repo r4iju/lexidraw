@@ -24,7 +24,6 @@ import {
   TextNode,
   RangeSelection,
   LexicalNode,
-  SerializedEditorState,
 } from "lexical";
 import {
   $createCodeNode,
@@ -85,7 +84,12 @@ import { ThreadNode } from "../../nodes/ThreadNode";
 import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
 import { MermaidNode } from "../../nodes/MermaidNode";
 import { useEditorRegistry } from "../../context/editors-context";
-import { useEmptyContent } from "../../initial-content";
+import {
+  DEFAULT_TEXT_NODE_ORIGINAL_KEY,
+  useEmptyContent,
+} from "../../initial-content";
+import { KeyedSerializedEditorState, SerializedNodeWithKey } from "../../types";
+import { useKeyedSerialization } from "./use-serialized-editor-state";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -176,7 +180,7 @@ const ResultSchema = z.object({
         .optional()
         .describe("Key of the text node created within a box, if applicable."),
       updatedEditorStateJson: z
-        .string()
+        .record(z.string(), z.any())
         .optional()
         .describe(
           "The full editor state (JSON string) after the operation, if relevant.",
@@ -280,7 +284,8 @@ type SlideDeckMutator<O extends Record<string, unknown>> = (
 ) => {
   newData: SlideDeckData;
   summary: string;
-  newNodeKey?: string; // For things like adding a new box or slide
+  newNodeKey?: string;
+  additionalContent?: Record<string, string | undefined>;
 };
 
 /* ------------------------------------------------------------------
@@ -298,23 +303,40 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     useLexicalImageGeneration();
   const { submitAddComment, deleteCommentOrThread, commentStore } =
     useCommentPlugin();
-  const [editor] = useLexicalComposerContext();
-  const { getEditor: getRegisteredEditor } = useEditorRegistry();
+  const [editor] = useLexicalComposerContext(); // this is the main editor
+  const { getEditorEntry } = useEditorRegistry();
+  const { serializeEditorStateWithKeys } = useKeyedSerialization();
 
+  // This function now primarily serves to get the MAIN editor or throw if a specific key isn't found.
+  // For targeted editors with key mapping, use getResolvedEditorAndKeyMap directly in tools.
   function getTargetEditorInstance(editorKey?: string): LexicalEditor {
     if (editorKey) {
-      return getRegisteredEditor(editorKey);
+      const entry = getEditorEntry(editorKey);
+      if (!entry) {
+        throw new Error(`Editor with key ${editorKey} not found in registry.`);
+      }
+      return entry.editor;
     }
-    return editor;
+    return editor; // main editor
   }
 
-  function findNodeByKey(
-    currentEditor: LexicalEditor,
-    key?: string,
-  ): LexicalNode | null {
-    if (!key) return null;
-    const node = currentEditor.getEditorState()._nodeMap.get(key);
-    return node ?? null;
+  function getResolvedEditorAndKeyMap(editorKey?: string): {
+    targetEditor: LexicalEditor;
+    keyMap: Map<string, string> | null;
+    originalRoot: SerializedNodeWithKey | null;
+  } {
+    if (editorKey) {
+      const entry = getEditorEntry(editorKey);
+      if (!entry) {
+        throw new Error(`Editor entry not found for key ${editorKey}.`);
+      }
+      return {
+        targetEditor: entry.editor,
+        keyMap: entry.keyMap,
+        originalRoot: entry.originalStateRoot,
+      };
+    }
+    return { targetEditor: editor, keyMap: null, originalRoot: null }; // Main editor context
   }
 
   function findFirstNodeByText(
@@ -344,7 +366,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     baseEditor: LexicalEditor, // The base editor instance from useLexicalComposerContext
     options: FullOptions,
     mutator: SlideDeckMutator<O>,
-    getEditorInstance: (editorKey?: string) => LexicalEditor, // Function to get target editor
+    // getEditorInstance: (editorKey?: string) => LexicalEditor, // Function to get target editor // REMOVED
   ): ExecuteResult {
     const { deckNodeKey, editorKey, ...specificMutatorOptions } = options;
 
@@ -352,8 +374,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       let result: { summary: string; newNodeKey?: string } | null = null;
 
       // SlideDeckNode modifications are typically on the main editor instance,
-      // but we use getEditorInstance if editorKey was provided.
-      const targetEditor = getEditorInstance(editorKey);
+      // but we use getResolvedEditorAndKeyMap if editorKey was provided.
+      // const targetEditor = getEditorInstance(editorKey); // REPLACED
+      const { targetEditor } = getResolvedEditorAndKeyMap(editorKey);
 
       targetEditor.update(() => {
         const deckNode = $getNodeByKey<SlideNode>(deckNodeKey);
@@ -370,6 +393,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         result = {
           summary: mutatorResult.summary,
           newNodeKey: mutatorResult.newNodeKey,
+          ...(mutatorResult.additionalContent && {
+            additionalContent: mutatorResult.additionalContent,
+          }),
         };
       });
 
@@ -381,11 +407,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       }
 
       // Assert the type of result after the null check
-      const assertedResult = result as { summary: string; newNodeKey?: string };
+      const assertedResult = result as {
+        summary: string;
+        newNodeKey?: string;
+        additionalContent?: Record<string, string | undefined>;
+      };
 
       // Use baseEditor for getting the overall state
       const latestState = baseEditor.getEditorState();
-      const stateJson = JSON.stringify(latestState.toJSON());
+      const stateJson = latestState.toJSON();
 
       console.log(`✅ [${toolName}] Success: ${assertedResult.summary}`);
       return {
@@ -394,6 +424,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           summary: assertedResult.summary,
           updatedEditorStateJson: stateJson,
           newNodeKey: assertedResult.newNodeKey,
+          ...(assertedResult.additionalContent ?? {}),
         },
       };
     } catch (err) {
@@ -403,9 +434,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         errorMsg,
       );
       // Use baseEditor for getting the overall state on error.
-      const stateJsonOnError = JSON.stringify(
-        baseEditor.getEditorState().toJSON(),
-      );
+      const stateJsonOnError = baseEditor.getEditorState().toJSON();
+
       return {
         success: false,
         error: errorMsg,
@@ -423,10 +453,17 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
    * It returns the target node's key for safe use within an update cycle.
    */
   async function resolveInsertionPoint(
-    currentEditor: LexicalEditor,
+    editorContext: {
+      // Pass the whole context
+      targetEditor: LexicalEditor;
+      keyMap: Map<string, string> | null;
+      originalRoot: SerializedNodeWithKey | null;
+    },
     relation: InsertionRelation,
     anchor?: InsertionAnchor,
   ): Promise<InsertionPointResolution> {
+    const { targetEditor, keyMap } = editorContext;
+
     if (relation === "appendRoot") {
       return { status: "success", type: "appendRoot" };
     }
@@ -438,28 +475,52 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       };
     }
 
-    // Find the target node based on the anchor
-    // Note: This happens outside editor.update, so we use the editor state directly
-    let target: LexicalNode | null = null;
-    if (anchor.type === "key") {
-      target = findNodeByKey(currentEditor, anchor.key);
-    } else {
-      // findFirstNodeByText needs to run within an update cycle to use $ commands
-      currentEditor.getEditorState().read(() => {
-        target = findFirstNodeByText(currentEditor, anchor.text);
-      });
-    }
+    let liveTargetNode: LexicalNode | null = null;
 
-    if (!target) {
-      const anchorDesc =
-        anchor.type === "key" ? `key "${anchor.key}"` : `text "${anchor.text}"`;
+    try {
+      targetEditor.getEditorState().read(() => {
+        if (anchor.type === "key") {
+          const liveKey = keyMap?.get(anchor.key);
+          if (!liveKey) {
+            throw new Error(
+              `Original key "${anchor.key}" not found in keyMap.`,
+            );
+          }
+          liveTargetNode = $getNodeByKey(liveKey);
+          if (!liveTargetNode) {
+            throw new Error(
+              `Node with live key "${liveKey}" (original: "${anchor.key}") not found.`,
+            );
+          }
+        } else {
+          // anchor.type === "text"
+          liveTargetNode = findFirstNodeByText(targetEditor, anchor.text); // findFirstNodeByText uses $ Fns
+          if (!liveTargetNode) {
+            throw new Error(`Node with text "${anchor.text}" not found.`);
+          }
+        }
+      });
+    } catch (e) {
       return {
         status: "error",
-        message: `Target node not found for anchor ${anchorDesc} with relation '${relation}'.`,
+        message: e instanceof Error ? e.message : String(e),
       };
     }
 
-    return { status: "success", type: relation, targetKey: target.getKey() };
+    if (!liveTargetNode) {
+      // Should be caught by throws above, but as a fallback
+      return {
+        status: "error",
+        message: `Target node for anchor ${JSON.stringify(anchor)} not resolved.`,
+      };
+    }
+    console.log("liveTargetNode is never? ", liveTargetNode);
+    return {
+      status: "success",
+      type: relation,
+      // @ts-expect-error - liveTargetNode is probably okey
+      targetKey: liveTargetNode.getKey(),
+    };
   }
 
   /** The generic executor function. */
@@ -472,9 +533,13 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       editorKey?: string;
     },
     inserter: NodeInserter<O>,
-    getEditorInstance: (editorKey?: string) => LexicalEditor, // Function to get target editor
     resolveInsertionPt: (
-      currentEditor: LexicalEditor,
+      // THIS TYPE SIGNATURE WILL CHANGE
+      editorContext: {
+        targetEditor: LexicalEditor;
+        keyMap: Map<string, string> | null;
+        originalRoot: SerializedNodeWithKey | null;
+      },
       relation: InsertionRelation,
       anchor?: InsertionAnchor,
     ) => Promise<InsertionPointResolution>, // Function to resolve insertion point
@@ -484,10 +549,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     try {
       console.log(`[${toolName}] Starting`, options);
 
-      const targetEditor = getEditorInstance(editorKey);
+      // const targetEditor = getEditorInstance(editorKey); // REPLACED
+      const editorContext = getResolvedEditorAndKeyMap(editorKey); // Get context once
 
       const resolution = await resolveInsertionPt(
-        targetEditor,
+        editorContext,
         relation,
         anchor,
       );
@@ -506,17 +572,19 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       let insertionOutcome: NodeInsertionResult = {
         primaryNodeKey: null,
       };
-      targetEditor.update(() => {
+      // targetEditor.update(() => { // REPLACED
+      editorContext.targetEditor.update(() => {
         insertionOutcome = inserter(
           successResolution,
           specificOptions as unknown as O,
-          targetEditor,
+          // targetEditor, // REPLACED
+          editorContext.targetEditor,
         );
       });
 
       // Use baseEditor for getting the overall state, as targetEditor might be a nested one.
       const latestState = baseEditor.getEditorState();
-      const stateJson = JSON.stringify(latestState.toJSON());
+      const stateJson = latestState.toJSON();
 
       const targetKeyForSummary =
         successResolution.type === "appendRoot"
@@ -544,7 +612,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(`❌ [${toolName}] Error:`, errorMsg);
       // Use baseEditor for getting the overall state on error.
-      const stateJson = JSON.stringify(baseEditor.getEditorState().toJSON());
+      const stateJson = baseEditor.getEditorState().toJSON();
       return {
         success: false,
         error: errorMsg,
@@ -659,9 +727,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         3. { …current, …patch } → merged  (if node class supplies importJSON)
         4. Otherwise mutate the existing node in‑place via setters / direct props
         5. importJSON(merged) → new node (only for the first path)
-        6. swap old ↔︎ new, keeping the same spot in the tree.`,
+        6. swap old ↔︎ new, keeping the same spot in the tree.`, // Ensure description is accurate
     parameters: z.object({
-      nodeKey: z.string().describe("Key of the node to edit."),
+      editorKey: EditorKeySchema.optional(), // Ensure editorKey is optional if it can be
+      nodeKey: z.string().describe("Original key of the node to edit."), // Explicitly original
       patchProperties: z
         .array(
           z.object({
@@ -676,12 +745,40 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         ),
     }),
 
-    execute: async ({ nodeKey, patchProperties }): ExecuteResult => {
+    execute: async ({
+      nodeKey: originalNodeKey,
+      patchProperties,
+      editorKey,
+    }): ExecuteResult => {
+      const { targetEditor, keyMap } = getResolvedEditorAndKeyMap(editorKey); // Get context
+      const liveNodeKey = keyMap?.get(originalNodeKey);
+      if (!liveNodeKey && originalNodeKey !== "root") {
+        // 'root' key might not be in keyMap if it's implicit
+        // Check if originalNodeKey is 'root' and targetEditor is the main editor. Special handling might be needed or disallow 'root' patching.
+        // For now, assume non-root keys must be in map.
+        return {
+          success: false,
+          error: `Live node for original key "${originalNodeKey}" not found in keyMap.`,
+        };
+      }
+      const finalNodeKey =
+        originalNodeKey === "root" ? "root" : (liveNodeKey as string); // Use liveNodeKey if not 'root'
+
       try {
-        editor.update(() => {
-          const node = $getNodeByKey(nodeKey);
+        targetEditor.update(() => {
+          // log the current state of the target editor
+          // serialize with keys
+          const currentState = serializeEditorStateWithKeys(
+            targetEditor.getEditorState(),
+          );
+          console.log(
+            "🛠️ [ToolFactory: patchNodeByJSON] current state:",
+            currentState,
+          );
+
+          const node = $getNodeByKey(finalNodeKey);
           if (!node)
-            throw new Error(`Node ${nodeKey} not found during update.`);
+            throw new Error(`Node ${finalNodeKey} not found during update.`);
 
           patchProperties.forEach(({ key, value }) => {
             // @ts-expect-error - text nodes accept setTextContent
@@ -723,11 +820,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           });
         });
 
-        const stateJson = JSON.stringify(editor.getEditorState().toJSON());
+        const stateJson = editor.getEditorState().toJSON();
         return {
           success: true,
           content: {
-            summary: `Patched node ${nodeKey} (properties: ${patchProperties.map((p) => p.key).join(", ")}).`,
+            summary: `Patched node ${finalNodeKey} (properties: ${patchProperties.map((p) => p.key).join(", ")}).`,
             updatedEditorStateJson: stateJson,
           },
         };
@@ -918,7 +1015,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: summaryCtx,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -958,7 +1054,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `${tag} heading`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -1011,7 +1106,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             },
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -1151,7 +1245,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         });
 
         const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
         const summary = `Inserted list item ${relation} target (key: ${finalTargetKey}).`;
         console.log(`✅ [insertListItemNode] Success: ${summary}`);
         return {
@@ -1165,9 +1259,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`❌ [insertListItemNode] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
+        let stateJsonOnError = {};
         try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          stateJsonOnError = editor.getEditorState().toJSON();
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (_stateErr) {
           /* ignore */
@@ -1241,7 +1335,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `Code Block${language ? ` (${language})` : ""}`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -1308,7 +1401,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: summaryCtx,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -1341,10 +1433,10 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchor,
         });
 
-        const targetEditor = getTargetEditorInstance(editorKey);
+        const editorContext = getResolvedEditorAndKeyMap(editorKey || "main");
 
         const resolution = await resolveInsertionPoint(
-          targetEditor,
+          editorContext,
           relation,
           anchor,
         );
@@ -1362,7 +1454,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           { status: "error" }
         >;
 
-        targetEditor.update(
+        editorContext.targetEditor.update(
           () => {
             const placeholderNode = $createParagraphNode();
             // Insert the placeholder first using our helper
@@ -1398,7 +1490,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         );
 
         const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
 
         const targetKeyForSummary =
           successResolution.type === "appendRoot"
@@ -1417,9 +1509,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`❌ [insertMarkdown] Error:`, errorMsg);
-        let stateJsonOnError = "{}";
+        let stateJsonOnError = {};
         try {
-          stateJsonOnError = JSON.stringify(editor.getEditorState().toJSON());
+          stateJsonOnError = editor.getEditorState().toJSON();
         } catch (stateErr) {
           console.error("Failed to serialize state on error:", stateErr);
         }
@@ -1483,7 +1575,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `${rows}x${columns} table`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -1551,7 +1642,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: summaryCtx,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -1747,8 +1837,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           anchorKey,
           fontFamily,
           fontSize,
-          fontWeight, // ADDED
-          fontStyle, // ADDED
+          fontWeight,
+          fontStyle,
           color,
           backgroundColor,
         });
@@ -1756,33 +1846,54 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         let finalSummary = "";
         let errorMsg: string | null = null;
 
-        const targetEditor = getTargetEditorInstance(editorKey);
+        const { targetEditor, keyMap } = getResolvedEditorAndKeyMap(editorKey); // editorKey is the full path
+
+        let liveAnchorKey = anchorKey; // anchorKey is the original key, e.g., DEFAULT_TEXT_NODE_ORIGINAL_KEY
+
+        if (keyMap) {
+          const resolvedKey = keyMap.get(anchorKey);
+          if (resolvedKey) {
+            liveAnchorKey = resolvedKey;
+          } else {
+            errorMsg = `Original anchorKey "${anchorKey}" not found in keyMap for editor "${editorKey}". KeyMap contains: ${Array.from(keyMap.keys()).join(", ")}`;
+            console.error(`❌ [applyTextStyle] Error: ${errorMsg}`);
+            return { success: false, error: errorMsg };
+          }
+        } else {
+          // This case implies the editor was found but no keyMap was generated or needed (e.g. main editor).
+          // For nested editors created via headless route, keyMap should exist.
+          // If it's a live editor registered without original state, anchorKey must already be live.
+          console.warn(
+            `[applyTextStyle] No keyMap for editor "${editorKey}". Assuming anchorKey "${anchorKey}" is already a live key.`,
+          );
+        }
 
         targetEditor.update(() => {
-          const targetNode = $getNodeByKey(anchorKey);
+          const targetNode = $getNodeByKey(liveAnchorKey); // Use the resolved live key
 
           if (!targetNode) {
-            errorMsg = `Target node with key ${anchorKey} not found.`;
+            errorMsg = `Target node with live key ${liveAnchorKey} not found.`;
             return;
           }
 
           if (!$isTextNode(targetNode)) {
-            errorMsg = `Target node (key: ${anchorKey}) is type '${targetNode.getType()}', but styles can only be applied to TextNodes.`;
+            errorMsg = `Target node (live key: ${liveAnchorKey}) is type '${targetNode.getType()}', but styles can only be applied to TextNodes.`;
             return;
           }
 
-          // Get current styles and parse them
+          // --- Store original text BEFORE styling ---
+          const originalText = targetNode.getTextContent();
+          console.log(
+            `[applyTextStyle INTERNAL] Before setStyle: TextNode (live key ${liveAnchorKey}) has text: "${originalText}". Parent key: ${targetNode.getParent()?.getKey()}, Style: "${targetNode.getStyle()}"`,
+          );
+
           let styleObj = parseStyleString(targetNode.getStyle());
           const appliedStyles: string[] = [];
 
-          // Helper to update style object and track changes
           const updateStyle = (key: string, value: string | undefined) => {
-            if (value === undefined) return; // Skip if parameter wasn't provided
-
+            if (value === undefined) return;
             if (value === "") {
               if (key in styleObj) {
-                // Check if key exists before attempting removal
-                // Linter-friendly removal: create new object excluding the key
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { [key]: _, ...rest } = styleObj;
                 styleObj = rest;
@@ -1796,49 +1907,100 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             }
           };
 
-          // Apply updates for each provided parameter
           updateStyle("font-family", fontFamily);
           updateStyle("font-size", fontSize);
-          updateStyle("font-weight", fontWeight); // ADDED
-          updateStyle("font-style", fontStyle); // ADDED
+          updateStyle("font-weight", fontWeight);
+          updateStyle("font-style", fontStyle);
           updateStyle("color", color);
           updateStyle("background-color", backgroundColor);
-          // Add calls for other style properties here
 
-          if (appliedStyles.length === 0) {
-            finalSummary = `No style changes needed for TextNode (key: ${anchorKey}).`;
-            success = true; // Considered success as no change was necessary
+          if (appliedStyles.length === 0 && !errorMsg) {
+            finalSummary = `No style changes needed for TextNode (live key: ${liveAnchorKey}, original: ${anchorKey}).`;
+            success = true;
             return;
           }
 
-          // Reconstruct and set the new style string
-          const newStyleString = reconstructStyleString(styleObj);
-          targetNode.setStyle(newStyleString);
+          if (errorMsg) return;
 
-          finalSummary = `Applied styles to TextNode (key: ${anchorKey}): ${appliedStyles.join(", ")}.`;
+          const newStyleString = reconstructStyleString(styleObj);
+          console.log(
+            `[applyTextStyle INTERNAL] Applying style string: "${newStyleString}" to TextNode key ${liveAnchorKey}`,
+          );
+
+          // --- Get a writable version of the node ---
+          const writableTextNode = targetNode.getWritable();
+          writableTextNode.setStyle(newStyleString);
+
+          const textAfterStyle = writableTextNode.getTextContent();
+          console.log(
+            `[applyTextStyle INTERNAL] After setStyle: TextNode (live key ${liveAnchorKey}) has text: "${textAfterStyle}". Parent key: ${writableTextNode.getParent()?.getKey()}, Style: "${writableTextNode.getStyle()}"`,
+          );
+
+          // --- Defensive setTextContent if text was cleared AND original text was not empty ---
+          if (textAfterStyle === "" && originalText !== "") {
+            console.warn(
+              `[applyTextStyle INTERNAL] Text was cleared after setStyle for node ${liveAnchorKey}! Restoring original text: "${originalText}"`,
+            );
+            writableTextNode.setTextContent(originalText); // Restore it
+
+            // Log again after attempting to restore
+            console.log(
+              `[applyTextStyle INTERNAL] After restoring text: TextNode (live key ${liveAnchorKey}) has text: "${writableTextNode.getTextContent()}"`,
+            );
+          }
+
+          // Log parent paragraph children status
+          const finalParagraph = writableTextNode
+            .getParentOrThrow()
+            .getWritable();
+          if (finalParagraph && $isElementNode(finalParagraph)) {
+            console.log(
+              `[applyTextStyle INTERNAL] After setStyle & potential restore: Final Parent Paragraph (key ${finalParagraph.getKey()}) children count: ${finalParagraph.getChildrenSize()}`,
+            );
+            if (finalParagraph.getChildrenSize() > 0) {
+              const firstChild = finalParagraph.getFirstChild();
+              if ($isTextNode(firstChild)) {
+                console.log(
+                  `[applyTextStyle INTERNAL] After setStyle & potential restore: Final Parent's first child (key ${firstChild.getKey()}) text: "${firstChild.getTextContent()}"`,
+                );
+              } else {
+                console.log(
+                  `[applyTextStyle INTERNAL] After setStyle & potential restore: Final Parent's first child is not a text node.`,
+                );
+              }
+            } else {
+              console.log(
+                `[applyTextStyle INTERNAL] After setStyle & potential restore: Final Parent Paragraph has NO children.`,
+              );
+            }
+          }
+
+          finalSummary = `Applied styles to TextNode (key: ${anchorKey}): ${appliedStyles.join(", ")}. Original text was "${originalText}", after style it was "${textAfterStyle}"${textAfterStyle === "" && originalText !== "" ? ", then restored." : "."}`;
           success = true;
-        }); // --- End editor.update ---
+        });
 
         if (errorMsg) {
-          console.error(`❌ [applyTextStyle] Error: ${errorMsg}`);
+          console.error(`❌ [applyTextStyle] Error during update: ${errorMsg}`);
           return { success: false, error: errorMsg };
         }
 
-        // Return result based on update outcome
         const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
         console.log(
           `✅ [applyTextStyle] ${success ? "Success" : "No changes"}: ${finalSummary}`,
         );
         return {
-          success: success, // True if styles were changed or no change was needed
-          content: { summary: finalSummary, updatedEditorStateJson: stateJson },
+          success: success,
+          content: {
+            summary: finalSummary,
+            updatedEditorStateJson: stateJson,
+          },
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`❌ [applyTextStyle] Error:`, errorMsg);
         const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
         return {
           success: false,
           error: errorMsg,
@@ -1980,7 +2142,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: summaryCtx,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2070,7 +2231,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: summaryCtx,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2118,7 +2278,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `Figma embed (ID: ${documentID})`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2193,7 +2352,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `collapsible section titled '${titleText}'`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2349,7 +2507,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `Excalidraw diagram from Mermaid (${elementsLength} elements)`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2407,7 +2564,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `Mermaid diagram (${width}×${height})`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2466,7 +2622,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `layout with columns: ${templateColumns}`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2496,7 +2651,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: "Page Break",
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2543,7 +2697,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `poll: "${question}"`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2591,7 +2744,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `Tweet embed (ID: ${tweetID})`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2640,7 +2792,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: `YouTube video embed (ID: ${videoID})`,
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2693,7 +2844,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summaryContext: "Slide Deck",
           };
         },
-        getTargetEditorInstance,
         resolveInsertionPoint,
       );
     },
@@ -2841,8 +2991,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         // Determine ThreadNode placement
         const placementRelationResolved =
           threadNodePlacementRelation || "appendRoot";
+        const editorContext = getResolvedEditorAndKeyMap(editorKey || "main");
         const resolution = await resolveInsertionPoint(
-          targetEditor,
+          editorContext,
           placementRelationResolved,
           threadNodePlacementAnchor,
         );
@@ -2904,7 +3055,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         });
 
         const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
         return {
           success: true,
           content: {
@@ -2973,7 +3124,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         submitAddComment(newReply, false /* isInlineComment */, targetThread);
 
         const latestState = targetEditor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
         return {
           success: true,
           content: {
@@ -3032,7 +3183,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         deleteCommentOrThread(targetComment, targetThread);
 
         const latestState = targetEditor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
         return {
           success: true,
           content: {
@@ -3077,7 +3228,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         deleteCommentOrThread(targetThread);
 
         const latestState = editor.getEditorState();
-        const stateJson = JSON.stringify(latestState.toJSON());
+        const stateJson = latestState.toJSON();
         return {
           success: true,
           content: {
@@ -3128,7 +3279,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summary: summary,
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3190,7 +3340,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             summary: summary,
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3297,7 +3446,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             newNodeKey: newId, // The key of the new slide page
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3382,7 +3530,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             // newNodeKey is typically not set for removal, but one could return slideIdToRemove if needed.
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3446,7 +3593,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             // newNodeKey could be slideIdToMove if useful for the caller
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3528,7 +3674,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             // newNodeKey could be targetSlide.id if useful
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3624,10 +3769,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           };
 
           const newBoxGeneratedId = boxId || `box-${Date.now()}`;
-          const initialTextNodeKey = `${newBoxGeneratedId}-text0`; // Conventional key for the text node
 
           const generatedEditorStateJSON =
-            emptyContent as unknown as SerializedEditorState;
+            emptyContent as unknown as KeyedSerializedEditorState;
 
           const newBoxElement: SlideElementSpec = {
             kind: "box",
@@ -3661,10 +3805,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             },
             summary: summary,
             newNodeKey: newBoxGeneratedId,
-            textNodeKey: initialTextNodeKey, // <<< RETURN THE KEY HERE
+            additionalContent: {
+              textNodeKey: DEFAULT_TEXT_NODE_ORIGINAL_KEY,
+            },
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3749,7 +3894,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             newNodeKey: boxId, // The key of the updated box
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -3864,7 +4008,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             newNodeKey: newImageGeneratedId,
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -4016,7 +4159,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             newNodeKey: newChartGeneratedId,
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
@@ -4156,59 +4298,9 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             newNodeKey: elementId,
           };
         },
-        getTargetEditorInstance,
       );
     },
   });
-
-  const individualTools = {
-    ...(patchNodeByJSON && { patchNodeByJSON }),
-    ...(insertTextNode && { insertTextNode }),
-    ...(insertHeadingNode && { insertHeadingNode }),
-    ...(insertLinkNode && { insertLinkNode }),
-    ...(insertEquationNode && { insertEquationNode }),
-    ...(insertFigmaNode && { insertFigmaNode }),
-    ...(insertCollapsibleSection && { insertCollapsibleSection }),
-    ...(insertExcalidrawDiagram && { insertExcalidrawDiagram }),
-    ...(insertMermaidDiagram && { insertMermaidDiagram }),
-    ...(insertLayout && { insertLayout }),
-    ...(insertPageBreakNode && { insertPageBreakNode }),
-    ...(insertPollNode && { insertPollNode }),
-    ...(insertTweetNode && { insertTweetNode }),
-    ...(insertYouTubeNode && { insertYouTubeNode }),
-    ...(insertSlideDeckNode && { insertSlideDeckNode }),
-    ...(addSlidePage && { addSlidePage }),
-    ...(removeSlidePage && { removeSlidePage }),
-    ...(reorderSlidePage && { reorderSlidePage }),
-    ...(addBoxToSlidePage && { addBoxToSlidePage }),
-    ...(setSlidePageBackground && { setSlidePageBackground }),
-    ...(addImageToSlidePage && { addImageToSlidePage }),
-    ...(addChartToSlidePage && { addChartToSlidePage }),
-    ...(insertListNode && { insertListNode }),
-    ...(insertListItemNode && { insertListItemNode }),
-    ...(insertCodeBlock && { insertCodeBlock }),
-    ...(insertCodeHighlightNode && { insertCodeHighlightNode }),
-    ...(insertMarkdown && { insertMarkdown }),
-    ...(insertTable && { insertTable }),
-    ...(insertHashtag && { insertHashtag }),
-    ...(applyTextStyle && { applyTextStyle }),
-    ...(removeNode && { removeNode }),
-    ...(moveNode && { moveNode }),
-    ...(requestClarificationOrPlan && { requestClarificationOrPlan }),
-    ...(summarizeExecution && { summarizeExecution }),
-    ...(searchAndInsertImage && { searchAndInsertImage }),
-    ...(generateAndInsertImage && { generateAndInsertImage }),
-    ...(sendReply && { sendReply }),
-    ...(addCommentThread && { addCommentThread }),
-    ...(addReplyToThread && { addReplyToThread }),
-    ...(findAndSelectTextForComment && { findAndSelectTextForComment }),
-    ...(removeCommentFromThread && { removeCommentFromThread }),
-    ...(removeCommentThread && { removeCommentThread }),
-    ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
-    ...(updateSlideElementProperties && { updateSlideElementProperties }),
-    ...(setDeckMetadata && { setDeckMetadata }),
-    ...(setSlideMetadata && { setSlideMetadata }),
-  } as unknown as RuntimeToolMap;
 
   /* --------------------------------------------------------------
    * Save Storyboard Output Tool (for runStep3_StoryboardArchitect)
@@ -4304,6 +4396,59 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     },
   });
 
+  const individualTools = {
+    ...(patchNodeByJSON && { patchNodeByJSON }),
+    ...(insertTextNode && { insertTextNode }),
+    ...(insertHeadingNode && { insertHeadingNode }),
+    ...(insertLinkNode && { insertLinkNode }),
+    ...(insertEquationNode && { insertEquationNode }),
+    ...(insertFigmaNode && { insertFigmaNode }),
+    ...(insertCollapsibleSection && { insertCollapsibleSection }),
+    ...(insertExcalidrawDiagram && { insertExcalidrawDiagram }),
+    ...(insertMermaidDiagram && { insertMermaidDiagram }),
+    ...(insertLayout && { insertLayout }),
+    ...(insertPageBreakNode && { insertPageBreakNode }),
+    ...(insertPollNode && { insertPollNode }),
+    ...(insertTweetNode && { insertTweetNode }),
+    ...(insertYouTubeNode && { insertYouTubeNode }),
+    ...(insertSlideDeckNode && { insertSlideDeckNode }),
+    ...(addSlidePage && { addSlidePage }),
+    ...(removeSlidePage && { removeSlidePage }),
+    ...(reorderSlidePage && { reorderSlidePage }),
+    ...(addBoxToSlidePage && { addBoxToSlidePage }),
+    ...(setSlidePageBackground && { setSlidePageBackground }),
+    ...(addImageToSlidePage && { addImageToSlidePage }),
+    ...(addChartToSlidePage && { addChartToSlidePage }),
+    ...(insertListNode && { insertListNode }),
+    ...(insertListItemNode && { insertListItemNode }),
+    ...(insertCodeBlock && { insertCodeBlock }),
+    ...(insertCodeHighlightNode && { insertCodeHighlightNode }),
+    ...(insertMarkdown && { insertMarkdown }),
+    ...(insertTable && { insertTable }),
+    ...(insertHashtag && { insertHashtag }),
+    ...(applyTextStyle && { applyTextStyle }),
+    ...(removeNode && { removeNode }),
+    ...(moveNode && { moveNode }),
+    ...(requestClarificationOrPlan && { requestClarificationOrPlan }),
+    ...(summarizeExecution && { summarizeExecution }),
+    ...(searchAndInsertImage && { searchAndInsertImage }),
+    ...(generateAndInsertImage && { generateAndInsertImage }),
+    ...(sendReply && { sendReply }),
+    ...(addCommentThread && { addCommentThread }),
+    ...(addReplyToThread && { addReplyToThread }),
+    ...(findAndSelectTextForComment && { findAndSelectTextForComment }),
+    ...(removeCommentFromThread && { removeCommentFromThread }),
+    ...(removeCommentThread && { removeCommentThread }),
+    ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
+    ...(updateSlideElementProperties && { updateSlideElementProperties }),
+    ...(setDeckMetadata && { setDeckMetadata }),
+    ...(setSlideMetadata && { setSlideMetadata }),
+    ...(saveStoryboardOutput && { saveStoryboardOutput }),
+    ...(saveSlideContentAndNotes && { saveSlideContentAndNotes }),
+    ...(saveThemeStyleSuggestions && { saveThemeStyleSuggestions }),
+    ...(saveImageGenerationRequest && { saveImageGenerationRequest }),
+  } as unknown as RuntimeToolMap;
+
   /* --------------------------------------------------------------
    * Combined Tools Wrapper
    * --------------------------------------------------------------*/
@@ -4323,7 +4468,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     }),
     execute: async ({ calls }): ExecuteResult => {
       const results: { summary: string; stateJson?: string }[] = [];
-      let lastStateJson: string | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let lastStateJson: Record<string, any> | undefined;
 
       try {
         console.log(
@@ -4401,7 +4547,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         if (lastStateJson === undefined && calls.length > 0) {
           editor.read(() => {
             // Use 'editor' via closure from RuntimeToolsProvider
-            lastStateJson = JSON.stringify(editor.getEditorState().toJSON());
+            lastStateJson = editor.getEditorState().toJSON();
           });
         }
 
@@ -4435,11 +4581,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
    * --------------------------------------------------------------*/
   const tools = {
     ...individualTools,
-    combinedTools, // Ensure combinedTools is included here
-    saveStoryboardOutput, // Add the new tool here
-    saveSlideContentAndNotes, // Add the new tool here
-    saveThemeStyleSuggestions, // Add the new tool here
-    saveImageGenerationRequest, // Add the new tool here
+    combinedTools,
   } as unknown as RuntimeToolMap;
 
   return (

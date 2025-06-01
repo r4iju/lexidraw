@@ -61,7 +61,7 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
-import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+// import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import MarkdownShortcutPlugin from "../../plugins/MarkdownShortcutPlugin";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
@@ -136,7 +136,10 @@ import PageBreakPlugin from "../../plugins/PageBreakPlugin";
 import MermaidPlugin from "../../plugins/MermaidPlugin";
 import AutocompletePlugin from "../../plugins/AutocompletePlugin";
 import { SessionUUIDProvider } from "../../plugins/AutocompletePlugin/session-uuid-provider";
-import { useEditorRegistry } from "../../context/editors-context";
+import {
+  transformToLexicalSourcedJSON,
+  useEditorRegistry,
+} from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   InsertImageDialog,
@@ -155,7 +158,11 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "~/components/ui/tooltip";
-import { useEmptyContent } from "../../initial-content";
+import { emptyContent } from "../../initial-content";
+import { useKeyedSerialization } from "../../plugins/LlmChatPlugin/use-serialized-editor-state";
+import { KeyedSerializedEditorState } from "../../types";
+import { isEqual } from "@packages/lib";
+import { BlurPlugin } from "./BlurPlugin";
 
 export const NESTED_EDITOR_NODES = [
   ChartNode,
@@ -335,7 +342,8 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
 
   useEffect(() => {
     if (element.kind === "box" && nestedEditor) {
-      registerEditor(editorKey, nestedEditor);
+      const originalStateRoot = element.editorStateJSON?.root;
+      registerEditor(editorKey, nestedEditor, originalStateRoot);
       return () => {
         unregisterEditor(editorKey);
       };
@@ -343,7 +351,15 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     return () => {
       /**  do nothing */
     };
-  }, [nestedEditor, editorKey, registerEditor, unregisterEditor, element.kind]);
+  }, [
+    nestedEditor,
+    editorKey,
+    registerEditor,
+    unregisterEditor,
+    element.kind,
+    // @ts-expect-error - editorStateJSON should exist for nested editors
+    element.editorStateJSON?.root,
+  ]);
 
   const isDragging = active?.id === element.id;
 
@@ -521,12 +537,10 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
                 }
                 ErrorBoundary={LexicalErrorBoundary}
               />
-              <OnChangePlugin
-                onChange={(editorState) =>
+              <BlurPlugin
+                onBlur={(editorState) =>
                   onBoxContentChange(element.id, editorState)
                 }
-                ignoreHistoryMergeTagChange
-                ignoreSelectionChange
               />
               <SessionUUIDProvider>
                 <AutocompletePlugin />
@@ -660,6 +674,7 @@ export default function SlideDeckEditorComponent({
 
   const { openModal } = useMetadataModal();
   const [editor] = useLexicalComposerContext();
+  const { serializeEditorStateWithKeys } = useKeyedSerialization();
 
   const currentSlideIndex = useMemo(() => {
     if (!deckData.slides || deckData.slides.length === 0) return -1;
@@ -676,11 +691,14 @@ export default function SlideDeckEditorComponent({
     return deckData.slides[currentSlideIndex];
   }, [deckData.slides, currentSlideIndex]);
 
+  const EMPTY_CONTENT_FOR_NEW_BOXES = useMemo(() => {
+    return emptyContent();
+  }, []);
+
   useEffect(() => {
     const newActiveElementEditors = new Map<string, LexicalEditor>();
     const currentEditorIdsInSlide = new Set<string>();
 
-    // Phase 1: Iterate over current slide elements to create/update editors
     if (currentSlide?.elements) {
       currentSlide.elements.forEach((element) => {
         if (element.kind === "box") {
@@ -694,84 +712,130 @@ export default function SlideDeckEditorComponent({
               nodes: NESTED_EDITOR_NODES,
               theme: editorTheme,
               onError: (error) =>
-                console.error(
-                  `Error in nested editor for element ${element.id}:`,
-                  error,
-                ),
+                console.error(`Error in nested for ${element.id}:`, error),
             });
             elementEditorsRef.current.set(element.id, editorInstance);
           }
 
-          // Ensure editorInstance is defined for TypeScript
           if (!editorInstance) return;
-
           newActiveElementEditors.set(element.id, editorInstance);
 
-          // Synchronize editor state
-          const stateToSetInEditor = element.editorStateJSON;
-          const currentEditorStateJsonString = JSON.stringify(
-            editorInstance.getEditorState().toJSON(),
+          const incomingKeyedState = element.editorStateJSON;
+          console.log(
+            `[SlideDeckEditorComponent useEffect] For box ${element.id}, incomingKeyedState from SlideDeckData:`,
+            JSON.stringify(incomingKeyedState, null, 2),
           );
-          const incomingStateJsonString = JSON.stringify(stateToSetInEditor);
+
+          const currentEditorState = editorInstance.getEditorState();
+          const currentLiveLexicalJSON = currentEditorState.toJSON();
+
+          const incomingLexicalJSON = transformToLexicalSourcedJSON(
+            incomingKeyedState || EMPTY_CONTENT_FOR_NEW_BOXES,
+          );
+          console.log(
+            `[SlideDeckEditorComponent useEffect] For box ${element.id}, incomingLexicalJSON for parse:`,
+            JSON.stringify(incomingLexicalJSON, null, 2),
+          );
 
           if (
             isNewEditor ||
-            currentEditorStateJsonString !== incomingStateJsonString
+            !isEqual(currentLiveLexicalJSON, incomingLexicalJSON)
           ) {
+            console.log(
+              `[SlideDeckEditorComponent useEffect] State for box ${element.id} differs or isNewEditor. Setting editor state.`,
+            );
             try {
-              const newLexicalState = editorInstance.parseEditorState(
-                stateToSetInEditor as SerializedEditorState,
-              );
+              const newLexicalState =
+                editorInstance.parseEditorState(incomingLexicalJSON);
               editorInstance.setEditorState(newLexicalState);
             } catch (e) {
               console.error(
-                `Error parsing/setting editor state for element ${element.id}:`,
+                `[SlideDeckEditorComponent useEffect] Error parsing/setting state for box ${element.id}:`,
                 e,
-                "State was:",
-                stateToSetInEditor,
+                "Incoming Lexical JSON:",
+                incomingLexicalJSON,
               );
             }
+          } else {
+            console.log(
+              `[SlideDeckEditorComponent useEffect] State for box ${element.id} is equal. No update to editor instance needed.`,
+            );
           }
         }
       });
     }
 
-    // Phase 2: Clean up editors from elementEditorsRef.current that are no longer in the current slide
-    elementEditorsRef.current.forEach((_, editorId) => {
-      if (!currentEditorIdsInSlide.has(editorId)) {
-        elementEditorsRef.current.delete(editorId);
-        // If these editors had listeners (e.g. for headless persistence), unregister them here.
-        // For now, just deleting from the ref.
-      }
-    });
-
-    // Phase 3: Update the state variable that holds active editors for rendering
-    // This ensures that only relevant editors are passed to DraggableBoxWrapper components
     setActiveElementEditors(newActiveElementEditors);
-  }, [currentSlide?.id, currentSlide?.elements, parentEditor]);
+  }, [
+    currentSlide?.id,
+    currentSlide?.elements,
+    parentEditor,
+    EMPTY_CONTENT_FOR_NEW_BOXES,
+  ]);
 
-  const handleBoxContentChange = (
-    elementId: string,
-    newEditorState: EditorState,
-  ) => {
-    if (!currentSlide) return;
-    const newElements = currentSlide.elements.map((el) =>
-      el.id === elementId && el.kind === "box"
-        ? {
-            ...el,
-            editorStateJSON: newEditorState.toJSON() as SerializedEditorState,
-            pendingMarkdownContent: undefined,
-            version: (el.version || 0) + 1,
-          }
-        : el,
-    );
-    const newSlides = deckData.slides.map((s) =>
-      s.id === currentSlide.id ? { ...s, elements: newElements } : s,
-    );
-    const newDeckData = { ...deckData, slides: newSlides };
-    setDeckData(newDeckData);
-    onDeckDataChange(newDeckData);
-  };
+  const handleBoxContentChange = useCallback(
+    (elementId: string, editorStateOnBlur: EditorState) => {
+      if (!currentSlide || !serializeEditorStateWithKeys) return;
+
+      const newKeyedStateToStore =
+        serializeEditorStateWithKeys(editorStateOnBlur);
+      if (!newKeyedStateToStore) {
+        console.error(`Failed to serialize box ${elementId} with keys.`);
+        return;
+      }
+
+      // The guard for comparing current stored state with new state can be kept,
+      // though it's less critical if this function is primarily called on blur.
+      const currentElement = currentSlide.elements.find(
+        (el) => el.id === elementId && el.kind === "box",
+      ) as Extract<SlideElementSpec, { kind: "box" }> | undefined;
+
+      if (currentElement?.editorStateJSON) {
+        const currentStoredKeylessRep = transformToLexicalSourcedJSON(
+          currentElement.editorStateJSON,
+        );
+        const newKeylessRep =
+          transformToLexicalSourcedJSON(newKeyedStateToStore);
+
+        if (
+          JSON.stringify(currentStoredKeylessRep) ===
+          JSON.stringify(newKeylessRep)
+        ) {
+          return; // Logical content is the same, bail out
+        }
+      }
+
+      // Ensure new arrays are created when setting deckData
+      const newElements = currentSlide.elements.map(
+        (el) =>
+          el.id === elementId && el.kind === "box"
+            ? {
+                ...el,
+                editorStateJSON: newKeyedStateToStore,
+                version: (el.version || 0) + 1,
+              }
+            : { ...el }, // Create new references for all elements in the current slide
+      );
+      // Create new arrays for slides and elements to ensure React detects changes
+      const newSlides = deckData.slides.map(
+        (s) =>
+          s.id === currentSlide.id
+            ? { ...s, elements: newElements } // Use the newElements array with new object references
+            : { ...s, elements: s.elements ? [...s.elements] : [] }, // New array for other slides' elements too
+      );
+      const newDeckData = { ...deckData, slides: newSlides };
+
+      setDeckData(newDeckData);
+      onDeckDataChange(newDeckData);
+    },
+    [
+      currentSlide,
+      serializeEditorStateWithKeys,
+      deckData,
+      onDeckDataChange,
+      // setDeckData, // Removed as per instructions, setDeckData comes from useState and doesn't need to be in deps
+    ],
+  );
 
   const navigateSlide = (direction: "next" | "prev") => {
     setSelectedElementId(null);
@@ -818,8 +882,6 @@ export default function SlideDeckEditorComponent({
     onDeckDataChange(newDeckData);
   };
 
-  const EMPTY_CONTENT = useEmptyContent();
-
   const handleAddBox = () => {
     if (!currentSlide) {
       alert("Please select or add a slide first!");
@@ -833,7 +895,7 @@ export default function SlideDeckEditorComponent({
       y: 20,
       width: 200,
       height: 100,
-      editorStateJSON: EMPTY_CONTENT as unknown as SerializedEditorState,
+      editorStateJSON: EMPTY_CONTENT_FOR_NEW_BOXES,
       zIndex: getNextZIndex(currentSlide.elements),
     };
 
@@ -1555,8 +1617,8 @@ interface HeadlessEditorConfig {
 function getSlideBoxEditorStateJSON(
   mainEditor: LexicalEditor,
   path: NestedEditorPath,
-): SerializedEditorState {
-  let extractedJson: SerializedEditorState | null = null;
+): KeyedSerializedEditorState | null {
+  let extractedJson: KeyedSerializedEditorState | null = null;
 
   mainEditor.getEditorState().read(() => {
     const slideDeckNode = $getNodeByKey<SlideNode>(path.deckNodeKey);

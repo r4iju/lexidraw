@@ -71,7 +71,7 @@ export const SlideGenerationForm: React.FC = () => {
   );
 
   return (
-    <ScrollArea className="flex-1 w-full">
+    <>
       <form onSubmit={handleSubmit} className="p-3 space-y-4 text-sm">
         <div className="space-y-1">
           <Label htmlFor="topic">Topic</Label>
@@ -178,6 +178,6 @@ export const SlideGenerationForm: React.FC = () => {
           {isLoading ? "Generating Slides..." : "Generate Slides"}
         </Button>
       </form>
-    </ScrollArea>
+    </>
   );
 };

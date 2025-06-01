@@ -13,7 +13,6 @@ import {
   $isNodeSelection,
   $createNodeSelection,
   $setSelection,
-  SerializedEditorState,
 } from "lexical";
 import React, {
   type JSX,
@@ -29,6 +28,8 @@ import { cn } from "~/lib/utils";
 import type { ChartType } from "../ChartNode";
 import { z } from "zod";
 import { MetadataModalProvider } from "./MetadataModalContext";
+import { emptyContent } from "../../initial-content";
+import { KeyedSerializedEditorState } from "../../types";
 
 export type SlideElementSpec =
   | {
@@ -38,7 +39,7 @@ export type SlideElementSpec =
       y: number;
       width: number | "inherit";
       height: number | "inherit";
-      editorStateJSON: SerializedEditorState | null;
+      editorStateJSON: KeyedSerializedEditorState;
       version?: number;
       backgroundColor?: string;
       zIndex: number;
@@ -235,25 +236,7 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
                 y: 50,
                 width: 300,
                 height: 150,
-                editorStateJSON: {
-                  root: {
-                    children: [
-                      {
-                        children: [],
-                        direction: null,
-                        format: "",
-                        indent: 0,
-                        type: "paragraph",
-                        version: 1,
-                      },
-                    ],
-                    direction: null,
-                    format: "",
-                    indent: 0,
-                    type: "root",
-                    version: 1,
-                  },
-                } as unknown as SerializedEditorState,
+                editorStateJSON: emptyContent(),
                 zIndex: 0,
               },
             ],

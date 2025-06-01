@@ -1,15 +1,5 @@
 import type { LexicalEditor } from "lexical";
-
-import { Provider, TOGGLE_CONNECT_COMMAND } from "@lexical/yjs";
-import { COMMAND_PRIORITY_LOW } from "lexical";
 import { useEffect, useState } from "react";
-import {
-  Array as YArray,
-  Map as YMap,
-  Transaction,
-  YArrayEvent,
-  YEvent,
-} from "yjs";
 
 export type Comment = {
   author: string;
@@ -33,17 +23,11 @@ export class CommentStore {
   _editor: LexicalEditor;
   _comments: Comments;
   _changeListeners: Set<() => void>;
-  _collabProvider: null | Provider;
 
   constructor(editor: LexicalEditor) {
     this._comments = [];
     this._editor = editor;
-    this._collabProvider = null;
     this._changeListeners = new Set();
-  }
-
-  isCollaborative(): boolean {
-    return this._collabProvider !== null;
   }
 
   getComments(): Comments {
@@ -56,9 +40,6 @@ export class CommentStore {
     offset?: number,
   ): void {
     const nextComments = Array.from(this._comments);
-    // The YJS types explicitly use `any` as well.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sharedCommentsArray: YArray<any> | null = this._getCollabComments();
 
     if (thread !== undefined && commentOrThread.type === "comment") {
       for (let i = 0; i < nextComments.length; i++) {
@@ -68,27 +49,12 @@ export class CommentStore {
           nextComments.splice(i, 1, newThread);
           const insertOffset =
             offset !== undefined ? offset : newThread.comments.length;
-          if (this.isCollaborative() && sharedCommentsArray !== null) {
-            const parentSharedArray = sharedCommentsArray
-              .get(i)
-              .get("comments");
-            this._withRemoteTransaction(() => {
-              const sharedMap = this._createCollabSharedMap(commentOrThread);
-              parentSharedArray.insert(insertOffset, [sharedMap]);
-            });
-          }
           newThread.comments.splice(insertOffset, 0, commentOrThread);
           break;
         }
       }
     } else {
       const insertOffset = offset !== undefined ? offset : nextComments.length;
-      if (this.isCollaborative() && sharedCommentsArray !== null) {
-        this._withRemoteTransaction(() => {
-          const sharedMap = this._createCollabSharedMap(commentOrThread);
-          sharedCommentsArray.insert(insertOffset, [sharedMap]);
-        });
-      }
       nextComments.splice(insertOffset, 0, commentOrThread);
     }
     this._comments = nextComments;
@@ -100,9 +66,7 @@ export class CommentStore {
     thread?: Thread,
   ): { markedComment: Comment; index: number } | null {
     const nextComments = Array.from(this._comments);
-    // The YJS types explicitly use `any` as well.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sharedCommentsArray: YArray<any> | null = this._getCollabComments();
+
     let commentIndex: number | null = null;
 
     if (thread !== undefined) {
@@ -113,25 +77,12 @@ export class CommentStore {
           nextComments.splice(i, 1, newThread);
           const threadComments = newThread.comments;
           commentIndex = threadComments.indexOf(commentOrThread as Comment);
-          if (this.isCollaborative() && sharedCommentsArray !== null) {
-            const parentSharedArray = sharedCommentsArray
-              .get(i)
-              .get("comments");
-            this._withRemoteTransaction(() => {
-              parentSharedArray.delete(commentIndex);
-            });
-          }
           threadComments.splice(commentIndex, 1);
           break;
         }
       }
     } else {
       commentIndex = nextComments.indexOf(commentOrThread);
-      if (this.isCollaborative() && sharedCommentsArray !== null) {
-        this._withRemoteTransaction(() => {
-          sharedCommentsArray.delete(commentIndex as number);
-        });
-      }
       nextComments.splice(commentIndex, 1);
     }
     this._comments = nextComments;
@@ -155,40 +106,10 @@ export class CommentStore {
     };
   }
 
-  _withRemoteTransaction(fn: () => void): void {
-    const provider = this._collabProvider;
-    if (provider !== null) {
-      // @ts-expect-error doc does exist
-      const doc = provider.doc;
-      doc.transact(fn, this);
-    }
-  }
-
-  _withLocalTransaction(fn: () => void): void {
-    const collabProvider = this._collabProvider;
-    try {
-      this._collabProvider = null;
-      fn();
-    } finally {
-      this._collabProvider = collabProvider;
-    }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _getCollabComments(): null | YArray<any> {
-    const provider = this._collabProvider;
-    if (provider !== null) {
-      // @ts-expect-error doc does exist
-      const doc = provider.doc;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return doc.get("comments", YArray) as YArray<any>;
-    }
-    return null;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _createCollabSharedMap(commentOrThread: Comment | Thread): YMap<any> {
-    const sharedMap = new YMap();
+  _createCollabSharedMap(
+    commentOrThread: Comment | Thread,
+  ): Map<string, unknown> {
+    const sharedMap = new Map();
     const type = commentOrThread.type;
     const id = commentOrThread.id;
     sharedMap.set("type", type);
@@ -200,162 +121,14 @@ export class CommentStore {
       sharedMap.set("timeStamp", commentOrThread.timeStamp);
     } else {
       sharedMap.set("quote", commentOrThread.quote);
-      const commentsArray = new YArray();
-      commentOrThread.comments.forEach((comment, i) => {
+      const commentsArray = new Array<Map<string, unknown>>();
+      commentOrThread.comments.forEach((comment) => {
         const sharedChildComment = this._createCollabSharedMap(comment);
-        commentsArray.insert(i, [sharedChildComment]);
+        commentsArray.push(sharedChildComment);
       });
       sharedMap.set("comments", commentsArray);
     }
     return sharedMap;
-  }
-
-  registerCollaboration(provider: Provider): () => void {
-    this._collabProvider = provider;
-    const sharedCommentsArray = this._getCollabComments();
-
-    const connect = () => {
-      provider.connect();
-    };
-
-    const disconnect = () => {
-      try {
-        provider.disconnect();
-      } catch (_) {
-        return _;
-      }
-    };
-
-    const unsubscribe = this._editor.registerCommand(
-      TOGGLE_CONNECT_COMMAND,
-      (payload) => {
-        if (connect !== undefined && disconnect !== undefined) {
-          const shouldConnect = payload;
-
-          if (shouldConnect) {
-            console.log("Comments connected!");
-            connect();
-          } else {
-            console.log("Comments disconnected!");
-            disconnect();
-          }
-        }
-
-        return false;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
-
-    const onSharedCommentChanges = (
-      // The YJS types explicitly use `any` as well.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      events: YEvent<any>[],
-      transaction: Transaction,
-    ) => {
-      if (transaction.origin !== this) {
-        for (const event of events) {
-          if (event instanceof YArrayEvent) {
-            const target = event.target;
-            const deltas = event.delta;
-            let offset = 0;
-
-            for (const delta of deltas) {
-              const insert = delta.insert;
-              const retain = delta.retain;
-              const del = delta.delete;
-              const parent = target.parent;
-              const parentThread =
-                target === sharedCommentsArray
-                  ? undefined
-                  : parent instanceof YMap &&
-                    (this._comments.find((t) => t.id === parent.get("id")) as
-                      | Thread
-                      | undefined);
-
-              if (Array.isArray(insert)) {
-                insert
-                  .slice()
-                  .reverse()
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  .forEach((map: YMap<any>) => {
-                    const id = map.get("id");
-                    const type = map.get("type");
-
-                    const commentOrThread =
-                      type === "thread"
-                        ? CommentStore.createThread(
-                            map.get("quote"),
-                            map
-                              .get("comments")
-                              .toArray()
-                              .map(
-                                (
-                                  innerComment: Map<
-                                    string,
-                                    string | number | boolean
-                                  >,
-                                ) =>
-                                  CommentStore.createComment(
-                                    innerComment.get("content") as string,
-                                    innerComment.get("author") as string,
-                                    innerComment.get("id") as string,
-                                    innerComment.get("timeStamp") as number,
-                                    innerComment.get("deleted") as boolean,
-                                  ),
-                              ),
-                            id,
-                          )
-                        : CommentStore.createComment(
-                            map.get("content"),
-                            map.get("author"),
-                            id,
-                            map.get("timeStamp"),
-                            map.get("deleted"),
-                          );
-                    this._withLocalTransaction(() => {
-                      this.addComment(
-                        commentOrThread,
-                        parentThread as Thread,
-                        offset,
-                      );
-                    });
-                  });
-              } else if (typeof retain === "number") {
-                offset += retain;
-              } else if (typeof del === "number") {
-                for (let d = 0; d < del; d++) {
-                  const commentOrThread =
-                    parentThread === undefined || parentThread === false
-                      ? this._comments[offset]
-                      : parentThread.comments[offset];
-                  this._withLocalTransaction(() => {
-                    this.deleteCommentOrThread(
-                      commentOrThread as Thread | Comment,
-                      parentThread as Thread,
-                    );
-                  });
-                  offset++;
-                }
-              }
-            }
-          }
-        }
-      }
-    };
-
-    if (sharedCommentsArray === null) {
-      return () => null;
-    }
-
-    sharedCommentsArray.observeDeep(onSharedCommentChanges);
-
-    connect();
-
-    return () => {
-      sharedCommentsArray.unobserveDeep(onSharedCommentChanges);
-      unsubscribe();
-      this._collabProvider = null;
-    };
   }
 
   static createUID(): string {
