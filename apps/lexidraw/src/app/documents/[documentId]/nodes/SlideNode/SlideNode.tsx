@@ -13,6 +13,7 @@ import {
   $isNodeSelection,
   $createNodeSelection,
   $setSelection,
+  SerializedEditorState,
 } from "lexical";
 import React, {
   type JSX,
@@ -29,20 +30,6 @@ import type { ChartType } from "../ChartNode";
 import { z } from "zod";
 import { MetadataModalProvider } from "./MetadataModalContext";
 
-type EditorStateJSONChild = {
-  children?: EditorStateJSONChild[];
-  direction: string | null;
-  format: string;
-  indent: number;
-  type: string;
-  version: number;
-  [key: string]: unknown;
-};
-
-export type EditorStateJSON = {
-  root: EditorStateJSONChild;
-};
-
 export type SlideElementSpec =
   | {
       kind: "box";
@@ -51,7 +38,7 @@ export type SlideElementSpec =
       y: number;
       width: number | "inherit";
       height: number | "inherit";
-      editorStateJSON: EditorStateJSON | null;
+      editorStateJSON: SerializedEditorState | null;
       version?: number;
       backgroundColor?: string;
       zIndex: number;
@@ -139,47 +126,6 @@ export type SlideDeckData = {
   slides: SlideData[];
   currentSlideId: string | null;
   deckMetadata?: DeckStrategicMetadata;
-};
-
-export const DEFAULT_BOX_EDITOR_STATE = {
-  root: {
-    children: [
-      {
-        children: [],
-        direction: null,
-        format: "",
-        indent: 0,
-        type: "paragraph",
-        version: 1,
-      },
-    ],
-    direction: null,
-    format: "",
-    indent: 0,
-    type: "root",
-    version: 1,
-  },
-} satisfies EditorStateJSON;
-
-export const DEFAULT_SLIDE_DECK_DATA: SlideDeckData = {
-  slides: [
-    {
-      id: "default-slide-1",
-      elements: [
-        {
-          kind: "box",
-          id: `box-${Date.now()}`,
-          x: 50,
-          y: 50,
-          width: 300,
-          height: 150,
-          editorStateJSON: DEFAULT_BOX_EDITOR_STATE,
-          zIndex: 0,
-        },
-      ],
-    },
-  ],
-  currentSlideId: "default-slide-1",
 };
 
 export type SerializedSlideDeckNode = Spread<
@@ -275,8 +221,47 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
     return node;
   }
 
-  static $createSlideNode(data: SlideDeckData): SlideNode {
-    return new SlideNode(data);
+  static $createSlideNode(data?: SlideDeckData): SlideNode {
+    return new SlideNode(
+      data ?? {
+        slides: [
+          {
+            id: "default-slide-1",
+            elements: [
+              {
+                kind: "box",
+                id: `box-${Date.now()}`,
+                x: 50,
+                y: 50,
+                width: 300,
+                height: 150,
+                editorStateJSON: {
+                  root: {
+                    children: [
+                      {
+                        children: [],
+                        direction: null,
+                        format: "",
+                        indent: 0,
+                        type: "paragraph",
+                        version: 1,
+                      },
+                    ],
+                    direction: null,
+                    format: "",
+                    indent: 0,
+                    type: "root",
+                    version: 1,
+                  },
+                } as unknown as SerializedEditorState,
+                zIndex: 0,
+              },
+            ],
+          },
+        ],
+        currentSlideId: "default-slide-1",
+      },
+    );
   }
 
   static $isSlideDeckNode(node?: LexicalNode | null): node is SlideNode {

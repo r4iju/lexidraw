@@ -3,7 +3,6 @@ import { RuntimeToolMap, useLLM } from "../../context/llm-context";
 import { useChatDispatch } from "./llm-chat-context";
 import { useRuntimeTools } from "./runtime-tools-provider";
 import {
-  DEFAULT_SLIDE_DECK_DATA,
   type DeckStrategicMetadata,
   type SlideStrategicMetadata,
 } from "../../nodes/SlideNode/SlideNode";
@@ -1380,7 +1379,6 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           const deckCreationResult =
             // @ts-expect-error - tool parameters are typed as `any` for execute
             await runtimeTools.insertSlideDeckNode.execute({
-              initialDataJSON: JSON.stringify(DEFAULT_SLIDE_DECK_DATA),
               relation: "appendRoot",
             });
 

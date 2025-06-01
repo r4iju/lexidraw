@@ -24,6 +24,7 @@ import {
   TextNode,
   RangeSelection,
   LexicalNode,
+  SerializedEditorState,
 } from "lexical";
 import {
   $createCodeNode,
@@ -64,11 +65,9 @@ import { TweetNode } from "../../nodes/TweetNode";
 import { YouTubeNode } from "../../nodes/YouTubeNode";
 import {
   SlideNode,
-  DEFAULT_SLIDE_DECK_DATA,
   SlideDeckData,
   SlideData,
   SlideElementSpec,
-  EditorStateJSON,
   DeckStrategicMetadata,
   SlideStrategicMetadata,
   ThemeSettingsSchema,
@@ -86,6 +85,7 @@ import { ThreadNode } from "../../nodes/ThreadNode";
 import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
 import { MermaidNode } from "../../nodes/MermaidNode";
 import { useEditorRegistry } from "../../context/editors-context";
+import { useEmptyContent } from "../../initial-content";
 
 /* ------------------------------------------------------------------
  * Types & helpers
@@ -2673,7 +2673,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             initialDataJSON?: string;
           };
 
-          let slideData: SlideDeckData;
+          let slideData: SlideDeckData | undefined;
           if (initialDataJSON) {
             try {
               slideData = JSON.parse(initialDataJSON) as SlideDeckData;
@@ -2682,10 +2682,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
                 "[insertSlideDeckNode:inserter] Failed to parse initialDataJSON, using default data.",
                 e,
               );
-              slideData = DEFAULT_SLIDE_DECK_DATA;
             }
-          } else {
-            slideData = DEFAULT_SLIDE_DECK_DATA;
           }
 
           const newSlideDeckNode = SlideNode.$createSlideNode(slideData);
@@ -3539,6 +3536,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   /* --------------------------------------------------------------
    * Add Box to Slide Page Tool
    * --------------------------------------------------------------*/
+  const emptyContent = useEmptyContent();
   const addBoxToSlidePage = tool({
     description:
       "Adds a new box element to a specific slide page within an existing SlideDeckNode. The content for the box should be provided as Markdown.",
@@ -3547,12 +3545,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
       slideId: z
         .string()
         .describe("The ID of the slide page to add the box to."),
-      initialTextContent: z
-        .string()
-        .optional()
-        .describe(
-          "The initial text content for the box. A single paragraph will be created.",
-        ),
       boxId: z
         .string()
         .optional()
@@ -3603,16 +3595,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         editor,
         options,
         (currentData, opts) => {
-          const {
-            slideId,
-            initialTextContent,
-            boxId,
-            x,
-            y,
-            width,
-            height,
-            backgroundColor,
-          } = opts;
+          const { slideId, boxId, x, y, width, height, backgroundColor } = opts;
 
           const targetSlideIndex = currentData.slides.findIndex(
             (s) => s.id === slideId,
@@ -3640,58 +3623,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
           };
 
-          const textForNode = initialTextContent || "";
-          let textNodeStyle = "";
-          const theme = currentData.deckMetadata?.theme;
-
-          if (theme) {
-            const styleObj: Record<string, string> = {};
-            if (theme.fonts?.body) {
-              styleObj["font-family"] = theme.fonts.body;
-            }
-            if (theme.colorPalette?.textBody) {
-              styleObj["color"] = theme.colorPalette.textBody;
-            }
-            if (Object.keys(styleObj).length > 0) {
-              textNodeStyle = reconstructStyleString(styleObj);
-            }
-          }
-
           const newBoxGeneratedId = boxId || `box-${Date.now()}`;
           const initialTextNodeKey = `${newBoxGeneratedId}-text0`; // Conventional key for the text node
 
-          const generatedEditorStateJSON: EditorStateJSON = {
-            root: {
-              type: "root",
-              version: 1,
-              direction: null,
-              format: "",
-              indent: 0,
-              children: [
-                {
-                  type: "paragraph",
-                  version: 1,
-                  direction: null,
-                  format: "",
-                  indent: 0,
-                  children: [
-                    {
-                      type: "text",
-                      version: 1,
-                      text: textForNode,
-                      detail: 0,
-                      format: "0", // Default format for text node
-                      mode: "normal",
-                      style: textNodeStyle, // Apply themed style
-                      direction: null,
-                      indent: 0,
-                      key: initialTextNodeKey, // <<< ASSIGN THE KEY HERE
-                    },
-                  ],
-                },
-              ],
-            },
-          };
+          const generatedEditorStateJSON =
+            emptyContent as unknown as SerializedEditorState;
 
           const newBoxElement: SlideElementSpec = {
             kind: "box",
