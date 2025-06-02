@@ -155,14 +155,14 @@ function PlainTextEditor({
   onEscape,
   onChange,
   editorRef,
-  placeholder = "Type a comment...",
+  placeholder,
 }: {
   className?: string;
   autoFocus?: boolean;
   onEscape: (e: KeyboardEvent) => boolean;
   onChange: (editorState: EditorState, editor: LexicalEditor) => void;
   editorRef?: { current: null | LexicalEditor };
-  placeholder?: string;
+  placeholder: string;
 }) {
   const initialConfig = {
     namespace: "Commenting",
@@ -174,21 +174,28 @@ function PlainTextEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className={cn("relative m-2 rounded-md")}>
+      <div className="relative">
         <PlainTextPlugin
           contentEditable={
-            <ContentEditable placeholder={placeholder} className={className} />
+            <ContentEditable
+              placeholder={placeholder}
+              className={cn(
+                "relative w-full border border-border bg-background rounded-sm p-2",
+                "focus:ring-2 focus:ring-primary",
+                className,
+              )}
+            />
           }
           ErrorBoundary={LexicalErrorBoundary}
         />
-        <OnChangePlugin onChange={onChange} />
-        <HistoryPlugin />
-        {autoFocus && <AutoFocusPlugin />}
-        <EscapeHandlerPlugin onEscape={onEscape} />
-        <ClearEditorPlugin />
-        {/* If you want to keep a ref to the sub-editor: */}
-        {editorRef && <EditorRefPlugin editorRef={editorRef} />}
       </div>
+      <OnChangePlugin onChange={onChange} />
+      <HistoryPlugin />
+      {autoFocus && <AutoFocusPlugin />}
+      <EscapeHandlerPlugin onEscape={onEscape} />
+      <ClearEditorPlugin />
+      {/* If you want to keep a ref to the sub-editor: */}
+      {editorRef && <EditorRefPlugin editorRef={editorRef} />}
     </LexicalComposer>
   );
 }
@@ -352,15 +359,14 @@ export function CommentInputBox({
           border-b-[8px] border-b-muted
         "
       />
-      <PlainTextEditor
-        autoFocus
-        className={cn(
-          "relative block w-full border border-border bg-background rounded-sm text-sm p-2",
-          "focus:outline focus:outline-primary",
-        )}
-        onEscape={onEscape}
-        onChange={onChange}
-      />
+      <div className="p-2">
+        <PlainTextEditor
+          autoFocus
+          onEscape={onEscape}
+          onChange={onChange}
+          placeholder="Type a comment..."
+        />
+      </div>
       <div className="flex gap-2 p-2">
         <Button variant="outline" className="w-full" onClick={cancelAddComment}>
           Cancel
@@ -418,25 +424,26 @@ function CommentsComposer({
   }, []);
 
   return (
-    <>
-      <PlainTextEditor
-        className="block w-full border border-border bg-background rounded-md text-sm p-2"
-        autoFocus={false}
-        onEscape={onEscape}
-        onChange={onChange}
-        editorRef={editorRef}
-        placeholder={placeholder}
-      />
+    <div className="relative flex flex-row py-2 gap-2 w-full items-center">
+      <div className="flex-1 w-full">
+        <PlainTextEditor
+          autoFocus={false}
+          onEscape={onEscape}
+          onChange={onChange}
+          editorRef={editorRef}
+          placeholder={placeholder}
+        />
+      </div>
       <Button
         variant="default"
         size="icon"
-        className="absolute top-2 right-2"
+        className=" top-2 right-2"
         onClick={doSubmit}
         disabled={!canSubmit}
       >
         <Send className="size-4" />
       </Button>
-    </>
+    </div>
   );
 }
 
@@ -621,7 +628,7 @@ function CommentsPanelList({
               {
                 onUpdate() {
                   if (activeElem instanceof HTMLElement) {
-                    activeElem.focus(); // restore focus
+                    activeElem.focus();
                   }
                 },
               },
@@ -713,13 +720,12 @@ function CommentsPanelList({
                       />
                     ))}
                   </ul>
-                  <div className="relative pt-1 pr-2 pb-2">
-                    <CommentsComposer
-                      submitAddComment={submitAddComment}
-                      thread={thread}
-                      placeholder="Reply to thread..."
-                    />
-                  </div>
+
+                  <CommentsComposer
+                    submitAddComment={submitAddComment}
+                    thread={thread}
+                    placeholder="Reply to thread..."
+                  />
                 </div>
               )}
             </li>
