@@ -139,6 +139,7 @@ import {
 import { EditorRegistryProvider } from "./context/editors-context";
 import ChartPlugin from "./plugins/ChartPlugin";
 import { ChartNode } from "./nodes/ChartNode";
+import { ScrollArea } from "~/components/ui/scroll-area";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -432,7 +433,7 @@ function EditorHandler({
                         >
                           {/* toolbar */}
                           <div
-                            className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-zinc-900 shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center"
+                            className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-card shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center"
                             data-component-name="Toolbar"
                           >
                             <OptionsDropdown
@@ -453,9 +454,9 @@ function EditorHandler({
                           </div>
 
                           {/* editor + sidebar container */}
-                          <div className="flex flex-1 overflow-hidden">
+                          <div className="flex flex-1 overflow-hidden bg-background">
                             {/* editor */}
-                            <div className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto">
+                            <ScrollArea className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto bg-muted">
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />
                               <LayoutPlugin />
@@ -534,7 +535,7 @@ function EditorHandler({
                                 </>
                               )}
                               <ContextMenuPlugin />
-                            </div>
+                            </ScrollArea>
 
                             {activeSidebar && (
                               <SidebarWrapper

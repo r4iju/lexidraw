@@ -634,7 +634,7 @@ function CommentsPanelList({
               onClick={handleClickThread}
               className={cn(
                 "p-0 m-0 border-b border-border relative transition-all duration-100 ease-linear",
-                { "ring-1 ring-ring": isThreadActive },
+                { "ring-1 ring-border": isThreadActive },
               )}
             >
               <div className="flex items-center py-2 text-muted-foreground gap-2">
