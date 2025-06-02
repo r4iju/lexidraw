@@ -16,14 +16,14 @@ export default function LexicalContentEditable({
   return (
     <ContentEditable
       className={cn(
-        "border-none font-medium block relative outline-hidden p-2 cursor-text",
+        "relative border-none font-medium outline-hidden p-2 cursor-text",
         className,
       )}
       placeholder={(isEditable: boolean) =>
         isEditable && placeholderText ? (
           <div
             className={cn(
-              "absolute top-2 left-2 text-muted-foreground pointer-events-none",
+              "absolute top-1/2 -translate-y-1/2 left-2 text-muted-foreground pointer-events-none",
               placeholderClassName,
             )}
           >
