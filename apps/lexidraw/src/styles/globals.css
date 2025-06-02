@@ -128,29 +128,43 @@
 }
 
 .dark {
-  --background: oklch(0.1294 0.0273 261.7deg);
-  --foreground: oklch(0.9843 0.0017 247.8deg);
-  --card: oklch(0.1294 0.0273 261.7deg);
-  --card-foreground: oklch(0.9843 0.0017 247.8deg);
-  --popover: oklch(0.1294 0.0273 261.7deg);
-  --popover-foreground: oklch(0.9843 0.0017 247.8deg);
-  --primary: oklch(0.4907 0.2413 292.6deg);
-  --primary-foreground: oklch(0.9843 0.0017 247.8deg);
-  --secondary: oklch(0.2784 0.0296 256.8deg);
-  --secondary-foreground: oklch(0.9843 0.0017 247.8deg);
-  --muted: oklch(0.2784 0.0296 256.8deg);
-  --muted-foreground: oklch(0.7137 0.0192 261.3deg);
-  --accent: oklch(0.2784 0.0296 256.8deg);
-  --accent-foreground: oklch(0.9843 0.0017 247.8deg);
-  --destructive: oklch(0.3959 0.1331 25.7deg);
-  --destructive-foreground: oklch(0.9843 0.0017 247.8deg);
-  --border: oklch(0.2784 0.0296 256.8deg);
-  --input: oklch(0.2784 0.0296 256.8deg);
-  --ring: oklch(0.4907 0.2413 292.6deg);
-  --chart-1: 220 70% 50%;
-  --chart-2: 160 60% 45%;
+  --background: oklch(0.16 0 260deg); /* #121217 */
+  --foreground: oklch(0.88 0 260deg); /* #E0E0E6 */
+
+  --surface-1: oklch(0.21 0 260deg); /* #1C1C22 */
+  --surface-2: oklch(0.27 0 260deg); /* #27272E */
+
+  --card: var(--surface-1);
+  --card-foreground: var(--foreground);
+
+  --popover: var(--surface-1);
+  --popover-foreground: var(--foreground);
+
+  --text-inverted: oklch(0.98 0 260deg); /* #FCFCFF */
+
+  --primary: oklch(0.62 0.17 285deg); /* lavender-violet */
+  --primary-foreground: var(--text-inverted);
+
+  --secondary: oklch(0.37 0.04 240deg); /* subtle indigo */
+  --secondary-foreground: var(--foreground);
+
+  --muted: var(--surface-2);
+  --muted-foreground: oklch(0.68 0 260deg); /* #A3A3AD */
+
+  --accent: var(--primary);
+  --accent-foreground: var(--text-inverted);
+
+  --destructive: oklch(0.55 0.18 27deg); /* warm red-orange */
+  --destructive-foreground: var(--text-inverted);
+
+  --border: oklch(0.33 0.01 260deg); /* #3F3F46 */
+  --input: var(--border);
+  --ring: var(--primary);
+
+  --chart-1: 220 70% 55%;
+  --chart-2: 160 60% 55%;
   --chart-3: 30 80% 55%;
-  --chart-4: 280 65% 60%;
+  --chart-4: 280 65% 55%;
   --chart-5: 340 75% 55%;
 }
 

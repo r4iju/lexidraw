@@ -155,7 +155,7 @@ function usePopstateGuard(
 
       // silly but it works
       router.back();
-      router.back();
+      // router.back();
     };
 
     window.addEventListener("popstate", onPop);
