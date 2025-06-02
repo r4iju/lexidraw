@@ -180,7 +180,7 @@ function PlainTextEditor({
             <ContentEditable
               placeholder={placeholder}
               className={cn(
-                "relative w-full border border-border bg-background rounded-sm p-2",
+                "relative w-full border border-border bg-background rounded-sm p-2 min-h-10 overflow-y-auto",
                 "focus:ring-2 focus:ring-primary",
                 className,
               )}
