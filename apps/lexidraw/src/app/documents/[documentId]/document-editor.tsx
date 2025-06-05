@@ -433,7 +433,7 @@ function EditorHandler({
                         >
                           {/* toolbar */}
                           <div
-                            className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-card shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center"
+                            className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-card shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
                             data-component-name="Toolbar"
                           >
                             <OptionsDropdown
@@ -455,8 +455,8 @@ function EditorHandler({
 
                           {/* editor + sidebar container */}
                           <div className="flex flex-1 overflow-hidden bg-muted">
-                            {/* editor */}
-                            <ScrollArea className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto bg-background">
+                            {/* editor */}1
+                            <div className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto bg-background border-x border-border">
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />
                               <LayoutPlugin />
@@ -535,8 +535,7 @@ function EditorHandler({
                                 </>
                               )}
                               <ContextMenuPlugin />
-                            </ScrollArea>
-
+                            </div>
                             {activeSidebar && (
                               <SidebarWrapper
                                 ref={sidebarRef}
