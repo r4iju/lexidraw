@@ -365,9 +365,18 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
     left: element.x,
     top: element.y,
     width: element.width,
-    height: element.height,
+    ...(element.kind === "box"
+      ? {
+          minHeight: element.height,
+          height: "auto",
+          overflowX: "hidden",
+          overflowY: "hidden",
+        }
+      : {
+          height: element.height,
+          overflow: "hidden",
+        }),
     border: "1px solid #ccc",
-    overflow: "hidden",
     backgroundColor:
       element.kind === "box"
         ? element.backgroundColor || "white"
@@ -943,7 +952,7 @@ export default function SlideDeckEditorComponent({
       x: 30,
       y: 30,
       width: payload.width || 250,
-      height: payload.height || 150,
+      height: payload.height || 50,
       url: payload.src,
       zIndex: getNextZIndex(currentSlide.elements),
     };

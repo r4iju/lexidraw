@@ -2802,14 +2802,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
    * --------------------------------------------------------------*/
   const insertSlideDeckNode = tool({
     description:
-      "Inserts a new SlideDeckNode. SlideDeckNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, initial slide data can be provided as a JSON string.",
+      "Inserts a new SlideDeckNode without any slides. SlideDeckNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
     parameters: z.object({
-      initialDataJSON: z
-        .string()
-        .optional()
-        .describe(
-          "Optional JSON string of SlideDeckData. If not provided, uses default slide deck data.",
-        ),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),
@@ -2819,24 +2813,11 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         "insertSlideDeckNode",
         editor,
         options,
-        (resolution, specificOptions, _currentTargetEditor) => {
-          const { initialDataJSON } = specificOptions as {
-            initialDataJSON?: string;
-          };
-
-          let slideData: SlideDeckData | undefined;
-          if (initialDataJSON) {
-            try {
-              slideData = JSON.parse(initialDataJSON) as SlideDeckData;
-            } catch (e) {
-              console.warn(
-                "[insertSlideDeckNode:inserter] Failed to parse initialDataJSON, using default data.",
-                e,
-              );
-            }
-          }
-
-          const newSlideDeckNode = SlideNode.$createSlideNode(slideData);
+        (resolution, _specificOptions, _currentTargetEditor) => {
+          const newSlideDeckNode = SlideNode.$createSlideNode({
+            slides: [],
+            currentSlideId: null,
+          });
           $insertNodeAtResolvedPoint(resolution, newSlideDeckNode);
 
           return {
@@ -3701,28 +3682,28 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
         .optional()
         .default(50)
         .describe(
-          "Optional X coordinate for the top-left corner of the box. Defaults to 50. The slide itself is 1280px wide.",
+          "Optional X coordinate for the top-left corner of the box in pixels. Defaults to 50. The slide itself is 1280px wide.",
         ),
       y: z
         .number()
         .optional()
         .default(50)
         .describe(
-          "Optional Y coordinate for the top-left corner of the box. Defaults to 50. The slide itself is 720px tall.",
+          "Optional Y coordinate for the top-left corner of the box in pixels. Defaults to 50. The slide itself is 720px tall.",
         ),
       width: z
         .number()
         .optional()
         .default(300)
         .describe(
-          "Optional width of the box. Defaults to 300. The slide itself is 1280px wide.",
+          "Optional width of the box in pixels. Defaults to 300. The slide itself is 1280px wide.",
         ),
       height: z
         .number()
         .optional()
-        .default(150)
+        .default(50)
         .describe(
-          "Optional height of the box. Defaults to 150. The slide itself is 720px tall.",
+          "Optional height of the box in pixels. Defaults to 50. The slide itself is 720px tall.",
         ),
       backgroundColor: z
         .string()
@@ -3779,7 +3760,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
             x: x || 50,
             y: y || 50,
             width: width || 300,
-            height: height || 150,
+            height: height || 50,
             editorStateJSON: generatedEditorStateJSON,
             backgroundColor: backgroundColor || "transparent",
             version: 1,
@@ -3833,6 +3814,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
           width: z.number().optional(),
           height: z.number().optional(),
           backgroundColor: z.string().optional(),
+          zIndex: z.number().optional(),
         })
         .describe(
           "An object containing the properties to update. Only provided properties will be changed.",

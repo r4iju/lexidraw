@@ -235,7 +235,7 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
                 x: 50,
                 y: 50,
                 width: 300,
-                height: 150,
+                height: 50,
                 editorStateJSON: emptyContent(),
                 zIndex: 0,
               },
