@@ -139,7 +139,6 @@ import {
 import { EditorRegistryProvider } from "./context/editors-context";
 import ChartPlugin from "./plugins/ChartPlugin";
 import { ChartNode } from "./nodes/ChartNode";
-import { ScrollArea } from "~/components/ui/scroll-area";
 
 const inter = Inter({
   subsets: ["latin"],
