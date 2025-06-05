@@ -10,6 +10,7 @@ import { NodeKey } from "lexical";
 import { useLexicalTransformation } from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useMarkdownTools } from "../../utils/markdown";
+import env from "@packages/env";
 
 interface AudienceData {
   bigIdea: string;
@@ -33,6 +34,7 @@ interface SlideOutline {
   speakerNotes: string;
   pageId?: string; // pageid set after creation
   styleHint?: string;
+  layoutTemplateHint?: string; // suggested layout for this slide
 }
 
 interface StoryboardData {
@@ -117,7 +119,8 @@ class StepError extends Error {
 }
 
 const MAX_WORKFLOW_RETRIES = 3;
-const MAX_SLIDES_COUNT: number | undefined = undefined; // for testing
+const MAX_SLIDES_COUNT: number | undefined =
+  env.NEXT_PUBLIC_NODE_ENV === "development" ? 2 : undefined; // for testing
 
 export function useSlideCreationWorkflow() {
   const [editor] = useLexicalComposerContext();
@@ -591,18 +594,19 @@ For each slide, you must define:
 1. slideNumber: (integer, starting from 1)
 2. title: (string, concise and engaging)
 3. keyMessage: (string, bullet points summarizing the core message for this slide, can use markdown)
-4. visualIdea: (string, a brief textual description of a potential visual or chart for this slide)
+4. visualIdea: (string, a brief textual description of a potential visual or chart for this slide. If no visual is appropriate, explicitly state "None" or "No visual needed".)
 5. speakerNotes: (string, brief notes for the presenter)
+6. layoutTemplateHint: (string, a suggestion for the slide layout. Choose from a predefined list such as: "title-slide", "standard-text-visual" (text left, visual right), "visual-text" (visual left, text right), "full-width-text", "full-width-visual", "text-overlay-visual", "quote-focus", "chapter-divider", "two-column-equal-text", "three-column-text-icons". Consider the slide's title, key message, and visual idea when choosing. Default to "standard-text-visual" if unsure but content and visual exist.)
 ${errorContext ? `\nImportant Context from Previous Attempt:\n${errorContext}\n` : ""}
 ▶︎ Generate the storyboard as a JSON array of slide objects. Provide this array *only* through the "slides" argument of the "saveStoryboardOutput" tool.
-The "slides" argument MUST be a valid JSON array where each object has "slideNumber", "title", "keyMessage", "visualIdea", and "speakerNotes".
+The "slides" argument MUST be a valid JSON array where each object has "slideNumber", "title", "keyMessage", "visualIdea", "speakerNotes", and "layoutTemplateHint".
 Example for the "slides" argument:
 [
-  { "slideNumber": 1, "title": "Slide 1 Title", "keyMessage": "* Point 1\\n* Point 2", "visualIdea": "Idea 1", "speakerNotes": "Notes 1" },
-  { "slideNumber": 2, "title": "Slide 2 Title", "keyMessage": "Message for slide 2.", "visualIdea": "Idea 2", "speakerNotes": "Notes 2" }
+  { "slideNumber": 1, "title": "Welcome", "keyMessage": "* Big idea introduction", "visualIdea": "Abstract background representing innovation", "speakerNotes": "Welcome everyone...", "layoutTemplateHint": "title-slide" },
+  { "slideNumber": 2, "title": "Key Finding 1", "keyMessage": "* Detail A\n* Detail B", "visualIdea": "Bar chart illustrating growth", "speakerNotes": "As you can see...", "layoutTemplateHint": "standard-text-visual" }
 ]
-Your entire response must be *only* this single tool call. Do not include any other text, explanations, or summaries in your response.
-`;
+Your entire response must be *only* this single tool call.`;
+
       let rawResponseText = "N/A";
 
       if (!runtimeTools.saveStoryboardOutput) {
@@ -664,6 +668,7 @@ Your entire response must be *only* this single tool call. Do not include any ot
                 keyMessage: outline.keyMessage,
                 keyVisualHint: outline.visualIdea,
                 speakerNotes: outline.speakerNotes,
+                layoutTemplateHint: outline.layoutTemplateHint,
               };
               // @ts-expect-error - tool parameters are typed as `any` for execute
               const addPageResult = await runtimeTools.addSlidePage.execute({
@@ -1269,6 +1274,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
   const runStep7_LayoutEngine = useCallback(
     async (args: {
       currentDeckNodeKey: string;
+      storyboardDataParam: StoryboardData | null;
       allSlideContents: SlideContentData[] | null;
       allVisualAssets: VisualAssetData[] | null;
       currentThemeSettings: WorkflowThemeSettings | null;
@@ -1276,6 +1282,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
     }): Promise<void> => {
       const {
         currentDeckNodeKey,
+        storyboardDataParam,
         allSlideContents,
         allVisualAssets,
         currentThemeSettings,
@@ -1330,6 +1337,14 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
 
       let layoutErrors = 0;
 
+      // Helper function for chat dispatch (defined once)
+      const dispatchLayoutAction = (message: string) => {
+        chatDispatch({
+          type: "push",
+          msg: { id: crypto.randomUUID(), role: "assistant", content: message },
+        });
+      };
+
       for (const pageId of pageIds) {
         const slideContentInfo = allSlideContents?.find(
           (sc) => sc.pageId === pageId,
@@ -1339,9 +1354,31 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
             va.pageId === pageId &&
             (va.assetType === "chart" || va.assetType === "image"),
         );
+        const slideStoryboardOutline = storyboardDataParam?.slides.find(
+          (s) => s.pageId === pageId,
+        );
+        const layoutHint =
+          slideStoryboardOutline?.layoutTemplateHint?.toLowerCase();
+
+        const availableWidth = SLIDE_WIDTH - 2 * PADDING;
+        const createdContentBoxKeys: string[] = []; // To be populated by content creation loop
+
+        const visualElementId =
+          visualAssetInfo?.assetType === "chart"
+            ? visualAssetInfo.chartId
+            : visualAssetInfo?.imageId;
+        const visualPresent = visualAssetInfo && visualElementId;
+
+        chatDispatch({
+          type: "push",
+          msg: {
+            id: crypto.randomUUID(),
+            role: "system",
+            content: `LayoutEngine: Applying hint '${layoutHint || "default"}' to slide ${pageId} (Visual: ${visualPresent})`,
+          },
+        });
 
         try {
-          const createdContentBoxKeys: string[] = [];
           let parsedContentBlocks: { type: string; text: string }[] = [];
 
           if (slideContentInfo?.structuredBodyContent) {
@@ -1364,14 +1401,14 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
             }
           }
 
-          let currentY = PADDING;
-          const availableWidth = SLIDE_WIDTH - 2 * PADDING;
+          let currentY = PADDING; // This currentY is for initial box creation, layout helpers will use their own.
+          // const availableWidth = SLIDE_WIDTH - 2 * PADDING; // Defined above loop
 
-          const visualElementId =
-            visualAssetInfo?.assetType === "chart"
-              ? visualAssetInfo.chartId
-              : visualAssetInfo?.imageId;
-          const visualPresent = visualAssetInfo && visualElementId;
+          // const visualElementId = // Defined above try
+          //     visualAssetInfo?.assetType === "chart"
+          //       ? visualAssetInfo.chartId
+          //       : visualAssetInfo?.imageId;
+          // const visualPresent = visualAssetInfo && visualElementId; // Defined above try
 
           for (const block of parsedContentBlocks) {
             if (
@@ -1548,11 +1585,11 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
                     x: PADDING,
                     y: currentY,
                     width: contentWidth,
-                    height: 150,
+                    height: 50,
                   },
                 });
               if (!updateRes.success) layoutErrors++;
-              currentY += 150 + GAP;
+              currentY += 50 + GAP;
             }
 
             if (visualElementId) {
@@ -1592,11 +1629,11 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
                     x: PADDING,
                     y: currentY,
                     width: availableWidth,
-                    height: 150,
+                    height: 50,
                   },
                 });
               if (!updateRes.success) layoutErrors++;
-              currentY += 150 + GAP;
+              currentY += 50 + GAP;
             }
             chatDispatch({
               type: "push",
@@ -1632,6 +1669,359 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
                 content: `Centered visual asset on slide ${pageId}.`,
               },
             });
+          }
+
+          // Helper functions defined inside try, after createdContentBoxKeys is populated and visualPresent is known.
+          async function layoutTextOnlyDefault() {
+            dispatchLayoutAction(
+              `Applying stacked full-width text layout to slide ${pageId}.`,
+            );
+            let localCurrentY = PADDING;
+            for (const boxKey of createdContentBoxKeys) {
+              const updateRes =
+                // @ts-expect-error - tool parameters are typed as `any` for execute
+                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                  deckNodeKey: currentDeckNodeKey,
+                  slideId: pageId,
+                  boxId: boxKey,
+                  properties: {
+                    x: PADDING,
+                    y: localCurrentY,
+                    width: availableWidth,
+                    height: 50,
+                  },
+                });
+              if (!updateRes.success) layoutErrors++;
+              localCurrentY += 50 + GAP;
+            }
+          }
+
+          async function layoutVisualOnlyDefault() {
+            dispatchLayoutAction(
+              `Applying centered visual layout to slide ${pageId}.`,
+            );
+            if (visualPresent && visualElementId && visualAssetInfo) {
+              const visualW = availableWidth * 0.7;
+              const visualH = SLIDE_HEIGHT * 0.7;
+              const updateVisRes =
+                // @ts-expect-error - tool parameters are typed as `any` for execute
+                await runtimeTools.updateSlideElementProperties.execute({
+                  deckNodeKey: currentDeckNodeKey,
+                  slideId: pageId,
+                  elementId: visualElementId,
+                  kind: visualAssetInfo.assetType as "image" | "chart",
+                  properties: {
+                    x: PADDING + (availableWidth - visualW) / 2,
+                    y: (SLIDE_HEIGHT - visualH) / 2,
+                    width: visualW,
+                    height: visualH,
+                  },
+                });
+              if (!updateVisRes.success) layoutErrors++;
+            }
+          }
+
+          async function layoutTextVisualStandard() {
+            // Text left, Visual right
+            dispatchLayoutAction(
+              `Applying text-left, visual-right layout to slide ${pageId}.`,
+            );
+            const contentWidth = (availableWidth - GAP) / 2;
+            const visualX = PADDING + contentWidth + GAP;
+            let localCurrentY = PADDING;
+            for (const boxKey of createdContentBoxKeys) {
+              const updateRes =
+                // @ts-expect-error - tool parameters are typed as `any` for execute
+                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                  deckNodeKey: currentDeckNodeKey,
+                  slideId: pageId,
+                  boxId: boxKey,
+                  properties: {
+                    x: PADDING,
+                    y: localCurrentY,
+                    width: contentWidth,
+                    height: 50,
+                  },
+                });
+              if (!updateRes.success) layoutErrors++;
+              localCurrentY += 50 + GAP;
+            }
+            if (visualPresent && visualElementId && visualAssetInfo) {
+              const updateVisRes =
+                // @ts-expect-error - tool parameters are typed as `any` for execute
+                await runtimeTools.updateSlideElementProperties.execute({
+                  deckNodeKey: currentDeckNodeKey,
+                  slideId: pageId,
+                  elementId: visualElementId,
+                  kind: visualAssetInfo.assetType as "image" | "chart",
+                  properties: {
+                    x: visualX,
+                    y: PADDING,
+                    width: contentWidth,
+                    height: SLIDE_HEIGHT - 2 * PADDING,
+                  },
+                });
+              if (!updateVisRes.success) layoutErrors++;
+            }
+          }
+
+          async function layoutVisualTextStandard() {
+            // Visual left, Text right
+            dispatchLayoutAction(
+              `Applying visual-left, text-right layout to slide ${pageId}.`,
+            );
+            const visualWidth = (availableWidth - GAP) / 2;
+            const contentWidth = visualWidth;
+            const contentX = PADDING + visualWidth + GAP;
+            if (visualPresent && visualElementId && visualAssetInfo) {
+              const updateVisRes =
+                // @ts-expect-error - tool parameters are typed as `any` for execute
+                await runtimeTools.updateSlideElementProperties.execute({
+                  deckNodeKey: currentDeckNodeKey,
+                  slideId: pageId,
+                  elementId: visualElementId,
+                  kind: visualAssetInfo.assetType as "image" | "chart",
+                  properties: {
+                    x: PADDING,
+                    y: PADDING,
+                    width: visualWidth,
+                    height: SLIDE_HEIGHT - 2 * PADDING,
+                  },
+                });
+              if (!updateVisRes.success) layoutErrors++;
+            }
+            let localCurrentY = PADDING;
+            for (const boxKey of createdContentBoxKeys) {
+              const updateRes =
+                // @ts-expect-error - tool parameters are typed as `any` for execute
+                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                  deckNodeKey: currentDeckNodeKey,
+                  slideId: pageId,
+                  boxId: boxKey,
+                  properties: {
+                    x: contentX,
+                    y: localCurrentY,
+                    width: contentWidth,
+                    height: 50,
+                  },
+                });
+              if (!updateRes.success) layoutErrors++;
+              localCurrentY += 50 + GAP;
+            }
+          }
+
+          // Main layout decision logic
+          switch (layoutHint) {
+            case "title-slide":
+              dispatchLayoutAction(`Applying title layout to slide ${pageId}.`);
+              if (createdContentBoxKeys.length > 0) {
+                const titleBoxKey = createdContentBoxKeys[0];
+                const titleUpdateRes =
+                  // @ts-expect-error - tool parameters are typed as `any` for execute
+                  await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                    deckNodeKey: currentDeckNodeKey,
+                    slideId: pageId,
+                    boxId: titleBoxKey,
+                    properties: {
+                      x: PADDING,
+                      y: SLIDE_HEIGHT / 3,
+                      width: availableWidth,
+                      height: 100,
+                    },
+                  });
+                if (!titleUpdateRes.success) layoutErrors++;
+                if (createdContentBoxKeys.length > 1) {
+                  const subtitleBoxKey = createdContentBoxKeys[1];
+                  const subtitleUpdateRes =
+                    // @ts-expect-error - tool parameters are typed as `any` for execute
+                    await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                      deckNodeKey: currentDeckNodeKey,
+                      slideId: pageId,
+                      boxId: subtitleBoxKey,
+                      properties: {
+                        x: PADDING,
+                        y: SLIDE_HEIGHT / 3 + 100 + GAP,
+                        width: availableWidth,
+                        height: 50,
+                      },
+                    });
+                  if (!subtitleUpdateRes.success) layoutErrors++;
+                }
+              }
+              if (visualPresent && visualElementId && visualAssetInfo) {
+                // Optional: full-slide background image
+                const visUpdateRes =
+                  // @ts-expect-error - tool parameters are typed as `any` for execute
+                  await runtimeTools.updateSlideElementProperties.execute({
+                    deckNodeKey: currentDeckNodeKey,
+                    slideId: pageId,
+                    elementId: visualElementId,
+                    kind: visualAssetInfo.assetType as "image" | "chart",
+                    properties: {
+                      x: 0,
+                      y: 0,
+                      width: SLIDE_WIDTH,
+                      height: SLIDE_HEIGHT,
+                      zIndex: -1,
+                    },
+                  });
+                if (!visUpdateRes.success) layoutErrors++;
+              }
+              break;
+
+            case "standard-text-visual": // text left, visual right
+              if (createdContentBoxKeys.length > 0 && visualPresent) {
+                await layoutTextVisualStandard();
+              } else if (createdContentBoxKeys.length > 0) {
+                await layoutTextOnlyDefault();
+              } else if (visualPresent) {
+                await layoutVisualOnlyDefault();
+              }
+              break;
+
+            case "visual-text": // visual left, text right
+              if (createdContentBoxKeys.length > 0 && visualPresent) {
+                await layoutVisualTextStandard();
+              } else if (createdContentBoxKeys.length > 0) {
+                await layoutTextOnlyDefault();
+              } else if (visualPresent) {
+                await layoutVisualOnlyDefault();
+              }
+              break;
+
+            case "full-width-text":
+              if (createdContentBoxKeys.length > 0) {
+                await layoutTextOnlyDefault();
+              }
+              break;
+
+            case "full-width-visual":
+              if (visualPresent && visualElementId && visualAssetInfo) {
+                dispatchLayoutAction(
+                  `Applying full-width visual layout to slide ${pageId}.`,
+                );
+                const visUpdateRes =
+                  // @ts-expect-error - tool parameters are typed as `any` for execute
+                  await runtimeTools.updateSlideElementProperties.execute({
+                    deckNodeKey: currentDeckNodeKey,
+                    slideId: pageId,
+                    elementId: visualElementId,
+                    kind: visualAssetInfo.assetType as "image" | "chart",
+                    properties: {
+                      x: PADDING,
+                      y: PADDING,
+                      width: availableWidth,
+                      height: SLIDE_HEIGHT - 2 * PADDING,
+                    },
+                  });
+                if (!visUpdateRes.success) layoutErrors++;
+              } else if (createdContentBoxKeys.length > 0) {
+                await layoutTextOnlyDefault();
+              }
+              break;
+
+            case "text-overlay-visual":
+              dispatchLayoutAction(
+                `Applying text-overlay-visual layout to slide ${pageId}.`,
+              );
+              if (visualPresent && visualElementId && visualAssetInfo) {
+                const visUpdateRes =
+                  // @ts-expect-error - tool parameters are typed as `any` for execute
+                  await runtimeTools.updateSlideElementProperties.execute({
+                    deckNodeKey: currentDeckNodeKey,
+                    slideId: pageId,
+                    elementId: visualElementId,
+                    kind: visualAssetInfo.assetType as "image" | "chart",
+                    properties: {
+                      x: 0,
+                      y: 0,
+                      width: SLIDE_WIDTH,
+                      height: SLIDE_HEIGHT,
+                      zIndex: 0,
+                    },
+                  });
+                if (!visUpdateRes.success) layoutErrors++;
+              }
+              if (createdContentBoxKeys.length > 0) {
+                let localCurrentY = SLIDE_HEIGHT / 3;
+                for (const boxKey of createdContentBoxKeys) {
+                  const boxUpdateRes =
+                    // @ts-expect-error - tool parameters are typed as `any` for execute
+                    await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                      deckNodeKey: currentDeckNodeKey,
+                      slideId: pageId,
+                      boxId: boxKey,
+                      properties: {
+                        x: PADDING * 2,
+                        y: localCurrentY,
+                        width: SLIDE_WIDTH - 4 * PADDING,
+                        height: 70,
+                        zIndex: 1,
+                      },
+                    });
+                  if (!boxUpdateRes.success) layoutErrors++;
+                  localCurrentY += 70 + GAP;
+                }
+              }
+              break;
+
+            case "quote-focus":
+              dispatchLayoutAction(`Applying quote layout to slide ${pageId}.`);
+              if (createdContentBoxKeys.length > 0) {
+                const quoteBoxKey = createdContentBoxKeys[0];
+                const quoteUpdateRes =
+                  // @ts-expect-error - tool parameters are typed as `any` for execute
+                  await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                    deckNodeKey: currentDeckNodeKey,
+                    slideId: pageId,
+                    boxId: quoteBoxKey,
+                    properties: {
+                      x: PADDING * 2,
+                      y: SLIDE_HEIGHT / 3,
+                      width: SLIDE_WIDTH - 4 * PADDING,
+                      height: 150,
+                    },
+                  });
+                if (!quoteUpdateRes.success) layoutErrors++;
+                if (createdContentBoxKeys.length > 1) {
+                  const attrBoxKey = createdContentBoxKeys[1];
+                  const attrUpdateRes =
+                    // @ts-expect-error - tool parameters are typed as `any` for execute
+                    await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                      deckNodeKey: currentDeckNodeKey,
+                      slideId: pageId,
+                      boxId: attrBoxKey,
+                      properties: {
+                        x: PADDING * 2,
+                        y: SLIDE_HEIGHT / 3 + 150 + GAP,
+                        width: SLIDE_WIDTH - 4 * PADDING,
+                        height: 50,
+                        textAlign: "right",
+                      },
+                    });
+                  if (!attrUpdateRes.success) layoutErrors++;
+                }
+              }
+              break;
+
+            // TODO: Add more cases: "chapter-divider", "two-column-equal-text", "three-column-text-icons", etc.
+
+            default:
+              dispatchLayoutAction(
+                `Applying default layout (text-left, visual-right or fallback) to slide ${pageId}.`,
+              );
+              if (createdContentBoxKeys.length > 0 && visualPresent) {
+                await layoutTextVisualStandard();
+              } else if (createdContentBoxKeys.length > 0) {
+                await layoutTextOnlyDefault();
+              } else if (visualPresent) {
+                await layoutVisualOnlyDefault();
+              } else {
+                dispatchLayoutAction(
+                  `Slide ${pageId} is empty, no layout applied.`,
+                );
+              }
+              break;
           }
         } catch (e) {
           layoutErrors++;
@@ -1969,6 +2359,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
 
         await executeStepWithRetries(runStep7_LayoutEngine, "LayoutEngine", {
           currentDeckNodeKey: resolvedDeckNodeKey,
+          storyboardDataParam: step3Result,
           allSlideContents: step4Result,
           allVisualAssets: visualAssetsDataResult,
           currentThemeSettings: currentThemeSettings,

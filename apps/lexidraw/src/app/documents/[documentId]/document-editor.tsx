@@ -454,7 +454,7 @@ function EditorHandler({
 
                           {/* editor + sidebar container */}
                           <div className="flex flex-1 overflow-hidden bg-muted">
-                            {/* editor */}1
+                            {/* editor */}
                             <div className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto bg-background border-x border-border">
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />

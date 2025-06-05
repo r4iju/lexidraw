@@ -250,7 +250,7 @@ export default function DynamicChartRenderer({
   return (
     <ChartContainer
       config={chartConfig}
-      className="min-h-[150px] w-full" // min-h is important for responsiveness
+      className="min-h-[50px] w-full" // min-h is important for responsiveness
       style={{
         // width: typeof _width === "number" ? `${_width}px` : "100%", // handled by parent or resizer
         height:
