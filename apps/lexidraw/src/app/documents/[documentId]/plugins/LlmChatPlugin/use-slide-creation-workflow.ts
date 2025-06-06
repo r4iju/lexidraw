@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { RuntimeToolMap, useLLM } from "../../context/llm-context";
 import { useChatDispatch } from "./llm-chat-context";
 import { useRuntimeTools } from "./runtime-tools-provider";
@@ -11,6 +11,9 @@ import { useLexicalTransformation } from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useMarkdownTools } from "../../utils/markdown";
 import env from "@packages/env";
+import { tool } from "ai";
+import { z } from "zod";
+import { ChartConfigSchema, ChartDataSchema } from "~/lib/schemas";
 
 interface AudienceData {
   bigIdea: string;
@@ -29,21 +32,20 @@ interface ResearchData {
 interface SlideOutline {
   slideNumber: number;
   title: string;
-  keyMessage: string; // markdown bullets ok
+  keyMessage: string;
   visualIdea: string;
   speakerNotes: string;
-  pageId?: string; // pageid set after creation
+  pageId?: string;
   styleHint?: string;
-  layoutTemplateHint?: string; // suggested layout for this slide
+  layoutTemplateHint?: string;
 }
 
 interface StoryboardData {
-  slides: SlideOutline[]; // pageid added later
+  slides: SlideOutline[];
 }
 
-// data structure for slide writer content
 interface SlideContentData {
-  pageId: string; // slide page ref
+  pageId: string;
   structuredBodyContent: { type: string; text: string }[];
   refinedSpeakerNotes: string;
 }
@@ -54,11 +56,10 @@ interface SlideGenerationParams {
   who: string;
   outcome: string;
   timebox: string;
-  files?: File[]; // optional research files
+  files?: File[];
   existingDeckNodeKey?: string;
 }
 
-// theme settings, mirrors slidenode.themesettings
 interface WorkflowThemeSettings {
   templateName?: string;
   colorPalette?: {
@@ -75,35 +76,32 @@ interface WorkflowThemeSettings {
     caption?: string;
   };
   logoUrl?: string;
-  customTokens?: string; // string, maybe json
+  customTokens?: string;
 }
 
-// media/visuals from mediagenerator (step 6)
 interface VisualAssetData {
   pageId: string;
-  assetType: "image" | "chart" | "none"; // "none" if visual idea not actionable/error
-  visualIdea: string; // original visual idea
-  imagePrompt?: string; // for images
-  imageUrl?: string; // placeholder, url later
-  imageId?: string; // image node key if created
-  chartId?: string; // chart nodekey
-  chartType?: string; // e.g. bar, line, pie
+  assetType: "image" | "chart" | "none";
+  visualIdea: string;
+  imagePrompt?: string;
+  imageUrl?: string;
+  imageId?: string;
+  chartId?: string;
+  chartType?: string;
   styleHint?: string;
-  error?: string; // asset-specific error
+  error?: string;
 }
 
-// for addcharttoslidepage tool results
 interface ToolExecutionResultForMedia {
   success: boolean;
   content?: {
     summary: string;
-    newNodeKey?: string; // crucial for identifying the new node
+    newNodeKey?: string;
     updatedEditorStateJson?: string;
   };
   error?: string;
 }
 
-// custom error for step failures
 class StepError extends Error {
   public rawResponseText?: string;
   public stepName: string;
@@ -113,14 +111,98 @@ class StepError extends Error {
     this.name = "StepError";
     this.stepName = stepName;
     this.rawResponseText = rawResponseText;
-    // Set the prototype explicitly.
     Object.setPrototypeOf(this, StepError.prototype);
   }
 }
 
 const MAX_WORKFLOW_RETRIES = 3;
 const MAX_SLIDES_COUNT: number | undefined =
-  env.NEXT_PUBLIC_NODE_ENV === "development" ? 2 : undefined; // for testing
+  env.NEXT_PUBLIC_NODE_ENV === "development" ? 2 : undefined;
+
+const AudienceDataSchema = z.object({
+  bigIdea: z
+    .string()
+    .describe("The single, concise big idea for the presentation."),
+  persona: z.string().describe("A summary of the target audience persona."),
+  slideCount: z
+    .number()
+    .int()
+    .positive()
+    .describe("The recommended number of slides."),
+  tone: z
+    .string()
+    .describe(
+      "The recommended tone for the presentation (e.g., Professional and engaging).",
+    ),
+});
+
+const saveAudienceDataTool = tool({
+  description:
+    "Saves the audience plan data including big idea, persona, slide count, and tone.",
+  parameters: AudienceDataSchema,
+  execute: async (args: z.infer<typeof AudienceDataSchema>) => {
+    return { success: true, audienceData: args };
+  },
+});
+
+const LayoutRefinementTextBoxInstructionSchema = z.object({
+  originalBlockIndex: z
+    .number()
+    .describe(
+      "The original 0-based index of the text block this instruction applies to.",
+    ),
+  x: z
+    .number()
+    .describe("The x-coordinate of the top-left corner of the text box."),
+  y: z
+    .number()
+    .describe("The y-coordinate of the top-left corner of the text box."),
+  width: z.number().describe("The width of the text box."),
+  height: z.number().describe("The height of the text box."),
+  textAlign: z
+    .enum(["left", "center", "right"])
+    .optional()
+    .describe("The text alignment within the box."),
+});
+
+const LayoutRefinementVisualAssetInstructionSchema = z.object({
+  x: z
+    .number()
+    .describe("The x-coordinate of the top-left corner of the visual asset."),
+  y: z
+    .number()
+    .describe("The y-coordinate of the top-left corner of the visual asset."),
+  width: z.number().describe("The width of the visual asset."),
+  height: z.number().describe("The height of the visual asset."),
+  zIndex: z
+    .number()
+    .optional()
+    .describe("The stacking order of the visual asset."),
+});
+
+const LayoutRefinementToolArgsSchema = z.object({
+  textBoxes: z
+    .array(LayoutRefinementTextBoxInstructionSchema)
+    .describe("An array of layout instructions for each text box."),
+  visualAssetPlacement:
+    LayoutRefinementVisualAssetInstructionSchema.nullable().describe(
+      "Layout instructions for the visual asset, or null if no visual is present or to be placed.",
+    ),
+});
+type LayoutRefinementToolArgs = z.infer<typeof LayoutRefinementToolArgsSchema>;
+
+const applyLayoutRefinementTool = tool({
+  description:
+    "Applies a precise layout (position and dimensions) to text boxes and visual assets on a slide, based on provided instructions.",
+  parameters: LayoutRefinementToolArgsSchema,
+  execute: async (args: z.infer<typeof LayoutRefinementToolArgsSchema>) => {
+    return {
+      success: true,
+      layoutArgs: args,
+      message: "Layout refinement arguments received and validated.",
+    };
+  },
+});
 
 export function useSlideCreationWorkflow() {
   const [editor] = useLexicalComposerContext();
@@ -130,10 +212,8 @@ export function useSlideCreationWorkflow() {
   const { getSlideBoxKeyedState } = useLexicalTransformation();
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
-  // global retry budget for workflow
   const workflowRetryBudgetRef = useRef(MAX_WORKFLOW_RETRIES);
 
-  // workflow data states
   const [deckNodeKey, setDeckNodeKey] = useState<string | null>(null);
   const [audienceData, setAudienceData] = useState<AudienceData | null>(null);
   const [researchData, setResearchData] = useState<ResearchData | null>(null);
@@ -144,11 +224,76 @@ export function useSlideCreationWorkflow() {
     null,
   );
   const [themeSettings, setThemeSettings] =
-    useState<WorkflowThemeSettings | null>(null); // step 5 output
+    useState<WorkflowThemeSettings | null>(null);
   const [visualAssetsData, setVisualAssetsData] = useState<
     VisualAssetData[] | null
-  >(null); // step 6 output
+  >(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const addChartToSlidePageWithStructuredDataTool = useMemo(() => {
+    if (!runtimeTools.addChartToSlidePage) {
+      return null;
+    }
+    return tool({
+      description:
+        "Adds a chart to a slide page using structured data for chartData and chartConfig.",
+      parameters: z.object({
+        deckNodeKey: z.string().describe("The node key of the current deck."),
+        slideId: z
+          .string()
+          .describe("The ID of the slide to add the chart to."),
+        chartType: z
+          .string()
+          .describe("The type of chart (e.g., bar, line, pie)."),
+        chartData: ChartDataSchema,
+        chartConfig: ChartConfigSchema,
+        x: z
+          .number()
+          .optional()
+          .describe("Optional X coordinate for the chart."),
+        y: z
+          .number()
+          .optional()
+          .describe("Optional Y coordinate for the chart."),
+        width: z.number().optional().describe("Optional width for the chart."),
+        height: z
+          .number()
+          .optional()
+          .describe("Optional height for the chart."),
+      }),
+      execute: async (args) => {
+        try {
+          const chartDataJSON = JSON.stringify(args.chartData);
+          const chartConfigJSON = JSON.stringify(args.chartConfig);
+
+          const result =
+            await // @ts-expect-error - runtimeTools.addChartToSlidePage is not typed
+            runtimeTools.addChartToSlidePage.execute({
+              deckNodeKey: args.deckNodeKey,
+              slideId: args.slideId,
+              chartType: args.chartType,
+              chartDataJSON,
+              chartConfigJSON,
+              x: args.x,
+              y: args.y,
+              width: args.width,
+              height: args.height,
+            });
+          return result as ToolExecutionResultForMedia;
+        } catch (e) {
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          console.error(
+            "Error executing addChartToSlidePageWithStructuredDataTool:",
+            errorMsg,
+          );
+          return {
+            success: false,
+            error: `Failed to execute underlying chart tool: ${errorMsg}`,
+          };
+        }
+      },
+    });
+  }, [runtimeTools.addChartToSlidePage]);
 
   const executeStepWithRetries = useCallback(
     async <ArgType extends { errorContext?: string }, ReturnValue>(
@@ -171,7 +316,7 @@ export function useSlideCreationWorkflow() {
             msg: {
               id: crypto.randomUUID(),
               role: "system",
-              content: `Executing step: ${stepName}${currentErrorContext ? ` (with error context from previous attempt)` : ""}. Retries remaining: ${workflowRetryBudgetRef.current}`,
+              content: `Executing step: ${stepName}${currentErrorContext ? " (with error context from previous attempt)" : ""}. Retries remaining: ${workflowRetryBudgetRef.current}`,
             },
           });
 
@@ -208,7 +353,7 @@ export function useSlideCreationWorkflow() {
                 content: `Step ${stepName} failed after ${MAX_WORKFLOW_RETRIES} attempts. No retries left. Workflow will halt. Final error: ${lastError.message}`,
               },
             });
-            throw lastError; // Rethrow the last error if no retries are left
+            throw lastError;
           }
         }
       }
@@ -247,6 +392,7 @@ export function useSlideCreationWorkflow() {
           content: `Starting Step 1: ${stepName}...${errorContext ? " (Retrying with error context)" : ""}`,
         },
       });
+
       const prompt = `You are the *Audience Planner*.
 Topic: "${topic}"
 Audience: ${who}
@@ -254,84 +400,67 @@ Outcome: ${outcome}
 Time-box: ${timebox}
 ${
   currentDocumentMarkdown
-    ? `
-
-The user has provided the following document as context:
-${currentDocumentMarkdown}
-`
+    ? `\nThe user has provided the following document as context:\\n${currentDocumentMarkdown}\\n`
     : ""
 }
 ${
   errorContext
-    ? `
-Important Context from Previous Attempt:
-${errorContext}
-`
+    ? `\nImportant Context from Previous Attempt:\\n${errorContext}\\n`
     : ""
 }
-▶︎ Provide your response as a JSON object with the keys "bigIdea", "persona", "slideCount" (number), and "tone". Example: {"bigIdea": "Your concise big idea", "persona": "Summary of the audience persona", "slideCount": 10, "tone": "Professional and engaging"}`;
+▶︎ Call the "saveAudienceDataTool" with the following arguments derived from your analysis:
+- "bigIdea": Your concise big idea for the presentation.
+- "persona": A summary of the audience persona.
+- "slideCount": A recommended number of slides (integer).
+- "tone": The recommended tone for the presentation (e.g., "Professional and engaging").
+
+  Your entire response must be a single call to the "saveAudienceDataTool" tool.`;
 
       let rawResponseText = "N/A";
       try {
         const response = await generateChatResponse({
           prompt,
-        });
-
-        if (!response.text) {
-          rawResponseText = "LLM did not return text.";
-          throw new StepError(rawResponseText, stepName, rawResponseText);
-        }
-        rawResponseText = response.text;
-
-        const cleanedJsonText = response.text
-          .replace(/^\s*```json\n?|\n?```\s*$/g, "")
-          .trim();
-
-        let parsedData: AudienceData;
-        try {
-          parsedData = JSON.parse(cleanedJsonText) as AudienceData;
-        } catch (jsonError) {
-          const parseErrorMsg =
-            jsonError instanceof Error ? jsonError.message : String(jsonError);
-          throw new StepError(
-            `Failed to parse JSON output from ${stepName}: ${parseErrorMsg}`,
-            stepName,
-            rawResponseText,
-          );
-        }
-
-        if (
-          !parsedData.bigIdea ||
-          !parsedData.persona ||
-          typeof parsedData.slideCount !== "number" ||
-          !parsedData.tone
-        ) {
-          throw new StepError(
-            `${stepName} output is missing required fields or has incorrect types.`,
-            stepName,
-            rawResponseText,
-          );
-        }
-
-        setAudienceData(parsedData);
-        chatDispatch({
-          type: "push",
-          msg: {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: `Step 1 Complete: Audience Plan
-Big Idea: ${parsedData.bigIdea}
-Persona: ${parsedData.persona}
-Slide Count: ${parsedData.slideCount}
-Tone: ${parsedData.tone}`,
+          tools: {
+            // @ts-expect-error - saveAudienceDataTool is not typed
+            saveAudienceDataTool,
           },
         });
-        return parsedData;
-      } catch (error) {
-        // If it's already a StepError, rethrow it to be caught by executeStepWithRetries
-        if (error instanceof StepError) throw error;
 
-        // Otherwise, wrap it in a StepError
+        if (
+          response.toolCalls &&
+          response.toolCalls[0]?.toolName === "saveAudienceDataTool"
+        ) {
+          const parsedDataFromTool = response.toolCalls[0].args as z.infer<
+            typeof AudienceDataSchema
+          >;
+
+          const finalAudienceData: AudienceData = {
+            ...parsedDataFromTool,
+            timebox,
+          };
+
+          setAudienceData(finalAudienceData);
+          chatDispatch({
+            type: "push",
+            msg: {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: `Step 1 Complete: Audience Plan
+Big Idea: \${finalAudienceData.bigIdea}
+Persona: \${finalAudienceData.persona}
+Slide Count: \${finalAudienceData.slideCount}
+Tone: \${finalAudienceData.tone}`,
+            },
+          });
+          return finalAudienceData;
+        } else {
+          rawResponseText =
+            response.text ||
+            `LLM called an unexpected tool or no tool. Expected 'saveAudienceDataTool'. Got: ${response.toolCalls?.[0]?.toolName || "none"}`;
+          throw new StepError(rawResponseText, stepName, rawResponseText);
+        }
+      } catch (error) {
+        if (error instanceof StepError) throw error;
         const errorMsg = error instanceof Error ? error.message : String(error);
         throw new StepError(
           `Error in ${stepName}: ${errorMsg}`,
@@ -364,7 +493,6 @@ Tone: ${parsedData.tone}`,
         !runtimeTools.saveThemeStyleSuggestions ||
         !runtimeTools.setDeckMetadata
       ) {
-        // This is a setup error, not an LLM/retryable error usually.
         throw new Error(
           "Required tools (saveThemeStyleSuggestions, setDeckMetadata) are not available for Style Stylist.",
         );
@@ -376,7 +504,7 @@ Tone: ${parsedData.tone}`,
 
       const prompt = `You are an expert Brand & Style Specialist.
 ${userObjectiveInfo}
-${errorContext ? `\nImportant Context from Previous Attempt:\n${errorContext}\n` : ""}
+${errorContext ? `\n\nImportant Context from Previous Attempt:\n\n${errorContext}\n\n` : ""}
 Suggest a comprehensive visual theme for this presentation. Your suggestions should include:
 1.  A "templateName" or general style description (e.g., 'Modern Minimalist', 'Tech Professional', 'Vibrant Startup').
 2.  A "colorPalette" with hex codes for: 'primary', 'secondary', 'accent', 'slideBackground', 'textHeader', 'textBody'.
@@ -384,8 +512,8 @@ Suggest a comprehensive visual theme for this presentation. Your suggestions sho
 4.  Optionally, a "logoUrl" if you think a placeholder logo would be appropriate (use a generic placeholder URL if so).
 5.  Optionally, any "customTokens" as a JSON string for further theme refinements (e.g., specific border styles, shadow effects). Example: '{"cardBorderRadius": "8px"}'.
 
-Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing these details as arguments. Ensure all color codes are valid hex (e.g., #RRGGBB).`;
-      let rawResponseText = "N/A"; // For error reporting
+  Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing these details as arguments. Ensure all color codes are valid hex (e.g., #RRGGBB).`;
+      let rawResponseText = "N/A";
 
       try {
         const response = await generateChatResponse({
@@ -398,13 +526,12 @@ Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing 
 
         if (
           response.toolCalls &&
-          response.toolCalls.length > 0 &&
           response.toolCalls[0]?.toolName === "saveThemeStyleSuggestions"
         ) {
           const suggestedTheme = response.toolCalls[0]
             .args as WorkflowThemeSettings;
 
-          setThemeSettings(suggestedTheme); // UI update
+          setThemeSettings(suggestedTheme);
 
           chatDispatch({
             type: "push",
@@ -415,7 +542,7 @@ Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing 
             },
           });
 
-          // @ts-expect-error - tool parameters are typed as `any` for execute
+          // @ts-expect-error - setDeckMetadata is not typed
           const setMetadataResult = await runtimeTools.setDeckMetadata.execute({
             deckNodeKey: currentDeckNodeKey,
             deckMetadata: { theme: suggestedTheme },
@@ -432,9 +559,6 @@ Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing 
                 content: `Warning: Could not set deck theme metadata. ${setMetadataResult.error || "Unknown error"}`,
               },
             });
-            // This might be considered a non-fatal warning for the step itself,
-            // but it is important. For now, we let the step succeed but log a warning.
-            // Depending on strictness, one might throw new StepError here.
           }
 
           chatDispatch({
@@ -442,7 +566,7 @@ Your response MUST be a call to the "saveThemeStyleSuggestions" tool, providing 
             msg: {
               id: crypto.randomUUID(),
               role: "assistant",
-              content: `Step 2 Complete: Style Stylist suggested theme: ${suggestedTheme.templateName || "Custom Theme"}. Color Palette: ${JSON.stringify(suggestedTheme.colorPalette)}. Fonts: ${JSON.stringify(suggestedTheme.fonts)}. Deck metadata updated.`,
+              content: `Step 2 Complete: Style Stylist suggested theme: ${suggestedTheme.templateName || "Custom Theme"}.`,
             },
           });
           return suggestedTheme;
@@ -502,14 +626,13 @@ This document can be referenced as "the provided document context".
 
       const filesInfo =
         files && files.length > 0
-          ? `The following files have also been provided: ${files.map((f) => f.name).join(", ")}.
-`
+          ? `The following files have also been provided: ${files.map((f) => f.name).join(", ")}.`
           : "No additional files were provided.";
 
       const prompt = `You are the *Research Agent*.
 Your task is to extract and synthesize key information to support the creation of a presentation.
-The presentation's Big Idea: '${audienceDataParam.bigIdea}'
-Target Audience Persona: '${audienceDataParam.persona}'
+The presentation's Big Idea: "${audienceDataParam.bigIdea}"
+Target Audience Persona: "${audienceDataParam.persona}"
 
 ${documentContextInfo}${filesInfo}
 ${
@@ -529,7 +652,7 @@ If specific data or facts are drawn from the "provided document context" or name
       try {
         const response = await generateChatResponse({
           prompt,
-          files, // Pass files if provided
+          files,
         });
 
         if (!response.text) {
@@ -584,39 +707,41 @@ If specific data or facts are drawn from the "provided document context" or name
         },
       });
 
-      const prompt = `You are the *Storyboard Architect*.
-Based on the following research findings:
----
-${researchDataParam.findings}
----
-Create a storyboard for a presentation with approximately ${slideCount} slides.
-For each slide, you must define:
-1. slideNumber: (integer, starting from 1)
-2. title: (string, concise and engaging)
-3. keyMessage: (string, bullet points summarizing the core message for this slide, can use markdown)
-4. visualIdea: (string, a brief textual description of a potential visual or chart for this slide. If no visual is appropriate, explicitly state "None" or "No visual needed".)
-5. speakerNotes: (string, brief notes for the presenter)
-6. layoutTemplateHint: (string, a suggestion for the slide layout. Choose from a predefined list such as: "title-slide", "standard-text-visual" (text left, visual right), "visual-text" (visual left, text right), "full-width-text", "full-width-visual", "text-overlay-visual", "quote-focus", "chapter-divider", "two-column-equal-text", "three-column-text-icons". Consider the slide's title, key message, and visual idea when choosing. Default to "standard-text-visual" if unsure but content and visual exist.)
-${errorContext ? `\nImportant Context from Previous Attempt:\n${errorContext}\n` : ""}
-▶︎ Generate the storyboard as a JSON array of slide objects. Provide this array *only* through the "slides" argument of the "saveStoryboardOutput" tool.
-The "slides" argument MUST be a valid JSON array where each object has "slideNumber", "title", "keyMessage", "visualIdea", "speakerNotes", and "layoutTemplateHint".
-Example for the "slides" argument:
-[
-  { "slideNumber": 1, "title": "Welcome", "keyMessage": "* Big idea introduction", "visualIdea": "Abstract background representing innovation", "speakerNotes": "Welcome everyone...", "layoutTemplateHint": "title-slide" },
-  { "slideNumber": 2, "title": "Key Finding 1", "keyMessage": "* Detail A\n* Detail B", "visualIdea": "Bar chart illustrating growth", "speakerNotes": "As you can see...", "layoutTemplateHint": "standard-text-visual" }
-]
-Your entire response must be *only* this single tool call.`;
+      const prompt =
+        `You are an expert *Storyboard Architect* and visual designer.
+        Based on the following research findings:
+        ---
+        ${researchDataParam.findings}
+        ---
+        Create a compelling and visually diverse storyboard for a presentation with approximately ${slideCount} slides.
+
+        For each slide, you MUST define:
+        1.  slideNumber: (integer)
+        2.  title: (string)
+        3.  keyMessage: (string, markdown for bullets)
+        4.  visualIdea: (string, "None" if not applicable)
+        5.  speakerNotes: (string)
+        6.  layoutTemplateHint: (string) **Critically evaluate the slide's purpose to choose the best hint.** Strive for variety. Do not overuse 'standard-text-visual'.
+            * Use 'title-slide' for the main title.
+            * Use 'chapter-divider' for section breaks.
+            * Use 'quote-focus' for a single, impactful message.
+            * Use 'full-width-visual' if the visual is the hero.
+            * Use 'text-overlay-visual' if text can be placed on a background image.
+            * Use 'standard-text-visual' or 'visual-text' only for standard content slides.
+
+        ${errorContext ? `\nImportant Context from Previous Attempt:\n${errorContext}\n` : ""}
+
+        ▶︎ Your response MUST be a single tool call to "saveStoryboardOutput" with a valid JSON array for the "slides" argument, including all six fields for each slide.
+        `.replaceAll("        ", "");
 
       let rawResponseText = "N/A";
 
       if (!runtimeTools.saveStoryboardOutput) {
-        // Setup error
         throw new Error(
           "saveStoryboardOutput tool is not available for StoryboardArchitect.",
         );
       }
       if (!runtimeTools.addSlidePage) {
-        // Setup error
         throw new Error(
           "addSlidePage tool is not available for StoryboardArchitect.",
         );
@@ -645,7 +770,7 @@ Your entire response must be *only* this single tool call.`;
               throw new StepError(
                 "saveStoryboardOutput tool did not receive a valid array of slides.",
                 stepName,
-                JSON.stringify(toolCall.args), // Use args as raw response here
+                JSON.stringify(toolCall.args),
               );
             }
 
@@ -670,7 +795,7 @@ Your entire response must be *only* this single tool call.`;
                 speakerNotes: outline.speakerNotes,
                 layoutTemplateHint: outline.layoutTemplateHint,
               };
-              // @ts-expect-error - tool parameters are typed as `any` for execute
+              // @ts-expect-error - addSlidePage is not typed
               const addPageResult = await runtimeTools.addSlidePage.execute({
                 deckNodeKey: resolvedDeckKeyForThisStep,
                 newSlideId: pageId,
@@ -703,8 +828,6 @@ Your entire response must be *only* this single tool call.`;
                   `Error creating slide page for outline: ${JSON.stringify(outline)}`,
                   addPageResult.error,
                 );
-                // This specific error is for a sub-operation. We log it but don't fail the whole step for one slide page creation failure.
-                // The summary at the end will indicate errors.
               }
             }
 
@@ -717,8 +840,6 @@ Your entire response must be *only* this single tool call.`;
                   content: `Warning: ${slideCreationErrors} slide page(s) could not be created within ${stepName}.`,
                 },
               });
-              // Potentially, if ALL slide creations fail, one might throw a StepError.
-              // For now, partial success is allowed.
             }
 
             const finalStoryboardData = { slides: createdSlidesInfo };
@@ -784,8 +905,8 @@ Your entire response must be *only* this single tool call.`;
         },
       });
       const generatedContents: SlideContentData[] = [];
-      let contentGenerationErrors = 0; // Tracks errors for individual slides within this step
-      let individualSlideErrorContext = errorContext; // Start with overall step error context if any
+      let contentGenerationErrors = 0;
+      let individualSlideErrorContext = errorContext;
 
       if (
         !runtimeTools.saveSlideContentAndNotes ||
@@ -826,7 +947,7 @@ Valid types are: "heading1", "heading2", "paragraph", "bulletList".
 For "bulletList", the "text" property should be a single string with items separated by newlines (e.g., "Item 1\nItem 2").
 
 Example of the "bodyContent" argument value:
-[{"type": "heading2", "text": "Key Achievements"}, {"type": "bulletList", "text": "Launched Product X\nReached 1M Users\nSecured Series A Funding"}]
+[{"type": "heading2", "text": "Key Achievements"}, {"type": "bulletList", "text": "Launched Product X\\nReached 1M Users\\nSecured Series A Funding"}]
 
 Your response MUST be a call to the "saveSlideContentAndNotes" tool, providing the following arguments:
 - "pageId": "${slideOutline.pageId}"
@@ -850,33 +971,33 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
             response.toolCalls.length > 0 &&
             response.toolCalls[0]?.toolName === "saveSlideContentAndNotes"
           ) {
-            const args = response.toolCalls[0].args as {
+            const toolArgs = response.toolCalls[0].args as {
               pageId: string;
               bodyContent: { type: string; text: string }[];
               refinedSpeakerNotes: string;
             };
 
             const metadataUpdateResult =
-              // @ts-expect-error - tool parameters are typed as `any` for execute
+              // @ts-expect-error - setSlideMetadata is not typed
               await runtimeTools.setSlideMetadata.execute({
                 deckNodeKey: currentDeckNodeKey,
-                slideId: args.pageId,
+                slideId: toolArgs.pageId,
                 slideMetadata: {
-                  structuredBodyContent: JSON.stringify(args.bodyContent),
-                  speakerNotes: args.refinedSpeakerNotes,
+                  structuredBodyContent: JSON.stringify(toolArgs.bodyContent),
+                  speakerNotes: toolArgs.refinedSpeakerNotes,
                 },
               });
 
             if (!metadataUpdateResult.success) {
               console.warn(
-                `Failed to set metadata (structuredBodyContent, speakerNotes) for slide ${args.pageId}: ${metadataUpdateResult.error}`,
+                `Failed to set metadata (structuredBodyContent, speakerNotes) for slide ${toolArgs.pageId}: ${metadataUpdateResult.error}`,
               );
             }
 
             generatedContents.push({
-              pageId: args.pageId,
-              structuredBodyContent: args.bodyContent,
-              refinedSpeakerNotes: args.refinedSpeakerNotes,
+              pageId: toolArgs.pageId,
+              structuredBodyContent: toolArgs.bodyContent,
+              refinedSpeakerNotes: toolArgs.refinedSpeakerNotes,
             });
 
             chatDispatch({
@@ -884,14 +1005,13 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
               msg: {
                 id: crypto.randomUUID(),
                 role: "assistant",
-                content: `Structured content and notes saved for slide ${slideOutline.slideNumber} (pageId: ${args.pageId}).`,
+                content: `Structured content and notes saved for slide ${slideOutline.slideNumber} (pageId: ${toolArgs.pageId}).`,
               },
             });
-            individualSlideErrorContext = undefined; // Clear error for this slide on success
+            individualSlideErrorContext = undefined;
           } else {
             contentGenerationErrors++;
             const toolErrorMsg = `Expected tool call 'saveSlideContentAndNotes' for slide ${slideOutline.pageId}, but received different or no tool call.`;
-            // This error is specific to one slide generation. We log it, increment error count, and prepare context for a potential retry of the *whole step*.
             console.error(toolErrorMsg, "Raw LLM Response:", rawResponseText);
             chatDispatch({
               type: "push",
@@ -901,16 +1021,7 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
                 content: `${toolErrorMsg} LLM raw response: ${rawResponseText.substring(0, 150)}...`,
               },
             });
-            // For a retry of the whole step, we might want to aggregate these errors.
-            // For now, the next retry of runStep5_SlideWriter will get the original errorContext if the step fails overall.
-            // We don't throw StepError here to allow other slides to be processed.
-            // Instead, we check contentGenerationErrors at the end of the loop.
             individualSlideErrorContext = `Failed on slide ${slideOutline.slideNumber} (${slideOutline.title}): ${toolErrorMsg}. Raw LLM Response: ${rawResponseText.substring(0, 150)}`;
-            // This specific slide context is now set for the next iteration if the LLM prompt uses it.
-            // However, executeStepWithRetries retries the *entire* step function.
-            // So, a single slide failure here will cause the whole step to retry if this is the first error.
-            // To make this more granular for retry (retry only failed slides), would require more complex state management for this step.
-            // Given the current retry mechanism, we should throw a StepError here to trigger a retry of the whole step.
             throw new StepError(
               toolErrorMsg,
               `${stepName} - Slide ${slideOutline.slideNumber}`,
@@ -918,10 +1029,8 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
             );
           }
         } catch (e) {
-          // If it's already a StepError (like the one thrown above), rethrow.
           if (e instanceof StepError) throw e;
 
-          // Otherwise, it's an unexpected error during this slide's processing.
           contentGenerationErrors++;
           const errorMsg = e instanceof Error ? e.message : String(e);
           const detailedErrorMsg = `Error processing slide ${slideOutline.slideNumber} (pageId: ${slideOutline.pageId}) in ${stepName}: ${errorMsg}`;
@@ -938,7 +1047,6 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
               content: `${detailedErrorMsg} Raw LLM response: ${rawResponseText.substring(0, 200)}...`,
             },
           });
-          // This error will propagate to executeStepWithRetries and cause the whole step to retry if budget allows.
           throw new StepError(
             detailedErrorMsg,
             `${stepName} - Slide ${slideOutline.slideNumber}`,
@@ -947,9 +1055,7 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
         }
       }
 
-      // This check might be redundant if individual slide errors always throw and cause step retry.
       if (contentGenerationErrors > 0 && generatedContents.length === 0) {
-        // If all slides failed within this step, it's a definite failure for the step.
         throw new StepError(
           `All ${storyboardDataParam.slides.length} slides failed content generation in ${stepName}.`,
           stepName,
@@ -967,7 +1073,7 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
         });
       }
 
-      setSlideContents(generatedContents); // UI update
+      setSlideContents(generatedContents);
       chatDispatch({
         type: "push",
         msg: {
@@ -1005,15 +1111,15 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
       });
 
       const generatedAssets: VisualAssetData[] = [];
-      let assetGenerationErrors = 0; // Tracks errors for individual assets within this step
-      let individualAssetErrorContext = errorContext; // Start with overall step error context if any
+      let assetGenerationErrors = 0;
+      let individualAssetErrorContext = errorContext;
 
       if (
         !runtimeTools.saveImageGenerationRequest ||
-        !runtimeTools.addChartToSlidePage
+        !addChartToSlidePageWithStructuredDataTool
       ) {
         throw new Error(
-          "Required tools (saveImageGenerationRequest, addChartToSlidePage) are not available for Media Generator.",
+          "Required tools (saveImageGenerationRequest, addChartToSlidePageWithStructuredDataTool) are not available for Media Generator.",
         );
       }
 
@@ -1025,18 +1131,18 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
         : "";
 
       for (const slideOutline of storyboardDataParam.slides) {
-        let rawResponseText = "N/A"; // For error reporting for this specific asset
+        let rawResponseText = "N/A";
         if (!slideOutline.pageId) {
           console.warn(
             `Skipping media generation for slide ${slideOutline.slideNumber} ('${slideOutline.title}') in ${stepName} as it has no pageId.`,
           );
           generatedAssets.push({
-            pageId: "unknown", // Or slideOutline.slideNumber.toString() if pageId is truly missing
+            pageId: "unknown",
             visualIdea: slideOutline.visualIdea,
             assetType: "none",
             error: "Missing pageId",
           });
-          assetGenerationErrors++; // Count this as an error/skip for the summary
+          assetGenerationErrors++;
           continue;
         }
         if (
@@ -1055,30 +1161,31 @@ Do NOT call any other tools, such as styling tools. Your sole purpose is to prov
         const prompt = `You are a Visual Asset Coordinator.
 For slide ${slideOutline.slideNumber} titled "${slideOutline.title}", the visual idea is: "${slideOutline.visualIdea}".
 ${themeStyleHint}${themeColorsHint}
-${individualAssetErrorContext ? `\nImportant Context from Previous Attempt for this visual (or step):\n${individualAssetErrorContext}\n` : ""}
-Based on this, decide if an image or a chart is most appropriate. 
+${individualAssetErrorContext ? `\nImportant Context from Previous Attempt for this visual (or step):${individualAssetErrorContext}\n` : ""}
+Based on this, decide if an image or a chart is most appropriate.
 
-~1.  If an IMAGE is best:~
-    ~*   Craft a concise, descriptive prompt for an image generation model (like DALL-E). The prompt should incorporate the visual idea and relevant style hints.~
-    ~*   Call the "saveImageGenerationRequest" tool with arguments: "pageId" (use "${slideOutline.pageId}"), "imagePrompt" (your crafted prompt), and "styleHint" (e.g., derived from theme like '${currentThemeSettings?.templateName || "general"}').~
+1.  If an IMAGE is best:
+    *   Craft a concise, descriptive prompt for an image generation model (like DALL-E). The prompt should incorporate the visual idea and relevant style hints.
+    *   Call the "saveImageGenerationRequest" tool with arguments: "pageId" (use "${slideOutline.pageId}"), "imagePrompt" (your crafted prompt), and "styleHint" (e.g., derived from theme like '${currentThemeSettings?.templateName || "general"}').
 
 2.  If a CHART (bar, line, pie, etc.) is best:
     *   Determine the "chartType".
-    *   Synthesize plausible "chartDataJSON" based on the visual idea. This should be a JSON string representing an array of data objects suitable for the chart type (e.g., for a bar chart: '[{"name": "A", "value": 10}, ...]'). Keep data simple (3-5 data points) unless specified otherwise.
-    *   Suggest a simple "chartConfigJSON" if applicable (e.g., for Recharts, defining colors or labels as a JSON string: '{"value": {"label": "Sales", "color": "${currentThemeSettings?.colorPalette?.accent || "#8884d8"}"}}'). Often an empty object string '{}' is fine.
-    *   Call the "addChartToSlidePage" tool with arguments: "deckNodeKey" (use "${currentDeckNodeKey}"), "slideId" (use "${slideOutline.pageId}"), "chartType", "chartDataJSON", "chartConfigJSON". You can also specify "x", "y", "width", "height" (e.g. x:100, y:200, width:500, height:300) or let the layout engine handle it later. For now, use x:100, y:200, width:500, height:300 if you call this tool.
+    *   Synthesize plausible "chartData" based on the visual idea. This should be an array of data objects suitable for the chart type (e.g., for a bar chart: [{name: "A", value: 10}, ...]). Keep data simple (3-5 data points) unless specified otherwise.
+    *   Suggest a simple "chartConfig" object if applicable (e.g., for Recharts, defining colors or labels: {value: {label: "Sales", color: "${currentThemeSettings?.colorPalette?.accent || "#8884d8"}}}). Often an empty object {} is fine.
+    *   Call the "addChartToSlidePageWithStructuredDataTool" with arguments: "deckNodeKey" (use "${currentDeckNodeKey}"), "slideId" (use "${slideOutline.pageId}"), "chartType", "chartData", "chartConfig". You can also specify "x", "y", "width", "height" (e.g. x:100, y:200, width:500, height:300) or let the layout engine handle it later. For now, use x:100, y:200, width:500, height:300 if you call this tool.
 
-Choose only ONE tool to call: either ~"saveImageGenerationRequest"~ OR "addChartToSlidePage". 
-For now, the "saveImageGenerationRequest" tool is disabled.`;
+Choose only ONE tool to call: either "saveImageGenerationRequest" OR "addChartToSlidePageWithStructuredDataTool".`;
 
         try {
           const response = await generateChatResponse({
             prompt,
             tools: {
               saveImageGenerationRequest:
-                runtimeTools.saveImageGenerationRequest, // Still provide, even if prompt says disabled, for robustness
-              addChartToSlidePage: runtimeTools.addChartToSlidePage,
-            } as RuntimeToolMap,
+                runtimeTools.saveImageGenerationRequest,
+              // @ts-expect-error - addChartToSlidePageWithStructuredDataTool is not typed
+              addChartToSlidePageWithStructuredDataTool:
+                addChartToSlidePageWithStructuredDataTool,
+            },
           });
           rawResponseText =
             response.text || "No text from LLM for media decision.";
@@ -1086,85 +1193,88 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           if (response.toolCalls && response.toolCalls.length > 0) {
             const toolCall = response.toolCalls[0];
             if (toolCall?.toolName === "saveImageGenerationRequest") {
-              const args = toolCall.args as {
+              const toolArgs = toolCall.args as {
                 pageId: string;
                 imagePrompt: string;
                 styleHint?: string;
               };
               generatedAssets.push({
-                pageId: args.pageId,
+                pageId: toolArgs.pageId,
                 assetType: "image",
                 visualIdea: slideOutline.visualIdea,
-                imagePrompt: args.imagePrompt,
-                styleHint: args.styleHint,
+                imagePrompt: toolArgs.imagePrompt,
+                styleHint: toolArgs.styleHint,
               });
               chatDispatch({
                 type: "push",
                 msg: {
                   id: crypto.randomUUID(),
                   role: "assistant",
-                  content: `Slide ${slideOutline.slideNumber} (Page ID: ${args.pageId}): Image generation requested. Prompt: "${args.imagePrompt.substring(0, 100)}..."`,
+                  content: `Slide \${slideOutline.slideNumber} (Page ID: \${toolArgs.pageId}): Image generation requested. Prompt: "\${toolArgs.imagePrompt.substring(0, 100)}..."`,
                 },
               });
-              individualAssetErrorContext = undefined; // Clear error for this asset
-            } else if (toolCall?.toolName === "addChartToSlidePage") {
-              const args = toolCall.args as {
-                deckNodeKey: string;
-                slideId: string;
-                chartType: string;
-                chartDataJSON: string;
-                chartConfigJSON: string;
-              };
-
+              individualAssetErrorContext = undefined;
+            } else if (
+              toolCall?.toolName === "addChartToSlidePageWithStructuredDataTool"
+            ) {
+              const argsFromToolCall = toolCall.args;
               let actualChartId: string | undefined = undefined;
               let assetErrorMsg: string | undefined = undefined;
 
-              if (
-                response.toolResults &&
-                response.toolResults.length === 1 &&
-                response.toolResults[0]?.toolName === "addChartToSlidePage"
-              ) {
-                const toolResult = response.toolResults[0];
-                const typedToolExecuteResult =
-                  toolResult.result as ToolExecutionResultForMedia;
-
-                if (
-                  typedToolExecuteResult.success &&
-                  typedToolExecuteResult.content?.newNodeKey
-                ) {
-                  actualChartId = typedToolExecuteResult.content.newNodeKey;
+              if (response.toolResults && response.toolResults.length > 0) {
+                const toolResult = response.toolResults.find(
+                  (r) => r.toolCallId === toolCall.toolCallId,
+                );
+                if (toolResult) {
+                  const typedToolExecuteResult =
+                    toolResult.result as ToolExecutionResultForMedia;
+                  if (
+                    typedToolExecuteResult.success &&
+                    typedToolExecuteResult.content?.newNodeKey
+                  ) {
+                    actualChartId = typedToolExecuteResult.content.newNodeKey;
+                  } else {
+                    assetErrorMsg = `Wrapped chart tool for slide ${argsFromToolCall.slideId} did not succeed or return a newNodeKey. Error: ${typedToolExecuteResult.error}`;
+                    console.warn(assetErrorMsg, typedToolExecuteResult);
+                  }
                 } else {
-                  assetErrorMsg = `addChartToSlidePage for slide ${args.slideId} did not succeed or return a newNodeKey. Result: ${JSON.stringify(toolResult.result)}`;
+                  assetErrorMsg = `Could not find tool result for addChartToSlidePageWithStructuredDataTool on slide ${argsFromToolCall.slideId}.`;
                   console.warn(assetErrorMsg);
                 }
               } else {
-                assetErrorMsg = `Expected one toolResult for addChartToSlidePage on slide ${args.slideId}, but found ${response.toolResults?.length || 0}. Tool Results: ${JSON.stringify(response.toolResults)}`;
+                assetErrorMsg = `Expected toolResults for addChartToSlidePageWithStructuredDataTool on slide ${argsFromToolCall.slideId}, but found none.`;
                 console.warn(assetErrorMsg);
               }
 
               if (!actualChartId) {
-                actualChartId = `chart-on-${args.slideId}-FALLBACK-${Date.now()}`;
-                if (!assetErrorMsg) {
-                  assetErrorMsg = `Failed to retrieve a valid newNodeKey for chart on slide ${args.slideId}. Using fallback ID.`;
-                }
-                // This situation indicates a problem. We should throw an error to retry the step.
+                const criticalErrorMsg =
+                  assetErrorMsg ||
+                  `Failed to retrieve a valid newNodeKey for chart on slide ${argsFromToolCall.slideId}.`;
                 throw new StepError(
-                  assetErrorMsg,
+                  criticalErrorMsg,
                   `${stepName} - Chart Creation on Slide ${slideOutline.slideNumber}`,
                   JSON.stringify(response.toolResults),
                 );
               }
 
               generatedAssets.push({
-                pageId: args.slideId,
+                pageId: argsFromToolCall.slideId,
                 assetType: "chart",
                 visualIdea: slideOutline.visualIdea,
                 chartId: actualChartId,
-                chartType: args.chartType,
+                chartType: argsFromToolCall.chartType,
                 styleHint: slideOutline.styleHint,
-                error: assetErrorMsg, // Log any non-fatal error with the asset data
+                error: assetErrorMsg,
               });
-              individualAssetErrorContext = undefined; // Clear error for this asset
+              chatDispatch({
+                type: "push",
+                msg: {
+                  id: crypto.randomUUID(),
+                  role: "assistant",
+                  content: `Slide ${slideOutline.slideNumber} (Page ID: ${argsFromToolCall.slideId}): Chart "${argsFromToolCall.chartType}" created with ID ${actualChartId}.`,
+                },
+              });
+              individualAssetErrorContext = undefined;
             } else {
               assetGenerationErrors++;
               const unexpectedToolError = `Unexpected tool called by ${stepName} for slide ${slideOutline.slideNumber}: ${toolCall?.toolName || "none"}`;
@@ -1183,7 +1293,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
               msg: {
                 id: crypto.randomUUID(),
                 role: "system",
-                content: `${noToolCallError} Content: ${rawResponseText}`,
+                content: `${noToolCallError} LLM response: ${rawResponseText}`,
               },
             });
             generatedAssets.push({
@@ -1192,16 +1302,10 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
               visualIdea: slideOutline.visualIdea,
               error: "LLM did not call a media tool. " + rawResponseText,
             });
-            // This might be a valid case if the visual idea is not actionable.
-            // However, if we expect a tool call for every valid visual idea, this could be an error for retry.
-            // For now, let's consider it a soft error and not throw a StepError, allowing the step to proceed.
-            // If this should fail the step, a StepError should be thrown.
             individualAssetErrorContext = `${noToolCallError}. Raw Response: ${rawResponseText.substring(0, 150)}`;
-            // If this is a critical failure for the slide, throw to retry step:
-            // throw new StepError(noToolCallError, `${stepName} - Slide ${slideOutline.slideNumber}`, rawResponseText);
           }
         } catch (e) {
-          if (e instanceof StepError) throw e; // Rethrow if already a StepError
+          if (e instanceof StepError) throw e;
 
           assetGenerationErrors++;
           const errorMsg = e instanceof Error ? e.message : String(e);
@@ -1227,8 +1331,6 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         }
       }
 
-      // If a significant number of assets failed, or if all assets that were attempted failed,
-      // it might be grounds to fail the entire step.
       const attemptedAssets = storyboardDataParam.slides.filter(
         (s) =>
           s.visualIdea &&
@@ -1257,7 +1359,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         });
       }
 
-      setVisualAssetsData(generatedAssets); // UI Update
+      setVisualAssetsData(generatedAssets);
       chatDispatch({
         type: "push",
         msg: {
@@ -1268,7 +1370,13 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       });
       return generatedAssets;
     },
-    [chatDispatch, generateChatResponse, runtimeTools],
+    [
+      chatDispatch,
+      generateChatResponse,
+      runtimeTools.saveImageGenerationRequest,
+      addChartToSlidePageWithStructuredDataTool,
+      setVisualAssetsData,
+    ],
   );
 
   const runStep7_LayoutEngine = useCallback(
@@ -1294,7 +1402,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         msg: {
           id: crypto.randomUUID(),
           role: "system",
-          content: `Starting Step 7: ${stepName} - Processing structured content and visuals...${errorContext ? " (Retrying with error context)" : ""}`,
+          content: `Starting Step 7: ${stepName} - LLM-driven layout refinement...${errorContext ? " (Retrying with error context)" : ""}`,
         },
       });
 
@@ -1303,16 +1411,14 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         !runtimeTools.updateBoxPropertiesOnSlidePage ||
         !runtimeTools.updateSlideElementProperties ||
         !runtimeTools.applyTextStyle ||
-        !runtimeTools.patchNodeByJSON
+        !runtimeTools.patchNodeByJSON ||
+        !generateChatResponse
       ) {
-        throw new Error("Required tools for LayoutEngine are not available.");
+        throw new Error(
+          "Required tools or functions for LayoutEngine are not available.",
+        );
       }
 
-      // This step typically doesn't involve direct LLM calls that would benefit from errorContext in a prompt.
-      // Retries for this step would re-run the logic. If errors are due to inconsistent prior step data,
-      // those prior steps should be made more robust.
-      // If an error occurs here, it's likely a logic or tool execution error.
-      // The `executeStepWithRetries` will still retry it if workflowRetryBudgetRef allows.
       if (errorContext) {
         chatDispatch({
           type: "push",
@@ -1327,7 +1433,6 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       const SLIDE_WIDTH = 1280;
       const SLIDE_HEIGHT = 720;
       const PADDING = 50;
-      const GAP = 20;
 
       const pageIds = new Set<string>();
       if (allSlideContents)
@@ -1337,13 +1442,75 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
 
       let layoutErrors = 0;
 
-      // Helper function for chat dispatch (defined once)
       const dispatchLayoutAction = (message: string) => {
         chatDispatch({
           type: "push",
           msg: { id: crypto.randomUUID(), role: "assistant", content: message },
         });
       };
+
+      interface LayoutRefinementContentBlock {
+        type: string;
+        textLength: number;
+        originalBlockIndex: number;
+      }
+
+      function buildLayoutRefinementPrompt(
+        pageId: string,
+        layoutHint: string | undefined,
+        contentBlocksForPrompt: LayoutRefinementContentBlock[],
+        visualAssetInfoForPrompt: VisualAssetData | undefined,
+        slideWidth: number,
+        slideHeight: number,
+        padding: number,
+      ): string {
+        const contentSummary = contentBlocksForPrompt
+          .map(
+            (b) =>
+              `- Type: ${b.type}, Text Length: ${b.textLength}, Block Index: ${b.originalBlockIndex}`,
+          )
+          .join("\\n");
+        const visualDetail = visualAssetInfoForPrompt
+          ? `Visual: A ${visualAssetInfoForPrompt.assetType} (ID: ${visualAssetInfoForPrompt.chartId || visualAssetInfoForPrompt.imageId || "N/A"}) is present.`
+          : "Visual: None.";
+
+        return `You are an expert Graphic Layout Designer.
+Objective: Define the precise placement and sizing (x, y, width, height) for elements on a slide.
+Slide Dimensions: ${slideWidth}x${slideHeight}. Maintain a ${padding}px safety padding from the slide edges for primary content. Elements can be full bleed if appropriate for the layoutHint (e.g. background images).
+
+Context for Slide (ID: ${pageId}):
+- High-Level Layout Hint: "${layoutHint || "default"}"
+- Text Blocks to be placed (identified by originalBlockIndex):
+${contentSummary || "- No text blocks provided."}
+- ${visualDetail}
+
+Task:
+Based on the context, you MUST call the "applyLayoutRefinementTool" with a single argument object.
+This object must contain two keys:
+1. "textBoxes": An array of objects, where each object defines the layout for a text block. Each text block object needs: "originalBlockIndex", "x", "y", "width", "height", and an optional "textAlign".
+2. "visualAssetPlacement": An object defining the layout for the visual asset ("x", "y", "width", "height", optional "zIndex"), or null if no visual is to be placed.
+
+- The (x,y) coordinates are from the top-left of the slide.
+- Be strategic. A '${layoutHint}' with a 'heading1' block and a 'paragraph' block should have different heights and positions for each. A title slide's main heading should be large and centered.
+- Consider readability, visual hierarchy, and balance. Ensure elements do not unnecessarily overlap unless the hint is 'text-overlay-visual'.
+- The sum of element heights and vertical gaps should logically fit within the slide height.
+
+Your entire response MUST be a call to the "applyLayoutRefinementTool" tool.
+
+Example of how to structure the arguments for the tool call (for a 'standard-text-visual' hint):
+If you were to call "applyLayoutRefinementTool", the "args" would look like this:
+{
+  "textBoxes": [
+    { "originalBlockIndex": 0, "x": ${padding}, "y": 150, "width": ${slideWidth / 2 - padding - 10}, "height": 100, "textAlign": "left" },
+    { "originalBlockIndex": 1, "x": ${padding}, "y": 270, "width": ${slideWidth / 2 - padding - 10}, "height": 300, "textAlign": "left" }
+  ],
+  "visualAssetPlacement": { "x": ${slideWidth / 2 + 10}, "y": 150, "width": ${slideWidth / 2 - padding - 10}, "height": 420 }
+}
+  Do NOT just return this example. Calculate the correct values based on the input.`.replaceAll(
+          "  ",
+          "",
+        );
+      }
 
       for (const pageId of pageIds) {
         const slideContentInfo = allSlideContents?.find(
@@ -1360,57 +1527,49 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         const layoutHint =
           slideStoryboardOutline?.layoutTemplateHint?.toLowerCase();
 
-        const availableWidth = SLIDE_WIDTH - 2 * PADDING;
-        const createdContentBoxKeys: string[] = []; // To be populated by content creation loop
+        const createdElements: {
+          originalBlockIndex: number;
+          boxId: string;
+          textNodeKey?: string;
+          type: string;
+        }[] = [];
 
         const visualElementId =
           visualAssetInfo?.assetType === "chart"
             ? visualAssetInfo.chartId
             : visualAssetInfo?.imageId;
-        const visualPresent = visualAssetInfo && visualElementId;
 
-        chatDispatch({
-          type: "push",
-          msg: {
-            id: crypto.randomUUID(),
-            role: "system",
-            content: `LayoutEngine: Applying hint '${layoutHint || "default"}' to slide ${pageId} (Visual: ${visualPresent})`,
-          },
-        });
+        dispatchLayoutAction(
+          `LayoutEngine: Processing slide ${pageId} with hint '${layoutHint || "default"}'`,
+        );
 
         try {
-          let parsedContentBlocks: { type: string; text: string }[] = [];
+          let parsedContentBlocks: {
+            type: string;
+            text: string;
+            originalBlockIndex: number;
+          }[] = [];
 
           if (slideContentInfo?.structuredBodyContent) {
-            // No longer need to parse, it's already an array of objects
-            parsedContentBlocks = slideContentInfo.structuredBodyContent;
-            if (!Array.isArray(parsedContentBlocks)) {
+            if (Array.isArray(slideContentInfo.structuredBodyContent)) {
+              parsedContentBlocks = slideContentInfo.structuredBodyContent.map(
+                (block, index) => ({
+                  ...block,
+                  originalBlockIndex: index,
+                }),
+              );
+            } else {
               layoutErrors++;
               console.error(
-                `Internal error: structuredBodyContent for slide ${pageId} is not an array. Found: ${typeof parsedContentBlocks}`,
+                `Internal error: structuredBodyContent for slide ${pageId} is not an array. Found: ${typeof slideContentInfo.structuredBodyContent}`,
               );
-              chatDispatch({
-                type: "push",
-                msg: {
-                  id: crypto.randomUUID(),
-                  role: "system",
-                  content: `Internal error with structured content for slide ${pageId}. Skipping content layout for this slide.`,
-                },
-              });
-              parsedContentBlocks = []; // Reset to empty array to prevent further issues
+              dispatchLayoutAction(
+                `Error with structured content for slide ${pageId}. Skipping content layout.`,
+              );
             }
           }
 
-          let currentY = PADDING; // This currentY is for initial box creation, layout helpers will use their own.
-          // const availableWidth = SLIDE_WIDTH - 2 * PADDING; // Defined above loop
-
-          // const visualElementId = // Defined above try
-          //     visualAssetInfo?.assetType === "chart"
-          //       ? visualAssetInfo.chartId
-          //       : visualAssetInfo?.imageId;
-          // const visualPresent = visualAssetInfo && visualElementId; // Defined above try
-
-          for (const block of parsedContentBlocks) {
+          for (const [index, block] of parsedContentBlocks.entries()) {
             if (
               !block ||
               typeof block.text !== "string" ||
@@ -1424,46 +1583,45 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
               continue;
             }
 
-            // 1. Add the box (it will have empty content by default from emptyContent())
-            // initialTextContent passed here is currently ignored by addBoxToSlidePage's Zod schema.
-            // The box is created using the static `emptyContent`.
-            // @ts-expect-error - If initialTextContent is not part of the tool's schema, this arg is unused by the tool
+            // @ts-expect-error - addBoxToSlidePage is not typed
             const boxResult = await runtimeTools.addBoxToSlidePage.execute({
               deckNodeKey: currentDeckNodeKey,
               slideId: pageId,
-              // initialTextContent: block.text, // This was passed but not used by addBoxToSlidePage tool
-              x: PADDING, // Default position/size, will be updated later by layout logic below
-              y: PADDING, // Default y, will be updated by positioning logic below
-              width: SLIDE_WIDTH - 2 * PADDING, // Default width
-              height: 100, // Default height
+              x: 0,
+              y: 0,
+              width: 1,
+              height: 1,
             });
 
             if (boxResult.success && boxResult.content?.newNodeKey) {
               const newBoxId = boxResult.content.newNodeKey;
               const textNodeOriginalKeyFromEmptyContent = (
                 boxResult.content as unknown as { textNodeKey?: string }
-              )?.textNodeKey; // This is "initial-text-content-node"
+              )?.textNodeKey;
+
+              createdElements.push({
+                originalBlockIndex: index,
+                boxId: newBoxId,
+                textNodeKey: textNodeOriginalKeyFromEmptyContent,
+                type: block.type,
+              });
+
+              const fullEditorKeyForBox = `${currentDeckNodeKey}/${pageId}/${newBoxId}`;
 
               if (
                 textNodeOriginalKeyFromEmptyContent &&
                 block.text.trim() !== ""
               ) {
-                const fullEditorKeyForBox = `${currentDeckNodeKey}/${pageId}/${newBoxId}`;
-                createdContentBoxKeys.push(newBoxId);
-
-                const patchResult =
-                  // @ts-expect-error - Tool parameters might be typed as `any`
-                  await runtimeTools.patchNodeByJSON.execute({
-                    editorKey: fullEditorKeyForBox,
-                    nodeKey: textNodeOriginalKeyFromEmptyContent, // Target the default text node
-                    patchProperties: [{ key: "text", value: block.text }],
-                  });
+                // @ts-expect-error - patchNodeByJSON is not typed
+                const patchResult = await runtimeTools.patchNodeByJSON.execute({
+                  editorKey: fullEditorKeyForBox,
+                  nodeKey: textNodeOriginalKeyFromEmptyContent,
+                  patchProperties: [{ key: "text", value: block.text }],
+                });
 
                 if (patchResult.success) {
                   await new Promise((resolve) => setTimeout(resolve, 100));
-
                   let actualTextNodeKeyForStyling: NodeKey | undefined;
-
                   if (editor) {
                     const currentPersistedBoxState = getSlideBoxKeyedState(
                       editor,
@@ -1479,30 +1637,19 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
                         currentPersistedBoxState.root.children[0].children[0]
                           .key;
                     } else {
-                      console.error(
-                        `[LayoutEngine] Could not find the key of the persisted text node for box ${newBoxId} after patch. Using original key as fallback for styling.`,
-                      );
                       actualTextNodeKeyForStyling =
-                        textNodeOriginalKeyFromEmptyContent; // Fallback, might be incorrect
-                      // layoutErrors++; // Optionally count as error if strict keying is required
-                      // continue; // Skip styling for this block if key is essential and not found
+                        textNodeOriginalKeyFromEmptyContent;
                     }
                   } else {
-                    console.error(
-                      "[LayoutEngine] mainEditor instance not available. Cannot determine new text node key for styling. Using original key as fallback.",
-                    );
                     actualTextNodeKeyForStyling =
-                      textNodeOriginalKeyFromEmptyContent; // Fallback
+                      textNodeOriginalKeyFromEmptyContent;
                   }
-                  // ---- End NEW key determination ----
 
-                  // 3. Apply text style
                   let fontSize = "1em";
                   let fontWeight = "normal";
                   const fontStyle = "normal";
                   let fontFamily = currentThemeSettings?.fonts?.body;
                   let color = currentThemeSettings?.colorPalette?.textBody;
-
                   switch (block.type) {
                     case "heading1":
                       fontFamily =
@@ -1520,22 +1667,11 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
                       fontSize = "1.5em";
                       fontWeight = "bold";
                       break;
-                    case "paragraph":
-                    case "bulletList": // Base text style for list items
-                      // Defaults are already set based on theme's body/textBody
-                      break;
-                    default:
-                      console.warn(
-                        `[LayoutEngine] Unknown block type: ${block.type}. Applying default paragraph styles.`,
-                      );
-                      // Defaults are paragraph-like, so no specific changes needed here
-                      break;
                   }
-
-                  // @ts-expect-error - Tool parameters might be typed as `any`
+                  // @ts-expect-error - applyTextStyle is not typed
                   const styleResult = await runtimeTools.applyTextStyle.execute(
                     {
-                      anchorKey: actualTextNodeKeyForStyling, // <<< USE THE CORRECTED KEY
+                      anchorKey: actualTextNodeKeyForStyling,
                       editorKey: fullEditorKeyForBox,
                       fontFamily,
                       fontSize,
@@ -1545,496 +1681,189 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
                       backgroundColor: undefined,
                     },
                   );
-
                   if (!styleResult.success) {
                     console.error(
-                      `[LayoutEngine] Failed to apply style for box ${newBoxId} on slide ${pageId}: ${styleResult.error}`,
+                      `[LayoutEngine] Failed to apply style for box ${newBoxId}: ${styleResult.error}`,
                     );
                     layoutErrors++;
                   }
-                } else if (textNodeOriginalKeyFromEmptyContent) {
-                  // block.text was empty
                 } else {
-                  // Should not happen if addBoxToSlidePage worked
                   layoutErrors++;
-                  console.error(
-                    `[LayoutEngine] Failed to retrieve textNodeKey for new box ${newBoxId}.`,
+                }
+              } else if (!textNodeOriginalKeyFromEmptyContent) {
+                layoutErrors++;
+                console.error(
+                  `[LayoutEngine] Failed to retrieve textNodeKey for new box ${newBoxId}.`,
+                );
+              }
+            } else {
+              layoutErrors++;
+              console.error(
+                `[LayoutEngine] Failed to create content box for slide ${pageId}, block type ${block.type}: ${boxResult.error}`,
+              );
+            }
+          }
+
+          const contentBlocksForPrompt: LayoutRefinementContentBlock[] =
+            parsedContentBlocks.map((block, idx) => ({
+              type: block.type,
+              textLength: block.text.length,
+              originalBlockIndex: idx,
+            }));
+
+          const refinementPrompt = buildLayoutRefinementPrompt(
+            pageId,
+            layoutHint,
+            contentBlocksForPrompt,
+            visualAssetInfo,
+            SLIDE_WIDTH,
+            SLIDE_HEIGHT,
+            PADDING,
+          );
+
+          dispatchLayoutAction(
+            `Calling Layout Refinement Agent for slide ${pageId}...`,
+          );
+          let rawLlmResponseText = "N/A";
+          try {
+            const llmResponse = await generateChatResponse({
+              prompt: refinementPrompt,
+              tools: {
+                // @ts-expect-error - applyLayoutRefinementTool is not typed
+                applyLayoutRefinementTool,
+              },
+            });
+            rawLlmResponseText =
+              llmResponse.text || "LLM did not return text for layout.";
+
+            let layoutInstructions: LayoutRefinementToolArgs | undefined;
+
+            if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
+              const toolCall = llmResponse.toolCalls[0];
+              if (!toolCall) {
+                throw new StepError(
+                  "LLM tool call structure is invalid.",
+                  stepName,
+                  rawLlmResponseText,
+                );
+              }
+              if (toolCall.toolName === "applyLayoutRefinementTool") {
+                layoutInstructions = toolCall.args as LayoutRefinementToolArgs;
+
+                if (
+                  !layoutInstructions ||
+                  layoutInstructions.textBoxes === undefined
+                ) {
+                  throw new StepError(
+                    "Parsed layout instructions from tool call are incomplete or malformed.",
+                    stepName,
+                    JSON.stringify(toolCall.args),
                   );
                 }
               } else {
+                throw new StepError(
+                  `LLM called an unexpected tool: ${toolCall.toolName}. Expected 'applyLayoutRefinementTool'.`,
+                  stepName,
+                  rawLlmResponseText,
+                );
+              }
+            } else {
+              throw new StepError(
+                `LLM did not make a tool call for layout refinement. Response: ${rawLlmResponseText.substring(0, 500)}`,
+                stepName,
+                rawLlmResponseText,
+              );
+            }
+
+            if (layoutInstructions.textBoxes) {
+              for (const tbInstruction of layoutInstructions.textBoxes) {
+                const targetElement = createdElements.find(
+                  (el) =>
+                    el.originalBlockIndex === tbInstruction.originalBlockIndex,
+                );
+                if (targetElement) {
+                  const updateRes =
+                    // @ts-expect-error - updateBoxPropertiesOnSlidePage is not typed
+                    await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
+                      deckNodeKey: currentDeckNodeKey,
+                      slideId: pageId,
+                      boxId: targetElement.boxId,
+                      properties: {
+                        x: tbInstruction.x,
+                        y: tbInstruction.y,
+                        width: tbInstruction.width,
+                        height: tbInstruction.height,
+                        ...(tbInstruction.textAlign && {
+                          textAlign: tbInstruction.textAlign,
+                        }),
+                      },
+                    });
+                  if (!updateRes.success) {
+                    layoutErrors++;
+                    console.error(
+                      `Failed to apply LLM layout to box ${targetElement.boxId}: ${updateRes.error}`,
+                    );
+                  }
+                } else {
+                  layoutErrors++;
+                  console.warn(
+                    `LLM provided layout for non-existent text block index: ${tbInstruction.originalBlockIndex}`,
+                  );
+                }
+              }
+            }
+
+            if (
+              layoutInstructions.visualAssetPlacement &&
+              visualElementId &&
+              visualAssetInfo
+            ) {
+              const visualPlacement = layoutInstructions.visualAssetPlacement;
+              const updateVisRes =
+                // @ts-expect-error - updateSlideElementProperties is not typed
+                await runtimeTools.updateSlideElementProperties.execute({
+                  deckNodeKey: currentDeckNodeKey,
+                  slideId: pageId,
+                  elementId: visualElementId,
+                  kind: visualAssetInfo.assetType as "image" | "chart",
+                  properties: {
+                    x: visualPlacement.x,
+                    y: visualPlacement.y,
+                    width: visualPlacement.width,
+                    height: visualPlacement.height,
+                    ...(typeof visualPlacement.zIndex === "number" && {
+                      zIndex: visualPlacement.zIndex,
+                    }),
+                  },
+                });
+              if (!updateVisRes.success) {
                 layoutErrors++;
                 console.error(
-                  `[LayoutEngine] Failed to create content box for slide ${pageId}, block type ${block.type}: ${boxResult.error}`,
+                  `Failed to apply LLM layout to visual ${visualElementId}: ${updateVisRes.error}`,
                 );
               }
             }
-          }
-
-          if (createdContentBoxKeys.length > 0 && visualPresent) {
-            const contentWidth = (availableWidth - GAP) / 2;
-            const visualWidth = contentWidth;
-
-            for (const boxKey of createdContentBoxKeys) {
-              const updateRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  boxId: boxKey,
-                  properties: {
-                    x: PADDING,
-                    y: currentY,
-                    width: contentWidth,
-                    height: 50,
-                  },
-                });
-              if (!updateRes.success) layoutErrors++;
-              currentY += 50 + GAP;
-            }
-
-            if (visualElementId) {
-              const updateVisRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateSlideElementProperties.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  elementId: visualElementId,
-                  kind: visualAssetInfo.assetType as "image" | "chart",
-                  properties: {
-                    x: PADDING + contentWidth + GAP,
-                    y: PADDING,
-                    width: visualWidth,
-                    height: SLIDE_HEIGHT - 2 * PADDING,
-                  },
-                });
-              if (!updateVisRes.success) layoutErrors++;
-            }
-            chatDispatch({
-              type: "push",
-              msg: {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                content: `Applied two-column layout to slide ${pageId}.`,
-              },
-            });
-          } else if (createdContentBoxKeys.length > 0) {
-            for (const boxKey of createdContentBoxKeys) {
-              const updateRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  boxId: boxKey,
-                  properties: {
-                    x: PADDING,
-                    y: currentY,
-                    width: availableWidth,
-                    height: 50,
-                  },
-                });
-              if (!updateRes.success) layoutErrors++;
-              currentY += 50 + GAP;
-            }
-            chatDispatch({
-              type: "push",
-              msg: {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                content: `Applied stacked full-width layout to content on slide ${pageId}.`,
-              },
-            });
-          } else if (visualPresent && visualElementId) {
-            const visualW = availableWidth * 0.7;
-            const visualH = SLIDE_HEIGHT * 0.7;
-            const updateVisRes =
-              // @ts-expect-error - tool parameters are typed as `any` for execute
-              await runtimeTools.updateSlideElementProperties.execute({
-                deckNodeKey: currentDeckNodeKey,
-                slideId: pageId,
-                elementId: visualElementId,
-                kind: visualAssetInfo.assetType as "image" | "chart",
-                properties: {
-                  x: PADDING + (availableWidth - visualW) / 2,
-                  y: (SLIDE_HEIGHT - visualH) / 2,
-                  width: visualW,
-                  height: visualH,
-                },
-              });
-            if (!updateVisRes.success) layoutErrors++;
-            chatDispatch({
-              type: "push",
-              msg: {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                content: `Centered visual asset on slide ${pageId}.`,
-              },
-            });
-          }
-
-          // Helper functions defined inside try, after createdContentBoxKeys is populated and visualPresent is known.
-          async function layoutTextOnlyDefault() {
-            dispatchLayoutAction(
-              `Applying stacked full-width text layout to slide ${pageId}.`,
+            dispatchLayoutAction(`LLM layout applied to slide ${pageId}.`);
+          } catch (llmOrLayoutError) {
+            layoutErrors++;
+            const errMsg =
+              llmOrLayoutError instanceof Error
+                ? llmOrLayoutError.message
+                : String(llmOrLayoutError);
+            console.error(
+              `Error during LLM layout refinement for slide ${pageId}: ${errMsg}. Raw Response (if any): ${rawLlmResponseText.substring(0, 500)}`,
             );
-            let localCurrentY = PADDING;
-            for (const boxKey of createdContentBoxKeys) {
-              const updateRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  boxId: boxKey,
-                  properties: {
-                    x: PADDING,
-                    y: localCurrentY,
-                    width: availableWidth,
-                    height: 50,
-                  },
-                });
-              if (!updateRes.success) layoutErrors++;
-              localCurrentY += 50 + GAP;
-            }
-          }
-
-          async function layoutVisualOnlyDefault() {
             dispatchLayoutAction(
-              `Applying centered visual layout to slide ${pageId}.`,
+              `Error in LLM layout for slide ${pageId}: ${errMsg.substring(0, 100)}...`,
             );
-            if (visualPresent && visualElementId && visualAssetInfo) {
-              const visualW = availableWidth * 0.7;
-              const visualH = SLIDE_HEIGHT * 0.7;
-              const updateVisRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateSlideElementProperties.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  elementId: visualElementId,
-                  kind: visualAssetInfo.assetType as "image" | "chart",
-                  properties: {
-                    x: PADDING + (availableWidth - visualW) / 2,
-                    y: (SLIDE_HEIGHT - visualH) / 2,
-                    width: visualW,
-                    height: visualH,
-                  },
-                });
-              if (!updateVisRes.success) layoutErrors++;
-            }
-          }
-
-          async function layoutTextVisualStandard() {
-            // Text left, Visual right
-            dispatchLayoutAction(
-              `Applying text-left, visual-right layout to slide ${pageId}.`,
-            );
-            const contentWidth = (availableWidth - GAP) / 2;
-            const visualX = PADDING + contentWidth + GAP;
-            let localCurrentY = PADDING;
-            for (const boxKey of createdContentBoxKeys) {
-              const updateRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  boxId: boxKey,
-                  properties: {
-                    x: PADDING,
-                    y: localCurrentY,
-                    width: contentWidth,
-                    height: 50,
-                  },
-                });
-              if (!updateRes.success) layoutErrors++;
-              localCurrentY += 50 + GAP;
-            }
-            if (visualPresent && visualElementId && visualAssetInfo) {
-              const updateVisRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateSlideElementProperties.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  elementId: visualElementId,
-                  kind: visualAssetInfo.assetType as "image" | "chart",
-                  properties: {
-                    x: visualX,
-                    y: PADDING,
-                    width: contentWidth,
-                    height: SLIDE_HEIGHT - 2 * PADDING,
-                  },
-                });
-              if (!updateVisRes.success) layoutErrors++;
-            }
-          }
-
-          async function layoutVisualTextStandard() {
-            // Visual left, Text right
-            dispatchLayoutAction(
-              `Applying visual-left, text-right layout to slide ${pageId}.`,
-            );
-            const visualWidth = (availableWidth - GAP) / 2;
-            const contentWidth = visualWidth;
-            const contentX = PADDING + visualWidth + GAP;
-            if (visualPresent && visualElementId && visualAssetInfo) {
-              const updateVisRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateSlideElementProperties.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  elementId: visualElementId,
-                  kind: visualAssetInfo.assetType as "image" | "chart",
-                  properties: {
-                    x: PADDING,
-                    y: PADDING,
-                    width: visualWidth,
-                    height: SLIDE_HEIGHT - 2 * PADDING,
-                  },
-                });
-              if (!updateVisRes.success) layoutErrors++;
-            }
-            let localCurrentY = PADDING;
-            for (const boxKey of createdContentBoxKeys) {
-              const updateRes =
-                // @ts-expect-error - tool parameters are typed as `any` for execute
-                await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                  deckNodeKey: currentDeckNodeKey,
-                  slideId: pageId,
-                  boxId: boxKey,
-                  properties: {
-                    x: contentX,
-                    y: localCurrentY,
-                    width: contentWidth,
-                    height: 50,
-                  },
-                });
-              if (!updateRes.success) layoutErrors++;
-              localCurrentY += 50 + GAP;
-            }
-          }
-
-          // Main layout decision logic
-          switch (layoutHint) {
-            case "title-slide":
-              dispatchLayoutAction(`Applying title layout to slide ${pageId}.`);
-              if (createdContentBoxKeys.length > 0) {
-                const titleBoxKey = createdContentBoxKeys[0];
-                const titleUpdateRes =
-                  // @ts-expect-error - tool parameters are typed as `any` for execute
-                  await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                    deckNodeKey: currentDeckNodeKey,
-                    slideId: pageId,
-                    boxId: titleBoxKey,
-                    properties: {
-                      x: PADDING,
-                      y: SLIDE_HEIGHT / 3,
-                      width: availableWidth,
-                      height: 100,
-                    },
-                  });
-                if (!titleUpdateRes.success) layoutErrors++;
-                if (createdContentBoxKeys.length > 1) {
-                  const subtitleBoxKey = createdContentBoxKeys[1];
-                  const subtitleUpdateRes =
-                    // @ts-expect-error - tool parameters are typed as `any` for execute
-                    await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                      deckNodeKey: currentDeckNodeKey,
-                      slideId: pageId,
-                      boxId: subtitleBoxKey,
-                      properties: {
-                        x: PADDING,
-                        y: SLIDE_HEIGHT / 3 + 100 + GAP,
-                        width: availableWidth,
-                        height: 50,
-                      },
-                    });
-                  if (!subtitleUpdateRes.success) layoutErrors++;
-                }
-              }
-              if (visualPresent && visualElementId && visualAssetInfo) {
-                // Optional: full-slide background image
-                const visUpdateRes =
-                  // @ts-expect-error - tool parameters are typed as `any` for execute
-                  await runtimeTools.updateSlideElementProperties.execute({
-                    deckNodeKey: currentDeckNodeKey,
-                    slideId: pageId,
-                    elementId: visualElementId,
-                    kind: visualAssetInfo.assetType as "image" | "chart",
-                    properties: {
-                      x: 0,
-                      y: 0,
-                      width: SLIDE_WIDTH,
-                      height: SLIDE_HEIGHT,
-                      zIndex: -1,
-                    },
-                  });
-                if (!visUpdateRes.success) layoutErrors++;
-              }
-              break;
-
-            case "standard-text-visual": // text left, visual right
-              if (createdContentBoxKeys.length > 0 && visualPresent) {
-                await layoutTextVisualStandard();
-              } else if (createdContentBoxKeys.length > 0) {
-                await layoutTextOnlyDefault();
-              } else if (visualPresent) {
-                await layoutVisualOnlyDefault();
-              }
-              break;
-
-            case "visual-text": // visual left, text right
-              if (createdContentBoxKeys.length > 0 && visualPresent) {
-                await layoutVisualTextStandard();
-              } else if (createdContentBoxKeys.length > 0) {
-                await layoutTextOnlyDefault();
-              } else if (visualPresent) {
-                await layoutVisualOnlyDefault();
-              }
-              break;
-
-            case "full-width-text":
-              if (createdContentBoxKeys.length > 0) {
-                await layoutTextOnlyDefault();
-              }
-              break;
-
-            case "full-width-visual":
-              if (visualPresent && visualElementId && visualAssetInfo) {
-                dispatchLayoutAction(
-                  `Applying full-width visual layout to slide ${pageId}.`,
-                );
-                const visUpdateRes =
-                  // @ts-expect-error - tool parameters are typed as `any` for execute
-                  await runtimeTools.updateSlideElementProperties.execute({
-                    deckNodeKey: currentDeckNodeKey,
-                    slideId: pageId,
-                    elementId: visualElementId,
-                    kind: visualAssetInfo.assetType as "image" | "chart",
-                    properties: {
-                      x: PADDING,
-                      y: PADDING,
-                      width: availableWidth,
-                      height: SLIDE_HEIGHT - 2 * PADDING,
-                    },
-                  });
-                if (!visUpdateRes.success) layoutErrors++;
-              } else if (createdContentBoxKeys.length > 0) {
-                await layoutTextOnlyDefault();
-              }
-              break;
-
-            case "text-overlay-visual":
-              dispatchLayoutAction(
-                `Applying text-overlay-visual layout to slide ${pageId}.`,
-              );
-              if (visualPresent && visualElementId && visualAssetInfo) {
-                const visUpdateRes =
-                  // @ts-expect-error - tool parameters are typed as `any` for execute
-                  await runtimeTools.updateSlideElementProperties.execute({
-                    deckNodeKey: currentDeckNodeKey,
-                    slideId: pageId,
-                    elementId: visualElementId,
-                    kind: visualAssetInfo.assetType as "image" | "chart",
-                    properties: {
-                      x: 0,
-                      y: 0,
-                      width: SLIDE_WIDTH,
-                      height: SLIDE_HEIGHT,
-                      zIndex: 0,
-                    },
-                  });
-                if (!visUpdateRes.success) layoutErrors++;
-              }
-              if (createdContentBoxKeys.length > 0) {
-                let localCurrentY = SLIDE_HEIGHT / 3;
-                for (const boxKey of createdContentBoxKeys) {
-                  const boxUpdateRes =
-                    // @ts-expect-error - tool parameters are typed as `any` for execute
-                    await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                      deckNodeKey: currentDeckNodeKey,
-                      slideId: pageId,
-                      boxId: boxKey,
-                      properties: {
-                        x: PADDING * 2,
-                        y: localCurrentY,
-                        width: SLIDE_WIDTH - 4 * PADDING,
-                        height: 70,
-                        zIndex: 1,
-                      },
-                    });
-                  if (!boxUpdateRes.success) layoutErrors++;
-                  localCurrentY += 70 + GAP;
-                }
-              }
-              break;
-
-            case "quote-focus":
-              dispatchLayoutAction(`Applying quote layout to slide ${pageId}.`);
-              if (createdContentBoxKeys.length > 0) {
-                const quoteBoxKey = createdContentBoxKeys[0];
-                const quoteUpdateRes =
-                  // @ts-expect-error - tool parameters are typed as `any` for execute
-                  await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                    deckNodeKey: currentDeckNodeKey,
-                    slideId: pageId,
-                    boxId: quoteBoxKey,
-                    properties: {
-                      x: PADDING * 2,
-                      y: SLIDE_HEIGHT / 3,
-                      width: SLIDE_WIDTH - 4 * PADDING,
-                      height: 150,
-                    },
-                  });
-                if (!quoteUpdateRes.success) layoutErrors++;
-                if (createdContentBoxKeys.length > 1) {
-                  const attrBoxKey = createdContentBoxKeys[1];
-                  const attrUpdateRes =
-                    // @ts-expect-error - tool parameters are typed as `any` for execute
-                    await runtimeTools.updateBoxPropertiesOnSlidePage.execute({
-                      deckNodeKey: currentDeckNodeKey,
-                      slideId: pageId,
-                      boxId: attrBoxKey,
-                      properties: {
-                        x: PADDING * 2,
-                        y: SLIDE_HEIGHT / 3 + 150 + GAP,
-                        width: SLIDE_WIDTH - 4 * PADDING,
-                        height: 50,
-                        textAlign: "right",
-                      },
-                    });
-                  if (!attrUpdateRes.success) layoutErrors++;
-                }
-              }
-              break;
-
-            // TODO: Add more cases: "chapter-divider", "two-column-equal-text", "three-column-text-icons", etc.
-
-            default:
-              dispatchLayoutAction(
-                `Applying default layout (text-left, visual-right or fallback) to slide ${pageId}.`,
-              );
-              if (createdContentBoxKeys.length > 0 && visualPresent) {
-                await layoutTextVisualStandard();
-              } else if (createdContentBoxKeys.length > 0) {
-                await layoutTextOnlyDefault();
-              } else if (visualPresent) {
-                await layoutVisualOnlyDefault();
-              } else {
-                dispatchLayoutAction(
-                  `Slide ${pageId} is empty, no layout applied.`,
-                );
-              }
-              break;
           }
         } catch (e) {
           layoutErrors++;
           const errorMsg = e instanceof Error ? e.message : String(e);
-          console.error(`Error laying out slide ${pageId}: ${errorMsg}`);
-          chatDispatch({
-            type: "push",
-            msg: {
-              id: crypto.randomUUID(),
-              role: "system",
-              content: `Error applying layout to slide ${pageId}: ${errorMsg}`,
-            },
-          });
+          console.error(`Outer error laying out slide ${pageId}: ${errorMsg}`);
+          dispatchLayoutAction(
+            `Critical error applying layout to slide ${pageId}: ${errorMsg}`,
+          );
         }
       }
 
@@ -2043,19 +1872,20 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         msg: {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: `Step 7 Complete: Layout Engine finished applying layouts to ${pageIds.size} slide(s) (with ${layoutErrors} errors).`,
+          content: `Step 7 Complete: Layout Engine finished applying LLM-refined layouts to ${pageIds.size} slide(s) (with ${layoutErrors} errors).`,
         },
       });
     },
     [
       chatDispatch,
-      editor,
-      getSlideBoxKeyedState,
       runtimeTools.addBoxToSlidePage,
-      runtimeTools.applyTextStyle,
-      runtimeTools.patchNodeByJSON,
       runtimeTools.updateBoxPropertiesOnSlidePage,
       runtimeTools.updateSlideElementProperties,
+      runtimeTools.applyTextStyle,
+      runtimeTools.patchNodeByJSON,
+      generateChatResponse,
+      editor,
+      getSlideBoxKeyedState,
     ],
   );
 
@@ -2117,7 +1947,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           );
         }
 
-        const finalSummary = summaryLines.join("\n");
+        const finalSummary = summaryLines.join("\\n");
 
         chatDispatch({
           type: "push",
@@ -2154,21 +1984,19 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
         },
       });
 
-      // Reset retry budget at the start of a new workflow execution
       workflowRetryBudgetRef.current = MAX_WORKFLOW_RETRIES;
-
       let resolvedDeckNodeKey: string | null = deckNodeKey;
+      let currentAudienceData: AudienceData | null = null;
+      let currentResearchData: ResearchData | null = null;
+      let currentStoryboardData: StoryboardData | null = null;
+      let currentSlideContents: SlideContentData[] | null = null;
       let currentThemeSettings: WorkflowThemeSettings | null = null;
+      let currentVisualAssetsData: VisualAssetData[] | null = null;
 
       try {
         const currentDocumentMarkdown = params.attachCurrentDocument
           ? convertEditorStateToMarkdown(editor.getEditorState())
           : undefined;
-
-        console.log({
-          attachCurrentDocument: params.attachCurrentDocument,
-          currentDocumentMarkdown,
-        });
 
         if (params.existingDeckNodeKey) {
           resolvedDeckNodeKey = params.existingDeckNodeKey;
@@ -2186,7 +2014,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
             throw new Error("insertSlideDeckNode tool is not available.");
           }
           const deckCreationResult =
-            // @ts-expect-error - tool parameters are typed as `any` for execute
+            // @ts-expect-error - insertSlideDeckNode is not typed
             await runtimeTools.insertSlideDeckNode.execute({
               relation: "appendRoot",
             });
@@ -2218,7 +2046,7 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           );
         }
 
-        const step1Result = await executeStepWithRetries(
+        currentAudienceData = await executeStepWithRetries(
           runStep1_AudiencePlanner,
           "AudiencePlanner",
           {
@@ -2229,122 +2057,96 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
             currentDocumentMarkdown,
           },
         );
+        setAudienceData(currentAudienceData);
 
         const deckMetadataForStep1: DeckStrategicMetadata = {
-          bigIdea: step1Result.bigIdea,
-          audiencePersonaSummary: step1Result.persona,
+          bigIdea: currentAudienceData.bigIdea,
+          audiencePersonaSummary: currentAudienceData.persona,
           targetSlideCount:
             MAX_SLIDES_COUNT !== undefined
               ? MAX_SLIDES_COUNT
-              : step1Result.slideCount,
-          recommendedTone: step1Result.tone,
+              : currentAudienceData.slideCount,
+          recommendedTone: currentAudienceData.tone,
           originalUserPrompt: `Topic: ${params.topic}, Audience: ${params.who}, Outcome: ${params.outcome}, Timebox: ${params.timebox},`,
         };
-
-        chatDispatch({
-          type: "push",
-          msg: {
-            id: crypto.randomUUID(),
-            role: "system",
-            content: `Setting initial deck metadata for deck: ${resolvedDeckNodeKey}...`,
-          },
-        });
 
         if (!runtimeTools.setDeckMetadata) {
           throw new Error("setDeckMetadata tool is not available.");
         }
-        const setInitialMetadataResult =
-          // @ts-expect-error - tool parameters are typed as `any` for execute
-          await runtimeTools.setDeckMetadata.execute({
-            deckNodeKey: resolvedDeckNodeKey,
-            deckMetadata: deckMetadataForStep1,
-          });
+        // @ts-expect-error - setDeckMetadata is not typed
+        await runtimeTools.setDeckMetadata.execute({
+          deckNodeKey: resolvedDeckNodeKey,
+          deckMetadata: deckMetadataForStep1,
+        });
 
-        if (!setInitialMetadataResult.success) {
-          console.warn(
-            `Failed to set initial deck metadata: ${setInitialMetadataResult.error || "Unknown error"}`,
-          );
-          chatDispatch({
-            type: "push",
-            msg: {
-              id: crypto.randomUUID(),
-              role: "system",
-              content: `Warning: Could not set initial deck metadata. ${setInitialMetadataResult.error || "Unknown error"}`,
-            },
-          });
-        }
         currentThemeSettings = await executeStepWithRetries(
           runStep2_StyleStylist,
           "StyleStylist",
           {
             currentDeckNodeKey: resolvedDeckNodeKey,
-            currentAudienceData: step1Result,
+            currentAudienceData: currentAudienceData,
           },
         );
-        if (!currentThemeSettings)
-          throw new StepError(
-            "Theme settings are missing, cannot proceed with Style Stylist.",
-            "StyleStylist",
-            "currentThemeSettings was null",
-          );
+        setThemeSettings(currentThemeSettings);
 
-        const step2Result = await executeStepWithRetries(
+        currentResearchData = await executeStepWithRetries(
           runStep3_ResearchAgent,
           "ResearchAgent",
           {
-            audienceDataParam: step1Result,
+            audienceDataParam: currentAudienceData,
             files: params.files,
             currentDocumentMarkdown,
           },
         );
-        if (!step2Result) throw new Error("Research failed (step 2)");
+        setResearchData(currentResearchData);
 
         const storyboardSlideCount =
           MAX_SLIDES_COUNT !== undefined
             ? MAX_SLIDES_COUNT
-            : step1Result.slideCount;
+            : currentAudienceData.slideCount;
 
-        const step3Result = await executeStepWithRetries(
+        currentStoryboardData = await executeStepWithRetries(
           runStep4_StoryboardArchitect,
           "StoryboardArchitect",
           {
-            researchDataParam: step2Result,
+            researchDataParam: currentResearchData,
             slideCount: storyboardSlideCount,
             resolvedDeckKeyForThisStep: resolvedDeckNodeKey,
           },
         );
-        if (!step3Result)
-          throw new Error("Storyboard Architect failed (step 3)");
+        setStoryboardData(currentStoryboardData);
 
-        const step4Result = await executeStepWithRetries(
+        currentSlideContents = await executeStepWithRetries(
           runStep5_SlideWriter,
           "SlideWriter",
           {
-            storyboardDataParam: step3Result,
+            storyboardDataParam: currentStoryboardData,
             currentDeckNodeKey: resolvedDeckNodeKey,
           },
         );
-        if (!step4Result) throw new Error("Slide Writer failed (step 4)");
+        setSlideContents(currentSlideContents);
 
-        let visualAssetsDataResult: VisualAssetData[] | null = null;
-        if (step3Result && resolvedDeckNodeKey && currentThemeSettings) {
-          visualAssetsDataResult = await executeStepWithRetries(
+        if (
+          currentStoryboardData &&
+          resolvedDeckNodeKey &&
+          currentThemeSettings
+        ) {
+          currentVisualAssetsData = await executeStepWithRetries(
             runStep6_MediaGenerator,
             "MediaGenerator",
             {
-              storyboardDataParam: step3Result,
+              storyboardDataParam: currentStoryboardData,
               currentDeckNodeKey: resolvedDeckNodeKey,
               currentThemeSettings: currentThemeSettings,
             },
           );
+          setVisualAssetsData(currentVisualAssetsData);
         } else {
-          // This case should ideally not be hit if previous steps are mandatory and throw on failure.
-          // If storyboard or theme is missing, MediaGenerator would likely fail or do nothing.
-          // For robustness, we can log or even throw if this state is unexpected.
           const missingDepsError =
-            "Cannot run MediaGenerator due to missing storyboard data or theme settings.";
+            "Cannot run MediaGenerator due to missing storyboard data, deck key, or theme settings.";
           console.error(missingDepsError, {
-            step3Result,
+            currentStoryboardData,
+            resolvedDeckNodeKey,
             currentThemeSettings,
           });
           chatDispatch({
@@ -2359,9 +2161,9 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
 
         await executeStepWithRetries(runStep7_LayoutEngine, "LayoutEngine", {
           currentDeckNodeKey: resolvedDeckNodeKey,
-          storyboardDataParam: step3Result,
-          allSlideContents: step4Result,
-          allVisualAssets: visualAssetsDataResult,
+          storyboardDataParam: currentStoryboardData,
+          allSlideContents: currentSlideContents,
+          allVisualAssets: currentVisualAssetsData,
           currentThemeSettings: currentThemeSettings,
         });
 
@@ -2370,14 +2172,13 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
           "ReviewRefine",
           {
             currentDeckNodeKey: resolvedDeckNodeKey,
-            audienceData: step1Result,
-            storyboardData: step3Result,
-            slideContents: step4Result,
+            audienceData: currentAudienceData,
+            storyboardData: currentStoryboardData,
+            slideContents: currentSlideContents,
             themeSettings: currentThemeSettings,
-            visualAssetsData: visualAssetsDataResult,
+            visualAssetsData: currentVisualAssetsData,
           },
         );
-        if (!step8Result) throw new Error("Review & Refine failed (step 8)");
 
         chatDispatch({
           type: "push",
@@ -2418,9 +2219,9 @@ For now, the "saveImageGenerationRequest" tool is disabled.`;
       runStep3_ResearchAgent,
       runStep4_StoryboardArchitect,
       runStep5_SlideWriter,
+      runStep6_MediaGenerator,
       runStep7_LayoutEngine,
       runStep8_ReviewRefine,
-      runStep6_MediaGenerator,
     ],
   );
 

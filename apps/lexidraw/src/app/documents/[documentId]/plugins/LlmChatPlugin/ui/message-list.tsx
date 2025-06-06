@@ -98,17 +98,30 @@ export const MessageList: React.FC<{ className?: string }> = ({
   className,
 }) => {
   const { messages, streamingMessageId, streaming, mode } = useChatState();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messageListDivRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (!messageListDivRef.current) return;
+
+    const messageListElement = messageListDivRef.current;
+    let scrollableContainer: HTMLElement = messageListElement;
+
+    if (mode === "agent" || mode === "slide-agent") {
+      const viewport = messageListElement.closest<HTMLElement>(
+        "[data-radix-scroll-area-viewport]",
+      );
+      if (viewport) {
+        scrollableContainer = viewport;
+      }
     }
+
+    // Scroll the identified container to its bottom
+    scrollableContainer.scrollTop = scrollableContainer.scrollHeight;
   }, [messages, streaming, mode]);
 
   return (
     <div
-      ref={scrollRef}
+      ref={messageListDivRef}
       className={cn(
         "space-y-3 px-2 py-2",
         mode === "chat" && "flex-1 overflow-y-auto",
