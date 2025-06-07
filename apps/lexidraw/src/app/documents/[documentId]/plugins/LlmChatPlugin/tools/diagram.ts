@@ -17,7 +17,7 @@ import {
   parseMermaidToExcalidraw,
 } from "@excalidraw/mermaid-to-excalidraw";
 import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
-import { convertToExcalidrawElements } from "@excalidraw/excalidraw/index";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 
 export const useDiagramTools = () => {
   const {
