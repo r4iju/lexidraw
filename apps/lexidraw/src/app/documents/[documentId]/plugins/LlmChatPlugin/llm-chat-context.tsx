@@ -39,6 +39,8 @@ const initial: ChatState = {
   maxAgentSteps: 5,
 };
 
+export type ChatDispatch = React.Dispatch<Action>;
+
 export const ChatStateCtx = createContext<ChatState | undefined>(undefined);
 export const ChatDispatchCtx = createContext<
   React.Dispatch<Action> | undefined
