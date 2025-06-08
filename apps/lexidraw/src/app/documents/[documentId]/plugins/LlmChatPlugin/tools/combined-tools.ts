@@ -1,10 +1,34 @@
 import { tool } from "ai";
-import { z } from "zod";
+import { z, type ZodTypeAny } from "zod";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { RuntimeToolMap } from "../../../context/llm-context";
+import { type RuntimeToolMap } from "../../../context/llm-context";
 
 export const useCombinedTools = (individualTools: RuntimeToolMap) => {
   const [editor] = useLexicalComposerContext();
+
+  const toolCallSchemas = Object.entries(individualTools)
+    .filter(([, tool]) => tool?.parameters)
+    .map(([toolName, tool]) => {
+      return z.object({
+        toolName: z.literal(toolName),
+        args: tool.parameters as ZodTypeAny,
+      });
+    });
+
+  if (toolCallSchemas.length === 0) {
+    // Return a placeholder tool if no tools are provided
+    // This can happen if the workflow is initialized without any tools
+    return {
+      combinedTools: tool({
+        description: "No tools available for combination.",
+        parameters: z.object({}),
+        execute: async () => ({
+          success: false,
+          error: "No tools were provided to combinedTools.",
+        }),
+      }),
+    };
+  }
 
   const combinedTools = tool({
     description: `Executes a sequence of other tool calls sequentially. 
@@ -15,18 +39,11 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
     parameters: z.object({
       calls: z
         .array(
-          z.object({
-            toolName: z
-              .string()
-              .describe(
-                "The exact name of the tool to call (e.g., 'insertTextNode').",
-              ),
-            args: z
-              .any()
-              .describe(
-                "The arguments object for the specified tool, matching its parameters.",
-              ),
-          }),
+          z.discriminatedUnion(
+            "toolName",
+            // @ts-expect-error - TODO: fix this
+            toolCallSchemas as [ZodTypeAny, ...ZodTypeAny[]],
+          ),
         )
         .min(1)
         .describe(
@@ -48,14 +65,16 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
           if (!call) {
             throw new Error(`[combinedTools] Invalid call at index ${i}`);
           }
-          const { toolName, args } = call;
+          const { toolName, args } = call as {
+            toolName: string;
+            args: Record<string, unknown>;
+          };
 
           console.log(
             `[combinedTools] Executing step ${i + 1}: ${toolName}`,
             args,
           );
 
-          // Find the tool in the preliminary map (using closure for 'individualTools')
           const subTool = individualTools[toolName]; // Corrected: individualTools should be in scope here
 
           if (!subTool) {

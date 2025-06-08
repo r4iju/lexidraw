@@ -51,7 +51,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     saveStoryboardOutput,
     saveSlideContentAndNotes,
     saveThemeStyleSuggestions,
-    saveImageGenerationRequest,
   } = useSlideTools();
   const { insertLayout } = useLayoutTools();
   const { insertCollapsibleSection } = useCollapsibleTools();
@@ -129,7 +128,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(saveStoryboardOutput && { saveStoryboardOutput }),
     ...(saveSlideContentAndNotes && { saveSlideContentAndNotes }),
     ...(saveThemeStyleSuggestions && { saveThemeStyleSuggestions }),
-    ...(saveImageGenerationRequest && { saveImageGenerationRequest }),
   } as unknown as RuntimeToolMap;
 
   const { combinedTools } = useCombinedTools(individualTools);

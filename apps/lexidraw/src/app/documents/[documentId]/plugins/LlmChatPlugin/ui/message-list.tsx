@@ -115,8 +115,10 @@ export const MessageList: React.FC<{ className?: string }> = ({
       }
     }
 
-    // Scroll the identified container to its bottom
-    scrollableContainer.scrollTop = scrollableContainer.scrollHeight;
+    scrollableContainer.scrollTo({
+      top: scrollableContainer.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages, streaming, mode]);
 
   return (
