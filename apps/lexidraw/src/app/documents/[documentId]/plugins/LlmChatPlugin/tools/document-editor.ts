@@ -8,7 +8,8 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 
 export const useDocumentEditorTools = () => {
   const { serializeEditorStateWithKeys } = useKeyedSerialization();
-  const { getResolvedEditorAndKeyMap, getTargetEditorInstance } = useCommonUtilities();
+  const { getResolvedEditorAndKeyMap, getTargetEditorInstance } =
+    useCommonUtilities();
   const [editor] = useLexicalComposerContext();
 
   const patchNodeByJSON = tool({

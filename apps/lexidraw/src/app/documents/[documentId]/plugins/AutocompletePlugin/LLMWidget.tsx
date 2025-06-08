@@ -26,10 +26,10 @@ export function LLMWidget() {
   return (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-50 border bg-background w-full max-w-sm h-20 p-2 rounded-md shadow-md transition-transform duration-300 ease-in-out",
+        "fixed bottom-4 right-4 z-50 border border-border bg-background w-full max-w-sm h-20 p-2 rounded-md shadow-md transition-transform duration-300 ease-in-out",
         hidden ? "translate-x-full opacity-0" : "translate-x-0 opacity-100",
         {
-          "bg-destructive": isError,
+          "bg-destructive border-destructive": isError,
         },
       )}
     >

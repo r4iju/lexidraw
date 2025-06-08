@@ -4,8 +4,15 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import { useSlideCreationWorkflow } from "../use-slide-creation-workflow";
-import { PaperclipIcon, XIcon, FileIcon, SparklesIcon } from "lucide-react";
+import {
+  PaperclipIcon,
+  XIcon,
+  FileIcon,
+  SparklesIcon,
+  StopCircleIcon,
+} from "lucide-react";
 import { Switch } from "~/components/ui/switch";
+import env from "@packages/env";
 
 interface FormData {
   attachCurrentDocument: boolean;
@@ -16,15 +23,26 @@ interface FormData {
 }
 
 export const SlideGenerationForm: React.FC = () => {
-  const [formData, setFormData] = useState<FormData>({
-    attachCurrentDocument: false,
-    topic: "",
-    who: "",
-    outcome: "",
-    timebox: "",
-  });
+  const [formData, setFormData] = useState<FormData>(
+    env.NEXT_PUBLIC_NODE_ENV === "development"
+      ? {
+          attachCurrentDocument: false,
+          topic: "The future of sewing in a post-tarrif world",
+          who: "Housewives",
+          outcome: "Reducing trade deficits and getting self-sufficient",
+          timebox: "1 hour",
+        }
+      : {
+          attachCurrentDocument: false,
+          topic: "",
+          who: "",
+          outcome: "",
+          timebox: "",
+        },
+  );
   const [files, setFiles] = useState<File[] | null>(null);
-  const { startSlideGeneration, isLoading } = useSlideCreationWorkflow();
+  const { startSlideGeneration, isLoading, cancelSlideGeneration } =
+    useSlideCreationWorkflow();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (
@@ -186,10 +204,23 @@ export const SlideGenerationForm: React.FC = () => {
           )}
         </div>
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          <SparklesIcon className="w-4 h-4 mr-2" />
-          {isLoading ? "Generating Slides..." : "Generate Slides"}
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            <SparklesIcon className="w-4 h-4 mr-2" />
+            {isLoading ? "Generating Slides..." : "Generate Slides"}
+          </Button>
+          {isLoading && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={cancelSlideGeneration}
+              size="icon"
+              className="size-10"
+            >
+              <StopCircleIcon className="size-6" />
+            </Button>
+          )}
+        </div>
       </form>
     </>
   );

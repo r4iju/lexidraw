@@ -147,6 +147,7 @@ export const useCommonUtilities = () => {
         content: {
           summary: `Failed to insert ${toolName}`,
           updatedEditorStateJson: stateJson,
+          newNodeKey: undefined,
         },
       };
     }

@@ -101,6 +101,7 @@ export type AutocompleteLLMState = {
 
 export type LLMOptions = {
   prompt: string;
+  messages?: CoreMessage[];
   system?: string;
   temperature?: number;
   maxTokens?: number;
@@ -523,7 +524,8 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
   const generateChatResponse = useCallback(
     async ({
-      prompt,
+      prompt = "",
+      messages,
       system = "",
       temperature,
       maxTokens,
@@ -562,12 +564,20 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }));
 
       try {
-        const promptConfig = await buildPrompt({ prompt }, files);
+        let inputConfig: { prompt?: string; messages?: CoreMessage[] };
+
+        if (messages && messages.length) {
+          inputConfig = { messages };
+        } else {
+          // falls back to old behaviour (prompt + optional files)
+          inputConfig = await buildPrompt({ prompt }, files);
+        }
+
         const result = await generateText({
           experimental_prepareStep: prepareStep,
           experimental_repairToolCall: repairToolCall,
           model: chatProvider.current(llmConfig.chat.modelId),
-          ...promptConfig,
+          ...inputConfig,
           system,
           temperature: temperature ?? llmConfig.chat.temperature,
           maxTokens: maxTokens ?? llmConfig.chat.maxTokens,
