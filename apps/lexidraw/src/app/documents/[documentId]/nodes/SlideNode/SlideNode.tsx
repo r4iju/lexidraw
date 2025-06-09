@@ -99,29 +99,35 @@ export const ThemeSettingsSchema = z.object({
   customTokens: z.string().optional(),
 });
 
+export const DeckStrategicMetadataSchema = z.object({
+  bigIdea: z.string().optional(),
+  audiencePersonaSummary: z.string().optional(),
+  overallObjective: z.string().optional(),
+  recommendedTone: z.string().optional(),
+  originalUserPrompt: z.string().optional(),
+  targetSlideCount: z.number().optional(),
+  targetDurationMinutes: z.number().optional(),
+  theme: ThemeSettingsSchema.optional(),
+});
+
+export const SlideStrategicMetadataSchema = z.object({
+  purpose: z.string().optional(),
+  storyboardTitle: z.string().optional(),
+  keyMessage: z.string().optional(),
+  keyVisualHint: z.string().optional(),
+  takeAwayMessage: z.string().optional(),
+  layoutTemplateHint: z.string().optional(),
+  speakerNotes: z.string().optional(),
+  sourceMaterialRefs: z.array(z.string()).optional(),
+});
+
 export type ThemeSettings = z.infer<typeof ThemeSettingsSchema>;
 
-export type DeckStrategicMetadata = {
-  bigIdea?: string;
-  audiencePersonaSummary?: string;
-  overallObjective?: string;
-  recommendedTone?: string;
-  originalUserPrompt?: string;
-  targetSlideCount?: number;
-  targetDurationMinutes?: number;
-  theme?: ThemeSettings;
-};
+export type DeckStrategicMetadata = z.infer<typeof DeckStrategicMetadataSchema>;
 
-export type SlideStrategicMetadata = {
-  purpose?: string;
-  storyboardTitle?: string;
-  keyMessage?: string;
-  keyVisualHint?: string;
-  takeAwayMessage?: string;
-  layoutTemplateHint?: string;
-  speakerNotes?: string;
-  sourceMaterialRefs?: string[];
-};
+export type SlideStrategicMetadata = z.infer<
+  typeof SlideStrategicMetadataSchema
+>;
 
 export type SlideDeckData = {
   slides: SlideData[];
