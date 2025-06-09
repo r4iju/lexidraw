@@ -1,12 +1,12 @@
-import { $getNodeByKey, LexicalEditor } from "lexical";
+import { $getNodeByKey, LexicalEditor, createEditor } from "lexical";
 import {
-  DeckStrategicMetadata,
   SlideElementSpec,
   SlideData,
   SlideDeckData,
   SlideNode,
-  SlideStrategicMetadata,
   ThemeSettingsSchema,
+  DeckStrategicMetadataSchema,
+  SlideStrategicMetadataSchema,
 } from "../../../nodes/SlideNode/SlideNode";
 import { useCommonUtilities } from "./common";
 import {
@@ -26,6 +26,74 @@ import { ChartConfigSchema, ChartDataSchema } from "~/lib/schemas";
 import { useImageGeneration } from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
 import { useEffect, useMemo } from "react";
+import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
+import { NESTED_EDITOR_NODES } from "../../../nodes/SlideNode/SlideDeckEditor";
+
+export const AudienceDataSchema = z.object({
+  bigIdea: z
+    .string()
+    .describe("The single, concise big idea for the presentation."),
+  persona: z.string().describe("A summary of the target audience persona."),
+  slideCount: z
+    .number()
+    .int()
+    .positive()
+    .describe("The recommended number of slides."),
+  tone: z
+    .string()
+    .describe(
+      "The recommended tone for the presentation (e.g., Professional and engaging).",
+    ),
+});
+
+export const LayoutRefinementToolArgsSchema = z.object({
+  textBoxes: z
+    .array(
+      z.object({
+        originalBlockIndex: z
+          .number()
+          .describe(
+            "The original 0-based index of the text block this instruction applies to.",
+          ),
+        x: z
+          .number()
+          .describe("The x-coordinate of the top-left corner of the text box."),
+        y: z
+          .number()
+          .describe("The y-coordinate of the top-left corner of the text box."),
+        width: z.number().describe("The width of the text box."),
+        height: z.number().describe("The height of the text box."),
+        textAlign: z
+          .enum(["left", "center", "right"])
+          .optional()
+          .describe("The text alignment within the box."),
+      }),
+    )
+    .describe("An array of layout instructions for each text box."),
+  visualAssetPlacement: z
+    .object({
+      x: z
+        .number()
+        .describe(
+          "The x-coordinate of the top-left corner of the visual asset.",
+        ),
+      y: z
+        .number()
+        .describe(
+          "The y-coordinate of the top-left corner of the visual asset.",
+        ),
+      width: z.number().describe("The width of the visual asset."),
+      height: z.number().describe("The height of the visual asset."),
+      zIndex: z
+        .number()
+        .optional()
+        .describe("The stacking order of the visual asset."),
+    })
+    .nullable()
+    .describe(
+      "Layout instructions for the visual asset, or null if no visual is present or to be placed.",
+    ),
+});
 
 const SlideContentAndNotesSchema = z.object({
   pageId: z
@@ -211,9 +279,9 @@ export const useSlideTools = () => {
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
-        deckMetadata: z
-          .custom<DeckStrategicMetadata>()
-          .describe("The strategic metadata object to set for the deck."),
+        deckMetadata: DeckStrategicMetadataSchema.describe(
+          "The strategic metadata object to set for the deck.",
+        ),
         editorKey: EditorKeySchema.optional(),
       }),
       execute: async (options) => {
@@ -251,9 +319,9 @@ export const useSlideTools = () => {
         slideId: z
           .string()
           .describe("The ID of the slide page to update the metadata for."),
-        slideMetadata: z
-          .custom<SlideStrategicMetadata>()
-          .describe("The strategic metadata object to set for the slide."),
+        slideMetadata: SlideStrategicMetadataSchema.describe(
+          "The strategic metadata object to set for the slide.",
+        ),
         editorKey: EditorKeySchema.optional(),
       }),
       execute: async (options) => {
@@ -330,10 +398,9 @@ export const useSlideTools = () => {
         .describe(
           "Optional background color for the new slide (e.g., '#FF0000', 'blue'). Defaults to transparent/white.",
         ),
-      slideMetadata: z
-        .custom<SlideStrategicMetadata>()
-        .optional()
-        .describe("Optional strategic metadata for the new slide."),
+      slideMetadata: SlideStrategicMetadataSchema.optional().describe(
+        "Optional strategic metadata for the new slide.",
+      ),
       editorKey: EditorKeySchema.optional(), // Added editorKey to parameters
     });
 
@@ -1451,6 +1518,155 @@ export const useSlideTools = () => {
       },
     });
 
+    const patchBoxContent = tool({
+      description:
+        "Populates a box on a slide with rich text content, converted from a structured format.",
+      parameters: z.object({
+        deckNodeKey: z
+          .string()
+          .describe("The key of the target SlideDeckNode."),
+        slideId: z
+          .string()
+          .describe("The ID of the slide page containing the box."),
+        boxId: z.string().describe("The ID of the box element to populate."),
+        content: z
+          .array(
+            z.object({
+              type: z
+                .string()
+                .describe("e.g., 'heading1', 'paragraph', 'bulletList'."),
+              text: z
+                .string()
+                .describe(
+                  "Text content. For bulletList, use newlines for items.",
+                ),
+            }),
+          )
+          .describe("The structured content to convert and insert."),
+        editorKey: EditorKeySchema.optional(),
+      }),
+      execute: async (options) => {
+        let editorStateJSON: object | null = null;
+        try {
+          // Create a temporary headless editor to avoid side-effects on the main editor
+          const headlessEditor = createEditor({
+            nodes: NESTED_EDITOR_NODES,
+            onError: (e) => {
+              throw e;
+            },
+          });
+
+          const markdown = options.content
+            .map((item) => {
+              if (item.type === "bulletList") {
+                return item.text
+                  .split("\n")
+                  .map((line) => `* ${line}`)
+                  .join("\n");
+              }
+              if (item.type === "heading1") {
+                return `# ${item.text}`;
+              }
+              if (item.type === "heading2") {
+                return `## ${item.text}`;
+              }
+              if (item.type === "paragraph") {
+                return item.text;
+              }
+              return item.text; // fallback for unknown types
+            })
+            .join("\n\n");
+
+          headlessEditor.update(
+            () => {
+              $convertFromMarkdownString(markdown, TRANSFORMERS);
+              editorStateJSON = headlessEditor.getEditorState().toJSON();
+            },
+            { discrete: true },
+          );
+        } catch (e) {
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          console.error(
+            `[patchBoxContent] Error during markdown conversion for box ${options.boxId}:`,
+            errorMsg,
+          );
+          return {
+            success: false,
+            error: `Markdown to EditorState conversion failed: ${errorMsg}`,
+          };
+        }
+
+        if (!editorStateJSON) {
+          return {
+            success: false,
+            error: "Failed to generate EditorState JSON.",
+          };
+        }
+
+        const augmentedOptions = {
+          ...options,
+          generatedEditorStateJSON: editorStateJSON,
+        };
+        type AugmentedMutatorOptions = Omit<
+          typeof options,
+          "deckNodeKey" | "editorKey" | "content"
+        > & { generatedEditorStateJSON: object };
+
+        return updateSlideDeckExecutor<
+          AugmentedMutatorOptions,
+          typeof augmentedOptions
+        >("patchBoxContent", editor, augmentedOptions, (currentData, opts) => {
+          const { slideId, boxId, generatedEditorStateJSON } = opts;
+
+          const targetSlideIndex = currentData.slides.findIndex(
+            (s) => s.id === slideId,
+          );
+          if (targetSlideIndex === -1)
+            throw new Error(`Slide with ID ${slideId} not found.`);
+
+          let boxFound = false;
+          const updatedSlides = currentData.slides.map((slide, index) => {
+            if (index === targetSlideIndex) {
+              const newElements = (slide.elements || []).map((el) => {
+                if (el.id === boxId && el.kind === "box") {
+                  boxFound = true;
+                  return {
+                    ...el,
+                    editorStateJSON:
+                      generatedEditorStateJSON as KeyedSerializedEditorState,
+                    version: (el.version || 0) + 1,
+                  };
+                }
+                return el;
+              });
+              return { ...slide, elements: newElements };
+            }
+            return slide;
+          });
+
+          if (!boxFound)
+            throw new Error(
+              `Box with ID ${boxId} not found on slide ${slideId}.`,
+            );
+
+          return {
+            newData: { ...currentData, slides: updatedSlides },
+            summary: `Patched content of box (ID: ${boxId}) on slide ${slideId}.`,
+            newNodeKey: boxId,
+          };
+        });
+      },
+    });
+
+    const saveAudienceDataTool = tool({
+      description:
+        "Saves the audience plan data including big idea, persona, slide count, and tone.",
+      parameters: AudienceDataSchema,
+      execute: async (args: z.infer<typeof AudienceDataSchema>) => {
+        return { success: true, audienceData: args };
+      },
+    });
+
     return {
       insertSlideDeckNode,
       setDeckMetadata,
@@ -1462,6 +1678,7 @@ export const useSlideTools = () => {
       reorderSlidePage,
       setSlidePageBackground,
       updateBoxPropertiesOnSlidePage,
+      patchBoxContent,
       addImageToSlidePage,
       addChartToSlidePage,
       updateSlideElementProperties,
@@ -1470,6 +1687,7 @@ export const useSlideTools = () => {
       saveStoryboardOutput,
       saveSlideContentAndNotes,
       saveThemeStyleSuggestions,
+      saveAudienceDataTool,
     };
   }, [
     $insertNodeAtResolvedPoint,

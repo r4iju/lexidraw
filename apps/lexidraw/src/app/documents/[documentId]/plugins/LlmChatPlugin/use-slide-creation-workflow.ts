@@ -9,23 +9,13 @@ import {
   type DeckStrategicMetadata,
   type SlideStrategicMetadata,
 } from "../../nodes/SlideNode/SlideNode";
-// import { useLexicalTransformation } from "../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useMarkdownTools } from "../../utils/markdown";
 import env from "@packages/env";
 import { z } from "zod";
-import {
-  AudienceDataSchema,
-  useSlideWorkflowTools,
-} from "./tools/slides-workflow";
-import { useSlideTools } from "./tools/slides";
-// import { useImageTools } from "./tools/image";
-// import { useDocumentEditorTools } from "./tools/document-editor";
-// import { useTextTools } from "./text";
+import { useSlideTools, AudienceDataSchema } from "./tools/slides";
 import { CoreMessage, ToolResult, ToolChoice, ToolSet } from "ai";
 import { useCombinedTools } from "./tools/combined-tools";
-import { useDocumentEditorTools } from "./tools/document-editor";
-// import { useTextTools } from "./tools/text";
 
 interface AudienceData {
   bigIdea: string;
@@ -149,66 +139,6 @@ interface RunLLMStepReturn {
   rawResponseText?: string;
 }
 
-async function runLLMStep({
-  prompt,
-  tools,
-  generateChatResponse,
-  toolChoice,
-  signal,
-}: RunLLMStepArgs): Promise<RunLLMStepReturn> {
-  if (signal?.aborted) throw new Error("Operation cancelled by user.");
-  const messages: CoreMessage[] = [{ role: "user", content: prompt }];
-
-  console.log(`[runLLMStep] Iteration 1`);
-  console.log(
-    "[runLLMStep] Sending messages:",
-    JSON.stringify(messages, null, 2),
-  );
-
-  const resp = await generateChatResponse({
-    messages,
-    tools,
-    prompt: "",
-    toolChoice,
-    signal,
-  });
-
-  console.log("[runLLMStep] Received response:", JSON.stringify(resp, null, 2));
-  const rawResponseText = resp.text;
-  if (signal?.aborted) throw new Error("Operation cancelled by user.");
-
-  if (!resp.toolCalls?.length) {
-    return {
-      text: resp.text,
-      toolCalls: resp.toolCalls,
-      toolResults: undefined,
-      rawResponseText: rawResponseText,
-    };
-  }
-
-  const executed: ToolResult<string, unknown, unknown>[] = [];
-  for (const call of resp.toolCalls) {
-    const tool = tools[call.toolName];
-    if (!tool) throw new Error(`Unknown tool ${call.toolName}`);
-    executed.push({
-      toolCallId: call.toolCallId,
-      toolName: call.toolName,
-      args: call.args,
-      // @ts-expect-error - this should work
-      result: await tool.execute(call.args),
-    });
-  }
-
-  // When a tool is required, we execute it once and return immediately.
-  // This prevents the loop that was causing the duplicate visual.
-  return {
-    text: resp.text,
-    toolCalls: resp.toolCalls,
-    toolResults: executed,
-    rawResponseText: rawResponseText,
-  };
-}
-
 const MAX_WORKFLOW_RETRIES = 3;
 const MAX_SLIDES_COUNT: number | undefined =
   env.NEXT_PUBLIC_NODE_ENV === "development" ? 3 : undefined;
@@ -237,16 +167,11 @@ export function useSlideCreationWorkflow() {
     updateBoxPropertiesOnSlidePage,
     updateSlideElementProperties,
     addSlidePageExec,
+    patchBoxContent,
+    saveAudienceDataTool,
   } = useSlideTools();
 
-  const { patchNodeByJSON } = useDocumentEditorTools();
-  // const { applyTextStyle } = useTextTools();
-  // const { getSlideBoxKeyedState } = useLexicalTransformation();
   const { convertEditorStateToMarkdown } = useMarkdownTools();
-  const {
-    saveAudienceDataTool,
-    //applyLayoutRefinementTool
-  } = useSlideWorkflowTools();
 
   const styleStylistTools = useMemo(
     () => ({
@@ -275,13 +200,13 @@ export function useSlideCreationWorkflow() {
   const layoutEngineTools = useMemo(
     () => ({
       ...(addBoxToSlidePage && { addBoxToSlidePage }),
-      ...(patchNodeByJSON && { patchNodeByJSON }),
+      ...(patchBoxContent && { patchBoxContent }),
       ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
       ...(updateSlideElementProperties && { updateSlideElementProperties }),
     }),
     [
       addBoxToSlidePage,
-      patchNodeByJSON,
+      patchBoxContent,
       updateBoxPropertiesOnSlidePage,
       updateSlideElementProperties,
     ],
@@ -322,6 +247,72 @@ export function useSlideCreationWorkflow() {
       });
     }
   }, [chatDispatch]);
+
+  const runLLMStep = useCallback(
+    async ({
+      prompt,
+      tools,
+      generateChatResponse,
+      toolChoice,
+      signal,
+    }: RunLLMStepArgs): Promise<RunLLMStepReturn> => {
+      if (signal?.aborted) throw new Error("Operation cancelled by user.");
+      const messages: CoreMessage[] = [{ role: "user", content: prompt }];
+
+      console.log(`[runLLMStep] Iteration 1`);
+      console.log(
+        "[runLLMStep] Sending messages:",
+        JSON.stringify(messages, null, 2),
+      );
+
+      const resp = await generateChatResponse({
+        messages,
+        tools,
+        prompt: "",
+        toolChoice,
+        signal,
+      });
+
+      console.log(
+        "[runLLMStep] Received response:",
+        JSON.stringify(resp, null, 2),
+      );
+      const rawResponseText = resp.text;
+      if (signal?.aborted) throw new Error("Operation cancelled by user.");
+
+      if (!resp.toolCalls?.length) {
+        return {
+          text: resp.text,
+          toolCalls: resp.toolCalls,
+          toolResults: undefined,
+          rawResponseText: rawResponseText,
+        };
+      }
+
+      const executed: ToolResult<string, unknown, unknown>[] = [];
+      for (const call of resp.toolCalls) {
+        const tool = tools[call.toolName];
+        if (!tool) throw new Error(`Unknown tool ${call.toolName}`);
+        executed.push({
+          toolCallId: call.toolCallId,
+          toolName: call.toolName,
+          args: call.args,
+          // @ts-expect-error - this should work
+          result: await tool.execute(call.args),
+        });
+      }
+
+      // When a tool is required, we execute it once and return immediately.
+      // This prevents the loop that was causing the duplicate visual.
+      return {
+        text: resp.text,
+        toolCalls: resp.toolCalls,
+        toolResults: executed,
+        rawResponseText: rawResponseText,
+      };
+    },
+    [],
+  );
 
   const executeStepWithRetries = useCallback(
     async <ArgType extends { errorContext?: string }, ReturnValue>(
@@ -469,7 +460,7 @@ export function useSlideCreationWorkflow() {
 
       const { toolResults, rawResponseText } = await runLLMStep({
         prompt,
-        // @ts-expect-error - saveAudienceDataTool is not typed
+        // @ts-expect-error - impossible
         tools: { saveAudienceDataTool },
         generateChatResponse,
         toolChoice: "required",
@@ -507,7 +498,7 @@ export function useSlideCreationWorkflow() {
 
       return finalAudienceData;
     },
-    [chatDispatch, generateChatResponse, saveAudienceDataTool],
+    [chatDispatch, generateChatResponse, runLLMStep, saveAudienceDataTool],
   );
 
   const runStep2_StyleStylist = useCallback(
@@ -593,7 +584,7 @@ export function useSlideCreationWorkflow() {
 
       return suggestedTheme;
     },
-    [chatDispatch, styleStylistCombinedTools, generateChatResponse],
+    [chatDispatch, runLLMStep, styleStylistCombinedTools, generateChatResponse],
   );
 
   const runStep3_ResearchAgent = useCallback(
@@ -685,7 +676,7 @@ export function useSlideCreationWorkflow() {
 
       return { findings };
     },
-    [chatDispatch, generateChatResponse],
+    [chatDispatch, generateChatResponse, runLLMStep],
   );
 
   const runStep4_StoryboardArchitect = useCallback(
@@ -850,9 +841,9 @@ Respond **only** with one call to **saveStoryboardOutput** whose args include
     },
     [
       chatDispatch,
-      generateChatResponse,
-      setStoryboardData,
       saveStoryboardOutput,
+      runLLMStep,
+      generateChatResponse,
       addSlidePageExec,
     ],
   );
@@ -910,7 +901,7 @@ For bulletList, join items with new-lines.
 
 Then, call **combinedTools** to execute two sub-tasks in order:
 1. **saveSlideContentAndNotes**: with the 'pageId' ('${outline.pageId}'), the generated 'bodyContent', and the 'refinedSpeakerNotes'.
-2. **setSlideMetadata**: with 'deckNodeKey' ('${currentDeckNodeKey}'), 'slideId' ('${outline.pageId}'), and a 'slideMetadata' object containing 'structuredBodyContent' (same as 'bodyContent') and 'speakerNotes' (same as 'refinedSpeakerNotes').
+2. **setSlideMetadata**: with 'deckNodeKey' ('${currentDeckNodeKey}'), 'slideId' ('${outline.pageId}'), and a 'slideMetadata' object containing only the 'speakerNotes' (using the same value as 'refinedSpeakerNotes').
 
 Return nothing else.
 `
@@ -1015,6 +1006,7 @@ Return nothing else.
     [
       chatDispatch,
       generateChatResponse,
+      runLLMStep,
       saveSlideContentAndNotes,
       setSlideMetadata,
       slideWriterCombinedTools,
@@ -1262,11 +1254,11 @@ Return nothing else.
     },
     [
       chatDispatch,
-      generateChatResponse,
       generateAndAddImageToSlidePage,
       addChartToSlidePage,
       searchAndAddImageToSlidePage,
-      setVisualAssetsData,
+      runLLMStep,
+      generateChatResponse,
     ],
   );
 
@@ -1303,12 +1295,12 @@ Return nothing else.
 
       if (
         !addBoxToSlidePage ||
-        !patchNodeByJSON ||
+        !patchBoxContent ||
         !updateBoxPropertiesOnSlidePage ||
         !updateSlideElementProperties
       ) {
         throw new Error(
-          "LayoutEngine: required tools (addBox, patchNode, updateBox, updateElement) missing",
+          "LayoutEngine: required tools (addBox, patchBoxContent, updateBox, updateElement) missing",
         );
       }
 
@@ -1330,7 +1322,7 @@ Return nothing else.
             ? `**Text Content to Place:**\n${textBlocks
                 .map(
                   (b, i) =>
-                    `- Text Block ${i} (for use with \`patchNodeByJSON\`):\n  \`\`\`json\n  ${JSON.stringify(
+                    `- Text Block ${i} (for use with \`patchBoxContent\`):\n  \`\`\`json\n  ${JSON.stringify(
                       [{ type: b.type, text: b.text }],
                       null,
                       2,
@@ -1358,18 +1350,11 @@ ${errorContext ? `\n- Previous Error Context: ${errorContext}` : ""}
 ${textBlocksPromptInfo}
 ${visualAssetPromptInfo}
 
-**Your Task:**
-Generate a single call to the \`combinedTools\` tool to construct the entire slide layout.
-
 **Instructions for \`combinedTools\`:**
 
 1.  **For EACH text block** you want to place, you must include a sequence of **THREE** tool calls in this exact order:
-    a. \`addBoxToSlidePage\`: Creates a container. You **MUST** generate and provide a unique \`boxId\` (e.g., "box_s${
-      outline.slideNumber
-    }_${textBlocks.indexOf(
-      textBlocks[0] as { type: string; text: string },
-    )}"). Use deck key "${currentDeckNodeKey}" and slide ID "${outline.pageId}".
-    b. \`patchNodeByJSON\`: Populates the container. Use the same \`boxId\` for the \`nodeKey\`. The \`json\` argument must be the JSON **string** provided for the block in "Text Content to Place" above.
+    a. \`addBoxToSlidePage\`: Creates a container. You **MUST** generate and provide a unique \`boxId\` (e.g., "box_s${outline.slideNumber}_0"). Use deck key "${currentDeckNodeKey}" and slide ID "${outline.pageId}".
+    b. \`patchBoxContent\`: Populates the container. Use the same \`boxId\` for the \`boxId\`. The \`content\` argument must be the JSON array provided for the block in "Text Content to Place" above.
     c. \`updateBoxPropertiesOnSlidePage\`: Positions and sizes the container. Use the same \`boxId\` and provide pixel values for \`x\`, \`y\`, \`width\`, and \`height\`.
 
 2.  **For the visual asset** (if available), include **ONE** tool call:
@@ -1427,12 +1412,13 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
     },
     [
       chatDispatch,
-      generateChatResponse,
-      layoutCombinedTools,
       addBoxToSlidePage,
-      patchNodeByJSON,
+      patchBoxContent,
       updateBoxPropertiesOnSlidePage,
       updateSlideElementProperties,
+      runLLMStep,
+      layoutCombinedTools,
+      generateChatResponse,
     ],
   );
 
