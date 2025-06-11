@@ -3,7 +3,7 @@ import type { KeyedSerializedEditorState } from "./types";
 
 export const DEFAULT_TEXT_NODE_ORIGINAL_KEY = "initial-text-content-node"; // Or any other unique static key
 
-const EMPTY_CONTENT = {
+export const EMPTY_CONTENT = {
   root: {
     children: [
       {

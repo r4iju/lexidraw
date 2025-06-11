@@ -204,13 +204,6 @@ export const NESTED_EDITOR_NODES = [
   PollNode,
 ];
 
-const getNextZIndex = (elements: SlideElementSpec[]): number => {
-  if (!elements || elements.length === 0) {
-    return 0;
-  }
-  return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
-};
-
 interface CornerHandleProps {
   corner: "nw" | "ne" | "sw" | "se";
   element: SlideElementSpec;
@@ -652,6 +645,9 @@ export default function SlideDeckEditorComponent({
   parentEditor,
   nodeKey,
 }: SlideDeckEditorProps): JSX.Element {
+  console.log(`[SlideDeckEditor] Render for nodeKey: ${nodeKey}.`, {
+    initialData,
+  });
   const [deckData, setDeckData] = useState<SlideDeckData>(initialData);
   const [isLinkEditMode, setIsLinkEditMode] = useState(false);
   const elementEditorsRef = useRef<Map<string, LexicalEditor>>(new Map());
@@ -704,6 +700,14 @@ export default function SlideDeckEditorComponent({
   const { transformToLexicalSourcedJSON } = useLexicalTransformation();
 
   useEffect(() => {
+    console.log(
+      `[SlideDeckEditorComponent useEffect] Syncing active editors for slide ${currentSlide?.id}.`,
+      {
+        slideId: currentSlide?.id,
+        elementCount: currentSlide?.elements?.length,
+        currentElements: JSON.stringify(currentSlide?.elements),
+      },
+    );
     const newActiveElementEditors = new Map<string, LexicalEditor>();
     const currentEditorIdsInSlide = new Set<string>();
 
@@ -715,6 +719,9 @@ export default function SlideDeckEditorComponent({
           const isNewEditor = !editorInstance;
 
           if (isNewEditor) {
+            console.log(
+              `[SlideDeckEditorComponent useEffect] Creating new nested editor for box ${element.id} on slide ${currentSlide.id}.`,
+            );
             editorInstance = createEditor({
               parentEditor: parentEditor,
               nodes: NESTED_EDITOR_NODES,
@@ -737,13 +744,61 @@ export default function SlideDeckEditorComponent({
             incomingKeyedState || EMPTY_CONTENT_FOR_NEW_BOXES,
           );
 
+          console.log(
+            `[SlideDeckEditorComponent useEffect] Prepared content for box ${element.id}.`,
+            {
+              isNewEditor,
+              incomingKeyedState: JSON.stringify(incomingKeyedState),
+              transformedLexicalJSON: JSON.stringify(incomingLexicalJSON),
+            },
+          );
+
+          if (
+            !incomingLexicalJSON.root ||
+            (Array.isArray(incomingLexicalJSON.root.children) &&
+              incomingLexicalJSON.root.children.length === 0)
+          ) {
+            console.warn(
+              `[SlideDeckEditorComponent useEffect] Incoming Lexical JSON for box ${element.id} has an empty root. This could lead to an empty editor.`,
+              {
+                isNewEditor,
+                slideId: currentSlide.id,
+                incomingKeyedState: JSON.stringify(incomingKeyedState),
+                transformedLexicalJSON: JSON.stringify(incomingLexicalJSON),
+              },
+            );
+          }
+
           if (
             isNewEditor ||
             !isEqual(currentLiveLexicalJSON, incomingLexicalJSON)
           ) {
             try {
+              console.log(
+                `[SlideDeckEditorComponent useEffect] State change detected, updating editor for box ${element.id}.`,
+                {
+                  isNewEditor,
+                  currentLive: JSON.stringify(currentLiveLexicalJSON),
+                  incoming: JSON.stringify(incomingLexicalJSON),
+                },
+              );
               const newLexicalState =
                 editorInstance.parseEditorState(incomingLexicalJSON);
+              if (newLexicalState.isEmpty()) {
+                console.error(
+                  `[SlideDeckEditorComponent useEffect] CRITICAL: Setting an EMPTY editor state for box ${element.id}. This can lead to unexpected behavior or data loss.`,
+                  {
+                    elementId: element.id,
+                    parsedStateIsEmpty: newLexicalState.isEmpty(),
+                    fromKeyedJSON: JSON.stringify(incomingKeyedState, null, 2),
+                    fromLexicalJSON: JSON.stringify(
+                      incomingLexicalJSON,
+                      null,
+                      2,
+                    ),
+                  },
+                );
+              }
               editorInstance.setEditorState(newLexicalState);
             } catch (e) {
               console.error(
@@ -751,6 +806,8 @@ export default function SlideDeckEditorComponent({
                 e,
                 "Incoming Lexical JSON:",
                 incomingLexicalJSON,
+                "Original Keyed State:",
+                incomingKeyedState,
               );
             }
           }
@@ -767,6 +824,16 @@ export default function SlideDeckEditorComponent({
     transformToLexicalSourcedJSON,
   ]);
 
+  useEffect(() => {
+    console.log(`[SlideDeckEditor] New initialData received.`, {
+      initialData,
+    });
+    if (!isEqual(initialData, deckData)) {
+      console.log("[SlideDeckEditor] initialData has changed, updating state.");
+      setDeckData(initialData);
+    }
+  }, [initialData, deckData]);
+
   const handleBoxContentChange = useCallback(
     (elementId: string, editorStateOnBlur: EditorState) => {
       if (!currentSlide || !serializeEditorStateWithKeys) return;
@@ -776,6 +843,25 @@ export default function SlideDeckEditorComponent({
       if (!newKeyedStateToStore) {
         console.error(`Failed to serialize box ${elementId} with keys.`);
         return;
+      }
+
+      const root = newKeyedStateToStore.root;
+      if (
+        !root ||
+        (Array.isArray(root.children) && root.children.length === 0) ||
+        (Array.isArray(root.children) &&
+          root.children.length === 1 &&
+          root.children[0]?.type === "paragraph" &&
+          root.children[0]?.children?.length === 0)
+      ) {
+        console.warn(
+          `[SlideDeckEditorComponent handleBoxContentChange] About to save an empty or minimal editor state for box ${elementId}. This might be unintentional.`,
+          {
+            slideId: currentSlide.id,
+            editorStateOnBlurJSON: JSON.stringify(editorStateOnBlur.toJSON()),
+            newKeyedStateToStore: JSON.stringify(newKeyedStateToStore),
+          },
+        );
       }
 
       // The guard for comparing current stored state with new state can be kept,
@@ -819,6 +905,10 @@ export default function SlideDeckEditorComponent({
       );
       const newDeckData = { ...deckData, slides: newSlides };
 
+      console.log(
+        `[SlideDeckEditor] Box content changed for element ${elementId}. Propagating changes up.`,
+        { newDeckData },
+      );
       setDeckData(newDeckData);
       onDeckDataChange(newDeckData);
     },
@@ -849,6 +939,10 @@ export default function SlideDeckEditorComponent({
         ...deckData,
         currentSlideId: targetSlide.id,
       };
+      console.log(
+        `[SlideDeckEditor] Navigating to slide ${newIndex}.`,
+        newDeckData,
+      );
       setDeckData(newDeckData);
       onDeckDataChange(newDeckData);
     }
@@ -872,9 +966,17 @@ export default function SlideDeckEditorComponent({
       slides: newSlidesArray,
       currentSlideId: newSlideId,
     };
+    console.log(`[SlideDeckEditor] Adding new slide.`, { newDeckData });
     setDeckData(newDeckData);
     onDeckDataChange(newDeckData);
   };
+
+  const getNextZIndex = useCallback((elements: SlideElementSpec[]): number => {
+    if (!elements || elements.length === 0) {
+      return 0;
+    }
+    return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+  }, []);
 
   const handleAddBox = () => {
     if (!currentSlide) {
@@ -899,6 +1001,7 @@ export default function SlideDeckEditorComponent({
     );
     const newDeckData = { ...deckData, slides: updatedSlides };
 
+    console.log(`[SlideDeckEditor] Adding new box.`, { newDeckData });
     setDeckData(newDeckData);
     onDeckDataChange(newDeckData);
     setSelectedElementId(newBoxId);
@@ -929,6 +1032,7 @@ export default function SlideDeckEditorComponent({
     );
     const newDeckData = { ...deckData, slides: updatedSlides };
 
+    console.log(`[SlideDeckEditor] Adding new chart.`, { newDeckData });
     setDeckData(newDeckData);
     onDeckDataChange(newDeckData);
     setSelectedElementId(newChartId);
@@ -963,6 +1067,7 @@ export default function SlideDeckEditorComponent({
     );
     const newDeckData = { ...deckData, slides: updatedSlides };
 
+    console.log(`[SlideDeckEditor] Inserting image.`, { newDeckData });
     setDeckData(newDeckData);
     onDeckDataChange(newDeckData);
     setSelectedElementId(newImageId);
@@ -992,6 +1097,9 @@ export default function SlideDeckEditorComponent({
         s.id === currentSlide.id ? { ...s, elements: reorderedElements } : s,
       );
       const newDeckData = { ...deckData, slides: newSlides };
+      console.log(`[SlideDeckEditor] Deleting element ${elementId}.`, {
+        newDeckData,
+      });
       setDeckData(newDeckData);
       onDeckDataChange(newDeckData);
     },
@@ -1008,6 +1116,10 @@ export default function SlideDeckEditorComponent({
         s.id === currentSlide.id ? { ...s, elements: newElements } : s,
       );
       const newDeckData = { ...deckData, slides: newSlides };
+      console.log(
+        `[SlideDeckEditor] Changing background color for element ${elementId}.`,
+        { newDeckData },
+      );
       setDeckData(newDeckData);
       onDeckDataChange(newDeckData);
     },
@@ -1022,6 +1134,10 @@ export default function SlideDeckEditorComponent({
         s.id === currentSlide.id ? updatedSlideData : s,
       );
       const newDeckData = { ...deckData, slides: newSlides };
+      console.log(
+        `[SlideDeckEditor] Changing background color for slide ${currentSlide.id}.`,
+        { newDeckData },
+      );
       setDeckData(newDeckData);
       onDeckDataChange(newDeckData);
     },
@@ -1041,6 +1157,9 @@ export default function SlideDeckEditorComponent({
         s.id === currentSlide.id ? { ...s, elements: newElements } : s,
       );
       const newDeckData = { ...deckData, slides: newSlides };
+      console.log(`[SlideDeckEditor] Updating element ${elementId}.`, {
+        newDeckData,
+      });
       setDeckData(newDeckData);
       onDeckDataChange(newDeckData);
     },
@@ -1084,6 +1203,10 @@ export default function SlideDeckEditorComponent({
       s.id === currentSlide.id ? { ...s, elements: newElements } : s,
     );
     const newDeckData = { ...deckData, slides: newSlides };
+    console.log(
+      `[SlideDeckEditor] Saving chart changes for element ${editingChartElement.id}.`,
+      { newDeckData },
+    );
     setDeckData(newDeckData);
     onDeckDataChange(newDeckData);
     setShowChartEditModal(false);
@@ -1184,6 +1307,9 @@ export default function SlideDeckEditorComponent({
           s.id === currentSlide.id ? { ...s, elements: finalElements } : s,
         );
         const newDeckData = { ...deckData, slides: newSlides };
+        console.log(`[SlideDeckEditor] Changing z-index for ${elementId}.`, {
+          newDeckData,
+        });
         setDeckData(newDeckData);
         onDeckDataChange(newDeckData);
       };
@@ -1229,6 +1355,10 @@ export default function SlideDeckEditorComponent({
       slides: newSlides,
       currentSlideId: newCurrentSlideId,
     };
+    console.log(
+      `[SlideDeckEditor] Deleting slide ${currentSlide.id}.`,
+      newDeckData,
+    );
     setDeckData(newDeckData);
     onDeckDataChange(newDeckData);
   };

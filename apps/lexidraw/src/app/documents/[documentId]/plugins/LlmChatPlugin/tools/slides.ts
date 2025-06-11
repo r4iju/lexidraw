@@ -1,4 +1,10 @@
-import { $getNodeByKey, LexicalEditor, createEditor } from "lexical";
+/**
+ * WARNING: WHOEVER ADDS MARKDOWN TO THIS FILE WILL BE EXECUTED ON THE SPOT.
+ * We should not use markdown in the future. It incentivizes bad box structures.
+ * Instead add list nodes, heading nodes, paragraph nodes, etc.
+ */
+
+import { $getNodeByKey, LexicalEditor } from "lexical";
 import {
   SlideElementSpec,
   SlideData,
@@ -17,17 +23,15 @@ import {
 import { tool } from "ai";
 import { z } from "zod";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import {
-  DEFAULT_TEXT_NODE_ORIGINAL_KEY,
-  useEmptyContent,
-} from "../../../initial-content";
-import { KeyedSerializedEditorState } from "../../../types";
 import { ChartConfigSchema, ChartDataSchema } from "~/lib/schemas";
 import { useImageGeneration } from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
 import { useEffect, useMemo } from "react";
-import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
-import { NESTED_EDITOR_NODES } from "../../../nodes/SlideNode/SlideDeckEditor";
+import {
+  DEFAULT_TEXT_NODE_ORIGINAL_KEY,
+  EMPTY_CONTENT,
+} from "../../../initial-content";
+import { KeyedSerializedEditorState } from "../../../types";
 
 export const AudienceDataSchema = z.object({
   bigIdea: z
@@ -95,33 +99,6 @@ export const LayoutRefinementToolArgsSchema = z.object({
     ),
 });
 
-const SlideContentAndNotesSchema = z.object({
-  pageId: z
-    .string()
-    .describe("The ID of the slide page this content belongs to."),
-  bodyContent: z
-    .array(
-      z.object({
-        type: z
-          .string()
-          .describe(
-            "Type of content block, e.g., 'heading1', 'paragraph', 'bulletList'.",
-          ),
-        text: z
-          .string()
-          .describe(
-            "Text content for the block. For bulletList, items are separated by newline characters.",
-          ),
-      }),
-    )
-    .describe(
-      "The main structured content for the slide body, as an array of content blocks.",
-    ),
-  refinedSpeakerNotes: z
-    .string()
-    .describe("The revised and improved speaker notes for the slide."),
-});
-
 type SlideDeckMutator<O extends Record<string, unknown>> = (
   currentData: SlideDeckData,
   options: O,
@@ -142,7 +119,6 @@ export const useSlideTools = () => {
   const [editor] = useLexicalComposerContext();
   const { generateImageData, uploadImageData } = useImageGeneration();
   const { searchImage, trackDownload } = useUnsplashImage();
-  const emptyContent = useEmptyContent();
 
   useEffect(() => {
     console.log("🔄 useSlideTools re-rendered");
@@ -477,141 +453,6 @@ export const useSlideTools = () => {
       execute: addSlidePageExec,
     });
 
-    const addBoxToSlidePage = tool({
-      description:
-        "Adds a new box element to a specific slide page within an existing SlideDeckNode. The content for the box should be provided as Markdown.",
-      parameters: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z
-          .string()
-          .describe("The ID of the slide page to add the box to."),
-        boxId: z
-          .string()
-          .optional()
-          .describe(
-            "Optional ID for the new box. If not provided, a unique ID (e.g., 'box-<timestamp>') will be generated.",
-          ),
-        x: z
-          .number()
-          .optional()
-          .default(50)
-          .describe(
-            "Optional X coordinate for the top-left corner of the box in pixels. Defaults to 50. The slide itself is 1280px wide.",
-          ),
-        y: z
-          .number()
-          .optional()
-          .default(50)
-          .describe(
-            "Optional Y coordinate for the top-left corner of the box in pixels. Defaults to 50. The slide itself is 720px tall.",
-          ),
-        width: z
-          .number()
-          .optional()
-          .default(300)
-          .describe(
-            "Optional width of the box in pixels. Defaults to 300. The slide itself is 1280px wide.",
-          ),
-        height: z
-          .number()
-          .optional()
-          .default(50)
-          .describe(
-            "Optional height of the box in pixels. Defaults to 50. The slide itself is 720px tall.",
-          ),
-        backgroundColor: z
-          .string()
-          .optional()
-          .default("transparent")
-          .describe(
-            "Optional background color for the box (e.g., '#FF0000', 'blue'). Defaults to transparent.",
-          ),
-        editorKey: EditorKeySchema.optional(),
-      }),
-      execute: async (options) => {
-        type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
-        return updateSlideDeckExecutor<MutatorOptions, typeof options>(
-          "addBoxToSlidePage",
-          editor,
-          options,
-          (currentData, opts) => {
-            const { slideId, boxId, x, y, width, height, backgroundColor } =
-              opts;
-
-            const targetSlideIndex = currentData.slides.findIndex(
-              (s) => s.id === slideId,
-            );
-
-            if (targetSlideIndex === -1) {
-              throw new Error(
-                `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
-              );
-            }
-            const targetSlide = currentData.slides[targetSlideIndex];
-            if (!targetSlide) {
-              // Should be caught by index check, but safeguard
-              throw new Error(
-                `Target slide ${slideId} could not be retrieved from deck ${options.deckNodeKey}.`,
-              );
-            }
-
-            const getNextZIndexForSlideElements = (
-              elements: SlideElementSpec[],
-            ): number => {
-              if (!elements || elements.length === 0) {
-                return 0;
-              }
-              return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
-            };
-
-            const newBoxGeneratedId = boxId || `box-${Date.now()}`;
-
-            const generatedEditorStateJSON =
-              emptyContent as unknown as KeyedSerializedEditorState;
-
-            const newBoxElement: SlideElementSpec = {
-              kind: "box",
-              id: newBoxGeneratedId,
-              x: x || 50,
-              y: y || 50,
-              width: width || 300,
-              height: height || 50,
-              editorStateJSON: generatedEditorStateJSON,
-              backgroundColor: backgroundColor || "transparent",
-              version: 1,
-              zIndex: getNextZIndexForSlideElements(targetSlide.elements || []),
-            };
-
-            const updatedSlides = currentData.slides.map((slide, index) => {
-              if (index === targetSlideIndex) {
-                return {
-                  ...slide,
-                  elements: [...(slide.elements || []), newBoxElement],
-                };
-              }
-              return slide;
-            });
-
-            const summary = `Added new box (ID: ${newBoxGeneratedId}) with content to slide ${slideId} in deck ${options.deckNodeKey}.`;
-
-            return {
-              newData: {
-                ...currentData,
-                slides: updatedSlides,
-              },
-              summary: summary,
-              newNodeKey: newBoxGeneratedId,
-              additionalContent: {
-                textNodeKey: DEFAULT_TEXT_NODE_ORIGINAL_KEY,
-              },
-            };
-          },
-        );
-      },
-    });
-
     const removeSlidePage = tool({
       description:
         "Removes a specific slide page from an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide. Cannot remove the last slide.",
@@ -838,27 +679,38 @@ export const useSlideTools = () => {
     });
 
     /* --------------------------------------------------------------
-     * Update Box Properties on Slide Page Tool
+     * Update Element Properties Tool
      * --------------------------------------------------------------*/
-    const updateBoxPropertiesOnSlidePage = tool({
+    const updateElementProperties = tool({
       description:
-        "Updates the properties (like position, size, background color) of an existing box element on a specific slide page.",
+        "Updates properties of an existing box, image, or chart element on a specific slide page.",
       parameters: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
         slideId: z
           .string()
-          .describe("The ID of the slide page containing the box."),
-        boxId: z.string().describe("The ID of the box element to update."),
+          .describe("The ID of the slide page containing the element."),
+        elementId: z.string().describe("The ID of the element to update."),
+        kind: z
+          .enum(["box", "image", "chart"])
+          .describe("The kind of element to update."),
         properties: z
           .object({
+            // Common properties
             x: z.number().optional(),
             y: z.number().optional(),
-            width: z.number().optional(),
-            height: z.number().optional(),
-            backgroundColor: z.string().optional(),
+            width: z.union([z.number(), z.literal("inherit")]).optional(),
+            height: z.union([z.number(), z.literal("inherit")]).optional(),
             zIndex: z.number().optional(),
+            // Box specific
+            backgroundColor: z.string().optional(),
+            // Image specific
+            url: z.string().optional(),
+            // Chart specific
+            chartType: z.enum(["bar", "line", "pie"]).optional(),
+            chartData: ChartDataSchema.optional(),
+            chartConfig: ChartConfigSchema.optional(),
           })
           .describe(
             "An object containing the properties to update. Only provided properties will be changed.",
@@ -868,11 +720,11 @@ export const useSlideTools = () => {
       execute: async (options) => {
         type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
         return updateSlideDeckExecutor<MutatorOptions, typeof options>(
-          "updateBoxPropertiesOnSlidePage",
+          "updateElementProperties",
           editor,
           options,
           (currentData, opts) => {
-            const { slideId, boxId, properties } = opts;
+            const { slideId, elementId, kind, properties } = opts;
 
             const targetSlideIndex = currentData.slides.findIndex(
               (s) => s.id === slideId,
@@ -884,15 +736,48 @@ export const useSlideTools = () => {
               );
             }
 
-            let boxFoundAndUpdated = false;
+            let elementFoundAndUpdated = false;
             const updatedSlides = currentData.slides.map((slide, index) => {
               if (index === targetSlideIndex) {
                 const newElements = (slide.elements || []).map((el) => {
-                  if (el.id === boxId && el.kind === "box") {
-                    boxFoundAndUpdated = true;
+                  if (el.id === elementId) {
+                    if (el.kind !== kind) {
+                      throw new Error(
+                        `Element ${elementId} is of kind ${el.kind}, but update specified kind ${kind}.`,
+                      );
+                    }
+                    elementFoundAndUpdated = true;
+                    let specificUpdates: Record<string, unknown> = {};
+
+                    if (kind === "box" && el.kind === "box") {
+                      specificUpdates = {
+                        backgroundColor:
+                          properties.backgroundColor ?? el.backgroundColor,
+                      };
+                    } else if (kind === "image" && el.kind === "image") {
+                      specificUpdates = {
+                        url: properties.url ?? el.url,
+                      };
+                    } else if (kind === "chart" && el.kind === "chart") {
+                      specificUpdates = {
+                        chartType: properties.chartType ?? el.chartType,
+                        chartData: properties.chartData
+                          ? JSON.stringify(properties.chartData)
+                          : el.chartData,
+                        chartConfig: properties.chartConfig
+                          ? JSON.stringify(properties.chartConfig)
+                          : el.chartConfig,
+                      };
+                    }
+
                     return {
                       ...el,
-                      ...properties, // Spread the new properties
+                      x: properties.x ?? el.x,
+                      y: properties.y ?? el.y,
+                      width: properties.width ?? el.width,
+                      height: properties.height ?? el.height,
+                      zIndex: properties.zIndex ?? el.zIndex,
+                      ...specificUpdates,
                       version: (el.version || 0) + 1,
                     };
                   }
@@ -903,13 +788,13 @@ export const useSlideTools = () => {
               return slide;
             });
 
-            if (!boxFoundAndUpdated) {
+            if (!elementFoundAndUpdated) {
               throw new Error(
-                `Box with ID ${boxId} not found on slide ${slideId} in deck ${options.deckNodeKey}.`,
+                `Element with ID ${elementId} of kind ${kind} not found on slide ${slideId} in deck ${options.deckNodeKey}.`,
               );
             }
 
-            const summary = `Updated properties of box (ID: ${boxId}) on slide ${slideId} in deck ${options.deckNodeKey}. Changed: ${Object.keys(properties).join(", ")}`;
+            const summary = `Updated properties of ${kind} element (ID: ${elementId}) on slide ${slideId}. Changed: ${Object.keys(properties).join(", ")}`;
 
             return {
               newData: {
@@ -917,7 +802,7 @@ export const useSlideTools = () => {
                 slides: updatedSlides,
               },
               summary: summary,
-              newNodeKey: boxId, // The key of the updated box
+              newNodeKey: elementId,
             };
           },
         );
@@ -1236,130 +1121,6 @@ export const useSlideTools = () => {
     });
 
     /* --------------------------------------------------------------
-     * Update Slide Element Properties Tool
-     * --------------------------------------------------------------*/
-    const updateSlideElementProperties = tool({
-      description:
-        "Updates properties of an existing image or chart element on a specific slide page.",
-      parameters: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z
-          .string()
-          .describe("The ID of the slide page containing the element."),
-        elementId: z
-          .string()
-          .describe("The ID of the image or chart element to update."),
-        kind: z
-          .enum(["image", "chart"])
-          .describe("The kind of element to update."),
-        properties: z
-          .object({
-            // Common properties
-            x: z.number().optional(),
-            y: z.number().optional(),
-            width: z.union([z.number(), z.literal("inherit")]).optional(),
-            height: z.union([z.number(), z.literal("inherit")]).optional(),
-            // Image specific
-            url: z.string().optional(),
-            // Chart specific
-            chartType: z.enum(["bar", "line", "pie"]).optional(),
-            chartData: ChartDataSchema.optional(),
-            chartConfig: ChartConfigSchema.optional(),
-          })
-          .describe(
-            "An object containing the properties to update. Only provided properties will be changed.",
-          ),
-        editorKey: EditorKeySchema.optional(),
-      }),
-      execute: async (options) => {
-        type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
-        return updateSlideDeckExecutor<MutatorOptions, typeof options>(
-          "updateSlideElementProperties",
-          editor,
-          options,
-          (currentData, opts) => {
-            const { slideId, elementId, kind, properties } = opts;
-
-            const targetSlideIndex = currentData.slides.findIndex(
-              (s) => s.id === slideId,
-            );
-
-            if (targetSlideIndex === -1) {
-              throw new Error(
-                `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
-              );
-            }
-
-            let elementFoundAndUpdated = false;
-            const updatedSlides = currentData.slides.map((slide, index) => {
-              if (index === targetSlideIndex) {
-                const newElements = (slide.elements || []).map((el) => {
-                  if (el.id === elementId) {
-                    if (el.kind !== kind) {
-                      throw new Error(
-                        `Element ${elementId} is of kind ${el.kind}, but update specified kind ${kind}.`,
-                      );
-                    }
-                    elementFoundAndUpdated = true;
-                    let specificUpdates = {};
-                    if (kind === "image" && el.kind === "image") {
-                      specificUpdates = {
-                        url: properties.url ?? el.url,
-                      };
-                    }
-                    if (kind === "chart" && el.kind === "chart") {
-                      specificUpdates = {
-                        chartType: properties.chartType ?? el.chartType,
-                        chartData: properties.chartData
-                          ? JSON.stringify(properties.chartData)
-                          : el.chartData,
-                        chartConfig: properties.chartConfig
-                          ? JSON.stringify(properties.chartConfig)
-                          : el.chartConfig,
-                      };
-                    }
-
-                    return {
-                      ...el,
-                      x: properties.x ?? el.x,
-                      y: properties.y ?? el.y,
-                      width: properties.width ?? el.width,
-                      height: properties.height ?? el.height,
-                      ...specificUpdates,
-                      version: (el.version || 0) + 1,
-                    };
-                  }
-                  return el;
-                });
-                return { ...slide, elements: newElements };
-              }
-              return slide;
-            });
-
-            if (!elementFoundAndUpdated) {
-              throw new Error(
-                `Element with ID ${elementId} of kind ${kind} not found on slide ${slideId} in deck ${options.deckNodeKey}.`,
-              );
-            }
-
-            const summary = `Updated properties of ${kind} element (ID: ${elementId}) on slide ${slideId}. Changed: ${Object.keys(properties).join(", ")}`;
-
-            return {
-              newData: {
-                ...currentData,
-                slides: updatedSlides,
-              },
-              summary: summary,
-              newNodeKey: elementId,
-            };
-          },
-        );
-      },
-    });
-
-    /* --------------------------------------------------------------
      * Generate and Add Image to Slide Page Tool
      * --------------------------------------------------------------*/
 
@@ -1481,183 +1242,163 @@ export const useSlideTools = () => {
     });
 
     /* --------------------------------------------------------------
-     * Save Slide Content and Notes Tool (for runStep4_SlideWriter)
+     * Save Slide Content and Metadata Tool (for runStep5_SlideWriter)
      * --------------------------------------------------------------*/
-    const saveSlideContentAndNotes = tool({
+    const saveSlideContentAndMetadata = tool({
       description:
-        "Saves the generated body content and refined speaker notes for a specific slide page. Use this tool to provide these details after generation.",
-      parameters: SlideContentAndNotesSchema, // Use the defined schema here
-      execute: async (args) => {
-        // Zod validation is handled by the tool infrastructure before this execute is called.
-        // The calling function (runStep4_SlideWriter) will extract these args from the tool_call.
-        return {
-          success: true,
-          content: {
-            summary: `Successfully received and validated content for pageId: ${args.pageId}.`,
-          },
-        };
-      },
-    });
-
-    /* --------------------------------------------------------------
-     * Save Theme Style Suggestions Tool (for runStep5_StyleStylist)
-     * --------------------------------------------------------------*/
-    const saveThemeStyleSuggestions = tool({
-      description:
-        "Saves the suggested theme settings (colors, fonts, etc.) for the presentation. Use this tool to provide these details after generation.",
-      parameters: ThemeSettingsSchema,
-      execute: async (args) => {
-        // Zod validation is handled by the tool infrastructure.
-        // The calling function (runStep5_StyleStylist) will extract these args.
-        return {
-          success: true,
-          content: {
-            summary: `Successfully received and validated theme style suggestions. Template: ${args.templateName || "N/A"}`,
-          },
-        };
-      },
-    });
-
-    const patchBoxContent = tool({
-      description:
-        "Populates a box on a slide with rich text content, converted from a structured format.",
+        "Saves the generated body content and refined speaker notes for a specific slide page, and updates the slide's metadata.",
       parameters: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
         slideId: z
           .string()
-          .describe("The ID of the slide page containing the box."),
-        boxId: z.string().describe("The ID of the box element to populate."),
-        content: z
+          .describe("The ID of the slide page this content belongs to."),
+        bodyContent: z
           .array(
             z.object({
               type: z
                 .string()
-                .describe("e.g., 'heading1', 'paragraph', 'bulletList'."),
+                .describe(
+                  "Type of content block, e.g., 'heading1', 'paragraph', 'bulletList'.",
+                ),
               text: z
                 .string()
                 .describe(
-                  "Text content. For bulletList, use newlines for items.",
+                  "Text content for the block. For bulletList, items are separated by newline characters.",
                 ),
             }),
           )
-          .describe("The structured content to convert and insert."),
+          .describe(
+            "The main structured content for the slide body, as an array of content blocks.",
+          ),
+        refinedSpeakerNotes: z
+          .string()
+          .describe("The revised and improved speaker notes for the slide."),
         editorKey: EditorKeySchema.optional(),
       }),
       execute: async (options) => {
-        let editorStateJSON: object | null = null;
-        try {
-          // Create a temporary headless editor to avoid side-effects on the main editor
-          const headlessEditor = createEditor({
-            nodes: NESTED_EDITOR_NODES,
-            onError: (e) => {
-              throw e;
-            },
-          });
-
-          const markdown = options.content
-            .map((item) => {
-              if (item.type === "bulletList") {
-                return item.text
-                  .split("\n")
-                  .map((line) => `* ${line}`)
-                  .join("\n");
-              }
-              if (item.type === "heading1") {
-                return `# ${item.text}`;
-              }
-              if (item.type === "heading2") {
-                return `## ${item.text}`;
-              }
-              if (item.type === "paragraph") {
-                return item.text;
-              }
-              return item.text; // fallback for unknown types
-            })
-            .join("\n\n");
-
-          headlessEditor.update(
-            () => {
-              $convertFromMarkdownString(markdown, TRANSFORMERS);
-              editorStateJSON = headlessEditor.getEditorState().toJSON();
-            },
-            { discrete: true },
-          );
-        } catch (e) {
-          const errorMsg = e instanceof Error ? e.message : String(e);
-          console.error(
-            `[patchBoxContent] Error during markdown conversion for box ${options.boxId}:`,
-            errorMsg,
-          );
-          return {
-            success: false,
-            error: `Markdown to EditorState conversion failed: ${errorMsg}`,
-          };
-        }
-
-        if (!editorStateJSON) {
-          return {
-            success: false,
-            error: "Failed to generate EditorState JSON.",
-          };
-        }
-
-        const augmentedOptions = {
-          ...options,
-          generatedEditorStateJSON: editorStateJSON,
-        };
-        type AugmentedMutatorOptions = Omit<
+        type MutatorOptions = Omit<
           typeof options,
-          "deckNodeKey" | "editorKey" | "content"
-        > & { generatedEditorStateJSON: object };
+          "deckNodeKey" | "editorKey" | "bodyContent"
+        >;
 
-        return updateSlideDeckExecutor<
-          AugmentedMutatorOptions,
-          typeof augmentedOptions
-        >("patchBoxContent", editor, augmentedOptions, (currentData, opts) => {
-          const { slideId, boxId, generatedEditorStateJSON } = opts;
-
-          const targetSlideIndex = currentData.slides.findIndex(
-            (s) => s.id === slideId,
-          );
-          if (targetSlideIndex === -1)
-            throw new Error(`Slide with ID ${slideId} not found.`);
-
-          let boxFound = false;
-          const updatedSlides = currentData.slides.map((slide, index) => {
-            if (index === targetSlideIndex) {
-              const newElements = (slide.elements || []).map((el) => {
-                if (el.id === boxId && el.kind === "box") {
-                  boxFound = true;
-                  return {
-                    ...el,
-                    editorStateJSON:
-                      generatedEditorStateJSON as KeyedSerializedEditorState,
-                    version: (el.version || 0) + 1,
-                  };
-                }
-                return el;
-              });
-              return { ...slide, elements: newElements };
-            }
-            return slide;
-          });
-
-          if (!boxFound)
-            throw new Error(
-              `Box with ID ${boxId} not found on slide ${slideId}.`,
+        const result = await updateSlideDeckExecutor<
+          MutatorOptions,
+          typeof options
+        >(
+          "saveSlideContentAndMetadata",
+          editor,
+          options,
+          (currentData, opts) => {
+            const { slideId, refinedSpeakerNotes } = opts;
+            const targetSlideIndex = currentData.slides.findIndex(
+              (s) => s.id === slideId,
             );
 
+            if (targetSlideIndex === -1) {
+              throw new Error(
+                `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
+              );
+            }
+
+            const updatedSlides = currentData.slides.map((slide, index) => {
+              if (index === targetSlideIndex) {
+                return {
+                  ...slide,
+                  slideMetadata: {
+                    ...(slide.slideMetadata || {}),
+                    speakerNotes: refinedSpeakerNotes,
+                  },
+                };
+              }
+              return slide;
+            });
+
+            const summary = `Set speaker notes for slide ${slideId} in deck ${options.deckNodeKey}.`;
+            return {
+              newData: {
+                ...currentData,
+                slides: updatedSlides,
+              },
+              summary: summary,
+            };
+          },
+        );
+
+        if (result.success) {
           return {
-            newData: { ...currentData, slides: updatedSlides },
-            summary: `Patched content of box (ID: ${boxId}) on slide ${slideId}.`,
-            newNodeKey: boxId,
+            success: true,
+            // Pass through the args for the workflow to use
+            content: {
+              pageId: options.slideId,
+              bodyContent: options.bodyContent,
+              refinedSpeakerNotes: options.refinedSpeakerNotes,
+              summary: result.content?.summary,
+            },
           };
-        });
+        }
+        return {
+          success: false,
+          error: result.error,
+        };
       },
     });
 
+    /* --------------------------------------------------------------
+     * Save Theme Style Suggestions Tool (for runStep2_StyleStylist)
+     * --------------------------------------------------------------*/
+    const saveDeckTheme = tool({
+      description:
+        "Saves the suggested theme settings (colors, fonts, etc.) for the presentation and applies them to the deck.",
+      parameters: z.object({
+        deckNodeKey: z
+          .string()
+          .describe("The key of the target SlideDeckNode."),
+        theme: ThemeSettingsSchema.describe(
+          "The theme object to set for the deck.",
+        ),
+        editorKey: EditorKeySchema.optional(),
+      }),
+      execute: async (options) => {
+        type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+
+        const themeToSave = options.theme;
+
+        const result = await updateSlideDeckExecutor<
+          MutatorOptions,
+          typeof options
+        >("saveDeckTheme", editor, options, (currentData, opts) => {
+          const { theme } = opts;
+          const summary = `Set theme for deck ${options.deckNodeKey}.`;
+          return {
+            newData: {
+              ...currentData,
+              deckMetadata: {
+                ...(currentData.deckMetadata || {}),
+                theme: theme,
+              },
+            },
+            summary: summary,
+          };
+        });
+        if (result.success) {
+          return {
+            success: true,
+            theme: themeToSave,
+            summary: result.content?.summary,
+          };
+        }
+        return {
+          success: false,
+          error: result.error,
+        };
+      },
+    });
+
+    /* --------------------------------------------------------------
+     * Save Audience Data Tool (for runStep1_AudiencePlanner)
+     * --------------------------------------------------------------*/
     const saveAudienceDataTool = tool({
       description:
         "Saves the audience plan data including big idea, persona, slide count, and tone.",
@@ -1667,32 +1408,130 @@ export const useSlideTools = () => {
       },
     });
 
+    /* --------------------------------------------------------------
+     * Add Box to Slide Page Tool
+     * --------------------------------------------------------------*/
+    const addBoxToSlidePage = tool({
+      description:
+        "Adds a new box element to a specific slide page within an existing SlideDeckNode. The content for the box should be provided as Markdown.",
+      parameters: z.object({
+        deckNodeKey: z
+          .string()
+          .describe("The key of the target SlideDeckNode."),
+        slideId: z
+          .string()
+          .describe("The ID of the slide page to add the box to."),
+        boxId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional ID for the new box. If not provided, a unique ID (e.g., 'box-<timestamp>') will be generated.",
+          ),
+      }),
+      execute: async (options) => {
+        type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+        return updateSlideDeckExecutor<MutatorOptions, typeof options>(
+          "addBoxToSlidePage",
+          editor,
+          options,
+          (currentData, opts) => {
+            const { slideId, boxId } = opts;
+
+            const targetSlideIndex = currentData.slides.findIndex(
+              (s) => s.id === slideId,
+            );
+
+            if (targetSlideIndex === -1) {
+              throw new Error(
+                `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
+              );
+            }
+            const targetSlide = currentData.slides[targetSlideIndex];
+            if (!targetSlide) {
+              // Should be caught by index check, but safeguard
+              throw new Error(
+                `Target slide ${slideId} could not be retrieved from deck ${options.deckNodeKey}.`,
+              );
+            }
+
+            const getNextZIndexForSlideElements = (
+              elements: SlideElementSpec[],
+            ): number => {
+              if (!elements || elements.length === 0) {
+                return 0;
+              }
+              return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+            };
+
+            const newBoxGeneratedId = boxId || `box-${Date.now()}`;
+
+            const generatedEditorStateJSON =
+              EMPTY_CONTENT as unknown as KeyedSerializedEditorState;
+
+            const newBoxElement: SlideElementSpec = {
+              kind: "box",
+              id: newBoxGeneratedId,
+              x: 50,
+              y: 50,
+              width: 300,
+              height: 50,
+              editorStateJSON: generatedEditorStateJSON,
+              backgroundColor: "transparent",
+              version: 1,
+              zIndex: getNextZIndexForSlideElements(targetSlide.elements || []),
+            };
+
+            const updatedSlides = currentData.slides.map((slide, index) => {
+              if (index === targetSlideIndex) {
+                return {
+                  ...slide,
+                  elements: [...(slide.elements || []), newBoxElement],
+                };
+              }
+              return slide;
+            });
+
+            const summary = `Added new box (ID: ${newBoxGeneratedId}) with content to slide ${slideId} in deck ${options.deckNodeKey}.`;
+
+            return {
+              newData: {
+                ...currentData,
+                slides: updatedSlides,
+              },
+              summary: summary,
+              newNodeKey: newBoxGeneratedId,
+              additionalContent: {
+                textNodeKey: DEFAULT_TEXT_NODE_ORIGINAL_KEY,
+              },
+            };
+          },
+        );
+      },
+    });
+
     return {
       insertSlideDeckNode,
       setDeckMetadata,
       setSlideMetadata,
       addSlidePage,
       addSlidePageExec,
-      addBoxToSlidePage,
       removeSlidePage,
       reorderSlidePage,
       setSlidePageBackground,
-      updateBoxPropertiesOnSlidePage,
-      patchBoxContent,
+      updateElementProperties,
       addImageToSlidePage,
       addChartToSlidePage,
-      updateSlideElementProperties,
       generateAndAddImageToSlidePage,
       searchAndAddImageToSlidePage,
       saveStoryboardOutput,
-      saveSlideContentAndNotes,
-      saveThemeStyleSuggestions,
+      saveSlideContentAndMetadata,
+      saveDeckTheme,
       saveAudienceDataTool,
+      addBoxToSlidePage,
     };
   }, [
     $insertNodeAtResolvedPoint,
     editor,
-    emptyContent,
     generateImageData,
     getResolvedEditorAndKeyMap,
     insertionExecutor,

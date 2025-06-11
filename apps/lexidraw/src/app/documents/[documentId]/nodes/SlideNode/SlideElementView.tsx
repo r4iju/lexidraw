@@ -9,6 +9,8 @@ import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
 import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
 import type { ChartConfig } from "~/components/ui/chart";
+import { useLexicalTransformation } from "../../context/editors-context";
+import { EMPTY_CONTENT } from "../../initial-content";
 
 interface SlideElementViewProps {
   element: SlideElementSpec;
@@ -19,6 +21,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
   element,
   parentEditor,
 }) => {
+  const { transformToLexicalSourcedJSON } = useLexicalTransformation();
   const viewEditor = useMemo(() => {
     if (element.kind !== "box") {
       return null; // no editor for non-box elements
@@ -41,10 +44,32 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
         `[SlideElementView] No editorStateJSON for element ${element.id}`,
       );
     }
-    const initialEditorState = editor.parseEditorState(element.editorStateJSON);
+    console.log(
+      `[SlideElementView] Rendering element ${element.id}. Received editorStateJSON:`,
+      { originalJson: element.editorStateJSON },
+    );
+    const standardLexicalJSON = transformToLexicalSourcedJSON(
+      element.editorStateJSON,
+    );
+    console.log(`[SlideElementView] Transformed JSON for ${element.id}:`, {
+      transformedJson: standardLexicalJSON,
+    });
+    let initialEditorState = editor.parseEditorState(standardLexicalJSON);
+
+    if (initialEditorState.isEmpty()) {
+      console.error(
+        `[SlideElementView] CRITICAL: Parsed state for element ${element.id} is empty. Using fallback content.`,
+        { originalEditorStateJSON: element.editorStateJSON },
+      );
+      // Create a valid state synchronously.
+      const fallbackState = editor.parseEditorState(EMPTY_CONTENT);
+      initialEditorState = fallbackState;
+    }
+
     editor.setEditorState(initialEditorState);
+
     return editor;
-  }, [element, parentEditor]); // Updated dependencies to use the whole element
+  }, [element, parentEditor, transformToLexicalSourcedJSON]); // Updated dependencies to use the whole element
 
   const elementStyle: React.CSSProperties = {
     position: "absolute",

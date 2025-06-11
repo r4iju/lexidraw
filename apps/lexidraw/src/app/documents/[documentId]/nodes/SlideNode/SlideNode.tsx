@@ -28,7 +28,7 @@ import { cn } from "~/lib/utils";
 import type { ChartType } from "../ChartNode";
 import { z } from "zod";
 import { MetadataModalProvider } from "./MetadataModalContext";
-import { emptyContent } from "../../initial-content";
+import { EMPTY_CONTENT } from "../../initial-content";
 import { KeyedSerializedEditorState } from "../../types";
 
 export type SlideElementSpec =
@@ -242,7 +242,7 @@ export class SlideNode extends DecoratorNode<JSX.Element> {
                 y: 50,
                 width: 300,
                 height: 50,
-                editorStateJSON: emptyContent(),
+                editorStateJSON: EMPTY_CONTENT,
                 zIndex: 0,
               },
             ],
