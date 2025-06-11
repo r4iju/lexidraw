@@ -44,13 +44,15 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     removeSlidePage,
     reorderSlidePage,
     setSlidePageBackground,
-    updateBoxPropertiesOnSlidePage,
+    updateElementProperties,
     addImageToSlidePage,
     addChartToSlidePage,
-    updateSlideElementProperties,
     saveStoryboardOutput,
-    saveSlideContentAndNotes,
-    saveThemeStyleSuggestions,
+    saveSlideContentAndMetadata,
+    saveDeckTheme,
+    saveAudienceDataTool,
+    generateAndAddImageToSlidePage,
+    searchAndAddImageToSlidePage,
   } = useSlideTools();
   const { insertLayout } = useLayoutTools();
   const { insertCollapsibleSection } = useCollapsibleTools();
@@ -121,13 +123,18 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(findAndSelectTextForComment && { findAndSelectTextForComment }),
     ...(removeCommentFromThread && { removeCommentFromThread }),
     ...(removeCommentThread && { removeCommentThread }),
-    ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
-    ...(updateSlideElementProperties && { updateSlideElementProperties }),
     ...(setDeckMetadata && { setDeckMetadata }),
     ...(setSlideMetadata && { setSlideMetadata }),
     ...(saveStoryboardOutput && { saveStoryboardOutput }),
-    ...(saveSlideContentAndNotes && { saveSlideContentAndNotes }),
-    ...(saveThemeStyleSuggestions && { saveThemeStyleSuggestions }),
+    ...(updateElementProperties && { updateElementProperties }),
+    ...(addImageToSlidePage && { addImageToSlidePage }),
+    ...(addChartToSlidePage && { addChartToSlidePage }),
+    ...(generateAndAddImageToSlidePage && { generateAndAddImageToSlidePage }),
+    ...(searchAndAddImageToSlidePage && { searchAndAddImageToSlidePage }),
+    ...(saveStoryboardOutput && { saveStoryboardOutput }),
+    ...(saveSlideContentAndMetadata && { saveSlideContentAndMetadata }),
+    ...(saveDeckTheme && { saveDeckTheme }),
+    ...(saveAudienceDataTool && { saveAudienceDataTool }),
   } as unknown as RuntimeToolMap;
 
   const { combinedTools } = useCombinedTools(individualTools);

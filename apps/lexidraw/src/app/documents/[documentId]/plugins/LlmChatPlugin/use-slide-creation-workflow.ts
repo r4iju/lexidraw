@@ -1,5 +1,10 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+/**
+ * WHOEVER calls tool.execute will be fired. Tools may under no circumstances be called programmatically.
+ */
+
+import { useState, useCallback, useRef } from "react";
 import {
+  AppToolResult,
   RuntimeToolMap,
   useLLM,
   type AppToolCall,
@@ -8,14 +13,16 @@ import { useChatDispatch } from "./llm-chat-context";
 import {
   type DeckStrategicMetadata,
   type SlideStrategicMetadata,
+  SlideNode,
 } from "../../nodes/SlideNode/SlideNode";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $getRoot, $getNodeByKey } from "lexical";
 import { useMarkdownTools } from "../../utils/markdown";
 import env from "@packages/env";
 import { z } from "zod";
 import { useSlideTools, AudienceDataSchema } from "./tools/slides";
-import { CoreMessage, ToolResult, ToolChoice, ToolSet } from "ai";
-import { useCombinedTools } from "./tools/combined-tools";
+import { useTextTools } from "./tools/text";
+import { CoreMessage, ToolChoice, ToolSet } from "ai";
 
 interface AudienceData {
   bigIdea: string;
@@ -25,6 +32,8 @@ interface AudienceData {
   timebox: string;
   files?: File[];
   existingDeckNodeKey?: string;
+  logoUrl?: string;
+  customTokens?: string;
 }
 
 interface ResearchData {
@@ -104,6 +113,13 @@ interface ToolExecutionResultForMedia {
   error?: string;
 }
 
+interface BoxWithContent {
+  pageId: string;
+  boxId: string;
+  textNodeKey: string;
+  content: { type: string; text: string };
+}
+
 class StepError extends Error {
   public rawResponseText?: string;
   public stepName: string;
@@ -135,7 +151,7 @@ interface RunLLMStepArgs {
 interface RunLLMStepReturn {
   text: string;
   toolCalls?: AppToolCall[];
-  toolResults?: ToolResult<string, unknown, unknown>[];
+  toolResults?: AppToolResult[];
   rawResponseText?: string;
 }
 
@@ -149,72 +165,24 @@ export function useSlideCreationWorkflow() {
   const [editor] = useLexicalComposerContext();
   const { generateChatResponse } = useLLM();
   const chatDispatch = useChatDispatch();
-  const processedMediaSlides = useRef(new Set<string>());
   const cancellationControllerRef = useRef<AbortController | null>(null);
 
   const {
     addChartToSlidePage,
-    saveThemeStyleSuggestions,
+    saveDeckTheme,
     generateAndAddImageToSlidePage,
     searchAndAddImageToSlidePage,
-    setDeckMetadata,
-    insertSlideDeckNode,
-    // addSlidePage,
     saveStoryboardOutput,
-    saveSlideContentAndNotes,
-    setSlideMetadata,
+    saveSlideContentAndMetadata,
+    updateElementProperties,
     addBoxToSlidePage,
-    updateBoxPropertiesOnSlidePage,
-    updateSlideElementProperties,
-    addSlidePageExec,
-    patchBoxContent,
     saveAudienceDataTool,
+    addSlidePageExec,
   } = useSlideTools();
 
+  const { insertTextNode } = useTextTools();
+
   const { convertEditorStateToMarkdown } = useMarkdownTools();
-
-  const styleStylistTools = useMemo(
-    () => ({
-      ...(setDeckMetadata && { setDeckMetadata }),
-      ...(saveThemeStyleSuggestions && { saveThemeStyleSuggestions }),
-    }),
-    [setDeckMetadata, saveThemeStyleSuggestions],
-  );
-  const { combinedTools: styleStylistCombinedTools } = useCombinedTools(
-    // @ts-expect-error - impossible
-    styleStylistTools as RuntimeToolMap,
-  );
-
-  const slideWriterTools = useMemo(
-    () => ({
-      ...(saveSlideContentAndNotes && { saveSlideContentAndNotes }),
-      ...(setSlideMetadata && { setSlideMetadata }),
-    }),
-    [saveSlideContentAndNotes, setSlideMetadata],
-  );
-  const { combinedTools: slideWriterCombinedTools } = useCombinedTools(
-    // @ts-expect-error - impossible
-    slideWriterTools as RuntimeToolMap,
-  );
-
-  const layoutEngineTools = useMemo(
-    () => ({
-      ...(addBoxToSlidePage && { addBoxToSlidePage }),
-      ...(patchBoxContent && { patchBoxContent }),
-      ...(updateBoxPropertiesOnSlidePage && { updateBoxPropertiesOnSlidePage }),
-      ...(updateSlideElementProperties && { updateSlideElementProperties }),
-    }),
-    [
-      addBoxToSlidePage,
-      patchBoxContent,
-      updateBoxPropertiesOnSlidePage,
-      updateSlideElementProperties,
-    ],
-  );
-  const { combinedTools: layoutCombinedTools } = useCombinedTools(
-    // @ts-expect-error - impossible
-    layoutEngineTools as RuntimeToolMap,
-  );
 
   const workflowRetryBudgetRef = useRef(MAX_WORKFLOW_RETRIES);
 
@@ -231,6 +199,9 @@ export function useSlideCreationWorkflow() {
     useState<WorkflowThemeSettings | null>(null);
   const [visualAssetsData, setVisualAssetsData] = useState<
     VisualAssetData[] | null
+  >(null);
+  const [boxesWithContent, setBoxesWithContent] = useState<
+    Omit<BoxWithContent, "textNodeKey">[] | null
   >(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -289,25 +260,12 @@ export function useSlideCreationWorkflow() {
         };
       }
 
-      const executed: ToolResult<string, unknown, unknown>[] = [];
-      for (const call of resp.toolCalls) {
-        const tool = tools[call.toolName];
-        if (!tool) throw new Error(`Unknown tool ${call.toolName}`);
-        executed.push({
-          toolCallId: call.toolCallId,
-          toolName: call.toolName,
-          args: call.args,
-          // @ts-expect-error - this should work
-          result: await tool.execute(call.args),
-        });
-      }
-
       // When a tool is required, we execute it once and return immediately.
       // This prevents the loop that was causing the duplicate visual.
       return {
         text: resp.text,
         toolCalls: resp.toolCalls,
-        toolResults: executed,
+        toolResults: resp.toolResults,
         rawResponseText: rawResponseText,
       };
     },
@@ -528,49 +486,46 @@ export function useSlideCreationWorkflow() {
         ${userObjectiveInfo}
         ${errorContext ? `\n\nImportant Context from Previous Attempt:\n\n${errorContext}\n\n` : ""}
         
-        First, suggest a comprehensive visual theme.
-        
-        Then, call the **styleStylistCombinedTools** to execute two sub-tasks in order:
-        1.  **saveThemeStyleSuggestions**: with the full theme object.
-        2.  **setDeckMetadata**: with the deckNodeKey "${currentDeckNodeKey}" and the theme object for the 'deckMetadata' field.
+        Suggest a comprehensive visual theme and call the **saveDeckTheme** tool with the 'deckNodeKey' as "${currentDeckNodeKey}" and the full theme object for the 'theme' field.
         
         Return nothing else.`.replaceAll("        ", "");
 
       const { toolResults, rawResponseText } = await runLLMStep({
         prompt,
-        tools: {
-          // @ts-expect-error - impossible
-          combinedTools: styleStylistCombinedTools,
-        },
+        // @ts-expect-error - impossible
+        tools: { saveDeckTheme },
         generateChatResponse,
         toolChoice: "required",
         signal,
       });
 
-      const combinedToolCall = toolResults?.find(
-        (t) => t.toolName === "combinedTools",
+      const themeToolCall = toolResults?.find(
+        (t) => t.toolName === "saveDeckTheme",
       );
-      if (!combinedToolCall) {
+      if (!themeToolCall) {
         throw new StepError(
-          "combinedTools was not invoked by the LLM.",
+          "saveDeckTheme was not invoked by the LLM.",
           stepName,
           rawResponseText,
         );
       }
 
-      // Extract the theme from the arguments of the first sub-call inside combinedTools
-      const styleArgs = (
-        combinedToolCall.args as { calls: { args: unknown }[] }
-      )?.calls?.[0]?.args;
-      if (!styleArgs) {
+      // The result of the tool execution contains the theme
+      const result = themeToolCall.result as {
+        success: boolean;
+        theme?: WorkflowThemeSettings;
+        error?: string;
+      };
+
+      if (!result.success || !result.theme) {
         throw new StepError(
-          "Could not extract theme arguments from combinedTools call.",
+          `saveDeckTheme tool execution failed: ${result.error || "No theme returned."}`,
           stepName,
           rawResponseText,
         );
       }
 
-      const suggestedTheme = styleArgs as WorkflowThemeSettings;
+      const suggestedTheme = result.theme;
       setThemeSettings(suggestedTheme);
 
       chatDispatch({
@@ -584,7 +539,7 @@ export function useSlideCreationWorkflow() {
 
       return suggestedTheme;
     },
-    [chatDispatch, runLLMStep, styleStylistCombinedTools, generateChatResponse],
+    [chatDispatch, runLLMStep, saveDeckTheme, generateChatResponse],
   );
 
   const runStep3_ResearchAgent = useCallback(
@@ -870,9 +825,9 @@ Respond **only** with one call to **saveStoryboardOutput** whose args include
         },
       });
 
-      if (!saveSlideContentAndNotes || !setSlideMetadata) {
+      if (!saveSlideContentAndMetadata) {
         throw new Error(
-          "SlideWriter: required tools (saveSlideContentAndNotes, setSlideMetadata) missing",
+          "SlideWriter: required tool (saveSlideContentAndMetadata) missing",
         );
       }
 
@@ -899,9 +854,11 @@ First, produce the final *body content* and improved *speaker notes*.
 Allowed body content types are: heading1 | heading2 | paragraph | bulletList.
 For bulletList, join items with new-lines.
 
-Then, call **combinedTools** to execute two sub-tasks in order:
-1. **saveSlideContentAndNotes**: with the 'pageId' ('${outline.pageId}'), the generated 'bodyContent', and the 'refinedSpeakerNotes'.
-2. **setSlideMetadata**: with 'deckNodeKey' ('${currentDeckNodeKey}'), 'slideId' ('${outline.pageId}'), and a 'slideMetadata' object containing only the 'speakerNotes' (using the same value as 'refinedSpeakerNotes').
+Then, call the **saveSlideContentAndMetadata** tool with:
+- 'deckNodeKey': '${currentDeckNodeKey}'
+- 'slideId': '${outline.pageId}'
+- 'bodyContent': the generated 'bodyContent'
+- 'refinedSpeakerNotes': the generated 'refinedSpeakerNotes'
 
 Return nothing else.
 `
@@ -913,43 +870,46 @@ Return nothing else.
             prompt,
             tools: {
               // @ts-expect-error - impossible
-              combinedTools: slideWriterCombinedTools,
+              saveSlideContentAndMetadata,
             },
             generateChatResponse,
             toolChoice: "required",
             signal,
           });
 
-          const combinedToolCall = toolResults?.find(
-            (t) => t.toolName === "combinedTools",
+          const toolCall = toolResults?.find(
+            (t) => t.toolName === "saveSlideContentAndMetadata",
           );
-          if (!combinedToolCall) {
+          if (!toolCall) {
             throw new StepError(
-              "LLM failed to call combinedTools",
+              "LLM failed to call saveSlideContentAndMetadata",
               `${stepName} – slide ${outline.slideNumber}`,
               rawResponseText ?? JSON.stringify(toolResults),
             );
           }
 
           // The arguments for the content are in the first sub-call of the combined tool
-          const contentCallArgs = (
-            combinedToolCall.args as { calls: { args: unknown }[] }
-          )?.calls?.[0]?.args;
+          const result = toolCall.result as {
+            success: boolean;
+            content?: {
+              pageId: string;
+              bodyContent: { type: string; text: string }[];
+              refinedSpeakerNotes: string;
+            };
+            error?: string;
+          };
 
-          if (!contentCallArgs) {
+          if (!result.success || !result.content) {
             throw new StepError(
-              "Could not extract arguments from combinedTools call.",
+              `saveSlideContentAndMetadata tool execution failed: ${
+                result.error || "No content returned."
+              }`,
               `${stepName} - slide ${outline.slideNumber}`,
               rawResponseText,
             );
           }
 
-          const { pageId, bodyContent, refinedSpeakerNotes } =
-            contentCallArgs as {
-              pageId: string;
-              bodyContent: { type: string; text: string }[];
-              refinedSpeakerNotes: string;
-            };
+          const { pageId, bodyContent, refinedSpeakerNotes } = result.content;
 
           generated.push({
             pageId,
@@ -1007,9 +967,7 @@ Return nothing else.
       chatDispatch,
       generateChatResponse,
       runLLMStep,
-      saveSlideContentAndNotes,
-      setSlideMetadata,
-      slideWriterCombinedTools,
+      saveSlideContentAndMetadata,
     ],
   );
 
@@ -1066,21 +1024,6 @@ Return nothing else.
           );
           continue;
         }
-
-        // ===================================================================
-        // START: ROBUST Idempotency Check using useRef
-        // ===================================================================
-        if (processedMediaSlides.current.has(outline.pageId)) {
-          console.log(
-            `[${stepName}] Slide #${outline.slideNumber} is already being processed or is complete. Skipping.`,
-          );
-          continue;
-        }
-        // Add the pageId to the set BEFORE the async call to prevent race conditions
-        processedMediaSlides.current.add(outline.pageId);
-        // ===================================================================
-        // END: ROBUST Idempotency Check
-        // ===================================================================
 
         if (
           !outline.visualIdea ||
@@ -1262,11 +1205,242 @@ Return nothing else.
     ],
   );
 
-  const runStep7_LayoutEngine = useCallback(
+  const runStep7_AddEmptyBoxes = useCallback(
+    async (args: {
+      currentDeckNodeKey: string;
+      allSlideContents: SlideContentData[] | null;
+      signal: AbortSignal;
+    }): Promise<BoxWithContent[]> => {
+      const { currentDeckNodeKey, allSlideContents, signal } = args;
+      const stepName = "AddEmptyBoxes";
+      chatDispatch({
+        type: "push",
+        msg: {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `Starting Step 7: ${stepName} (Programmatic)...`,
+        },
+      });
+
+      if (!addBoxToSlidePage) {
+        throw new Error("addBoxToSlidePage tool is missing");
+      }
+
+      const createdBoxes: Omit<BoxWithContent, "textNodeKey">[] = [];
+      let failures = 0;
+
+      if (allSlideContents) {
+        for (const slideContent of allSlideContents) {
+          if (signal.aborted) throw new Error("Operation cancelled by user.");
+          if (
+            !slideContent.pageId ||
+            !slideContent.structuredBodyContent ||
+            slideContent.structuredBodyContent.length === 0
+          ) {
+            continue;
+          }
+
+          for (const contentBlock of slideContent.structuredBodyContent) {
+            try {
+              // @ts-expect-error - Bypassing LLM for simplicity as discussed.
+              const result = await addBoxToSlidePage.execute({
+                deckNodeKey: currentDeckNodeKey,
+                slideId: slideContent.pageId,
+              });
+
+              if (result.success && result.content?.newNodeKey) {
+                createdBoxes.push({
+                  pageId: slideContent.pageId,
+                  boxId: result.content.newNodeKey,
+                  content: contentBlock,
+                });
+              } else {
+                failures++;
+                console.warn(
+                  `Programmatic box creation via tool failed: ${result.error}`,
+                );
+              }
+            } catch (e) {
+              failures++;
+              const msg = e instanceof Error ? e.message : String(e);
+              console.error(
+                `Programmatic box creation failed for slide ${slideContent.pageId}:`,
+                e,
+              );
+              chatDispatch({
+                type: "push",
+                msg: {
+                  id: crypto.randomUUID(),
+                  role: "system",
+                  content: `⚠️ Box creation for slide ${slideContent.pageId} failed: ${msg}`,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      if (createdBoxes.length === 0 && allSlideContents?.length) {
+        throw new StepError("No boxes were created.", stepName);
+      }
+
+      setBoxesWithContent(createdBoxes);
+      chatDispatch({
+        type: "push",
+        msg: {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `Step 7 ✓ — empty boxes created (${createdBoxes.length})${
+            failures > 0 ? ` (${failures} failed)` : ""
+          }.`,
+        },
+      });
+      return createdBoxes;
+    },
+    [addBoxToSlidePage, chatDispatch],
+  );
+
+  const runStep8_PopulateBoxesWithText = useCallback(
+    async (args: {
+      currentDeckNodeKey: string;
+      boxesWithContent: BoxWithContent[] | null;
+      signal: AbortSignal;
+      errorContext?: string;
+    }): Promise<void> => {
+      const { currentDeckNodeKey, boxesWithContent, signal } = args;
+      const stepName = "PopulateBoxesWithText";
+      chatDispatch({
+        type: "push",
+        msg: {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `Starting Step 8: ${stepName}…`,
+        },
+      });
+
+      if (!insertTextNode) {
+        throw new Error("insertTextNode tool is missing");
+      }
+      if (!boxesWithContent) {
+        chatDispatch({
+          type: "push",
+          msg: {
+            id: crypto.randomUUID(),
+            role: "system",
+            content: "Skipping PopulateBoxes step, no box data available.",
+          },
+        });
+        return;
+      }
+
+      // Group boxes by slide to make one LLM call per slide
+      const boxesBySlide = boxesWithContent.reduce(
+        (acc, box) => {
+          if (!acc[box.pageId]) {
+            acc[box.pageId] = [];
+          }
+          acc[box.pageId]?.push(box);
+          return acc;
+        },
+        {} as Record<string, BoxWithContent[]>,
+      );
+
+      let failures = 0;
+      for (const slideId in boxesBySlide) {
+        if (signal.aborted) throw new Error("Operation cancelled by user.");
+
+        const slideBoxes = boxesBySlide[slideId];
+        if (!slideBoxes) {
+          continue;
+        }
+        const prompt = `
+You are a slide content writer. For slide with ID '${slideId}', you must populate the following ${
+          slideBoxes.length
+        } boxes with their corresponding content by calling the **insertTextNode** tool for each.
+
+${slideBoxes
+  .map(
+    (box) =>
+      `- Box ID: "${box.boxId}"
+  - Content Type: "${box.content.type}"
+  - Text: "${box.content.text.substring(0, 100)}"`,
+  )
+  .join("\n\n")}
+
+For each box, you MUST call the **insertTextNode** tool in parallel.
+- Use the 'text' and 'contentType' from the details above.
+- Use 'appendRoot' for the 'relation'.
+- Construct the 'editorKey' as "${currentDeckNodeKey}/${slideId}/{Box ID}".
+
+Example for a box with ID "box123" and type "heading1":
+{
+  "tool_code": "insertTextNode.execute({ text: "...", contentType: "heading1", relation: "appendRoot", editorKey: "${currentDeckNodeKey}/${slideId}/box123" })"
+}
+
+Respond ONLY with the tool calls.
+        `.trim();
+
+        try {
+          const { toolResults, rawResponseText } = await runLLMStep({
+            prompt,
+            tools: {
+              // @ts-expect-error - insertTextNode is not typed
+              insertTextNode,
+            },
+            generateChatResponse,
+            toolChoice: "auto",
+            signal,
+          });
+
+          const successfulCalls =
+            toolResults?.filter(
+              (r) =>
+                r.toolName === "insertTextNode" &&
+                (r.result as { success: boolean }).success,
+            ).length ?? 0;
+
+          if (successfulCalls < slideBoxes.length) {
+            failures += slideBoxes.length - successfulCalls;
+            throw new StepError(
+              `LLM failed to populate all boxes for slide ${slideId}`,
+              stepName,
+              rawResponseText,
+            );
+          }
+        } catch (e) {
+          failures++;
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`Box population failed for slide ${slideId}:`, e);
+          chatDispatch({
+            type: "push",
+            msg: {
+              id: crypto.randomUUID(),
+              role: "system",
+              content: `⚠️ Box population for slide ${slideId} failed: ${msg}`,
+            },
+          });
+        }
+      }
+
+      chatDispatch({
+        type: "push",
+        msg: {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `Step 8 ✓ — text boxes populated${
+            failures > 0 ? ` (${failures} failed)` : ""
+          }.`,
+        },
+      });
+    },
+    [chatDispatch, generateChatResponse, insertTextNode, runLLMStep],
+  );
+
+  const runStep9_LayoutRefinement = useCallback(
     async (args: {
       currentDeckNodeKey: string;
       storyboardDataParam: StoryboardData | null;
-      allSlideContents: SlideContentData[] | null;
+      allBoxesWithContent: BoxWithContent[] | null;
       allVisualAssets: VisualAssetData[] | null;
       currentThemeSettings: WorkflowThemeSettings | null;
       errorContext?: string;
@@ -1275,32 +1449,27 @@ Return nothing else.
       const {
         currentDeckNodeKey,
         storyboardDataParam,
-        allSlideContents,
+        allBoxesWithContent,
         allVisualAssets,
         errorContext,
         signal,
       } = args;
 
-      const stepName = "LayoutEngine";
+      const stepName = "LayoutRefinement";
       chatDispatch({
         type: "push",
         msg: {
           id: crypto.randomUUID(),
           role: "system",
-          content: `Starting Step 7: ${stepName}…${
+          content: `Starting Step 9: ${stepName}…${
             errorContext ? " (retrying)" : ""
           }`,
         },
       });
 
-      if (
-        !addBoxToSlidePage ||
-        !patchBoxContent ||
-        !updateBoxPropertiesOnSlidePage ||
-        !updateSlideElementProperties
-      ) {
+      if (!updateElementProperties) {
         throw new Error(
-          "LayoutEngine: required tools (addBox, patchBoxContent, updateBox, updateElement) missing",
+          "LayoutRefinement: required tool (updateElementProperties) missing",
         );
       }
 
@@ -1311,35 +1480,27 @@ Return nothing else.
         if (signal.aborted) throw new Error("Operation cancelled by user.");
         if (!outline.pageId) continue;
 
-        const textBlocks =
-          allSlideContents?.find((c) => c.pageId === outline.pageId)
-            ?.structuredBodyContent ?? [];
+        const textElements =
+          allBoxesWithContent?.filter((b) => b.pageId === outline.pageId) ?? [];
 
         const vis = allVisualAssets?.find((v) => v.pageId === outline.pageId);
 
-        const textBlocksPromptInfo =
-          textBlocks.length > 0
-            ? `**Text Content to Place:**\n${textBlocks
-                .map(
-                  (b, i) =>
-                    `- Text Block ${i} (for use with \`patchBoxContent\`):\n  \`\`\`json\n  ${JSON.stringify(
-                      [{ type: b.type, text: b.text }],
-                      null,
-                      2,
-                    )}\n  \`\`\``,
-                )
-                .join("\n")}`
-            : "**Text Content to Place:**\n- None";
+        const textElementsPromptInfo = textElements
+          .map(
+            (box) =>
+              `- Text Box (ID: "${box.boxId}", Kind: "box"): "${box.content.text}"`,
+          )
+          .join("\n");
 
         const visualAssetPromptInfo =
           vis && vis.assetType !== "none"
-            ? `**Visual Asset to Place:**\n- Type: ${
-                vis.assetType
-              }\n- ID: ${vis.chartId || vis.imageId}`
-            : "**Visual Asset to Place:**\n- None";
+            ? `- Visual Asset (ID: "${
+                vis.chartId || vis.imageId
+              }", Kind: "${vis.assetType}")`
+            : "";
 
         const prompt = `
-You are a professional Slide Layout Designer. Your task is to create a well-balanced and visually appealing layout for a slide.
+You are a professional Slide Layout Designer. Your task is to create a well-balanced and visually appealing layout for a slide by arranging the existing elements.
 
 **Slide Information:**
 - Slide ID: ${outline.pageId}
@@ -1347,20 +1508,12 @@ You are a professional Slide Layout Designer. Your task is to create a well-bala
 - Layout Hint: ${outline.layoutTemplateHint || "standard-text-visual"}
 ${errorContext ? `\n- Previous Error Context: ${errorContext}` : ""}
 
-${textBlocksPromptInfo}
+**Elements on Slide:**
+${textElementsPromptInfo}
 ${visualAssetPromptInfo}
 
-**Instructions for \`combinedTools\`:**
-
-1.  **For EACH text block** you want to place, you must include a sequence of **THREE** tool calls in this exact order:
-    a. \`addBoxToSlidePage\`: Creates a container. You **MUST** generate and provide a unique \`boxId\` (e.g., "box_s${outline.slideNumber}_0"). Use deck key "${currentDeckNodeKey}" and slide ID "${outline.pageId}".
-    b. \`patchBoxContent\`: Populates the container. Use the same \`boxId\` for the \`boxId\`. The \`content\` argument must be the JSON array provided for the block in "Text Content to Place" above.
-    c. \`updateBoxPropertiesOnSlidePage\`: Positions and sizes the container. Use the same \`boxId\` and provide pixel values for \`x\`, \`y\`, \`width\`, and \`height\`.
-
-2.  **For the visual asset** (if available), include **ONE** tool call:
-    a. \`updateSlideElementProperties\`: Positions and sizes the visual. Use its existing \`elementId\`, its \`kind\` ('image' or 'chart'), and pixel values for \`x\`, \`y\`, \`width\`, and \`height\`.
-
-Return **ONLY** the single call to \`combinedTools\` with the list of tool calls needed to build the complete layout.
+**Instructions:**
+Call the **updateElementProperties** tool for each element on the slide to set its position and size. You are expected to make multiple parallel tool calls in a single response to lay out all the elements. For each call, provide the \`deckNodeKey\` ("${currentDeckNodeKey}"), \`slideId\`, \`elementId\`, \`kind\`, and the desired \`properties\` (\`x\`, \`y\`, \`width\`, \`height\`).
 `
           .replaceAll("          ", "")
           .trim();
@@ -1368,19 +1521,31 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
         try {
           const { toolResults, rawResponseText } = await runLLMStep({
             prompt,
-            tools: {
-              // @ts-expect-error - impossible
-              combinedTools: layoutCombinedTools,
-            },
+            // @ts-expect-error - impossible
+            tools: { updateElementProperties },
             generateChatResponse,
-            toolChoice: "required",
+            toolChoice: "auto",
             signal,
           });
 
-          const call = toolResults?.[0];
-          if (!call || call.toolName !== "combinedTools") {
+          if (!toolResults || toolResults.length === 0) {
             throw new StepError(
-              "LLM failed to call combinedTools for layout.",
+              "LLM did not return any tool calls for layout.",
+              `${stepName} - Slide ${outline.slideNumber}`,
+              rawResponseText,
+            );
+          }
+
+          const successfulUpdates = toolResults.filter(
+            (call) =>
+              call.toolName === "updateElementProperties" &&
+              (call.result as { success: boolean }).success,
+          ).length;
+
+          if (successfulUpdates === 0 && toolResults.length > 0) {
+            // Throw only if there were attempts but all failed.
+            throw new StepError(
+              "All layout update tool calls failed.",
               `${stepName} - Slide ${outline.slideNumber}`,
               rawResponseText,
             );
@@ -1404,25 +1569,16 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
         msg: {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: `Step 7 ✓ — layout pass complete${
+          content: `Step 9 ✓ — layout pass complete${
             failures ? ` (${failures} slide(s) failed)` : ""
           }.`,
         },
       });
     },
-    [
-      chatDispatch,
-      addBoxToSlidePage,
-      patchBoxContent,
-      updateBoxPropertiesOnSlidePage,
-      updateSlideElementProperties,
-      runLLMStep,
-      layoutCombinedTools,
-      generateChatResponse,
-    ],
+    [chatDispatch, updateElementProperties, runLLMStep, generateChatResponse],
   );
 
-  const runStep8_ReviewRefine = useCallback(
+  const runStep10_ReviewRefine = useCallback(
     async (args: {
       currentDeckNodeKey: string;
       audienceData: AudienceData | null;
@@ -1450,7 +1606,7 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
         msg: {
           id: crypto.randomUUID(),
           role: "system",
-          content: `Starting Step 8: ${stepName}…${
+          content: `Starting Step 10: ${stepName}…${
             errorContext ? " (retrying)" : ""
           }`,
         },
@@ -1479,7 +1635,7 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
         msg: {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: `Step 8 ✓ — workflow complete!\n\n${summary}`,
+          content: `Step 10 ✓ — workflow complete!\n\n${summary}`,
         },
       });
 
@@ -1494,7 +1650,6 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
       const signal = cancellationControllerRef.current.signal;
 
       setIsLoading(true);
-      processedMediaSlides.current.clear();
       chatDispatch({
         type: "push",
         msg: {
@@ -1512,6 +1667,7 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
       let currentSlideContents: SlideContentData[] | null = null;
       let currentThemeSettings: WorkflowThemeSettings | null = null;
       let currentVisualAssetsData: VisualAssetData[] | null = null;
+      let currentBoxesWithContent: BoxWithContent[] | null = null;
 
       try {
         if (signal.aborted) {
@@ -1533,20 +1689,20 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
               content: "Creating new slide deck...",
             },
           });
-          if (!insertSlideDeckNode) {
-            throw new Error("insertSlideDeckNode tool is not available.");
-          }
-          const deckCreationResult =
-            // @ts-expect-error - insertSlideDeckNode is not typed
-            await insertSlideDeckNode.execute({
-              relation: "appendRoot",
-            });
 
-          if (
-            deckCreationResult.success &&
-            deckCreationResult.content?.newNodeKey
-          ) {
-            resolvedDeckNodeKey = deckCreationResult.content.newNodeKey;
+          let newDeckKey: string | null = null;
+          editor.update(() => {
+            const root = $getRoot();
+            const newSlideDeckNode = SlideNode.$createSlideNode({
+              slides: [],
+              currentSlideId: null,
+            });
+            root.append(newSlideDeckNode);
+            newDeckKey = newSlideDeckNode.getKey();
+          });
+
+          if (newDeckKey) {
+            resolvedDeckNodeKey = newDeckKey;
             setDeckNodeKey(resolvedDeckNodeKey);
             chatDispatch({
               type: "push",
@@ -1557,9 +1713,7 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
               },
             });
           } else {
-            throw new Error(
-              `Failed to create new slide deck: ${deckCreationResult.error || "Unknown error"}`,
-            );
+            throw new Error(`Failed to create new slide deck: "Unknown error"`);
           }
         }
 
@@ -1594,13 +1748,29 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
           originalUserPrompt: `Topic: ${params.topic}, Audience: ${params.who}, Outcome: ${params.outcome}, Timebox: ${params.timebox},`,
         };
 
-        if (!setDeckMetadata) {
-          throw new Error("setDeckMetadata tool is not available.");
-        }
-        // @ts-expect-error - setDeckMetadata is not typed
-        await setDeckMetadata.execute({
-          deckNodeKey: resolvedDeckNodeKey,
-          deckMetadata: deckMetadataForStep1,
+        editor.update(() => {
+          if (!resolvedDeckNodeKey) {
+            console.error(
+              "Cannot set deck metadata, deck node key is missing.",
+            );
+            return;
+          }
+          const deckNode = $getNodeByKey<SlideNode>(resolvedDeckNodeKey);
+          if (!SlideNode.$isSlideDeckNode(deckNode)) {
+            console.error(
+              `Node with key ${resolvedDeckNodeKey} is not a valid SlideDeckNode.`,
+            );
+            return;
+          }
+
+          const currentData = deckNode.getData();
+          deckNode.setData({
+            ...currentData,
+            deckMetadata: {
+              ...(currentData.deckMetadata || {}),
+              ...deckMetadataForStep1,
+            },
+          });
         });
 
         currentThemeSettings = await executeStepWithRetries(
@@ -1688,21 +1858,42 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
           });
         }
 
+        currentBoxesWithContent = await executeStepWithRetries(
+          runStep7_AddEmptyBoxes,
+          "AddEmptyBoxes",
+          {
+            currentDeckNodeKey: resolvedDeckNodeKey,
+            allSlideContents: currentSlideContents,
+          },
+          signal,
+        );
+        setBoxesWithContent(currentBoxesWithContent);
+
         await executeStepWithRetries(
-          runStep7_LayoutEngine,
-          "LayoutEngine",
+          runStep8_PopulateBoxesWithText,
+          "PopulateBoxesWithText",
+          {
+            currentDeckNodeKey: resolvedDeckNodeKey,
+            boxesWithContent: currentBoxesWithContent,
+          },
+          signal,
+        );
+
+        await executeStepWithRetries(
+          runStep9_LayoutRefinement,
+          "LayoutRefinement",
           {
             currentDeckNodeKey: resolvedDeckNodeKey,
             storyboardDataParam: currentStoryboardData,
-            allSlideContents: currentSlideContents,
+            allBoxesWithContent: currentBoxesWithContent,
             allVisualAssets: currentVisualAssetsData,
             currentThemeSettings: currentThemeSettings,
           },
           signal,
         );
 
-        const step8Result = await executeStepWithRetries(
-          runStep8_ReviewRefine,
+        const step10Result = await executeStepWithRetries(
+          runStep10_ReviewRefine,
           "ReviewRefine",
           {
             currentDeckNodeKey: resolvedDeckNodeKey,
@@ -1720,7 +1911,7 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
           msg: {
             id: crypto.randomUUID(),
             role: "system",
-            content: `Slide generation workflow steps concluded. Final summary from Review & Refine: ${step8Result.finalSummary}`,
+            content: `Slide generation workflow steps concluded. Final summary from Review & Refine: ${step10Result.finalSummary}`,
           },
         });
       } catch (error) {
@@ -1765,15 +1956,15 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
       editor,
       executeStepWithRetries,
       runStep1_AudiencePlanner,
-      setDeckMetadata,
-      insertSlideDeckNode,
       runStep2_StyleStylist,
       runStep3_ResearchAgent,
       runStep4_StoryboardArchitect,
       runStep5_SlideWriter,
-      runStep7_LayoutEngine,
-      runStep8_ReviewRefine,
+      runStep9_LayoutRefinement,
+      runStep10_ReviewRefine,
       runStep6_MediaGenerator,
+      runStep7_AddEmptyBoxes,
+      runStep8_PopulateBoxesWithText,
     ],
   );
 
@@ -1788,5 +1979,6 @@ Return **ONLY** the single call to \`combinedTools\` with the list of tool calls
     slideContents,
     themeSettings,
     visualAssetsData,
+    boxesWithContent,
   };
 }
