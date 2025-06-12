@@ -116,7 +116,7 @@ interface ToolExecutionResultForMedia {
 interface BoxWithContent {
   pageId: string;
   boxId: string;
-  textNodeKey: string;
+  textNodeKey?: string;
   content: { type: string; text: string };
 }
 
@@ -175,7 +175,7 @@ export function useSlideCreationWorkflow() {
     saveStoryboardOutput,
     saveSlideContentAndMetadata,
     updateElementProperties,
-    addBoxToSlidePage,
+    addBoxToSlidePageExec,
     saveAudienceDataTool,
     addSlidePageExec,
   } = useSlideTools();
@@ -201,7 +201,7 @@ export function useSlideCreationWorkflow() {
     VisualAssetData[] | null
   >(null);
   const [boxesWithContent, setBoxesWithContent] = useState<
-    Omit<BoxWithContent, "textNodeKey">[] | null
+    BoxWithContent[] | null
   >(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -1210,6 +1210,7 @@ Return nothing else.
       currentDeckNodeKey: string;
       allSlideContents: SlideContentData[] | null;
       signal: AbortSignal;
+      errorContext?: string;
     }): Promise<BoxWithContent[]> => {
       const { currentDeckNodeKey, allSlideContents, signal } = args;
       const stepName = "AddEmptyBoxes";
@@ -1222,11 +1223,11 @@ Return nothing else.
         },
       });
 
-      if (!addBoxToSlidePage) {
-        throw new Error("addBoxToSlidePage tool is missing");
+      if (!addBoxToSlidePageExec) {
+        throw new Error("addBoxToSlidePageExec tool is missing");
       }
 
-      const createdBoxes: Omit<BoxWithContent, "textNodeKey">[] = [];
+      const createdBoxes: BoxWithContent[] = [];
       let failures = 0;
 
       if (allSlideContents) {
@@ -1242,8 +1243,7 @@ Return nothing else.
 
           for (const contentBlock of slideContent.structuredBodyContent) {
             try {
-              // @ts-expect-error - Bypassing LLM for simplicity as discussed.
-              const result = await addBoxToSlidePage.execute({
+              const result = await addBoxToSlidePageExec({
                 deckNodeKey: currentDeckNodeKey,
                 slideId: slideContent.pageId,
               });
@@ -1253,6 +1253,7 @@ Return nothing else.
                   pageId: slideContent.pageId,
                   boxId: result.content.newNodeKey,
                   content: contentBlock,
+                  textNodeKey: result.content?.textNodeKey,
                 });
               } else {
                 failures++;
@@ -1297,7 +1298,7 @@ Return nothing else.
       });
       return createdBoxes;
     },
-    [addBoxToSlidePage, chatDispatch],
+    [addBoxToSlidePageExec, chatDispatch],
   );
 
   const runStep8_PopulateBoxesWithText = useCallback(
