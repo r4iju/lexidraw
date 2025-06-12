@@ -44,16 +44,11 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
         `[SlideElementView] No editorStateJSON for element ${element.id}`,
       );
     }
-    console.log(
-      `[SlideElementView] Rendering element ${element.id}. Received editorStateJSON:`,
-      { originalJson: element.editorStateJSON },
-    );
+
     const standardLexicalJSON = transformToLexicalSourcedJSON(
       element.editorStateJSON,
     );
-    console.log(`[SlideElementView] Transformed JSON for ${element.id}:`, {
-      transformedJson: standardLexicalJSON,
-    });
+
     let initialEditorState = editor.parseEditorState(standardLexicalJSON);
 
     if (initialEditorState.isEmpty()) {
