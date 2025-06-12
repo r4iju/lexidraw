@@ -156,10 +156,11 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "~/components/ui/tooltip";
-import { emptyContent } from "../../initial-content";
+
 import { useKeyedSerialization } from "../../plugins/LlmChatPlugin/use-serialized-editor-state";
 import { isEqual } from "@packages/lib";
 import { BlurPlugin } from "./BlurPlugin";
+import { useEmptyContent } from "../../initial-content";
 
 export const NESTED_EDITOR_NODES = [
   ChartNode,
@@ -693,9 +694,7 @@ export default function SlideDeckEditorComponent({
     return deckData.slides[currentSlideIndex];
   }, [deckData.slides, currentSlideIndex]);
 
-  const EMPTY_CONTENT_FOR_NEW_BOXES = useMemo(() => {
-    return emptyContent();
-  }, []);
+  const EMPTY_CONTENT_FOR_NEW_BOXES = useEmptyContent();
 
   const { transformToLexicalSourcedJSON } = useLexicalTransformation();
 
