@@ -793,11 +793,7 @@ export default function SlideDeckEditorComponent({
   ]);
 
   useEffect(() => {
-    console.log(`[SlideDeckEditor] New initialData received.`, {
-      initialData,
-    });
     if (!isEqual(initialData, deckData)) {
-      console.log("[SlideDeckEditor] initialData has changed, updating state.");
       setDeckData(initialData);
     }
   }, [initialData, deckData]);
