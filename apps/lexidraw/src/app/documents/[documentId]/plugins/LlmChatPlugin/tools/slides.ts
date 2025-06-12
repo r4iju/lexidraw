@@ -1409,104 +1409,133 @@ export const useSlideTools = () => {
     });
 
     /* --------------------------------------------------------------
-     * Add Box to Slide Page Tool
+     * Add Box to Slide Page (Schema & Exec)
      * --------------------------------------------------------------*/
+
+    const addBoxToSlidePageSchema = z.object({
+      deckNodeKey: z.string().describe("The key of the target SlideDeckNode."),
+      slideId: z
+        .string()
+        .describe("The ID of the slide page to add the box to."),
+      boxId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional ID for the new box. If not provided, a unique ID (e.g., 'box-<timestamp>') will be generated.",
+        ),
+      editorKey: EditorKeySchema.optional(),
+    });
+
+    const addBoxToSlidePageExec = async (
+      options: z.infer<typeof addBoxToSlidePageSchema>,
+    ): Promise<{
+      success: boolean;
+      content?: {
+        summary: string;
+        updatedEditorStateJson?: unknown;
+        newNodeKey?: string;
+        textNodeKey?: string;
+      };
+      error?: string;
+    }> => {
+      type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
+      const execResult = await updateSlideDeckExecutor<
+        MutatorOptions,
+        typeof options
+      >("addBoxToSlidePage", editor, options, (currentData, opts) => {
+        const { slideId, boxId } = opts;
+
+        const targetSlideIndex = currentData.slides.findIndex(
+          (s) => s.id === slideId,
+        );
+
+        if (targetSlideIndex === -1) {
+          throw new Error(
+            `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
+          );
+        }
+        const targetSlide = currentData.slides[targetSlideIndex];
+        if (!targetSlide) {
+          // Should be caught by index check, but safeguard
+          throw new Error(
+            `Target slide ${slideId} could not be retrieved from deck ${options.deckNodeKey}.`,
+          );
+        }
+
+        const getNextZIndexForSlideElements = (
+          elements: SlideElementSpec[],
+        ): number => {
+          if (!elements || elements.length === 0) {
+            return 0;
+          }
+          return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
+        };
+
+        const newBoxGeneratedId = boxId || `box-${Date.now()}`;
+
+        const generatedEditorStateJSON =
+          EMPTY_CONTENT as unknown as KeyedSerializedEditorState;
+
+        const newBoxElement: SlideElementSpec = {
+          kind: "box",
+          id: newBoxGeneratedId,
+          x: 50,
+          y: 50,
+          width: 300,
+          height: 50,
+          editorStateJSON: generatedEditorStateJSON,
+          backgroundColor: "transparent",
+          version: 1,
+          zIndex: getNextZIndexForSlideElements(targetSlide.elements || []),
+        };
+
+        const updatedSlides = currentData.slides.map((slide, index) => {
+          if (index === targetSlideIndex) {
+            return {
+              ...slide,
+              elements: [...(slide.elements || []), newBoxElement],
+            };
+          }
+          return slide;
+        });
+
+        const summary = `Added new box (ID: ${newBoxGeneratedId}) with content to slide ${slideId} in deck ${options.deckNodeKey}.`;
+
+        return {
+          newData: {
+            ...currentData,
+            slides: updatedSlides,
+          },
+          summary: summary,
+          newNodeKey: newBoxGeneratedId,
+          additionalContent: {
+            textNodeKey: DEFAULT_TEXT_NODE_ORIGINAL_KEY,
+          },
+        };
+      });
+
+      // Assert to include textNodeKey in content for typing
+      return execResult as {
+        success: boolean;
+        content?: {
+          summary: string;
+          updatedEditorStateJson?: unknown;
+          newNodeKey?: string;
+          textNodeKey?: string;
+        };
+        error?: string;
+      };
+    };
+
+    /* --------------------------------------------------------------
+     * Add Box to Slide Page Tool (calls exec)
+     * --------------------------------------------------------------*/
+
     const addBoxToSlidePage = tool({
       description:
-        "Adds a new box element to a specific slide page within an existing SlideDeckNode. The content for the box should be provided as Markdown.",
-      parameters: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z
-          .string()
-          .describe("The ID of the slide page to add the box to."),
-        boxId: z
-          .string()
-          .optional()
-          .describe(
-            "Optional ID for the new box. If not provided, a unique ID (e.g., 'box-<timestamp>') will be generated.",
-          ),
-      }),
-      execute: async (options) => {
-        type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
-        return updateSlideDeckExecutor<MutatorOptions, typeof options>(
-          "addBoxToSlidePage",
-          editor,
-          options,
-          (currentData, opts) => {
-            const { slideId, boxId } = opts;
-
-            const targetSlideIndex = currentData.slides.findIndex(
-              (s) => s.id === slideId,
-            );
-
-            if (targetSlideIndex === -1) {
-              throw new Error(
-                `Slide with ID ${slideId} not found in deck ${options.deckNodeKey}.`,
-              );
-            }
-            const targetSlide = currentData.slides[targetSlideIndex];
-            if (!targetSlide) {
-              // Should be caught by index check, but safeguard
-              throw new Error(
-                `Target slide ${slideId} could not be retrieved from deck ${options.deckNodeKey}.`,
-              );
-            }
-
-            const getNextZIndexForSlideElements = (
-              elements: SlideElementSpec[],
-            ): number => {
-              if (!elements || elements.length === 0) {
-                return 0;
-              }
-              return Math.max(...elements.map((el) => el.zIndex), -1) + 1;
-            };
-
-            const newBoxGeneratedId = boxId || `box-${Date.now()}`;
-
-            const generatedEditorStateJSON =
-              EMPTY_CONTENT as unknown as KeyedSerializedEditorState;
-
-            const newBoxElement: SlideElementSpec = {
-              kind: "box",
-              id: newBoxGeneratedId,
-              x: 50,
-              y: 50,
-              width: 300,
-              height: 50,
-              editorStateJSON: generatedEditorStateJSON,
-              backgroundColor: "transparent",
-              version: 1,
-              zIndex: getNextZIndexForSlideElements(targetSlide.elements || []),
-            };
-
-            const updatedSlides = currentData.slides.map((slide, index) => {
-              if (index === targetSlideIndex) {
-                return {
-                  ...slide,
-                  elements: [...(slide.elements || []), newBoxElement],
-                };
-              }
-              return slide;
-            });
-
-            const summary = `Added new box (ID: ${newBoxGeneratedId}) with content to slide ${slideId} in deck ${options.deckNodeKey}.`;
-
-            return {
-              newData: {
-                ...currentData,
-                slides: updatedSlides,
-              },
-              summary: summary,
-              newNodeKey: newBoxGeneratedId,
-              additionalContent: {
-                textNodeKey: DEFAULT_TEXT_NODE_ORIGINAL_KEY,
-              },
-            };
-          },
-        );
-      },
+        "Adds a new box element to a specific slide page within an existing SlideDeckNode.",
+      parameters: addBoxToSlidePageSchema,
+      execute: addBoxToSlidePageExec,
     });
 
     return {
@@ -1528,6 +1557,7 @@ export const useSlideTools = () => {
       saveDeckTheme,
       saveAudienceDataTool,
       addBoxToSlidePage,
+      addBoxToSlidePageExec,
     };
   }, [
     $insertNodeAtResolvedPoint,
