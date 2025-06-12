@@ -646,9 +646,6 @@ export default function SlideDeckEditorComponent({
   parentEditor,
   nodeKey,
 }: SlideDeckEditorProps): JSX.Element {
-  console.log(`[SlideDeckEditor] Render for nodeKey: ${nodeKey}.`, {
-    initialData,
-  });
   const [deckData, setDeckData] = useState<SlideDeckData>(initialData);
   const [isLinkEditMode, setIsLinkEditMode] = useState(false);
   const elementEditorsRef = useRef<Map<string, LexicalEditor>>(new Map());
@@ -699,14 +696,6 @@ export default function SlideDeckEditorComponent({
   const { transformToLexicalSourcedJSON } = useLexicalTransformation();
 
   useEffect(() => {
-    console.log(
-      `[SlideDeckEditorComponent useEffect] Syncing active editors for slide ${currentSlide?.id}.`,
-      {
-        slideId: currentSlide?.id,
-        elementCount: currentSlide?.elements?.length,
-        currentElements: JSON.stringify(currentSlide?.elements),
-      },
-    );
     const newActiveElementEditors = new Map<string, LexicalEditor>();
     const currentEditorIdsInSlide = new Set<string>();
 
@@ -718,9 +707,6 @@ export default function SlideDeckEditorComponent({
           const isNewEditor = !editorInstance;
 
           if (isNewEditor) {
-            console.log(
-              `[SlideDeckEditorComponent useEffect] Creating new nested editor for box ${element.id} on slide ${currentSlide.id}.`,
-            );
             editorInstance = createEditor({
               parentEditor: parentEditor,
               nodes: NESTED_EDITOR_NODES,
@@ -741,15 +727,6 @@ export default function SlideDeckEditorComponent({
 
           const incomingLexicalJSON = transformToLexicalSourcedJSON(
             incomingKeyedState || EMPTY_CONTENT_FOR_NEW_BOXES,
-          );
-
-          console.log(
-            `[SlideDeckEditorComponent useEffect] Prepared content for box ${element.id}.`,
-            {
-              isNewEditor,
-              incomingKeyedState: JSON.stringify(incomingKeyedState),
-              transformedLexicalJSON: JSON.stringify(incomingLexicalJSON),
-            },
           );
 
           if (
@@ -773,14 +750,6 @@ export default function SlideDeckEditorComponent({
             !isEqual(currentLiveLexicalJSON, incomingLexicalJSON)
           ) {
             try {
-              console.log(
-                `[SlideDeckEditorComponent useEffect] State change detected, updating editor for box ${element.id}.`,
-                {
-                  isNewEditor,
-                  currentLive: JSON.stringify(currentLiveLexicalJSON),
-                  incoming: JSON.stringify(incomingLexicalJSON),
-                },
-              );
               const newLexicalState =
                 editorInstance.parseEditorState(incomingLexicalJSON);
               if (newLexicalState.isEmpty()) {
@@ -904,10 +873,6 @@ export default function SlideDeckEditorComponent({
       );
       const newDeckData = { ...deckData, slides: newSlides };
 
-      console.log(
-        `[SlideDeckEditor] Box content changed for element ${elementId}. Propagating changes up.`,
-        { newDeckData },
-      );
       setDeckData(newDeckData);
       onDeckDataChange(newDeckData);
     },

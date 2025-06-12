@@ -43,6 +43,10 @@ export type SlideElementSpec =
       version?: number;
       backgroundColor?: string;
       zIndex: number;
+      fontSize?: number;
+      fontWeight?: "normal" | "bold" | number;
+      color?: string;
+      textAlign?: "left" | "center" | "right";
     }
   | {
       kind: "image";

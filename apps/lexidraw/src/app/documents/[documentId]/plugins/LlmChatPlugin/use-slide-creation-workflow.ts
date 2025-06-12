@@ -1373,12 +1373,9 @@ For each box, you MUST call the **insertTextNode** tool in parallel.
 - Use 'appendRoot' for the 'relation'.
 - Construct the 'editorKey' as "${currentDeckNodeKey}/${slideId}/{Box ID}".
 
-Example for a box with ID "box123" and type "heading1":
-{
-  "tool_code": "insertTextNode.execute({ text: "...", contentType: "heading1", relation: "appendRoot", editorKey: "${currentDeckNodeKey}/${slideId}/box123" })"
-}
+Each call MUST include the parameter \`deckNodeKey\` set to "${currentDeckNodeKey}" and the correct \`slideId\` for the element.
 
-Respond ONLY with the tool calls.
+You are expected to make multiple parallel tool calls in a single response, one per element.
         `.trim();
 
         try {
@@ -1514,7 +1511,17 @@ ${textElementsPromptInfo}
 ${visualAssetPromptInfo}
 
 **Instructions:**
-Call the **updateElementProperties** tool for each element on the slide to set its position and size. You are expected to make multiple parallel tool calls in a single response to lay out all the elements. For each call, provide the \`deckNodeKey\` ("${currentDeckNodeKey}"), \`slideId\`, \`elementId\`, \`kind\`, and the desired \`properties\` (\`x\`, \`y\`, \`width\`, \`height\`).
+Call the **updateElementProperties** tool for each element on the slide to set its position, size, AND (for text boxes) typography styles. Acceptable \`properties\` keys are:
+- x, y, width, height, zIndex
+- backgroundColor (boxes)
+- fontSize (boxes, px integer)
+- fontWeight ("normal", "bold", or numeric)
+- color (CSS color string)
+- textAlign ("left", "center", "right")
+
+Each call MUST include the parameter \`deckNodeKey\` set to "${currentDeckNodeKey}" and the correct \`slideId\` for the element.
+
+You are expected to make multiple parallel tool calls in a single response, one per element.
 `
           .replaceAll("          ", "")
           .trim();
