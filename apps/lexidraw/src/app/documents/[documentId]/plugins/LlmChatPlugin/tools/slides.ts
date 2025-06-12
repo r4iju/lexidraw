@@ -703,8 +703,21 @@ export const useSlideTools = () => {
             width: z.union([z.number(), z.literal("inherit")]).optional(),
             height: z.union([z.number(), z.literal("inherit")]).optional(),
             zIndex: z.number().optional(),
-            // Box specific
+            // Box specific styling
             backgroundColor: z.string().optional(),
+            fontSize: z
+              .number()
+              .optional()
+              .describe("Font size in px for text inside the box."),
+            fontWeight: z
+              .union([z.literal("normal"), z.literal("bold"), z.number()])
+              .optional()
+              .describe("Font weight (normal, bold, or numeric)."),
+            color: z.string().optional().describe("Text color (CSS format)."),
+            textAlign: z
+              .enum(["left", "center", "right"])
+              .optional()
+              .describe("Horizontal text alignment."),
             // Image specific
             url: z.string().optional(),
             // Chart specific
@@ -753,6 +766,10 @@ export const useSlideTools = () => {
                       specificUpdates = {
                         backgroundColor:
                           properties.backgroundColor ?? el.backgroundColor,
+                        fontSize: properties.fontSize ?? el.fontSize,
+                        fontWeight: properties.fontWeight ?? el.fontWeight,
+                        color: properties.color ?? el.color,
+                        textAlign: properties.textAlign ?? el.textAlign,
                       };
                     } else if (kind === "image" && el.kind === "image") {
                       specificUpdates = {

@@ -71,7 +71,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
     return editor;
   }, [element, parentEditor, transformToLexicalSourcedJSON]); // Updated dependencies to use the whole element
 
-  const elementStyle: React.CSSProperties = {
+  const baseStyle: React.CSSProperties = {
     position: "absolute",
     left: `${element.x}px`,
     top: `${element.y}px`,
@@ -81,13 +81,25 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
       "backgroundColor" in element
         ? element.backgroundColor || "transparent"
         : "transparent",
-    border:
-      "borderColor" in element && element.borderColor
-        ? `1px solid ${element.borderColor}`
-        : "none", // Assuming borderColor is only for boxes for now
+    // border styling can be added via CSS classes or updateElementProperties if needed
     overflow: "hidden",
     boxSizing: "border-box",
     zIndex: element.zIndex,
+  };
+
+  const boxTextStyle: React.CSSProperties =
+    element.kind === "box"
+      ? {
+          fontSize: element.fontSize ? `${element.fontSize}px` : undefined,
+          fontWeight: element.fontWeight as React.CSSProperties["fontWeight"],
+          color: element.color,
+          textAlign: element.textAlign as React.CSSProperties["textAlign"],
+        }
+      : {};
+
+  const elementStyle: React.CSSProperties = {
+    ...baseStyle,
+    ...boxTextStyle,
   };
 
   if (element.kind === "box" && viewEditor) {

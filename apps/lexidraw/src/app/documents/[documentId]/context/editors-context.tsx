@@ -10,7 +10,6 @@ import {
   SerializedEditorState as LexicalSerializedEditorState,
   SerializedRootNode,
   SerializedLexicalNode,
-  $isTextNode,
 } from "lexical";
 import {
   createContext,
@@ -158,65 +157,6 @@ export const EditorRegistryProvider = ({
         string,
         string,
       ];
-
-      console.log(
-        `[persistNestedEditorChanges DEBUG] For ${editorKey}. About to serialize. Editor empty? ${nestedEditorInstance.getEditorState().isEmpty()}`,
-      );
-      let rawLexicalStateDump;
-      try {
-        rawLexicalStateDump = nestedEditorInstance.getEditorState().toJSON();
-        console.log(
-          `[persistNestedEditorChanges DEBUG] For ${editorKey}. Raw Lexical state before custom serialization:`,
-          JSON.stringify(rawLexicalStateDump, null, 2),
-        );
-      } catch (e) {
-        console.error(
-          `[persistNestedEditorChanges DEBUG] Error getting raw JSON state for ${editorKey}`,
-          e,
-        );
-      }
-
-      nestedEditorInstance.getEditorState().read(() => {
-        const root = $getRoot();
-        console.log(
-          `[persistNestedEditorChanges DEBUG] For ${editorKey}. Inside read for serialization: Root key: ${root.getKey()}, children count: ${root.getChildrenSize()}`,
-        );
-        const rootChildren = root.getChildren();
-        if (rootChildren.length > 0) {
-          const firstP = rootChildren[0];
-          if (firstP && $isElementNode(firstP)) {
-            console.log(
-              `[persistNestedEditorChanges DEBUG] First paragraph: Key: ${firstP.getKey()}, Type: ${firstP.getType()}, Children count: ${firstP.getChildrenSize()}`,
-            );
-            const pChildren = firstP.getChildren();
-            if (pChildren.length > 0) {
-              const firstText = pChildren[0];
-              if ($isTextNode(firstText)) {
-                console.log(
-                  `[persistNestedEditorChanges DEBUG] First text node: Key: ${firstText.getKey()}, Text: "${firstText.getTextContent()}", ExportedJSON:`,
-                  JSON.stringify(firstText.exportJSON(), null, 2),
-                );
-              } else if (firstText) {
-                console.log(
-                  `[persistNestedEditorChanges DEBUG] First child of paragraph is not TextNode. Type: ${firstText.getType()}, Key: ${firstText.getKey()}`,
-                );
-              }
-            } else {
-              console.log(
-                `[persistNestedEditorChanges DEBUG] First paragraph (key: ${firstP.getKey()}) has NO children.`,
-              );
-            }
-          } else if (firstP) {
-            console.log(
-              `[persistNestedEditorChanges DEBUG] First child of root is not ElementNode. Type: ${firstP.getType()}, Key: ${firstP.getKey()}`,
-            );
-          }
-        } else {
-          console.log(
-            `[persistNestedEditorChanges DEBUG] Root node for ${editorKey} has NO children.`,
-          );
-        }
-      });
 
       const newKeyedState = serializeEditorStateWithKeys(
         nestedEditorInstance.getEditorState(),
