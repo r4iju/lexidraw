@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
 import DocumentEditor from "./document-editor-client";
-import { emptyContent } from "./initial-content";
+import { EMPTY_CONTENT } from "./initial-content";
 
 export const metadata: Metadata = {
   title: "Lexidraw | document",
@@ -41,7 +41,7 @@ export default async function DocumentPage(props: Props) {
       id: documentId,
       title: "New document",
       entityType: "document",
-      elements: JSON.stringify(emptyContent()),
+      elements: JSON.stringify(EMPTY_CONTENT),
       parentId: parentId ?? null,
     });
     return redirect(`/documents/${documentId}`);
