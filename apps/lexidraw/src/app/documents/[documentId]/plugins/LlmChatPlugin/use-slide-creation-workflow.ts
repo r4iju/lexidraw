@@ -1362,9 +1362,10 @@ You are a slide content writer. For slide with ID '${slideId}', you must populat
 ${slideBoxes
   .map((box) => {
     const editorKey = `${currentDeckNodeKey}/${slideId}/${box.boxId}`;
+    const sanitizedText = box.content.text.replace(/"/g, '\\"');
     return `- Box ID: "${box.boxId}"
   - Content Type: "${box.content.type}"
-  - Text: "${box.content.text.substring(0, 100)}" (editorKey: "${editorKey}")`;
+  - Text: "${sanitizedText}" (editorKey: "${editorKey}")`;
   })
   .join("\n\n")}
 
