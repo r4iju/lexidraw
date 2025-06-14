@@ -22,8 +22,8 @@ import env from "@packages/env";
 import { z } from "zod";
 import { useSlideTools, AudienceDataSchema } from "./tools/slides";
 import { useTextTools } from "./tools/text";
+import { useListTools } from "./tools/list";
 import { CoreMessage, ToolChoice, ToolSet } from "ai";
-import { DEFAULT_TEXT_NODE_ORIGINAL_KEY } from "../../initial-content";
 
 interface AudienceData {
   bigIdea: string;
@@ -117,7 +117,6 @@ interface ToolExecutionResultForMedia {
 interface BoxWithContent {
   pageId: string;
   boxId: string;
-  textNodeKey?: string;
   content: { type: string; text: string };
 }
 
@@ -182,6 +181,7 @@ export function useSlideCreationWorkflow() {
   } = useSlideTools();
 
   const { insertTextNode, applyTextStyle } = useTextTools();
+  const { insertListNode, insertListItemNode } = useListTools();
 
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
@@ -1254,7 +1254,6 @@ Return nothing else.
                   pageId: slideContent.pageId,
                   boxId: result.content.newNodeKey,
                   content: contentBlock,
-                  textNodeKey: result.content?.textNodeKey,
                 });
               } else {
                 failures++;
@@ -1363,17 +1362,17 @@ You are a slide content writer. For slide with ID '${slideId}', you must populat
 ${slideBoxes
   .map((box) => {
     const editorKey = `${currentDeckNodeKey}/${slideId}/${box.boxId}`;
-    const anchorKey = box.textNodeKey ?? DEFAULT_TEXT_NODE_ORIGINAL_KEY;
     return `- Box ID: "${box.boxId}"
   - Content Type: "${box.content.type}"
-  - Text: "${box.content.text.substring(0, 100)}" (editorKey: "${editorKey}", textNodeKey: "${anchorKey}")`;
+  - Text: "${box.content.text.substring(0, 100)}" (editorKey: "${editorKey}")`;
   })
   .join("\n\n")}
 
-For each box, you MUST call the **insertTextNode** tool in parallel.
-- Use the 'text' and 'contentType' from the details above.
-- Use 'appendRoot' for the 'relation'.
-- Construct the 'editorKey' as "${currentDeckNodeKey}/${slideId}/{Box ID}".
+For each box, choose the appropriate tool:
+ • **insertTextNode** for paragraphs or single-line text.
+ • **insertListNode** (followed by **insertListItemNode** as needed) when the contentType is "bulletList". Use listType="bullet".
+
+Make calls in parallel where possible.
 
 Each call MUST include the parameter \`deckNodeKey\` set to "${currentDeckNodeKey}" and the correct \`slideId\` for the element.
 
@@ -1384,8 +1383,12 @@ You are expected to make multiple parallel tool calls in a single response, one 
           const { toolResults, rawResponseText } = await runLLMStep({
             prompt,
             tools: {
-              // @ts-expect-error - insertTextNode is not typed
+              // @ts-expect-error - tools untyped
               insertTextNode,
+              // @ts-expect-error - tools untyped
+              insertListNode,
+              // @ts-expect-error - tools untyped
+              insertListItemNode,
             },
             generateChatResponse,
             toolChoice: "auto",
@@ -1398,34 +1401,23 @@ You are expected to make multiple parallel tool calls in a single response, one 
                 tr.toolName === "insertTextNode" &&
                 (tr.result as { success: boolean }).success
               ) {
-                // Expect args.editorKey and result.content?.primaryNodeKey
-                const editorKey: string | undefined = (
-                  tr.args as { editorKey?: string }
-                )?.editorKey;
-                const primaryNodeKey: string | undefined = (
-                  tr.result as { content?: { textNodeKey?: string } }
-                )?.content?.textNodeKey;
-
-                if (editorKey && primaryNodeKey) {
-                  const parts = editorKey.split("/");
-                  const boxId = parts[parts.length - 1];
-                  const targetBox = boxesWithContent?.find(
-                    (b) => b.boxId === boxId,
-                  );
-                  if (targetBox) {
-                    targetBox.textNodeKey = primaryNodeKey;
-                  }
-                }
+                // No longer tracking individual text node keys
               }
             }
           }
 
           const successfulCalls =
-            toolResults?.filter(
-              (r) =>
-                r.toolName === "insertTextNode" &&
-                (r.result as { success: boolean }).success,
-            ).length ?? 0;
+            toolResults?.filter((r) => {
+              const ok = (r.result as { success: boolean }).success;
+              return (
+                ok &&
+                [
+                  "insertTextNode",
+                  "insertListNode",
+                  "insertListItemNode",
+                ].includes(r.toolName as string)
+              );
+            }).length ?? 0;
 
           if (successfulCalls < slideBoxes.length) {
             failures += slideBoxes.length - successfulCalls;
@@ -1450,7 +1442,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
         }
       }
 
-      // Persist updated textNodeKey mappings for later layout step
+      // Persist boxes for later layout step (content only)
       setBoxesWithContent(boxesWithContent);
 
       chatDispatch({
@@ -1464,7 +1456,14 @@ You are expected to make multiple parallel tool calls in a single response, one 
         },
       });
     },
-    [chatDispatch, generateChatResponse, insertTextNode, runLLMStep],
+    [
+      chatDispatch,
+      generateChatResponse,
+      insertListItemNode,
+      insertListNode,
+      insertTextNode,
+      runLLMStep,
+    ],
   );
 
   const runStep9_LayoutRefinement = useCallback(
@@ -1519,8 +1518,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
         const textElementsPromptInfo = textElements
           .map((box) => {
             const editorKey = `${currentDeckNodeKey}/${outline.pageId}/${box.boxId}`;
-            const anchorKey = box.textNodeKey ?? DEFAULT_TEXT_NODE_ORIGINAL_KEY;
-            return `- Text Box (ID: "${box.boxId}", Kind: "box"): "${box.content.text}" (editorKey: "${editorKey}", textNodeKey: "${anchorKey}")`;
+            return `- Text Box (ID: "${box.boxId}", Kind: "box"): "${box.content.text}" (editorKey: "${editorKey}")`;
           })
           .join("\n");
 
@@ -1549,9 +1547,7 @@ For layout you have two tools:
 1. **updateElementProperties** – use for position/size/zIndex and backgroundColor.
 2. **applyTextStyle** – use to set rich-text styles *inside* a text box. Call it once per box after positioning.
 
-For **applyTextStyle** you **must** pass *both*:
-  • \`editorKey\` – the \`editorKey\` exactly as provided for the box above.
-  • \`anchorKey\` – the corresponding \`textNodeKey\` shown above (do **not** use the box ID).
+For **applyTextStyle** pass the \`editorKey\` exactly as provided for the box above. \`anchorKey\` is optional; omit it unless you have a specific reason.
 
 Optional style fields you can set: \`fontSize\` (e.g. "32px"), \`fontWeight\`, \`fontStyle\`, \`color\`, \`backgroundColor\`, \`textAlign\`.
 
