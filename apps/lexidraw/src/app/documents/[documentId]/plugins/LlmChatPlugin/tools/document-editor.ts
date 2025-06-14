@@ -44,18 +44,12 @@ export const useDocumentEditorTools = () => {
       editorKey,
     }) => {
       const { targetEditor, keyMap } = getResolvedEditorAndKeyMap(editorKey);
-      const liveNodeKey = keyMap?.get(originalNodeKey);
-      if (!liveNodeKey && originalNodeKey !== "root") {
-        // 'root' key might not be in keyMap if it's implicit
-        // Check if originalNodeKey is 'root' and targetEditor is the main editor. Special handling might be needed or disallow 'root' patching.
-        // For now, assume non-root keys must be in map.
-        return {
-          success: false,
-          error: `Live node for original key "${originalNodeKey}" not found in keyMap.`,
-        };
-      }
-      const finalNodeKey =
-        originalNodeKey === "root" ? "root" : (liveNodeKey as string); // Use liveNodeKey if not 'root'
+
+      // Resolve to live node key if a keyMap is available; otherwise assume the original key is already live (main editor case).
+      const liveNodeKey = keyMap?.get(originalNodeKey) ?? null;
+
+      // If keyMap is missing or doesn't contain the mapping, fall back to originalNodeKey.
+      const finalNodeKey = liveNodeKey || originalNodeKey;
 
       try {
         targetEditor.update(() => {
