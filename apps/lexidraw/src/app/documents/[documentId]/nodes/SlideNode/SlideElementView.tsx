@@ -82,20 +82,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
     zIndex: element.zIndex,
   };
 
-  const boxTextStyle: React.CSSProperties =
-    element.kind === "box"
-      ? {
-          fontSize: element.fontSize ? `${element.fontSize}px` : undefined,
-          fontWeight: element.fontWeight as React.CSSProperties["fontWeight"],
-          color: element.color,
-          textAlign: element.textAlign as React.CSSProperties["textAlign"],
-        }
-      : {};
-
-  const elementStyle: React.CSSProperties = {
-    ...baseStyle,
-    ...boxTextStyle,
-  };
+  const elementStyle: React.CSSProperties = baseStyle;
 
   if (element.kind === "box" && viewEditor) {
     return (

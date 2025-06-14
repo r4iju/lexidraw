@@ -8,7 +8,7 @@ import {
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $createListItemNode } from "@lexical/list";
-import { $createTextNode } from "lexical";
+import { $createTextNode, $getRoot } from "lexical";
 import { $createListNode } from "@lexical/list";
 import { $getNodeByKey } from "lexical";
 import { $isListItemNode, $isListNode } from "@lexical/list";
@@ -55,6 +55,21 @@ export const useListTools = () => {
 
           const newList = $createListNode(listType);
           newList.append(listItem);
+
+          // 🩹 If inserting at root level and the first child is still the placeholder
+          // empty paragraph from EMPTY_CONTENT, remove that paragraph before inserting
+          // the new list to avoid a leading blank line.
+          if (resolution.type === "appendRoot") {
+            const root = $getRoot();
+            const firstChild = root.getFirstChild();
+            if (
+              firstChild &&
+              firstChild.getType() === "paragraph" &&
+              firstChild.getTextContent() === ""
+            ) {
+              firstChild.remove();
+            }
+          }
 
           $insertNodeAtResolvedPoint(resolution, newList);
 

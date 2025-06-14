@@ -9,6 +9,7 @@ import { useCommonUtilities } from "./common";
 import { $createHeadingNode } from "@lexical/rich-text";
 import { $createTextNode } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $getRoot } from "lexical";
 
 export const useHeadingTools = () => {
   const {
@@ -41,6 +42,21 @@ export const useHeadingTools = () => {
           const newHeadingNode = $createHeadingNode(tag).append(
             $createTextNode(text),
           );
+
+          // 🩹 If appending to root and the first child is still the placeholder
+          // empty paragraph from EMPTY_CONTENT, remove that paragraph first so we
+          // don't end up with a blank line before the heading.
+          if (resolution.type === "appendRoot") {
+            const root = $getRoot();
+            const firstChild = root.getFirstChild();
+            if (
+              firstChild &&
+              firstChild.getType() === "paragraph" &&
+              firstChild.getTextContent() === ""
+            ) {
+              firstChild.remove();
+            }
+          }
 
           $insertNodeAtResolvedPoint(resolution, newHeadingNode);
 

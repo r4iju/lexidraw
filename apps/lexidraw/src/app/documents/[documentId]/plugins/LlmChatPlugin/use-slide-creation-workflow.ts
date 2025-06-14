@@ -23,6 +23,7 @@ import { z } from "zod";
 import { useSlideTools, AudienceDataSchema } from "./tools/slides";
 import { useTextTools } from "./tools/text";
 import { CoreMessage, ToolChoice, ToolSet } from "ai";
+import { DEFAULT_TEXT_NODE_ORIGINAL_KEY } from "../../initial-content";
 
 interface AudienceData {
   bigIdea: string;
@@ -180,7 +181,7 @@ export function useSlideCreationWorkflow() {
     addSlidePageExec,
   } = useSlideTools();
 
-  const { insertTextNode } = useTextTools();
+  const { insertTextNode, applyTextStyle } = useTextTools();
 
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
@@ -1285,7 +1286,7 @@ Return nothing else.
         throw new StepError("No boxes were created.", stepName);
       }
 
-      setBoxesWithContent(createdBoxes);
+      setBoxesWithContent([...createdBoxes]);
       chatDispatch({
         type: "push",
         msg: {
@@ -1360,12 +1361,13 @@ You are a slide content writer. For slide with ID '${slideId}', you must populat
         } boxes with their corresponding content by calling the **insertTextNode** tool for each.
 
 ${slideBoxes
-  .map(
-    (box) =>
-      `- Box ID: "${box.boxId}"
+  .map((box) => {
+    const editorKey = `${currentDeckNodeKey}/${slideId}/${box.boxId}`;
+    const anchorKey = box.textNodeKey ?? DEFAULT_TEXT_NODE_ORIGINAL_KEY;
+    return `- Box ID: "${box.boxId}"
   - Content Type: "${box.content.type}"
-  - Text: "${box.content.text.substring(0, 100)}"`,
-  )
+  - Text: "${box.content.text.substring(0, 100)}" (editorKey: "${editorKey}", textNodeKey: "${anchorKey}")`;
+  })
   .join("\n\n")}
 
 For each box, you MUST call the **insertTextNode** tool in parallel.
@@ -1389,6 +1391,34 @@ You are expected to make multiple parallel tool calls in a single response, one 
             toolChoice: "auto",
             signal,
           });
+
+          if (toolResults) {
+            for (const tr of toolResults) {
+              if (
+                tr.toolName === "insertTextNode" &&
+                (tr.result as { success: boolean }).success
+              ) {
+                // Expect args.editorKey and result.content?.primaryNodeKey
+                const editorKey: string | undefined = (
+                  tr.args as { editorKey?: string }
+                )?.editorKey;
+                const primaryNodeKey: string | undefined = (
+                  tr.result as { content?: { textNodeKey?: string } }
+                )?.content?.textNodeKey;
+
+                if (editorKey && primaryNodeKey) {
+                  const parts = editorKey.split("/");
+                  const boxId = parts[parts.length - 1];
+                  const targetBox = boxesWithContent?.find(
+                    (b) => b.boxId === boxId,
+                  );
+                  if (targetBox) {
+                    targetBox.textNodeKey = primaryNodeKey;
+                  }
+                }
+              }
+            }
+          }
 
           const successfulCalls =
             toolResults?.filter(
@@ -1419,6 +1449,9 @@ You are expected to make multiple parallel tool calls in a single response, one 
           });
         }
       }
+
+      // Persist updated textNodeKey mappings for later layout step
+      setBoxesWithContent(boxesWithContent);
 
       chatDispatch({
         type: "push",
@@ -1484,10 +1517,11 @@ You are expected to make multiple parallel tool calls in a single response, one 
         const vis = allVisualAssets?.find((v) => v.pageId === outline.pageId);
 
         const textElementsPromptInfo = textElements
-          .map(
-            (box) =>
-              `- Text Box (ID: "${box.boxId}", Kind: "box"): "${box.content.text}"`,
-          )
+          .map((box) => {
+            const editorKey = `${currentDeckNodeKey}/${outline.pageId}/${box.boxId}`;
+            const anchorKey = box.textNodeKey ?? DEFAULT_TEXT_NODE_ORIGINAL_KEY;
+            return `- Text Box (ID: "${box.boxId}", Kind: "box"): "${box.content.text}" (editorKey: "${editorKey}", textNodeKey: "${anchorKey}")`;
+          })
           .join("\n");
 
         const visualAssetPromptInfo =
@@ -1511,13 +1545,21 @@ ${textElementsPromptInfo}
 ${visualAssetPromptInfo}
 
 **Instructions:**
-Call the **updateElementProperties** tool for each element on the slide to set its position, size, AND (for text boxes) typography styles. Acceptable \`properties\` keys are:
+For layout you have two tools:
+1. **updateElementProperties** – use for position/size/zIndex and backgroundColor.
+2. **applyTextStyle** – use to set rich-text styles *inside* a text box. Call it once per box after positioning.
+
+For **applyTextStyle** you **must** pass *both*:
+  • \`editorKey\` – the \`editorKey\` exactly as provided for the box above.
+  • \`anchorKey\` – the corresponding \`textNodeKey\` shown above (do **not** use the box ID).
+
+Optional style fields you can set: \`fontSize\` (e.g. "32px"), \`fontWeight\`, \`fontStyle\`, \`color\`, \`backgroundColor\`, \`textAlign\`.
+
+\`deckNodeKey\` and \`slideId\` are ignored by this tool but you may include them for clarity.
+
+Acceptable \`properties\` keys for \`updateElementProperties\` are:
 - x, y, width, height, zIndex
 - backgroundColor (boxes)
-- fontSize (boxes, px integer)
-- fontWeight ("normal", "bold", or numeric)
-- color (CSS color string)
-- textAlign ("left", "center", "right")
 
 Each call MUST include the parameter \`deckNodeKey\` set to "${currentDeckNodeKey}" and the correct \`slideId\` for the element.
 
@@ -1530,7 +1572,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
           const { toolResults, rawResponseText } = await runLLMStep({
             prompt,
             // @ts-expect-error - impossible
-            tools: { updateElementProperties },
+            tools: { updateElementProperties, applyTextStyle },
             generateChatResponse,
             toolChoice: "auto",
             signal,
@@ -1583,7 +1625,13 @@ You are expected to make multiple parallel tool calls in a single response, one 
         },
       });
     },
-    [chatDispatch, updateElementProperties, runLLMStep, generateChatResponse],
+    [
+      chatDispatch,
+      updateElementProperties,
+      runLLMStep,
+      applyTextStyle,
+      generateChatResponse,
+    ],
   );
 
   const runStep10_ReviewRefine = useCallback(
