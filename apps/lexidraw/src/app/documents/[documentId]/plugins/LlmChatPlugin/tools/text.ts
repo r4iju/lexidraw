@@ -117,7 +117,12 @@ export const useTextTools = () => {
     description:
       "Applies specific CSS styles (like font family, size, color) to an existing TextNode identified by its key. Provide style values as strings (e.g., 'Arial, sans-serif', '14px', '#FF0000'). To remove a specific style, provide an empty string ('') for its value.",
     parameters: z.object({
-      anchorKey: z.string().describe("The key of the target TextNode."),
+      anchorKey: z
+        .string()
+        .optional()
+        .describe(
+          "The key of the target TextNode. If omitted, the first TextNode in the editor will be styled.",
+        ),
       editorKey: EditorKeySchema.optional(),
       fontFamily: z
         .string()
@@ -181,38 +186,51 @@ export const useTextTools = () => {
 
         const { targetEditor, keyMap } = getResolvedEditorAndKeyMap(editorKey); // editorKey is the full path
 
-        let liveAnchorKey = anchorKey; // anchorKey is the original key, e.g., DEFAULT_TEXT_NODE_ORIGINAL_KEY
+        let liveAnchorKey = anchorKey ?? null;
 
-        if (keyMap) {
-          const resolvedKey = keyMap.get(anchorKey);
+        if (liveAnchorKey && keyMap) {
+          const resolvedKey = keyMap.get(liveAnchorKey);
           if (resolvedKey) {
             liveAnchorKey = resolvedKey;
           } else {
             // anchorKey might already be a live key created after initial editor serialization
             const nodeExists = targetEditor
               .getEditorState()
-              .read(() => !!$getNodeByKey(anchorKey));
+              // checked above
+              .read(() => !!$getNodeByKey(liveAnchorKey as string));
 
             if (nodeExists) {
               // Treat the provided anchorKey as live
               console.warn(
-                `[applyTextStyle] anchorKey "${anchorKey}" not found in keyMap but exists live in the editor – treating it as live key.`,
+                `[applyTextStyle] anchorKey "${liveAnchorKey}" not found in keyMap but exists live in the editor – treating it as live key.`,
               );
-              liveAnchorKey = anchorKey;
             } else {
-              errorMsg = `anchorKey "${anchorKey}" not found in keyMap and does not exist live in editor "${editorKey}".`;
+              errorMsg = `anchorKey "${liveAnchorKey}" not found in keyMap and does not exist live in editor "${editorKey}".`;
               console.error(`❌ [applyTextStyle] Error: ${errorMsg}`);
               return { success: false, error: errorMsg };
             }
           }
+        } else if (liveAnchorKey === null) {
+          // No anchorKey specified – we will resolve first text node later.
         } else {
           // No keyMap for this editor (e.g., root editor). Assume anchorKey is live.
           console.warn(
-            `[applyTextStyle] No keyMap for editor "${editorKey}". Assuming anchorKey "${anchorKey}" is already a live key.`,
+            `[applyTextStyle] No keyMap for editor "${editorKey}". Assuming anchorKey "${liveAnchorKey}" is already a live key.`,
           );
         }
 
         targetEditor.update(() => {
+          // If we still don't have a liveAnchorKey, find first TextNode in the editor
+          if (!liveAnchorKey) {
+            const firstText = $getRoot().getAllTextNodes()[0] ?? null;
+            if (firstText) {
+              liveAnchorKey = firstText.getKey();
+            } else {
+              errorMsg = "No TextNode found in editor to apply style.";
+              return;
+            }
+          }
+
           const targetNode = $getNodeByKey(liveAnchorKey); // Use the resolved live key
 
           if (!targetNode) {

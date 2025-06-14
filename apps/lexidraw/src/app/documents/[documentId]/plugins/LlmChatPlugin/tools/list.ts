@@ -48,13 +48,25 @@ export const useListTools = () => {
         (resolution, specificOptions, _currentTargetEditor) => {
           const { listType, text } = specificOptions;
 
-          const listItem = $createListItemNode(
-            listType === "check" ? false : undefined,
-          );
-          listItem.append($createTextNode(text));
-
           const newList = $createListNode(listType);
-          newList.append(listItem);
+
+          // Split multiline text into individual items so the LLM can just pass a single string.
+          const lines = text
+            .split(/\n+/)
+            .map((l) => l.trim())
+            .filter(Boolean);
+          if (lines.length === 0) {
+            lines.push(""); // ensure at least one item
+          }
+
+          for (const line of lines) {
+            const clean = line.replace(/^[-*]\s*/, "").trim();
+            const listItem = $createListItemNode(
+              listType === "check" ? false : undefined,
+            );
+            listItem.append($createTextNode(clean));
+            newList.append(listItem);
+          }
 
           // 🩹 If inserting at root level and the first child is still the placeholder
           // empty paragraph from EMPTY_CONTENT, remove that paragraph before inserting
@@ -78,7 +90,7 @@ export const useListTools = () => {
             summaryContext: `${listType} list`,
             additionalContent: {
               listNodeKey: newList.getKey(),
-              firstItemKey: listItem.getKey(),
+              firstItemKey: newList.getFirstChild()?.getKey(),
             },
           };
         },
@@ -218,7 +230,8 @@ export const useListTools = () => {
           }
 
           const newListItem = $createListItemNode(checkValue);
-          newListItem.append($createTextNode(text));
+          const textNode = $createTextNode(text);
+          newListItem.append(textNode);
           newListItemKey = newListItem.getKey();
 
           if ($isListNode(resolvedTarget) && relation === "appendToList") {
