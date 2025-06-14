@@ -181,7 +181,7 @@ export function useSlideCreationWorkflow() {
   } = useSlideTools();
 
   const { insertTextNode, applyTextStyle } = useTextTools();
-  const { insertListNode, insertListItemNode } = useListTools();
+  const { insertListNode } = useListTools();
 
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
@@ -1370,7 +1370,7 @@ ${slideBoxes
 
 For each box, choose the appropriate tool:
  • **insertTextNode** for paragraphs or single-line text.
- • **insertListNode** (followed by **insertListItemNode** as needed) when the contentType is "bulletList". Use listType="bullet".
+ • **insertListNode** when the contentType is "bulletList". Pass the full multi-line text joined by new-lines; the tool will split it into individual bullets automatically. Use listType="bullet".
 
 Make calls in parallel where possible.
 
@@ -1387,8 +1387,6 @@ You are expected to make multiple parallel tool calls in a single response, one 
               insertTextNode,
               // @ts-expect-error - tools untyped
               insertListNode,
-              // @ts-expect-error - tools untyped
-              insertListItemNode,
             },
             generateChatResponse,
             toolChoice: "auto",
@@ -1411,11 +1409,9 @@ You are expected to make multiple parallel tool calls in a single response, one 
               const ok = (r.result as { success: boolean }).success;
               return (
                 ok &&
-                [
-                  "insertTextNode",
-                  "insertListNode",
-                  "insertListItemNode",
-                ].includes(r.toolName as string)
+                ["insertTextNode", "insertListNode"].includes(
+                  r.toolName as string,
+                )
               );
             }).length ?? 0;
 
@@ -1459,7 +1455,6 @@ You are expected to make multiple parallel tool calls in a single response, one 
     [
       chatDispatch,
       generateChatResponse,
-      insertListItemNode,
       insertListNode,
       insertTextNode,
       runLLMStep,
