@@ -14,6 +14,7 @@ import {
   $isTextNode,
   $createParagraphNode,
   $isElementNode,
+  $getRoot,
 } from "lexical";
 import { useLexicalStyleUtils } from "../../../utils/lexical-style-utils";
 
@@ -46,12 +47,30 @@ export const useTextTools = () => {
           const newTextNode = $createTextNode(text);
           let nodeToInsert: LexicalNode = newTextNode;
           let summaryCtx = "text content";
-          let finalNewNodeKey = newTextNode.getKey();
+          // The text node key is always newTextNode.getKey(); paragraph key may differ
+          const textNodeKey = newTextNode.getKey();
+          let finalNewNodeKey = textNodeKey;
 
           if (resolution.type === "appendRoot") {
+            // 🩹 Fix: If the editor still contains the initial placeholder paragraph
+            // (an empty paragraph inserted by EMPTY_CONTENT), remove it so we don\'t
+            // end up with a spurious blank line before the real content.
+            const root = $getRoot();
+            if (root.getChildrenSize() === 1) {
+              const firstChild = root.getFirstChild();
+              if (
+                firstChild &&
+                firstChild.getType() === "paragraph" &&
+                firstChild.getTextContent() === ""
+              ) {
+                firstChild.remove();
+              }
+            }
+
             const paragraph = $createParagraphNode();
             paragraph.append(newTextNode);
             nodeToInsert = paragraph;
+            // Keep paragraph key as newNodeKey but preserve text node key separately
             finalNewNodeKey = paragraph.getKey();
             summaryCtx = "paragraph containing text";
           } else {
@@ -84,6 +103,9 @@ export const useTextTools = () => {
           return {
             primaryNodeKey: finalNewNodeKey,
             summaryContext: summaryCtx,
+            additionalContent: {
+              textNodeKey,
+            },
           };
         },
         resolveInsertionPoint,
@@ -166,14 +188,25 @@ export const useTextTools = () => {
           if (resolvedKey) {
             liveAnchorKey = resolvedKey;
           } else {
-            errorMsg = `Original anchorKey "${anchorKey}" not found in keyMap for editor "${editorKey}". KeyMap contains: ${Array.from(keyMap.keys()).join(", ")}`;
-            console.error(`❌ [applyTextStyle] Error: ${errorMsg}`);
-            return { success: false, error: errorMsg };
+            // anchorKey might already be a live key created after initial editor serialization
+            const nodeExists = targetEditor
+              .getEditorState()
+              .read(() => !!$getNodeByKey(anchorKey));
+
+            if (nodeExists) {
+              // Treat the provided anchorKey as live
+              console.warn(
+                `[applyTextStyle] anchorKey "${anchorKey}" not found in keyMap but exists live in the editor – treating it as live key.`,
+              );
+              liveAnchorKey = anchorKey;
+            } else {
+              errorMsg = `anchorKey "${anchorKey}" not found in keyMap and does not exist live in editor "${editorKey}".`;
+              console.error(`❌ [applyTextStyle] Error: ${errorMsg}`);
+              return { success: false, error: errorMsg };
+            }
           }
         } else {
-          // This case implies the editor was found but no keyMap was generated or needed (e.g. main editor).
-          // For nested editors created via headless route, keyMap should exist.
-          // If it's a live editor registered without original state, anchorKey must already be live.
+          // No keyMap for this editor (e.g., root editor). Assume anchorKey is live.
           console.warn(
             `[applyTextStyle] No keyMap for editor "${editorKey}". Assuming anchorKey "${anchorKey}" is already a live key.`,
           );
