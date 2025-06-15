@@ -139,6 +139,7 @@ import {
 import { EditorRegistryProvider } from "./context/editors-context";
 import ChartPlugin from "./plugins/ChartPlugin";
 import { ChartNode } from "./nodes/ChartNode";
+import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -463,6 +464,7 @@ function EditorHandler({
                               <ListPlugin />
                               <ListMaxIndentLevelPlugin />
                               <CheckListPlugin />
+                              <MobileCheckListPlugin />
                               <MarkdownShortcutPlugin />
                               <PageBreakPlugin />
                               <CollapsiblePlugin />

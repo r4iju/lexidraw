@@ -104,59 +104,61 @@ export const theme = {
     checklist: "p-0 m-0 list-none",
 
     // Common <li> base styling
-    listitem: "ml-8 my-1",
+    listitem: "ml-6 my-1 pl-2",
 
     // Checklists:
     listitemUnchecked: `
       relative
-      p-0 
-      ml-2 mr-2 
-      pl-8 
-      pr-8 
-      list-none 
+      p-0
+      mr-2
+      !ml-0
+      pl-8
+      pr-8
+      list-none
       outline-hidden
-      before:absolute 
-      before:left-0 
-      before:top-1/2 
-      before:-translate-y-1/2 
+      before:absolute
+      before:left-0
+      before:top-1/2
+      before:-translate-y-1/2
       before:size-5
-      before:border 
+      before:border
       before:border-muted-foreground
-      before:rounded 
-      before:bg-white 
+      before:rounded
+      before:bg-white
       before:content-['']
       before:cursor-pointer
     `,
     listitemChecked: `
-      relative 
-      p-0 
-      ml-2 mr-2 
-      pl-8 
-      pr-8 
-      list-none 
+      relative
+      p-0
+      mr-2
+      !ml-0
+      pl-8
+      pr-8
+      list-none
       outline-hidden
-      line-through 
-      text-muted-foreground 
-      before:absolute 
-      before:left-0 
-      before:top-1/2 
-      before:-translate-y-1/2 
+      line-through
+      text-muted-foreground
+      before:absolute
+      before:left-0
+      before:top-1/2
+      before:-translate-y-1/2
       before:size-5
-      before:border 
+      before:border
       before:border-primary
-      before:bg-primary 
-      before:rounded 
+      before:bg-primary
+      before:rounded
       before:content-['']
-      before:cursor-pointer 
-      after:absolute 
+      before:cursor-pointer
+      after:absolute
       after:left-[7px]
       after:top-[45%]
       after:-translate-y-[45%]
       after:w-[6px]
       after:h-[10px]
-      after:border-r-[2px] 
-      after:border-b-[2px] 
-      after:border-white 
+      after:border-r-[2px]
+      after:border-b-[2px]
+      after:border-white
       after:rotate-45
     `,
     nested: {
