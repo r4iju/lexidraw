@@ -6,20 +6,16 @@ import {
   InsertionRelationSchema,
 } from "./common-schemas";
 import { useCommonUtilities } from "./common";
-import { $createParagraphNode } from "lexical";
+import { $createParagraphNode, $getRoot } from "lexical";
 import { $convertFromMarkdownString } from "@lexical/markdown";
 import { $getNodeByKey } from "lexical";
-import { $isElementNode } from "lexical";
 import { InsertionPointResolution } from "./common-schemas";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { PLAYGROUND_TRANSFORMERS } from "../../MarkdownTransformers";
 
 export const useMarkdownTools = () => {
-  const {
-    getResolvedEditorAndKeyMap,
-    resolveInsertionPoint,
-    $insertNodeAtResolvedPoint,
-  } = useCommonUtilities();
+  const { getResolvedEditorAndKeyMap, resolveInsertionPoint } =
+    useCommonUtilities();
   const [editor] = useLexicalComposerContext();
 
   const insertMarkdown = tool({
@@ -64,34 +60,54 @@ export const useMarkdownTools = () => {
 
         editorContext.targetEditor.update(
           () => {
-            const placeholderNode = $createParagraphNode();
-            // Insert the placeholder first using our helper
-            $insertNodeAtResolvedPoint(successResolution, placeholderNode);
+            // 1. create a temporary, detached parent node to hold the conversion output.
+            //    this node itself is never inserted into the editor.  ParagraphNode works well as a generic ElementNode container.
+            const tempParent = $createParagraphNode();
 
-            // Now, convert markdown targeting the placeholder.
-            // $convertFromMarkdownString may replace placeholderNode or fill it.
-            console.log(
-              `[insertMarkdown] Calling $convertFromMarkdownString, targeting placeholder node: ${placeholderNode.getKey()}`,
-            );
+            // 2. run the conversion, targeting the temporary parent.
+            //    lexical will fill tempParent with the correct top-level nodes.
+            //    e.g., for "# Hello\n\nWorld", it will add a HeadingNode and a ParagraphNode.
             $convertFromMarkdownString(
               markdownText,
               PLAYGROUND_TRANSFORMERS,
-              placeholderNode, // Target the placeholder
+              tempParent,
             );
 
-            // Check the node by key again as it might have been replaced or removed
-            // and then re-added by $convertFromMarkdownString if markdown was empty.
-            const finalNode = $getNodeByKey(placeholderNode.getKey());
-            if (
-              finalNode &&
-              $isElementNode(finalNode) &&
-              finalNode.isAttached() &&
-              finalNode.isEmpty()
-            ) {
+            const nodesToInsert = tempParent.getChildren();
+
+            if (nodesToInsert.length === 0) {
               console.log(
-                `[insertMarkdown] Placeholder node ${finalNode.getKey()} is empty after conversion, removing it.`,
+                "[insertMarkdown] Markdown produced no nodes, exiting.",
               );
-              finalNode.remove();
+              return;
+            }
+
+            // a bit more logic than $insertNodeAtResolvedPoint because we are inserting an array of nodes.
+            if (successResolution.type === "appendRoot") {
+              console.log(
+                `[insertMarkdown] Appending ${nodesToInsert.length} nodes to the root.`,
+              );
+              const root = $getRoot();
+              nodesToInsert.forEach((node) => root.append(node));
+            } else {
+              const targetNode = $getNodeByKey(successResolution.targetKey);
+              if (!targetNode) {
+                console.error(
+                  `[insertMarkdown] Target node with key ${successResolution.targetKey} not found.`,
+                );
+                return;
+              }
+
+              if (successResolution.type === "before") {
+                nodesToInsert.forEach((node) => targetNode.insertBefore(node));
+              } else if (successResolution.type === "after") {
+                // track the last inserted node.
+                let lastInsertedNode = targetNode;
+                nodesToInsert.forEach((node) => {
+                  lastInsertedNode.insertAfter(node);
+                  lastInsertedNode = node; // the next node should be inserted after this one.
+                });
+              }
             }
           },
           { tag: "llm-insert-markdown" },
