@@ -85,6 +85,10 @@
       height: 0;
     }
   }
+
+  /* Typography rhythm */
+  --leading-normal: 1.625;
+  --paragraph-spacing: 0.5rem;
 }
 
 @utility container {
@@ -182,4 +186,12 @@ hr {
   border-top-width: 1px;
   border-top-style: solid;
   @apply border-border;
+}
+
+/* -------------------------------------------------- */
+/*  Global prose defaults (Notion-like rhythm)       */
+/* -------------------------------------------------- */
+p {
+  line-height: var(--leading-normal);
+  margin: 0 0 var(--paragraph-spacing);
 }
