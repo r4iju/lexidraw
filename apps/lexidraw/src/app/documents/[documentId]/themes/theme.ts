@@ -6,12 +6,13 @@ export const theme = {
     font-mono
     block
     overflow-x-auto
-    my-2
-    px-2
+    my-4
+    px-3
     pl-[52px]
-    py-2
-    text-[13px]
-    leading-[1.53]
+    py-3
+    text-[14px]
+    leading-6
+    rounded-md
     relative
     tab-size-[2]
     before:absolute
@@ -67,7 +68,7 @@ export const theme = {
   tableAddRows:
     "absolute left-0 bottom-[-25px] h-5 w-[calc(100%-25px)] bg-muted hover:bg-accent transition",
   tableCell:
-    "relative outline-hidden border border-border align-top text-start min-w-[75px] w-[75px] p-2",
+    "relative outline-hidden border border-border align-top text-start min-w-[75px] w-[75px] p-3 min-h-[40px]",
   tableCellHeader: "font-semibold",
   tableCellSelected: "bg-primary/10",
   tableCellPrimarySelected:
@@ -84,12 +85,12 @@ export const theme = {
   tableSelection: "",
   tableSelected: "outline outline-2 outline-primary",
   heading: {
-    h1: "text-3xl font-semibold mb-2 text-foreground",
-    h2: "text-2xl font-semibold mb-2 text-foreground",
-    h3: "text-xl font-semibold mb-1 text-foreground",
-    h4: "text-lg font-semibold mb-1 text-foreground",
-    h5: "text-md font-semibold mb-0.5 text-foreground",
-    h6: "text-sm font-semibold mb-0.5 text-foreground",
+    h1: "text-3xl font-semibold leading-tight mt-8 mb-3 text-foreground",
+    h2: "text-2xl font-semibold leading-tight mt-6 mb-2 text-foreground",
+    h3: "text-xl font-semibold leading-snug mt-4 mb-2 text-foreground",
+    h4: "text-lg font-semibold mt-4 mb-1.5 text-foreground",
+    h5: "text-md font-semibold mt-3 mb-1 text-foreground",
+    h6: "text-sm font-semibold mt-3 mb-1 text-foreground",
   },
   image: "editor-image",
   link: "inline-flex items-center font-medium text-primary hover:underline",
@@ -182,7 +183,8 @@ export const theme = {
   },
 
   ltr: "text-left",
-  paragraph: "m-0 relative text-foreground",
+  paragraph:
+    "m-0 relative mb-2 leading-relaxed text-foreground [&:last-child]:mb-0",
   placeholder:
     "text-muted top-4 left-3 absolute text-sm font-medium pointer-events-none inline-block",
   quote: `m-0 ml-5 border-l-4 border-gray-200 dark:border-gray-700 px-5 py-3 text-foreground`,
@@ -191,8 +193,8 @@ export const theme = {
     code: `
       rounded-2xs
       text-muted-foreground
-      bg-muted
-      dark:bg-muted
+      bg-muted/60
+      dark:bg-muted/40
       font-mono
       font-semibold
       overflow-x-auto
