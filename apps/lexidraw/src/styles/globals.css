@@ -215,3 +215,20 @@ p {
   line-height: var(--leading-normal);
   margin: 0 0 var(--paragraph-spacing);
 }
+
+/* Header sizing variables: responsive with safe-area support */
+:root {
+  --header-height: clamp(3.75rem, 3rem + 1.2vw, 5rem);
+  --header-py: clamp(0.5rem, 0.375rem + 0.5vw, 0.875rem);
+  --header-padding-top: max(var(--header-py), env(safe-area-inset-top, 0px));
+
+  /* Footer sizing */
+  --footer-height: clamp(3.25rem, 2.5rem + 1vw, 4.5rem);
+  --footer-py: clamp(0.75rem, 0.5rem + 0.6vw, 1rem);
+}
+
+@media (width >= 1024px) {
+  :root {
+    --header-height: clamp(4.25rem, 3.25rem + 1.5vw, 5.5rem);
+  }
+}
