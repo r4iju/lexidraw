@@ -348,6 +348,8 @@ export const entityRouter = createTRPCRouter({
           parentId: schema.entities.parentId,
           sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
           tags: sql<string>`group_concat(${schema.tags.name}, ',')`,
+          // number of direct children for directories
+          childCount: sql<number>`(select cast(count(*) as int) from Entities as child where child.parentId = ${schema.entities.id} and child.deletedAt is null)`,
         })
         .from(schema.entities)
         .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))

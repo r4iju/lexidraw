@@ -12,6 +12,7 @@ import { ThumbnailClient } from "./thumbnail-client";
 import EntityTitle from "./_actions/rename-inline";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { TagTooltip } from "./entity-card-tag-tooltip";
+ 
 
 type Entity = RouterOutputs["entities"]["list"][number];
 
@@ -162,7 +163,7 @@ export function EntityCard({
               searchParams,
             })}
           >
-            Open
+            {entity.entityType === "directory" ? "Open folder" : "Open"}
           </Link>
         </Button>
       )}
