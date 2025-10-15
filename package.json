@@ -18,23 +18,15 @@
     "db:push": "bun dotenv -e .env.development -- turbo run db:push",
     "db:generate": "bun dotenv -e .env.development -- turbo run db:generate",
     "lint": "bun dotenv -e .env.development -- turbo run lint --continue",
+    "format": "bun x @biomejs/biome format --write .",
+    "lint:biome": "bun x @biomejs/biome check .",
     "test": "bun dotenv -e .env.test -- turbo run test --continue",
     "test:ts": "bun dotenv -e .env.test -- turbo run test:ts --continue"
   },
   "devDependencies": {
-    "@eslint/js": "^9.27.0",
-    "@next/eslint-plugin-next": "15.0.0-rc.0",
-    "@types/eslint": "^8.56.12",
-    "@types/eslint__js": "^8.42.3",
-    "@typescript-eslint/parser": "^8.32.1",
     "dotenv-cli": "latest",
-    "eslint": "^9.27.0",
-    "eslint-config-turbo": "latest",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-compiler": "19.0.0-beta-df7b47d-20241124",
-    "eslint-plugin-react-hooks": "^5.2.0",
     "turbo": "^2.5.3",
-    "typescript-eslint": "^8.32.1"
+    "@biomejs/biome": "1.9.4"
   },
   "packageManager": "bun@1.3.0"
 }
