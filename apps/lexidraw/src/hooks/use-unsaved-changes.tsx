@@ -7,13 +7,12 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import useModal from "~/hooks/useModal";
 import Link, { type LinkProps } from "next/link";
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 type Ctx = {
   markDirty(): void;
@@ -95,8 +94,12 @@ export function UnsavedChangesProvider({
 
   const guardedRouter = useRouterGuard(dirty, confirm, markNextPopAsConfirmed);
 
-  const markDirty = useCallback(() => (dirty.current = true), []);
-  const markPristine = useCallback(() => (dirty.current = false), []);
+  const markDirty = useCallback(() => {
+    dirty.current = true;
+  }, []);
+  const markPristine = useCallback(() => {
+    dirty.current = false;
+  }, []);
 
   const value = useMemo<Ctx>(
     () => ({
