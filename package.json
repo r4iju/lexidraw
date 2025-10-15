@@ -36,5 +36,5 @@
     "turbo": "^2.5.3",
     "typescript-eslint": "^8.32.1"
   },
-  "packageManager": "bun@1.2.9"
+  "packageManager": "bun@1.3.0"
 }
