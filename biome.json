@@ -27,7 +27,7 @@
       "!**/.next",
       "!**/dist",
       "!**/coverage",
-      "!apps/lexidraw/src/styles/globals.css:12:31",
+      "!apps/lexidraw/src/styles/globals.css",
       "!postcss.config.js",
       "!tailwind.config.cjs",
       "!**/drizzle.config.ts",
