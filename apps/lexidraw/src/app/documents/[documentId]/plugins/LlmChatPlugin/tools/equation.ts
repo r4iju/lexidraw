@@ -8,7 +8,13 @@ import {
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { EquationNode } from "../../../nodes/EquationNode";
-import { $isElementNode, $isTextNode, $createParagraphNode, $getNodeByKey, LexicalNode } from "lexical";
+import {
+  $isElementNode,
+  $isTextNode,
+  $createParagraphNode,
+  $getNodeByKey,
+  LexicalNode,
+} from "lexical";
 export const useEquationTools = () => {
   const {
     insertionExecutor,

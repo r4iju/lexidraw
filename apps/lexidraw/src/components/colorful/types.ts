@@ -2,7 +2,6 @@ import React from "react";
 
 export type HexColor = string;
 
-
 export interface RgbColor {
   r: number;
   g: number;
@@ -33,7 +32,13 @@ export interface HsvaColor extends HsvColor {
   a: number;
 }
 
-export type ObjectColor = RgbColor | HslColor | HsvColor | RgbaColor | HslaColor | HsvaColor;
+export type ObjectColor =
+  | RgbColor
+  | HslColor
+  | HsvColor
+  | RgbaColor
+  | HslaColor
+  | HsvaColor;
 
 export type AnyColor = string | ObjectColor;
 
@@ -49,7 +54,8 @@ type ColorPickerHTMLAttributes = Omit<
   "color" | "onChange" | "onChangeCapture"
 >;
 
-export interface ColorPickerBaseProps<T extends AnyColor> extends ColorPickerHTMLAttributes {
+export interface ColorPickerBaseProps<T extends AnyColor>
+  extends ColorPickerHTMLAttributes {
   color: T;
   onChange: (newColor: T) => void;
 }

@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { initializeFirestore } from "firebase/firestore";
-import env from '@packages/env';
+import env from "@packages/env";
 
 const firebaseConfig = {
   apiKey: env.NEXT_PUBLIC_FIRESTORE_API_KEY,
@@ -14,6 +14,6 @@ const firebaseConfig = {
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 const firestore = initializeFirestore(app, {
-  ignoreUndefinedProperties: true
-})
+  ignoreUndefinedProperties: true,
+});
 export default firestore;

@@ -36,12 +36,12 @@ export const useConvertUtils = () => {
 
       // prettier-ignore
       const hh = delta
-    ? max === r
-      ? (g - b) / delta
-      : max === g
-        ? 2 + (b - r) / delta
-        : 4 + (r - g) / delta
-    : 0;
+        ? max === r
+          ? (g - b) / delta
+          : max === g
+            ? 2 + (b - r) / delta
+            : 4 + (r - g) / delta
+        : 0;
 
       return {
         h: round(60 * (hh < 0 ? hh + 6 : hh)),

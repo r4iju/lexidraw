@@ -32,6 +32,7 @@ export function UnsavedChangesProvider({
   onSaveAndLeave?: () => void;
 }) {
   const dirty = useRef(false);
+  const skipNextPopConfirmRef = useRef(false);
   const [modal, showModal] = useModal();
 
   const confirm = useCallback(
@@ -78,9 +79,21 @@ export function UnsavedChangesProvider({
   );
 
   useBeforeUnloadGuard(dirty);
-  usePopstateGuard(dirty, confirm);
 
-  const guardedRouter = useRouterGuard(dirty, confirm);
+  const shouldSkipNextPop = useCallback(
+    () => skipNextPopConfirmRef.current,
+    [],
+  );
+  const clearSkipNextPop = useCallback(() => {
+    skipNextPopConfirmRef.current = false;
+  }, []);
+  const markNextPopAsConfirmed = useCallback(() => {
+    skipNextPopConfirmRef.current = true;
+  }, []);
+
+  usePopstateGuard(dirty, confirm, shouldSkipNextPop, clearSkipNextPop);
+
+  const guardedRouter = useRouterGuard(dirty, confirm, markNextPopAsConfirmed);
 
   const markDirty = useCallback(() => (dirty.current = true), []);
   const markPristine = useCallback(() => (dirty.current = false), []);
@@ -129,33 +142,46 @@ function useBeforeUnloadGuard(dirty: React.RefObject<boolean>) {
 function usePopstateGuard(
   dirty: React.RefObject<boolean>,
   confirm: () => Promise<boolean>,
+  shouldSkipNextPop: () => boolean,
+  clearSkipNextPop: () => void,
 ) {
   const router = useRouter();
 
   useLayoutEffect(() => {
-    const KEY = `__guard_${Date.now()}`;
-
-    history.pushState({}, "");
-    history.replaceState({ ...(history.state ?? {}), [KEY]: true }, "");
+    const isRestoringRef = { current: false } as { current: boolean };
 
     const onPop = async (evt: PopStateEvent) => {
+      // If a programmatic back was already confirmed, let it proceed.
+      if (shouldSkipNextPop()) {
+        clearSkipNextPop();
+        return; // do not block; allow Next.js to handle normally
+      }
+
+      // Prevent Next.js from handling this pop; we'll decide what to do.
       evt.stopImmediatePropagation();
 
-      if (dirty.current && !(await confirm())) {
-        history.pushState(
-          { ...(history.state ?? {}), [KEY]: true },
-          "",
-          location.href,
-        );
-
+      // If we're just restoring the previous state (history.go(1)), ignore.
+      if (isRestoringRef.current) {
+        isRestoringRef.current = false;
         return;
       }
 
-      window.removeEventListener("popstate", onPop);
+      const shouldLeave = !dirty.current || (await confirm());
 
-      // silly but it works
-      router.back();
-      // router.back();
+      // Always restore to the current entry first so a subsequent back
+      // navigates exactly one step (no extra dummy entries, no double back).
+      isRestoringRef.current = true;
+      history.go(1);
+
+      if (!shouldLeave) {
+        // User chose to stay; after history.go(1) we simply remain.
+        return;
+      }
+
+      // User chose to leave: remove our handler and go back exactly once.
+      window.removeEventListener("popstate", onPop);
+      // Defer to ensure the history restoration completes before going back.
+      setTimeout(() => router.back(), 0);
     };
 
     window.addEventListener("popstate", onPop);
@@ -163,12 +189,13 @@ function usePopstateGuard(
     return () => {
       window.removeEventListener("popstate", onPop);
     };
-  }, [dirty, confirm, router]);
+  }, [dirty, confirm, router, shouldSkipNextPop, clearSkipNextPop]);
 }
 
 function useRouterGuard(
   dirty: React.RefObject<boolean>,
   confirm: () => Promise<boolean>,
+  markNextPopAsConfirmed: () => void,
 ) {
   const router = useRouter();
 
@@ -176,9 +203,10 @@ function useRouterGuard(
     <T extends (...args: unknown[]) => unknown>(fn: T): T =>
       (async (...args: unknown[]) => {
         if (dirty.current && !(await confirm())) return; // blocked
+        if (fn === router.back) markNextPopAsConfirmed();
         return fn(...args);
       }) as unknown as T,
-    [dirty, confirm],
+    [dirty, confirm, router.back, markNextPopAsConfirmed],
   );
 
   return useMemo(

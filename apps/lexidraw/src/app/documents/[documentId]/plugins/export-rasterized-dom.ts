@@ -5,9 +5,12 @@ import html2canvas from "html2canvas-pro";
 type Props = {
   setTheme: () => void;
   restoreTheme: () => void;
-}
+};
 
-export async function exportDomTracedSvg({ setTheme, restoreTheme }: Props): Promise<string> {
+export async function exportDomTracedSvg({
+  setTheme,
+  restoreTheme,
+}: Props): Promise<string> {
   const element = document.querySelector("#lexical-content") as HTMLElement;
   if (!element) {
     throw new Error("#lexical-content element not found");
@@ -36,7 +39,7 @@ export async function exportDomTracedSvg({ setTheme, restoreTheme }: Props): Pro
   hiddenContainer.appendChild(clonedElement);
   document.body.appendChild(hiddenContainer);
 
-  setTheme()
+  setTheme();
 
   // Wait for the next animation frame so the layout updates
   await new Promise<number>((resolve) => requestAnimationFrame(resolve));
@@ -51,7 +54,7 @@ export async function exportDomTracedSvg({ setTheme, restoreTheme }: Props): Pro
   performance.mark("captured_canvas");
 
   // restore theme
-  restoreTheme()
+  restoreTheme();
 
   const ctx = canvas.getContext("2d");
   if (!ctx) {
@@ -98,17 +101,35 @@ export async function exportDomTracedSvg({ setTheme, restoreTheme }: Props): Pro
 
   // Measure all performance marks
   performance.measure("DOM Resizing", "start", "resized_dom_element");
-  performance.measure("Canvas Capture", "resized_dom_element", "captured_canvas");
-  performance.measure("Canvas Context Retrieval", "captured_canvas", "got_canvas_context");
-  performance.measure("Image Data Extraction", "got_canvas_context", "got_image_data");
+  performance.measure(
+    "Canvas Capture",
+    "resized_dom_element",
+    "captured_canvas",
+  );
+  performance.measure(
+    "Canvas Context Retrieval",
+    "captured_canvas",
+    "got_canvas_context",
+  );
+  performance.measure(
+    "Image Data Extraction",
+    "got_canvas_context",
+    "got_image_data",
+  );
   performance.measure("Cleanup Clone", "got_image_data", "cleaned_up_clone");
   performance.measure("Worker Open", "cleaned_up_clone", "opened_worker");
-  performance.measure("Traced SVG Generation", "opened_worker", "got_traced_svg_string_from_worker");
+  performance.measure(
+    "Traced SVG Generation",
+    "opened_worker",
+    "got_traced_svg_string_from_worker",
+  );
 
   // Log performance results
-  performance.getEntriesByType("measure").forEach((entry) =>
-    console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`)
-  );
+  performance
+    .getEntriesByType("measure")
+    .forEach((entry) =>
+      console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`),
+    );
 
   // Clear performance marks and measures to avoid clutter
   performance.clearMarks();

@@ -17,9 +17,8 @@
     "db:pull": "bun dotenv -e .env.development -- turbo run db:pull",
     "db:push": "bun dotenv -e .env.development -- turbo run db:push",
     "db:generate": "bun dotenv -e .env.development -- turbo run db:generate",
-    "lint": "bun dotenv -e .env.development -- turbo run lint --continue",
+    "lint": "bun dotenv -e .env.development -- turbo run lint --write --continue",
     "format": "bun x @biomejs/biome format --write .",
-    "lint:biome": "bun x @biomejs/biome check .",
     "test": "bun dotenv -e .env.test -- turbo run test --continue",
     "test:ts": "bun dotenv -e .env.test -- turbo run test:ts --continue"
   },

@@ -40,8 +40,6 @@ function SelectLanguage() {
   );
 }
 
-
 export class CodeNode extends OriginalCodeNode {
   toolbarComponent = SelectLanguage;
-  
 }

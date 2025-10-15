@@ -1,16 +1,16 @@
-import {
-  sqliteTable,
-  text,
-  numeric,
-  uniqueIndex,
-  integer,
-  index,
-  real,
-  AnySQLiteColumn,
-} from "drizzle-orm/sqlite-core";
+import type { PublicAccess } from "@packages/types";
 import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
-import type { PublicAccess } from "@packages/types";
+import {
+  type AnySQLiteColumn,
+  index,
+  integer,
+  numeric,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 export const accounts = sqliteTable(
   "Accounts",
   {

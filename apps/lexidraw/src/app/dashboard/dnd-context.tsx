@@ -133,7 +133,11 @@ export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
   };
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       {children}
 
       {/* Overlay is rendered at the root level so it’s not constrained by layout */}

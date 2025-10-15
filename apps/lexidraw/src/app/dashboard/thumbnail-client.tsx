@@ -2,11 +2,16 @@
 
 import { Folder } from "lucide-react";
 import Image from "next/image";
-import { useDeferredValue, useMemo, useLayoutEffect, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useMemo,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { cn } from "~/lib/utils";
 import { RouterOutputs } from "~/trpc/shared";
-
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -26,7 +31,12 @@ export function ThumbnailClient({ entity }: Props) {
   if (entity.entityType === "directory") {
     const childCount = (entity as any).childCount as number | undefined;
     return (
-      <FolderVisual id={entity.id} title={entity.title} childCount={childCount} src={src} />
+      <FolderVisual
+        id={entity.id}
+        title={entity.title}
+        childCount={childCount}
+        src={src}
+      />
     );
   }
 
@@ -88,7 +98,10 @@ function FolderVisual({
   }, []);
 
   return (
-    <div ref={containerRef} className="relative size-full aspect-4/3 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative size-full aspect-4/3 overflow-hidden"
+    >
       <span className="sr-only">{`Folder: ${title}`}</span>
       {(() => {
         // Use the Lucide Folder path as the mask base (24x24 viewBox)
@@ -140,8 +153,8 @@ function FolderVisual({
           className={cn(
             "absolute z-10 grid place-items-center rounded-full border border-border bg-background text-foreground leading-none bottom-1 right-0 h-4 min-w-4 text-xs px-1 shadow-sm",
             {
-              "top-10 right-5 h-10 min-w-10 text-xl shadow-md border-2" : isBig,
-            }
+              "top-10 right-5 h-10 min-w-10 text-xl shadow-md border-2": isBig,
+            },
           )}
         >
           {childCount}

@@ -32,7 +32,7 @@ export default async function DashboardPage({ params, searchParams }: Props) {
     new: isNew,
     sortBy,
     sortOrder,
-    flex, 
+    flex,
     tags,
   } = SearchParams.parse(queryParams);
 

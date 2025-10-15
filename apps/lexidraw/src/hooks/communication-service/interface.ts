@@ -9,7 +9,7 @@ export type ICommunicationOptions = {
   onMessage: (message: MessageStructure) => void;
   onConnectionClose: () => void;
   onConnectionOpen: () => void;
-}
+};
 
 export type ICommunicationReturnType = {
   peers: string[]; // userIds
@@ -18,4 +18,7 @@ export type ICommunicationReturnType = {
   initializeConnection: () => Promise<void>;
 };
 
-export type ICommunicationHook = (props: ICommunicationProps, options: ICommunicationProps) => ICommunicationReturnType;
+export type ICommunicationHook = (
+  props: ICommunicationProps,
+  options: ICommunicationProps,
+) => ICommunicationReturnType;

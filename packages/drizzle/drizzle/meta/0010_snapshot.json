@@ -125,10 +125,7 @@
       "indexes": {
         "Account_provider_providerAccountId_key": {
           "name": "Account_provider_providerAccountId_key",
-          "columns": [
-            "provider",
-            "providerAccountId"
-          ],
+          "columns": ["provider", "providerAccountId"],
           "isUnique": true
         }
       },
@@ -137,12 +134,8 @@
           "name": "Accounts_userId_Users_id_fk",
           "tableFrom": "Accounts",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -229,9 +222,7 @@
       "indexes": {
         "Analytics_visitorId_idx": {
           "name": "Analytics_visitorId_idx",
-          "columns": [
-            "visitorId"
-          ],
+          "columns": ["visitorId"],
           "isUnique": false
         }
       },
@@ -289,16 +280,12 @@
       "indexes": {
         "CityCoordinates_city_key": {
           "name": "CityCoordinates_city_key",
-          "columns": [
-            "city"
-          ],
+          "columns": ["city"],
           "isUnique": true
         },
         "CityCoordinates_city_idx": {
           "name": "CityCoordinates_city_idx",
-          "columns": [
-            "city"
-          ],
+          "columns": ["city"],
           "isUnique": false
         }
       },
@@ -408,24 +395,17 @@
       "indexes": {
         "Entity_userId_idx": {
           "name": "Entity_userId_idx",
-          "columns": [
-            "userId"
-          ],
+          "columns": ["userId"],
           "isUnique": false
         },
         "Entity_parentId_idx": {
           "name": "Entity_parentId_idx",
-          "columns": [
-            "parentId"
-          ],
+          "columns": ["parentId"],
           "isUnique": false
         },
         "Entity_unique_directory_name": {
           "name": "Entity_unique_directory_name",
-          "columns": [
-            "title",
-            "parentId"
-          ],
+          "columns": ["title", "parentId"],
           "isUnique": true,
           "where": "entityType = 'directory'"
         }
@@ -435,12 +415,8 @@
           "name": "Entities_parentId_Entities_id_fk",
           "tableFrom": "Entities",
           "tableTo": "Entities",
-          "columnsFrom": [
-            "parentId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parentId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -448,12 +424,8 @@
           "name": "Entities_userId_Users_id_fk",
           "tableFrom": "Entities",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -504,11 +476,7 @@
       "indexes": {
         "EntityTag_entityId_tagId_userId_key": {
           "name": "EntityTag_entityId_tagId_userId_key",
-          "columns": [
-            "entityId",
-            "tagId",
-            "userId"
-          ],
+          "columns": ["entityId", "tagId", "userId"],
           "isUnique": true
         }
       },
@@ -517,12 +485,8 @@
           "name": "EntityTags_entityId_Entities_id_fk",
           "tableFrom": "EntityTags",
           "tableTo": "Entities",
-          "columnsFrom": [
-            "entityId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entityId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -530,12 +494,8 @@
           "name": "EntityTags_tagId_Tags_id_fk",
           "tableFrom": "EntityTags",
           "tableTo": "Tags",
-          "columnsFrom": [
-            "tagId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tagId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -543,12 +503,8 @@
           "name": "EntityTags_userId_Users_id_fk",
           "tableFrom": "EntityTags",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -606,9 +562,7 @@
       "indexes": {
         "Permissions_name_unique": {
           "name": "Permissions_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         }
       },
@@ -669,12 +623,8 @@
           "name": "RolePermissions_roleId_Roles_id_fk",
           "tableFrom": "RolePermissions",
           "tableTo": "Roles",
-          "columnsFrom": [
-            "roleId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["roleId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -682,12 +632,8 @@
           "name": "RolePermissions_permissionId_Permissions_id_fk",
           "tableFrom": "RolePermissions",
           "tableTo": "Permissions",
-          "columnsFrom": [
-            "permissionId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["permissionId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -745,9 +691,7 @@
       "indexes": {
         "Roles_name_unique": {
           "name": "Roles_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         }
       },
@@ -812,9 +756,7 @@
       "indexes": {
         "Session_sessionToken_key": {
           "name": "Session_sessionToken_key",
-          "columns": [
-            "sessionToken"
-          ],
+          "columns": ["sessionToken"],
           "isUnique": true
         }
       },
@@ -823,12 +765,8 @@
           "name": "Sessions_userId_Users_id_fk",
           "tableFrom": "Sessions",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -888,24 +826,17 @@
       "indexes": {
         "SharedEntity_entityId_userId_key": {
           "name": "SharedEntity_entityId_userId_key",
-          "columns": [
-            "entityId",
-            "userId"
-          ],
+          "columns": ["entityId", "userId"],
           "isUnique": true
         },
         "SharedEntity_userId_idx": {
           "name": "SharedEntity_userId_idx",
-          "columns": [
-            "userId"
-          ],
+          "columns": ["userId"],
           "isUnique": false
         },
         "SharedEntity_entityId_idx": {
           "name": "SharedEntity_entityId_idx",
-          "columns": [
-            "entityId"
-          ],
+          "columns": ["entityId"],
           "isUnique": false
         }
       },
@@ -914,12 +845,8 @@
           "name": "SharedEntities_entityId_Entities_id_fk",
           "tableFrom": "SharedEntities",
           "tableTo": "Entities",
-          "columnsFrom": [
-            "entityId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entityId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -927,12 +854,8 @@
           "name": "SharedEntities_userId_Users_id_fk",
           "tableFrom": "SharedEntities",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -976,16 +899,12 @@
       "indexes": {
         "Tags_name_unique": {
           "name": "Tags_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         },
         "Tag_name_unique": {
           "name": "Tag_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         }
       },
@@ -1080,9 +999,7 @@
       "indexes": {
         "UploadedImage_userId_idx": {
           "name": "UploadedImage_userId_idx",
-          "columns": [
-            "userId"
-          ],
+          "columns": ["userId"],
           "isUnique": false
         }
       },
@@ -1091,12 +1008,8 @@
           "name": "UploadedImages_userId_Users_id_fk",
           "tableFrom": "UploadedImages",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -1104,12 +1017,8 @@
           "name": "UploadedImages_entityId_Entities_id_fk",
           "tableFrom": "UploadedImages",
           "tableTo": "Entities",
-          "columnsFrom": [
-            "entityId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entityId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -1203,16 +1112,12 @@
       "indexes": {
         "UploadedVideos_requestId_unique": {
           "name": "UploadedVideos_requestId_unique",
-          "columns": [
-            "requestId"
-          ],
+          "columns": ["requestId"],
           "isUnique": true
         },
         "UploadedVideo_userId_idx": {
           "name": "UploadedVideo_userId_idx",
-          "columns": [
-            "userId"
-          ],
+          "columns": ["userId"],
           "isUnique": false
         }
       },
@@ -1221,12 +1126,8 @@
           "name": "UploadedVideos_userId_Users_id_fk",
           "tableFrom": "UploadedVideos",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -1234,12 +1135,8 @@
           "name": "UploadedVideos_entityId_Entities_id_fk",
           "tableFrom": "UploadedVideos",
           "tableTo": "Entities",
-          "columnsFrom": [
-            "entityId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entityId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -1300,12 +1197,8 @@
           "name": "UserRoles_userId_Users_id_fk",
           "tableFrom": "UserRoles",
           "tableTo": "Users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1313,12 +1206,8 @@
           "name": "UserRoles_roleId_Roles_id_fk",
           "tableFrom": "UserRoles",
           "tableTo": "Roles",
-          "columnsFrom": [
-            "roleId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["roleId"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1406,9 +1295,7 @@
       "indexes": {
         "User_email_key": {
           "name": "User_email_key",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -1459,17 +1346,12 @@
       "indexes": {
         "VerificationToken_identifier_token_key": {
           "name": "VerificationToken_identifier_token_key",
-          "columns": [
-            "identifier",
-            "token"
-          ],
+          "columns": ["identifier", "token"],
           "isUnique": true
         },
         "VerificationToken_token_key": {
           "name": "VerificationToken_token_key",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         }
       },
@@ -1527,16 +1409,12 @@
       "indexes": {
         "WebRTCAnswer_createdBy_idx": {
           "name": "WebRTCAnswer_createdBy_idx",
-          "columns": [
-            "createdBy"
-          ],
+          "columns": ["createdBy"],
           "isUnique": false
         },
         "WebRTCAnswer_entityId_idx": {
           "name": "WebRTCAnswer_entityId_idx",
-          "columns": [
-            "entityId"
-          ],
+          "columns": ["entityId"],
           "isUnique": false
         }
       },
@@ -1545,12 +1423,8 @@
           "name": "WebRTCAnswers_entityId_Entities_id_fk",
           "tableFrom": "WebRTCAnswers",
           "tableTo": "Entities",
-          "columnsFrom": [
-            "entityId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entityId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -1608,16 +1482,12 @@
       "indexes": {
         "WebRTCOffer_createdBy_idx": {
           "name": "WebRTCOffer_createdBy_idx",
-          "columns": [
-            "createdBy"
-          ],
+          "columns": ["createdBy"],
           "isUnique": false
         },
         "WebRTCOffer_entityId_idx": {
           "name": "WebRTCOffer_entityId_idx",
-          "columns": [
-            "entityId"
-          ],
+          "columns": ["entityId"],
           "isUnique": false
         }
       },
@@ -1626,12 +1496,8 @@
           "name": "WebRTCOffers_entityId_Entities_id_fk",
           "tableFrom": "WebRTCOffers",
           "tableTo": "Entities",
-          "columnsFrom": [
-            "entityId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entityId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
