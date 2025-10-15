@@ -5,12 +5,12 @@ import {
   $insertNodes,
   $isRootOrShadowRoot,
   COMMAND_PRIORITY_EDITOR,
-  LexicalCommand,
-  LexicalEditor,
+  type LexicalCommand,
+  type LexicalEditor,
   createCommand,
 } from "lexical";
 import { useEffect, useState, useCallback } from "react";
-import * as React from "react";
+import type * as React from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ import FileInput from "~/components/ui/file-input";
 import { Button } from "~/components/ui/button";
 import { useUploader } from "~/hooks/use-uploader";
 import { useEntityId } from "~/hooks/use-entity-id";
-import { VideoNode, VideoPayload } from "../../nodes/VideoNode/VideoNode";
+import { VideoNode, type VideoPayload } from "../../nodes/VideoNode/VideoNode";
 import { INSERT_VIDEO_COMMAND } from "./commands";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { Input } from "~/components/ui/input";
@@ -35,7 +35,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "~/components/ui/textarea";
 import type { TRPCClientErrorLike } from "@trpc/client";
-import { AppRouter } from "~/server/api/root";
+import type { AppRouter } from "~/server/api/root";
 import { Label } from "~/components/ui/label";
 
 function InsertVideoUploadedDialogBody({

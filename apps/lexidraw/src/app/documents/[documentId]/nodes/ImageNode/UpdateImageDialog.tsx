@@ -1,6 +1,6 @@
-import * as React from "react";
+import type * as React from "react";
 import { useState } from "react";
-import { LexicalEditor, NodeKey, $getNodeByKey } from "lexical";
+import { type LexicalEditor, type NodeKey, $getNodeByKey } from "lexical";
 import {
   DialogContent,
   DialogFooter,
@@ -12,7 +12,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { SwitchThumb } from "@radix-ui/react-switch";
-import { ImageNode, UpdateImagePayload } from "./ImageNode"; // Import ImageNode and its payload type
+import { ImageNode, type UpdateImagePayload } from "./ImageNode"; // Import ImageNode and its payload type
 
 export function UpdateImageDialog({
   activeEditor,

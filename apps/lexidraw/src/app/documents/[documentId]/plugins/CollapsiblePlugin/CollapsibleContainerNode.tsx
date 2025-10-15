@@ -1,14 +1,14 @@
 import {
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
   ElementNode,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedElementNode,
-  Spread,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  type SerializedElementNode,
+  type Spread,
 } from "lexical";
 
 // import { IS_CHROME } from "@lexical/utils"; // Unused

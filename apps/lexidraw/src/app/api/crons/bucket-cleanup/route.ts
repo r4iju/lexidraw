@@ -37,7 +37,7 @@ export async function GET() {
 
   try {
     let deletedCount = 0;
-    let cursor: string | undefined = undefined;
+    let cursor: string | undefined;
     const dbBlobPathnames = new Set<string>();
 
     // 1. Get all relevant blob pathnames referenced in the database

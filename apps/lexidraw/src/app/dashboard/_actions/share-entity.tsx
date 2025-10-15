@@ -19,7 +19,7 @@ import {
 
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { type RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { Input } from "~/components/ui/input";
 import { useSearchParams } from "next/navigation";
 import { z } from "zod";

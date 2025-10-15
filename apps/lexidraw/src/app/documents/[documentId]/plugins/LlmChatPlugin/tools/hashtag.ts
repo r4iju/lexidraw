@@ -11,7 +11,7 @@ import {
   $createParagraphNode,
   $isTextNode,
   $getNodeByKey,
-  LexicalNode,
+  type LexicalNode,
 } from "lexical";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
 

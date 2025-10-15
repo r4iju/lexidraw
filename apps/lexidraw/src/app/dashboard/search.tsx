@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useRef, RefObject, useMemo, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  type RefObject,
+  useMemo,
+  useEffect,
+} from "react";
 import { Input } from "~/components/ui/input";
 import { useDebounceValue } from "~/lib/client-utils";
 import { api } from "~/trpc/react";

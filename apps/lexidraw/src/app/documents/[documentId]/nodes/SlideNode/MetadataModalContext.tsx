@@ -1,10 +1,11 @@
 "use client";
-import React, {
+import type React from "react";
+import {
   createContext,
   useContext,
   useState,
   useCallback,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import type {
   DeckStrategicMetadata,

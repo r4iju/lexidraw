@@ -30,11 +30,11 @@ import { INSERT_MERMAID_COMMAND } from "../MermaidPlugin";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
 import {
   $getRoot,
-  LexicalEditor,
+  type LexicalEditor,
   $getSelection,
   $isRangeSelection,
 } from "lexical";
-import { InsertImageDialog, InsertImagePayload } from "../ImagePlugin";
+import { InsertImageDialog, type InsertImagePayload } from "../ImagePlugin";
 import useModal from "~/hooks/useModal";
 import { InsertInlineImageDialog } from "../InlineImagePlugin";
 import { InsertTableDialog } from "../TablePlugin";

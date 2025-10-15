@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useChatState, useChatDispatch } from "../llm-chat-context";
 import type { ChatState } from "../llm-chat-context";

@@ -12,7 +12,7 @@ import {
   DialogClose,
 } from "~/components/ui/dialog";
 import { toast } from "sonner";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";
 import { ReloadIcon } from "@radix-ui/react-icons";

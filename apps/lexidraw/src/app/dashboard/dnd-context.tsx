@@ -3,9 +3,9 @@
 import { useState } from "react";
 import {
   DndContext,
-  DragEndEvent,
+  type DragEndEvent,
   DragOverlay,
-  DragStartEvent,
+  type DragStartEvent,
   useSensor,
   useSensors,
   MouseSensor,

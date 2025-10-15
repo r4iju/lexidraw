@@ -1,4 +1,4 @@
-import { NextConfig } from "next";
+import type { NextConfig } from "next";
 import nextBundleAnalyzer from "@next/bundle-analyzer";
 import env from "@packages/env";
 

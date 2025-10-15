@@ -1,9 +1,9 @@
 import type { JSX } from "react";
-import { Interactive, Interaction } from "./Interactive";
+import { Interactive, type Interaction } from "./Interactive";
 import { Pointer } from "./Pointer";
 import { useConvertUtils } from "../utils/convert";
 import { useClampUtils } from "../utils/clamp";
-import { HsvaColor } from "../types";
+import type { HsvaColor } from "../types";
 import { cn } from "~/lib/utils";
 import { useRoundUtils } from "../utils/round";
 

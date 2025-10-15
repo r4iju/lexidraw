@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
 import { useChatState } from "../llm-chat-context";
 import type { ChatState } from "../llm-chat-context";
 import { cn } from "~/lib/utils";
@@ -15,7 +16,7 @@ import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
-import { AppToolCall, AppToolResult } from "../../../context/llm-context";
+import type { AppToolCall, AppToolResult } from "../../../context/llm-context";
 
 type Message = ChatState["messages"][number];
 

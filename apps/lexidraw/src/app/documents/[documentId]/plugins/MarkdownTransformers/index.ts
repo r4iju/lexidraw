@@ -3,12 +3,12 @@ import {
   $convertToMarkdownString,
   CHECK_LIST,
   ELEMENT_TRANSFORMERS,
-  ElementTransformer,
+  type ElementTransformer,
   MULTILINE_ELEMENT_TRANSFORMERS,
   TEXT_FORMAT_TRANSFORMERS,
   TEXT_MATCH_TRANSFORMERS,
-  TextMatchTransformer,
-  Transformer,
+  type TextMatchTransformer,
+  type Transformer,
 } from "@lexical/markdown";
 import {
   $createHorizontalRuleNode,
@@ -31,7 +31,7 @@ import {
   $createTextNode,
   $isParagraphNode,
   $isTextNode,
-  LexicalNode,
+  type LexicalNode,
 } from "lexical";
 
 import { EquationNode } from "../../nodes/EquationNode";

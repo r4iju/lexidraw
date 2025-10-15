@@ -2,7 +2,7 @@ import React, {
   createContext,
   useContext,
   useCallback,
-  ReactNode,
+  type ReactNode,
   useState,
 } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";

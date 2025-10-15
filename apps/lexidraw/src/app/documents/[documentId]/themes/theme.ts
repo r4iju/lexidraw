@@ -1,4 +1,4 @@
-import { type EditorThemeClasses } from "lexical";
+import type { EditorThemeClasses } from "lexical";
 
 export const theme = {
   code: `bg-input

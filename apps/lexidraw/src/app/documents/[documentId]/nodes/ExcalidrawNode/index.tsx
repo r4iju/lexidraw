@@ -12,7 +12,7 @@ import type {
 
 import { DecoratorNode } from "lexical";
 import ExcalidrawComponent from "./ExcalidrawComponent";
-import * as React from "react";
+import type * as React from "react";
 import { Suspense } from "react";
 
 type Dimension = number | "inherit";

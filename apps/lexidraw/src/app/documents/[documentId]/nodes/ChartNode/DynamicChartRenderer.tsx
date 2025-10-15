@@ -68,7 +68,7 @@ export default function DynamicChartRenderer({
 
     const commonKeys = ["year", "month", "name", "date", "category"];
     for (const commonKey of commonKeys) {
-      if (Object.prototype.hasOwnProperty.call(firstItem, commonKey)) {
+      if (Object.hasOwn(firstItem, commonKey)) {
         // Check if it's string or number, as Recharts can handle both for dataKey
         if (
           typeof firstItem[commonKey] === "string" ||
@@ -80,7 +80,7 @@ export default function DynamicChartRenderer({
     }
 
     for (const key in firstItem) {
-      if (Object.prototype.hasOwnProperty.call(firstItem, key)) {
+      if (Object.hasOwn(firstItem, key)) {
         if (
           typeof firstItem[key] === "string" ||
           typeof firstItem[key] === "number"

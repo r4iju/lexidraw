@@ -4,7 +4,7 @@ import type { NodeKey } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as React from "react";
+import type * as React from "react";
 import { Button } from "~/components/ui/button";
 
 const FIXED_HEADER_HEIGHT = 70;

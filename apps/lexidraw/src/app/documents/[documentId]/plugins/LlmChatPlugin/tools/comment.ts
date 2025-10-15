@@ -7,8 +7,8 @@ import {
 } from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getRoot, RangeSelection, TextNode } from "lexical";
-import { LexicalNode } from "lexical";
+import { $getRoot, type RangeSelection, type TextNode } from "lexical";
+import type { LexicalNode } from "lexical";
 import { $isTextNode } from "lexical";
 import { $isElementNode } from "lexical";
 import { $createRangeSelection } from "lexical";
@@ -18,7 +18,7 @@ import { $isRangeSelection } from "lexical";
 import { $wrapSelectionInMarkNode } from "@lexical/mark";
 import { $getNodeByKey } from "lexical";
 import { useCommentPlugin } from "../../CommentPlugin";
-import { CommentStore, Thread } from "../../../commenting";
+import { CommentStore, type Thread } from "../../../commenting";
 import { ThreadNode } from "../../../nodes/ThreadNode";
 
 export const useCommentTools = () => {

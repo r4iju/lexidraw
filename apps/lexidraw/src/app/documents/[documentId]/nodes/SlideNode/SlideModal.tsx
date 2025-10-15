@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { LexicalEditor, NodeKey } from "lexical";
+import type React from "react";
+import { useState, useEffect, useCallback } from "react";
+import type { LexicalEditor, NodeKey } from "lexical";
 import {
   Dialog,
   DialogContent,

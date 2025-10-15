@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import {
+import type {
   RgbaColor,
   RgbColor,
   HslaColor,
@@ -10,7 +10,7 @@ import {
 
 export const useConvertUtils = () => {
   const round = useCallback(
-    (number: number, digits = 0, base = Math.pow(10, digits)): number => {
+    (number: number, digits = 0, base = 10 ** digits): number => {
       return Math.round(base * number) / base;
     },
     [],

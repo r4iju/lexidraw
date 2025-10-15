@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent } from "react";
+import type { FormEvent } from "react";
 import {
   FormProvider as Form,
   type UseFormReturn,

@@ -27,15 +27,21 @@ import {
   CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_NORMAL,
-  ElementFormatType,
+  type ElementFormatType,
   FORMAT_TEXT_COMMAND,
   KEY_MODIFIER_COMMAND,
-  NodeKey,
+  type NodeKey,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
 } from "lexical";
-import { Dispatch, useCallback, useEffect, useState, type JSX } from "react";
+import {
+  type Dispatch,
+  useCallback,
+  useEffect,
+  useState,
+  type JSX,
+} from "react";
 import { IS_APPLE } from "../../shared/environment";
 import { ColorPickerButton } from "~/components/ui/color-picker";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
@@ -70,9 +76,9 @@ import { useToolbarUtils } from "./utils";
 import { FontDropDown } from "./font";
 import {
   blockTypeToBlockName,
-  rootTypeToRootName,
+  type rootTypeToRootName,
 } from "../../context/toolbar-context";
-import { BlockFormatDropDown, BlockType } from "./block-format";
+import { BlockFormatDropDown, type BlockType } from "./block-format";
 import { LlmModelSelector } from "./llm-config";
 import { ElementFormatDropdown } from "./element-format";
 import { Divider } from "./divider";

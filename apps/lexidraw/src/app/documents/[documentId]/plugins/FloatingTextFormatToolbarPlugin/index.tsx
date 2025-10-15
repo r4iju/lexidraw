@@ -9,12 +9,12 @@ import {
   $isTextNode,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
-  LexicalEditor,
+  type LexicalEditor,
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
 import {
   type JSX,
-  Dispatch,
+  type Dispatch,
   useCallback,
   useEffect,
   useRef,

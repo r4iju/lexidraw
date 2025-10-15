@@ -1,6 +1,7 @@
 /** simply renders the first slide based on the data passed in, no editing */
-import React, { useRef, useState, useEffect } from "react";
-import { LexicalEditor } from "lexical";
+import type React from "react";
+import { useRef, useState, useEffect } from "react";
+import type { LexicalEditor } from "lexical";
 import type { SlideDeckData, SlideData } from "./SlideNode";
 import SlideElementView from "./SlideElementView";
 import { Button } from "~/components/ui/button";

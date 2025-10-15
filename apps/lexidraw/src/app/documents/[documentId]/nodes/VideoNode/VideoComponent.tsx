@@ -1,5 +1,5 @@
 import type { LexicalEditor, NodeKey } from "lexical";
-import * as React from "react";
+import type * as React from "react";
 import { Suspense, useRef, useState, useCallback, useEffect } from "react";
 import MentionsPlugin from "../../plugins/MentionsPlugin";
 

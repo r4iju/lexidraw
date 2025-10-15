@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useEventCallback } from "../hooks/useEventCallback";
-import { ColorInputBaseProps } from "../types";
+import type { ColorInputBaseProps } from "../types";
 import { Input } from "~/components/ui/input";
 
 interface Props extends ColorInputBaseProps {

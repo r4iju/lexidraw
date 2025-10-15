@@ -85,12 +85,12 @@ export async function exportDomTracedSvg({
   };
 
   const result = await new Promise<string>((resolve, reject) => {
-    worker.onmessage = function (e) {
+    worker.onmessage = (e) => {
       const { tracedSvgString } = e.data;
       resolve(tracedSvgString);
       worker.terminate();
     };
-    worker.onerror = function (err) {
+    worker.onerror = (err) => {
       reject(err);
       worker.terminate();
     };

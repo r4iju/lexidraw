@@ -1,5 +1,5 @@
 import { $patchStyleText } from "@lexical/selection";
-import { $getSelection, LexicalEditor } from "lexical";
+import { $getSelection, type LexicalEditor } from "lexical";
 import * as React from "react";
 import { TooltipButton } from "../../../../../components/ui/tooltip-button";
 import { Minus, Plus } from "lucide-react";

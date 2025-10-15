@@ -19,18 +19,18 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  LexicalEditor,
+  type LexicalEditor,
   $getSelection,
   $isRangeSelection,
   $createParagraphNode,
 } from "lexical";
-import { JSX } from "react";
-import { rootTypeToRootName } from "../../context/toolbar-context";
+import type { JSX } from "react";
+import type { rootTypeToRootName } from "../../context/toolbar-context";
 import { $setBlocksType } from "@lexical/selection";
 import {
   $createHeadingNode,
   $createQuoteNode,
-  HeadingTagType,
+  type HeadingTagType,
 } from "@lexical/rich-text";
 import {
   INSERT_CHECK_LIST_COMMAND,

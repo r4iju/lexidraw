@@ -1,6 +1,6 @@
-import { createContext, PropsWithChildren, useContext } from "react";
+import { createContext, type PropsWithChildren, useContext } from "react";
 import { useChatDispatch } from "./llm-chat-context";
-import { RuntimeToolMap } from "../../context/llm-context";
+import type { RuntimeToolMap } from "../../context/llm-context";
 import { useChatTools } from "./tools/agent-helpers";
 import { useDocumentEditorTools } from "./tools/document-editor";
 import { useSlideTools } from "./tools/slides";

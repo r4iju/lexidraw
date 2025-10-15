@@ -6,12 +6,12 @@ import {
   $isRootOrShadowRoot,
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_LOW,
-  LexicalEditor,
+  type LexicalEditor,
   PASTE_COMMAND,
 } from "lexical";
 import { useEffect, useRef, useState, useCallback } from "react";
-import * as React from "react";
-import { ImageNode, ImagePayload } from "../../nodes/ImageNode/ImageNode";
+import type * as React from "react";
+import { ImageNode, type ImagePayload } from "../../nodes/ImageNode/ImageNode";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { LinkNode } from "@lexical/link";
 import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 import { Textarea } from "~/components/ui/textarea";
 

@@ -16,7 +16,7 @@ import {
   $createParagraphNode,
   $isTextNode,
   $createTextNode,
-  LexicalNode,
+  type LexicalNode,
   $getNodeByKey,
 } from "lexical";
 

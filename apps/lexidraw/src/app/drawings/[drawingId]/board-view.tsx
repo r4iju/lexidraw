@@ -3,7 +3,7 @@
 import "@excalidraw/excalidraw/index.css";
 
 import { Excalidraw, THEME } from "@excalidraw/excalidraw";
-import { type NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type {
   Collaborator,
   UIAppState,
@@ -13,7 +13,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { type RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
   revalidate: () => void;

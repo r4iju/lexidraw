@@ -7,17 +7,17 @@
  */
 
 import { TOGGLE_LINK_COMMAND } from "@lexical/link";
-import { HeadingTagType } from "@lexical/rich-text";
+import type { HeadingTagType } from "@lexical/rich-text";
 import {
   COMMAND_PRIORITY_NORMAL,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
   INDENT_CONTENT_COMMAND,
   KEY_MODIFIER_COMMAND,
-  LexicalEditor,
+  type LexicalEditor,
   OUTDENT_CONTENT_COMMAND,
 } from "lexical";
-import { Dispatch, useEffect } from "react";
+import { type Dispatch, useEffect } from "react";
 
 import { useToolbarState } from "../../context/toolbar-context";
 import { useSanitizeUrl } from "../../utils/url";

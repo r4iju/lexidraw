@@ -1,9 +1,9 @@
 import {
   DecoratorNode,
-  EditorConfig,
-  LexicalEditor,
-  LexicalNode,
-  SerializedLexicalNode,
+  type EditorConfig,
+  type LexicalEditor,
+  type LexicalNode,
+  type SerializedLexicalNode,
 } from "lexical";
 import type { JSX } from "react";
 

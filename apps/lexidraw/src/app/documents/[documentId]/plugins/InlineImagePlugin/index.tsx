@@ -17,15 +17,15 @@ import {
   DRAGOVER_COMMAND,
   DRAGSTART_COMMAND,
   DROP_COMMAND,
-  LexicalCommand,
-  LexicalEditor,
+  type LexicalCommand,
+  type LexicalEditor,
 } from "lexical";
-import * as React from "react";
+import type * as React from "react";
 import { useEffect, useRef, useState, useCallback } from "react";
 
 import {
   InlineImageNode,
-  InlineImagePayload,
+  type InlineImagePayload,
 } from "../../nodes/InlineImageNode/InlineImageNode";
 import { DialogFooter } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";

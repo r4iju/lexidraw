@@ -35,12 +35,8 @@ For more information, please refer to http://unlicense.org/
 
 */
 
-(function () {
-  "use strict";
-
+(() => {
   function ImageTracer() {
-    var _this = this;
-
     (this.versionnumber = "1.2.6"),
       ////////////////////////////////////////////////////////////
       //
@@ -50,46 +46,46 @@ For more information, please refer to http://unlicense.org/
 
       // Loading an image from a URL, tracing when loaded,
       // then executing callback with the scaled svg string as argument
-      (this.imageToSVG = function (url, callback, options) {
-        options = _this.checkoptions(options);
+      (this.imageToSVG = (url, callback, options) => {
+        options = this.checkoptions(options);
         // loading image, tracing and callback
-        _this.loadImage(
+        this.loadImage(
           url,
-          function (canvas) {
-            callback(_this.imagedataToSVG(_this.getImgdata(canvas), options));
+          (canvas) => {
+            callback(this.imagedataToSVG(this.getImgdata(canvas), options));
           },
           options,
         );
       }), // End of imageToSVG()
       // Tracing imagedata, then returning the scaled svg string
-      (this.imagedataToSVG = function (imgd, options) {
-        options = _this.checkoptions(options);
+      (this.imagedataToSVG = (imgd, options) => {
+        options = this.checkoptions(options);
         // tracing imagedata
-        var td = _this.imagedataToTracedata(imgd, options);
+        var td = this.imagedataToTracedata(imgd, options);
         // returning SVG string
-        return _this.getsvgstring(td, options);
+        return this.getsvgstring(td, options);
       }), // End of imagedataToSVG()
       // Loading an image from a URL, tracing when loaded,
       // then executing callback with tracedata as argument
-      (this.imageToTracedata = function (url, callback, options) {
-        options = _this.checkoptions(options);
+      (this.imageToTracedata = (url, callback, options) => {
+        options = this.checkoptions(options);
         // loading image, tracing and callback
-        _this.loadImage(
+        this.loadImage(
           url,
-          function (canvas) {
+          (canvas) => {
             callback(
-              _this.imagedataToTracedata(_this.getImgdata(canvas), options),
+              this.imagedataToTracedata(this.getImgdata(canvas), options),
             );
           },
           options,
         );
       }), // End of imageToTracedata()
       // Tracing imagedata, then returning tracedata (layers with paths, palette, image size)
-      (this.imagedataToTracedata = function (imgd, options) {
-        options = _this.checkoptions(options);
+      (this.imagedataToTracedata = (imgd, options) => {
+        options = this.checkoptions(options);
 
         // 1. Color quantization
-        var ii = _this.colorquantization(imgd, options);
+        var ii = this.colorquantization(imgd, options);
 
         if (options.layering === 0) {
           // Sequential layering
@@ -105,10 +101,10 @@ For more information, please refer to http://unlicense.org/
           // Loop to trace each color layer
           for (var colornum = 0; colornum < ii.palette.length; colornum++) {
             // layeringstep -> pathscan -> internodes -> batchtracepaths
-            var tracedlayer = _this.batchtracepaths(
-              _this.internodes(
-                _this.pathscan(
-                  _this.layeringstep(ii, colornum),
+            var tracedlayer = this.batchtracepaths(
+              this.internodes(
+                this.pathscan(
+                  this.layeringstep(ii, colornum),
                   options.pathomit,
                 ),
 
@@ -125,27 +121,27 @@ For more information, please refer to http://unlicense.org/
         } else {
           // Parallel layering
           // 2. Layer separation and edge detection
-          var ls = _this.layering(ii);
+          var ls = this.layering(ii);
 
           // Optional edge node visualization
           if (options.layercontainerid) {
-            _this.drawLayers(
+            this.drawLayers(
               ls,
-              _this.specpalette,
+              this.specpalette,
               options.scale,
               options.layercontainerid,
             );
           }
 
           // 3. Batch pathscan
-          var bps = _this.batchpathscan(ls, options.pathomit);
+          var bps = this.batchpathscan(ls, options.pathomit);
 
           // 4. Batch interpollation
-          var bis = _this.batchinternodes(bps, options);
+          var bis = this.batchinternodes(bps, options);
 
           // 5. Batch tracing and creating tracedata object
           var tracedata = {
-            layers: _this.batchtracelayers(bis, options.ltres, options.qtres),
+            layers: this.batchtracelayers(bis, options.ltres, options.qtres),
             palette: ii.palette,
             width: imgd.width,
             height: imgd.height,
@@ -255,22 +251,22 @@ For more information, please refer to http://unlicense.org/
         },
       }), // End of optionpresets
       // creating options object, setting defaults for missing values
-      (this.checkoptions = function (options) {
+      (this.checkoptions = (options) => {
         options = options || {};
         // Option preset
         if (typeof options === "string") {
           options = options.toLowerCase();
-          if (_this.optionpresets[options]) {
-            options = _this.optionpresets[options];
+          if (this.optionpresets[options]) {
+            options = this.optionpresets[options];
           } else {
             options = {};
           }
         }
         // Defaults
-        var ok = Object.keys(_this.optionpresets["default"]);
+        var ok = Object.keys(this.optionpresets["default"]);
         for (var k = 0; k < ok.length; k++) {
-          if (!options.hasOwnProperty(ok[k])) {
-            options[ok[k]] = _this.optionpresets["default"][ok[k]];
+          if (!Object.hasOwn(options, ok[k])) {
+            options[ok[k]] = this.optionpresets["default"][ok[k]];
           }
         }
         // options.pal is not defined here, the custom palette should be added externally: options.pal = [ { 'r':0, 'g':0, 'b':0, 'a':255 }, {...}, ... ];
@@ -285,7 +281,7 @@ For more information, please refer to http://unlicense.org/
 
       // 1. Color quantization
       // Using a form of k-means clustering repeatead options.colorquantcycles times. http://en.wikipedia.org/wiki/Color_quantization
-      (this.colorquantization = function (imgd, options) {
+      (this.colorquantization = (imgd, options) => {
         var arr = [],
           idx = 0,
           cd,
@@ -323,16 +319,16 @@ For more information, please refer to http://unlicense.org/
         if (options.pal) {
           palette = options.pal;
         } else if (options.colorsampling === 0) {
-          palette = _this.generatepalette(options.numberofcolors);
+          palette = this.generatepalette(options.numberofcolors);
         } else if (options.colorsampling === 1) {
-          palette = _this.samplepalette(options.numberofcolors, imgd);
+          palette = this.samplepalette(options.numberofcolors, imgd);
         } else {
-          palette = _this.samplepalette2(options.numberofcolors, imgd);
+          palette = this.samplepalette2(options.numberofcolors, imgd);
         }
 
         // Selective Gaussian blur preprocessing
         if (options.blurradius > 0) {
-          imgd = _this.blur(imgd, options.blurradius, options.blurdelta);
+          imgd = this.blur(imgd, options.blurradius, options.blurdelta);
         }
 
         // Repeat clustering step options.colorquantcycles times
@@ -411,7 +407,7 @@ For more information, please refer to http://unlicense.org/
         return { array: arr, palette: palette };
       }), // End of colorquantization()
       // Sampling a palette from imagedata
-      (this.samplepalette = function (numberofcolors, imgd) {
+      (this.samplepalette = (numberofcolors, imgd) => {
         var idx,
           palette = [];
         for (var i = 0; i < numberofcolors; i++) {
@@ -426,7 +422,7 @@ For more information, please refer to http://unlicense.org/
         return palette;
       }), // End of samplepalette()
       // Deterministic sampling a palette from imagedata: rectangular grid
-      (this.samplepalette2 = function (numberofcolors, imgd) {
+      (this.samplepalette2 = (numberofcolors, imgd) => {
         var idx,
           palette = [],
           ni = Math.ceil(Math.sqrt(numberofcolors)),
@@ -451,7 +447,7 @@ For more information, please refer to http://unlicense.org/
         return palette;
       }), // End of samplepalette2()
       // Generating a palette with numberofcolors
-      (this.generatepalette = function (numberofcolors) {
+      (this.generatepalette = (numberofcolors) => {
         var palette = [],
           rcnt,
           gcnt,
@@ -469,7 +465,7 @@ For more information, please refer to http://unlicense.org/
           }
         } else {
           // RGB color cube
-          var colorqnum = Math.floor(Math.pow(numberofcolors, 1 / 3)), // Number of points on each edge on the RGB color cube
+          var colorqnum = Math.floor(numberofcolors ** (1 / 3)), // Number of points on each edge on the RGB color cube
             colorstep = Math.floor(255 / (colorqnum - 1)), // distance between points
             rndnum = numberofcolors - colorqnum * colorqnum * colorqnum; // number of random colors
 
@@ -504,7 +500,7 @@ For more information, please refer to http://unlicense.org/
       // 12  ░░  ▓░  ░▓  ▓▓  ░░  ▓░  ░▓  ▓▓  ░░  ▓░  ░▓  ▓▓  ░░  ▓░  ░▓  ▓▓
       // 48  ░░  ░░  ░░  ░░  ░▓  ░▓  ░▓  ░▓  ▓░  ▓░  ▓░  ▓░  ▓▓  ▓▓  ▓▓  ▓▓
       //     0   1   2   3   4   5   6   7   8   9   10  11  12  13  14  15
-      (this.layering = function (ii) {
+      (this.layering = (ii) => {
         // Creating layers for each indexed color in arr
         var layers = [],
           val = 0,
@@ -570,7 +566,7 @@ For more information, please refer to http://unlicense.org/
       // 12  ░░  ▓░  ░▓  ▓▓  ░░  ▓░  ░▓  ▓▓  ░░  ▓░  ░▓  ▓▓  ░░  ▓░  ░▓  ▓▓
       // 48  ░░  ░░  ░░  ░░  ░▓  ░▓  ░▓  ░▓  ▓░  ▓░  ▓░  ▓░  ▓▓  ▓▓  ▓▓  ▓▓
       //     0   1   2   3   4   5   6   7   8   9   10  11  12  13  14  15
-      (this.layeringstep = function (ii, cnum) {
+      (this.layeringstep = (ii, cnum) => {
         // Creating layers for each indexed color in arr
         var layer = [],
           val = 0,
@@ -610,7 +606,7 @@ For more information, please refer to http://unlicense.org/
         return layer;
       }), // End of layeringstep()
       // Point in polygon test
-      (this.pointinpoly = function (p, pa) {
+      (this.pointinpoly = (p, pa) => {
         var isin = false;
 
         for (var i = 0, j = pa.length - 1; i < pa.length; j = i++) {
@@ -730,7 +726,7 @@ For more information, please refer to http://unlicense.org/
       ]),
       // 3. Walking through an edge node array, discarding edge node types 0 and 15 and creating paths from the rest.
       // Walk directions (dir): 0 > ; 1 ^ ; 2 < ; 3 v
-      (this.pathscan = function (arr, pathomit) {
+      (this.pathscan = (arr, pathomit) => {
         var paths = [],
           pacnt = 0,
           pcnt = 0,
@@ -783,7 +779,7 @@ For more information, please refer to http://unlicense.org/
                 }
 
                 // Next: look up the replacement, direction and coordinate changes = clear this cell, turn if required, walk forward
-                lookuprow = _this.pathscan_combined_lookup[arr[py][px]][dir];
+                lookuprow = this.pathscan_combined_lookup[arr[py][px]][dir];
                 arr[py][px] = lookuprow[0];
                 dir = lookuprow[1];
                 px += lookuprow[2];
@@ -809,15 +805,15 @@ For more information, please refer to http://unlicense.org/
                       for (var parentcnt = 0; parentcnt < pacnt; parentcnt++) {
                         if (
                           !paths[parentcnt].isholepath &&
-                          _this.boundingboxincludes(
+                          this.boundingboxincludes(
                             paths[parentcnt].boundingbox,
                             paths[pacnt].boundingbox,
                           ) &&
-                          _this.boundingboxincludes(
+                          this.boundingboxincludes(
                             parentbbox,
                             paths[parentcnt].boundingbox,
                           ) &&
-                          _this.pointinpoly(
+                          this.pointinpoly(
                             paths[pacnt].points[0],
                             paths[parentcnt].points,
                           )
@@ -842,27 +838,25 @@ For more information, please refer to http://unlicense.org/
 
         return paths;
       }), // End of pathscan()
-      (this.boundingboxincludes = function (parentbbox, childbbox) {
-        return (
-          parentbbox[0] < childbbox[0] &&
-          parentbbox[1] < childbbox[1] &&
-          parentbbox[2] > childbbox[2] &&
-          parentbbox[3] > childbbox[3]
-        );
-      }), // End of boundingboxincludes()
+      (this.boundingboxincludes = (parentbbox, childbbox) =>
+        parentbbox[0] < childbbox[0] &&
+        parentbbox[1] < childbbox[1] &&
+        parentbbox[2] > childbbox[2] &&
+        parentbbox[3] >
+          childbbox[3]), // End of boundingboxincludes()
       // 3. Batch pathscan
-      (this.batchpathscan = function (layers, pathomit) {
+      (this.batchpathscan = (layers, pathomit) => {
         var bpaths = [];
         for (var k in layers) {
-          if (!layers.hasOwnProperty(k)) {
+          if (!Object.hasOwn(layers, k)) {
             continue;
           }
-          bpaths[k] = _this.pathscan(layers[k], pathomit);
+          bpaths[k] = this.pathscan(layers[k], pathomit);
         }
         return bpaths;
       }),
       // 4. interpollating between path points for nodes with 8 directions ( East, SouthEast, S, SW, W, NW, N, NE )
-      (this.internodes = function (paths, options) {
+      (this.internodes = (paths, options) => {
         var ins = [],
           palen = 0,
           nextidx = 0,
@@ -892,7 +886,7 @@ For more information, please refer to http://unlicense.org/
             // right angle enhance
             if (
               options.rightangleenhance &&
-              _this.testrightangle(
+              this.testrightangle(
                 paths[pacnt],
                 previdx2,
                 previdx,
@@ -904,7 +898,7 @@ For more information, please refer to http://unlicense.org/
               // Fix previous direction
               if (ins[pacnt].points.length > 0) {
                 ins[pacnt].points[ins[pacnt].points.length - 1].linesegment =
-                  _this.getdirection(
+                  this.getdirection(
                     ins[pacnt].points[ins[pacnt].points.length - 1].x,
                     ins[pacnt].points[ins[pacnt].points.length - 1].y,
                     paths[pacnt].points[pcnt].x,
@@ -916,7 +910,7 @@ For more information, please refer to http://unlicense.org/
               ins[pacnt].points.push({
                 x: paths[pacnt].points[pcnt].x,
                 y: paths[pacnt].points[pcnt].y,
-                linesegment: _this.getdirection(
+                linesegment: this.getdirection(
                   paths[pacnt].points[pcnt].x,
                   paths[pacnt].points[pcnt].y,
                   (paths[pacnt].points[pcnt].x +
@@ -937,7 +931,7 @@ For more information, please refer to http://unlicense.org/
               y:
                 (paths[pacnt].points[pcnt].y + paths[pacnt].points[nextidx].y) /
                 2,
-              linesegment: _this.getdirection(
+              linesegment: this.getdirection(
                 (paths[pacnt].points[pcnt].x + paths[pacnt].points[nextidx].x) /
                   2,
                 (paths[pacnt].points[pcnt].y + paths[pacnt].points[nextidx].y) /
@@ -955,19 +949,18 @@ For more information, please refer to http://unlicense.org/
 
         return ins;
       }), // End of internodes()
-      (this.testrightangle = function (path, idx1, idx2, idx3, idx4, idx5) {
-        return (
-          (path.points[idx3].x === path.points[idx1].x &&
-            path.points[idx3].x === path.points[idx2].x &&
-            path.points[idx3].y === path.points[idx4].y &&
-            path.points[idx3].y === path.points[idx5].y) ||
-          (path.points[idx3].y === path.points[idx1].y &&
-            path.points[idx3].y === path.points[idx2].y &&
-            path.points[idx3].x === path.points[idx4].x &&
-            path.points[idx3].x === path.points[idx5].x)
-        );
-      }), // End of testrightangle()
-      (this.getdirection = function (x1, y1, x2, y2) {
+      (this.testrightangle = (path, idx1, idx2, idx3, idx4, idx5) =>
+        (path.points[idx3].x === path.points[idx1].x &&
+          path.points[idx3].x === path.points[idx2].x &&
+          path.points[idx3].y === path.points[idx4].y &&
+          path.points[idx3].y === path.points[idx5].y) ||
+        (path.points[idx3].y === path.points[idx1].y &&
+          path.points[idx3].y === path.points[idx2].y &&
+          path.points[idx3].x === path.points[idx4].x &&
+          path.points[idx3].x ===
+            path.points[idx5]
+              .x)), // End of testrightangle()
+      (this.getdirection = (x1, y1, x2, y2) => {
         var val = 8;
         if (x1 < x2) {
           if (y1 < y2) {
@@ -1003,13 +996,13 @@ For more information, please refer to http://unlicense.org/
         return val;
       }), // End of getdirection()
       // 4. Batch interpollation
-      (this.batchinternodes = function (bpaths, options) {
+      (this.batchinternodes = (bpaths, options) => {
         var binternodes = [];
         for (var k in bpaths) {
-          if (!bpaths.hasOwnProperty(k)) {
+          if (!Object.hasOwn(bpaths, k)) {
             continue;
           }
-          binternodes[k] = _this.internodes(bpaths[k], options);
+          binternodes[k] = this.internodes(bpaths[k], options);
         }
         return binternodes;
       }),
@@ -1022,7 +1015,7 @@ For more information, please refer to http://unlicense.org/
       // 5.5. If the spline fails (distance error > qtres), find the point with the biggest error, set splitpoint = fitting point
       // 5.6. Split sequence and recursively apply 5.2. - 5.6. to startpoint-splitpoint and splitpoint-endpoint sequences
 
-      (this.tracepath = function (path, ltres, qtres) {
+      (this.tracepath = (path, ltres, qtres) => {
         var pcnt = 0,
           segtype1,
           segtype2,
@@ -1058,7 +1051,7 @@ For more information, please refer to http://unlicense.org/
 
           // 5.2. - 5.6. Split sequence and recursively apply 5.2. - 5.6. to startpoint-splitpoint and splitpoint-endpoint sequences
           smp.segments = smp.segments.concat(
-            _this.fitseq(path, ltres, qtres, pcnt, seqend),
+            this.fitseq(path, ltres, qtres, pcnt, seqend),
           );
 
           // forward pcnt;
@@ -1073,7 +1066,7 @@ For more information, please refer to http://unlicense.org/
       }), // End of tracepath()
       // 5.2. - 5.6. recursively fitting a straight or quadratic line segment on this sequence of path nodes,
       // called from tracepath()
-      (this.fitseq = function (path, ltres, qtres, seqstart, seqend) {
+      (this.fitseq = (path, ltres, qtres, seqstart, seqend) => {
         // return if invalid seqend
         if (seqend > path.points.length || seqend < 0) {
           return [];
@@ -1196,29 +1189,29 @@ For more information, please refer to http://unlicense.org/
         var splitpoint = fitpoint; // Earlier: Math.floor((fitpoint + errorpoint)/2);
 
         // 5.6. Split sequence and recursively apply 5.2. - 5.6. to startpoint-splitpoint and splitpoint-endpoint sequences
-        return _this
-          .fitseq(path, ltres, qtres, seqstart, splitpoint)
-          .concat(_this.fitseq(path, ltres, qtres, splitpoint, seqend));
+        return this.fitseq(path, ltres, qtres, seqstart, splitpoint).concat(
+          this.fitseq(path, ltres, qtres, splitpoint, seqend),
+        );
       }), // End of fitseq()
       // 5. Batch tracing paths
-      (this.batchtracepaths = function (internodepaths, ltres, qtres) {
+      (this.batchtracepaths = (internodepaths, ltres, qtres) => {
         var btracedpaths = [];
         for (var k in internodepaths) {
-          if (!internodepaths.hasOwnProperty(k)) {
+          if (!Object.hasOwn(internodepaths, k)) {
             continue;
           }
-          btracedpaths.push(_this.tracepath(internodepaths[k], ltres, qtres));
+          btracedpaths.push(this.tracepath(internodepaths[k], ltres, qtres));
         }
         return btracedpaths;
       }),
       // 5. Batch tracing layers
-      (this.batchtracelayers = function (binternodes, ltres, qtres) {
+      (this.batchtracelayers = (binternodes, ltres, qtres) => {
         var btbis = [];
         for (var k in binternodes) {
-          if (!binternodes.hasOwnProperty(k)) {
+          if (!Object.hasOwn(binternodes, k)) {
             continue;
           }
-          btbis[k] = _this.batchtracepaths(binternodes[k], ltres, qtres);
+          btbis[k] = this.batchtracepaths(binternodes[k], ltres, qtres);
         }
         return btbis;
       }),
@@ -1229,11 +1222,9 @@ For more information, please refer to http://unlicense.org/
       ////////////////////////////////////////////////////////////
 
       // Rounding to given decimals https://stackoverflow.com/questions/11832914/round-to-at-most-2-decimal-places-in-javascript
-      (this.roundtodec = function (val, places) {
-        return +val.toFixed(places);
-      }),
+      (this.roundtodec = (val, places) => +val.toFixed(places)),
       // Getting SVG path element string from a traced path
-      (this.svgpathstring = function (tracedata, lnum, pathnum, options) {
+      (this.svgpathstring = (tracedata, lnum, pathnum, options) => {
         var layer = tracedata.layers[lnum],
           smp = layer[pathnum],
           str = "",
@@ -1248,7 +1239,7 @@ For more information, please refer to http://unlicense.org/
         str =
           "<path " +
           (options.desc ? 'desc="l ' + lnum + " p " + pathnum + '" ' : "") +
-          _this.tosvgcolorstr(tracedata.palette[lnum], options) +
+          this.tosvgcolorstr(tracedata.palette[lnum], options) +
           'd="';
 
         // Creating non-hole path string
@@ -1267,7 +1258,7 @@ For more information, please refer to http://unlicense.org/
               " " +
               smp.segments[pcnt].y2 * options.scale +
               " ";
-            if (smp.segments[pcnt].hasOwnProperty("x3")) {
+            if (Object.hasOwn(smp.segments[pcnt], "x3")) {
               str +=
                 smp.segments[pcnt].x3 * options.scale +
                 " " +
@@ -1279,12 +1270,12 @@ For more information, please refer to http://unlicense.org/
         } else {
           str +=
             "M " +
-            _this.roundtodec(
+            this.roundtodec(
               smp.segments[0].x1 * options.scale,
               options.roundcoords,
             ) +
             " " +
-            _this.roundtodec(
+            this.roundtodec(
               smp.segments[0].y1 * options.scale,
               options.roundcoords,
             ) +
@@ -1293,24 +1284,24 @@ For more information, please refer to http://unlicense.org/
             str +=
               smp.segments[pcnt].type +
               " " +
-              _this.roundtodec(
+              this.roundtodec(
                 smp.segments[pcnt].x2 * options.scale,
                 options.roundcoords,
               ) +
               " " +
-              _this.roundtodec(
+              this.roundtodec(
                 smp.segments[pcnt].y2 * options.scale,
                 options.roundcoords,
               ) +
               " ";
-            if (smp.segments[pcnt].hasOwnProperty("x3")) {
+            if (Object.hasOwn(smp.segments[pcnt], "x3")) {
               str +=
-                _this.roundtodec(
+                this.roundtodec(
                   smp.segments[pcnt].x3 * options.scale,
                   options.roundcoords,
                 ) +
                 " " +
-                _this.roundtodec(
+                this.roundtodec(
                   smp.segments[pcnt].y3 * options.scale,
                   options.roundcoords,
                 ) +
@@ -1325,7 +1316,7 @@ For more information, please refer to http://unlicense.org/
           var hsmp = layer[smp.holechildren[hcnt]];
           // Creating hole path string
           if (options.roundcoords === -1) {
-            if (hsmp.segments[hsmp.segments.length - 1].hasOwnProperty("x3")) {
+            if (Object.hasOwn(hsmp.segments[hsmp.segments.length - 1], "x3")) {
               str +=
                 "M " +
                 hsmp.segments[hsmp.segments.length - 1].x3 * options.scale +
@@ -1343,7 +1334,7 @@ For more information, please refer to http://unlicense.org/
 
             for (pcnt = hsmp.segments.length - 1; pcnt >= 0; pcnt--) {
               str += hsmp.segments[pcnt].type + " ";
-              if (hsmp.segments[pcnt].hasOwnProperty("x3")) {
+              if (Object.hasOwn(hsmp.segments[pcnt], "x3")) {
                 str +=
                   hsmp.segments[pcnt].x2 * options.scale +
                   " " +
@@ -1358,25 +1349,25 @@ For more information, please refer to http://unlicense.org/
                 " ";
             }
           } else {
-            if (hsmp.segments[hsmp.segments.length - 1].hasOwnProperty("x3")) {
+            if (Object.hasOwn(hsmp.segments[hsmp.segments.length - 1], "x3")) {
               str +=
                 "M " +
-                _this.roundtodec(
+                this.roundtodec(
                   hsmp.segments[hsmp.segments.length - 1].x3 * options.scale,
                 ) +
                 " " +
-                _this.roundtodec(
+                this.roundtodec(
                   hsmp.segments[hsmp.segments.length - 1].y3 * options.scale,
                 ) +
                 " ";
             } else {
               str +=
                 "M " +
-                _this.roundtodec(
+                this.roundtodec(
                   hsmp.segments[hsmp.segments.length - 1].x2 * options.scale,
                 ) +
                 " " +
-                _this.roundtodec(
+                this.roundtodec(
                   hsmp.segments[hsmp.segments.length - 1].y2 * options.scale,
                 ) +
                 " ";
@@ -1384,17 +1375,17 @@ For more information, please refer to http://unlicense.org/
 
             for (pcnt = hsmp.segments.length - 1; pcnt >= 0; pcnt--) {
               str += hsmp.segments[pcnt].type + " ";
-              if (hsmp.segments[pcnt].hasOwnProperty("x3")) {
+              if (Object.hasOwn(hsmp.segments[pcnt], "x3")) {
                 str +=
-                  _this.roundtodec(hsmp.segments[pcnt].x2 * options.scale) +
+                  this.roundtodec(hsmp.segments[pcnt].x2 * options.scale) +
                   " " +
-                  _this.roundtodec(hsmp.segments[pcnt].y2 * options.scale) +
+                  this.roundtodec(hsmp.segments[pcnt].y2 * options.scale) +
                   " ";
               }
               str +=
-                _this.roundtodec(hsmp.segments[pcnt].x1 * options.scale) +
+                this.roundtodec(hsmp.segments[pcnt].x1 * options.scale) +
                 " " +
-                _this.roundtodec(hsmp.segments[pcnt].y1 * options.scale) +
+                this.roundtodec(hsmp.segments[pcnt].y1 * options.scale) +
                 " ";
             }
           } // End of creating hole path string
@@ -1408,7 +1399,7 @@ For more information, please refer to http://unlicense.org/
         // Rendering control points
         if (options.lcpr || options.qcpr) {
           for (pcnt = 0; pcnt < smp.segments.length; pcnt++) {
-            if (smp.segments[pcnt].hasOwnProperty("x3") && options.qcpr) {
+            if (Object.hasOwn(smp.segments[pcnt], "x3") && options.qcpr) {
               str +=
                 '<circle cx="' +
                 smp.segments[pcnt].x2 * options.scale +
@@ -1454,7 +1445,7 @@ For more information, please refer to http://unlicense.org/
                 options.qcpr * 0.2 +
                 '" stroke="cyan" />';
             }
-            if (!smp.segments[pcnt].hasOwnProperty("x3") && options.lcpr) {
+            if (!Object.hasOwn(smp.segments[pcnt], "x3") && options.lcpr) {
               str +=
                 '<circle cx="' +
                 smp.segments[pcnt].x2 * options.scale +
@@ -1472,7 +1463,7 @@ For more information, please refer to http://unlicense.org/
           for (var hcnt = 0; hcnt < smp.holechildren.length; hcnt++) {
             var hsmp = layer[smp.holechildren[hcnt]];
             for (pcnt = 0; pcnt < hsmp.segments.length; pcnt++) {
-              if (hsmp.segments[pcnt].hasOwnProperty("x3") && options.qcpr) {
+              if (Object.hasOwn(hsmp.segments[pcnt], "x3") && options.qcpr) {
                 str +=
                   '<circle cx="' +
                   hsmp.segments[pcnt].x2 * options.scale +
@@ -1518,7 +1509,7 @@ For more information, please refer to http://unlicense.org/
                   options.qcpr * 0.2 +
                   '" stroke="cyan" />';
               }
-              if (!hsmp.segments[pcnt].hasOwnProperty("x3") && options.lcpr) {
+              if (!Object.hasOwn(hsmp.segments[pcnt], "x3") && options.lcpr) {
                 str +=
                   '<circle cx="' +
                   hsmp.segments[pcnt].x2 * options.scale +
@@ -1537,8 +1528,8 @@ For more information, please refer to http://unlicense.org/
         return str;
       }), // End of svgpathstring()
       // Converting tracedata to an SVG string
-      (this.getsvgstring = function (tracedata, options) {
-        options = _this.checkoptions(options);
+      (this.getsvgstring = (tracedata, options) => {
+        options = this.checkoptions(options);
 
         var w = tracedata.width * options.scale,
           h = tracedata.height * options.scale;
@@ -1550,7 +1541,7 @@ For more information, please refer to http://unlicense.org/
             ? 'viewBox="0 0 ' + w + " " + h + '" '
             : 'width="' + w + '" height="' + h + '" ') +
           'version="1.1" xmlns="http://www.w3.org/2000/svg" desc="Created with imagetracer.js version ' +
-          _this.versionnumber +
+          this.versionnumber +
           '" >';
 
         // Drawing: Layers and Paths loops
@@ -1558,7 +1549,7 @@ For more information, please refer to http://unlicense.org/
           for (var pcnt = 0; pcnt < tracedata.layers[lcnt].length; pcnt++) {
             // Adding SVG <path> string
             if (!tracedata.layers[lcnt][pcnt].isholepath) {
-              svgstr += _this.svgpathstring(tracedata, lcnt, pcnt, options);
+              svgstr += this.svgpathstring(tracedata, lcnt, pcnt, options);
             }
           } // End of paths loop
         } // End of layers loop
@@ -1569,37 +1560,31 @@ For more information, please refer to http://unlicense.org/
         return svgstr;
       }), // End of getsvgstring()
       // Comparator for numeric Array.sort
-      (this.compareNumbers = function (a, b) {
-        return a - b;
-      }),
+      (this.compareNumbers = (a, b) => a - b),
       // Convert color object to rgba string
-      (this.torgbastr = function (c) {
-        return "rgba(" + c.r + "," + c.g + "," + c.b + "," + c.a + ")";
-      }),
+      (this.torgbastr = (c) =>
+        "rgba(" + c.r + "," + c.g + "," + c.b + "," + c.a + ")"),
       // Convert color object to SVG color string
-      (this.tosvgcolorstr = function (c, options) {
-        return (
-          'fill="rgb(' +
-          c.r +
-          "," +
-          c.g +
-          "," +
-          c.b +
-          ')" stroke="rgb(' +
-          c.r +
-          "," +
-          c.g +
-          "," +
-          c.b +
-          ')" stroke-width="' +
-          options.strokewidth +
-          '" opacity="' +
-          c.a / 255.0 +
-          '" '
-        );
-      }),
+      (this.tosvgcolorstr = (c, options) =>
+        'fill="rgb(' +
+        c.r +
+        "," +
+        c.g +
+        "," +
+        c.b +
+        ')" stroke="rgb(' +
+        c.r +
+        "," +
+        c.g +
+        "," +
+        c.b +
+        ')" stroke-width="' +
+        options.strokewidth +
+        '" opacity="' +
+        c.a / 255.0 +
+        '" '),
       // Helper function: Appending an <svg> element to a container from an svgstring
-      (this.appendSVGString = function (svgstr, parentid) {
+      (this.appendSVGString = (svgstr, parentid) => {
         var div;
         if (parentid) {
           div = document.getElementById(parentid);
@@ -1635,7 +1620,7 @@ For more information, please refer to http://unlicense.org/
         ],
       ]),
       // Selective Gaussian blur for preprocessing
-      (this.blur = function (imgd, radius, delta) {
+      (this.blur = (imgd, radius, delta) => {
         var i, j, k, d, idx, racc, gacc, bacc, aacc, wacc;
 
         // new ImageData
@@ -1653,7 +1638,7 @@ For more information, please refer to http://unlicense.org/
         if (delta > 1024) {
           delta = 1024;
         }
-        var thisgk = _this.gks[radius - 1];
+        var thisgk = this.gks[radius - 1];
 
         // loop through all pixels, horizontal blur
         for (j = 0; j < imgd.height; j++) {
@@ -1739,12 +1724,12 @@ For more information, please refer to http://unlicense.org/
         return imgd2;
       }), // End of blur()
       // Helper function: loading an image from a URL, then executing callback with canvas as argument
-      (this.loadImage = function (url, callback, options) {
+      (this.loadImage = (url, callback, options) => {
         var img = new Image();
         if (options && options.corsenabled) {
           img.crossOrigin = "Anonymous";
         }
-        img.onload = function () {
+        img.onload = () => {
           var canvas = document.createElement("canvas");
           canvas.width = img.width;
           canvas.height = img.height;
@@ -1755,7 +1740,7 @@ For more information, please refer to http://unlicense.org/
         img.src = url;
       }),
       // Helper function: getting ImageData from a canvas
-      (this.getImgdata = function (canvas) {
+      (this.getImgdata = (canvas) => {
         var context = canvas.getContext("2d");
         return context.getImageData(0, 0, canvas.width, canvas.height);
       }),
@@ -1779,7 +1764,7 @@ For more information, please refer to http://unlicense.org/
         { r: 0, g: 128, b: 0, a: 255 },
       ]),
       // Helper function: Drawing all edge node layers into a container
-      (this.drawLayers = function (layers, palette, scale, parentid) {
+      (this.drawLayers = (layers, palette, scale, parentid) => {
         scale = scale || 1;
         var w, h, i, j, k;
 
@@ -1799,7 +1784,7 @@ For more information, please refer to http://unlicense.org/
 
         // Layers loop
         for (k in layers) {
-          if (!layers.hasOwnProperty(k)) {
+          if (!Object.hasOwn(layers, k)) {
             continue;
           }
 
@@ -1816,7 +1801,7 @@ For more information, please refer to http://unlicense.org/
           // Drawing
           for (j = 0; j < h; j++) {
             for (i = 0; i < w; i++) {
-              context.fillStyle = _this.torgbastr(
+              context.fillStyle = this.torgbastr(
                 palette[layers[k][j][i] % palette.length],
               );
               context.fillRect(i * scale, j * scale, scale, scale);
@@ -1831,9 +1816,7 @@ For more information, please refer to http://unlicense.org/
 
   // export as AMD module / Node module / browser or worker variable
   if (typeof define === "function" && define.amd) {
-    define(function () {
-      return new ImageTracer();
-    });
+    define(() => new ImageTracer());
   } else if (typeof module !== "undefined") {
     module.exports = new ImageTracer();
   } else if (typeof self !== "undefined") {

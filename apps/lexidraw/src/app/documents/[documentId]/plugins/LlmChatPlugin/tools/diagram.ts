@@ -4,19 +4,19 @@ import {
   EditorKeySchema,
   InsertionAnchorSchema,
   InsertionRelationSchema,
-  InsertionRelation,
-  InsertionAnchor,
+  type InsertionRelation,
+  type InsertionAnchor,
 } from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { MermaidNode } from "../../../nodes/MermaidNode";
 import { ExcalidrawNode } from "../../../nodes/ExcalidrawNode";
 import {
-  ExcalidrawConfig,
-  MermaidConfig,
+  type ExcalidrawConfig,
+  type MermaidConfig,
   parseMermaidToExcalidraw,
 } from "@excalidraw/mermaid-to-excalidraw";
-import { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
+import type { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 
 export const useDiagramTools = () => {

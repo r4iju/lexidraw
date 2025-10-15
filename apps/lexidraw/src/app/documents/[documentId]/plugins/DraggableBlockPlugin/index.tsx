@@ -12,11 +12,11 @@ import {
   DRAGOVER_COMMAND,
   DROP_COMMAND,
   isHTMLElement,
-  LexicalEditor,
+  type LexicalEditor,
 } from "lexical";
-import * as React from "react";
+import type * as React from "react";
 import {
-  DragEvent as ReactDragEvent,
+  type DragEvent as ReactDragEvent,
   useCallback,
   useEffect,
   useRef,

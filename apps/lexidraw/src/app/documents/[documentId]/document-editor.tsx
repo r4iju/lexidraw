@@ -1,9 +1,15 @@
 "use client";
 
 import { z } from "zod";
-import { RefObject, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { debounce } from "@packages/lib";
-import { MessageStructure, PublicAccess } from "@packages/types";
+import { type MessageStructure, PublicAccess } from "@packages/types";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
@@ -42,9 +48,9 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
-import { EditorState, Klass, LexicalNode } from "lexical";
+import type { EditorState, Klass, LexicalNode } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import FloatingLinkEditorPlugin from "./plugins/FloatingLinkEditorPlugin";
 import AutoEmbedPlugin from "./plugins/AutoEmbedPlugin";
@@ -101,11 +107,11 @@ import {
 } from "../../../hooks/use-unsaved-changes";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
-import { StoredLlmConfig } from "~/server/api/routers/config";
+import type { StoredLlmConfig } from "~/server/api/routers/config";
 import {
   SidebarManagerProvider,
   useSidebarManager,
-  ActiveSidebar,
+  type ActiveSidebar,
 } from "~/context/sidebar-manager-context";
 import {
   LexicalImageGenerationProvider,

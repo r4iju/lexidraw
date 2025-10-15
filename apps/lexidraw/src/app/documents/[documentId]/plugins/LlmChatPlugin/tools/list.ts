@@ -13,7 +13,7 @@ import { $createListNode } from "@lexical/list";
 import { $getNodeByKey } from "lexical";
 import { $isListItemNode, $isListNode } from "@lexical/list";
 import { $isRootNode } from "lexical";
-import { LexicalNode } from "lexical";
+import type { LexicalNode } from "lexical";
 
 export const useListTools = () => {
   const {

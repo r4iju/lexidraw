@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Loader2 } from "lucide-react";
-import React, { useEffect, useMemo, useState, Suspense } from "react";
+import type React from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useDebounceValue } from "~/lib/client-utils";
 import type { ChartType } from "../ChartNode";
 import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";

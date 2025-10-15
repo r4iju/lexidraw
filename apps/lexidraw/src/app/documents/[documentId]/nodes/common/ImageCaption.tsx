@@ -1,6 +1,6 @@
-import * as React from "react";
+import type * as React from "react";
 import { useEffect, useState } from "react";
-import { LexicalEditor } from "lexical";
+import type { LexicalEditor } from "lexical";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";

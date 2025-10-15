@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
+import type React from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { Button } from "~/components/ui/button";
 import {
@@ -12,7 +13,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { useRuntimeTools } from "../runtime-tools-provider";
 import { useKeyedSerialization } from "../use-serialized-editor-state";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { ZodTypeAny } from "zod";
+import type { ZodTypeAny } from "zod";
 
 interface ParsedParam {
   name: string;
@@ -53,7 +54,7 @@ export const DebugPanel: React.FC = () => {
         if (!shape) return "ZodObject has no shape.";
 
         return Object.entries(shape).map(([name, paramSchema]) => {
-          let defaultValue = undefined;
+          let defaultValue;
           if (paramSchema._def.defaultValue) {
             try {
               defaultValue = paramSchema._def.defaultValue();

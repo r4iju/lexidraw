@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { useRef } from "react";
 import { Hue } from "./Hue";
 import { Saturation } from "./Saturation";
-import { ColorModel, ColorPickerBaseProps, AnyColor } from "../types";
+import type { ColorModel, ColorPickerBaseProps, AnyColor } from "../types";
 import { useColorManipulation } from "../hooks/useColorManipulation";
 import { cn } from "~/lib/utils";
 

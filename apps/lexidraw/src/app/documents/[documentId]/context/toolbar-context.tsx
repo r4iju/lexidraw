@@ -1,7 +1,8 @@
-import { ElementFormatType } from "lexical";
-import React, {
+import type { ElementFormatType } from "lexical";
+import type React from "react";
+import {
   createContext,
-  ReactNode,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,

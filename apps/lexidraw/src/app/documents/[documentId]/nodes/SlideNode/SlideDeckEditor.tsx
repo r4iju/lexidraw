@@ -7,12 +7,12 @@ import React, {
   useRef,
 } from "react";
 import {
-  SlideDeckData,
-  SlideData,
-  SlideElementSpec,
+  type SlideDeckData,
+  type SlideData,
+  type SlideElementSpec,
   SlideNode,
-  DeckStrategicMetadata,
-  SlideStrategicMetadata,
+  type DeckStrategicMetadata,
+  type SlideStrategicMetadata,
 } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import {
@@ -38,7 +38,7 @@ import {
   ParagraphNode,
   TextNode,
   LineBreakNode,
-  LexicalEditor,
+  type LexicalEditor,
   $getNodeByKey,
 } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
@@ -99,7 +99,7 @@ import {
   useSensor,
   useSensors,
   useDraggable,
-  DragEndEvent,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
 import ToolbarPlugin from "../../plugins/ToolbarPlugin";

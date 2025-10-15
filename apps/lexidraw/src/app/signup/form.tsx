@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import React, { useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import { getSignUpSchema, SignUpSchema } from "./schema";
+import { getSignUpSchema, type SignUpSchema } from "./schema";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
 import FormProvider from "~/components/hook-form";

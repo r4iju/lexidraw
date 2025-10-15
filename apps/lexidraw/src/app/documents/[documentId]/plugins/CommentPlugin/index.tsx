@@ -52,10 +52,10 @@ import React, {
 } from "react";
 import { Trash, Send, ChevronRight } from "lucide-react";
 import {
-  Comment,
-  Comments,
+  type Comment,
+  type Comments,
   CommentStore,
-  Thread,
+  type Thread,
   useCommentStore,
 } from "../../commenting";
 import ContentEditable from "~/components/ui/content-editable";

@@ -1,10 +1,11 @@
-import React, { useMemo } from "react";
-import { LexicalEditor, createEditor } from "lexical";
+import type React from "react";
+import { useMemo } from "react";
+import { type LexicalEditor, createEditor } from "lexical";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { type SlideElementSpec } from "./SlideNode";
+import type { SlideElementSpec } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
 import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
 import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";

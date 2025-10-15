@@ -1,4 +1,5 @@
-import React, { ChangeEvent, Ref } from "react";
+import type React from "react";
+import type { ChangeEvent, Ref } from "react";
 import "./equation-editor.css";
 
 type BaseEquationEditorProps = {

@@ -1,14 +1,14 @@
 import {
   DecoratorNode,
-  EditorConfig,
-  LexicalEditor,
-  LexicalNode,
-  SerializedLexicalNode,
+  type EditorConfig,
+  type LexicalEditor,
+  type LexicalNode,
+  type SerializedLexicalNode,
 } from "lexical";
 import type { JSX } from "react";
 
 import type { Thread } from "../commenting";
-import { CommentNode } from "./CommentNode";
+import type { CommentNode } from "./CommentNode";
 
 export type SerializedThreadNode = {
   type: "thread";

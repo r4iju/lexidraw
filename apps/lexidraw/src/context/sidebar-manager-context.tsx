@@ -1,11 +1,12 @@
 "use client";
 
-import React, {
+import type React from "react";
+import {
   createContext,
   useContext,
   useState,
   useMemo,
-  PropsWithChildren,
+  type PropsWithChildren,
   useCallback,
   useEffect,
 } from "react";

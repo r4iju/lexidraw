@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { s3 } from "~/server/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import env from "@packages/env";

@@ -2,7 +2,7 @@
 
 import { Button } from "~/components/ui/button";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { RefObject } from "react";
+import type { RefObject } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { toast } from "sonner";
 import {

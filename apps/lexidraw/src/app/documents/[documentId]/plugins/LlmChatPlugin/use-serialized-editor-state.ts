@@ -4,7 +4,10 @@ import {
   type EditorState,
   type LexicalNode,
 } from "lexical";
-import { KeyedSerializedEditorState, SerializedNodeWithKey } from "../../types";
+import type {
+  KeyedSerializedEditorState,
+  SerializedNodeWithKey,
+} from "../../types";
 import { useCallback } from "react";
 
 export const useKeyedSerialization = () => {
@@ -21,7 +24,7 @@ export const useKeyedSerialization = () => {
         type: node.getType(),
       };
 
-      let childrenJson: SerializedNodeWithKey[] | undefined = undefined;
+      let childrenJson: SerializedNodeWithKey[] | undefined;
       if ($isElementNode(node)) {
         const children = node.getChildren();
 

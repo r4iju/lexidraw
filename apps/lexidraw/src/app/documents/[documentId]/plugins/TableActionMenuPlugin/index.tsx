@@ -18,11 +18,11 @@ import {
   $isTableSelection,
   $unmergeCell,
   getTableObserverFromTableElement,
-  HTMLTableElementWithWithTableSelectionState,
+  type HTMLTableElementWithWithTableSelectionState,
   TableCellHeaderStates,
   TableCellNode,
-  TableRowNode,
-  TableSelection,
+  type TableRowNode,
+  type TableSelection,
 } from "@lexical/table";
 import {
   $createParagraphNode,
@@ -33,8 +33,14 @@ import {
   $isRangeSelection,
   $isTextNode,
 } from "lexical";
-import * as React from "react";
-import { ReactPortal, useCallback, useEffect, useRef, useState } from "react";
+import type * as React from "react";
+import {
+  type ReactPortal,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 import useModal from "~/hooks/useModal";

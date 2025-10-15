@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useMemo } from "react";
+import type React from "react";
+import { createContext, useContext, useMemo } from "react";
 
 function generateId(): string {
   return Math.random()

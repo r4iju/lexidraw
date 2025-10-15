@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { createTRPCContext } from "./trpc";
+import type { createTRPCContext } from "./trpc";
 import { drizzle, schema, eq } from "@packages/drizzle";
 
 export const checkPermission = async (

@@ -1,4 +1,4 @@
-import { $getRoot, EditorState } from "lexical";
+import { $getRoot, type EditorState } from "lexical";
 import { useCallback } from "react";
 
 export const useMarkdownTools = () => {

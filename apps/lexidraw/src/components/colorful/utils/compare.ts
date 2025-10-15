@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useConvertUtils } from "./convert";
-import { ObjectColor } from "../types";
+import type { ObjectColor } from "../types";
 
 export const useCompareUtils = () => {
   const { hexToRgba } = useConvertUtils();

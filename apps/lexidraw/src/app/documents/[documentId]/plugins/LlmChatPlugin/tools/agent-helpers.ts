@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { ChatDispatch } from "../llm-chat-context";
+import type { ChatDispatch } from "../llm-chat-context";
 
 /* --------------------------------------------------------------
  * Plan or Clarify Tool

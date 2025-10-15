@@ -9,7 +9,7 @@ import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createTextNode,
-  LexicalNode,
+  type LexicalNode,
   $getNodeByKey,
   $isTextNode,
   $createParagraphNode,

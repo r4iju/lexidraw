@@ -1,5 +1,5 @@
-import { LucideIcon } from "lucide-react";
-import { Button, ButtonProps } from "~/components/ui/button";
+import type { LucideIcon } from "lucide-react";
+import { Button, type ButtonProps } from "~/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
