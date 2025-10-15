@@ -90,7 +90,17 @@ export function EntityCard({
         )}
       >
         <div className="size-10 min-w-10">
-          <ThumbnailClient entity={entity} />
+          <Link
+            href={itemUrl({
+              id: entity.id,
+              entityType: entity.entityType as EntityType,
+              searchParams,
+            })}
+            className="block size-full"
+            draggable={false}
+          >
+            <ThumbnailClient entity={entity} />
+          </Link>
         </div>
         <Link
           href={itemUrl({
@@ -99,7 +109,7 @@ export function EntityCard({
             searchParams,
           })}
         >
-          <span className="font-semibold line-clamp-1 w-full">
+          <span className="font-semibold line-clamp-1 w-full select-none">
             {entity.title}
           </span>
         </Link>
@@ -120,6 +130,7 @@ export function EntityCard({
               flex === "flex-row" ? "block" : "hidden md:block",
             )}
           >
+            {/* Avoid text selection during drag */}
             {updatedOrCreated}
             {dateString}
           </span>
@@ -150,7 +161,17 @@ export function EntityCard({
         )}
       >
         <EntityTitle entity={entity} />
-        <ThumbnailClient entity={entity} />
+        <Link
+          href={itemUrl({
+            id: entity.id,
+            entityType: entity.entityType as EntityType,
+            searchParams,
+          })}
+          className="block"
+          draggable={false}
+        >
+          <ThumbnailClient entity={entity} />
+        </Link>
       </div>
 
       {/* "open" button if flex-row */}

@@ -41,6 +41,7 @@ export function ThumbnailClient({ entity }: Props) {
           crossOrigin="anonymous"
           quality={75}
           loading="eager"
+          draggable={false}
           className="object-cover"
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
@@ -115,6 +116,7 @@ function FolderVisual({
                 crossOrigin="anonymous"
                 quality={75}
                 loading="eager"
+                draggable={false}
                 className="object-cover"
                 sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
@@ -136,10 +138,9 @@ function FolderVisual({
       {typeof childCount === "number" && (
         <div
           className={cn(
-            "absolute z-10 grid place-items-center rounded-full border border-border bg-background text-foreground leading-none",
+            "absolute z-10 grid place-items-center rounded-full border border-border bg-background text-foreground leading-none bottom-1 right-0 h-4 min-w-4 text-xs px-1 shadow-sm",
             {
-              "top-10 right-5 h-10 min-w-10 text-xl shadow-md" : isBig,
-              "bottom-1 right-0 h-4 min-w-4 text-[10px] px-1 shadow-sm" : !isBig
+              "top-10 right-5 h-10 min-w-10 text-xl shadow-md border-2" : isBig,
             }
           )}
         >
