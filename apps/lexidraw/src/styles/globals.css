@@ -188,6 +188,26 @@ hr {
   @apply border-border;
 }
 
+/* Folder diagonal pattern utility (extremely subtle) */
+.folder-pattern {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--color-accent) 12%, transparent),
+    color-mix(in oklab, var(--color-accent) 12%, transparent) 6px,
+    transparent 6px,
+    transparent 14px
+  );
+}
+.dark .folder-pattern {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--color-accent) 10%, transparent),
+    color-mix(in oklab, var(--color-accent) 10%, transparent) 6px,
+    transparent 6px,
+    transparent 14px
+  );
+}
+
 /* -------------------------------------------------- */
 /*  Global prose defaults (Notion-like rhythm)       */
 /* -------------------------------------------------- */
