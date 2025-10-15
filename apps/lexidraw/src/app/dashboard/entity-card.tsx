@@ -167,7 +167,8 @@ export function EntityCard({
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
-          className="block"
+          className="block w-full"
+          style={{ aspectRatio: "4 / 3" }}
           draggable={false}
         >
           <ThumbnailClient entity={entity} />
