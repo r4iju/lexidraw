@@ -66,15 +66,17 @@ function FolderVisual({
   src?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [strokeWidth, setStrokeWidth] = useState(1.5);
+  const [strokeWidth, setStrokeWidth] = useState(1.6);
+  const [isBig, setIsBig] = useState(false);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
       const w = el.clientWidth || 96;
-      const computed = Math.max(1, Math.min(2, (w / 96) * 1.4));
-      setStrokeWidth(parseFloat(computed.toFixed(2)));
+      const base = Math.max(1.2, Math.min(2.1, (w / 96) * 1.5));
+      setStrokeWidth(parseFloat(base.toFixed(2)));
+      setIsBig(w >= 160);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -85,30 +87,64 @@ function FolderVisual({
   return (
     <div ref={containerRef} className="relative size-full aspect-4/3 overflow-hidden">
       <span className="sr-only">{`Folder: ${title}`}</span>
-      <svg className="absolute inset-0" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      {(() => {
+        // Use the Lucide Folder path as the mask base (24x24 viewBox)
+        const lucidePath =
+          "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z";
+        const maskSvg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' preserveAspectRatio='none'><path d='${lucidePath}' fill='white'/></svg>`;
+        const maskUrl = `url("data:image/svg+xml;utf8,${encodeURIComponent(maskSvg)}")`;
+        const maskStyle: React.CSSProperties = {
+          WebkitMaskImage: maskUrl,
+          maskImage: maskUrl,
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskSize: "100% 100%",
+          maskSize: "100% 100%",
+          WebkitMaskPosition: "center",
+          maskPosition: "center",
+        };
+        return (
+          <div className="absolute inset-0" style={maskStyle}>
+            {src ? (
+              <Image
+                src={src}
+                alt={title.substring(0, 14)}
+                fill
+                crossOrigin="anonymous"
+                quality={75}
+                loading="eager"
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              />
+            ) : (
+              <ThumbnailFallback />
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Single SVG combines image clip and stroke for perfect alignment */}
+      <svg className="absolute inset-0 text-accent" viewBox="0 0 24 24" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <clipPath id={`clip-${id}`} clipPathUnits="userSpaceOnUse">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2z" />
+            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
           </clipPath>
         </defs>
         {src ? (
-          <image href={src} width="24" height="24" preserveAspectRatio="xMidYMid slice" clipPath={`url(#clip-${id})`} />
+          <image href={src} x="0" y="0" width="24" height="24" preserveAspectRatio="xMidYMid slice" clipPath={`url(#clip-${id})`} crossOrigin="anonymous" />
         ) : (
           <rect width="24" height="24" className="fill-muted" clipPath={`url(#clip-${id})`} />
         )}
-        <path
-          d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2z"
-          fill="none"
-          className="text-accent"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" fill="none" stroke="currentColor" strokeWidth={isBig ? Math.max(1.9, strokeWidth) : strokeWidth} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
 
       {typeof childCount === "number" && (
-        <div className="absolute bottom-1 right-1 z-10 grid h-5 min-w-5 place-items-center rounded-full border border-border bg-background/90 text-foreground text-[10px] leading-none px-1 shadow-sm">
+        <div
+          className={
+            "absolute bottom-1 right-1 z-10 grid place-items-center rounded-full border border-border bg-background/90 text-foreground leading-none shadow-sm " +
+            (isBig ? "h-6 min-w-6 text-[11px] px-1.5" : "h-4 min-w-4 text-[10px] px-1")
+          }
+        >
           {childCount}
         </div>
       )}
