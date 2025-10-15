@@ -6,6 +6,10 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
+  useSensor,
+  useSensors,
+  MouseSensor,
+  TouchSensor,
 } from "@dnd-kit/core";
 import type { ReactNode } from "react";
 import { api } from "~/trpc/react";
@@ -26,6 +30,16 @@ export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
   >(null);
 
   const utils = api.useUtils();
+
+  // Configure sensors: require small movement for mouse; short long-press for touch
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 },
+    }),
+  );
 
   const { mutate: updateEntity } = api.entities.update.useMutation({
     onMutate: async (vars) => {
@@ -119,7 +133,7 @@ export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
   };
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       {children}
 
       {/* Overlay is rendered at the root level so it’s not constrained by layout */}
