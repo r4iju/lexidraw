@@ -6,7 +6,7 @@
   "scripts": {
     "build": "../../build.sh; next build # --turbopack",
     "dev": "next dev --port 3100 --turbo",
-    "lint": "eslint './**/*.{ts,tsx}'",
+    "lint": "bun x @biomejs/biome check .",
     "test:ts": "tsc --noEmit",
     "start": "next start --port 3100"
   },
@@ -119,7 +119,7 @@
     "drizzle-kit": "^0.30.6",
     "null-loader": "^4.0.1",
     "postcss": "^8.5.3",
-    "prettier-plugin-tailwindcss": "^0.6.11",
+    
     "tailwindcss": "^4.1.7",
     "tw-animate-css": "^1.3.0",
     "worker-loader": "^3.0.8"

@@ -12,7 +12,7 @@
     "db:studio": "drizzle-kit studio --port 3100",
     "postinstall": "# drizzle-kit generate",
     "build": "bun x tsc --project tsconfig.json",
-    "lint": "TIMING=1 eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
+    "lint": "bun x @biomejs/biome check --write .",
     "test:ts": "bun x tsc --noEmit --project tsconfig.json",
     "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules"
   },

@@ -36,7 +36,6 @@
     "module": "esnext"
   },
   "include": [
-    "./eslint.config.mjs",
     "./next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
