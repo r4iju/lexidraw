@@ -4,7 +4,9 @@ import { Folder } from "lucide-react";
 import Image from "next/image";
 import { useDeferredValue, useMemo, useLayoutEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
+import { cn } from "~/lib/utils";
 import { RouterOutputs } from "~/trpc/shared";
+
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -123,27 +125,23 @@ function FolderVisual({
         );
       })()}
 
-      {/* Single SVG combines image clip and stroke for perfect alignment */}
-      <svg className="absolute inset-0 text-accent" viewBox="0 0 24 24" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <clipPath id={`clip-${id}`} clipPathUnits="userSpaceOnUse">
-            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-          </clipPath>
-        </defs>
-        {src ? (
-          <image href={src} x="0" y="0" width="24" height="24" preserveAspectRatio="xMidYMid slice" clipPath={`url(#clip-${id})`} crossOrigin="anonymous" />
-        ) : (
-          <rect width="24" height="24" className="fill-muted" clipPath={`url(#clip-${id})`} />
-        )}
-        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" fill="none" stroke="currentColor" strokeWidth={isBig ? Math.max(1.9, strokeWidth) : strokeWidth} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      </svg>
+      <Folder
+        className="pointer-events-none absolute inset-0 size-full text-accent"
+        preserveAspectRatio="none"
+        vectorEffect="non-scaling-stroke"
+        strokeWidth={isBig ? 0.5 : 2}
+        aria-hidden="true"
+      />
 
       {typeof childCount === "number" && (
         <div
-          className={
-            "absolute bottom-1 right-1 z-10 grid place-items-center rounded-full border border-border bg-background/90 text-foreground leading-none shadow-sm " +
-            (isBig ? "h-6 min-w-6 text-[11px] px-1.5" : "h-4 min-w-4 text-[10px] px-1")
-          }
+          className={cn(
+            "absolute z-10 grid place-items-center rounded-full border border-border bg-background text-foreground leading-none",
+            {
+              "top-10 right-5 h-10 min-w-10 text-xl shadow-md" : isBig,
+              "bottom-1 right-0 h-4 min-w-4 text-[10px] px-1 shadow-sm" : !isBig
+            }
+          )}
         >
           {childCount}
         </div>
