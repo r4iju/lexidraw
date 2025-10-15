@@ -4,11 +4,11 @@
  * Instead add list nodes, heading nodes, paragraph nodes, etc.
  */
 
-import { $getNodeByKey, LexicalEditor } from "lexical";
+import { $getNodeByKey, type LexicalEditor } from "lexical";
 import {
-  SlideElementSpec,
-  SlideData,
-  SlideDeckData,
+  type SlideElementSpec,
+  type SlideData,
+  type SlideDeckData,
   SlideNode,
   ThemeSettingsSchema,
   DeckStrategicMetadataSchema,
@@ -31,7 +31,7 @@ import {
   DEFAULT_TEXT_NODE_ORIGINAL_KEY,
   EMPTY_CONTENT,
 } from "../../../initial-content";
-import { KeyedSerializedEditorState } from "../../../types";
+import type { KeyedSerializedEditorState } from "../../../types";
 
 export const AudienceDataSchema = z.object({
   bigIdea: z

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useFormContext, Controller } from "react-hook-form";
 import { cn } from "~/lib/utils";
 import { Label } from "~/components/ui/label";

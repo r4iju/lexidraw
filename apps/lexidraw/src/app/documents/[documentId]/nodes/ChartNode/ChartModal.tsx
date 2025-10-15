@@ -19,11 +19,12 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Loader2 } from "lucide-react";
-import React, { useEffect, useMemo, useState, Suspense } from "react";
+import type React from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useDebounceValue } from "~/lib/client-utils";
-import { ChartType } from "./index"; // Assuming ChartNode is in the same directory
+import type { ChartType } from "./index"; // Assuming ChartNode is in the same directory
 import DynamicChartRenderer from "./DynamicChartRenderer";
-import { type ChartConfig } from "~/components/ui/chart";
+import type { ChartConfig } from "~/components/ui/chart";
 import { cn } from "~/lib/utils";
 
 const AVAILABLE_CHART_TYPES: ChartType[] = ["bar", "line", "pie"];

@@ -1,8 +1,8 @@
 import React from "react";
 import { cn } from "~/lib/utils";
-import { Interactive, Interaction } from "./Interactive";
+import { Interactive, type Interaction } from "./Interactive";
 import { Pointer } from "./Pointer";
-import { HsvaColor } from "../types";
+import type { HsvaColor } from "../types";
 import { useConvertUtils } from "../utils/convert";
 import { useClampUtils } from "../utils/clamp";
 import { useRoundUtils } from "../utils/round";

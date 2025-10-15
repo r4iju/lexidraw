@@ -3,16 +3,16 @@ import {
   $getRoot,
   $isElementNode,
   $isRootNode,
-  ElementNode,
-  LexicalEditor,
-  LexicalNode,
+  type ElementNode,
+  type LexicalEditor,
+  type LexicalNode,
 } from "lexical";
-import {
+import type {
   InsertionAnchor,
   InsertionPointResolution,
   InsertionRelation,
 } from "./common-schemas";
-import { SerializedNodeWithKey } from "../../../types";
+import type { SerializedNodeWithKey } from "../../../types";
 import { useEditorRegistry } from "../../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 

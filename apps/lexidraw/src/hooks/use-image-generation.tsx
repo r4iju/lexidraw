@@ -4,11 +4,11 @@ import React, {
   useContext,
   useRef,
   useState,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import {
   experimental_generateImage as generateImage,
-  ImageModelCallWarning,
+  type ImageModelCallWarning,
 } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { v4 as uuidv4 } from "uuid";
@@ -198,7 +198,7 @@ import {
 } from "lexical";
 import {
   ImageNode,
-  ImagePayload,
+  type ImagePayload,
 } from "~/app/documents/[documentId]/nodes/ImageNode/ImageNode";
 import { $wrapNodeInElement } from "@lexical/utils";
 

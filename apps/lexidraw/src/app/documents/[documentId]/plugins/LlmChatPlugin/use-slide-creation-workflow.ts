@@ -4,8 +4,8 @@
 
 import { useState, useCallback, useRef } from "react";
 import {
-  AppToolResult,
-  RuntimeToolMap,
+  type AppToolResult,
+  type RuntimeToolMap,
   useLLM,
   type AppToolCall,
 } from "../../context/llm-context";
@@ -19,11 +19,11 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $getRoot, $getNodeByKey } from "lexical";
 import { useMarkdownTools } from "../../utils/markdown";
 import env from "@packages/env";
-import { z } from "zod";
-import { useSlideTools, AudienceDataSchema } from "./tools/slides";
+import type { z } from "zod";
+import { useSlideTools, type AudienceDataSchema } from "./tools/slides";
 import { useTextTools } from "./tools/text";
 import { useListTools } from "./tools/list";
-import { CoreMessage, ToolChoice, ToolSet } from "ai";
+import type { CoreMessage, ToolChoice, ToolSet } from "ai";
 
 interface AudienceData {
   bigIdea: string;
@@ -283,7 +283,7 @@ export function useSlideCreationWorkflow() {
       signal: AbortSignal,
     ): Promise<ReturnValue> => {
       let lastError: StepError | Error | null = null;
-      let currentErrorContext: string | undefined = undefined;
+      let currentErrorContext: string | undefined;
 
       while (workflowRetryBudgetRef.current > 0) {
         if (signal.aborted) {

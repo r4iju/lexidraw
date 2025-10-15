@@ -1,5 +1,5 @@
 import { $isCodeNode } from "@lexical/code";
-import { $getNearestNodeFromDOMNode, LexicalEditor } from "lexical";
+import { $getNearestNodeFromDOMNode, type LexicalEditor } from "lexical";
 import { AlertTriangleIcon, CheckIcon } from "lucide-react";
 import type { Options } from "prettier";
 import * as React from "react";

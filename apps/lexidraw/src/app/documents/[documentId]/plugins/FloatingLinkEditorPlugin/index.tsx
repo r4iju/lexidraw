@@ -12,17 +12,17 @@ import {
   $getSelection,
   $isLineBreakNode,
   $isRangeSelection,
-  BaseSelection,
+  type BaseSelection,
   CLICK_COMMAND,
   COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
   KEY_ESCAPE_COMMAND,
-  LexicalEditor,
+  type LexicalEditor,
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
-import { Dispatch, useCallback, useEffect, useRef, useState } from "react";
-import * as React from "react";
+import { type Dispatch, useCallback, useEffect, useRef, useState } from "react";
+import type * as React from "react";
 import { createPortal } from "react-dom";
 
 import { useGetSelectedNode } from "../../utils/getSelectedNode";

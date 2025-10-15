@@ -8,14 +8,14 @@ import {
   $insertNodes,
   COMMAND_PRIORITY_EDITOR,
   createCommand,
-  EditorThemeClasses,
-  Klass,
-  LexicalCommand,
-  LexicalEditor,
-  LexicalNode,
+  type EditorThemeClasses,
+  type Klass,
+  type LexicalCommand,
+  type LexicalEditor,
+  type LexicalNode,
 } from "lexical";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import * as React from "react";
+import type * as React from "react";
 
 import { DialogFooter } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";

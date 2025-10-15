@@ -1,4 +1,4 @@
-import { SettingName } from "../../context/app-settings";
+import type { SettingName } from "../../context/app-settings";
 import { useSettings } from "../../context/settings-context";
 import {
   DropdownMenu,

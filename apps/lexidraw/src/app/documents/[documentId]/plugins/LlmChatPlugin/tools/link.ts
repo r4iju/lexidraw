@@ -14,7 +14,7 @@ import {
   $getNodeByKey,
   $isElementNode,
   $isTextNode,
-  LexicalNode,
+  type LexicalNode,
 } from "lexical";
 
 export const useLinkTools = () => {

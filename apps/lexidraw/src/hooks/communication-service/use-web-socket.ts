@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  type ICommunicationOptions,
-  type ICommunicationProps,
-  type ICommunicationReturnType,
+import type {
+  ICommunicationOptions,
+  ICommunicationProps,
+  ICommunicationReturnType,
 } from "./interface";
 import { toast } from "sonner";
 import env from "@packages/env";
-import { type MessageStructure } from "@packages/types";
+import type { MessageStructure } from "@packages/types";
 
 export const useWebSocketService = (
   { drawingId, userId }: ICommunicationProps,

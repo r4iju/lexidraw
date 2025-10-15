@@ -17,9 +17,9 @@ import { calculateZoomLevel, mergeRegister } from "@lexical/utils";
 import { $getNearestNodeFromDOMNode, isHTMLElement } from "lexical";
 import * as React from "react";
 import {
-  CSSProperties,
-  PointerEventHandler,
-  ReactPortal,
+  type CSSProperties,
+  type PointerEventHandler,
+  type ReactPortal,
   useCallback,
   useEffect,
   useMemo,

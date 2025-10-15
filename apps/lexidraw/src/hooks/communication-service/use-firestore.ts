@@ -7,13 +7,13 @@ import {
   serverTimestamp,
   type Unsubscribe,
 } from "firebase/firestore";
-import {
-  type ICommunicationOptions,
-  type ICommunicationProps,
-  type ICommunicationReturnType,
+import type {
+  ICommunicationOptions,
+  ICommunicationProps,
+  ICommunicationReturnType,
 } from "./interface";
 import { toast } from "sonner";
-import { type MessageStructure } from "@packages/types";
+import type { MessageStructure } from "@packages/types";
 
 export const useFirestoreService = (
   { drawingId, userId }: ICommunicationProps,

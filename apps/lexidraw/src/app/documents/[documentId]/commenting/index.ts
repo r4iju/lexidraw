@@ -121,7 +121,7 @@ export class CommentStore {
       sharedMap.set("timeStamp", commentOrThread.timeStamp);
     } else {
       sharedMap.set("quote", commentOrThread.quote);
-      const commentsArray = new Array<Map<string, unknown>>();
+      const commentsArray: Map<string, unknown>[] = [];
       commentOrThread.comments.forEach((comment) => {
         const sharedChildComment = this._createCollabSharedMap(comment);
         commentsArray.push(sharedChildComment);

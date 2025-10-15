@@ -1,9 +1,9 @@
 "use client";
 
 import { useDraggable, type UniqueIdentifier } from "@dnd-kit/core";
-import React, { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { cn } from "~/lib/utils";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 
 type DragProps = {
   entity: RouterOutputs["entities"]["list"][number];

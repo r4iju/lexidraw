@@ -6,30 +6,30 @@ import {
   $getNodeByKey,
   $getSelection,
   $isNodeSelection,
-  BaseSelection,
+  type BaseSelection,
   CLICK_COMMAND,
   COMMAND_PRIORITY_LOW,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
-  NodeKey,
-  LexicalEditor,
-  EditorConfig,
+  type NodeKey,
+  type LexicalEditor,
+  type EditorConfig,
 } from "lexical";
 import React, {
-  RefObject,
+  type RefObject,
   useCallback,
   useEffect,
   useRef,
   useState,
   useMemo,
 } from "react";
-import { ChartNode, ChartType } from "./index"; // Assuming ChartNode is in the same directory
+import { ChartNode, type ChartType } from "./index"; // Assuming ChartNode is in the same directory
 import ImageResizer from "~/components/ui/image-resizer";
 import { Button } from "~/components/ui/button";
 import ChartModal from "./ChartModal";
 import DynamicChartRenderer from "./DynamicChartRenderer";
 import { cn } from "~/lib/utils";
-import { type ChartConfig } from "~/components/ui/chart";
+import type { ChartConfig } from "~/components/ui/chart";
 
 type Dimension = number | "inherit";
 

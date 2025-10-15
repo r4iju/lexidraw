@@ -1,14 +1,14 @@
 import type { LexicalEditor } from "lexical";
 import {
   AutoEmbedOption,
-  EmbedConfig,
-  EmbedMatchResult,
+  type EmbedConfig,
+  type EmbedMatchResult,
   LexicalAutoEmbedPlugin,
   URL_MATCHER,
 } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useState } from "react";
-import * as React from "react";
+import type * as React from "react";
 import * as ReactDOM from "react-dom";
 import {
   Dialog,

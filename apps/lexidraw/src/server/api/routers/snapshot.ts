@@ -7,7 +7,7 @@ import { PublicAccess } from "@packages/types";
 import { eq, schema } from "@packages/drizzle";
 import {
   generateClientTokenFromReadWriteToken,
-  GenerateClientTokenOptions,
+  type GenerateClientTokenOptions,
 } from "@vercel/blob/client";
 import env from "@packages/env";
 

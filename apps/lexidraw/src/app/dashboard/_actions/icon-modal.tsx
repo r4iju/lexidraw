@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -20,7 +21,7 @@ import { useImageGeneration } from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
 import { ReloadIcon } from "@radix-ui/react-icons";
 import { put } from "@vercel/blob/client";

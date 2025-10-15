@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { api } from "~/trpc/react";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
 import { toast } from "sonner";
 

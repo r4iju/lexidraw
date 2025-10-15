@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import * as React from "react";
+import type * as React from "react";
 import { Label } from "./label";
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import { RefreshCcwIcon } from "lucide-react";
 import { Saturation as RcSaturation } from "../colorful/common/Saturation";
 import { Hue as RcHue } from "../colorful/common/Hue";
 import { HexColorInput as RcHexColorInput } from "../colorful/HexColorInput";
-import { HsvaColor, HexColor } from "../colorful/types";
+import type { HsvaColor, HexColor } from "../colorful/types";
 import { useConvertUtils } from "../colorful/utils/convert";
 
 import "../colorful/css/styles.css";

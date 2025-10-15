@@ -1,6 +1,6 @@
 "use client";
 
-import { type FC } from "react";
+import type { FC } from "react";
 import { useFormContext, Controller } from "react-hook-form";
 import { Textarea } from "~/components/ui/textarea";
 import { Input } from "~/components/ui/input";

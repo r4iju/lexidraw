@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { api } from "~/trpc/server";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { NewEntity } from "./_actions/new-entity";

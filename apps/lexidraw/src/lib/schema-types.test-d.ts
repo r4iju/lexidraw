@@ -8,9 +8,9 @@ import type {
   BarProps,
   AreaProps,
 } from "recharts";
-import { z } from "zod";
-import { ChartDataSchema, ChartConfigSchema } from "./schemas";
-import {
+import type { z } from "zod";
+import type { ChartDataSchema, ChartConfigSchema } from "./schemas";
+import type {
   NameType,
   ValueType,
 } from "recharts/types/component/DefaultTooltipContent";

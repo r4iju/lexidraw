@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ColorModel, AnyColor, HsvaColor } from "../types";
+import type { ColorModel, AnyColor, HsvaColor } from "../types";
 import { useCompareUtils } from "../utils/compare";
 import { useEventCallback } from "./useEventCallback";
 

@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { cn } from "~/lib/utils";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];

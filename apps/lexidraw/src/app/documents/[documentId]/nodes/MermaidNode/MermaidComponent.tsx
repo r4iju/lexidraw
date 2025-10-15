@@ -6,14 +6,20 @@ import {
   $getNodeByKey,
   $getSelection,
   $isNodeSelection,
-  BaseSelection,
+  type BaseSelection,
   CLICK_COMMAND,
   COMMAND_PRIORITY_LOW,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
-  NodeKey,
+  type NodeKey,
 } from "lexical";
-import { RefObject, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { MermaidNode } from "../../nodes/MermaidNode";
 import ImageResizer from "~/components/ui/image-resizer";
 import MermaidImage from "./MermaidImage";

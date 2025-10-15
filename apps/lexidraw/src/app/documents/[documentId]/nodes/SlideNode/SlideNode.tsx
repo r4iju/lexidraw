@@ -1,13 +1,13 @@
 import {
   DecoratorNode,
-  Spread,
-  LexicalNode,
+  type Spread,
+  type LexicalNode,
   $createParagraphNode,
-  ParagraphNode,
-  EditorConfig,
-  NodeKey,
-  LexicalEditor,
-  SerializedLexicalNode,
+  type ParagraphNode,
+  type EditorConfig,
+  type NodeKey,
+  type LexicalEditor,
+  type SerializedLexicalNode,
   $getNodeByKey,
   $getSelection,
   $isNodeSelection,
@@ -29,7 +29,7 @@ import type { ChartType } from "../ChartNode";
 import { z } from "zod";
 import { MetadataModalProvider } from "./MetadataModalContext";
 import { EMPTY_CONTENT } from "../../initial-content";
-import { KeyedSerializedEditorState } from "../../types";
+import type { KeyedSerializedEditorState } from "../../types";
 
 export type SlideElementSpec =
   | {

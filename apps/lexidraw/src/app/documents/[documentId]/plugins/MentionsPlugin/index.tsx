@@ -2,10 +2,10 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import {
   LexicalTypeaheadMenuPlugin,
   MenuOption,
-  MenuTextMatch,
+  type MenuTextMatch,
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
-import { TextNode } from "lexical";
+import type { TextNode } from "lexical";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as React from "react";
 import * as ReactDOM from "react-dom";

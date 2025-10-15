@@ -3,7 +3,7 @@ import {
   $getNearestNodeFromDOMNode,
   $getSelection,
   $setSelection,
-  LexicalEditor,
+  type LexicalEditor,
 } from "lexical";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";

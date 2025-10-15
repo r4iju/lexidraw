@@ -9,7 +9,7 @@ import { useCommonUtilities } from "./common";
 import { $createParagraphNode, $getRoot } from "lexical";
 import { $convertFromMarkdownString } from "@lexical/markdown";
 import { $getNodeByKey } from "lexical";
-import { InsertionPointResolution } from "./common-schemas";
+import type { InsertionPointResolution } from "./common-schemas";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { PLAYGROUND_TRANSFORMERS } from "../../MarkdownTransformers";
 

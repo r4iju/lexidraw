@@ -8,11 +8,11 @@ import {
   $isRootOrShadowRoot,
   COMMAND_PRIORITY_EDITOR,
   createCommand,
-  LexicalCommand,
-  LexicalEditor,
+  type LexicalCommand,
+  type LexicalEditor,
 } from "lexical";
 import { useCallback, useEffect } from "react";
-import * as React from "react";
+import type * as React from "react";
 
 import { EquationNode } from "../../nodes/EquationNode";
 import KatexEquationAlterer from "~/components/ui/katex-equation-alterer";

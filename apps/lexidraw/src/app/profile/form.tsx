@@ -7,7 +7,7 @@ import FormProvider, { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
-import { type RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { useSession } from "next-auth/react";
 import { ReloadIcon } from "@radix-ui/react-icons";
 

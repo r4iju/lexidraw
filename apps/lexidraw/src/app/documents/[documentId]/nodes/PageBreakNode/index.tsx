@@ -9,13 +9,13 @@ import {
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
   DecoratorNode,
-  DOMConversionMap,
-  DOMConversionOutput,
+  type DOMConversionMap,
+  type DOMConversionOutput,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
+  type LexicalNode,
+  type NodeKey,
+  type SerializedLexicalNode,
 } from "lexical";
 import { ScissorsIcon } from "lucide-react";
 import { type JSX, useCallback, useEffect } from "react";
@@ -132,7 +132,7 @@ export class PageBreakNode extends DecoratorNode<JSX.Element> {
     return {
       figure: (domNode: HTMLElement) => {
         const tp = domNode.getAttribute("type");
-        if (tp !== this.getType()) {
+        if (tp !== PageBreakNode.getType()) {
           return null;
         }
 

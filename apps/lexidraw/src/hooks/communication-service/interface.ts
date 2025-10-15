@@ -1,4 +1,4 @@
-import { type MessageStructure } from "@packages/types";
+import type { MessageStructure } from "@packages/types";
 
 export type ICommunicationProps = {
   drawingId: string;

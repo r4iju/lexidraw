@@ -6,7 +6,7 @@ import type {
   ExcalidrawElement,
   NonDeleted,
 } from "@excalidraw/excalidraw/element/types";
-import { type JSX, RefObject, useEffect, useState } from "react";
+import { type JSX, type RefObject, useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
 import { Theme } from "@packages/types/enums";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";

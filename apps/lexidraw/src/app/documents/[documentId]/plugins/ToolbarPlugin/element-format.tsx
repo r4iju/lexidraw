@@ -1,8 +1,8 @@
 import {
-  ElementFormatType,
+  type ElementFormatType,
   FORMAT_ELEMENT_COMMAND,
   INDENT_CONTENT_COMMAND,
-  LexicalEditor,
+  type LexicalEditor,
   OUTDENT_CONTENT_COMMAND,
 } from "lexical";
 import {

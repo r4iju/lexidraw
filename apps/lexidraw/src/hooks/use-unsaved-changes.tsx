@@ -7,13 +7,13 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import useModal from "~/hooks/useModal";
-import Link, { LinkProps } from "next/link";
-import { MouseEvent } from "react";
+import Link, { type LinkProps } from "next/link";
+import type { MouseEvent } from "react";
 
 type Ctx = {
   markDirty(): void;

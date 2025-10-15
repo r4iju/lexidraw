@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z, type ZodTypeAny } from "zod";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { type RuntimeToolMap } from "../../../context/llm-context";
+import type { RuntimeToolMap } from "../../../context/llm-context";
 
 export const useCombinedTools = (individualTools: RuntimeToolMap) => {
   const [editor] = useLexicalComposerContext();

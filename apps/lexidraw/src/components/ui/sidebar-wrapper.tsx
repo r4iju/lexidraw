@@ -1,6 +1,7 @@
 "use client";
 
-import React, {
+import type React from "react";
+import {
   useState,
   useCallback,
   useRef,
@@ -8,7 +9,7 @@ import React, {
   createContext,
   useContext,
   forwardRef,
-  ForwardedRef,
+  type ForwardedRef,
 } from "react";
 import { Button } from "~/components/ui/button";
 import { X } from "lucide-react";

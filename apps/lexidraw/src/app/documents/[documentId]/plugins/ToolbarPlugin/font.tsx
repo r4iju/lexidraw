@@ -3,8 +3,8 @@ import {
   $getRoot,
   $getSelection,
   $isTextNode,
-  LexicalEditor,
-  LexicalNode,
+  type LexicalEditor,
+  type LexicalNode,
 } from "lexical";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";

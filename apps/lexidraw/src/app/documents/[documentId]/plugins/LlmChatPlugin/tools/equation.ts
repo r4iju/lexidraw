@@ -13,7 +13,7 @@ import {
   $isTextNode,
   $createParagraphNode,
   $getNodeByKey,
-  LexicalNode,
+  type LexicalNode,
 } from "lexical";
 export const useEquationTools = () => {
   const {

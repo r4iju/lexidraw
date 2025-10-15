@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import {
-  LexicalCommand,
+  type LexicalCommand,
   createCommand,
   COMMAND_PRIORITY_EDITOR,
   $getRoot,

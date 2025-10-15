@@ -12,12 +12,12 @@ import React, {
 
 import {
   generateText,
-  LanguageModel,
-  StepResult,
-  tool,
-  ToolCallRepairFunction,
-  ToolChoice,
-  ToolSet,
+  type LanguageModel,
+  type StepResult,
+  type tool,
+  type ToolCallRepairFunction,
+  type ToolChoice,
+  type ToolSet,
   streamText,
   type TextStreamPart,
   type FinishReason,
@@ -33,7 +33,7 @@ import type {
   StoredLlmConfig,
   PartialLlmConfig,
 } from "~/server/api/routers/config";
-import { type z } from "zod";
+import type { z } from "zod";
 import { useSettings } from "./settings-context";
 import { useDebounce } from "~/lib/client-utils";
 

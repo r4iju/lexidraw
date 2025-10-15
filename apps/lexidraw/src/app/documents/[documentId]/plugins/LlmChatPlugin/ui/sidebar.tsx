@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import { ModeTabs } from "./mode-tabs";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";

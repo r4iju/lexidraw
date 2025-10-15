@@ -1,4 +1,4 @@
-import NextAuth, { Session, type DefaultSession } from "next-auth";
+import NextAuth, { type Session, type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";

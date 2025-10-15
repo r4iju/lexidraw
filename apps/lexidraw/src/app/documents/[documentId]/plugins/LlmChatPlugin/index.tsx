@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import type React from "react";
+import { useEffect } from "react";
 import { Sidebar } from "./ui/sidebar";
 import { LlmChatProvider, useChatDispatch } from "./llm-chat-context";
 import { useRegisterKeybindings } from "./use-register-keybindings";

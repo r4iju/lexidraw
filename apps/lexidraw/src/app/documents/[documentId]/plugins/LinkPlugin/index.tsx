@@ -1,5 +1,5 @@
 import { LinkPlugin as LexicalLinkPlugin } from "@lexical/react/LexicalLinkPlugin";
-import * as React from "react";
+import type * as React from "react";
 
 export default function LinkPlugin(): React.JSX.Element {
   const urlRegExp = new RegExp(

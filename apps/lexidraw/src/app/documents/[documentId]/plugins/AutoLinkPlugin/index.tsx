@@ -2,7 +2,7 @@ import {
   AutoLinkPlugin,
   createLinkMatcherWithRegExp,
 } from "@lexical/react/LexicalAutoLinkPlugin";
-import * as React from "react";
+import type * as React from "react";
 
 export default function LexicalAutoLinkPlugin(): React.JSX.Element {
   const URL_REGEX =

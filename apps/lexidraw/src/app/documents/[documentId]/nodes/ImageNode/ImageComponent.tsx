@@ -27,7 +27,7 @@ import {
   KEY_ESCAPE_COMMAND,
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
-import * as React from "react";
+import type * as React from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSettings } from "../../context/settings-context";
 import { useSharedHistoryContext } from "../../context/shared-history-context";

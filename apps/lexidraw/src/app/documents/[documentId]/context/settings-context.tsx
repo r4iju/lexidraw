@@ -1,9 +1,9 @@
 import type { SettingName } from "./app-settings";
 
-import * as React from "react";
+import type * as React from "react";
 import {
   createContext,
-  ReactNode,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 
-import { DEFAULT_SETTINGS, Settings } from "./app-settings";
+import { DEFAULT_SETTINGS, type Settings } from "./app-settings";
 
 const SETTINGS_STORAGE_KEY = "lexidraw-settings";
 
@@ -39,7 +39,7 @@ export const SettingsProvider = ({
           const parsedSettings = JSON.parse(storedSettings);
           const mergedSettings = { ...DEFAULT_SETTINGS };
           for (const key in parsedSettings) {
-            if (Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)) {
+            if (Object.hasOwn(DEFAULT_SETTINGS, key)) {
               mergedSettings[key as SettingName] = parsedSettings[key];
             }
           }

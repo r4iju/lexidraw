@@ -13,9 +13,9 @@ import type {
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents";
 import {
   DecoratorBlockNode,
-  SerializedDecoratorBlockNode,
+  type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
-import * as React from "react";
+import type * as React from "react";
 import { useRef, useState, useCallback, useEffect } from "react";
 
 // Lexical React helpers

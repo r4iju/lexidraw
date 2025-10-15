@@ -6,7 +6,8 @@ import type {
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
-import React, {
+import type React from "react";
+import {
   Suspense,
   useEffect,
   useRef,

@@ -10,7 +10,7 @@ import {
   $createQuoteNode,
   $isHeadingNode,
   $isQuoteNode,
-  HeadingTagType,
+  type HeadingTagType,
 } from "@lexical/rich-text";
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
 import { $isTableSelection } from "@lexical/table";
@@ -20,7 +20,7 @@ import {
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  LexicalEditor,
+  type LexicalEditor,
 } from "lexical";
 
 import {

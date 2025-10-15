@@ -10,7 +10,7 @@ import {
   CheckIcon,
   ReloadIcon,
 } from "@radix-ui/react-icons";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
 import { revalidateDashboard } from "../server-actions";

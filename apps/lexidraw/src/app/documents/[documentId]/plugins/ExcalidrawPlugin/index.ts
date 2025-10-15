@@ -6,7 +6,7 @@ import {
   $isRootOrShadowRoot,
   COMMAND_PRIORITY_EDITOR,
   createCommand,
-  LexicalCommand,
+  type LexicalCommand,
 } from "lexical";
 import { useEffect } from "react";
 

@@ -3,14 +3,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { useExportWebp } from "../plugins/export-webp";
-import { RouterOutputs } from "~/trpc/shared";
+import type { RouterOutputs } from "~/trpc/shared";
 import { put } from "@vercel/blob/client";
-import { TRPCClientErrorLike } from "@trpc/client";
-import { AppRouter } from "~/server/api/root";
+import type { TRPCClientErrorLike } from "@trpc/client";
+import type { AppRouter } from "~/server/api/root";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
-import { RefObject, useState } from "react";
-import { EditorState } from "lexical";
+import { type RefObject, useState } from "react";
+import type { EditorState } from "lexical";
 import { useDocumentSettings } from "./document-settings-context";
 
 export function useSaveAndExportDocument({

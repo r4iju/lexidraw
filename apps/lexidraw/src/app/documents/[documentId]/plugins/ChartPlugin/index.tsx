@@ -6,11 +6,11 @@ import { mergeRegister } from "@lexical/utils";
 import {
   COMMAND_PRIORITY_EDITOR,
   PASTE_COMMAND,
-  LexicalCommand,
+  type LexicalCommand,
   createCommand,
 } from "lexical";
 import { useEffect } from "react";
-import { ChartNode, ChartType } from "../../nodes/ChartNode";
+import { ChartNode, type ChartType } from "../../nodes/ChartNode";
 
 export const INSERT_CHART_COMMAND: LexicalCommand<{
   type?: ChartType;

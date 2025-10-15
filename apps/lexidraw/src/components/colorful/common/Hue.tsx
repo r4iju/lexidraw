@@ -1,5 +1,5 @@
 import React from "react";
-import { Interactive, Interaction } from "./Interactive";
+import { Interactive, type Interaction } from "./Interactive";
 import { Pointer } from "./Pointer";
 import { useConvertUtils } from "../utils/convert";
 import { useClampUtils } from "../utils/clamp";

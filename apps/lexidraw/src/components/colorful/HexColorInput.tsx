@@ -1,6 +1,6 @@
 import type { JSX } from "react";
 import React, { useCallback, useMemo } from "react";
-import { ColorInputBaseProps } from "./types";
+import type { ColorInputBaseProps } from "./types";
 import { ColorInput } from "./common/ColorInput";
 
 interface HexColorInputProps extends ColorInputBaseProps {

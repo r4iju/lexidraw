@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useChatDispatch, useChatState } from "./llm-chat-context";
-import { type ToolChoice, type ToolSet } from "ai";
+import type { ToolChoice, ToolSet } from "ai";
 import {
   useLLM,
   type AppToolCall,

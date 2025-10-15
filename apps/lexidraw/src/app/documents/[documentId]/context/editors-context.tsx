@@ -4,12 +4,12 @@ import {
   $getRoot,
   $isElementNode,
   createEditor,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedEditorState as LexicalSerializedEditorState,
-  SerializedRootNode,
-  SerializedLexicalNode,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  type SerializedEditorState as LexicalSerializedEditorState,
+  type SerializedRootNode,
+  type SerializedLexicalNode,
 } from "lexical";
 import {
   createContext,
@@ -20,7 +20,7 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { SlideNode, SlideElementSpec } from "../nodes/SlideNode/SlideNode";
+import { SlideNode, type SlideElementSpec } from "../nodes/SlideNode/SlideNode";
 import { useKeyedSerialization } from "../plugins/LlmChatPlugin/use-serialized-editor-state";
 import type {
   KeyedSerializedEditorState,

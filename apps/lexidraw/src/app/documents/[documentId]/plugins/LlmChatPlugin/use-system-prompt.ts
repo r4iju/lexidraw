@@ -1,7 +1,12 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRuntimeSpec } from "./reflect-editor-runtime";
-import { $getRoot, $isElementNode, LexicalNode, EditorState } from "lexical";
+import {
+  $getRoot,
+  $isElementNode,
+  type LexicalNode,
+  type EditorState,
+} from "lexical";
 import { useRuntimeTools } from "./runtime-tools-provider";
 
 /**

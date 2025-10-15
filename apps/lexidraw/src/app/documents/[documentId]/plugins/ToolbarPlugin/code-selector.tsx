@@ -12,7 +12,7 @@ import {
 } from "@lexical/code";
 import { useCallback } from "react";
 import { useToolbarUtils } from "./utils";
-import { $getNodeByKey, LexicalEditor, NodeKey } from "lexical";
+import { $getNodeByKey, type LexicalEditor, type NodeKey } from "lexical";
 import { $isCodeNode } from "@lexical/code";
 
 type CodeSelectorProps = {

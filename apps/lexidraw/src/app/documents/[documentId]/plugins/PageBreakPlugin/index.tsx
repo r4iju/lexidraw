@@ -5,7 +5,7 @@ import {
   $isRangeSelection,
   COMMAND_PRIORITY_EDITOR,
   createCommand,
-  LexicalCommand,
+  type LexicalCommand,
 } from "lexical";
 import { type JSX, useEffect } from "react";
 
