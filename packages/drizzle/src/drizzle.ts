@@ -1,7 +1,7 @@
-import { drizzle, LibSQLDatabase } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import env from '@packages/env';
-import * as schema from './drizzle-schema.js';
+import { createClient } from "@libsql/client";
+import env from "@packages/env";
+import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
+import * as schema from "./drizzle-schema.js";
 
 type Schema = typeof schema;
 
@@ -22,4 +22,4 @@ const createSingleton = () => {
 
 export const db = globalForDrizzle.db ?? createSingleton();
 
-if (env.NODE_ENV !== 'production') globalForDrizzle.db = db;
+if (env.NODE_ENV !== "production") globalForDrizzle.db = db;

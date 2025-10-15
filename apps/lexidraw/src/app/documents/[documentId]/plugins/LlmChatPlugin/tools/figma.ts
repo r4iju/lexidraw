@@ -10,7 +10,11 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { FigmaNode } from "../../../nodes/FigmaNode";
 
 export const useFigmaTools = () => {
-  const { insertionExecutor, $insertNodeAtResolvedPoint, resolveInsertionPoint } = useCommonUtilities();
+  const {
+    insertionExecutor,
+    $insertNodeAtResolvedPoint,
+    resolveInsertionPoint,
+  } = useCommonUtilities();
   const [editor] = useLexicalComposerContext();
 
   const insertFigmaNode = tool({

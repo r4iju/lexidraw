@@ -34,7 +34,7 @@ const config = {
       // @ts-expect-error unknown types
       ({ request }, callback) => {
         if (request && request.endsWith(".node")) {
-          return callback(null, "commonjs " + request);
+          return callback(null, `commonjs ${request}`);
         }
         callback();
       },
@@ -77,12 +77,12 @@ const config = {
       {
         protocol: "https",
         hostname: new URL(env.SUPABASE_S3_ENDPOINT).hostname,
-        pathname: new URL(env.SUPABASE_S3_ENDPOINT).pathname + "/**",
+        pathname: `${new URL(env.SUPABASE_S3_ENDPOINT).pathname}/**`,
       },
       {
         protocol: "https",
         hostname: new URL(env.VERCEL_BLOB_STORAGE_HOST).hostname,
-        pathname: new URL(env.VERCEL_BLOB_STORAGE_HOST).pathname + "**",
+        pathname: `${new URL(env.VERCEL_BLOB_STORAGE_HOST).pathname}**`,
       },
       {
         protocol: "https",

@@ -21,7 +21,7 @@ export const exportLexicalAsSvg = async () => {
 
   // reset the size
   element.style.width = previousWidth;
-  element.style.height = previousHeight
+  element.style.height = previousHeight;
 
   return svgString;
 };

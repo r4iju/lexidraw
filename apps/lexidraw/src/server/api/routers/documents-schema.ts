@@ -6,4 +6,4 @@ export const CreateDocument = z.object({
   elements: z.any(),
 });
 
-export type CreateDocument = z.infer<typeof CreateDocument>
+export type CreateDocument = z.infer<typeof CreateDocument>;

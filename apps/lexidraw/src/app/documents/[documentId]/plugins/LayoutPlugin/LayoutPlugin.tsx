@@ -130,7 +130,9 @@ export function LayoutPlugin(): null {
 
             for (let i = 0; i < itemsCount; i++) {
               container.append(
-                LayoutItemNode.$createLayoutItemNode().append($createParagraphNode()),
+                LayoutItemNode.$createLayoutItemNode().append(
+                  $createParagraphNode(),
+                ),
               );
             }
 
@@ -161,7 +163,9 @@ export function LayoutPlugin(): null {
             if (itemsCount > prevItemsCount) {
               for (let i = prevItemsCount; i < itemsCount; i++) {
                 container.append(
-                  LayoutItemNode.$createLayoutItemNode().append($createParagraphNode()),
+                  LayoutItemNode.$createLayoutItemNode().append(
+                    $createParagraphNode(),
+                  ),
                 );
               }
             } else if (itemsCount < prevItemsCount) {

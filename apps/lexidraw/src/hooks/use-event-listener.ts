@@ -1,27 +1,27 @@
-import { type RefObject, useEffect, useRef, useLayoutEffect } from 'react';
+import { type RefObject, useEffect, useRef, useLayoutEffect } from "react";
 
 // ----------------------------------------------------------------------
 
 const useIsomorphicLayoutEffect =
-  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // Window Event based useEventListener interface
 function useEventListener<K extends keyof WindowEventMap>(
   eventName: K,
   handler: (event: WindowEventMap[K]) => void,
   element?: undefined,
-  options?: boolean | AddEventListenerOptions
+  options?: boolean | AddEventListenerOptions,
 ): void;
 
 // Element Event based useEventListener interface
 function useEventListener<
   K extends keyof HTMLElementEventMap,
-  T extends HTMLElement = HTMLDivElement
+  T extends HTMLElement = HTMLDivElement,
 >(
   eventName: K,
   handler: (event: HTMLElementEventMap[K]) => void,
   element: RefObject<T>,
-  options?: boolean | AddEventListenerOptions
+  options?: boolean | AddEventListenerOptions,
 ): void;
 
 // Document Event based useEventListener interface
@@ -29,20 +29,20 @@ function useEventListener<K extends keyof DocumentEventMap>(
   eventName: K,
   handler: (event: DocumentEventMap[K]) => void,
   element: RefObject<Document>,
-  options?: boolean | AddEventListenerOptions
+  options?: boolean | AddEventListenerOptions,
 ): void;
 
 function useEventListener<
   KW extends keyof WindowEventMap,
   KH extends keyof HTMLElementEventMap,
-  T extends HTMLElement
+  T extends HTMLElement,
 >(
   eventName: KW | KH,
   handler: (
-    event: WindowEventMap[KW] | HTMLElementEventMap[KH] | Event
+    event: WindowEventMap[KW] | HTMLElementEventMap[KH] | Event,
   ) => void,
   element?: RefObject<T>,
-  options?: boolean | AddEventListenerOptions
+  options?: boolean | AddEventListenerOptions,
 ) {
   // Create a ref that stores handler
   const savedHandler = useRef(handler);

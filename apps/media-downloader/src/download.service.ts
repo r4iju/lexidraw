@@ -1,11 +1,12 @@
-import YTDlpWrapImport, { Progress } from "yt-dlp-wrap";
+import YTDlpWrapImport, { type Progress } from "yt-dlp-wrap";
+
 const YTDlpWrap =
   // @ts-expect-error this is fine
   YTDlpWrapImport.default || YTDlpWrapImport;
 
 import fs from "node:fs";
-import path from "node:path";
 import os from "node:os";
+import path from "node:path";
 
 // Initialize YTDlpWrap
 // You might need to specify the path to yt-dlp binary if not in PATH
@@ -56,7 +57,7 @@ export class DownloadService {
     const stderrOutput: string[] = []; // Used for collecting all stderr
     const stdoutOutput: string[] = []; // Used for collecting all stdout
     let metadata: YTDLPMetadata = {};
-    let downloadedFilePath: string | undefined = undefined;
+    let downloadedFilePath: string | undefined;
 
     try {
       try {
@@ -203,7 +204,7 @@ export class DownloadService {
       });
 
       // Path Detection Logic (relies on scanning tempDir)
-      let determinedFilePath: string | undefined = undefined;
+      let determinedFilePath: string | undefined;
       console.log(`Scanning tempDir for file starting with: ${baseFileName}`);
       try {
         const filesInTempDir = fs.readdirSync(tempDir);

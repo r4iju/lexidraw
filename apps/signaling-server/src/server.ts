@@ -1,6 +1,5 @@
-import { WebSocketServer, type WebSocket } from 'ws'
-import type { WebRtcMessage } from "@packages/types"
-
+import type { WebRtcMessage } from "@packages/types";
+import { type WebSocket, WebSocketServer } from "ws";
 
 type Client = {
   ws: WebSocket;
@@ -14,8 +13,8 @@ export function startServer(port = 8080) {
 
   const rooms = new Map<string, Room>();
 
-  wss.on('connection', (ws: WebSocket) => {
-    ws.on('message', (msg: string) => {
+  wss.on("connection", (ws: WebSocket) => {
+    ws.on("message", (msg: string) => {
       const message = JSON.parse(msg) as WebRtcMessage;
       // console.log('received: ', message);
 
@@ -26,42 +25,49 @@ export function startServer(port = 8080) {
       const currentRoom = rooms.get(message.room);
 
       if (!currentRoom) {
-        throw new Error('Room not found');
+        throw new Error("Room not found");
       }
 
-      if ('from' in message && !currentRoom.get(message.from)) {
+      if ("from" in message && !currentRoom.get(message.from)) {
         currentRoom?.set(message.from, { ws, userId: message.from });
       }
 
       // Relay message to other clients in the same room
-      if (message.type === 'join' || message.type === 'leave') {
+      if (message.type === "join" || message.type === "leave") {
         currentRoom.forEach((client, clientId) => {
           if (clientId !== message.from) {
             switch (message.type) {
-              case 'leave':
+              case "leave":
                 if (currentRoom) currentRoom.delete(message.from);
                 client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
                 break;
-              case 'join':
+              case "join":
                 client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
                 break;
               default:
-                throw new Error('Unknown message type', message satisfies never);
+                throw new Error(
+                  "Unknown message type",
+                  message satisfies never,
+                );
             }
           }
         });
       }
       // Relay message to specific user
-      if (message.type === 'offer' || message.type === 'answer' || message.type === 'iceCandidate') {
+      if (
+        message.type === "offer" ||
+        message.type === "answer" ||
+        message.type === "iceCandidate"
+      ) {
         currentRoom.forEach((client, clientId) => {
           if (clientId === message.to) {
             client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
           }
-        })
+        });
       }
     });
 
-    ws.on('close', () => {
+    ws.on("close", () => {
       // Remove the client from all rooms
       rooms.forEach((room, roomId) => {
         room.forEach((client, clientId) => {
@@ -69,11 +75,13 @@ export function startServer(port = 8080) {
             room.delete(clientId);
             // also notify all peers
             room.forEach((peer) => {
-              peer.ws.send(JSON.stringify({
-                room: roomId,
-                from: clientId,
-                type: 'leave'
-              } satisfies WebRtcMessage));
+              peer.ws.send(
+                JSON.stringify({
+                  room: roomId,
+                  from: clientId,
+                  type: "leave",
+                } satisfies WebRtcMessage),
+              );
             });
           }
         });
@@ -92,4 +100,3 @@ export function startServer(port = 8080) {
     },
   };
 }
-

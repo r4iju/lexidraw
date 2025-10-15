@@ -92,7 +92,13 @@ type ListItemProps = {
   href: string;
 };
 
-const ListItem = ({ className, title, description, icon, href }: ListItemProps) => (
+const ListItem = ({
+  className,
+  title,
+  description,
+  icon,
+  href,
+}: ListItemProps) => (
   <li>
     <NavigationMenuLink asChild>
       <Link

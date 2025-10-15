@@ -1,5 +1,5 @@
-import { S3Client } from '@aws-sdk/client-s3';
-import env from '@packages/env';
+import { S3Client } from "@aws-sdk/client-s3";
+import env from "@packages/env";
 
 const globalForS3 = globalThis as unknown as {
   s3Client: S3Client | undefined;
@@ -12,12 +12,12 @@ const createClient = () => {
     credentials: {
       accessKeyId: env.SUPABASE_S3_ACCESS_KEY_ID,
       secretAccessKey: env.SUPABASE_S3_SECRET_ACCESS_KEY,
-    }
-  })
-}
+    },
+  });
+};
 
 export const s3 = globalForS3.s3Client ?? createClient();
 
-if (env.NODE_ENV !== 'production') {
+if (env.NODE_ENV !== "production") {
   globalForS3.s3Client = s3;
 }

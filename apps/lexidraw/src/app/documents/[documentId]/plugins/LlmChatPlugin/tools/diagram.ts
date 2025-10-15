@@ -152,7 +152,8 @@ export const useDiagramTools = () => {
         editorKey,
       };
 
-      return insertionExecutor<ExcalidrawInserterPayload>( // Type of specificOptions for the inserter
+      return insertionExecutor<ExcalidrawInserterPayload>(
+        // Type of specificOptions for the inserter
         "insertExcalidrawDiagram",
         editor,
         inserterOptions, // Pass the processed options

@@ -3,7 +3,7 @@ type Props = {
   prevParams: URLSearchParams;
   key: string;
   value: string;
-}
+};
 
 export const replaceSearchParam = ({
   pathname,

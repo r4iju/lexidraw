@@ -1,7 +1,7 @@
+import type { MessageStructure, WebRtcMessage } from "@packages/types";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
 import { startServer } from "../src/server.js";
-import { MessageStructure, WebRtcMessage } from "@packages/types";
-import { expect, describe, beforeAll, afterAll, afterEach, test } from "vitest";
 
 describe("WebSocket Server E2E Tests", () => {
   const port = 58193;
