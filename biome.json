@@ -1,0 +1,50 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.2.6/schema.json",
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "javascript": {
+    "formatter": {
+      "enabled": true,
+      "quoteStyle": "double",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "lineWidth": 80,
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/.next",
+      "!**/dist",
+      "!**/coverage",
+      "!apps/lexidraw/src/styles/globals.css:12:31",
+      "!postcss.config.js",
+      "!tailwind.config.cjs",
+      "!**/drizzle.config.ts",
+      "!**/migrate.ts",
+      "!**/prettier.config.mjs",
+      "!**/.turbo",
+      "!**/node_modules",
+      "!**/build"
+    ]
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "recommended": true,
+        "organizeImports": "on"
+      }
+    }
+  }
+}
