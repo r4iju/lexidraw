@@ -110,7 +110,6 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
   if (element.kind === "image") {
     return (
       <div style={elementStyle} data-element-id={element.id}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={element.url}
           alt={`Slide ${element.id}`}

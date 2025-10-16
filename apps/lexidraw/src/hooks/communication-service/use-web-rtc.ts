@@ -274,13 +274,13 @@ export function useWebRtcService(
   const closeConnection = useCallback((muted = false) => {
     shouldReconnectRef.current = false;
     reconnectionAttemptsRef.current = 0;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     for (const [_, conn] of localConnections.current) {
       conn.close();
     }
     localConnections.current = new Map();
     setPeers([]);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     for (const [_, channel] of dataChannels.current) {
       channel.close();
     }

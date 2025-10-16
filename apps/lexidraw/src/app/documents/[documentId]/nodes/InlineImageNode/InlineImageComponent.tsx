@@ -97,7 +97,6 @@ function ResizableImage({
     >
       <ErrorBoundary
         FallbackComponent={() => (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
             alt={altText}
@@ -106,7 +105,6 @@ function ResizableImage({
           />
         )}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={altText}

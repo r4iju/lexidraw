@@ -270,7 +270,6 @@ export const useListTools = () => {
         let stateJsonOnError = {};
         try {
           stateJsonOnError = editor.getEditorState().toJSON();
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (_stateErr) {
           /* ignore */
         }

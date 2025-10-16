@@ -256,7 +256,6 @@ export const useTextTools = () => {
             if (value === undefined) return;
             if (value === "") {
               if (key in styleObj) {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { [key]: _, ...rest } = styleObj;
                 styleObj = rest;
                 appliedStyles.push(`removed ${key}`);

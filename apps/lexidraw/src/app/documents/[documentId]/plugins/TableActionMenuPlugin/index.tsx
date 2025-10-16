@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/prefer-for-of */
 import type { ElementNode, LexicalEditor, LexicalNode } from "lexical";
-
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import {

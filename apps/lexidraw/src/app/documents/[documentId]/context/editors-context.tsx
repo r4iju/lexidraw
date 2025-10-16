@@ -51,7 +51,6 @@ export const useLexicalTransformation = () => {
     (
       keyedNode: SerializedNodeWithKey,
     ): SerializedRootNode<SerializedLexicalNode> => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { key: _key, children, ...lexicalProps } = keyedNode;
 
       const result = { ...lexicalProps };
@@ -183,7 +182,6 @@ export const EditorRegistryProvider = ({
           `[persistNestedEditorChanges] For ${editorKey}, first paragraph's children in newKeyedState:`,
           JSON.stringify(firstParagraphChildren, null, 2),
         );
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (_e) {
         // ignore if structure is unexpected for this specific log
       }

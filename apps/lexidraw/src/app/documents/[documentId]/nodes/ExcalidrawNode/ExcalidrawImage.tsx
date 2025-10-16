@@ -85,7 +85,6 @@ export default function ExcalidrawImage({
 
   return (
     <div className={`relative inline-block`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
         alt="Excalidraw"

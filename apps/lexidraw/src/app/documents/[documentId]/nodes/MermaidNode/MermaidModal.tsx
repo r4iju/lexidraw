@@ -138,7 +138,6 @@ export default function MermaidModal({
           {/* Preview */}
           <div className="relative border rounded bg-background overflow-auto">
             {svgUri ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={svgUri}
                 alt="diagram preview"
