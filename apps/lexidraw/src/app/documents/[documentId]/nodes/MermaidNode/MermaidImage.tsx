@@ -95,7 +95,6 @@ export default function MermaidImage({
     );
   }
 
-  /* eslint-disable @next/next/no-img-element */
   return (
     <img
       ref={imgRef}
