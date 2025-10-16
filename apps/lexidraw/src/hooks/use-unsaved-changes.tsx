@@ -162,6 +162,7 @@ function usePopstateGuard(
 
       // Prevent Next.js from handling this pop; we'll decide what to do.
       evt.stopImmediatePropagation();
+      evt.stopPropagation();
 
       // If we're just restoring the previous state (history.go(1)), ignore.
       if (isRestoringRef.current) {
@@ -182,15 +183,15 @@ function usePopstateGuard(
       }
 
       // User chose to leave: remove our handler and go back exactly once.
-      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("popstate", onPop, { capture: true });
       // Defer to ensure the history restoration completes before going back.
       setTimeout(() => router.back(), 0);
     };
 
-    window.addEventListener("popstate", onPop);
+    window.addEventListener("popstate", onPop, { capture: true });
 
     return () => {
-      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("popstate", onPop, { capture: true });
     };
   }, [dirty, confirm, router, shouldSkipNextPop, clearSkipNextPop]);
 }
