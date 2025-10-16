@@ -8,7 +8,8 @@ export interface DebounceOptions {
   trailing?: boolean;
 }
 
-type AnyFn = (...args: unknown[]) => unknown;
+// biome-ignore lint/suspicious/noExplicitAny: todo: fix no explicit any
+type AnyFn = (...args: any[]) => any;
 type DebouncedFunc<T extends AnyFn> = {
   /**
    * The debounced function. Receives the same arguments as `func`.
@@ -80,7 +81,10 @@ export function debounce<T extends AnyFn>(
     lastThis = undefined;
     lastInvokeTime = time;
 
-    result = func.apply(thisArg, args);
+    result = (func as (...fnArgs: Parameters<T>) => ReturnType<T>).apply(
+      thisArg,
+      args as Parameters<T>,
+    ) as ReturnType<T>;
     return result;
   }
 

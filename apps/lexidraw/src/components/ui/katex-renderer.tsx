@@ -33,7 +33,6 @@ export default function KatexRenderer({
     // inner text from Katex. There didn't seem to be any other way of making this work,
     // without having a physical space.
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="#" alt="" />
       <button
         type="button"
@@ -42,7 +41,7 @@ export default function KatexRenderer({
         ref={katexElementRef}
         aria-label="Rendered equation"
       />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+
       <img src="#" alt="" />
     </>
   );

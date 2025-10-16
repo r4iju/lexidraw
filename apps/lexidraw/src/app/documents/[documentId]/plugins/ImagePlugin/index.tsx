@@ -214,7 +214,6 @@ export function InsertImageUnsplashDialogBody({
                 className="aspect-square focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded overflow-hidden group"
                 title={`Select image by ${image.attribution.authorName}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={image.thumbUrl}
                   alt={image.altText ?? query}

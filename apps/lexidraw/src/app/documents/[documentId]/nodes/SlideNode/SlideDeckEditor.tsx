@@ -595,7 +595,6 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
           </LexicalNestedComposer>
         )}
         {element.kind === "image" && (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={element.url}
             alt={`Slide content ${element.id}`}
