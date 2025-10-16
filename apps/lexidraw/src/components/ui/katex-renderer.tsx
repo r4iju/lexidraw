@@ -35,11 +35,12 @@ export default function KatexRenderer({
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="#" alt="" />
-      <span
-        role="button"
+      <button
+        type="button"
         tabIndex={-1}
         onDoubleClick={onDoubleClick}
         ref={katexElementRef}
+        aria-label="Rendered equation"
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="#" alt="" />

@@ -1,4 +1,4 @@
-import React, {
+import {
   createContext,
   useCallback,
   useContext,
@@ -6,10 +6,7 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
-import {
-  experimental_generateImage as generateImage,
-  type ImageModelCallWarning,
-} from "ai";
+import { experimental_generateImage as generateImage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
@@ -98,7 +95,7 @@ export const ImageGenerationProvider = ({
           n: 1,
           size: options?.size ?? "1024x1024",
         });
-        warnings?.forEach((w: ImageModelCallWarning) => {
+        for (const w of warnings ?? []) {
           const msg =
             typeof w === "object" && "message" in w
               ? String(w.message)
@@ -106,7 +103,7 @@ export const ImageGenerationProvider = ({
           toast.error("Generation Warning", {
             description: msg,
           });
-        });
+        }
         const result = images[0];
         if (!result?.uint8Array) throw new Error("No image data returned.");
         return {

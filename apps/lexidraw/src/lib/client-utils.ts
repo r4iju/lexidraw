@@ -7,8 +7,7 @@ import { useEffect, useRef, useState } from "react";
  * Returns an object with { run, cancel } so we avoid
  * mutating a function object.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useDebounce<T extends (...args: any[]) => void>(
+export function useDebounce<T extends (...args: unknown[]) => void>(
   fn: T,
   delay: number,
 ) {

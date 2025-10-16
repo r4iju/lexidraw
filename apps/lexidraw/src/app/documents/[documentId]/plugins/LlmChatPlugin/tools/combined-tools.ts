@@ -52,8 +52,7 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
     }),
     execute: async ({ calls }) => {
       const results: { summary: string; stateJson?: string }[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let lastStateJson: Record<string, any> | undefined;
+      let lastStateJson: Record<string, unknown> | undefined;
 
       try {
         console.log(

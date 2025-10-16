@@ -183,7 +183,7 @@ export default function PollComponent({
         COMMAND_PRIORITY_LOW,
       ),
     );
-  }, [clearSelection, editor, isSelected, nodeKey, $onDelete, setSelected]);
+  }, [clearSelection, editor, isSelected, $onDelete, setSelected]);
 
   const withPollNode = (
     cb: (node: PollNode) => void,

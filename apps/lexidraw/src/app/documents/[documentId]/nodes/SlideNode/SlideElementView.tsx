@@ -113,7 +113,7 @@ const SlideElementView: React.FC<SlideElementViewProps> = ({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={element.url}
-          alt={`Slide image ${element.id}`}
+          alt={`Slide ${element.id}`}
           style={{ width: "100%", height: "100%", objectFit: "contain" }}
           draggable={false} // Prevent native image drag interference
         />

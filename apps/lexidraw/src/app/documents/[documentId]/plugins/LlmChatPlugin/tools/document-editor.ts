@@ -67,7 +67,7 @@ export const useDocumentEditorTools = () => {
           if (!node)
             throw new Error(`Node ${finalNodeKey} not found during update.`);
 
-          patchProperties.forEach(({ key, value }) => {
+          for (const { key, value } of patchProperties) {
             // @ts-expect-error - text nodes accept setTextContent
             if (key === "text" && typeof node.setTextContent === "function") {
               console.log(
@@ -80,8 +80,7 @@ export const useDocumentEditorTools = () => {
             }
 
             // Generic setter e.g. set<Prop>()
-            const setterName =
-              "set" + key.charAt(0).toUpperCase() + key.slice(1);
+            const setterName = `set${key.charAt(0).toUpperCase()}${key.slice(1)}`;
             // @ts-expect-error - most nodes accept dynamic setters
             if (typeof node[setterName] === "function") {
               console.log(
@@ -104,7 +103,7 @@ export const useDocumentEditorTools = () => {
                 `[patchNodeByJSON] Cannot set ${key} on node type ${node.getType()}.`,
               );
             }
-          });
+          }
         });
 
         const stateJson = editor.getEditorState().toJSON();

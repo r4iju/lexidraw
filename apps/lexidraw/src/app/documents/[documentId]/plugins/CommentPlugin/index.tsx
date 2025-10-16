@@ -332,7 +332,7 @@ export function CommentInputBox({
       return sel ? sel.getTextContent() : "";
     });
     if (quote.length > 100) {
-      quote = quote.slice(0, 99) + "…";
+      quote = `${quote.slice(0, 99)}…`;
     }
     const newThread = CommentStore.createThread(quote, [
       CommentStore.createComment(content, author),
@@ -636,6 +636,7 @@ function CommentsPanelList({
           };
 
           return (
+            // biome-ignore lint/a11y/useKeyWithClickEvents: thread is interactive
             <li
               key={nodeId}
               onClick={handleClickThread}
@@ -667,6 +668,8 @@ function CommentsPanelList({
                     )}
                   />
                 </Button>
+                {/** biome-ignore lint/a11y/noStaticElementInteractions: fine */}
+                {/** biome-ignore lint/a11y/useKeyWithClickEvents: fine */}
                 <div
                   className="flex-1 min-w-0"
                   onClick={(e) => e.stopPropagation()}
@@ -879,10 +882,10 @@ export function CommentPluginProvider({
           const threadItem = item as Thread;
           const threadNode = new ThreadNode(threadItem);
           $getRoot().append(threadNode);
-          threadItem.comments.forEach((cmt: Comment) => {
+          for (const cmt of threadItem.comments) {
             const cnode = new CommentNode(cmt);
             threadNode.append(cnode);
-          });
+          }
         } else if (item.type === "comment") {
           const commentNode = new CommentNode(item);
           if (parentThread) {
@@ -925,7 +928,9 @@ export function CommentPluginProvider({
         MarkNode,
         (from) => $createMarkNode(from.getIDs()),
         (from, to) => {
-          from.getIDs().forEach((id) => to.addID(id));
+          for (const id of from.getIDs()) {
+            to.addID(id);
+          }
         },
       ),
       editor.registerMutationListener(MarkNode, (records) => {
@@ -1025,12 +1030,12 @@ export function CommentPluginProvider({
           // Ensure all comments within the thread are also processed
           commentStore.addComment(thr); // Add thread first
           knownIds.add(thr.id);
-          thr.comments.forEach((cmt) => {
+          for (const cmt of thr.comments) {
             if (!knownIds.has(cmt.id)) {
               commentStore.addComment(cmt, thr); // Then add comments belonging to this thread
               knownIds.add(cmt.id);
             }
-          });
+          }
         }
       }
     });

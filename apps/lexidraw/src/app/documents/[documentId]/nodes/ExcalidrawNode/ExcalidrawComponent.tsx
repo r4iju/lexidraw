@@ -84,7 +84,7 @@ export default function ExcalidrawComponent({
             return true;
           }
 
-          if (buttonElem !== null && buttonElem.contains(eventTarget as Node)) {
+          if (buttonElem?.contains(eventTarget as Node)) {
             if (!event.shiftKey) {
               clearSelection();
             }
@@ -224,7 +224,11 @@ export default function ExcalidrawComponent({
         />
       )}
       {elements.length > 0 && (
-        <button ref={buttonRef} className={cn("", { selected: isSelected })}>
+        <button
+          type="button"
+          ref={buttonRef}
+          className={cn("", { selected: isSelected })}
+        >
           <ExcalidrawImage
             imageContainerRef={
               imageContainerRef as React.RefObject<HTMLDivElement>
@@ -259,13 +263,13 @@ export default function ExcalidrawComponent({
             )}
           </ExcalidrawImage>
           {isSelected && (
-            <div
+            <button
+              type="button"
               className="image-edit-button"
-              role="button"
-              tabIndex={0}
-              onMouseDown={(event) => event.preventDefault()}
               onClick={openModal}
-            />
+            >
+              Edit
+            </button>
           )}
         </button>
       )}

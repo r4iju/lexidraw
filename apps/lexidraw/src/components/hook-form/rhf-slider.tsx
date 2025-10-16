@@ -25,7 +25,10 @@ const RHFSlider: React.FC<RHFSliderProps> = ({
   return (
     <div className="mx-1">
       {label && (
-        <label className="mb-2 block text-sm font-medium text-gray-200">
+        <label
+          htmlFor={name}
+          className="mb-2 block text-sm font-medium text-gray-200"
+        >
           {label}
         </label>
       )}
@@ -37,6 +40,7 @@ const RHFSlider: React.FC<RHFSliderProps> = ({
             <input
               type="range"
               {...field}
+              id={name}
               min={min}
               max={max}
               step={step}

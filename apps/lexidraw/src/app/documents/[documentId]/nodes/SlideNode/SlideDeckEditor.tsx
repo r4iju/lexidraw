@@ -423,6 +423,8 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
   };
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: box is interactive
+    // biome-ignore lint/a11y/useKeyWithClickEvents: box is interactive
     <div
       ref={setNodeRef}
       style={style}
@@ -432,185 +434,183 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
       onClick={handleBoxClick}
     >
       <div data-uid={element.id} className="relative size-full">
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="absolute top-0 right-0 p-1 cursor-pointer z-10">
-                <EllipsisVerticalIcon className="h-4 w-4" />
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                onClick={() => {
-                  onElementDelete(element.id);
-                  deselectElement();
-                }}
-              >
-                <Trash2Icon className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-              {element.kind === "box" && (
-                <DropdownMenuItem
-                  onClick={() => {
-                    deselectElement();
-                    setShowColorPicker(true);
-                  }}
-                >
-                  <PaintBucketIcon className="h-4 w-4 mr-2" />
-                  Background Color
-                </DropdownMenuItem>
-              )}
-              {element.kind === "chart" && (
-                <DropdownMenuItem
-                  onClick={() => {
-                    setEditingChartElement(
-                      element as Extract<SlideElementSpec, { kind: "chart" }>,
-                    );
-                    setShowChartEditModal(true);
-                    deselectElement();
-                  }}
-                >
-                  <PencilIcon className="h-4 w-4 mr-2" />
-                  Edit Chart
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                onClick={() => {
-                  onBringForward(element.id);
-                  deselectElement();
-                }}
-              >
-                <ChevronsUpDown className="h-4 w-4 mr-2" />
-                Bring Forward
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  onSendBackward(element.id);
-                  deselectElement();
-                }}
-              >
-                <ChevronsDownUp className="h-4 w-4 mr-2" />
-                Send Backward
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  onBringToFront(element.id);
-                  deselectElement();
-                }}
-              >
-                <ArrowUpToLine className="h-4 w-4 mr-2" />
-                Bring to Front
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  onSendToBack(element.id);
-                  deselectElement();
-                }}
-              >
-                <ArrowDownToLine className="h-4 w-4 mr-2" />
-                Send to Back
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {element.kind === "box" && nestedEditor && (
-            <LexicalNestedComposer
-              key={element.id}
-              initialEditor={nestedEditor}
-              initialNodes={NESTED_EDITOR_NODES}
-              initialTheme={editorTheme}
-              skipCollabChecks={true}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="absolute top-0 right-0 p-1 cursor-pointer z-10">
+              <EllipsisVerticalIcon className="h-4 w-4" />
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem
+              onClick={() => {
+                onElementDelete(element.id);
+                deselectElement();
+              }}
             >
-              <DisableChecklistSpacebarPlugin />
-              <TabIndentationPlugin />
-              <EmojiPickerPlugin />
-              <ChartPlugin />
-              <RichTextPlugin
-                contentEditable={
-                  <div ref={onRef}>
-                    <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
-                  </div>
-                }
-                placeholder={
-                  <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
-                    Type...
-                  </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              <BlurPlugin
-                onBlur={(editorState) =>
-                  onBoxContentChange(element.id, editorState)
-                }
-              />
-              <SessionUUIDProvider>
-                <AutocompletePlugin />
-              </SessionUUIDProvider>
-              <PageBreakPlugin />
-              <MermaidPlugin />
-              <HistoryPlugin externalHistoryState={historyState} />
-              <MarkdownShortcutPlugin />
-              <HorizontalRulePlugin />
-              <EquationsPlugin />
-              <AutoFocusPlugin />
-              <TablePlugin hasCellMerge hasCellBackgroundColor />
-              <MentionsPlugin />
-              <LinkPlugin />
-              <EmojisPlugin />
-              <HashtagPlugin />
-              <KeywordsPlugin />
-              <TwitterPlugin />
-              <YouTubePlugin />
-              <ExcalidrawPlugin />
-              <FigmaPlugin />
-              <ImagePlugin />
-              <InlineImagePlugin />
-              <VideoPlugin />
-              <LayoutPlugin />
-              <CollapsiblePlugin />
-              <PollPlugin />
-              <TableCellResizer />
-              {floatingAnchorElem && (
-                <>
-                  <TableActionMenuPlugin
-                    anchorElem={floatingAnchorElem}
-                    cellMerge={true}
-                  />
-                  <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
-                  <FloatingLinkEditorPlugin
-                    anchorElem={floatingAnchorElem}
-                    isLinkEditMode={isLinkEditMode}
-                    setIsLinkEditMode={setIsLinkEditMode}
-                  />
-                  <TableActionMenuPlugin
-                    anchorElem={floatingAnchorElem}
-                    cellMerge={true}
-                  />
-                  <FloatingTextFormatToolbarPlugin
-                    anchorElem={floatingAnchorElem}
-                    setIsLinkEditMode={setIsLinkEditMode}
-                  />
-                </>
-              )}
-            </LexicalNestedComposer>
-          )}
-          {element.kind === "image" && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={element.url}
-              alt={`Slide content ${element.id}`}
-              className="w-full h-full object-contain pointer-events-none"
+              <Trash2Icon className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+            {element.kind === "box" && (
+              <DropdownMenuItem
+                onClick={() => {
+                  deselectElement();
+                  setShowColorPicker(true);
+                }}
+              >
+                <PaintBucketIcon className="h-4 w-4 mr-2" />
+                Background Color
+              </DropdownMenuItem>
+            )}
+            {element.kind === "chart" && (
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingChartElement(
+                    element as Extract<SlideElementSpec, { kind: "chart" }>,
+                  );
+                  setShowChartEditModal(true);
+                  deselectElement();
+                }}
+              >
+                <PencilIcon className="h-4 w-4 mr-2" />
+                Edit Chart
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              onClick={() => {
+                onBringForward(element.id);
+                deselectElement();
+              }}
+            >
+              <ChevronsUpDown className="h-4 w-4 mr-2" />
+              Bring Forward
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                onSendBackward(element.id);
+                deselectElement();
+              }}
+            >
+              <ChevronsDownUp className="h-4 w-4 mr-2" />
+              Send Backward
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                onBringToFront(element.id);
+                deselectElement();
+              }}
+            >
+              <ArrowUpToLine className="h-4 w-4 mr-2" />
+              Bring to Front
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                onSendToBack(element.id);
+                deselectElement();
+              }}
+            >
+              <ArrowDownToLine className="h-4 w-4 mr-2" />
+              Send to Back
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {element.kind === "box" && nestedEditor && (
+          <LexicalNestedComposer
+            key={element.id}
+            initialEditor={nestedEditor}
+            initialNodes={NESTED_EDITOR_NODES}
+            initialTheme={editorTheme}
+            skipCollabChecks={true}
+          >
+            <DisableChecklistSpacebarPlugin />
+            <TabIndentationPlugin />
+            <EmojiPickerPlugin />
+            <ChartPlugin />
+            <RichTextPlugin
+              contentEditable={
+                <div ref={onRef}>
+                  <ContentEditable className="p-2 h-full w-full outline-none caret-foreground" />
+                </div>
+              }
+              placeholder={
+                <div className="absolute top-2 left-2 text-muted-foreground pointer-events-none">
+                  Type...
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
             />
-          )}
-          {element.kind === "chart" && (
-            <DynamicChartRenderer
-              chartType={element.chartType}
-              data={JSON.parse(element.chartData) as unknown[]}
-              config={JSON.parse(element.chartConfig) as ChartConfig}
-              width={element.width}
-              height={element.height}
+            <BlurPlugin
+              onBlur={(editorState) =>
+                onBoxContentChange(element.id, editorState)
+              }
             />
-          )}
-        </>
+            <SessionUUIDProvider>
+              <AutocompletePlugin />
+            </SessionUUIDProvider>
+            <PageBreakPlugin />
+            <MermaidPlugin />
+            <HistoryPlugin externalHistoryState={historyState} />
+            <MarkdownShortcutPlugin />
+            <HorizontalRulePlugin />
+            <EquationsPlugin />
+            <AutoFocusPlugin />
+            <TablePlugin hasCellMerge hasCellBackgroundColor />
+            <MentionsPlugin />
+            <LinkPlugin />
+            <EmojisPlugin />
+            <HashtagPlugin />
+            <KeywordsPlugin />
+            <TwitterPlugin />
+            <YouTubePlugin />
+            <ExcalidrawPlugin />
+            <FigmaPlugin />
+            <ImagePlugin />
+            <InlineImagePlugin />
+            <VideoPlugin />
+            <LayoutPlugin />
+            <CollapsiblePlugin />
+            <PollPlugin />
+            <TableCellResizer />
+            {floatingAnchorElem && (
+              <>
+                <TableActionMenuPlugin
+                  anchorElem={floatingAnchorElem}
+                  cellMerge={true}
+                />
+                <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+                <FloatingLinkEditorPlugin
+                  anchorElem={floatingAnchorElem}
+                  isLinkEditMode={isLinkEditMode}
+                  setIsLinkEditMode={setIsLinkEditMode}
+                />
+                <TableActionMenuPlugin
+                  anchorElem={floatingAnchorElem}
+                  cellMerge={true}
+                />
+                <FloatingTextFormatToolbarPlugin
+                  anchorElem={floatingAnchorElem}
+                  setIsLinkEditMode={setIsLinkEditMode}
+                />
+              </>
+            )}
+          </LexicalNestedComposer>
+        )}
+        {element.kind === "image" && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={element.url}
+            alt={`Slide content ${element.id}`}
+            className="w-full h-full object-contain pointer-events-none"
+          />
+        )}
+        {element.kind === "chart" && (
+          <DynamicChartRenderer
+            chartType={element.chartType}
+            data={JSON.parse(element.chartData) as unknown[]}
+            config={JSON.parse(element.chartConfig) as ChartConfig}
+            width={element.width}
+            height={element.height}
+          />
+        )}
       </div>
       <div
         className={cn(
@@ -700,7 +700,7 @@ export default function SlideDeckEditorComponent({
     const currentEditorIdsInSlide = new Set<string>();
 
     if (currentSlide?.elements) {
-      currentSlide.elements.forEach((element) => {
+      for (const element of currentSlide.elements) {
         if (element.kind === "box") {
           currentEditorIdsInSlide.add(element.id);
           let editorInstance = elementEditorsRef.current.get(element.id);
@@ -780,7 +780,7 @@ export default function SlideDeckEditorComponent({
             }
           }
         }
-      });
+      }
     }
 
     setActiveElementEditors(newActiveElementEditors);
@@ -1354,7 +1354,7 @@ export default function SlideDeckEditorComponent({
           );
           if (slideIndex !== -1) {
             const slideToUpdate = newSlides[slideIndex];
-            if (slideToUpdate && slideToUpdate.id) {
+            if (slideToUpdate?.id) {
               newSlides[slideIndex] = {
                 ...slideToUpdate,
                 slideMetadata: updatedMeta as
@@ -1405,6 +1405,8 @@ export default function SlideDeckEditorComponent({
         <div className="w-full flex justify-center mb-2">
           <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
         </div>
+        {/** biome-ignore lint/a11y/noStaticElementInteractions: slide canvas is interactive */}
+        {/** biome-ignore lint/a11y/useKeyWithClickEvents: slide canvas is interactive */}
         <div
           className="slide-canvas-area bg-background border border-border rounded w-[1280px] h-[720px] mb-2 relative flex-grow overflow-hidden"
           style={{

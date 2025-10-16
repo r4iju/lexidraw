@@ -331,6 +331,8 @@ function SlideNodeInner({
 
   return (
     <>
+      {/** biome-ignore lint/a11y/noStaticElementInteractions: slide node is interactive */}
+      {/** biome-ignore lint/a11y/useKeyWithClickEvents: slide node is interactive */}
       <div
         onDoubleClick={handleOpenModal}
         onClick={handleSelect}

@@ -35,7 +35,7 @@ export default function MermaidImage({
         mermaid.initialize({ startOnLoad: false });
 
         const { svg } = await mermaid.render(
-          "m" + Math.random().toString(36).slice(2),
+          `m${Math.random().toString(36).slice(2)}`,
           schema,
         );
 

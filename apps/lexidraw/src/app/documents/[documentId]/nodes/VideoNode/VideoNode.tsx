@@ -221,7 +221,7 @@ export class VideoNode extends DecoratorNode<React.JSX.Element> {
   }
 
   exportJSON(): SerializedVideoNode {
-    let captionJSON;
+    let captionJSON: SerializedEditorState | null = null;
     try {
       captionJSON = this.__caption.getEditorState().toJSON();
     } catch (e) {

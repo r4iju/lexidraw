@@ -24,7 +24,12 @@ export function RHFCheckbox({ name, helperText, label }: RHFCheckboxProps) {
             checked={field.value}
             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
           />
-          <label className="ml-2 block text-sm text-gray-700">{label}</label>
+          <label
+            htmlFor={field.name}
+            className="ml-2 block text-sm text-gray-700"
+          >
+            {label}
+          </label>
           {error ? (
             <p className="mt-1 text-sm text-red-600">{error.message}</p>
           ) : (

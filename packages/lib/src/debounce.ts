@@ -8,7 +8,8 @@ export interface DebounceOptions {
   trailing?: boolean;
 }
 
-type DebouncedFunc<T extends (...args: any[]) => any> = {
+type AnyFn = (...args: unknown[]) => unknown;
+type DebouncedFunc<T extends AnyFn> = {
   /**
    * The debounced function. Receives the same arguments as `func`.
    */
@@ -36,8 +37,7 @@ export interface ThrottleOptions {
 // -------------------------------------------------------------
 // Debounce
 // -------------------------------------------------------------
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends AnyFn>(
   func: T,
   wait: number,
   options: DebounceOptions = {},
@@ -189,8 +189,7 @@ export function debounce<T extends (...args: any[]) => any>(
 // -------------------------------------------------------------
 // Throttle
 // -------------------------------------------------------------
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends AnyFn>(
   func: T,
   wait: number,
   options: ThrottleOptions = {},

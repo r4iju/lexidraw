@@ -35,37 +35,41 @@ const _numericCheck: number | undefined =
 declare const cfg: Config;
 
 if (cfg.xAxis) {
-  const xAxisProps: XAxisProps = cfg.xAxis; // ✅ compile-time check
+  const _xAxisProps: XAxisProps = cfg.xAxis; // ✅ compile-time check
 }
 
 if (cfg.yAxis) {
-  const yAxisProps: YAxisProps = cfg.yAxis; // ✅ compile-time check
+  const _yAxisProps: YAxisProps = cfg.yAxis; // ✅ compile-time check
 }
 
 if (cfg.legend) {
   // @ts-expect-error these are just test types
-  const legendProps: LegendProps = cfg.legend;
+  const _legendProps: LegendProps = cfg.legend;
 }
 
 if (cfg.tooltip) {
   // @ts-expect-error these are just test types
-  const tooltipProps: TooltipProps<ValueType, NameType> = cfg.tooltip;
+  const _tooltipProps: TooltipProps<ValueType, NameType> = cfg.tooltip;
 }
 
 /* ------------------------------------------------------------------
  * 3️⃣  Every entry in series[] can feed at least one concrete series
  * ------------------------------------------------------------------ */
-cfg.series.forEach((s) => {
+for (const s of cfg.series) {
   // Pick whichever chart types your project actually renders.
-  const line: LineProps = { dataKey: s.dataKey, name: s.name, stroke: s.color };
-  const bar: BarProps = { dataKey: s.dataKey, name: s.name, fill: s.color };
-  const area: AreaProps = { dataKey: s.dataKey, name: s.name, fill: s.color };
-});
+  const _line: LineProps = {
+    dataKey: s.dataKey,
+    name: s.name,
+    stroke: s.color,
+  };
+  const _bar: BarProps = { dataKey: s.dataKey, name: s.name, fill: s.color };
+  const _area: AreaProps = { dataKey: s.dataKey, name: s.name, fill: s.color };
+}
 
 /* ------------------------------------------------------------------
  * 4️⃣  Structural test using `satisfies` (optional but readable)
  * ------------------------------------------------------------------ */
-const fullConfigCheck = cfg satisfies {
+const _fullConfigCheck = cfg satisfies {
   chartType: Config["chartType"];
   series: { dataKey: string }[];
   xAxis?: XAxisProps;

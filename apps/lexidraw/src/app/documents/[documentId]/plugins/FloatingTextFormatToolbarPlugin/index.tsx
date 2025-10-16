@@ -71,7 +71,7 @@ function TextFormatFloatingToolbar({
     editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
   };
 
-  function mouseMoveListener(e: MouseEvent) {
+  const mouseMoveListener = useCallback((e: MouseEvent) => {
     if (
       popupCharStylesEditorRef?.current &&
       (e.buttons === 1 || e.buttons === 3)
@@ -87,14 +87,14 @@ function TextFormatFloatingToolbar({
         }
       }
     }
-  }
-  function mouseUpListener(_e: MouseEvent) {
+  }, []);
+  const mouseUpListener = useCallback((_e: MouseEvent) => {
     if (popupCharStylesEditorRef?.current) {
       if (popupCharStylesEditorRef.current.style.pointerEvents !== "auto") {
         popupCharStylesEditorRef.current.style.pointerEvents = "auto";
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (popupCharStylesEditorRef?.current) {
@@ -106,13 +106,13 @@ function TextFormatFloatingToolbar({
         document.removeEventListener("mouseup", mouseUpListener);
       };
     }
-  }, [popupCharStylesEditorRef]);
+  }, [mouseMoveListener, mouseUpListener]);
 
   const getDOMRangeRect = useCallback(
     (nativeSelection: Selection, rootElement: HTMLElement): DOMRect => {
       const domRange = nativeSelection.getRangeAt(0);
 
-      let rect;
+      let rect: DOMRect | null = null;
 
       if (nativeSelection.anchorNode === rootElement) {
         let inner = rootElement;

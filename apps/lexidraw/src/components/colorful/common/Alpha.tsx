@@ -19,9 +19,12 @@ const PointerBackground = ({ className }: { className?: string }) => {
       xmlns="http://www.w3.org/2000/svg"
       width="16"
       height="16"
-      fill-opacity=".05"
+      fillOpacity=".05"
       className={className}
+      aria-hidden="true"
+      focusable="false"
     >
+      <title>Alpha slider background</title>
       <rect x="8" width="8" height="8" />
       <rect y="8" width="8" height="8" />
     </svg>

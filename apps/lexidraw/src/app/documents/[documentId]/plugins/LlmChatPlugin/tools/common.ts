@@ -176,7 +176,7 @@ export const useCommonUtilities = () => {
   }
 
   function findFirstNodeByText(
-    currentEditor: LexicalEditor,
+    _currentEditor: LexicalEditor,
     text?: string,
   ): ElementNode | null {
     if (!text) return null;

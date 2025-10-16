@@ -15,8 +15,10 @@ export const useLexicalStyleUtils = () => {
         return styleObj;
       }
       // Split by semicolon, handling potential trailing semicolon
-      styleString.split(";").forEach((rule) => {
-        if (!rule.trim()) return; // Skip empty rules
+      for (const rule of styleString.split(";")) {
+        if (!rule.trim()) {
+          continue; // Skip empty rules
+        }
         const parts = rule.split(":");
         if (parts.length === 2) {
           const key = parts[0]?.trim(); // Use optional chaining and check
@@ -27,7 +29,7 @@ export const useLexicalStyleUtils = () => {
             styleObj[key] = value;
           }
         }
-      });
+      }
       return styleObj;
     },
     [],

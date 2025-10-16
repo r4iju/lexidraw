@@ -51,9 +51,9 @@ describe("WebSocket Server E2E Tests", () => {
   test("Utility function createClients", async () => {
     await createClients(10);
     expect(clients.length).toBe(10);
-    clients.forEach((client) => {
+    for (const client of clients) {
       expect(client.readyState).toBe(WebSocket.OPEN);
-    });
+    }
   });
 
   const createUserId = () => {
@@ -70,7 +70,7 @@ describe("WebSocket Server E2E Tests", () => {
   test("Client can join a room", async () => {
     await createClients(1);
 
-    clients.forEach((client) => {
+    for (const client of clients) {
       const userId = createUserId();
 
       const message = {
@@ -80,7 +80,7 @@ describe("WebSocket Server E2E Tests", () => {
         userId,
       };
       client.send(JSON.stringify(message));
-    });
+    }
   });
 
   test("2 Clients can join a room", async () => {

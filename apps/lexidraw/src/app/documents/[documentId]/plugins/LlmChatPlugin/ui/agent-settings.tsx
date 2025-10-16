@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState } from "react";
+import { useState, useId } from "react";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Button } from "~/components/ui/button";
@@ -20,6 +20,8 @@ export const AgentSettings: React.FC = () => {
       console.warn("Invalid max agent steps value:", e.target.value, error);
     }
   };
+
+  const maxAgentStepsInputId = useId();
 
   return (
     <div className="flex flex-row-reverse px-2 pt-2 gap-2 items-center">
@@ -46,7 +48,7 @@ export const AgentSettings: React.FC = () => {
             </Label>
             <Input
               className="flex-1"
-              id="max-agent-steps"
+              id={maxAgentStepsInputId}
               type="number"
               value={maxAgentSteps}
               onChange={handleMaxStepsChange}

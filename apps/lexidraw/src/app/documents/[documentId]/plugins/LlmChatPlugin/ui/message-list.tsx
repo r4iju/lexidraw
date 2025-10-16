@@ -27,12 +27,12 @@ function splitMarkdownSafely(raw: string) {
 
   const lines = raw.split("\n");
 
-  lines.forEach((line, idx) => {
+  for (const line of lines) {
     // toggle when we hit the opening/closing fence
     if (/^\s*```/.test(line)) insideFence = !insideFence;
     // any line *outside* a fence is safe to render now
-    if (!insideFence) lastSafeLineIdx = idx;
-  });
+    if (!insideFence) lastSafeLineIdx = lines.indexOf(line);
+  }
 
   // slice after the lastSafeLineIdx; anything beyond is "streaming"
   const formatted = lines.slice(0, lastSafeLineIdx + 1).join("\n");
@@ -120,7 +120,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
       top: scrollableContainer.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, streaming, mode]);
+  }, [mode]);
 
   return (
     <div
@@ -173,8 +173,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
               </LexicalComposer>
             ) : null;
 
-          const streamingElement =
-            streaming.trim() !== "" ? <>{streaming}</> : null;
+          const streamingElement = streaming.trim() !== "" ? streaming : null;
 
           contentElement =
             formattedElement || streamingElement ? (

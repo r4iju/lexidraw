@@ -199,7 +199,7 @@ export const TABLE: ElementTransformer = {
       }
 
       // Add header state to row cells
-      lastRow.getChildren().forEach((cell) => {
+      for (const cell of lastRow.getChildren()) {
         if (!$isTableCellNode(cell)) {
           return;
         }
@@ -207,7 +207,7 @@ export const TABLE: ElementTransformer = {
           TableCellHeaderStates.ROW,
           TableCellHeaderStates.ROW,
         );
-      });
+      }
 
       // Remove line
       parentNode.remove();

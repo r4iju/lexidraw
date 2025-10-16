@@ -133,7 +133,9 @@ export const EditorRegistryProvider = ({
       );
     }
     return () => {
-      headlessListenersRef.current.forEach((unregister) => unregister());
+      for (const unregister of headlessListenersRef.current.values()) {
+        unregister();
+      }
       headlessListenersRef.current.clear();
     };
   }, [mainEditor]);
@@ -182,7 +184,7 @@ export const EditorRegistryProvider = ({
           JSON.stringify(firstParagraphChildren, null, 2),
         );
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (e) {
+      } catch (_e) {
         // ignore if structure is unexpected for this specific log
       }
 

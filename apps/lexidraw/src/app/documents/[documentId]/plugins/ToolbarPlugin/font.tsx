@@ -159,14 +159,16 @@ export function FontDropDown({
         if (hasGetChildren(node)) {
           const children = node.getChildren();
           if (children && Array.isArray(children)) {
-            children.forEach(walk);
+            for (const child of children) {
+              walk(child);
+            }
           }
         }
       }
       const rootChildren: LexicalNode[] = $getRoot().getChildren?.() ?? [];
       rootChildren.forEach(walk);
       const newCustomFonts: [string, string][] = [];
-      usedFonts.forEach((fontName) => {
+      for (const fontName of usedFonts) {
         const fontVar = `--font-${fontName.trim().toLowerCase().replace(/\s+/g, "-")}`;
         const fontValue = `'${fontName.trim()}'`;
         const fontLabel = fontName.trim();
@@ -182,14 +184,14 @@ export function FontDropDown({
           document.head.appendChild(style);
         }
         newCustomFonts.push([fontValue, fontLabel]);
-      });
+      }
       setCustomFonts((prev) => {
         const all = [...prev];
-        newCustomFonts.forEach(([val, label]) => {
+        for (const [val, label] of newCustomFonts) {
           if (!all.some(([v]) => v === val)) {
             all.push([val, label]);
           }
-        });
+        }
         return all;
       });
     });

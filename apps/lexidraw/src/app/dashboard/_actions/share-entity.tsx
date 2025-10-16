@@ -154,7 +154,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
         return { queryKey, previousData, previousInput };
       },
-      onError(_error, variables, context) {
+      onError(_error, _variables, context) {
         // Rollback
         if (!context) return;
         utils.entities.getSharedInfo.setData(
@@ -166,7 +166,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           description: "Are you sure that email is valid?",
         });
       },
-      onSuccess: async (_res, variables, context) => {
+      onSuccess: async (_res, _variables, context) => {
         // Invalidate to refetch fresh data
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
@@ -197,14 +197,14 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
         return { queryKey, previousData };
       },
-      onError(_err, vars, context) {
+      onError(_err, _vars, context) {
         if (!context) return;
         utils.entities.getSharedInfo.setData(
           context.queryKey,
           context.previousData,
         );
       },
-      onSuccess: async (_res, vars, context) => {
+      onSuccess: async (_res, _vars, context) => {
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
         toast.success("Saved");
@@ -233,7 +233,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
         return { queryKey, previousData };
       },
-      onError(_err, vars, context) {
+      onError(_err, _vars, context) {
         if (!context) return;
         utils.entities.getSharedInfo.setData(
           context.queryKey,
@@ -243,7 +243,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
           description: "Something went wrong",
         });
       },
-      onSuccess: async (_res, variables, context) => {
+      onSuccess: async (_res, _variables, context) => {
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
         await revalidateDashboard();
@@ -291,12 +291,12 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
         className="min-w-[85vw] max-w-md md:min-w-96 md:max-w-lg"
-        aria-describedby="dialog-description"
+        aria-describedby={`dialog-description-${entity.id}`}
       >
         <DialogHeader>
           <DialogTitle>Share {entity.entityType}</DialogTitle>
         </DialogHeader>
-        <div id="dialog-description" className="sr-only">
+        <div id={`dialog-description-${entity.id}`} className="sr-only">
           Share settings for {entity.entityType}. You can adjust public access,
           share with specific users, or modify permissions for existing users.
         </div>

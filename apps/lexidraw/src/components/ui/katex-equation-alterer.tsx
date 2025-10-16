@@ -27,7 +27,7 @@ export default function KatexEquationAlterer({
 
   const onCheckboxChange = useCallback(() => {
     setInline(!inline);
-  }, [setInline, inline]);
+  }, [inline]);
 
   return (
     <>

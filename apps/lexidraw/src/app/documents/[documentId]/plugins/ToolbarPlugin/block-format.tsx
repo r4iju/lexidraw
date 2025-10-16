@@ -179,81 +179,63 @@ export function BlockFormatDropDown({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "paragraph")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "paragraph")}`}
           onClick={formatParagraph}
         >
           <Pilcrow className="size-4" />
           <span className="text">Normal</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "h1")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "h1")}`}
           onClick={() => formatHeading("h1")}
         >
           <Heading1 className="size-4" />
           <span className="text">Heading 1</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "h2")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "h2")}`}
           onClick={() => formatHeading("h2")}
         >
           <Heading2 className="size-4" />
           <span className="text">Heading 2</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "h3")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "h3")}`}
           onClick={() => formatHeading("h3")}
         >
           <Heading3 className="size-4" />
           <span className="text">Heading 3</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "bullet")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "bullet")}`}
           onClick={formatBulletList}
         >
           <List className="size-4" />
           <span className="text">Bullet List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "number")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "number")}`}
           onClick={formatNumberedList}
         >
           <ListOrdered className="size-4" />
           <span className="text">Numbered List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "check")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "check")}`}
           onClick={formatCheckList}
         >
           <ListChecks className="size-4" />
           <span className="text">Check List</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "quote")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "quote")}`}
           onClick={formatQuote}
         >
           <TextQuote className="size-4" />
           <span className="text">Quote</span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={
-            "flex gap-2 item " + dropDownActiveClass(blockType === "code")
-          }
+          className={`flex gap-2 item ${dropDownActiveClass(blockType === "code")}`}
           onClick={formatCode}
         >
           <Code className="size-4" />

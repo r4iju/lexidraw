@@ -7,8 +7,7 @@ import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { calculateZoomLevel } from "@lexical/utils";
 import { $getNodeByKey } from "lexical";
-import * as React from "react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { StickyNode } from "./StickyNode";
 import LexicalContentEditable from "~/components/ui/content-editable";
@@ -56,17 +55,15 @@ export default function StickyComponent({
     y: 0,
   });
 
-  const positionSticky = (): void => {
+  const positionSticky = useCallback((): void => {
     const rootElementRect = positioningRef.current.rootElementRect;
     const rectLeft = rootElementRect !== null ? rootElementRect.left : 0;
     const rectTop = rootElementRect !== null ? rootElementRect.top : 0;
     if (stickyContainerRef.current) {
-      stickyContainerRef.current.style.top =
-        rectTop + positioningRef.current.y + "px";
-      stickyContainerRef.current.style.left =
-        rectLeft + positioningRef.current.x + "px";
+      stickyContainerRef.current.style.top = `${rectTop + positioningRef.current.y}px`;
+      stickyContainerRef.current.style.left = `${rectLeft + positioningRef.current.x}px`;
     }
-  };
+  }, []);
 
   useEffect(() => {
     const xLocal = propX;
@@ -80,7 +77,7 @@ export default function StickyComponent({
     if (stickyContainer !== null) {
       positionSticky();
     }
-  }, [propX, propY]);
+  }, [propX, propY, positionSticky]);
 
   useLayoutEffect(() => {
     const position = positioningRef.current;
@@ -121,7 +118,7 @@ export default function StickyComponent({
       window.removeEventListener("resize", handleWindowResize);
       removeRootListener();
     };
-  }, [editor]);
+  }, [editor, positionSticky]);
 
   useEffect(() => {
     const stickyContainer = stickyContainerRef.current;

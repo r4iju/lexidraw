@@ -92,11 +92,9 @@ export async function exportPng({
   performance.measure("Blob Creation", "cleaned_up_clone", "blob_created");
 
   // Log performance results
-  performance
-    .getEntriesByType("measure")
-    .forEach((entry) =>
-      console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`),
-    );
+  for (const entry of performance.getEntriesByType("measure")) {
+    console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`);
+  }
 
   // Clear performance marks and measures to avoid clutter
   performance.clearMarks();

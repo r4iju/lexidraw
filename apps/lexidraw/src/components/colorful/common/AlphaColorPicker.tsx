@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import React, { useRef } from "react";
+import { useRef } from "react";
 import { Hue } from "./Hue";
 import { Saturation } from "./Saturation";
 import { Alpha } from "./Alpha";

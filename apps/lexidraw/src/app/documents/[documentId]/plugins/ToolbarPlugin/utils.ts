@@ -145,7 +145,7 @@ export const useToolbarUtils = () => {
         Number(inputValue),
         updateType,
       );
-      updateFontSizeInSelection(editor, String(nextFontSize) + "px", null);
+      updateFontSizeInSelection(editor, `${String(nextFontSize)}px`, null);
     } else {
       updateFontSizeInSelection(editor, null, updateType);
     }
@@ -241,7 +241,7 @@ export const useToolbarUtils = () => {
           return;
         }
 
-        nodes.forEach((node, idx) => {
+        for (let [idx, node] of nodes.entries()) {
           // We split the first and last node by the selection
           // So that we don't format unselected text inside those nodes
           if ($isTextNode(node)) {
@@ -279,7 +279,7 @@ export const useToolbarUtils = () => {
           } else if ($isDecoratorBlockNode(node)) {
             node.setFormat("");
           }
-        });
+        }
       }
     });
   };

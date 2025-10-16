@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { ColorInputBaseProps } from "./types";
 import { ColorInput } from "./common/ColorInput";
 
@@ -14,10 +14,10 @@ export const HexColorInput = (props: HexColorInputProps): JSX.Element => {
   const { prefixed, alpha, ...rest } = props;
 
   /** Adds "#" symbol to the beginning of the string */
-  const prefix = useCallback((value: string) => "#" + value, []);
+  const prefix = useCallback((value: string) => `#${value}`, []);
 
   /** Escapes all non-hexadecimal characters including "#" */
-  const escape = useCallback(
+  const escapeHex = useCallback(
     (value: string) =>
       value.replace(/([^0-9A-F]+)/gi, "").substring(0, alpha ? 8 : 6),
     [alpha],
@@ -28,7 +28,7 @@ export const HexColorInput = (props: HexColorInputProps): JSX.Element => {
   const validHex = useCallback(
     (value: string, alpha?: boolean): boolean => {
       const match = matcher.exec(value);
-      const length = match && match[1] ? match[1].length : 0;
+      const length = match?.[1] ? match[1].length : 0;
       return (
         length === 3 || // '#rgb' format
         length === 6 || // '#rrggbb' format
@@ -47,7 +47,7 @@ export const HexColorInput = (props: HexColorInputProps): JSX.Element => {
   return (
     <ColorInput
       {...rest}
-      escape={escape}
+      escape={escapeHex}
       format={prefixed ? prefix : undefined}
       process={prefix}
       validate={validate}

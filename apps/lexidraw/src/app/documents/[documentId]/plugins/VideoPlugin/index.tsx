@@ -9,7 +9,7 @@ import {
   type LexicalEditor,
   createCommand,
 } from "lexical";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useId } from "react";
 import type * as React from "react";
 import {
   Dialog,
@@ -115,12 +115,14 @@ function InsertVideoByUrlDialogBody({
     }
   };
 
+  const videoUrlInputId = useId();
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="video-url-input">Video URL</Label>
         <Input
-          id="video-url-input"
+          id={videoUrlInputId}
           placeholder="Paste a video URL (YouTube, X, etc)"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -505,10 +507,11 @@ export function InsertVideoSettingsDialog({
   return (
     <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
       <div className="flex flex-col gap-4">
-        {fields.map((field, index) => (
-          <div className="flex flex-col gap-1">
+        {fields.map((_field, index) => (
+          <div key={`cookie-${_field.id}`} className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <Input
+                id={`cookie-name-${index}`}
                 placeholder="youtube.com"
                 {...register(`cookies.${index}.name` as const)}
                 className="flex-1"
@@ -524,6 +527,7 @@ export function InsertVideoSettingsDialog({
               </Button>
             </div>
             <Textarea
+              id={`cookie-value-${index}`}
               rows={3}
               placeholder="1234567890"
               {...register(`cookies.${index}.value` as const)}

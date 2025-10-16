@@ -120,7 +120,7 @@ function YouTubeComponent({
         COMMAND_PRIORITY_LOW,
       ),
     );
-  }, [clearSelection, editor, isSelected, nodeKey, onDelete, setSelected]);
+  }, [clearSelection, editor, isSelected, onDelete, setSelected]);
 
   const onResizeStart = () => {
     setIsResizing(true);
@@ -181,6 +181,7 @@ function YouTubeComponent({
       format={format}
       nodeKey={nodeKey}
     >
+      {/** biome-ignore lint/a11y/noStaticElementInteractions: youtube component is interactive */}
       <div
         ref={containerRef}
         style={containerStyles}
@@ -215,11 +216,7 @@ function YouTubeComponent({
         )}
 
         {/* Hidden button used by ImageResizer to position Add Caption button (unused here) */}
-        <button
-          ref={buttonRef}
-          style={{ display: "none" }}
-          aria-hidden="true"
-        />
+        <button type="button" ref={buttonRef} style={{ display: "none" }} />
       </div>
     </BlockWithAlignableContents>
   );

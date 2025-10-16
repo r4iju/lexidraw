@@ -15,7 +15,7 @@ import {
   type LexicalEditor,
   type EditorConfig,
 } from "lexical";
-import React, {
+import {
   type RefObject,
   useCallback,
   useEffect,

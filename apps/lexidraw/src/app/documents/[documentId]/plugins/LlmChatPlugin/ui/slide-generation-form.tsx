@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useId } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -45,6 +45,13 @@ export const SlideGenerationForm: React.FC = () => {
   const { startSlideGeneration, isLoading, cancelSlideGeneration } =
     useSlideCreationWorkflow();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fileUploadSlidegenId = useId();
+  const attachCurrentDocumentSwitchId = useId();
+  const topicInputId = useId();
+  const whoInputId = useId();
+  const outcomeTextareaId = useId();
+  const timeboxInputId = useId();
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -96,133 +103,131 @@ export const SlideGenerationForm: React.FC = () => {
   );
 
   return (
-    <>
-      <form onSubmit={handleSubmit} className="p-3 space-y-4 text-sm">
-        <div className="space-x-2 flex items-center">
-          <Label htmlFor="attachCurrentDocument">Attach Current Document</Label>
-          <Switch
-            id="attachCurrentDocument"
-            onCheckedChange={handleCheckedChange}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="topic">Topic</Label>
-          <Input
-            id="topic"
-            name="topic"
-            value={formData.topic}
-            onChange={handleChange}
-            placeholder="e.g., The Future of AI"
-            disabled={isLoading}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="who">Audience (Who is it for?)</Label>
-          <Input
-            id="who"
-            name="who"
-            value={formData.who}
-            onChange={handleChange}
-            placeholder="e.g., Tech Investors, Marketing Team"
-            disabled={isLoading}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="outcome">Desired Outcome (Why?)</Label>
-          <Textarea
-            id="outcome"
-            name="outcome"
-            value={formData.outcome}
-            onChange={handleChange}
-            placeholder="e.g., Secure funding, Align on Q3 strategy"
-            rows={3}
-            disabled={isLoading}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="timebox">Timebox (How long?)</Label>
-          <Input
-            id="timebox"
-            name="timebox"
-            value={formData.timebox}
-            onChange={handleChange}
-            placeholder="e.g., 20 minutes, 1 hour"
-            disabled={isLoading}
-          />
-        </div>
+    <form onSubmit={handleSubmit} className="p-3 space-y-4 text-sm">
+      <div className="space-x-2 flex items-center">
+        <Label htmlFor="attachCurrentDocument">Attach Current Document</Label>
+        <Switch
+          id={attachCurrentDocumentSwitchId}
+          onCheckedChange={handleCheckedChange}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="topic">Topic</Label>
+        <Input
+          id={topicInputId}
+          name="topic"
+          value={formData.topic}
+          onChange={handleChange}
+          placeholder="e.g., The Future of AI"
+          disabled={isLoading}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="who">Audience (Who is it for?)</Label>
+        <Input
+          id={whoInputId}
+          name="who"
+          value={formData.who}
+          onChange={handleChange}
+          placeholder="e.g., Tech Investors, Marketing Team"
+          disabled={isLoading}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="outcome">Desired Outcome (Why?)</Label>
+        <Textarea
+          id={outcomeTextareaId}
+          name="outcome"
+          value={formData.outcome}
+          onChange={handleChange}
+          placeholder="e.g., Secure funding, Align on Q3 strategy"
+          rows={3}
+          disabled={isLoading}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="timebox">Timebox (How long?)</Label>
+        <Input
+          id={timeboxInputId}
+          name="timebox"
+          value={formData.timebox}
+          onChange={handleChange}
+          placeholder="e.g., 20 minutes, 1 hour"
+          disabled={isLoading}
+        />
+      </div>
 
-        <div className="space-y-2">
-          <Label
-            htmlFor="file-upload-slidegen"
-            className="text-xs text-muted-foreground"
-          >
-            Optional Research Materials (PDFs)
-          </Label>
+      <div className="space-y-2">
+        <Label
+          htmlFor="file-upload-slidegen"
+          className="text-xs text-muted-foreground"
+        >
+          Optional Research Materials (PDFs)
+        </Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading}
+          className="w-full justify-start text-muted-foreground"
+        >
+          <PaperclipIcon className="w-4 h-4 mr-2" />
+          Attach Files
+        </Button>
+        <input
+          type="file"
+          accept=".pdf"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          id={fileUploadSlidegenId}
+          multiple
+          disabled={isLoading}
+        />
+        {files && files.length > 0 && (
+          <div className="space-y-1 pt-1">
+            {files.map((file, index) => (
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-muted text-xs"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <FileIcon className="size-4 flex-shrink-0" />
+                  <span className="truncate">{file.name}</span>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleRemoveFile(index)}
+                  className="hover:bg-background size-6 flex-shrink-0"
+                  disabled={isLoading}
+                >
+                  <XIcon className="size-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          <SparklesIcon className="w-4 h-4 mr-2" />
+          {isLoading ? "Generating Slides..." : "Generate Slides"}
+        </Button>
+        {isLoading && (
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            className="w-full justify-start text-muted-foreground"
+            variant="destructive"
+            onClick={cancelSlideGeneration}
+            size="icon"
+            className="size-10"
           >
-            <PaperclipIcon className="w-4 h-4 mr-2" />
-            Attach Files
+            <StopCircleIcon className="size-6" />
           </Button>
-          <input
-            type="file"
-            accept=".pdf"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-            id="file-upload-slidegen"
-            multiple
-            disabled={isLoading}
-          />
-          {files && files.length > 0 && (
-            <div className="space-y-1 pt-1">
-              {files.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-muted text-xs"
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <FileIcon className="size-4 flex-shrink-0" />
-                    <span className="truncate">{file.name}</span>
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleRemoveFile(index)}
-                    className="hover:bg-background size-6 flex-shrink-0"
-                    disabled={isLoading}
-                  >
-                    <XIcon className="size-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            <SparklesIcon className="w-4 h-4 mr-2" />
-            {isLoading ? "Generating Slides..." : "Generate Slides"}
-          </Button>
-          {isLoading && (
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={cancelSlideGeneration}
-              size="icon"
-              className="size-10"
-            >
-              <StopCircleIcon className="size-6" />
-            </Button>
-          )}
-        </div>
-      </form>
-    </>
+        )}
+      </div>
+    </form>
   );
 };

@@ -47,7 +47,7 @@ wss.on("connection", function connection(ws) {
       clientDrawingMap.set(ws, entityId);
 
       // Broadcast incoming message to all clients with the same entityId, except the sender
-      wss.clients.forEach(function each(client) {
+      for (const client of wss.clients) {
         if (
           client !== ws &&
           client.readyState === WebSocket.OPEN &&
@@ -55,7 +55,7 @@ wss.on("connection", function connection(ws) {
         ) {
           client.send(message);
         }
-      });
+      }
     } catch (e) {
       console.error("Error:", e);
     }

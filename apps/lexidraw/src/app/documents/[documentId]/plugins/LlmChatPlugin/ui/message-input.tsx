@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useId } from "react";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { useSendQuery } from "../use-send-query";
@@ -19,7 +19,7 @@ export const MessageInput = () => {
   const [editor] = useLexicalComposerContext();
   const { serializeEditorStateWithKeys } = useKeyedSerialization();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const fileUploadInputId = useId();
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files;
     if (selectedFiles) {
@@ -88,7 +88,7 @@ export const MessageInput = () => {
         <div className="flex flex-wrap gap-2 mx-2 mb-1">
           {files.map((file, index) => (
             <div
-              key={index}
+              key={`${file.name}-${index}`}
               className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted"
             >
               <FileIcon className="size-5 flex-shrink-0" />
@@ -116,12 +116,12 @@ export const MessageInput = () => {
         onSubmit={handleSubmit}
       >
         <input
+          id={fileUploadInputId}
           type="file"
           accept=".pdf"
           ref={fileInputRef}
           onChange={handleFileChange}
           className="hidden"
-          id="file-upload-input"
           multiple
         />
         <div className="flex-1 flex flex-col">

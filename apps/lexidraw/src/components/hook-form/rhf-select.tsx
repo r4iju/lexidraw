@@ -23,7 +23,10 @@ export function RHFSelect({
   return (
     <div className="mx-1">
       {label && (
-        <label className="mb-1 block text-sm font-medium text-gray-200">
+        <label
+          htmlFor={name}
+          className="mb-1 block text-sm font-medium text-gray-200"
+        >
           {label}
         </label>
       )}
@@ -32,7 +35,9 @@ export function RHFSelect({
         control={control}
         render={({ field, fieldState: { error } }) => (
           <div>
-            <Select {...field}>{children}</Select>
+            <Select id={name} {...field}>
+              {children}
+            </Select>
             {error ? (
               <p className="mt-1 text-sm text-red-600">{error.message}</p>
             ) : (

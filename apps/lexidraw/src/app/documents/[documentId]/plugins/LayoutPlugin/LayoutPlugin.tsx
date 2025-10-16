@@ -24,7 +24,7 @@ import {
   KEY_ARROW_RIGHT_COMMAND,
   KEY_ARROW_UP_COMMAND,
 } from "lexical";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import { LayoutContainerNode } from "../../nodes/LayoutContainerNode";
 import { LayoutItemNode } from "../../nodes/LayoutItemNode";
@@ -40,9 +40,9 @@ export const UPDATE_LAYOUT_COMMAND: LexicalCommand<{
 export function LayoutPlugin(): null {
   const [editor] = useLexicalComposerContext();
 
-  const getItemsCountFromTemplate = (template: string): number => {
+  const getItemsCountFromTemplate = useCallback((template: string): number => {
     return template.trim().split(/\s+/).length;
-  };
+  }, []);
 
   useEffect(() => {
     if (!editor.hasNodes([LayoutContainerNode, LayoutItemNode])) {
@@ -208,7 +208,7 @@ export function LayoutPlugin(): null {
         }
       }),
     );
-  }, [editor]);
+  }, [editor, getItemsCountFromTemplate]);
 
   return null;
 }

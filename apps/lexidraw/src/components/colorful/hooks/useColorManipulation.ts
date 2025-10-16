@@ -36,16 +36,13 @@ export function useColorManipulation<T extends AnyColor>(
   // Trigger `onChange` callback only if an updated color is different from cached one;
   // save the new color to the ref to prevent unnecessary updates
   useEffect(() => {
-    let newColor;
-    if (
-      !equalColorObjects(hsva, cache.current.hsva) &&
-      !colorModel.equal(
-        (newColor = colorModel.fromHsva(hsva)),
-        cache.current.color,
-      )
-    ) {
-      cache.current = { hsva, color: newColor };
-      onChangeCallback(newColor);
+    let newColor: T | undefined;
+    if (!equalColorObjects(hsva, cache.current.hsva)) {
+      newColor = colorModel.fromHsva(hsva);
+      if (!colorModel.equal(newColor, cache.current.color)) {
+        cache.current = { hsva, color: newColor };
+        onChangeCallback(newColor);
+      }
     }
   }, [hsva, colorModel, onChangeCallback, equalColorObjects]);
 

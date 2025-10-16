@@ -263,10 +263,10 @@ For more information, please refer to http://unlicense.org/
           }
         }
         // Defaults
-        var ok = Object.keys(this.optionpresets["default"]);
+        var ok = Object.keys(this.optionpresets.default);
         for (var k = 0; k < ok.length; k++) {
           if (!Object.hasOwn(options, ok[k])) {
-            options[ok[k]] = this.optionpresets["default"][ok[k]];
+            options[ok[k]] = this.optionpresets.default[ok[k]];
           }
         }
         // options.pal is not defined here, the custom palette should be added externally: options.pal = [ { 'r':0, 'g':0, 'b':0, 'a':255 }, {...}, ... ];
@@ -569,20 +569,20 @@ For more information, please refer to http://unlicense.org/
       (this.layeringstep = (ii, cnum) => {
         // Creating layers for each indexed color in arr
         var layer = [],
-          val = 0,
+          _val = 0,
           ah = ii.array.length,
           aw = ii.array[0].length,
-          n1,
-          n2,
-          n3,
-          n4,
-          n5,
-          n6,
-          n7,
-          n8,
+          _n1,
+          _n2,
+          _n3,
+          _n4,
+          _n5,
+          _n6,
+          _n7,
+          _n8,
           i,
           j,
-          k;
+          _k;
 
         // Create layer
         for (j = 0; j < ah; j++) {
@@ -741,7 +741,7 @@ For more information, please refer to http://unlicense.org/
 
         for (var j = 0; j < h; j++) {
           for (var i = 0; i < w; i++) {
-            if (arr[j][i] == 4 || arr[j][i] == 11) {
+            if (arr[j][i] === 4 || arr[j][i] === 11) {
               // Other values are not valid
 
               // Init
@@ -753,7 +753,7 @@ For more information, please refer to http://unlicense.org/
               paths[pacnt].holechildren = [];
               pathfinished = false;
               pcnt = 0;
-              holepath = arr[j][i] == 11;
+              holepath = arr[j][i] === 11;
               dir = 1;
 
               // Path points loop
@@ -796,7 +796,7 @@ For more information, please refer to http://unlicense.org/
                   if (paths[pacnt].points.length < pathomit) {
                     paths.pop();
                   } else {
-                    paths[pacnt].isholepath = holepath ? true : false;
+                    paths[pacnt].isholepath = !!holepath;
 
                     // Finding the parent shape for this hole
                     if (holepath) {
@@ -1088,7 +1088,7 @@ For more information, please refer to http://unlicense.org/
         // 5.2. Fit a straight line on the sequence
         var pcnt = (seqstart + 1) % path.points.length,
           pl;
-        while (pcnt != seqend) {
+        while (pcnt !== seqend) {
           pl = pcnt - seqstart;
           if (pl < 0) {
             pl += path.points.length;
@@ -1144,7 +1144,7 @@ For more information, please refer to http://unlicense.org/
 
         // Check every point
         pcnt = seqstart + 1;
-        while (pcnt != seqend) {
+        while (pcnt !== seqend) {
           t = (pcnt - seqstart) / tl;
           t1 = (1 - t) * (1 - t);
           t2 = 2 * (1 - t) * t;
@@ -1238,7 +1238,7 @@ For more information, please refer to http://unlicense.org/
         // Starting path element, desc contains layer and path number
         str =
           "<path " +
-          (options.desc ? 'desc="l ' + lnum + " p " + pathnum + '" ' : "") +
+          (options.desc ? `desc="l ${lnum} p ${pathnum}" ` : "") +
           this.tosvgcolorstr(tracedata.palette[lnum], options) +
           'd="';
 
@@ -1333,7 +1333,7 @@ For more information, please refer to http://unlicense.org/
             }
 
             for (pcnt = hsmp.segments.length - 1; pcnt >= 0; pcnt--) {
-              str += hsmp.segments[pcnt].type + " ";
+              str += `${hsmp.segments[pcnt].type} `;
               if (Object.hasOwn(hsmp.segments[pcnt], "x3")) {
                 str +=
                   hsmp.segments[pcnt].x2 * options.scale +
@@ -1374,7 +1374,7 @@ For more information, please refer to http://unlicense.org/
             }
 
             for (pcnt = hsmp.segments.length - 1; pcnt >= 0; pcnt--) {
-              str += hsmp.segments[pcnt].type + " ";
+              str += `${hsmp.segments[pcnt].type} `;
               if (Object.hasOwn(hsmp.segments[pcnt], "x3")) {
                 str +=
                   this.roundtodec(hsmp.segments[pcnt].x2 * options.scale) +
@@ -1538,8 +1538,8 @@ For more information, please refer to http://unlicense.org/
         var svgstr =
           "<svg " +
           (options.viewbox
-            ? 'viewBox="0 0 ' + w + " " + h + '" '
-            : 'width="' + w + '" height="' + h + '" ') +
+            ? `viewBox="0 0 ${w} ${h}" `
+            : `width="${w}" height="${h}" `) +
           'version="1.1" xmlns="http://www.w3.org/2000/svg" desc="Created with imagetracer.js version ' +
           this.versionnumber +
           '" >';
@@ -1562,8 +1562,7 @@ For more information, please refer to http://unlicense.org/
       // Comparator for numeric Array.sort
       (this.compareNumbers = (a, b) => a - b),
       // Convert color object to rgba string
-      (this.torgbastr = (c) =>
-        "rgba(" + c.r + "," + c.g + "," + c.b + "," + c.a + ")"),
+      (this.torgbastr = (c) => `rgba(${c.r},${c.g},${c.b},${c.a})`),
       // Convert color object to SVG color string
       (this.tosvgcolorstr = (c, options) =>
         'fill="rgb(' +
@@ -1726,7 +1725,7 @@ For more information, please refer to http://unlicense.org/
       // Helper function: loading an image from a URL, then executing callback with canvas as argument
       (this.loadImage = (url, callback, options) => {
         var img = new Image();
-        if (options && options.corsenabled) {
+        if (options?.corsenabled) {
           img.crossOrigin = "Anonymous";
         }
         img.onload = () => {

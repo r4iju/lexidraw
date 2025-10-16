@@ -193,7 +193,7 @@ function useDraggableBlockMenu(
 
       return blockElem;
     },
-    [getCurrentIndex, getTopLevelNodeKeys, getCollapsedMargins, Upward],
+    [getCurrentIndex, getTopLevelNodeKeys, getCollapsedMargins],
   );
 
   const setMenuPosition = useCallback(
@@ -223,7 +223,7 @@ function useDraggableBlockMenu(
       floatingElem.style.opacity = "1";
       floatingElem.style.transform = `translate(${left}px, ${top}px)`;
     },
-    [SPACE],
+    [],
   );
 
   const setDragImage = useCallback(
@@ -269,12 +269,7 @@ function useDraggableBlockMenu(
       }px`;
       targetLineElem.style.opacity = ".4";
     },
-    [
-      SPACE,
-      TARGET_LINE_HALF_HEIGHT,
-      TEXT_BOX_HORIZONTAL_PADDING,
-      getCollapsedMargins,
-    ],
+    [getCollapsedMargins],
   );
 
   const hideTargetLine = useCallback((targetLineElem: HTMLElement | null) => {
@@ -292,12 +287,9 @@ function useDraggableBlockMenu(
   const [draggableBlockElem, setDraggableBlockElem] =
     useState<HTMLElement | null>(null);
 
-  const isOnMenu = useCallback(
-    (element: HTMLElement): boolean => {
-      return !!element.closest(`.${DRAGGABLE_BLOCK_MENU_CLASSNAME}`);
-    },
-    [DRAGGABLE_BLOCK_MENU_CLASSNAME],
-  );
+  const isOnMenu = useCallback((element: HTMLElement): boolean => {
+    return !!element.closest(`.${DRAGGABLE_BLOCK_MENU_CLASSNAME}`);
+  }, []);
 
   const onMouseMove = useCallback(
     (event: MouseEvent) => {
@@ -422,7 +414,7 @@ function useDraggableBlockMenu(
         COMMAND_PRIORITY_HIGH,
       ),
     );
-  }, [anchorElem, editor, getBlockElement, setTargetLine, DRAG_DATA_FORMAT]);
+  }, [anchorElem, editor, getBlockElement, setTargetLine]);
 
   const onDragStart = useCallback(
     (event: ReactDragEvent<HTMLDivElement>): void => {
@@ -441,7 +433,7 @@ function useDraggableBlockMenu(
       isDraggingBlockRef.current = true;
       dataTransfer.setData(DRAG_DATA_FORMAT, nodeKey);
     },
-    [draggableBlockElem, editor, setDragImage, DRAG_DATA_FORMAT],
+    [draggableBlockElem, editor, setDragImage],
   );
 
   const onDragEnd = useCallback((): void => {
@@ -451,6 +443,7 @@ function useDraggableBlockMenu(
 
   return createPortal(
     <>
+      {/** biome-ignore lint/a11y/noStaticElementInteractions: draggable block menu is interactive */}
       <div
         className="icon draggable-block-menu"
         ref={menuRef}

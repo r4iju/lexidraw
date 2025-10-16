@@ -327,13 +327,13 @@ export default function AutocompletePlugin() {
     [UUID, clearSuggestion],
   );
 
-  function readTouch(e: TouchEvent): [number, number] | null {
+  const readTouch = useCallback((e: TouchEvent): [number, number] | null => {
     const touch = e.changedTouches[0];
     if (touch === undefined) {
       return null;
     }
     return [touch.clientX, touch.clientY];
-  }
+  }, []);
 
   const deleteListener = useCallback(
     (element: HTMLElement, cb: Listener): void => {
@@ -352,7 +352,7 @@ export default function AutocompletePlugin() {
         element.removeEventListener("touchend", elementValues.handleTouchend);
       }
     },
-    [elements],
+    [],
   );
 
   const addListener = useCallback(
@@ -394,7 +394,7 @@ export default function AutocompletePlugin() {
       elementValues.listeners.add(cb);
       return () => deleteListener(element, cb);
     },
-    [deleteListener, elements],
+    [deleteListener, readTouch],
   );
 
   const addSwipeListener = useCallback(

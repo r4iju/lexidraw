@@ -28,12 +28,12 @@ function useEmojis(editor: LexicalEditor): void {
 
         if (emojiData !== undefined) {
           const [emojiStyle, emojiText] = emojiData;
-          let targetNode;
+          let targetNode: TextNode | null = null;
 
           if (i === 0) {
-            [targetNode] = node.splitText(i + 2);
+            [targetNode] = node.splitText(i + 2) as [TextNode, TextNode];
           } else {
-            [, targetNode] = node.splitText(i, i + 2);
+            [, targetNode] = node.splitText(i, i + 2) as [TextNode, TextNode];
           }
 
           const emojiNode = EmojiNode.$createEmojiNode(emojiStyle, emojiText);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useDraggable, type UniqueIdentifier } from "@dnd-kit/core";
-import React, { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import type { RouterOutputs } from "~/trpc/shared";
 

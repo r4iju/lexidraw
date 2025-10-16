@@ -49,11 +49,11 @@ export function LlmModelSelector({ className }: { className?: string }) {
   useEffect(() => {
     setLocalTemperature(currentState.temperature.toString());
     setLocalMaxTokens(currentState.maxTokens.toString());
-  }, [currentState, selectedMode]);
+  }, [currentState]);
 
   const handleTemperatureBlur = () => {
     const tempValue = parseFloat(localTemperature);
-    if (!isNaN(tempValue) && tempValue >= 0 && tempValue <= 1) {
+    if (!Number.isNaN(tempValue) && tempValue >= 0 && tempValue <= 1) {
       if (tempValue !== currentState.temperature) {
         setLlmConfiguration({
           [selectedMode]: {
@@ -68,7 +68,7 @@ export function LlmModelSelector({ className }: { className?: string }) {
   const handleMaxTokensBlur = () => {
     const numValue = parseInt(localMaxTokens.replace(/\D/g, ""), 10);
 
-    if (!isNaN(numValue) && numValue >= 0) {
+    if (!Number.isNaN(numValue) && numValue >= 0) {
       const currentProvider = currentState.provider;
       let cappedValue = numValue;
 

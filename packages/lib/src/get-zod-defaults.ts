@@ -2,8 +2,7 @@ import { useCallback } from "react";
 import { z } from "zod";
 
 export function getDefaults<T extends z.ZodTypeAny>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  schema: z.AnyZodObject | z.ZodEffects<any>,
+  schema: z.AnyZodObject | z.ZodEffects<z.ZodTypeAny>,
 ): z.infer<T> {
   // Check if it's a ZodEffect
   if (schema instanceof z.ZodEffects) {
@@ -37,9 +36,9 @@ export function getDefaults<T extends z.ZodTypeAny>(
 /** just to return the function */
 export function useGetDefaults() {
   return useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <T extends z.ZodTypeAny>(schema: z.AnyZodObject | z.ZodEffects<any>) =>
-      getDefaults<T>(schema),
+    <T extends z.ZodTypeAny>(
+      schema: z.AnyZodObject | z.ZodEffects<z.ZodTypeAny>,
+    ) => getDefaults<T>(schema),
     [],
   );
 }

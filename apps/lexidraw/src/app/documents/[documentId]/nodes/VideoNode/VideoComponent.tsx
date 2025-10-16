@@ -255,6 +255,7 @@ export default function VideoComponent({
 
   return (
     <Suspense fallback={null}>
+      {/** biome-ignore lint/a11y/noStaticElementInteractions: video component is interactive */}
       <div
         style={{ position: "relative", display: "inline-block" }}
         className={`${isFocused ? "outline-ring ring-primary" : ""}`}
@@ -275,8 +276,10 @@ export default function VideoComponent({
         {isLoadError ? (
           <p className="text-destructive">Error loading video.</p>
         ) : (
+          // biome-ignore lint/a11y/useMediaCaption: dont have it
           <video
             controls
+            aria-label="Video player"
             src={src}
             ref={videoRef}
             style={videoStyle}
@@ -322,11 +325,7 @@ export default function VideoComponent({
             initialHeight={height}
           />
         )}
-        <button
-          ref={buttonRef}
-          style={{ display: "none" }}
-          aria-hidden="true"
-        />
+        <button type="button" ref={buttonRef} style={{ display: "none" }} />
       </div>
       {isEditModalOpen && (
         <VideoEditModal

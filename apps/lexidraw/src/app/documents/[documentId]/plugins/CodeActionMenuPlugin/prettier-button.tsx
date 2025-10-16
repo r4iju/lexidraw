@@ -2,7 +2,6 @@ import { $isCodeNode } from "@lexical/code";
 import { $getNearestNodeFromDOMNode, type LexicalEditor } from "lexical";
 import { AlertTriangleIcon, CheckIcon } from "lucide-react";
 import type { Options } from "prettier";
-import * as React from "react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useDebounce } from "~/lib/client-utils";

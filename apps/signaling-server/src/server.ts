@@ -34,7 +34,7 @@ export function startServer(port = 8080) {
 
       // Relay message to other clients in the same room
       if (message.type === "join" || message.type === "leave") {
-        currentRoom.forEach((client, clientId) => {
+        for (const [clientId, client] of currentRoom) {
           if (clientId !== message.from) {
             switch (message.type) {
               case "leave":
@@ -51,7 +51,7 @@ export function startServer(port = 8080) {
                 );
             }
           }
-        });
+        }
       }
       // Relay message to specific user
       if (
@@ -59,22 +59,22 @@ export function startServer(port = 8080) {
         message.type === "answer" ||
         message.type === "iceCandidate"
       ) {
-        currentRoom.forEach((client, clientId) => {
+        for (const [clientId, client] of currentRoom) {
           if (clientId === message.to) {
             client.ws.send(JSON.stringify(message satisfies WebRtcMessage));
           }
-        });
+        }
       }
     });
 
     ws.on("close", () => {
       // Remove the client from all rooms
-      rooms.forEach((room, roomId) => {
-        room.forEach((client, clientId) => {
+      for (const [roomId, room] of rooms) {
+        for (const [clientId, client] of room) {
           if (client.ws === ws) {
             room.delete(clientId);
             // also notify all peers
-            room.forEach((peer) => {
+            for (const [_, peer] of room) {
               peer.ws.send(
                 JSON.stringify({
                   room: roomId,
@@ -82,13 +82,13 @@ export function startServer(port = 8080) {
                   type: "leave",
                 } satisfies WebRtcMessage),
               );
-            });
+            }
           }
-        });
+        }
         if (room.size === 0) {
           rooms.delete(roomId); // Clean up empty rooms
         }
-      });
+      }
     });
   });
 

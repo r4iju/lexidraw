@@ -1,5 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const isEqual = (first: any, second: any): boolean => {
+export const isEqual = (first: unknown, second: unknown): boolean => {
   if (first === second) {
     return true;
   }
@@ -12,18 +11,24 @@ export const isEqual = (first: any, second: any): boolean => {
   ) {
     return false;
   }
-  const firstType = first?.constructor.name;
-  const secondType = second?.constructor.name;
+  const firstType = (first as { constructor?: { name?: string } })?.constructor
+    ?.name;
+  const secondType = (second as { constructor?: { name?: string } })
+    ?.constructor?.name;
   if (firstType !== secondType) {
     return false;
   }
   if (firstType === "Array") {
-    if (first.length !== second.length) {
+    if (
+      Array.isArray(first) &&
+      Array.isArray(second) &&
+      first.length !== second.length
+    ) {
       return false;
     }
     let equal = true;
-    for (let i = 0; i < first.length; i++) {
-      if (!isEqual(first[i], second[i])) {
+    for (let i = 0; i < (first as unknown[]).length; i++) {
+      if (!isEqual((first as unknown[])[i], (second as unknown[])[i])) {
         equal = false;
         break;
       }
@@ -32,30 +37,34 @@ export const isEqual = (first: any, second: any): boolean => {
   }
   if (firstType === "Object") {
     let equal = true;
-    const fKeys = Object.keys(first);
-    const sKeys = Object.keys(second);
+    const fKeys = Object.keys(first as Record<string, unknown>);
+    const sKeys = Object.keys(second as Record<string, unknown>);
     if (fKeys.length !== sKeys.length) {
       return false;
     }
     for (const key of fKeys) {
-      if (first[key] && second[key]) {
-        if (first[key] === second[key]) {
+      const fVal = (first as Record<string, unknown>)[key];
+      const sVal = (second as Record<string, unknown>)[key];
+      if (fVal && sVal) {
+        if (fVal === sVal) {
           continue;
         }
         if (
-          first[key] &&
-          (first[key].constructor.name === "Array" ||
-            first[key].constructor.name === "Object")
+          fVal &&
+          ((fVal as { constructor?: { name?: string } })?.constructor?.name ===
+            "Array" ||
+            (fVal as { constructor?: { name?: string } })?.constructor?.name ===
+              "Object")
         ) {
-          equal = isEqual(first[key], second[key]);
+          equal = isEqual(fVal, sVal);
           if (!equal) {
             break;
           }
-        } else if (first[key] !== second[key]) {
+        } else if (fVal !== sVal) {
           equal = false;
           break;
         }
-      } else if ((first[key] && !second[key]) || (!first[key] && second[key])) {
+      } else if ((fVal && !sVal) || (!fVal && sVal)) {
         equal = false;
         break;
       }

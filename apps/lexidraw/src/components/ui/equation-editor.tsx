@@ -28,7 +28,6 @@ const EquationEditor = ({
         className="EquationEditor_inlineEditor"
         value={equation}
         onChange={onChange}
-        autoFocus
         ref={ref as React.Ref<HTMLInputElement>}
       />
       <span className="EquationEditor_dollarSign">$</span>

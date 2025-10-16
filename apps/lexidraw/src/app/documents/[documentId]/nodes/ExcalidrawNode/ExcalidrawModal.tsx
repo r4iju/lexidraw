@@ -14,6 +14,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useId,
 } from "react";
 
 import {
@@ -81,19 +82,22 @@ export default function ExcalidrawInlineEditor({
   // ────────────────────────────────────────────────────────────────────────────
   // helpers
   // ────────────────────────────────────────────────────────────────────────────
-  const buildPartialAppState = (state?: AppState): Partial<AppState> => ({
-    exportBackground: state?.exportBackground,
-    exportScale: state?.exportScale,
-    exportWithDarkMode: state?.theme === Theme.DARK,
-    isBindingEnabled: state?.isBindingEnabled,
-    isLoading: state?.isLoading,
-    name: state?.name,
-    theme: state?.theme,
-    viewBackgroundColor: state?.viewBackgroundColor,
-    viewModeEnabled: state?.viewModeEnabled,
-    zenModeEnabled: state?.zenModeEnabled,
-    zoom: state?.zoom,
-  });
+  const buildPartialAppState = useCallback(
+    (state?: AppState): Partial<AppState> => ({
+      exportBackground: state?.exportBackground,
+      exportScale: state?.exportScale,
+      exportWithDarkMode: state?.theme === Theme.DARK,
+      isBindingEnabled: state?.isBindingEnabled,
+      isLoading: state?.isLoading,
+      name: state?.name,
+      theme: state?.theme,
+      viewBackgroundColor: state?.viewBackgroundColor,
+      viewModeEnabled: state?.viewModeEnabled,
+      zenModeEnabled: state?.zenModeEnabled,
+      zoom: state?.zoom,
+    }),
+    [],
+  );
 
   const save = useCallback(() => {
     if (!apiRef.current) return;
@@ -103,7 +107,7 @@ export default function ExcalidrawInlineEditor({
 
     const partialState = buildPartialAppState(apiRef.current.getAppState());
     onSave(els, partialState, fls ?? {});
-  }, [onSave]);
+  }, [onSave, buildPartialAppState]);
 
   const saveAndClose = () => {
     save();
@@ -166,14 +170,10 @@ export default function ExcalidrawInlineEditor({
     }
   }, [isShown]);
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // Mount guard
-  // ────────────────────────────────────────────────────────────────────────────
+  const discardDialogId = useId();
+
   if (!isShown) return null;
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // render
-  // ────────────────────────────────────────────────────────────────────────────
   return createPortal(
     <div className="fixed inset-0 z-[120] bg-background">
       {/* inline container */}
@@ -223,7 +223,7 @@ export default function ExcalidrawInlineEditor({
             <DialogHeader>
               <DialogTitle>Discard changes?</DialogTitle>
             </DialogHeader>
-            <DialogDescription id="discard-dialog-description">
+            <DialogDescription id={discardDialogId}>
               Your drawing has unsaved changes. What would you like to do?
             </DialogDescription>
             <div className="flex justify-between mt-6">

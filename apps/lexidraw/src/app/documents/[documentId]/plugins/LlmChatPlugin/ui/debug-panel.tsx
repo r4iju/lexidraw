@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useId } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { Button } from "~/components/ui/button";
 import {
@@ -13,7 +13,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { useRuntimeTools } from "../runtime-tools-provider";
 import { useKeyedSerialization } from "../use-serialized-editor-state";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import type { ZodTypeAny } from "zod";
+import { z, type ZodTypeAny } from "zod";
 
 interface ParsedParam {
   name: string;
@@ -32,6 +32,7 @@ export const DebugPanel: React.FC = () => {
   const [toolResult, setToolResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [parsedSchemaView, setParsedSchemaView] = useState<string>("");
+  const textareaId = useId();
 
   const availableToolNames = useMemo(() => {
     return Object.keys(runtimeTools).sort();
@@ -44,38 +45,98 @@ export const DebugPanel: React.FC = () => {
 
   const parseZodSchema = useCallback(
     (schema: ZodTypeAny): ParsedParam[] | string => {
-      if (!schema || !schema._def) {
+      if (
+        !schema ||
+        typeof (schema as unknown as { safeParse?: unknown }).safeParse !==
+          "function"
+      ) {
         return "Not a Zod schema or invalid structure.";
       }
 
-      if (schema._def.typeName === "ZodObject") {
-        // @ts-expect-error - _def.schema is present for ZodEffects
-        const shape = schema.shape as Record<string, ZodTypeAny>;
-        if (!shape) return "ZodObject has no shape.";
+      const unwrap = (s: ZodTypeAny): ZodTypeAny => {
+        let current: ZodTypeAny = s;
+        // Unwrap common wrappers to get the underlying input type using duck-typing
+        for (let i = 0; i < 10; i++) {
+          const maybe = current as unknown as {
+            unwrap?: () => ZodTypeAny;
+            innerType?: () => ZodTypeAny;
+          };
+          if (typeof maybe.unwrap === "function") {
+            current = maybe.unwrap();
+            continue;
+          }
+          if (typeof maybe.innerType === "function") {
+            current = maybe.innerType();
+            continue;
+          }
+          break;
+        }
+        return current;
+      };
+
+      const base = unwrap(schema);
+
+      if (base instanceof z.ZodObject) {
+        const maybeShape = (base as unknown as { shape?: unknown }).shape;
+        const shape: Record<string, ZodTypeAny> =
+          typeof maybeShape === "function"
+            ? (maybeShape as () => Record<string, ZodTypeAny>)()
+            : (maybeShape as Record<string, ZodTypeAny>);
+
+        if (!shape || typeof shape !== "object") {
+          return "ZodObject has no shape.";
+        }
+
+        const getTypeName = (t: ZodTypeAny): string => {
+          const u = unwrap(t);
+          if (u instanceof z.ZodString) return "string";
+          if (u instanceof z.ZodNumber) return "number";
+          if (u instanceof z.ZodBoolean) return "boolean";
+          if (u instanceof z.ZodArray) return "array";
+          if (u instanceof z.ZodObject) return "object";
+          if (u instanceof z.ZodEnum) return "enum";
+          if (u instanceof z.ZodUnion) return "union";
+          if (u instanceof z.ZodLiteral) return "literal";
+          if (u instanceof z.ZodDate) return "date";
+          if (u instanceof z.ZodRecord) return "record";
+          if (u instanceof z.ZodTuple) return "tuple";
+          if (u instanceof z.ZodBigInt) return "bigint";
+          if (u instanceof z.ZodSymbol) return "symbol";
+
+          const ctorName =
+            (u as unknown as { constructor?: { name?: string } }).constructor
+              ?.name ?? "unknown";
+          return ctorName;
+        };
+
+        const getDefaultValue = (t: ZodTypeAny): unknown => {
+          const res = t.safeParse(undefined);
+          if (res.success && res.data !== undefined) {
+            return res.data;
+          }
+          return undefined;
+        };
 
         return Object.entries(shape).map(([name, paramSchema]) => {
-          let defaultValue;
-          if (paramSchema._def.defaultValue) {
-            try {
-              defaultValue = paramSchema._def.defaultValue();
-            } catch {
-              // ignore if default value is a function that errors without context
-            }
-          }
           return {
             name,
-            type: paramSchema._def.typeName,
+            type: getTypeName(paramSchema),
             description: paramSchema.description,
             optional: paramSchema.isOptional(),
-            defaultValue: defaultValue,
+            defaultValue: getDefaultValue(paramSchema),
           };
         });
-      } else if (schema._def.typeName === "ZodEffects") {
-        // Handle schemas wrapped with .transform()
-        return parseZodSchema(schema._def.schema as ZodTypeAny);
       }
-      // Add more handlers for other Zod types if needed (e.g., ZodArray, ZodUnion)
-      return `Unsupported Zod schema type: ${schema._def.typeName}`;
+
+      const maybeSchema = schema as unknown as { innerType?: () => ZodTypeAny };
+      if (typeof maybeSchema.innerType === "function") {
+        return parseZodSchema(maybeSchema.innerType());
+      }
+
+      const baseTypeName =
+        (base as unknown as { constructor?: { name?: string } }).constructor
+          ?.name ?? "unknown";
+      return `Unsupported Zod schema type: ${baseTypeName}`;
     },
     [],
   );
@@ -140,7 +201,7 @@ export const DebugPanel: React.FC = () => {
     setError(null);
 
     const tool = runtimeTools[toolName];
-    if (tool && tool.parameters) {
+    if (tool?.parameters) {
       const parsed = parseZodSchema(tool.parameters as ZodTypeAny);
       if (Array.isArray(parsed)) {
         const schemaString = parsed
@@ -154,9 +215,9 @@ export const DebugPanel: React.FC = () => {
         setParsedSchemaView(schemaString);
 
         const templateArgs: Record<string, unknown> = {};
-        parsed.forEach((p) => {
+        for (const p of parsed) {
           templateArgs[p.name] = p.defaultValue ?? "";
-        });
+        }
         setToolArgsJson(JSON.stringify(templateArgs, null, 2));
       } else {
         setParsedSchemaView(parsed); // Show error or unsupported message
@@ -206,14 +267,14 @@ export const DebugPanel: React.FC = () => {
       )}
 
       <div className="flex flex-col space-y-1">
-        <label htmlFor="tool-args" className="text-sm font-medium">
+        <label htmlFor={textareaId} className="text-sm font-medium">
           Tool Arguments (JSON):
         </label>
         <Textarea
-          id="tool-args"
+          id={textareaId}
           value={toolArgsJson}
           onChange={(e) => setToolArgsJson(e.target.value)}
-          placeholder='{\n  "argName": "value"\n}'
+          placeholder='{"argName":"value"}'
           rows={5}
           className="font-mono text-xs"
           disabled={!selectedTool}
@@ -233,7 +294,7 @@ export const DebugPanel: React.FC = () => {
 
       {toolResult && (
         <div className="flex-1 flex flex-col space-y-1">
-          <label className="text-sm font-medium">Tool Result:</label>
+          <p className="text-sm font-medium">Tool Result:</p>
           <ScrollArea className="flex-1 p-2 border rounded-md bg-muted">
             <pre className="text-xs whitespace-pre-wrap break-all">
               {toolResult}
