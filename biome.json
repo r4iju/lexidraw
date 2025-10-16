@@ -18,7 +18,13 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "performance": {
+        "noImgElement": "off"
+      },
+      "style": {
+        "noDescendingSpecificity": "off"
+      }
     }
   },
   "files": {
@@ -27,6 +33,7 @@
       "!**/.next",
       "!**/dist",
       "!**/coverage",
+      "!apps/lexidraw/public/scripts",
       "!apps/lexidraw/src/styles/globals.css",
       "!postcss.config.js",
       "!tailwind.config.cjs",

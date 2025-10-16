@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { type LexicalEditor, type NodeKey, $getNodeByKey } from "lexical";
 import {
   DialogContent,
@@ -52,7 +52,7 @@ export function UpdateImageDialog({
   };
 
   const toWidthOrHeight = (value: string): "inherit" | number => {
-    return value === "inherit" ? "inherit" : parseInt(value) || "inherit";
+    return value === "inherit" ? "inherit" : parseInt(value, 10) || "inherit";
   };
 
   const handleOnConfirm = () => {
@@ -73,6 +73,11 @@ export function UpdateImageDialog({
     onClose();
   };
 
+  const altTextId = useId();
+  const widthId = useId();
+  const heightId = useId();
+  const captionId = useId();
+
   return (
     <DialogContent className="min-w-72">
       <DialogHeader>
@@ -80,9 +85,9 @@ export function UpdateImageDialog({
         <DialogTitle>Update Image</DialogTitle>
       </DialogHeader>
       <div style={{ marginBottom: "1em" }}>
-        <Label htmlFor="alt-text">Alt Text</Label>
+        <Label htmlFor={altTextId}>Alt Text</Label>
         <Input
-          id="alt-text"
+          id={altTextId}
           placeholder="Descriptive alternative text"
           onChange={handleAltTextChange}
           value={altText}
@@ -93,9 +98,9 @@ export function UpdateImageDialog({
       {/* Add Width and Height Inputs */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <Label htmlFor="width">Width</Label>
+          <Label htmlFor={widthId}>Width</Label>
           <Input
-            id="width"
+            id={widthId}
             placeholder="auto"
             type="number"
             step="50"
@@ -106,9 +111,9 @@ export function UpdateImageDialog({
           />
         </div>
         <div>
-          <Label htmlFor="height">Height</Label>
+          <Label htmlFor={heightId}>Height</Label>
           <Input
-            id="height"
+            id={heightId}
             placeholder="auto"
             type="number"
             step="50"
@@ -122,13 +127,13 @@ export function UpdateImageDialog({
 
       <div className="flex items-center gap-2">
         <Switch
-          id="caption"
+          id={captionId}
           checked={showCaption}
           onCheckedChange={setShowCaption}
         >
           <SwitchThumb />
         </Switch>
-        <Label htmlFor="caption">Show Caption</Label>
+        <Label htmlFor={captionId}>Show Caption</Label>
       </div>
 
       <DialogFooter className="justify-end">

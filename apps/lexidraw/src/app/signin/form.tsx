@@ -1,7 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import React, { useState } from "react";
+import { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getSignInSchema, type SignInSchema } from "./schema";

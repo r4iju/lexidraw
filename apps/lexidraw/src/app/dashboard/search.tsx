@@ -1,12 +1,6 @@
 "use client";
 
-import React, {
-  useState,
-  useRef,
-  type RefObject,
-  useMemo,
-  useEffect,
-} from "react";
+import { useState, useRef, type RefObject, useMemo, useEffect } from "react";
 import { Input } from "~/components/ui/input";
 import { useDebounceValue } from "~/lib/client-utils";
 import { api } from "~/trpc/react";
@@ -74,12 +68,12 @@ export function SearchBar({ className }: Props) {
       ...(deepSearchResults || []),
     ];
     const uniqueResults = new Map<string, CombinedSearchResult>();
-    allResults.forEach((result) => {
+    for (const result of allResults) {
       const existing = uniqueResults.get(result.id);
       if (!existing || (!existing.screenShotLight && result.screenShotLight)) {
         uniqueResults.set(result.id, result);
       }
-    });
+    }
     return Array.from(uniqueResults.values());
   }, [titleSearchResults, deepSearchResults]);
 
@@ -224,6 +218,7 @@ export function SearchBar({ className }: Props) {
                 }
               >
                 {[...Array(displayResults.length ? 2 : 4)].map((_, index) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: skeleton item
                   <CommandItem key={index} disabled>
                     <div className="flex items-center gap-4 h-12 w-full">
                       <div className="h-10 w-10 bg-muted rounded-sm animate-pulse"></div>

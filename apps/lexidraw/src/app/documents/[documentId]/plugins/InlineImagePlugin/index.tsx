@@ -21,7 +21,7 @@ import {
   type LexicalEditor,
 } from "lexical";
 import type * as React from "react";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useId } from "react";
 
 import {
   InlineImageNode,
@@ -82,7 +82,7 @@ export function InsertInlineImageDialog({
     return () => {
       document.removeEventListener("keydown", handler);
     };
-  }, [activeEditor]);
+  }, []);
 
   const handleOnClick = () => {
     const payload = { altText, position, showCaption, src };
@@ -90,6 +90,8 @@ export function InsertInlineImageDialog({
     console.log("InsertInlineImageDialog handleOnClick", payload);
     onClose();
   };
+
+  const captionSwitchId = useId();
 
   return (
     <>
@@ -124,9 +126,9 @@ export function InsertInlineImageDialog({
       </Select>
 
       <div className="flex items-center gap-2">
-        <Label htmlFor="caption">Show Caption</Label>
+        <Label htmlFor={captionSwitchId}>Show Caption</Label>
         <Switch
-          id="caption"
+          id={captionSwitchId}
           checked={showCaption}
           onCheckedChange={setShowCaption}
         >
@@ -159,7 +161,7 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
 
   const getDragSelection = useCallback(
     (event: DragEvent): Range | null | undefined => {
-      let range;
+      let range: Range | null | undefined;
       const target = event.target as null | Element | Document;
       const targetWindow =
         target == null

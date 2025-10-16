@@ -63,6 +63,7 @@ export default function ImageCaption({
         {children}
         <RichTextPlugin
           contentEditable={
+            // biome-ignore lint/a11y/noStaticElementInteractions: image caption is interactive
             <div
               className="relative"
               onMouseEnter={() => setIsHovering(true)}

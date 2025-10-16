@@ -37,9 +37,9 @@ const RHFCodes: FC<Props> = ({ keyName = "", inputs = [], ...other }) => {
     const dataString = event.clipboardData?.getData("text") ?? "";
     const data = dataString.split("");
 
-    inputs.forEach((input, index) =>
-      setValue(`${keyName}${index + 1}`, data[index]),
-    );
+    for (const [index, _input] of inputs.entries()) {
+      setValue(`${keyName}${index + 1}`, data[index]);
+    }
 
     event.preventDefault();
   };
@@ -56,7 +56,6 @@ const RHFCodes: FC<Props> = ({ keyName = "", inputs = [], ...other }) => {
           render={({ field, fieldState: { error } }) => (
             <input
               {...field}
-              autoFocus={index === 0}
               placeholder="-"
               onChange={(event: ChangeEvent<HTMLInputElement>) => {
                 handleChangeWithNextField(event, field.onChange);

@@ -1,8 +1,8 @@
 import { useSession } from "next-auth/react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 export function useUserNameOrGuestName() {
-  const generateGuestName = () => {
+  const generateGuestName = useCallback(() => {
     const existingName = localStorage.getItem("guestName");
     if (!existingName) {
       const array = new Uint32Array(8);
@@ -12,7 +12,7 @@ export function useUserNameOrGuestName() {
       return newName;
     }
     return existingName;
-  };
+  }, []);
 
   const { data: session } = useSession();
 
@@ -21,7 +21,7 @@ export function useUserNameOrGuestName() {
       return session.user.name;
     }
     return generateGuestName();
-  }, [session?.user?.name]);
+  }, [session?.user?.name, generateGuestName]);
 
   return name;
 }

@@ -20,7 +20,14 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
 import type * as React from "react";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import LinkPlugin from "../../plugins/LinkPlugin";
 import {
   Dialog,
@@ -158,8 +165,12 @@ export function UpdateInlineImageDialog({
   };
 
   const toWidthOrHeight = (value: string): "inherit" | number => {
-    return value === "inherit" ? "inherit" : parseInt(value) || "inherit";
+    return value === "inherit" ? "inherit" : parseInt(value, 10) || "inherit";
   };
+
+  const widthId = useId();
+  const heightId = useId();
+  const captionSwitchId = useId();
 
   const handleOnConfirm = () => {
     const width = toWidthOrHeight(widthAndHeight.width);
@@ -185,8 +196,9 @@ export function UpdateInlineImageDialog({
         <DialogTitle>Update Inline Image</DialogTitle>
       </DialogHeader>
       <div style={{ marginBottom: "1em" }}>
-        <Label htmlFor="alt-text">Alt Text</Label>
+        <Label htmlFor={`inline-alt-${nodeKey}`}>Alt Text</Label>
         <Input
+          id={`inline-alt-${nodeKey}`}
           placeholder="Descriptive alternative text"
           onChange={handleAltTextChange}
           value={altText}
@@ -195,9 +207,9 @@ export function UpdateInlineImageDialog({
       {/* Add Width and Height Inputs */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <Label htmlFor="width">Width</Label>
+          <Label htmlFor={widthId}>Width</Label>
           <Input
-            id="width"
+            id={widthId}
             placeholder="auto"
             type="number"
             step="50"
@@ -208,9 +220,9 @@ export function UpdateInlineImageDialog({
           />
         </div>
         <div>
-          <Label htmlFor="height">Height</Label>
+          <Label htmlFor={heightId}>Height</Label>
           <Input
-            id="height"
+            id={heightId}
             placeholder="auto"
             type="number"
             step="50"
@@ -226,7 +238,7 @@ export function UpdateInlineImageDialog({
         name="position"
         onValueChange={(val) => setPosition(val as Position)}
       >
-        <SelectTrigger className="w-[208px] mb-1">
+        <SelectTrigger className="w-[208px] mb-1" aria-label="Position">
           <SelectValue placeholder="Position" />
         </SelectTrigger>
         <SelectContent>
@@ -241,13 +253,13 @@ export function UpdateInlineImageDialog({
       </Select>
       <div className="flex items-center gap-2">
         <Switch
-          id="caption"
+          id={captionSwitchId}
           checked={showCaption}
           onCheckedChange={setShowCaption}
         >
           <SwitchThumb />
         </Switch>
-        <Label htmlFor="caption">Show Caption</Label>
+        <Label htmlFor={captionSwitchId}>Show Caption</Label>
       </div>
       <DialogFooter className="justify-end">
         <Button onClick={handleOnConfirm}>Confirm</Button>
@@ -474,88 +486,86 @@ export default function InlineImageComponent({
 
   return (
     <Suspense fallback={null}>
-      <>
-        {/* 
+      {/* 
           Use inline-flex div for vertical stacking while maintaining inline flow.
          */}
-        <div
-          draggable={draggable}
-          className="inline-flex flex-col relative align-bottom"
-        >
-          {/* Container for Image, Edit button, and Resizer */}
-          <div className="relative">
-            <ResizableImage
-              className={isFocused ? "ring-1 ring-muted-foreground" : ""}
-              src={src}
-              altText={altText}
-              width={currentDimensions.width}
-              height={currentDimensions.height}
-              position={position}
-              nodeKey={nodeKey}
-              containerRef={containerRef as React.RefObject<HTMLDivElement>}
-            />
-            {/* "Edit" button on top */}
-            <Button
-              ref={buttonRef}
-              variant="ghost"
-              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs"
-              onClick={() => setIsDialogOpen(true)}
-            >
-              Edit
-            </Button>
-
-            {isSelected && (
-              <ImageResizer
-                imageRef={containerRef as React.RefObject<HTMLImageElement>}
-                editor={editor}
-                buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
-                showCaption={showCaption}
-                setShowCaption={updateShowCaption}
-                captionsEnabled={captionsEnabled}
-                // ugly hack to offset the bottom-right resizer
-                bottomOffset
-                onResizeEnd={(newWidth, newHeight) => {
-                  editor.update(() => {
-                    const node = $getNodeByKey(nodeKey);
-                    if (InlineImageNode.$isInlineImageNode(node)) {
-                      node.setWidthAndHeight(newWidth, newHeight);
-                    }
-                  });
-                }}
-                onDimensionsChange={onDimensionsChange}
-              />
-            )}
-
-            {/* Caption rendered inside the relative container */}
-            {showCaption && captionsEnabled && (
-              <ImageCaption
-                containerRef={nestedEditorContainerRef}
-                caption={caption}
-                placeholder="Enter a caption..."
-                onHideCaption={handleHideCaption}
-              >
-                <AutoFocusPlugin />
-                <MentionsPlugin />
-                <LinkPlugin />
-                <EmojisPlugin />
-                <HashtagPlugin />
-                <KeywordsPlugin />
-                <HistoryPlugin externalHistoryState={historyState} />
-                {showNestedEditorTreeView && <TreeViewPlugin />}
-              </ImageCaption>
-            )}
-          </div>
-        </div>
-
-        {/* The "Update Inline Image" dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <UpdateInlineImageDialog
-            activeEditor={editor}
+      <div
+        draggable={draggable}
+        className="inline-flex flex-col relative align-bottom"
+      >
+        {/* Container for Image, Edit button, and Resizer */}
+        <div className="relative">
+          <ResizableImage
+            className={isFocused ? "ring-1 ring-muted-foreground" : ""}
+            src={src}
+            altText={altText}
+            width={currentDimensions.width}
+            height={currentDimensions.height}
+            position={position}
             nodeKey={nodeKey}
-            onClose={() => setIsDialogOpen(false)}
+            containerRef={containerRef as React.RefObject<HTMLDivElement>}
           />
-        </Dialog>
-      </>
+          {/* "Edit" button on top */}
+          <Button
+            ref={buttonRef}
+            variant="ghost"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs"
+            onClick={() => setIsDialogOpen(true)}
+          >
+            Edit
+          </Button>
+
+          {isSelected && (
+            <ImageResizer
+              imageRef={containerRef as React.RefObject<HTMLImageElement>}
+              editor={editor}
+              buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
+              showCaption={showCaption}
+              setShowCaption={updateShowCaption}
+              captionsEnabled={captionsEnabled}
+              // ugly hack to offset the bottom-right resizer
+              bottomOffset
+              onResizeEnd={(newWidth, newHeight) => {
+                editor.update(() => {
+                  const node = $getNodeByKey(nodeKey);
+                  if (InlineImageNode.$isInlineImageNode(node)) {
+                    node.setWidthAndHeight(newWidth, newHeight);
+                  }
+                });
+              }}
+              onDimensionsChange={onDimensionsChange}
+            />
+          )}
+
+          {/* Caption rendered inside the relative container */}
+          {showCaption && captionsEnabled && (
+            <ImageCaption
+              containerRef={nestedEditorContainerRef}
+              caption={caption}
+              placeholder="Enter a caption..."
+              onHideCaption={handleHideCaption}
+            >
+              <AutoFocusPlugin />
+              <MentionsPlugin />
+              <LinkPlugin />
+              <EmojisPlugin />
+              <HashtagPlugin />
+              <KeywordsPlugin />
+              <HistoryPlugin externalHistoryState={historyState} />
+              {showNestedEditorTreeView && <TreeViewPlugin />}
+            </ImageCaption>
+          )}
+        </div>
+      </div>
+
+      {/* The "Update Inline Image" dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <UpdateInlineImageDialog
+          activeEditor={editor}
+          nodeKey={nodeKey}
+          onClose={() => setIsDialogOpen(false)}
+        />
+      </Dialog>
     </Suspense>
   );
 }

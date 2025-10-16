@@ -1,6 +1,7 @@
 import { $patchStyleText } from "@lexical/selection";
 import { $getSelection, type LexicalEditor } from "lexical";
-import * as React from "react";
+import type React from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TooltipButton } from "../../../../../components/ui/tooltip-button";
 import { Minus, Plus } from "lucide-react";
 import { Input } from "~/components/ui/input";
@@ -26,8 +27,8 @@ export default function FontSize({
   editor: LexicalEditor;
   className?: string;
 }) {
-  const [inputValue, setInputValue] = React.useState<string>(selectionFontSize);
-  const [inputChangeFlag, setInputChangeFlag] = React.useState<boolean>(false);
+  const [inputValue, setInputValue] = useState<string>(selectionFontSize);
+  const [inputChangeFlag, setInputChangeFlag] = useState<boolean>(false);
 
   /**
    * Calculates the new font size based on the update type.
@@ -35,72 +36,72 @@ export default function FontSize({
    * @param updateType - The type of change, either increment or decrement
    * @returns the next font size
    */
-  const calculateNextFontSize = (
-    currentFontSize: number,
-    updateType: updateFontSizeType | null,
-  ) => {
-    if (!updateType) {
-      return currentFontSize;
-    }
+  const calculateNextFontSize = useCallback(
+    (currentFontSize: number, updateType: updateFontSizeType | null) => {
+      if (!updateType) {
+        return currentFontSize;
+      }
 
-    let updatedFontSize: number = currentFontSize;
-    switch (updateType) {
-      case updateFontSizeType.decrement:
-        switch (true) {
-          case currentFontSize > MAX_ALLOWED_FONT_SIZE:
-            updatedFontSize = MAX_ALLOWED_FONT_SIZE;
-            break;
-          case currentFontSize >= 48:
-            updatedFontSize -= 12;
-            break;
-          case currentFontSize >= 24:
-            updatedFontSize -= 4;
-            break;
-          case currentFontSize >= 14:
-            updatedFontSize -= 2;
-            break;
-          case currentFontSize >= 9:
-            updatedFontSize -= 1;
-            break;
-          default:
-            updatedFontSize = MIN_ALLOWED_FONT_SIZE;
-            break;
-        }
-        break;
+      let updatedFontSize: number = currentFontSize;
+      switch (updateType) {
+        case updateFontSizeType.decrement:
+          switch (true) {
+            case currentFontSize > MAX_ALLOWED_FONT_SIZE:
+              updatedFontSize = MAX_ALLOWED_FONT_SIZE;
+              break;
+            case currentFontSize >= 48:
+              updatedFontSize -= 12;
+              break;
+            case currentFontSize >= 24:
+              updatedFontSize -= 4;
+              break;
+            case currentFontSize >= 14:
+              updatedFontSize -= 2;
+              break;
+            case currentFontSize >= 9:
+              updatedFontSize -= 1;
+              break;
+            default:
+              updatedFontSize = MIN_ALLOWED_FONT_SIZE;
+              break;
+          }
+          break;
 
-      case updateFontSizeType.increment:
-        switch (true) {
-          case currentFontSize < MIN_ALLOWED_FONT_SIZE:
-            updatedFontSize = MIN_ALLOWED_FONT_SIZE;
-            break;
-          case currentFontSize < 12:
-            updatedFontSize += 1;
-            break;
-          case currentFontSize < 20:
-            updatedFontSize += 2;
-            break;
-          case currentFontSize < 36:
-            updatedFontSize += 4;
-            break;
-          case currentFontSize <= 60:
-            updatedFontSize += 12;
-            break;
-          default:
-            updatedFontSize = MAX_ALLOWED_FONT_SIZE;
-            break;
-        }
-        break;
+        case updateFontSizeType.increment:
+          switch (true) {
+            case currentFontSize < MIN_ALLOWED_FONT_SIZE:
+              updatedFontSize = MIN_ALLOWED_FONT_SIZE;
+              break;
+            case currentFontSize < 12:
+              updatedFontSize += 1;
+              break;
+            case currentFontSize < 20:
+              updatedFontSize += 2;
+              break;
+            case currentFontSize < 36:
+              updatedFontSize += 4;
+              break;
+            case currentFontSize <= 60:
+              updatedFontSize += 12;
+              break;
+            default:
+              updatedFontSize = MAX_ALLOWED_FONT_SIZE;
+              break;
+          }
+          break;
 
-      default:
-        break;
-    }
-    return updatedFontSize;
-  };
+        default:
+          break;
+      }
+      return updatedFontSize;
+    },
+    [],
+  );
   /**
    * Patches the selection with the updated font size.
    */
 
-  const updateFontSizeInSelection = React.useCallback(
+  const updateFontSizeInSelection = useCallback(
     (newFontSize: string | null, updateType: updateFontSizeType | null) => {
       const getNextFontSize = (prevFontSize: string | null): string => {
         if (!prevFontSize) {
@@ -125,13 +126,16 @@ export default function FontSize({
         }
       });
     },
-    [editor],
+    [editor, calculateNextFontSize],
   );
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const inputValueNumber = Number(inputValue);
 
-    if (["e", "E", "+", "-"].includes(e.key) || isNaN(inputValueNumber)) {
+    if (
+      ["e", "E", "+", "-"].includes(e.key) ||
+      Number.isNaN(inputValueNumber)
+    ) {
       e.preventDefault();
       setInputValue("");
       return;
@@ -157,7 +161,7 @@ export default function FontSize({
         Number(inputValue),
         updateType,
       );
-      updateFontSizeInSelection(String(nextFontSize) + "px", null);
+      updateFontSizeInSelection(`${String(nextFontSize)}px`, null);
     } else {
       updateFontSizeInSelection(null, updateType);
     }
@@ -172,11 +176,11 @@ export default function FontSize({
     }
 
     setInputValue(String(updatedFontSize));
-    updateFontSizeInSelection(String(updatedFontSize) + "px", null);
+    updateFontSizeInSelection(`${String(updatedFontSize)}px`, null);
     setInputChangeFlag(false);
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     setInputValue(selectionFontSize);
   }, [selectionFontSize]);
 

@@ -296,13 +296,13 @@ export function useWebRtcService(
   }, []);
 
   const sendMessage = useCallback((message: MessageStructure) => {
-    dataChannels.current.forEach((channel) => {
+    for (const channel of dataChannels.current.values()) {
       if (channel.readyState === "open") {
         channel.send(JSON.stringify(message));
       } else {
         console.warn("Data channel not open");
       }
-    });
+    }
   }, []);
 
   useEffect(() => {

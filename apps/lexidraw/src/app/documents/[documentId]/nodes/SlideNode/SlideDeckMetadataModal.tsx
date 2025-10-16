@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -90,6 +90,8 @@ export default function SlideDeckMetadataModal({
     }
   };
 
+  const metadataTextareaId = useId();
+
   if (!isModalOpen) return null;
 
   const isDeckMetadata = currentSlideIdForSave === null;
@@ -116,7 +118,7 @@ export default function SlideDeckMetadataModal({
             Edit JSON
           </Label>
           <Textarea
-            id="metadataTextarea"
+            id={metadataTextareaId}
             value={editableMetaJson}
             onChange={(e) => {
               setEditableMetaJson(e.target.value);

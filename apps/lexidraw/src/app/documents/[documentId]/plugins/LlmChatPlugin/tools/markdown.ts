@@ -88,7 +88,9 @@ export const useMarkdownTools = () => {
                 `[insertMarkdown] Appending ${nodesToInsert.length} nodes to the root.`,
               );
               const root = $getRoot();
-              nodesToInsert.forEach((node) => root.append(node));
+              for (const node of nodesToInsert) {
+                root.append(node);
+              }
             } else {
               const targetNode = $getNodeByKey(successResolution.targetKey);
               if (!targetNode) {
@@ -99,14 +101,16 @@ export const useMarkdownTools = () => {
               }
 
               if (successResolution.type === "before") {
-                nodesToInsert.forEach((node) => targetNode.insertBefore(node));
+                for (const node of nodesToInsert) {
+                  targetNode.insertBefore(node);
+                }
               } else if (successResolution.type === "after") {
                 // track the last inserted node.
                 let lastInsertedNode = targetNode;
-                nodesToInsert.forEach((node) => {
+                for (const node of nodesToInsert) {
                   lastInsertedNode.insertAfter(node);
                   lastInsertedNode = node; // the next node should be inserted after this one.
-                });
+                }
               }
             }
           },

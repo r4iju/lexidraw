@@ -15,7 +15,6 @@ import {
 } from "@lexical/table";
 import { calculateZoomLevel, mergeRegister } from "@lexical/utils";
 import { $getNearestNodeFromDOMNode, isHTMLElement } from "lexical";
-import * as React from "react";
 import {
   type CSSProperties,
   type PointerEventHandler,
@@ -109,7 +108,7 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
         });
         return;
       }
-      if (resizerRef.current && resizerRef.current.contains(target)) {
+      if (resizerRef.current?.contains(target)) {
         return;
       }
 
@@ -177,12 +176,23 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
     };
   }, [activeCell, draggingDirection, editor, resetState, hasTable]);
 
-  const isHeightChanging = (direction: PointerDraggingDirection) => {
-    if (direction === "bottom") {
-      return true;
-    }
-    return false;
-  };
+  const isHeightChanging = useCallback(
+    (direction: PointerDraggingDirection) => {
+      if (direction === "bottom") {
+        return true;
+      }
+      return false;
+    },
+    [],
+  );
+
+  const getCellNodeHeight = useCallback(
+    (cell: TableCellNode, activeEditor: LexicalEditor): number | undefined => {
+      const domCellNode = activeEditor.getElementByKey(cell.getKey());
+      return domCellNode?.clientHeight;
+    },
+    [],
+  );
 
   const updateRowHeight = useCallback(
     (heightChange: number) => {
@@ -237,30 +247,22 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
         { tag: "skip-scroll-into-view" },
       );
     },
-    [activeCell, editor],
+    [activeCell, editor, getCellNodeHeight],
   );
 
-  const getCellNodeHeight = (
-    cell: TableCellNode,
-    activeEditor: LexicalEditor,
-  ): number | undefined => {
-    const domCellNode = activeEditor.getElementByKey(cell.getKey());
-    return domCellNode?.clientHeight;
-  };
-
-  const getCellColumnIndex = (
-    tableCellNode: TableCellNode,
-    tableMap: TableMapType,
-  ) => {
-    for (const row of tableMap) {
-      if (!row) continue;
-      for (const [column, cellObj] of row.entries()) {
-        if (cellObj && cellObj.cell === tableCellNode) {
-          return column;
+  const getCellColumnIndex = useCallback(
+    (tableCellNode: TableCellNode, tableMap: TableMapType) => {
+      for (const row of tableMap) {
+        if (!row) continue;
+        for (const [column, cellObj] of row.entries()) {
+          if (cellObj && cellObj.cell === tableCellNode) {
+            return column;
+          }
         }
       }
-    }
-  };
+    },
+    [],
+  );
 
   const updateColumnWidth = useCallback(
     (widthChange: number) => {
@@ -301,7 +303,7 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
         { tag: "skip-scroll-into-view" },
       );
     },
-    [activeCell, editor],
+    [activeCell, editor, getCellColumnIndex],
   );
 
   const pointerUpHandler = useCallback(
@@ -336,7 +338,13 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
       };
       return handler;
     },
-    [activeCell, resetState, updateColumnWidth, updateRowHeight],
+    [
+      activeCell,
+      resetState,
+      updateColumnWidth,
+      updateRowHeight,
+      isHeightChanging,
+    ],
   );
 
   const toggleResize = useCallback(
@@ -421,7 +429,13 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
       right: null,
       top: null,
     };
-  }, [activeCell, draggingDirection, pointerCurrentPos, tableRect]);
+  }, [
+    activeCell,
+    draggingDirection,
+    pointerCurrentPos,
+    tableRect,
+    isHeightChanging,
+  ]);
 
   const resizerStyles = getResizers();
 

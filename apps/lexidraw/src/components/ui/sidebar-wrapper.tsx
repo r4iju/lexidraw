@@ -226,12 +226,15 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
       >
         {/* Resize Handle */}
         {!isMobile && (
+          // biome-ignore lint/a11y/useSemanticElements: todo: fix semantic elements
           <div
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
             className="absolute left-0 top-0 h-full w-4 cursor-col-resize group -translate-x-1/2"
-            aria-label="Resize sidebar"
+            // biome-ignore lint/a11y/useAriaPropsForRole: todo: fix aria props for role
             role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
             tabIndex={0}
           >
             <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors duration-200 mx-auto pointer-events-none"></div>

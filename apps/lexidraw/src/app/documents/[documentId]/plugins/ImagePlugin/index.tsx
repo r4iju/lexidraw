@@ -9,7 +9,7 @@ import {
   type LexicalEditor,
   PASTE_COMMAND,
 } from "lexical";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useId } from "react";
 import type * as React from "react";
 import { ImageNode, type ImagePayload } from "../../nodes/ImageNode/ImageNode";
 import { Button } from "~/components/ui/button";
@@ -184,11 +184,13 @@ export function InsertImageUnsplashDialogBody({
     }
   };
 
+  const unsplashQueryInputId = useId();
+
   return (
     <>
       <div className="flex gap-2 mb-4">
         <Input
-          id="unsplash-query"
+          id={unsplashQueryInputId}
           placeholder="Search Unsplash..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -206,6 +208,7 @@ export function InsertImageUnsplashDialogBody({
           <div className="grid grid-cols-3 gap-2">
             {results.map((image) => (
               <button
+                type="button"
                 key={image.id}
                 onClick={() => onImageSelect(image)}
                 className="aspect-square focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded overflow-hidden group"
@@ -272,7 +275,7 @@ export function InsertImageGeneratedDialogBody({
 }) {
   const [prompt, setPrompt] = useState("");
   const isDisabled = prompt.trim() === "" || isLoading || !isConfigured;
-
+  const imagePromptTextareaId = useId();
   return (
     <>
       {!isConfigured && (
@@ -281,9 +284,9 @@ export function InsertImageGeneratedDialogBody({
           key in the settings.
         </p>
       )}
-      <Label htmlFor="image-prompt">Image Prompt</Label>
+      <Label htmlFor={imagePromptTextareaId}>Image Prompt</Label>
       <Textarea
-        id="image-prompt"
+        id={imagePromptTextareaId}
         placeholder="e.g., A photorealistic cat wearing sunglasses"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
@@ -307,7 +310,7 @@ export function InsertImageGeneratedDialogBody({
 }
 
 export function InsertImageDialog({
-  activeEditor,
+  activeEditor: _activeEditor,
   onClose,
   onInsert,
 }: {
@@ -370,7 +373,7 @@ export function InsertImageDialog({
     return () => {
       document.removeEventListener("keydown", handler);
     };
-  }, [activeEditor]);
+  }, []);
 
   const handleGenerateImage = useCallback(
     async (prompt: string) => {
@@ -474,7 +477,7 @@ export default function ImagePlugin({
         const items = clipboardData.items;
         if (items) {
           for (const item of items) {
-            if (item && item.type.startsWith("image/")) {
+            if (item?.type.startsWith("image/")) {
               const file = item.getAsFile();
               if (file) {
                 console.log("Pasted image file:", file);

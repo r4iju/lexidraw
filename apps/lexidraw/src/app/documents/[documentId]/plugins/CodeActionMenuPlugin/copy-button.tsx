@@ -6,7 +6,6 @@ import {
   type LexicalEditor,
 } from "lexical";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import * as React from "react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useDebounce } from "~/lib/client-utils";

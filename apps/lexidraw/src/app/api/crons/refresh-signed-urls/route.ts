@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("update-since");
 
   if (queryParamUpdateSince) {
-    updateSince = new Date(parseInt(queryParamUpdateSince));
+    updateSince = new Date(parseInt(queryParamUpdateSince, 10));
   }
 
   console.log("shouldForceUpdate", shouldForceUpdate);

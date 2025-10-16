@@ -139,8 +139,7 @@ export const {
 
         if (!isPasswordCorrect) return null;
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { password, ...user } = dbUser;
+        const { password: _password, ...user } = dbUser;
         return user;
       },
     }),

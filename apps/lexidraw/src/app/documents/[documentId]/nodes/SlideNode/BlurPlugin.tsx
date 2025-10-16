@@ -16,7 +16,7 @@ export const BlurPlugin = ({ onBlur }: BlurPluginProps): JSX.Element | null => {
       // Ensure editor is still mounted and editable before getting state
       // Check if the editor still has a root element and is part of the document
       // This check is a proxy for "isMounted" and "isEditable"
-      if (editor.getRootElement() && editor.getRootElement()?.isConnected) {
+      if (editor.getRootElement()?.isConnected) {
         onBlur(editor.getEditorState());
       }
     };

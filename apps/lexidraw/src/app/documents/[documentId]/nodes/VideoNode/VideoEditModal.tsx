@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,19 +38,23 @@ export default function VideoEditModal({
   const [height, setHeight] = useState<string>("");
   const [showCaption, setShowCaption] = useState(initialShowCaption);
 
+  const widthInputId = useId();
+  const heightInputId = useId();
+  const showCaptionSwitchId = useId();
+
   useEffect(() => {
     setWidth(initialWidth === "inherit" ? "" : String(initialWidth));
     setHeight(initialHeight === "inherit" ? "" : String(initialHeight));
     setShowCaption(initialShowCaption);
-  }, [isOpen, initialWidth, initialHeight, initialShowCaption]);
+  }, [initialWidth, initialHeight, initialShowCaption]);
 
   const handleApply = () => {
     const newWidth = width === "" ? "inherit" : parseInt(width, 10);
     const newHeight = height === "" ? "inherit" : parseInt(height, 10);
 
     if (
-      (typeof newWidth === "number" && isNaN(newWidth)) ||
-      (typeof newHeight === "number" && isNaN(newHeight))
+      (typeof newWidth === "number" && Number.isNaN(newWidth)) ||
+      (typeof newHeight === "number" && Number.isNaN(newHeight))
     ) {
       // Basic validation, could be more sophisticated
       alert(
@@ -79,9 +83,9 @@ export default function VideoEditModal({
         </DialogHeader>
         <div className="grid grid-cols-2 gap-x-4 gap-y-6 py-4 w-full">
           <div className="flex justify-start flex-col gap-2">
-            <Label htmlFor="width">Width</Label>
+            <Label htmlFor={widthInputId}>Width</Label>
             <Input
-              id="width"
+              id={widthInputId}
               type="number"
               value={width}
               onChange={(e) => setWidth(e.target.value)}
@@ -89,9 +93,9 @@ export default function VideoEditModal({
             />
           </div>
           <div className="flex justify-start flex-col gap-2">
-            <Label htmlFor="height">Height</Label>
+            <Label htmlFor={heightInputId}>Height</Label>
             <Input
-              id="height"
+              id={heightInputId}
               type="number"
               value={height}
               onChange={(e) => setHeight(e.target.value)}
@@ -99,9 +103,9 @@ export default function VideoEditModal({
             />
           </div>
           <div className="flex items-center gap-x-4 justify-start col-span-2">
-            <Label htmlFor="show-caption">Show Caption</Label>
+            <Label htmlFor={showCaptionSwitchId}>Show Caption</Label>
             <Switch
-              id="show-caption"
+              id={showCaptionSwitchId}
               checked={showCaption}
               onCheckedChange={setShowCaption}
             />

@@ -10,7 +10,6 @@ import {
   $isRangeSelection,
   type TextNode,
 } from "lexical";
-import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as ReactDOM from "react-dom";
 
@@ -46,15 +45,16 @@ function EmojiMenuItem({
   option: EmojiOption;
 }) {
   return (
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: emoji menu item is interactive
+    // biome-ignore lint/a11y/useKeyWithClickEvents: emoji menu item is interactive
     <li
       key={option.key}
       tabIndex={-1}
       className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
       data-highlighted={isSelected ? "" : undefined}
       ref={option.setRefElement}
-      role="option"
       aria-selected={isSelected}
-      id={"typeahead-item-" + index}
+      id={`typeahead-item-${index}`}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >

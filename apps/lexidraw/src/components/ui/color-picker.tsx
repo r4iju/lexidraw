@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useId } from "react";
 import type * as React from "react";
 import { Label } from "./label";
 import {
@@ -92,6 +92,8 @@ export function ColorPickerContent({
     hexToHsva,
   ]);
 
+  const rcHexInputId = useId();
+
   const handleSaturationChange = useCallback(
     (newSaturationValue: { s: number; v: number }) => {
       const newHsvaColor = {
@@ -153,11 +155,11 @@ export function ColorPickerContent({
       </div>
 
       <div className="flex items-center gap-2">
-        <Label htmlFor="rc-hex-input" className="text-sm">
+        <Label htmlFor={rcHexInputId} className="text-sm">
           Hex
         </Label>
         <RcHexColorInput
-          id="rc-hex-input"
+          id={rcHexInputId}
           color={currentHexForDisplay}
           onChange={handleHexInputChange}
           className="w-full p-1 border rounded text-sm"

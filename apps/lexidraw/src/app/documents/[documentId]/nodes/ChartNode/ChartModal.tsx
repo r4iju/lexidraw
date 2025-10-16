@@ -20,7 +20,7 @@ import {
 } from "~/components/ui/select";
 import { Loader2 } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense, useId } from "react";
 import { useDebounceValue } from "~/lib/client-utils";
 import type { ChartType } from "./index"; // Assuming ChartNode is in the same directory
 import DynamicChartRenderer from "./DynamicChartRenderer";
@@ -126,7 +126,7 @@ export default function ChartModal({
     if (dataError || configError) return;
 
     const toNumberOrInherit = (raw: string): Dimension =>
-      raw.trim() === "" || isNaN(Number(raw)) ? "inherit" : Number(raw);
+      raw.trim() === "" || Number.isNaN(Number(raw)) ? "inherit" : Number(raw);
 
     onSave({
       newChartType: chartType,
@@ -138,6 +138,12 @@ export default function ChartModal({
       },
     });
   };
+
+  const chartTypeSelectId = useId();
+  const chartDataTextareaId = useId();
+  const chartConfigTextareaId = useId();
+  const chartWidthInputId = useId();
+  const chartHeightInputId = useId();
 
   if (!isOpen) return null;
 
@@ -153,12 +159,12 @@ export default function ChartModal({
           {/* Config & Data Inputs */}
           <div className="flex flex-col gap-4 overflow-y-auto pr-2 pb-2">
             <div>
-              <Label htmlFor="chartTypeSelect">Chart Type</Label>
+              <Label htmlFor={chartTypeSelectId}>Chart Type</Label>
               <Select
                 value={chartType}
                 onValueChange={(v) => setChartType(v as ChartType)}
               >
-                <SelectTrigger id="chartTypeSelect">
+                <SelectTrigger id={chartTypeSelectId} aria-label="Chart type">
                   <SelectValue placeholder="Select chart type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -174,7 +180,7 @@ export default function ChartModal({
             <div className="flex flex-col gap-1.5 flex-1">
               <Label htmlFor="chartDataTextarea">Chart Data (JSON)</Label>
               <Textarea
-                id="chartDataTextarea"
+                id={chartDataTextareaId}
                 value={chartDataStr}
                 onChange={(e) => setChartDataStr(e.target.value)}
                 placeholder='[{"name": "Jan", "value": 30}, ...]'
@@ -192,9 +198,9 @@ export default function ChartModal({
             </div>
 
             <div className="flex flex-col gap-1.5 flex-1">
-              <Label htmlFor="chartConfigTextarea">Chart Config (JSON)</Label>
+              <Label htmlFor={chartConfigTextareaId}>Chart Config (JSON)</Label>
               <Textarea
-                id="chartConfigTextarea"
+                id={chartConfigTextareaId}
                 value={chartConfigStr}
                 onChange={(e) => setChartConfigStr(e.target.value)}
                 placeholder='{"value": {"label": "Visitors", "color": "hsl(var(--chart-1))"}}'
@@ -248,9 +254,9 @@ export default function ChartModal({
         <DialogFooter className="p-6 pt-4 flex flex-row justify-between items-end gap-2 border-t">
           <div className="flex flex-row gap-2">
             <div>
-              <Label htmlFor="chartWidthInput">Width</Label>
+              <Label htmlFor={chartWidthInputId}>Width</Label>
               <Input
-                id="chartWidthInput"
+                id={chartWidthInputId}
                 type="number"
                 placeholder="auto"
                 step={50}
@@ -259,9 +265,9 @@ export default function ChartModal({
               />
             </div>
             <div>
-              <Label htmlFor="chartHeightInput">Height</Label>
+              <Label htmlFor={chartHeightInputId}>Height</Label>
               <Input
-                id="chartHeightInput"
+                id={chartHeightInputId}
                 type="number"
                 placeholder="auto"
                 step={50}

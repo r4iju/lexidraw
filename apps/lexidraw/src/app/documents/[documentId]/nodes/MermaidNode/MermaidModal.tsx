@@ -77,12 +77,12 @@ export default function MermaidModal({
       });
       try {
         const { svg } = await mermaid.render(
-          "prev-" + Math.random().toString(36).slice(2),
+          `prev-${Math.random().toString(36).slice(2)}`,
           debouncedSchema,
         );
         if (cancelled) return;
 
-        const uri = "data:image/svg+xml;utf8," + encodeURIComponent(svg); // safer embed
+        const uri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`; // safer embed
         setSvgUri(uri);
         setError(null);
       } catch (err: unknown) {

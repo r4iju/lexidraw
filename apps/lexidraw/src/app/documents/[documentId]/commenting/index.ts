@@ -122,10 +122,10 @@ export class CommentStore {
     } else {
       sharedMap.set("quote", commentOrThread.quote);
       const commentsArray: Map<string, unknown>[] = [];
-      commentOrThread.comments.forEach((comment) => {
+      for (const comment of commentOrThread.comments) {
         const sharedChildComment = this._createCollabSharedMap(comment);
         commentsArray.push(sharedChildComment);
-      });
+      }
       sharedMap.set("comments", commentsArray);
     }
     return sharedMap;

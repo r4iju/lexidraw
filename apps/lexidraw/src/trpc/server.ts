@@ -6,7 +6,6 @@ import { headers } from "next/headers";
 import { cache } from "react";
 import { appRouter, type AppRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
-import { loggerLink } from "@trpc/client";
 /**
  * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
  * handling a tRPC call from a React Server Component.
@@ -47,8 +46,9 @@ export const api = createTRPCClient<AppRouter>({
               if (
                 typeof caller[op.path as keyof typeof caller] === "function"
               ) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return (caller as Record<string, any>)[op.path](op.input);
+                return (caller as Record<string, (input: unknown) => unknown>)[
+                  op.path
+                ](op.input);
               } else {
                 throw new Error(`Invalid procedure path: ${op.path}`);
               }

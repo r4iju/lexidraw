@@ -25,7 +25,8 @@ export default async function LandingPage() {
     <>
       <Header />
       <main className="flex h-full flex-col overflow-auto pb-6">
-        <section id="about" className="w-full pt-12 md:pt-24 lg:pt-32">
+        {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
+        <section id="landing-about" className="w-full pt-12 md:pt-24 lg:pt-32">
           <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
             <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
               <div className="flex flex-col gap-3">
@@ -61,7 +62,11 @@ export default async function LandingPage() {
             </div>
           </div>
         </section>
-        <section id="projects" className="w-full py-12 md:py-24 lg:py-32">
+        {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
+        <section
+          id="landing-projects"
+          className="w-full py-12 md:py-24 lg:py-32"
+        >
           <div className="container px-4 md:px-6">
             <h2 className="text-center text-3xl font-semibold tracking-tighter sm:text-5xl">
               Sample projects

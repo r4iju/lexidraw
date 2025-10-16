@@ -20,7 +20,7 @@ import {
 } from "~/components/ui/select";
 import { Loader2 } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense, useId } from "react";
 import { useDebounceValue } from "~/lib/client-utils";
 import type { ChartType } from "../ChartNode";
 import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
@@ -95,6 +95,12 @@ export default function SlideChartEditModal({
     }
   }, [debouncedConfigStr]);
 
+  const slideChartTypeSelectId = useId();
+  const slideChartDataTextareaId = useId();
+  const slideChartConfigTextareaId = useId();
+  const slideChartWidthInputId = useId();
+  const slideChartHeightInputId = useId();
+
   const saveDisabled = useMemo(() => {
     return chartDataStr.trim().length === 0 || !!dataError || !!configError;
   }, [chartDataStr, dataError, configError]);
@@ -110,7 +116,7 @@ export default function SlideChartEditModal({
     if (dataError || configError) return;
 
     const toNumberOrInherit = (raw: string): Dimension =>
-      raw.trim() === "" || isNaN(Number(raw)) ? "inherit" : Number(raw);
+      raw.trim() === "" || Number.isNaN(Number(raw)) ? "inherit" : Number(raw);
 
     const updatedElement: Extract<SlideElementSpec, { kind: "chart" }> = {
       ...chartElement,
@@ -138,12 +144,12 @@ export default function SlideChartEditModal({
           {/* Config & Data Inputs */}
           <div className="flex flex-col gap-4 overflow-y-auto pr-2 pb-2">
             <div>
-              <Label htmlFor="slideChartTypeSelect">Chart Type</Label>
+              <Label htmlFor={slideChartTypeSelectId}>Chart Type</Label>
               <Select
                 value={chartType}
                 onValueChange={(v) => setChartType(v as ChartType)}
               >
-                <SelectTrigger id="slideChartTypeSelect">
+                <SelectTrigger id={slideChartTypeSelectId}>
                   <SelectValue placeholder="Select chart type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -156,9 +162,11 @@ export default function SlideChartEditModal({
               </Select>
             </div>
             <div className="flex flex-col gap-1.5 flex-1">
-              <Label htmlFor="slideChartDataTextarea">Chart Data (JSON)</Label>
+              <Label htmlFor={slideChartDataTextareaId}>
+                Chart Data (JSON)
+              </Label>
               <Textarea
-                id="slideChartDataTextarea"
+                id={slideChartDataTextareaId}
                 value={chartDataStr}
                 onChange={(e) => setChartDataStr(e.target.value)}
                 placeholder='[{"name": "Jan", "value": 30}, ...]'
@@ -175,11 +183,11 @@ export default function SlideChartEditModal({
               )}
             </div>
             <div className="flex flex-col gap-1.5 flex-1">
-              <Label htmlFor="slideChartConfigTextarea">
+              <Label htmlFor={slideChartConfigTextareaId}>
                 Chart Config (JSON)
               </Label>
               <Textarea
-                id="slideChartConfigTextarea"
+                id={slideChartConfigTextareaId}
                 value={chartConfigStr}
                 onChange={(e) => setChartConfigStr(e.target.value)}
                 placeholder='{"value": {"label": "Visitors", "color": "hsl(var(--chart-1))"}}'
@@ -233,9 +241,9 @@ export default function SlideChartEditModal({
         <DialogFooter className="p-6 pt-4 flex flex-row justify-between items-end gap-2 border-t">
           <div className="flex flex-row gap-2">
             <div>
-              <Label htmlFor="slideChartWidthInput">Width</Label>
+              <Label htmlFor={slideChartWidthInputId}>Width</Label>
               <Input
-                id="slideChartWidthInput"
+                id={slideChartWidthInputId}
                 type="number"
                 placeholder="auto"
                 step={50}
@@ -244,9 +252,9 @@ export default function SlideChartEditModal({
               />
             </div>
             <div>
-              <Label htmlFor="slideChartHeightInput">Height</Label>
+              <Label htmlFor={slideChartHeightInputId}>Height</Label>
               <Input
-                id="slideChartHeightInput"
+                id={slideChartHeightInputId}
                 type="number"
                 placeholder="auto"
                 step={50}

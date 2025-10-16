@@ -6,10 +6,8 @@ export default function TermsOfService() {
   return (
     <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">
       <main className="flex-1">
-        <section
-          id="terms-of-service"
-          className="w-full pt-12 md:pt-24 lg:pt-32"
-        >
+        {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
+        <section id="privacy-policy" className="w-full pt-12 md:pt-24 lg:pt-32">
           <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
             <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
               <div className="flex flex-col gap-3">

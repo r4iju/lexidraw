@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
@@ -61,11 +61,11 @@ const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="title" className="text-right">
+            <Label htmlFor={`rename-title-${entity.id}`} className="text-right">
               Title
             </Label>
             <Input
-              id="title"
+              id={`rename-title-${entity.id}`}
               value={newTitle}
               className="col-span-3"
               onChange={(e) => setNewTitle(e.target.value)}

@@ -40,16 +40,18 @@ export function useSystemPrompt(
   const collectTypes = useCallback((node: LexicalNode, set: Set<string>) => {
     if (!$isElementNode(node)) return;
     set.add(node.getType());
-    node.getChildren().forEach((child) => collectTypes(child, set));
+    for (const child of node.getChildren()) {
+      collectTypes(child, set);
+    }
   }, []);
 
   useEffect(() => {
     const computeNodeTypes = (state: EditorState) => {
       const next = new Set<string>();
       state.read(() => {
-        $getRoot()
-          .getChildren()
-          .forEach((n) => collectTypes(n, next));
+        for (const n of $getRoot().getChildren()) {
+          collectTypes(n, next);
+        }
       });
       setExistingNodeTypes((prev) =>
         prev.size === next.size && [...prev].every((t) => next.has(t))

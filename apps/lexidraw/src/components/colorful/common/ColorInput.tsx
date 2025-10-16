@@ -20,13 +20,13 @@ export const ColorInput = (props: Props): JSX.Element => {
     color = "",
     onChange,
     onBlur,
-    escape,
+    escape: escapeValue,
     validate,
     format,
     process,
     ...rest
   } = props;
-  const [value, setValue] = useState(() => escape(color));
+  const [value, setValue] = useState(() => escapeValue(color));
   const onChangeCallback = useEventCallback<string>(onChange);
   const onBlurCallback =
     useEventCallback<React.FocusEvent<HTMLInputElement>>(onBlur);
@@ -34,27 +34,27 @@ export const ColorInput = (props: Props): JSX.Element => {
   // Trigger `onChange` handler only if the input value is a valid color
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const inputValue = escape(e.target.value);
+      const inputValue = escapeValue(e.target.value);
       setValue(inputValue);
       if (validate(inputValue))
         onChangeCallback(process ? process(inputValue) : inputValue);
     },
-    [escape, process, validate, onChangeCallback],
+    [escapeValue, process, validate, onChangeCallback],
   );
 
   // Take the color from props if the last typed color (in local state) is not valid
   const handleBlur = useCallback(
     (e: React.FocusEvent<HTMLInputElement>) => {
-      if (!validate(e.target.value)) setValue(escape(color));
+      if (!validate(e.target.value)) setValue(escapeValue(color));
       onBlurCallback(e);
     },
-    [color, escape, validate, onBlurCallback],
+    [color, escapeValue, validate, onBlurCallback],
   );
 
   // Update the local state when `color` property value is changed
   useEffect(() => {
-    setValue(escape(color));
-  }, [color, escape]);
+    setValue(escapeValue(color));
+  }, [color, escapeValue]);
 
   return (
     <Input

@@ -1,6 +1,6 @@
 "use client";
 
-import React, {
+import {
   createContext,
   useCallback,
   useState,
@@ -311,7 +311,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         autocompleteConfig: config.autocomplete,
       });
     },
-    [setLlmConfig, debouncedSaveConfiguration],
+    [debouncedSaveConfiguration],
   );
 
   const [autocompleteState, setAutocompleteState] =
@@ -507,7 +507,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       { prompt }: { prompt: string },
       files?: File[] | FileList | null,
     ): Promise<{ messages: CoreMessage[] } | { prompt: string }> => {
-      if (files && files.length) {
+      if (files?.length) {
         const fileParts = await toFileParts(files);
         const parts: (TextPart | FilePart)[] = [
           { type: "text", text: prompt },
@@ -566,7 +566,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       try {
         let inputConfig: { prompt?: string; messages?: CoreMessage[] };
 
-        if (messages && messages.length) {
+        if (messages?.length) {
           inputConfig = { messages };
         } else {
           // falls back to old behaviour (prompt + optional files)

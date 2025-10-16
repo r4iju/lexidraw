@@ -341,19 +341,7 @@ export default function ImageComponent({
       unregister();
       rootElement?.removeEventListener("contextmenu", onRightClick);
     };
-  }, [
-    clearSelection,
-    editor,
-    isResizing,
-    isSelected,
-    nodeKey,
-    $onDelete,
-    $onEnter,
-    $onEscape,
-    onClick,
-    onRightClick,
-    setSelected,
-  ]);
+  }, [editor, $onDelete, $onEnter, $onEscape, onClick, onRightClick]);
 
   const setShowCaption = () => {
     editor.update(() => {

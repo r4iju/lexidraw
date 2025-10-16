@@ -33,7 +33,7 @@ const config = {
       ...(config.externals || []),
       // @ts-expect-error unknown types
       ({ request }, callback) => {
-        if (request && request.endsWith(".node")) {
+        if (request?.endsWith(".node")) {
           return callback(null, `commonjs ${request}`);
         }
         callback();

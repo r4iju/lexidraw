@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/prefer-for-of */
-import type { ElementNode, LexicalEditor } from "lexical";
+import type { ElementNode, LexicalEditor, LexicalNode } from "lexical";
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
@@ -106,46 +106,52 @@ function TableActionMenu({
 
   // This is important when merging cells as there is no good way to re-merge weird shapes (a result
   // of selecting merged cells and non-merged)
-  const isTableSelectionRectangular = (selection: TableSelection): boolean => {
-    const nodes = selection.getNodes();
-    const currentRows: number[] = [];
-    let currentRow = null;
-    let expectedColumns = null;
-    let currentColumns = 0;
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      if ($isTableCellNode(node)) {
-        const row = node.getParentOrThrow();
-        if (!$isTableRowNode(row)) {
-          throw new Error("Expected CellNode to have a RowNode parent");
-        }
-        if (currentRow !== row) {
-          if (expectedColumns !== null && currentColumns !== expectedColumns) {
-            return false;
+  const isTableSelectionRectangular = useCallback(
+    (selection: TableSelection): boolean => {
+      const nodes = selection.getNodes();
+      const currentRows: number[] = [];
+      let currentRow = null;
+      let expectedColumns = null;
+      let currentColumns = 0;
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if ($isTableCellNode(node)) {
+          const row = node.getParentOrThrow();
+          if (!$isTableRowNode(row)) {
+            throw new Error("Expected CellNode to have a RowNode parent");
           }
-          if (currentRow !== null) {
-            expectedColumns = currentColumns;
+          if (currentRow !== row) {
+            if (
+              expectedColumns !== null &&
+              currentColumns !== expectedColumns
+            ) {
+              return false;
+            }
+            if (currentRow !== null) {
+              expectedColumns = currentColumns;
+            }
+            currentRow = row;
+            currentColumns = 0;
           }
-          currentRow = row;
-          currentColumns = 0;
-        }
-        const colSpan = node.__colSpan;
-        for (let j = 0; j < colSpan; j++) {
-          if (currentRows[currentColumns + j] === undefined) {
-            currentRows[currentColumns + j] = 0;
+          const colSpan = node.__colSpan;
+          for (let j = 0; j < colSpan; j++) {
+            if (currentRows[currentColumns + j] === undefined) {
+              currentRows[currentColumns + j] = 0;
+            }
+            (currentRows[currentColumns + j] as number) += node.__rowSpan;
           }
-          (currentRows[currentColumns + j] as number) += node.__rowSpan;
+          currentColumns += colSpan;
         }
-        currentColumns += colSpan;
       }
-    }
-    return (
-      (expectedColumns === null || currentColumns === expectedColumns) &&
-      currentRows.every((v) => v === currentRows[0])
-    );
-  };
+      return (
+        (expectedColumns === null || currentColumns === expectedColumns) &&
+        currentRows.every((v) => v === currentRows[0])
+      );
+    },
+    [],
+  );
 
-  const $canUnmerge = (): boolean => {
+  const $canUnmerge = useCallback((): boolean => {
     const selection = $getSelection();
     if (
       ($isRangeSelection(selection) && !selection.isCollapsed()) ||
@@ -156,7 +162,7 @@ function TableActionMenu({
     }
     const [cell] = $getNodeTriplet(selection.anchor);
     return cell.__colSpan > 1 || cell.__rowSpan > 1;
-  };
+  }, []);
 
   const $cellContainsEmptyParagraph = (cell: TableCellNode): boolean => {
     if (cell.getChildrenSize() !== 1) {
@@ -226,7 +232,7 @@ function TableActionMenu({
       // Unmerge cell
       setCanUnmergeCell($canUnmerge());
     });
-  }, [computeSelectionCount, editor]);
+  }, [computeSelectionCount, editor, $canUnmerge, isTableSelectionRectangular]);
 
   useEffect(() => {
     const menuButtonElement = contextRef.current;
@@ -261,7 +267,7 @@ function TableActionMenu({
       }
       dropDownElement.style.top = `${topPosition + +window.pageYOffset}px`;
     }
-  }, [contextRef, dropDownRef, editor]);
+  }, [contextRef, editor]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -320,11 +326,11 @@ function TableActionMenu({
               node.setColSpan(columns).setRowSpan(rows);
               firstCell = node;
               const isEmpty = $cellContainsEmptyParagraph(node);
-              let firstChild;
-              if (
-                isEmpty &&
-                $isParagraphNode((firstChild = node.getFirstChild()))
-              ) {
+              let firstChild: LexicalNode | null = null;
+              if (isEmpty) {
+                firstChild = node.getFirstChild();
+              }
+              if (isEmpty && $isParagraphNode(firstChild)) {
                 firstChild.remove();
               }
             } else if ($isTableCellNode(firstCell)) {
@@ -417,13 +423,13 @@ function TableActionMenu({
         throw new Error("Expected table row");
       }
 
-      tableRow.getChildren().forEach((tableCell) => {
+      for (const tableCell of tableRow.getChildren()) {
         if (!$isTableCellNode(tableCell)) {
           throw new Error("Expected table cell");
         }
 
         tableCell.toggleHeaderStyle(TableCellHeaderStates.ROW);
-      });
+      }
 
       clearTableSelection();
       onClose();
@@ -697,7 +703,7 @@ function TableCellActionMenuContainer({
         menuButtonDOM.style.transform = "translate(-10000px, -10000px)";
       }
     }
-  }, [menuButtonRef, tableCellNode, editor, anchorElem]);
+  }, [tableCellNode, editor, anchorElem]);
 
   const prevTableCellDOM = useRef(tableCellNode);
 
@@ -707,7 +713,7 @@ function TableCellActionMenuContainer({
     }
 
     prevTableCellDOM.current = tableCellNode;
-  }, [prevTableCellDOM, tableCellNode]);
+  }, [tableCellNode]);
 
   return (
     <div
@@ -715,36 +721,34 @@ function TableCellActionMenuContainer({
       ref={menuButtonRef}
     >
       {tableCellNode != null && (
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="flex justify-center items-center border-0 size-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMenuOpen(!isMenuOpen);
-                }}
-                ref={menuRootRef}
-              >
-                <ChevronDown className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            {colorPickerModal}
-            {isMenuOpen && (
-              <TableActionMenu
-                contextRef={menuRootRef}
-                setIsMenuOpen={setIsMenuOpen}
-                onClose={() => setIsMenuOpen(false)}
-                tableCellNode={tableCellNode}
-                cellMerge={cellMerge}
-                showColorPickerModal={showColorPickerModal}
-              />
-            )}
-          </DropdownMenu>
-        </>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="flex justify-center items-center border-0 size-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMenuOpen(!isMenuOpen);
+              }}
+              ref={menuRootRef}
+            >
+              <ChevronDown className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          {colorPickerModal}
+          {isMenuOpen && (
+            <TableActionMenu
+              contextRef={menuRootRef}
+              setIsMenuOpen={setIsMenuOpen}
+              onClose={() => setIsMenuOpen(false)}
+              tableCellNode={tableCellNode}
+              cellMerge={cellMerge}
+              showColorPickerModal={showColorPickerModal}
+            />
+          )}
+        </DropdownMenu>
       )}
     </div>
   );

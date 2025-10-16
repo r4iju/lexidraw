@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import {
@@ -62,12 +62,12 @@ const TagEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="tags" className="text-right">
+            <Label htmlFor={`tags-input-${entity.id}`} className="text-right">
               Tags
             </Label>
             <div className="col-span-3">
               <TagsInput
-                id="tags"
+                id={`tags-input-${entity.id}`}
                 value={tags}
                 onChange={setTags}
                 placeholder="Add tags..."

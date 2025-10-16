@@ -506,7 +506,7 @@ function EditorHandler({
                                 contentEditable={
                                   <article ref={onRef} className="relative">
                                     <ContentEditable
-                                      id="lexical-content"
+                                      id={`lexical-content-${entity.id}`}
                                       className="py-4 px-4 md:px-8 text-foreground outline-muted outline-2 outline-offset-12 min-h-[calc(100svh-4rem)]"
                                     />
                                   </article>

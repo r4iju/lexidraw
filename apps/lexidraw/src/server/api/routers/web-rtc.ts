@@ -78,10 +78,7 @@ export const webRtcRouter = createTRPCRouter({
           and(
             eq(schema.webRtcOffers.entityId, input.drawingId),
             ne(schema.webRtcOffers.createdBy, input.userId),
-            lte(
-              schema.webRtcOffers.updatedAt,
-              new Date(new Date().getTime() - 1000 * 5),
-            ),
+            lte(schema.webRtcOffers.updatedAt, new Date(Date.now() - 1000 * 5)),
           ),
         );
     }),
@@ -170,7 +167,7 @@ export const webRtcRouter = createTRPCRouter({
             ne(schema.webRtcAnswers.createdBy, input.userId),
             lte(
               schema.webRtcAnswers.updatedAt,
-              new Date(new Date().getTime() - 1000 * 5),
+              new Date(Date.now() - 1000 * 5),
             ),
           ),
         );

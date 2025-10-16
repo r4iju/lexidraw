@@ -100,7 +100,7 @@ export const DrawingBoardMenu = ({
       appState: {
         ...excalidrawApi.current.getAppState(),
         exportBackground: true,
-        exportWithDarkMode: isDarkTheme ? true : false,
+        exportWithDarkMode: !!isDarkTheme,
       },
       files: null,
       // quality: 100,

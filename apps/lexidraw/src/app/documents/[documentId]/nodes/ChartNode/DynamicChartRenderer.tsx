@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -126,12 +126,13 @@ export default function DynamicChartRenderer({
     }
 
     const generatedConfig: ChartConfig = {};
-    numericKeys.forEach((key, index) => {
+    for (const key of numericKeys) {
+      const index = numericKeys.indexOf(key);
       generatedConfig[key] = {
         label: key.charAt(0).toUpperCase() + key.slice(1), // capitalize key for label
         color: `hsl(var(--chart-${(index % 5) + 1}))`, // cycle through chart-1 to chart-5
       };
-    });
+    }
     return generatedConfig;
   };
 

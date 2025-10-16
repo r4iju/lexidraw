@@ -131,7 +131,7 @@ export const useConvertUtils = () => {
 
   const format = useCallback((number: number) => {
     const hex = number.toString(16);
-    return hex.length < 2 ? "0" + hex : hex;
+    return hex.length < 2 ? `0${hex}` : hex;
   }, []);
 
   const hsvaToRgba = useCallback(
@@ -165,7 +165,7 @@ export const useConvertUtils = () => {
   const rgbaToHex = useCallback(
     ({ r, g, b, a }: RgbaColor): string => {
       const alphaHex = a < 1 ? format(round(a * 255)) : "";
-      return "#" + format(r) + format(g) + format(b) + alphaHex;
+      return `#${format(r)}${format(g)}${format(b)}${alphaHex}`;
     },
     [format, round],
   );

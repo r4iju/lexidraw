@@ -30,6 +30,7 @@ import {
   type ElementFormatType,
   FORMAT_TEXT_COMMAND,
   KEY_MODIFIER_COMMAND,
+  type LexicalNode,
   type NodeKey,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
@@ -207,7 +208,7 @@ export default function ToolbarPlugin({
       setFontFamily(
         $getSelectionStyleValueForProperty(selection, "font-family", "Fredoka"),
       );
-      let matchingParent;
+      let matchingParent: LexicalNode | null = null;
       if ($isLinkNode(parent)) {
         // If node is a link, we need to fetch the parent paragraph node to set format
         matchingParent = $findMatchingParent(
@@ -243,7 +244,7 @@ export default function ToolbarPlugin({
       },
       COMMAND_PRIORITY_CRITICAL,
     );
-  }, [editor, activeEditor, setActiveEditor]);
+  }, [editor, activeEditor]);
 
   useEffect(() => {
     return mergeRegister(
@@ -327,7 +328,7 @@ export default function ToolbarPlugin({
           return;
         }
 
-        nodes.forEach((node, idx) => {
+        for (let [idx, node] of nodes.entries()) {
           // We split the first and last node by the selection
           // So that we don't format unselected text inside those nodes
           if ($isTextNode(node)) {
@@ -365,7 +366,7 @@ export default function ToolbarPlugin({
           } else if ($isDecoratorBlockNode(node)) {
             node.setFormat("");
           }
-        });
+        }
       }
     });
   }, [activeEditor]);
@@ -408,7 +409,7 @@ export default function ToolbarPlugin({
       )}
     >
       {/* Undo/Redo */}
-      <div className="flex" role="group" aria-label="History actions">
+      <fieldset className="flex" aria-label="History actions">
         <TooltipButton
           onClick={() => {
             activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
@@ -429,7 +430,7 @@ export default function ToolbarPlugin({
           Icon={Redo}
           ariaLabel="Redo"
         />
-      </div>
+      </fieldset>
 
       <Divider />
 
@@ -469,9 +470,8 @@ export default function ToolbarPlugin({
             />
           </div>
           <Divider />
-          <div
+          <fieldset
             className="flex"
-            role="group"
             aria-label="Font style and basic formatting"
           >
             <FontSize
@@ -520,7 +520,7 @@ export default function ToolbarPlugin({
               ariaLabel={`Format text to underlined. Shortcut: ${IS_APPLE ? "⌘U" : "Ctrl+U"}`}
             />
             {/* Text Color / Background Color */}
-            <div className="flex" role="group" aria-label="Color formatting">
+            <div className="flex">
               <ColorPickerButton
                 disabled={!isEditable}
                 buttonAriaLabel="Formatting text color"
@@ -562,7 +562,7 @@ export default function ToolbarPlugin({
                         "strikethrough",
                       );
                     }}
-                    className={"item " + dropDownActiveClass(isStrikethrough)}
+                    className={`item ${dropDownActiveClass(isStrikethrough)}`}
                     title="Strikethrough"
                     aria-label="Format text with a strikethrough"
                   >
@@ -576,7 +576,7 @@ export default function ToolbarPlugin({
                         "subscript",
                       );
                     }}
-                    className={"item " + dropDownActiveClass(isSubscript)}
+                    className={`item ${dropDownActiveClass(isSubscript)}`}
                     title="Subscript"
                     aria-label="Format text with a subscript"
                   >
@@ -590,7 +590,7 @@ export default function ToolbarPlugin({
                         "superscript",
                       );
                     }}
-                    className={"item " + dropDownActiveClass(isSuperscript)}
+                    className={`item ${dropDownActiveClass(isSuperscript)}`}
                     title="Superscript"
                     aria-label="Format text with a superscript"
                   >
@@ -609,7 +609,7 @@ export default function ToolbarPlugin({
                 </DropdownMenuContent>
               </DropdownMenu>
             </Tooltip>
-          </div>
+          </fieldset>
           <Divider />
 
           <div className="flex gap-0 h-12 md:h-10">
@@ -648,7 +648,7 @@ export default function ToolbarPlugin({
       <Divider />
 
       {/* AI Config / LLM Chat / Comments / TOC */}
-      <div className="flex" role="group" aria-label="AI and sidebar controls">
+      <fieldset className="flex" aria-label="AI and sidebar controls">
         <LlmModelSelector className="rounded-r-none border-r-0" />
         <TooltipButton
           className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
@@ -681,7 +681,7 @@ export default function ToolbarPlugin({
           title="Table of Contents"
           Icon={ListTree}
         />
-      </div>
+      </fieldset>
       <Divider />
       <SettingsDropdown className="rounded-md" />
     </div>

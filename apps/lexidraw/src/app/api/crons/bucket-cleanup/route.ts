@@ -53,12 +53,12 @@ export async function GET() {
         sql`${schema.entities.screenShotDark} IS NOT NULL AND ${schema.entities.screenShotDark} != '' OR ${schema.entities.screenShotLight} IS NOT NULL AND ${schema.entities.screenShotLight} != ''`,
       );
 
-    entitySnapshots.forEach((entity) => {
+    for (const entity of entitySnapshots) {
       const darkPathname = getPathnameFromUrl(entity.darkPathUrl);
       if (darkPathname) dbBlobPathnames.add(darkPathname);
       const lightPathname = getPathnameFromUrl(entity.lightPathUrl);
       if (lightPathname) dbBlobPathnames.add(lightPathname);
-    });
+    }
 
     // From uploadedImages table (fileName stores pathname, signedDownloadUrl stores full public URL)
     // We should primarily rely on fileName if it's guaranteed to be the Vercel Blob pathname.
@@ -76,7 +76,7 @@ export async function GET() {
       );
     // Add a more specific where clause if uploadedImages can contain non-Vercel blob data.
 
-    imageRecords.forEach((record) => {
+    for (const record of imageRecords) {
       if (record.fileName) {
         // Prefer fileName if it's the direct Vercel pathname
         dbBlobPathnames.add(record.fileName);
@@ -84,7 +84,7 @@ export async function GET() {
         const urlPathname = getPathnameFromUrl(record.publicUrl);
         if (urlPathname) dbBlobPathnames.add(urlPathname);
       }
-    });
+    }
 
     console.log(
       `[Vercel Blob Cleanup] Found ${dbBlobPathnames.size} unique blob pathnames referenced in the database.`,

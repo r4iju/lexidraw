@@ -165,7 +165,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
       let changesDetected = false;
-      elements.forEach((element) => {
+      for (const element of elements) {
         const prevElement = prevElementsRef.current.get(element.id);
         if (!prevElement || prevElement.version < element.version) {
           changesDetected = true;
@@ -174,7 +174,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           console.warn("element version mismatch", prevElement, element);
           // elements.push(prevElement);
         }
-      });
+      }
       if (appState.isResizing) {
         changesDetected = true;
       }
@@ -207,14 +207,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         });
       }
     },
-    [
-      debouncedSaveRef,
-      isRemoteUpdate,
-      setIsRemoteUpdate,
-      isCollaborating,
-      sendUpdateIfNeeded,
-      markDirty,
-    ],
+    [isRemoteUpdate, isCollaborating, sendUpdateIfNeeded, markDirty],
   );
 
   const options = useMemo(

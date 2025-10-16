@@ -25,11 +25,12 @@ export function ThumbnailClient({ entity }: Props) {
       deferredIsDarkTheme ? entity.screenShotDark : entity.screenShotLight,
     [deferredIsDarkTheme, entity.screenShotDark, entity.screenShotLight],
   );
-  const isDefaultDirectory = entity.entityType === "directory" && !src;
+  const _isDefaultDirectory = entity.entityType === "directory" && !src;
 
   // Folder visual using design-system colors; keeps screenshot visible under outline
   if (entity.entityType === "directory") {
-    const childCount = (entity as any).childCount as number | undefined;
+    const childCount = (entity as unknown as { childCount?: number })
+      .childCount;
     return (
       <FolderVisual
         id={entity.id}
@@ -68,7 +69,7 @@ export function ThumbnailFallback() {
 }
 
 function FolderVisual({
-  id,
+  id: _id,
   title,
   childCount,
   src,
@@ -79,7 +80,7 @@ function FolderVisual({
   src?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [strokeWidth, setStrokeWidth] = useState(1.6);
+  const [_strokeWidth, setStrokeWidth] = useState(1.6);
   const [isBig, setIsBig] = useState(false);
 
   useLayoutEffect(() => {

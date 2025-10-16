@@ -47,8 +47,8 @@ const RHFAutocomplete: React.FC<RHFAutocompleteProps> = ({
                 {placeholder}
               </option>
             )}
-            {options.map((option, index) => (
-              <option key={index} value={option.value}>
+            {options.map((option) => (
+              <option key={String(option.value)} value={option.value}>
                 {option.label}
               </option>
             ))}

@@ -62,7 +62,7 @@ export default function ExcalidrawImage({
           theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
           exportWithDarkMode: isDarkTheme,
         },
-        files: null,
+        files,
         config: {
           padding: 10,
           renderEmbeddables: true,
@@ -81,7 +81,7 @@ export default function ExcalidrawImage({
     };
 
     setContent();
-  }, [elements, files, appState, isDarkTheme]);
+  }, [elements, appState, isDarkTheme, files]);
 
   return (
     <div className={`relative inline-block`}>

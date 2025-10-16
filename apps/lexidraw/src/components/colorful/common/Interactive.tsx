@@ -22,7 +22,7 @@ const getTouchPoint = (touches: TouchList, touchId: null | number): Touch => {
 
 // Finds the proper window object to fix iframe embedding issues
 const getParentWindow = (node?: HTMLDivElement | null): Window => {
-  return (node && node.ownerDocument.defaultView) || self;
+  return node?.ownerDocument.defaultView || self;
 };
 
 // Browsers introduced an intervention, making touch events passive by default.
@@ -176,6 +176,7 @@ const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
       onKeyDown={handleKeyDown}
       tabIndex={0}
       role="slider"
+      aria-valuenow={0}
     />
   );
 };
