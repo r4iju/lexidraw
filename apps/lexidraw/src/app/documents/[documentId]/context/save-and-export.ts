@@ -48,24 +48,39 @@ export function useSaveAndExportDocument({
           try {
             const nextTheme = isDarkTheme ? Theme.DARK : Theme.LIGHT;
 
-            const uploaded = await Promise.all(
-              tokens.map(async ({ token, pathname, theme }) => {
-                /* let exportWebp switch theme on the fly */
-                const webpBlob = await exportWebp({
+            // Run sequentially to avoid multiple heavy html2canvas clones at once
+            const uploaded: { theme: string; url: string }[] = [];
+            for (const { token, pathname, theme } of tokens) {
+              /* let exportWebp switch theme on the fly */
+              const webpBlob = await exportWebp(
+                {
                   setTheme: () => setTheme(theme),
                   restoreTheme: () => setTheme(nextTheme),
-                });
+                },
+                {
+                  isolateCloneDocument: true,
+                  pruneDepth: 3,
+                  keepFirstChildren: 8,
+                  charLimitPerTextNode: 400,
+                  skipHeavyEmbeds: true,
+                  replaceImages: "dominantColor",
+                  stripComplexStyles: true,
+                  foreignObjectRendering: false, // foreignObject is slower; prefer canvas
+                  maxTraverseNodes: 4000,
+                  reduceFonts: true,
+                  scale: 1,
+                },
+              );
 
-                const { url } = await put(pathname, webpBlob, {
-                  access: "public",
-                  multipart: true,
-                  contentType: webpBlob.type,
-                  token,
-                });
+              const { url } = await put(pathname, webpBlob, {
+                access: "public",
+                multipart: true,
+                contentType: webpBlob.type,
+                token,
+              });
 
-                return { theme, url };
-              }),
-            );
+              uploaded.push({ theme, url });
+            }
 
             const light = uploaded.find((u) => u.theme === "light")?.url;
             const dark = uploaded.find((u) => u.theme === "dark")?.url;
