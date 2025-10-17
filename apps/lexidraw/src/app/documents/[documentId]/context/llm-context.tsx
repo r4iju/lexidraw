@@ -17,7 +17,7 @@ import {
   type tool,
   type ToolCallRepairFunction,
   type ToolChoice,
-  type ToolSet,
+  // Note: avoid ToolSet in generics to match RuntimeToolMap usage
   streamText,
   type TextStreamPart,
   type FinishReason,
@@ -108,54 +108,55 @@ export type LLMOptions = {
   signal?: AbortSignal;
   tools?: RuntimeToolMap;
   maxSteps?: number;
-  toolChoice?: ToolChoice<ToolSet>;
+  toolChoice?: ToolChoice<RuntimeToolMap>;
   files?: File[] | FileList | null;
 };
 
 const LlmModelList = [
+  // OpenAI - GA
   {
-    modelId: "gpt-4.1-nano",
+    modelId: "gpt-5",
     provider: "openai",
-    name: "GPT-4.1 Nano",
-    description: "The smallest and fastest GPT model",
+    name: "GPT-5",
+    description: "OpenAI flagship multimodal model (GA)",
   },
   {
-    modelId: "gpt-4.1-mini",
+    modelId: "gpt-5-mini",
     provider: "openai",
-    name: "GPT-4.1 Mini",
-    description: "A fast GPT model",
+    name: "GPT-5 Mini",
+    description: "Smaller, faster GPT-5 tier (GA)",
   },
   {
-    modelId: "gpt-4.1",
+    modelId: "gpt-5-nano",
     provider: "openai",
-    name: "GPT-4.1",
-    description: "The latest and most powerful GPT model",
+    name: "GPT-5 Nano",
+    description: "Lowest-latency GPT-5 tier (GA)",
+  },
+
+  // Google Gemini - GA
+  {
+    modelId: "gemini-2.5-pro",
+    provider: "google",
+    name: "Gemini 2.5 Pro",
+    description: "Most capable Gemini 2.5 model (GA)",
   },
   {
-    modelId: "gemini-2.0-flash-lite",
+    modelId: "gemini-2.5-flash",
     provider: "google",
-    name: "Gemini 2.0 Flash Lite",
-    description:
-      "A Gemini 2.0 Flash model optimized for cost efficiency and low latency",
+    name: "Gemini 2.5 Flash",
+    description: "Fast, cost-efficient Gemini 2.5 (GA)",
   },
   {
-    modelId: "gemini-2.5-flash-preview-04-17",
+    modelId: "gemini-2.5-flash-lite",
     provider: "google",
-    name: "Gemini 2.5 Flash Preview (04-17)",
-    description:
-      "Next generation features, speed, thinking, realtime streaming, and multimodal generation",
+    name: "Gemini 2.5 Flash Lite",
+    description: "Lowest-cost Gemini 2.5 (GA)",
   },
   {
-    modelId: "gemini-2.5-pro-exp-03-25",
+    modelId: "gemini-2.0-flash",
     provider: "google",
-    name: "Gemini 2.5 Pro Exp (03-25)",
-    description: "Free but powerful Gemini 2.5 model",
-  },
-  {
-    modelId: "gemini-2.5-pro-preview-05-06",
-    provider: "google",
-    name: "Gemini 2.5 Pro Preview (05-06)",
-    description: "The most powerful Gemini 2.5 model",
+    name: "Gemini 2.0 Flash",
+    description: "Gemini 2.0 Flash (GA)",
   },
 ] as const;
 
@@ -173,16 +174,16 @@ type LLMContextValue = {
   generateChatResponse: (
     options: LLMOptions & {
       files?: File[] | FileList | null;
-      repairToolCall?: ToolCallRepairFunction<ToolSet>;
-      toolChoice?: ToolChoice<ToolSet>;
+      repairToolCall?: ToolCallRepairFunction<RuntimeToolMap>;
+      toolChoice?: ToolChoice<RuntimeToolMap>;
       prepareStep?: (options: {
-        steps: StepResult<ToolSet>[];
+        steps: StepResult<RuntimeToolMap>[];
         stepNumber: number;
         maxSteps: number;
         model: LanguageModel;
       }) => Promise<{
         model?: LanguageModel;
-        toolChoice?: ToolChoice<ToolSet>;
+        toolChoice?: ToolChoice<RuntimeToolMap>;
       }>;
     },
   ) => Promise<GenerateChatResponseResult>;
@@ -264,7 +265,13 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     [updateLlmConfigMutation, llmConfig],
   );
 
-  const debouncedSaveConfiguration = useDebounce(saveConfiguration, 2000);
+  const debouncedSaveConfiguration = useDebounce(
+    ((updatedConfig: {
+      chatConfig?: Partial<LLMBaseState>;
+      autocompleteConfig?: Partial<LLMBaseState>;
+    }) => saveConfiguration(updatedConfig)) as (...args: unknown[]) => void,
+    2000,
+  );
 
   const setLlmConfiguration = useCallback(
     (
@@ -442,7 +449,9 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       });
       try {
         const result = await generateText({
-          model: autocompleteProvider.current(llmConfig.autocomplete.modelId),
+          model: autocompleteProvider.current(
+            llmConfig.autocomplete.modelId,
+          ) as unknown as LanguageModel,
           prompt,
           system,
           temperature: temperature ?? llmConfig.autocomplete.temperature,
@@ -538,15 +547,15 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       files,
     }: LLMOptions & {
       files?: File[] | FileList | null;
-      repairToolCall?: ToolCallRepairFunction<ToolSet>;
+      repairToolCall?: ToolCallRepairFunction<RuntimeToolMap>;
       prepareStep?: (options: {
-        steps: StepResult<ToolSet>[];
+        steps: StepResult<RuntimeToolMap>[];
         stepNumber: number;
         maxSteps: number;
         model: LanguageModel;
       }) => Promise<{
         model?: LanguageModel;
-        toolChoice?: ToolChoice<ToolSet>;
+        toolChoice?: ToolChoice<RuntimeToolMap>;
       }>;
     }): Promise<GenerateChatResponseResult> => {
       if (!settings.chat || !chatProvider.current) {
@@ -576,7 +585,9 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         const result = await generateText({
           experimental_prepareStep: prepareStep,
           experimental_repairToolCall: repairToolCall,
-          model: chatProvider.current(llmConfig.chat.modelId),
+          model: chatProvider.current(
+            llmConfig.chat.modelId,
+          ) as unknown as LanguageModel,
           ...inputConfig,
           system,
           temperature: temperature ?? llmConfig.chat.temperature,
@@ -669,7 +680,9 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       try {
         const promptConfig = await buildPrompt({ prompt }, files);
         const result = streamText({
-          model: chatProvider.current(llmConfig.chat.modelId),
+          model: chatProvider.current(
+            llmConfig.chat.modelId,
+          ) as unknown as LanguageModel,
           ...promptConfig,
           system,
           temperature: temperature ?? llmConfig.chat.temperature,
@@ -687,7 +700,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
             }
             case "finish": {
               const finishDelta = delta as Extract<
-                TextStreamPart<ToolSet>,
+                TextStreamPart<RuntimeToolMap>,
                 { type: "finish" }
               >;
               finalResultData = {
@@ -699,7 +712,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
             }
             case "error": {
               const errorDelta = delta as Extract<
-                TextStreamPart<ToolSet>,
+                TextStreamPart<RuntimeToolMap>,
                 { type: "error" }
               >;
               throw errorDelta.error;

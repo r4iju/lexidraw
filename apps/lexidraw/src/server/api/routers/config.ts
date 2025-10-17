@@ -29,14 +29,14 @@ export type PartialLlmConfig = z.infer<typeof PatchSchema>;
 
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
-  modelId: "gemini-2.0-flash",
+  modelId: "gemini-2.5-flash",
   provider: "google",
   temperature: 0.7,
   maxTokens: 100000,
 };
 
 const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
-  modelId: "gemini-2.0-flash-lite",
+  modelId: "gemini-2.5-flash-lite",
   provider: "google",
   temperature: 0.3,
   maxTokens: 500,
