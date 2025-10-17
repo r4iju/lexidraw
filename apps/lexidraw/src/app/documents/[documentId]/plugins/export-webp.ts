@@ -89,7 +89,7 @@ export function useExportWebp() {
     }
     for (const t of texts) {
       const value = t.nodeValue || "";
-      if (value.length > limit) t.nodeValue = value.slice(0, limit) + "…";
+      if (value.length > limit) t.nodeValue = `${value.slice(0, limit)}…`;
     }
   }
   function dataURItoBlob(dataURI: string) {
