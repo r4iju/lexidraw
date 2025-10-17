@@ -17,7 +17,9 @@ import { revalidateDashboard } from "../server-actions";
 import { toast } from "sonner";
 
 type Props = {
-  entity: RouterOutputs["entities"]["list"][number];
+  entity:
+    | RouterOutputs["entities"]["list"][number]
+    | { id: string; entityType: string };
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };

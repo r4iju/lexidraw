@@ -22,7 +22,9 @@ import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   className?: string;
-  entity: RouterOutputs["entities"]["list"][number];
+  entity:
+    | RouterOutputs["entities"]["list"][number]
+    | { id: string; title: string };
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 };

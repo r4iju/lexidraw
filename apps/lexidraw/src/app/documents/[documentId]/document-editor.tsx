@@ -446,6 +446,11 @@ function EditorHandler({
                               className="flex h-12 md:h-10 min-w-12 md:min-w-10"
                               onSaveDocument={handleSave}
                               isSavingDocument={isUploading}
+                              entity={{
+                                id: entity.id,
+                                title: entity.title,
+                                accessLevel: entity.accessLevel,
+                              }}
                             />
                             <ShortcutsPlugin
                               editor={editor}

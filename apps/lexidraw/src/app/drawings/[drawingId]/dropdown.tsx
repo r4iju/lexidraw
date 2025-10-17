@@ -19,6 +19,7 @@ import {
   ImageDownIcon,
   LayoutDashboardIcon,
   RotateCcwIcon,
+  Trash2,
 } from "lucide-react";
 import {
   exportToBlob,
@@ -28,6 +29,9 @@ import {
 } from "@excalidraw/excalidraw";
 import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 import { put } from "@vercel/blob/client";
+import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
+import DeleteEntityModal from "~/app/dashboard/_actions/delete-entity";
+import { AccessLevel } from "@packages/types";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
@@ -43,6 +47,9 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     api.snapshot.saveUploadedUrl.useMutation();
   const [isUploading, setIsUploading] = useState(false);
   const { markPristine } = useUnsavedChanges();
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const canEdit = drawing.accessLevel === AccessLevel.EDIT;
 
   const CustomMenuItem = MainMenu.ItemCustom;
 
@@ -277,6 +284,23 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           </GuardedLink>
         </Button>
       </CustomMenuItem>
+      {canEdit && (
+        <CustomMenuItem
+          style={{
+            padding: 0,
+            marginTop: 0,
+          }}
+        >
+          <Button
+            onClick={() => setIsDeleteOpen(true)}
+            variant="ghost"
+            className="w-full justify-start gap-2 h-8 py-0 px-3 cursor-pointer"
+          >
+            <Trash2 size={14} strokeWidth={2} />
+            Delete
+          </Button>
+        </CustomMenuItem>
+      )}
       <CustomMenuItem
         style={{
           padding: 0,
@@ -293,6 +317,22 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           Save
         </Button>
       </CustomMenuItem>
+      {canEdit && (
+        <CustomMenuItem
+          style={{
+            padding: 0,
+            marginTop: 0,
+          }}
+        >
+          <Button
+            onClick={() => setIsRenameOpen(true)}
+            variant="ghost"
+            className="w-full justify-start gap-2 h-8 py-0 px-3 cursor-pointer"
+          >
+            Rename
+          </Button>
+        </CustomMenuItem>
+      )}
       <CustomMenuItem
         style={{
           padding: 0,
@@ -372,6 +412,20 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
         </Button>
       </CustomMenuItem>
       {/* <MainMenu.DefaultItems.ClearCanvas /> */}
+      {canEdit && (
+        <RenameEntityModal
+          entity={{ id: drawing.id, title: drawing.title }}
+          isOpen={isRenameOpen}
+          onOpenChange={setIsRenameOpen}
+        />
+      )}
+      {canEdit && (
+        <DeleteEntityModal
+          entity={{ id: drawing.id, entityType: "drawing" }}
+          isOpen={isDeleteOpen}
+          onOpenChange={setIsDeleteOpen}
+        />
+      )}
     </>
   );
 };
