@@ -27,6 +27,9 @@ type Props = {
 export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
   const router = useRouter();
   const { mutate: remove, isPending } = api.entities.delete.useMutation();
+  const { data: metadata } = api.entities.getMetadata.useQuery({
+    id: entity.id,
+  });
 
   const handleDelete = () => {
     remove(
@@ -34,7 +37,10 @@ export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
       {
         onSuccess: async () => {
           await revalidateDashboard();
-          router.refresh();
+          const afterDeleteHref = metadata?.parentId
+            ? `/dashboard/${metadata.parentId}`
+            : "/dashboard";
+          router.replace(afterDeleteHref);
           toast.success("Removed!");
           onOpenChange(false);
         },
