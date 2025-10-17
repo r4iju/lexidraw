@@ -2,11 +2,15 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $wrapNodeInElement } from "@lexical/utils";
 import {
   $createParagraphNode,
+  $createRangeSelection,
   $insertNodes,
   $isRootOrShadowRoot,
+  $setSelection,
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_LOW,
   type LexicalEditor,
+  DRAGOVER_COMMAND,
+  DROP_COMMAND,
   PASTE_COMMAND,
 } from "lexical";
 import { useEffect, useRef, useState, useCallback, useId } from "react";
@@ -524,6 +528,77 @@ export default function ImagePlugin({
       COMMAND_PRIORITY_EDITOR,
     );
 
+    const getDropRange = (event: DragEvent): Range | null | undefined => {
+      if (document.caretRangeFromPoint) {
+        return document.caretRangeFromPoint(event.clientX, event.clientY);
+      }
+      const sel = window?.getSelection?.() || null;
+      if (event.rangeParent && sel) {
+        sel.collapse(event.rangeParent, event.rangeOffset || 0);
+        return sel.getRangeAt(0);
+      }
+      return null;
+    };
+
+    const unregisterDragOver = editor.registerCommand<DragEvent>(
+      DRAGOVER_COMMAND,
+      (event) => {
+        const dt = event.dataTransfer;
+        if (!dt) return false;
+        const items = Array.from(dt.items || []);
+        const hasImage = items.some((i) => i.type?.startsWith("image/"));
+        if (hasImage) {
+          event.preventDefault();
+          dt.dropEffect = "copy";
+          return true;
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+
+    const unregisterDrop = editor.registerCommand<DragEvent>(
+      DROP_COMMAND,
+      (event) => {
+        const dt = event.dataTransfer;
+        if (!dt) return false;
+        const files = Array.from(dt.files || []) as File[];
+        const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+        if (imageFiles.length === 0) return false;
+        event.preventDefault();
+        const range = getDropRange(event);
+        const rangeSelection = $createRangeSelection();
+        if (range) rangeSelection.applyDOMRange(range);
+        $setSelection(rangeSelection);
+
+        void (async () => {
+          for (const file of imageFiles) {
+            try {
+              const url = await uploadClipboardImage(file);
+              if (!url) continue;
+              const altText = (file.name || "image").replace(/\.[^/.]+$/, "");
+              editor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
+                src: url,
+                altText,
+                position: "left",
+                showCaption: false,
+              });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : "Unknown error";
+              toast.error("Upload failed", { description: msg });
+            }
+          }
+          toast.success(
+            imageFiles.length > 1
+              ? `Inserted ${imageFiles.length} images`
+              : "Image inserted",
+          );
+        })();
+        return true;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+
     const unregisterPaste = editor.registerCommand<ClipboardEvent>(
       PASTE_COMMAND,
       (event) => {
@@ -569,6 +644,8 @@ export default function ImagePlugin({
 
     return () => {
       unregisterInsert();
+      unregisterDragOver();
+      unregisterDrop();
       unregisterPaste();
     };
   }, [editor, captionsEnabled, uploadClipboardImage]);
