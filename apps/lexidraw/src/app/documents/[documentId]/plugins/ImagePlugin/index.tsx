@@ -36,6 +36,8 @@ import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 import { Textarea } from "~/components/ui/textarea";
+import { put } from "@vercel/blob/client";
+import { INSERT_INLINE_IMAGE_COMMAND } from "../InlineImagePlugin";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
 
@@ -427,6 +429,62 @@ export default function ImagePlugin({
   const [editor] = useLexicalComposerContext();
   const modalOnCloseRef = useRef<(() => void) | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const entityId = useEntityId();
+  const { mutateAsync: generateUploadUrlAsync } =
+    api.entities.generateUploadUrl.useMutation();
+
+  const uploadClipboardImage = useCallback(
+    async (file: File): Promise<string | null> => {
+      const allowedImageTypes = [
+        "image/png",
+        "image/jpeg",
+        "image/svg+xml",
+        "image/webp",
+        "image/avif",
+      ] as const;
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (
+        !allowedImageTypes.includes(
+          file.type as (typeof allowedImageTypes)[number],
+        )
+      ) {
+        toast.error("Unsupported image type", {
+          description: "Allowed: PNG, JPEG, SVG, WEBP, AVIF.",
+        });
+        return null;
+      }
+      if (file.size > maxSize) {
+        toast.error("Image too large", { description: "Max size is 10MB." });
+        return null;
+      }
+      try {
+        const { token, pathname } = await generateUploadUrlAsync({
+          entityId,
+          contentType: file.type as
+            | "image/png"
+            | "image/jpeg"
+            | "image/svg+xml"
+            | "image/webp"
+            | "image/avif",
+          mode: "direct",
+        });
+        const { url } = await put(pathname, file, {
+          access: "public",
+          multipart: true,
+          contentType: file.type,
+          token,
+        });
+        return url;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unknown upload error";
+        toast.error("Image Upload Failed", { description: message });
+        console.error(err);
+        return null;
+      }
+    },
+    [entityId, generateUploadUrlAsync],
+  );
 
   const handleInsertByCommand = useCallback(
     (payload: InsertImagePayload) => {
@@ -474,19 +532,34 @@ export default function ImagePlugin({
           return false;
         }
         const items = clipboardData.items;
-        if (items) {
-          for (const item of items) {
-            if (item?.type.startsWith("image/")) {
-              const file = item.getAsFile();
-              if (file) {
-                console.log("Pasted image file:", file);
-                toast.error("Image Pasted", {
-                  description:
-                    "Pasted image handling needs implementation (upload & insert).",
+        if (!items || items.length === 0) {
+          return false;
+        }
+        for (const item of items) {
+          if (item?.type?.startsWith("image/")) {
+            const file = item.getAsFile();
+            if (!file) continue;
+            event.preventDefault();
+            toast.info("Uploading image…");
+            void (async () => {
+              try {
+                const url = await uploadClipboardImage(file);
+                if (!url) return;
+                const altText = (file.name || "image").replace(/\.[^/.]+$/, "");
+                editor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
+                  src: url,
+                  altText,
+                  position: "left",
+                  showCaption: false,
                 });
-                return true;
+                toast.success("Image inserted");
+              } catch (err) {
+                const msg =
+                  err instanceof Error ? err.message : "Unknown error";
+                toast.error("Upload failed", { description: msg });
               }
-            }
+            })();
+            return true;
           }
         }
         return false;
@@ -498,7 +571,7 @@ export default function ImagePlugin({
       unregisterInsert();
       unregisterPaste();
     };
-  }, [editor, captionsEnabled]);
+  }, [editor, captionsEnabled, uploadClipboardImage]);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
