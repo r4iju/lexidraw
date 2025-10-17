@@ -3,25 +3,22 @@
 import { elementToSVG } from "dom-to-svg";
 
 export const exportLexicalAsSvg = async () => {
-  const element = document.querySelector("#lexical-content") as HTMLElement;
+  const element = (document.querySelector('[id^="lexical-content-"]') ||
+    document.querySelector("#lexical-content")) as HTMLElement;
   if (!element) {
-    throw new Error("#lexical-content element not found");
+    throw new Error("Lexical content element not found");
   }
 
-  const previousWidth = element.style.width;
-  const previousHeight = element.style.height;
+  // Work on a detached clone to avoid reflow on the live DOM
+  const cloned = element.cloneNode(true) as HTMLElement;
+  cloned.style.width = "500px";
+  cloned.style.height = "400px";
+  cloned.style.overflow = "hidden";
+  cloned.classList.remove("pt-20", "px-6", "border-x");
+  cloned.classList.add("p-2");
 
-  element.style.width = "500px";
-  element.style.height = "400px";
-
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-  const svgDocument = elementToSVG(element);
+  const svgDocument = elementToSVG(cloned);
   const svgString = new XMLSerializer().serializeToString(svgDocument);
-
-  // reset the size
-  element.style.width = previousWidth;
-  element.style.height = previousHeight;
 
   return svgString;
 };
