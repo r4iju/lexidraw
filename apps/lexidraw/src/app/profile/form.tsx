@@ -25,8 +25,6 @@ export default function ProfileForm({ user }: Props) {
       name: user?.name ?? "",
       googleApiKey: user?.config?.llm?.googleApiKey ?? "",
       openaiApiKey: user?.config?.llm?.openaiApiKey ?? "",
-      chat: user?.config?.llm?.chat,
-      autocomplete: user?.config?.llm?.autocomplete,
     },
     mode: "onBlur",
   });
