@@ -23,7 +23,7 @@ import type { z } from "zod";
 import { useSlideTools, type AudienceDataSchema } from "./tools/slides";
 import { useTextTools } from "./tools/text";
 import { useListTools } from "./tools/list";
-import type { CoreMessage, ToolChoice, ToolSet } from "ai";
+import type { ModelMessage, ToolChoice, ToolSet } from "ai";
 
 interface AudienceData {
   bigIdea: string;
@@ -123,13 +123,13 @@ interface BoxWithContent {
 class StepError extends Error {
   public rawResponseText?: string;
   public stepName: string;
-  public history?: CoreMessage[];
+  public history?: ModelMessage[];
 
   constructor(
     message: string,
     stepName: string,
     rawResponseText?: string,
-    history?: CoreMessage[],
+    history?: ModelMessage[],
   ) {
     super(message);
     this.name = "StepError";
@@ -229,7 +229,7 @@ export function useSlideCreationWorkflow() {
       signal,
     }: RunLLMStepArgs): Promise<RunLLMStepReturn> => {
       if (signal?.aborted) throw new Error("Operation cancelled by user.");
-      const messages: CoreMessage[] = [{ role: "user", content: prompt }];
+      const messages: ModelMessage[] = [{ role: "user", content: prompt }];
 
       console.log(`[runLLMStep] Iteration 1`);
       console.log(

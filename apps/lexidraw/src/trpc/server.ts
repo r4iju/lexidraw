@@ -42,16 +42,12 @@ export const api = createTRPCClient<AppRouter>({
           createContext()
             .then((ctx) => {
               const caller = appRouter.createCaller(ctx);
-
-              if (
-                typeof caller[op.path as keyof typeof caller] === "function"
-              ) {
-                return (caller as Record<string, (input: unknown) => unknown>)[
-                  op.path
-                ](op.input);
-              } else {
-                throw new Error(`Invalid procedure path: ${op.path}`);
+              const path = op.path as keyof typeof caller;
+              const resolver = caller[path] as unknown;
+              if (typeof resolver === "function") {
+                return (resolver as (input: unknown) => unknown)(op.input);
               }
+              throw new Error(`Invalid procedure path: ${op.path}`);
             })
             .then((data) => {
               console.log(`[tRPC] Success for procedure: ${op.path}`, {

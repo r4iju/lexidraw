@@ -12,7 +12,7 @@ export const useImageTools = () => {
     ? tool({
         description:
           "Searches for an image using the provided query on Unsplash and inserts the first result into the document (defaults to block).",
-        parameters: z.object({
+        inputSchema: z.object({
           query: z
             .string()
             .describe("The search query to find an image on Unsplash."),
@@ -49,7 +49,7 @@ export const useImageTools = () => {
     ? tool({
         description:
           "Generates an image based on a user prompt and inserts it into the document.",
-        parameters: z.object({
+        inputSchema: z.object({
           prompt: z
             .string()
             .describe(

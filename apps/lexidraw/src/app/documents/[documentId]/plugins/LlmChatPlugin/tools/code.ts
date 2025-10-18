@@ -31,7 +31,7 @@ export const useCodeTools = () => {
   const insertCodeBlock = tool({
     description:
       "Inserts a new CodeNode (code block). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Can optionally set the language and initial text content.",
-    parameters: z.object({
+    inputSchema: z.object({
       language: z
         .string()
         .optional()
@@ -90,7 +90,7 @@ export const useCodeTools = () => {
   const insertCodeHighlightNode = tool({
     description:
       "Inserts a new CodeHighlightNode containing the provided text. This node is a special TextNode that will be highlighted if it is within a CodeNode. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       text: z.string().describe("The text content for the CodeHighlightNode."),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),

@@ -11,7 +11,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import type { RouterOutputs } from "~/trpc/shared";
+// Only need the OpenAI API key from LLM config
 import { put } from "@vercel/blob/client";
 
 type AllowedContentType =
@@ -47,7 +47,7 @@ export const ImageGenerationProvider = ({
   entityId,
   children,
 }: {
-  initialConfig: RouterOutputs["auth"]["getLlmConfig"];
+  initialConfig: { openaiApiKey?: string | undefined } | null;
   entityId: string;
   children: ReactNode;
 }) => {
@@ -108,7 +108,7 @@ export const ImageGenerationProvider = ({
         if (!result?.uint8Array) throw new Error("No image data returned.");
         return {
           imageData: result.uint8Array,
-          mimeType: result.mimeType ?? "image/png",
+          mimeType: result.mediaType ?? "image/png",
         };
       } catch (err) {
         const message =

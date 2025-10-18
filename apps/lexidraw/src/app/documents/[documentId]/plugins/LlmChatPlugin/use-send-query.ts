@@ -189,7 +189,7 @@ export const useSendQuery = () => {
             prompt: fullPrompt,
             system: systemPrompt,
             temperature: llmConfig.chat.temperature,
-            maxTokens: llmConfig.chat.maxTokens,
+            maxOutputTokens: llmConfig.chat.maxOutputTokens,
             maxSteps: 1,
             callbacks: streamCallbacks,
             files: files,
@@ -198,13 +198,13 @@ export const useSendQuery = () => {
           const prepareStepForMode = async ({
             steps,
             stepNumber,
-            maxSteps: _maxSteps,
-            model: _model,
+            model,
+            messages,
           }: {
-            steps: readonly { toolResults?: AppToolCall[] }[];
+            steps: any[]; // Use broad type to match PrepareStepFunction
             stepNumber: number;
-            maxSteps: number;
             model: unknown;
+            messages: any[];
           }): Promise<{ toolChoice?: ToolChoice<ToolSet> }> => {
             console.log(
               `prepareStep ${stepNumber}: Checking previous step results (mode: ${mode})...`,
@@ -225,7 +225,7 @@ export const useSendQuery = () => {
                   previousToolCallName,
                 )) ||
               (previousToolCallName === "requestClarificationOrPlan" &&
-                previousStep?.toolResults?.at(-1)?.args?.operation ===
+                (previousStep?.toolResults?.at(-1) as any)?.input?.operation ===
                   "clarify")
             ) {
               console.log(
@@ -271,7 +271,7 @@ export const useSendQuery = () => {
               prompt: fullPrompt,
               system: systemPrompt,
               temperature: llmConfig.chat.temperature,
-              maxTokens: llmConfig.chat.maxTokens,
+              maxOutputTokens: llmConfig.chat.maxOutputTokens,
               tools: runtimeTools,
               maxSteps: maxAgentSteps, // Use maxAgentSteps from context here
               prepareStep: prepareStepForMode,
@@ -285,7 +285,7 @@ export const useSendQuery = () => {
                   error instanceof Error ? error.message : String(error);
                 sdkMessages.push({
                   role: "assistant",
-                  content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify(toolCall.args)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
+                  content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify((toolCall as any).input)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
                 });
                 return toolCall;
               },
@@ -310,7 +310,8 @@ export const useSendQuery = () => {
           );
           console.log(
             "[Agent Dispatch Logic] Reply Text Type:",
-            typeof (lastToolResult?.args as ReplyArgs | undefined)?.replyText,
+            typeof ((lastToolResult as any)?.args as ReplyArgs | undefined)
+              ?.replyText,
           );
           console.log(
             "[Agent Dispatch Logic] Raw Response Text:",
@@ -322,7 +323,7 @@ export const useSendQuery = () => {
 
           if (
             lastToolCall?.toolName === "sendReply" &&
-            typeof (lastToolResult?.args as ReplyArgs | undefined)
+            typeof ((lastToolResult as any)?.args as ReplyArgs | undefined)
               ?.replyText === "string"
           ) {
             // Handle sendReply: Dispatch the replyText from the tool result
@@ -332,7 +333,7 @@ export const useSendQuery = () => {
               msg: {
                 id: crypto.randomUUID(),
                 role: "assistant",
-                content: (lastToolResult?.args as ReplyArgs)
+                content: ((lastToolResult as any)?.args as ReplyArgs)
                   .replyText as string,
                 toolCalls: responseResult.toolCalls, // Include tool info for context if needed
                 toolResults: responseResult.toolResults,

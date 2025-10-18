@@ -32,7 +32,7 @@ import { toast } from "sonner";
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   currentAccess: PublicAccess;
-  llmConfig?: RouterOutputs["auth"]["getLlmConfig"];
+  llmConfig?: { openaiApiKey?: string } | null;
 };
 
 export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
@@ -143,7 +143,10 @@ export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
         />
       )}
       {openDialog === "thumbnail" && (
-        <ImageGenerationProvider initialConfig={llmConfig} entityId={entity.id}>
+        <ImageGenerationProvider
+          initialConfig={llmConfig ?? null}
+          entityId={entity.id}
+        >
           <ImageProvider>
             <ThumbnailModal
               entity={entity}

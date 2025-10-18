@@ -7,11 +7,11 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
   const [editor] = useLexicalComposerContext();
 
   const toolCallSchemas = Object.entries(individualTools)
-    .filter(([, tool]) => tool?.parameters)
+    .filter(([, tool]) => tool?.inputSchema)
     .map(([toolName, tool]) => {
       return z.object({
         toolName: z.literal(toolName),
-        args: tool.parameters as ZodTypeAny,
+        args: (tool as any).inputSchema as ZodTypeAny,
       });
     });
 
@@ -21,7 +21,7 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
     return {
       combinedTools: tool({
         description: "No tools available for combination.",
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => ({
           success: false,
           error: "No tools were provided to combinedTools.",
@@ -36,7 +36,7 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
         Stops execution if any step fails.
         Should prefferably be used when inserting multiple similar nodes.
         `,
-    parameters: z.object({
+    inputSchema: z.object({
       calls: z
         .array(
           z.discriminatedUnion(
@@ -51,7 +51,10 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
         ),
     }),
     execute: async ({ calls }) => {
-      const results: { summary: string; stateJson?: string }[] = [];
+      const results: {
+        summary: string;
+        stateJson?: Record<string, unknown>;
+      }[] = [];
       let lastStateJson: Record<string, unknown> | undefined;
 
       try {
@@ -89,14 +92,13 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
             return { success: false, error: errorMsg };
           }
 
-          /**
-           * ts\n// before calling subTool.execute ...\nconst validatedArgs = subTool.parameters.parse(args);\nconst result = await subTool.execute(validatedArgs);\n
-           */
-
-          // @ts-expect-error - TODO: fix this
-          const validatedArgs = subTool.parameters.parse(args);
-
-          // @ts-expect-error - TODO: fix this
+          // Validate via Zod input schema if available; otherwise pass-through
+          const schema: ZodTypeAny | undefined = (subTool as any).inputSchema as
+            | ZodTypeAny
+            | undefined;
+          const validatedArgs = schema ? schema.parse(args) : (args as any);
+          // Execute expects the input directly in v5
+          // @ts-expect-error execute is provided by tool
           const result = await subTool.execute(validatedArgs);
 
           if (!result.success) {
@@ -130,7 +132,9 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
         if (lastStateJson === undefined && calls.length > 0) {
           editor.read(() => {
             // Use 'editor' via closure from RuntimeToolsProvider
-            lastStateJson = editor.getEditorState().toJSON();
+            lastStateJson = editor
+              .getEditorState()
+              .toJSON() as unknown as Record<string, unknown>;
           });
         }
 

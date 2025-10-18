@@ -20,7 +20,7 @@ export const useYoutubeTools = () => {
   const insertYouTubeNode = tool({
     description:
       "Inserts a YouTube video embed using the provided video ID. YouTubeNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, an alignment format can be applied.",
-    parameters: z.object({
+    inputSchema: z.object({
       videoID: z
         .string()
         .describe(

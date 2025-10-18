@@ -19,7 +19,7 @@ export const usePageBreakTools = () => {
   const insertPageBreakNode = tool({
     description:
       "Inserts a new PageBreakNode. This is a block-level element that typically forces a page break when printing or exporting to PDF. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
       editorKey: EditorKeySchema.optional(),

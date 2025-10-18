@@ -23,7 +23,9 @@ import {
   type FinishReason,
   type FilePart,
   type TextPart,
-  type CoreMessage,
+  type ModelMessage,
+  type LanguageModelUsage,
+  stepCountIs,
 } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -44,7 +46,7 @@ export type LlmMode = "autocomplete" | "chat";
 export type AppToolCall = {
   toolCallId: string;
   toolName: string;
-  args: Record<string, unknown>;
+  input: Record<string, unknown>;
 };
 
 export type AppToolResult = Record<string, unknown>;
@@ -63,7 +65,7 @@ export type StreamCallbacks = {
 
 export type FinalStreamResult = {
   finishReason: FinishReason;
-  usage: StreamTokenUsage;
+  usage: LanguageModelUsage;
   text: string;
 };
 
@@ -101,10 +103,10 @@ export type AutocompleteLLMState = {
 
 export type LLMOptions = {
   prompt: string;
-  messages?: CoreMessage[];
+  messages?: ModelMessage[];
   system?: string;
   temperature?: number;
-  maxTokens?: number;
+  maxOutputTokens?: number;
   signal?: AbortSignal;
   tools?: RuntimeToolMap;
   maxSteps?: number;
@@ -179,11 +181,14 @@ type LLMContextValue = {
       prepareStep?: (options: {
         steps: StepResult<RuntimeToolMap>[];
         stepNumber: number;
-        maxSteps: number;
         model: LanguageModel;
+        messages: ModelMessage[];
       }) => Promise<{
         model?: LanguageModel;
         toolChoice?: ToolChoice<RuntimeToolMap>;
+        activeTools?: Array<keyof RuntimeToolMap>;
+        system?: string;
+        messages?: ModelMessage[];
       }>;
     },
   ) => Promise<GenerateChatResponseResult>;
@@ -244,7 +249,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           modelId: llmConfig.chat.modelId,
           provider: llmConfig.chat.provider,
           temperature: llmConfig.chat.temperature,
-          maxTokens: llmConfig.chat.maxTokens,
+          maxOutputTokens: llmConfig.chat.maxOutputTokens,
         };
       }
 
@@ -253,7 +258,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           modelId: llmConfig.autocomplete.modelId,
           provider: llmConfig.autocomplete.provider,
           temperature: llmConfig.autocomplete.temperature,
-          maxTokens: llmConfig.autocomplete.maxTokens,
+          maxOutputTokens: llmConfig.autocomplete.maxOutputTokens,
         };
       }
 
@@ -299,13 +304,16 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
         // Apply OpenAI max token cap for chat
         if (nextState.chat.provider === "openai") {
-          nextState.chat.maxTokens = Math.min(nextState.chat.maxTokens, 32768);
+          nextState.chat.maxOutputTokens = Math.min(
+            nextState.chat.maxOutputTokens,
+            32768,
+          );
         }
 
         // Apply OpenAI max token cap for autocomplete
         if (nextState.autocomplete.provider === "openai") {
-          nextState.autocomplete.maxTokens = Math.min(
-            nextState.autocomplete.maxTokens,
+          nextState.autocomplete.maxOutputTokens = Math.min(
+            nextState.autocomplete.maxOutputTokens,
             32768,
           );
         }
@@ -428,7 +436,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       prompt,
       system = "",
       temperature,
-      maxTokens,
+      maxOutputTokens,
       signal,
     }: LLMOptions): Promise<string> => {
       if (!settings.autocomplete || !autocompleteProvider.current) {
@@ -455,7 +463,8 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           prompt,
           system,
           temperature: temperature ?? llmConfig.autocomplete.temperature,
-          maxTokens: maxTokens ?? llmConfig.autocomplete.maxTokens,
+          maxOutputTokens:
+            maxOutputTokens ?? llmConfig.autocomplete.maxOutputTokens,
           abortSignal: signal,
         });
 
@@ -485,7 +494,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     },
     [
       settings.autocomplete,
-      llmConfig.autocomplete.maxTokens,
+      llmConfig.autocomplete.maxOutputTokens,
       llmConfig.autocomplete.modelId,
       llmConfig.autocomplete.temperature,
     ],
@@ -502,7 +511,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         filePartsArray.push({
           type: "file" as const,
           data: new Uint8Array(buffer), // Convert ArrayBuffer to Uint8Array
-          mimeType: file.type || "application/octet-stream",
+          mediaType: file.type || "application/octet-stream",
           filename: file.name,
         });
       }
@@ -515,7 +524,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     async (
       { prompt }: { prompt: string },
       files?: File[] | FileList | null,
-    ): Promise<{ messages: CoreMessage[] } | { prompt: string }> => {
+    ): Promise<{ messages: ModelMessage[] } | { prompt: string }> => {
       if (files?.length) {
         const fileParts = await toFileParts(files);
         const parts: (TextPart | FilePart)[] = [
@@ -523,7 +532,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           ...fileParts,
         ];
 
-        const messages: CoreMessage[] = [{ role: "user", content: parts }];
+        const messages: ModelMessage[] = [{ role: "user", content: parts }];
         return { messages };
       }
       return { prompt };
@@ -537,7 +546,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       messages,
       system = "",
       temperature,
-      maxTokens,
+      maxOutputTokens,
       signal,
       tools,
       prepareStep,
@@ -551,11 +560,14 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       prepareStep?: (options: {
         steps: StepResult<RuntimeToolMap>[];
         stepNumber: number;
-        maxSteps: number;
         model: LanguageModel;
+        messages: ModelMessage[];
       }) => Promise<{
         model?: LanguageModel;
         toolChoice?: ToolChoice<RuntimeToolMap>;
+        activeTools?: Array<keyof RuntimeToolMap>;
+        system?: string;
+        messages?: ModelMessage[];
       }>;
     }): Promise<GenerateChatResponseResult> => {
       if (!settings.chat || !chatProvider.current) {
@@ -573,7 +585,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }));
 
       try {
-        let inputConfig: { prompt?: string; messages?: CoreMessage[] };
+        let inputConfig: { prompt?: string; messages?: ModelMessage[] };
 
         if (messages?.length) {
           inputConfig = { messages };
@@ -583,18 +595,20 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         }
 
         const result = await generateText({
-          experimental_prepareStep: prepareStep,
+          prepareStep: prepareStep,
           experimental_repairToolCall: repairToolCall,
           model: chatProvider.current(
             llmConfig.chat.modelId,
           ) as unknown as LanguageModel,
-          ...inputConfig,
+          ...(inputConfig.messages
+            ? { messages: inputConfig.messages }
+            : { prompt: inputConfig.prompt ?? "" }),
           system,
           temperature: temperature ?? llmConfig.chat.temperature,
-          maxTokens: maxTokens ?? llmConfig.chat.maxTokens,
+          maxOutputTokens: maxOutputTokens ?? llmConfig.chat.maxOutputTokens,
           abortSignal: signal,
           tools: tools,
-          maxSteps: maxSteps,
+          stopWhen: stepCountIs(maxSteps ?? 0),
           toolChoice: toolChoice,
         });
 
@@ -603,15 +617,27 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           isError: false,
           text: result.text,
           error: null,
-          toolCalls: result.toolCalls,
-          toolResults: result.toolResults,
+          toolCalls: (result.toolCalls ?? []).map((c) => ({
+            toolCallId: c.toolCallId,
+            toolName: c.toolName,
+            input: (c as unknown as { input: Record<string, unknown> }).input,
+          })),
+          toolResults: (result.toolResults ?? []).map(
+            (r) => r as unknown as AppToolResult,
+          ),
           isStreaming: false,
         }));
 
         return {
           text: result.text,
-          toolCalls: result.toolCalls,
-          toolResults: result.toolResults,
+          toolCalls: (result.toolCalls ?? []).map((c) => ({
+            toolCallId: c.toolCallId,
+            toolName: c.toolName,
+            input: (c as unknown as { input: Record<string, unknown> }).input,
+          })),
+          toolResults: (result.toolResults ?? []).map(
+            (r) => r as unknown as AppToolResult,
+          ),
         };
       } catch (err: unknown) {
         if (
@@ -637,7 +663,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     },
     [
       buildPrompt,
-      llmConfig.chat.maxTokens,
+      llmConfig.chat.maxOutputTokens,
       llmConfig.chat.modelId,
       llmConfig.chat.temperature,
       settings.chat,
@@ -649,7 +675,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       prompt,
       system = "",
       temperature,
-      maxTokens,
+      maxOutputTokens,
       signal,
       maxSteps,
       callbacks,
@@ -683,18 +709,19 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           model: chatProvider.current(
             llmConfig.chat.modelId,
           ) as unknown as LanguageModel,
+
           ...promptConfig,
           system,
           temperature: temperature ?? llmConfig.chat.temperature,
-          maxTokens: maxTokens ?? llmConfig.chat.maxTokens,
+          maxOutputTokens: maxOutputTokens ?? llmConfig.chat.maxOutputTokens,
           abortSignal: signal,
-          maxSteps: maxSteps,
+          stopWhen: stepCountIs(maxSteps ?? 0),
         });
 
         for await (const delta of result.fullStream) {
           switch (delta.type) {
             case "text-delta": {
-              accumulatedText += delta.textDelta;
+              accumulatedText += delta.text;
               callbacks.onTextUpdate?.(accumulatedText);
               break;
             }
@@ -705,7 +732,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
               >;
               finalResultData = {
                 finishReason: finishDelta.finishReason,
-                usage: finishDelta.usage,
+                usage: finishDelta.totalUsage,
                 text: accumulatedText,
               };
               break;
@@ -775,7 +802,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     },
     [
       buildPrompt,
-      llmConfig.chat.maxTokens,
+      llmConfig.chat.maxOutputTokens,
       llmConfig.chat.modelId,
       llmConfig.chat.temperature,
       settings.chat,

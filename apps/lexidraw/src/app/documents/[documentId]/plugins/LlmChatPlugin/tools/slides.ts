@@ -221,7 +221,7 @@ export const useSlideTools = () => {
     const insertSlideDeckNode = tool({
       description:
         "Inserts a new SlideDeckNode without any slides. SlideDeckNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-      parameters: z.object({
+      inputSchema: z.object({
         relation: InsertionRelationSchema,
         anchor: InsertionAnchorSchema.optional(),
         editorKey: EditorKeySchema.optional(),
@@ -251,7 +251,7 @@ export const useSlideTools = () => {
     const setDeckMetadata = tool({
       description:
         "Sets or updates the strategic metadata for an entire SlideDeckNode.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -288,7 +288,7 @@ export const useSlideTools = () => {
     const setSlideMetadata = tool({
       description:
         "Sets or updates the strategic metadata for a specific slide within a SlideDeckNode.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -449,14 +449,14 @@ export const useSlideTools = () => {
     const addSlidePage = tool({
       description:
         "Adds a new, empty slide page to an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide.",
-      parameters: addSlidePageSchema,
+      inputSchema: addSlidePageSchema,
       execute: addSlidePageExec,
     });
 
     const removeSlidePage = tool({
       description:
         "Removes a specific slide page from an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide. Cannot remove the last slide.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -539,7 +539,7 @@ export const useSlideTools = () => {
     const reorderSlidePage = tool({
       description:
         "Reorders a slide page within an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -601,7 +601,7 @@ export const useSlideTools = () => {
     const setSlidePageBackground = tool({
       description:
         "Sets the background color of a specific slide page within a SlideDeckNode.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -684,7 +684,7 @@ export const useSlideTools = () => {
     const updateElementProperties = tool({
       description:
         "Updates properties of an existing box, image, or chart element on a specific slide page.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -925,7 +925,7 @@ export const useSlideTools = () => {
     const addImageToSlidePage = tool({
       description:
         "Adds a new image element to a specific slide page within an existing SlideDeckNode.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -977,7 +977,7 @@ export const useSlideTools = () => {
     const addChartToSlidePage = tool({
       description:
         "Adds a new chart element to a specific slide page within an existing SlideDeckNode.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -1127,7 +1127,7 @@ export const useSlideTools = () => {
     const generateAndAddImageToSlidePage = tool({
       description:
         "Generates an image from a prompt and adds it to a specific slide page.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -1165,7 +1165,7 @@ export const useSlideTools = () => {
     const searchAndAddImageToSlidePage = tool({
       description:
         "Searches for an image on Unsplash and adds it to a specific slide page.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -1193,7 +1193,7 @@ export const useSlideTools = () => {
     const saveStoryboardOutput = tool({
       description:
         "Saves the generated storyboard outline. Use this tool to provide the array of slide objects you have created. Each object must conform to the SlideOutlineSchema.",
-      parameters: z.object({
+      inputSchema: z.object({
         slides: z
           .array(
             z.object({
@@ -1247,7 +1247,7 @@ export const useSlideTools = () => {
     const saveSlideContentAndMetadata = tool({
       description:
         "Saves the generated body content and refined speaker notes for a specific slide page, and updates the slide's metadata.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -1351,7 +1351,7 @@ export const useSlideTools = () => {
     const saveDeckTheme = tool({
       description:
         "Saves the suggested theme settings (colors, fonts, etc.) for the presentation and applies them to the deck.",
-      parameters: z.object({
+      inputSchema: z.object({
         deckNodeKey: z
           .string()
           .describe("The key of the target SlideDeckNode."),
@@ -1402,7 +1402,7 @@ export const useSlideTools = () => {
     const saveAudienceDataTool = tool({
       description:
         "Saves the audience plan data including big idea, persona, slide count, and tone.",
-      parameters: AudienceDataSchema,
+      inputSchema: AudienceDataSchema,
       execute: async (args: z.infer<typeof AudienceDataSchema>) => {
         return { success: true, audienceData: args };
       },
@@ -1534,7 +1534,7 @@ export const useSlideTools = () => {
     const addBoxToSlidePage = tool({
       description:
         "Adds a new box element to a specific slide page within an existing SlideDeckNode.",
-      parameters: addBoxToSlidePageSchema,
+      inputSchema: addBoxToSlidePageSchema,
       execute: addBoxToSlidePageExec,
     });
 

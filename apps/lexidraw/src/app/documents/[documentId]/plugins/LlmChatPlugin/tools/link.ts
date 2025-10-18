@@ -28,7 +28,7 @@ export const useLinkTools = () => {
   const insertLinkNode = tool({
     description:
       "Inserts a new LinkNode with the provided URL and optional text. If linkText is not provided, the URL itself will be used as the visible text. The LinkNode is inline; if inserted at the root or relative to a block-level node, it will be wrapped in a ParagraphNode.",
-    parameters: z.object({
+    inputSchema: z.object({
       url: z
         .string()
         .describe("The URL for the link (e.g., 'https://example.com')."),

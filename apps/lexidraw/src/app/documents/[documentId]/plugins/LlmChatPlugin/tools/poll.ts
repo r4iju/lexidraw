@@ -20,7 +20,7 @@ export const usePollTools = () => {
   const insertPollNode = tool({
     description:
       "Inserts a new PollNode with a question and a list of option texts. Each option text will be converted into a poll option with a unique ID and an empty vote count. PollNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       question: z.string().describe("The question for the poll."),
       optionTexts: z
         .array(z.string())

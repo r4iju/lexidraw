@@ -79,7 +79,7 @@ const ToolCallDisplay: React.FC<{
         <div className="font-mono bg-muted p-2 rounded">
           <p className="font-semibold">Arguments:</p>
           <pre className="whitespace-pre-wrap break-all">
-            {JSON.stringify(toolCall.args, null, 2)}
+            {JSON.stringify(toolCall.input, null, 2)}
           </pre>
         </div>
         {toolResult && (

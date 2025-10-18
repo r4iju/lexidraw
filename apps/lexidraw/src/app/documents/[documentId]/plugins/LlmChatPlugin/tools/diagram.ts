@@ -40,7 +40,7 @@ export const useDiagramTools = () => {
     description: `Parses a Mermaid DSL string into an Excalidraw canvas and inserts it at the desired location.  
           – Fully supports \`MermaidConfig\` (theme variables, edge limits, etc.).  
           – Supports \`ExcalidrawConfig\` (font sizing).`,
-    parameters: z
+    inputSchema: z
       .object({
         mermaidLines: z
           .array(z.string())
@@ -191,7 +191,7 @@ export const useDiagramTools = () => {
   const insertMermaidDiagram = tool({
     description:
       "Insert a Mermaid diagram using the custom MermaidNode (schema only, no SVG in state).",
-    parameters: z
+    inputSchema: z
       .object({
         mermaidLines: z.array(z.string()).nonempty(),
         width: z

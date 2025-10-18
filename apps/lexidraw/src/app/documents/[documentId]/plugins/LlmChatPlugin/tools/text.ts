@@ -31,7 +31,7 @@ export const useTextTools = () => {
   const insertTextNode = tool({
     description:
       "Inserts a new TextNode containing the provided text. If relation is 'before' or 'after', an existing TextNode must be identified by anchorKey or anchorText. If relation is 'appendRoot', the TextNode will be wrapped in a Paragraph and appended to the document root.",
-    parameters: z.object({
+    inputSchema: z.object({
       text: z.string(),
       relation: InsertionRelationSchema,
       anchor: InsertionAnchorSchema.optional(),
@@ -116,7 +116,7 @@ export const useTextTools = () => {
   const applyTextStyle = tool({
     description:
       "Applies specific CSS styles (like font family, size, color) to an existing TextNode identified by its key. Provide style values as strings (e.g., 'Arial, sans-serif', '14px', '#FF0000'). To remove a specific style, provide an empty string ('') for its value.",
-    parameters: z.object({
+    inputSchema: z.object({
       anchorKey: z
         .string()
         .optional()

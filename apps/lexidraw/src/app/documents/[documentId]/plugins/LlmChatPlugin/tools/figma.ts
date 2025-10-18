@@ -20,7 +20,7 @@ export const useFigmaTools = () => {
   const insertFigmaNode = tool({
     description:
       "Inserts a Figma embed using the provided Figma document ID. FigmaNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, a format (e.g., 'center') can be applied.",
-    parameters: z.object({
+    inputSchema: z.object({
       documentID: z
         .string()
         .describe(

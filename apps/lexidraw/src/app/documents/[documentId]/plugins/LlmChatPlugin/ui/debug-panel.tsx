@@ -201,8 +201,8 @@ export const DebugPanel: React.FC = () => {
     setError(null);
 
     const tool = runtimeTools[toolName];
-    if (tool?.parameters) {
-      const parsed = parseZodSchema(tool.parameters as ZodTypeAny);
+    if ((tool as any)?.inputSchema) {
+      const parsed = parseZodSchema((tool as any).inputSchema as ZodTypeAny);
       if (Array.isArray(parsed)) {
         const schemaString = parsed
           .map(
@@ -224,7 +224,7 @@ export const DebugPanel: React.FC = () => {
         setToolArgsJson("{}");
       }
     } else {
-      setParsedSchemaView("No parameters schema found for this tool.");
+      setParsedSchemaView("No input schema found for this tool.");
       setToolArgsJson("{}");
     }
   };
@@ -259,7 +259,7 @@ export const DebugPanel: React.FC = () => {
           <p className="text-xs mb-2">
             {selectedTool.description || "No description provided."}
           </p>
-          <p className="text-sm font-semibold">Parameters:</p>
+          <p className="text-sm font-semibold">Input Schema:</p>
           <pre className="text-xs whitespace-pre-wrap break-all">
             {parsedSchemaView}
           </pre>

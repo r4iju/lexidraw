@@ -26,7 +26,7 @@ export const useEquationTools = () => {
   const insertEquationNode = tool({
     description:
       "Inserts a new EquationNode with the provided LaTeX equation string. Can be inline or block-level. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       equation: z
         .string()
         .describe("The LaTeX equation string (e.g., 'E=mc^2')."),

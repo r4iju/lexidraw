@@ -23,7 +23,7 @@ export const useTableTools = () => {
   const insertTable = tool({
     description:
       "Inserts a new TableNode with the specified number of rows and columns, populating it with empty cells. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       rows: z.number().min(1).describe("The number of rows for the table."),
       columns: z
         .number()

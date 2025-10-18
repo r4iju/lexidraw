@@ -22,7 +22,7 @@ export const useLayoutTools = () => {
   const insertLayout = tool({
     description:
       "Inserts a new layout container with a specified column structure. Each column (LayoutItemNode) will be initialized with an empty paragraph. The number of columns is determined by the space-separated values in templateColumns (e.g., '1fr 1fr' creates two columns). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       templateColumns: z
         .string()
         .describe(

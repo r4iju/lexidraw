@@ -7,7 +7,7 @@ export const LlmBaseConfigSchema = z.object({
   modelId: z.string(),
   provider: z.string(),
   temperature: z.number().min(0).max(1),
-  maxTokens: z.number().int().positive(),
+  maxOutputTokens: z.number().int().positive(),
 });
 
 export const LlmConfigSchema = z.object({
@@ -32,14 +32,14 @@ const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   modelId: "gemini-2.5-flash",
   provider: "google",
   temperature: 0.7,
-  maxTokens: 100000,
+  maxOutputTokens: 100000,
 };
 
 const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   modelId: "gemini-2.5-flash-lite",
   provider: "google",
   temperature: 0.3,
-  maxTokens: 500,
+  maxOutputTokens: 500,
 };
 
 export const configRouter = createTRPCRouter({
