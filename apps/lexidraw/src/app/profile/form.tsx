@@ -2,7 +2,7 @@
 
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { ProfileSchema, type ProfileSchema as ProfileValues } from "./schema";
+import { ProfileSchema } from "./schema";
 import FormProvider, { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
@@ -37,7 +37,7 @@ export default function ProfileForm({ user }: Props) {
     formState: { isDirty },
   } = methods;
 
-  const onSubmit: SubmitHandler<ProfileValues> = async (data) => {
+  const onSubmit: SubmitHandler<ProfileSchema> = async (data) => {
     console.log("data", data);
     saveProfile(data, {
       onSuccess: async () => {

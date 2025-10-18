@@ -201,7 +201,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@t3-oss/env-nextjs": "^0.7.3",
-        "zod": "^3.25.1",
+        "zod": "^4.1.12",
       },
       "devDependencies": {
         "@types/node": "^22.15.19",
@@ -212,7 +212,7 @@
       "name": "@packages/lib",
       "version": "0.0.1",
       "dependencies": {
-        "zod": "^3.25.1",
+        "zod": "^4.1.12",
       },
       "devDependencies": {
         "@types/node": "^22.15.19",
@@ -223,7 +223,7 @@
       "name": "@packages/types",
       "version": "0.0.1",
       "dependencies": {
-        "zod": "^3.25.1",
+        "zod": "^4.1.12",
       },
       "devDependencies": {
         "@excalidraw/excalidraw": "^0.18.0",
@@ -3640,12 +3640,6 @@
     "@opentelemetry/sdk-trace-base/@opentelemetry/core": ["@opentelemetry/core@1.30.1", "", { "dependencies": { "@opentelemetry/semantic-conventions": "1.28.0" }, "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0" } }, "sha512-OOCM2C/QIURhJMuKaekP3TRBxBKxG/TWWA0TL2J6nXUtDnuCtccy49LUJF8xPFXMX+0LMcxFpCo8M9cGY1W6rQ=="],
 
     "@opentelemetry/sdk-trace-base/@opentelemetry/semantic-conventions": ["@opentelemetry/semantic-conventions@1.28.0", "", {}, "sha512-lp4qAiMTD4sNWW4DbKLBkfiMZ4jbAboJIGOQr5DvciMRI494OapieI9qiODpOt0XBr1LjIDy1xAGAnVs5supTA=="],
-
-    "@packages/env/zod": ["zod@3.25.1", "", {}, "sha512-bkxUGQiqWDTXHSgqtevYDri5ee2GPC9szPct4pqpzLEpswgDQmuseDz81ZF0AnNu1xsmnBVmbtv/t/WeUIHlpg=="],
-
-    "@packages/lib/zod": ["zod@3.25.1", "", {}, "sha512-bkxUGQiqWDTXHSgqtevYDri5ee2GPC9szPct4pqpzLEpswgDQmuseDz81ZF0AnNu1xsmnBVmbtv/t/WeUIHlpg=="],
-
-    "@packages/types/zod": ["zod@3.25.1", "", {}, "sha512-bkxUGQiqWDTXHSgqtevYDri5ee2GPC9szPct4pqpzLEpswgDQmuseDz81ZF0AnNu1xsmnBVmbtv/t/WeUIHlpg=="],
 
     "@smithy/middleware-compression/@smithy/core": ["@smithy/core@3.2.0", "", { "dependencies": { "@smithy/middleware-serde": "^4.0.3", "@smithy/protocol-http": "^5.1.0", "@smithy/types": "^4.2.0", "@smithy/util-body-length-browser": "^4.0.0", "@smithy/util-middleware": "^4.0.2", "@smithy/util-stream": "^4.2.0", "@smithy/util-utf8": "^4.0.0", "tslib": "^2.6.2" } }, "sha512-k17bgQhVZ7YmUvA8at4af1TDpl0NDMBuBKJl8Yg0nrefwmValU+CnA5l/AriVdQNthU/33H3nK71HrLgqOPr1Q=="],
 

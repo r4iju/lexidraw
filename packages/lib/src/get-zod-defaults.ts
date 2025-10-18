@@ -1,67 +1,30 @@
 import { z } from "zod";
 
-function unwrapEffects(schema: z.ZodTypeAny): z.ZodTypeAny {
-  let current: z.ZodTypeAny = schema;
-  while (current instanceof z.ZodEffects) {
-    current = current.innerType();
-  }
-  return current;
-}
+/**
+ * Returns the default value for a given Zod schema. It does so by
+ * parsing an empty object {} (or `undefined` for non-objects), letting
+ * Zod's built-in `.default()` machinery populate the structure.
+ *
+ * NOTE: All non-optional leaf properties must have explicit `.default()`
+ * values for this to succeed; otherwise the parse will throw.
+ */
+export function getDefaults<T extends z.ZodTypeAny>(schema: T): z.output<T> {
+  if (schema instanceof z.ZodObject) {
+    const out: Record<string, unknown> = {};
+    const shape = schema.shape;
 
-function getDefaultValue(schema: z.ZodTypeAny): unknown {
-  const unwrapped = unwrapEffects(schema);
+    for (const key of Object.keys(shape)) {
+      const propSchema = shape[key] as z.ZodTypeAny;
+      const parsed = propSchema.safeParse(undefined);
+      if (parsed.success) {
+        out[key] = parsed.data;
+      }
+    }
 
-  if (unwrapped instanceof z.ZodDefault) {
-    // In zod, defaultValue is a thunk that returns the default
-    const defaultValue = (
-      (unwrapped as z.ZodDefault<z.ZodTypeAny>)._def
-        .defaultValue as () => unknown
-    )();
-    return defaultValue;
-  }
-
-  if (unwrapped instanceof z.ZodArray) return [];
-  if (unwrapped instanceof z.ZodString) return "";
-  if (unwrapped instanceof z.ZodBoolean) return false;
-  if (unwrapped instanceof z.ZodNumber) return 0;
-
-  if (unwrapped instanceof z.ZodObject) {
-    const shape = (unwrapped as z.AnyZodObject).shape;
-    return Object.fromEntries(
-      Object.entries(shape).map(([key, value]) => [
-        key,
-        getDefaultValue(value as z.ZodTypeAny),
-      ]),
-    );
+    return out as z.output<T>;
   }
 
-  const defUnknown: unknown = (unwrapped as z.ZodTypeAny)._def as unknown;
-  if (hasInnerType(defUnknown)) {
-    return getDefaultValue(defUnknown.innerType);
-  }
-
-  return undefined;
-}
-
-function hasInnerType(value: unknown): value is { innerType: z.ZodTypeAny } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "innerType" in (value as object)
-  );
-}
-
-export function getDefaults(
-  schema: z.AnyZodObject | z.ZodEffects<z.AnyZodObject>,
-): Record<string, unknown> {
-  const inner = unwrapEffects(schema);
-  if (!(inner instanceof z.ZodObject)) return {};
-
-  const shape = (inner as z.AnyZodObject).shape;
-  return Object.fromEntries(
-    Object.entries(shape).map(([key, value]) => [
-      key,
-      getDefaultValue(value as z.ZodTypeAny),
-    ]),
-  );
+  // For non-object schemas attempt simple parse(undefined).
+  const result = schema.safeParse(undefined);
+  return (result.success ? result.data : undefined) as z.output<T>;
 }
