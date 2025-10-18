@@ -37,7 +37,7 @@ export const useCommentTools = () => {
   const findAndSelectTextForComment = tool({
     description:
       "Finds the first occurrence of the specified text in the document and selects it. Subsequent tool calls for 'addCommentThread' will use this selection.",
-    parameters: z.object({
+    inputSchema: z.object({
       textToFind: z
         .string()
         .min(1)
@@ -112,7 +112,7 @@ export const useCommentTools = () => {
   const addCommentThread = tool({
     description:
       "Creates a new comment thread on the currently selected text in the editor. The selection provides the quote and the area to highlight. Returns the new thread ID and initial comment ID.",
-    parameters: z.object({
+    inputSchema: z.object({
       initialCommentText: z
         .string()
         .describe("The text for the first comment in this new thread."),
@@ -262,7 +262,7 @@ export const useCommentTools = () => {
   const addReplyToThread = tool({
     description:
       "Adds a reply to an existing comment thread. Returns the new comment ID.",
-    parameters: z.object({
+    inputSchema: z.object({
       threadId: z.string().describe("The ID of the thread to reply to."),
       replyText: z.string().describe("The text content of the reply."),
       authorName: z
@@ -325,7 +325,7 @@ export const useCommentTools = () => {
   const removeCommentFromThread = tool({
     description:
       "Removes a specific comment from a thread using the thread ID and comment ID.",
-    parameters: z.object({
+    inputSchema: z.object({
       threadId: z.string().describe("The ID of the parent thread."),
       commentId: z.string().describe("The ID of the comment to remove."),
       editorKey: EditorKeySchema.optional(),
@@ -384,7 +384,7 @@ export const useCommentTools = () => {
   const removeCommentThread = tool({
     description:
       "Removes an entire comment thread (including all its comments and associated highlights) using the thread ID.",
-    parameters: z.object({
+    inputSchema: z.object({
       threadId: z.string().describe("The ID of the comment thread to remove."),
     }),
     execute: async ({ threadId }) => {

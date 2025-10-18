@@ -5,7 +5,7 @@ const LlmBaseConfigSchema = z.object({
   modelId: z.string(),
   provider: z.string(),
   temperature: z.number().min(0).max(1),
-  maxTokens: z.number().int().positive(),
+  maxOutputTokens: z.number().int().positive(),
 });
 
 export const ProfileSchema = z.object({

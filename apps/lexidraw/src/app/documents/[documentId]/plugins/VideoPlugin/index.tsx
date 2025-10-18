@@ -29,7 +29,7 @@ import { Input } from "~/components/ui/input";
 import { api } from "~/trpc/react";
 import FormProvider from "~/components/hook-form";
 import { useFieldArray, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { z } from "zod";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -426,8 +426,8 @@ export function InsertVideoSettingsDialog({
   const { data: cookies } = api.entities.getCookies.useQuery();
   const { mutate: setCookies, isPending } =
     api.entities.setCookies.useMutation();
-  const methods = useForm<z.infer<typeof schema>>({
-    resolver: zodResolver(schema),
+  const methods = useForm({
+    resolver: standardSchemaResolver(schema),
     defaultValues: {
       cookies: [],
     },

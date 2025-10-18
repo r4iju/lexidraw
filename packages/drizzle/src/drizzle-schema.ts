@@ -83,13 +83,13 @@ export const users = sqliteTable(
           modelId: string;
           provider: string;
           temperature: number;
-          maxTokens: number;
+          maxOutputTokens: number;
         };
         autocomplete?: {
           modelId: string;
           provider: string;
           temperature: number;
-          maxTokens: number;
+          maxOutputTokens: number;
         };
       };
       cookies?: {

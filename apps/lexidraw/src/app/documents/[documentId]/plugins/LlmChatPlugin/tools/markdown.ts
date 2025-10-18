@@ -21,7 +21,7 @@ export const useMarkdownTools = () => {
   const insertMarkdown = tool({
     description:
       "Inserts content parsed from a Markdown string. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. This is efficient for inserting complex structures like multiple paragraphs, lists, headings, code blocks, etc., defined in Markdown format.",
-    parameters: z.object({
+    inputSchema: z.object({
       markdownText: z
         .string()
         .describe("The Markdown content to parse and insert."),

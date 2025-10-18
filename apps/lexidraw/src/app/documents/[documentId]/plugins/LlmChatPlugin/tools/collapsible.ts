@@ -28,7 +28,7 @@ export const useCollapsibleTools = () => {
   const insertCollapsibleSection = tool({
     description:
       "Inserts a new collapsible section (container, title, and content). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       titleText: z.string().describe("The text for the collapsible title."),
       initialContentMarkdown: z
         .string()

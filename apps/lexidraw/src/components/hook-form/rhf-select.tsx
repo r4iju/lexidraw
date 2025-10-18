@@ -35,9 +35,7 @@ export function RHFSelect({
         control={control}
         render={({ field, fieldState: { error } }) => (
           <div>
-            <Select id={name} {...field}>
-              {children}
-            </Select>
+            <Select {...field}>{children}</Select>
             {error ? (
               <p className="mt-1 text-sm text-red-600">{error.message}</p>
             ) : (

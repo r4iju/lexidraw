@@ -20,7 +20,7 @@ export const useTweetTools = () => {
   const insertTweetNode = tool({
     description:
       "Inserts a Tweet embed using the provided Tweet ID. TweetNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, an alignment format can be applied.",
-    parameters: z.object({
+    inputSchema: z.object({
       tweetID: z
         .string()
         .regex(/^\d+$/, "Tweet ID must be a string of digits.")

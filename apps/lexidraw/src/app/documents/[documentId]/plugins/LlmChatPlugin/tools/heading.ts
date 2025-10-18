@@ -22,7 +22,7 @@ export const useHeadingTools = () => {
   const insertHeadingNode = tool({
     description:
       "Inserts a new HeadingNode with the specified tag and text. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    parameters: z.object({
+    inputSchema: z.object({
       text: z.string().describe("The text content of the heading."),
       tag: z.enum(["h1", "h2", "h3", "h4", "h5", "h6"]),
       relation: InsertionRelationSchema,

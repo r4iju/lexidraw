@@ -75,8 +75,8 @@ function CodeActionMenuContainer({
   );
 
   const { run: debouncedOnMouseMove, cancel: cancelDebouncedOnMouseMove } =
-    useDebounce((event: MouseEvent) => {
-      const { codeDOMNode, isOutside } = getMouseInfo(event);
+    useDebounce((event) => {
+      const { codeDOMNode, isOutside } = getMouseInfo(event as MouseEvent);
 
       if (isOutside) {
         setShown(false);

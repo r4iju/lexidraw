@@ -48,7 +48,7 @@ export function LlmModelSelector({ className }: { className?: string }) {
 
   useEffect(() => {
     setLocalTemperature(currentState.temperature.toString());
-    setLocalMaxTokens(currentState.maxTokens.toString());
+    setLocalMaxTokens(currentState.maxOutputTokens.toString());
   }, [currentState]);
 
   const handleTemperatureBlur = () => {
@@ -78,16 +78,16 @@ export function LlmModelSelector({ className }: { className?: string }) {
         cappedValue = Math.min(numValue, 65535);
       }
 
-      if (cappedValue !== currentState.maxTokens) {
+      if (cappedValue !== currentState.maxOutputTokens) {
         setLlmConfiguration({
           [selectedMode]: {
-            maxTokens: cappedValue,
+            maxOutputTokens: cappedValue,
           },
         });
       }
       setLocalMaxTokens(cappedValue.toString());
     } else {
-      setLocalMaxTokens(currentState.maxTokens.toString());
+      setLocalMaxTokens(currentState.maxOutputTokens.toString());
     }
   };
 
@@ -188,7 +188,7 @@ export function LlmModelSelector({ className }: { className?: string }) {
 
                     const newProvider = model.provider;
                     const newModelId = model.modelId;
-                    let newMaxTokens = currentState.maxTokens;
+                    let newMaxTokens = currentState.maxOutputTokens;
 
                     if (newProvider === "openai") {
                       newMaxTokens = 32768;
@@ -199,13 +199,13 @@ export function LlmModelSelector({ className }: { className?: string }) {
                     if (
                       newModelId !== currentState.modelId ||
                       newProvider !== currentState.provider ||
-                      newMaxTokens !== currentState.maxTokens
+                      newMaxTokens !== currentState.maxOutputTokens
                     ) {
                       setLlmConfiguration({
                         [selectedMode]: {
                           modelId: newModelId,
                           provider: newProvider,
-                          maxTokens: newMaxTokens,
+                          maxOutputTokens: newMaxTokens,
                         },
                       });
                     }

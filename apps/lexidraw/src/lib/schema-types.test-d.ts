@@ -7,7 +7,7 @@ import type {
   BarProps,
   AreaProps,
 } from "recharts";
-import type { z } from "zod";
+import { z } from "zod";
 import type { ChartDataSchema, ChartConfigSchema } from "./schemas";
 import type {
   NameType,

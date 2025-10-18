@@ -21,7 +21,7 @@ export const useDocumentEditorTools = () => {
         4. Otherwise mutate the existing node in‑place via setters / direct props
         5. importJSON(merged) → new node (only for the first path)
         6. swap old ↔︎ new, keeping the same spot in the tree.`, // Ensure description is accurate
-    parameters: z.object({
+    inputSchema: z.object({
       editorKey: EditorKeySchema.optional(), // Ensure editorKey is optional if it can be
       nodeKey: z.string().describe("Original key of the node to edit."), // Explicitly original
       patchProperties: z
@@ -124,7 +124,7 @@ export const useDocumentEditorTools = () => {
 
   const removeNode = tool({
     description: "Removes a node from the document using its key.",
-    parameters: z.object({
+    inputSchema: z.object({
       nodeKey: z.string().describe("The key of the node to remove."),
       editorKey: EditorKeySchema.optional(),
     }),
@@ -164,7 +164,7 @@ export const useDocumentEditorTools = () => {
   const moveNode = tool({
     description:
       "Moves a node relative to another node (before or after). Only works for direct siblings within the same parent.",
-    parameters: z.object({
+    inputSchema: z.object({
       nodeKey: z.string().describe("The key of the node to move."),
       anchorKey: z.string().describe("The key of the anchor node."),
       relation: z

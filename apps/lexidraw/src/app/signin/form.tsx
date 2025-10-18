@@ -3,7 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { getSignInSchema, type SignInSchema } from "./schema";
 import FormProvider from "~/components/hook-form";
 import { RHFTextField } from "~/components/hook-form";
@@ -16,7 +16,7 @@ export default function SignInForm() {
   const schema = getSignInSchema();
 
   const methods = useForm({
-    resolver: zodResolver(schema),
+    resolver: standardSchemaResolver(schema),
     defaultValues: getDefaults(schema),
     mode: "onBlur",
   });

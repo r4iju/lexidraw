@@ -11,7 +11,7 @@ type LlmBaseConfig = {
   modelId: string;
   provider: string;
   temperature: number;
-  maxTokens: number;
+  maxOutputTokens: number;
 };
 
 type LlmConfig = {

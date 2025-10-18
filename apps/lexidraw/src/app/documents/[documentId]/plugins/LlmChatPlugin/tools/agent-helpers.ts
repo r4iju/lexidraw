@@ -15,7 +15,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
         you must ask for clarification including a description
         of what you can do.
         `.replaceAll("          ", ""),
-    parameters: z.object({
+    inputSchema: z.object({
       operation: z
         .enum(["plan", "clarify"])
         .describe("Whether to generate a plan or to ask for clarification."),
@@ -76,7 +76,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
   const summarizeExecution = tool({
     description:
       "Reports the final summary of actions taken to the user. This MUST be called as the final step after all other actions are complete.",
-    parameters: z.object({
+    inputSchema: z.object({
       summaryText: z
         .string()
         .describe(
@@ -110,7 +110,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
   const sendReply = tool({
     description:
       "Sends a text-only reply to the user. Use this when the user's query clearly does not require document modification, such as asking a question or making a comment.",
-    parameters: z.object({
+    inputSchema: z.object({
       replyText: z
         .string()
         .describe("The text content of the reply to send to the user."),

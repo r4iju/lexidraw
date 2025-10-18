@@ -1,6 +1,6 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { getSignUpSchema, type SignUpSchema } from "./schema";
@@ -18,8 +18,8 @@ import { cn } from "~/lib/utils";
 export default function SignUpForm() {
   const schema = getSignUpSchema();
   const methods = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: { ...getDefaults(schema) },
+    resolver: standardSchemaResolver(schema),
+    defaultValues: getDefaults(schema),
     mode: "onBlur",
   });
   const { handleSubmit } = methods;

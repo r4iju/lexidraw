@@ -25,7 +25,7 @@ export const useHashtagTools = () => {
   const insertHashtag = tool({
     description:
       "Inserts a new HashtagNode with the provided text. If relation is 'appendRoot' or the anchor is block-level, it's wrapped in a ParagraphNode.",
-    parameters: z.object({
+    inputSchema: z.object({
       text: z
         .string()
         .describe(

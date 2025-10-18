@@ -33,7 +33,7 @@ export const useListTools = () => {
         Uses relation and anchor to determine position.
         Rather than invoking this tool directly, multiple list nodes should be inserted with a batch.
         `,
-    parameters: z.object({
+    inputSchema: z.object({
       listType: z.enum(["bullet", "number", "check"]),
       text: z.string().describe("Text for the initial list item."),
       relation: InsertionRelationSchema,
@@ -105,7 +105,7 @@ export const useListTools = () => {
   const insertListItemNode = tool({
     description:
       "Inserts a new ListItemNode with the provided text. For 'before' or 'after' relations, the anchor MUST resolve to an existing ListItemNode. For 'appendToList' relation, the anchor MUST resolve to an existing ListNode.",
-    parameters: z.object({
+    inputSchema: z.object({
       text: z.string(),
       relation: z
         .enum(["before", "after", "appendToList"])

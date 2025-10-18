@@ -1,8 +1,8 @@
 "use client";
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ProfileSchema } from "./schema";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
+import { ProfileSchema, type ProfileSchema as ProfileValues } from "./schema";
 import FormProvider, { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
@@ -19,7 +19,7 @@ export default function ProfileForm({ user }: Props) {
   const { mutate: saveProfile, isPending } =
     api.auth.updateProfile.useMutation();
   const methods = useForm({
-    resolver: zodResolver(ProfileSchema),
+    resolver: standardSchemaResolver(ProfileSchema),
     defaultValues: {
       email: user?.email ?? "",
       name: user?.name ?? "",
@@ -37,7 +37,8 @@ export default function ProfileForm({ user }: Props) {
     formState: { isDirty },
   } = methods;
 
-  const onSubmit = async (data: ProfileSchema) => {
+  const onSubmit: SubmitHandler<ProfileValues> = async (data) => {
+    console.log("data", data);
     saveProfile(data, {
       onSuccess: async () => {
         toast.success("Profile saved");
