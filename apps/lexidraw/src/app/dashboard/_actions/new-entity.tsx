@@ -11,7 +11,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "~/components/ui/navigation-menu";
-import { Brush, File, FolderPlus, Plus } from "lucide-react";
+import { Brush, File, FolderPlus, Link2, Plus } from "lucide-react";
 import Link from "next/link";
 
 type Props = {
@@ -19,7 +19,7 @@ type Props = {
 };
 
 export function NewEntity({ parentId }: Props) {
-  const newItem = (kind: "drawing" | "document" | "directory") => {
+  const newItem = (kind: "drawing" | "document" | "directory" | "url") => {
     const query = `?new=true${parentId ? `&parentId=${parentId}` : ""}`;
     switch (kind) {
       case "drawing":
@@ -28,6 +28,8 @@ export function NewEntity({ parentId }: Props) {
         return `/documents/${uuidv4()}${query}`;
       case "directory":
         return `/dashboard/${uuidv4()}${query}`;
+      case "url":
+        return `/urls/${uuidv4()}${query}`;
     }
   };
 
@@ -54,6 +56,12 @@ export function NewEntity({ parentId }: Props) {
       icon: <FolderPlus className="size-5" />,
       href: newItem("directory"),
       description: "Create a folder.",
+    },
+    {
+      title: "URL",
+      icon: <Link2 className="size-5" />,
+      href: newItem("url"),
+      description: "Bookmark a link for later.",
     },
   ];
 
