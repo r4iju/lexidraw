@@ -1,6 +1,6 @@
 "use client";
 
-import { Folder } from "lucide-react";
+import { Folder, Link2 } from "lucide-react";
 import Image from "next/image";
 import {
   useDeferredValue,
@@ -39,6 +39,10 @@ export function ThumbnailClient({ entity }: Props) {
         src={src}
       />
     );
+  }
+
+  if (entity.entityType === "url") {
+    return <LinkVisual title={entity.title} />;
   }
 
   return (
@@ -161,6 +165,15 @@ function FolderVisual({
           {childCount}
         </div>
       )}
+    </div>
+  );
+}
+
+function LinkVisual({ title }: { title: string }) {
+  return (
+    <div className="relative size-full aspect-4/3 rounded-sm border border-border grid place-items-center overflow-hidden">
+      <span className="sr-only">{`Link: ${title}`}</span>
+      <Link2 className="size-10 text-muted-foreground" />
     </div>
   );
 }
