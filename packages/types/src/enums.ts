@@ -13,6 +13,7 @@ export enum EntityType {
   DRAWING = "drawing",
   DOCUMENT = "document",
   DIRECTORY = "directory",
+  URL = "url",
 }
 
 export enum Theme {

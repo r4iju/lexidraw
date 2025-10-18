@@ -59,6 +59,8 @@ export function EntityCard({
         return `/drawings/${id}`;
       case EntityType.DOCUMENT:
         return `/documents/${id}`;
+      case EntityType.URL:
+        return `/urls/${id}`;
       default:
         console.warn(`Unknown entity type: ${entityType satisfies never}`);
         return `/dashboard/${id}?${searchParams.toString()}`;

@@ -1156,6 +1156,7 @@ export const entityRouter = createTRPCRouter({
                 or(
                   eq(schema.entities.entityType, "drawing"),
                   eq(schema.entities.entityType, "document"),
+                  eq(schema.entities.entityType, "url"),
                 ),
                 or(
                   sql`LOWER(${schema.entities.elements}) like ${likePattern}`,
