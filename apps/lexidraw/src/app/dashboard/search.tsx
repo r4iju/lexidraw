@@ -16,7 +16,7 @@ import {
   CommandItem,
   CommandList,
 } from "~/components/ui/command";
-import { Brush, File, Folder, Loader2 } from "lucide-react";
+import { Brush, File, Folder, Link2, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
@@ -105,6 +105,8 @@ export function SearchBar({ className }: Props) {
         return `/drawings/${entityId}`;
       case "document":
         return `/documents/${entityId}`;
+      case "url":
+        return `/urls/${entityId}`;
       default:
         return `/dashboard/${entityId}`;
     }
@@ -203,6 +205,9 @@ export function SearchBar({ className }: Props) {
                       )}
                       {entity.entityType === "document" && (
                         <File className="h-4 w-4 shrink-0" />
+                      )}
+                      {entity.entityType === "url" && (
+                        <Link2 className="h-4 w-4 shrink-0" />
                       )}
                     </CommandItem>
                   </Link>

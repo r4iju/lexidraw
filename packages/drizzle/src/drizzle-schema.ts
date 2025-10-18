@@ -251,7 +251,7 @@ export const entities = sqliteTable(
     title: text("title").notNull(),
     elements: text("elements").notNull(),
     appState: text("appState"),
-    entityType: text("entityType").notNull().default("drawing"), // drawing or document or directory
+    entityType: text("entityType").notNull().default("drawing"), // drawing | document | directory | url
     parentId: text("parentId").references((): AnySQLiteColumn => entities.id, {
       onDelete: "cascade",
       onUpdate: "cascade",
