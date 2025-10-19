@@ -33,15 +33,12 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
     }
   }, [entity.elements]);
 
-  const [title, setTitle] = useState(entity.title ?? "");
   const [url, setUrl] = useState(initialUrl);
-  const titleId = useId();
   const urlId = useId();
 
   useEffect(() => {
-    setTitle(entity.title ?? "");
     setUrl(initialUrl);
-  }, [entity.title, initialUrl]);
+  }, [initialUrl]);
 
   const isValidUrl = useMemo(() => {
     try {
@@ -87,15 +84,7 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
           <DialogTitle>Edit link</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor={titleId}>Title</Label>
-            <Input
-              id={titleId}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="My favorite article"
-            />
-          </div>
+          {/* Title is managed programmatically on distill; hide in this modal */}
 
           <div className="grid gap-2">
             <Label htmlFor={urlId}>URL</Label>
@@ -117,7 +106,6 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
               onClick={() =>
                 saveMutation.mutate({
                   id: entity.id,
-                  title,
                   elements: JSON.stringify({ url: normalizedUrl }),
                   entityType: "url",
                 })
@@ -131,7 +119,7 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
               onClick={() => distillMutation.mutate({ id: entity.id })}
               disabled={!isValidUrl || distillMutation.isPending}
             >
-              {distillMutation.isPending ? "Distilling..." : "Distill article"}
+              {distillMutation.isPending ? "Getting..." : "Get"}
             </Button>
           </div>
         </DialogFooter>
