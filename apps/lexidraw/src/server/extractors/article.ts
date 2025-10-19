@@ -22,6 +22,13 @@ export type DistilledArticle = {
   contentHtml: string;
   images?: DistilledImage[];
   datePublished?: string | null;
+  /**
+   * Best representative image for the article. Priority:
+   * 1) OpenGraph image (og:image)
+   * 2) First <img> inside the sanitized article content
+   * 3) Site favicon (link rel="icon"), else /favicon.ico
+   */
+  bestImageUrl?: string | null;
   updatedAt: string; // ISO string
 };
 
@@ -136,11 +143,14 @@ export async function extractAndSanitizeArticle({
   html,
   timeoutMs = 15000,
   maxBytes = 8 * 1024 * 1024, // 8MB
+  cookiesHeader,
 }: {
   url: string;
   html?: string;
   timeoutMs?: number;
   maxBytes?: number;
+  /** Optional raw Cookie header string for this host, e.g. "SID=...; HSID=..." */
+  cookiesHeader?: string;
 }): Promise<DistilledArticle> {
   if (!isHttpUrl(url)) {
     throw new Error("Only http/https URLs are supported");
@@ -152,42 +162,106 @@ export async function extractAndSanitizeArticle({
 
   let finalHtml = html;
   if (!finalHtml) {
-    const controller = AbortSignal.timeout(timeoutMs);
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        // Modest UA; do not impersonate browsers aggressively
-        "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)",
-        accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      },
-      signal: controller,
+    const fetchOnce = async (
+      customHeaders: Record<string, string>,
+    ): Promise<{ status: number; text: string }> => {
+      const controller = AbortSignal.timeout(timeoutMs);
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "accept-language": "en-US,en;q=0.9",
+          ...customHeaders,
+          ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
+        },
+        redirect: "follow",
+        signal: controller,
+      });
+      const text = await res.text();
+      return { status: res.status, text };
+    };
+
+    // Primary attempt: modest UA
+    let primary = await fetchOnce({
+      "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)",
     });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch URL (${res.status})`);
+
+    // Retry once on 429/5xx
+    if (primary.status === 429 || primary.status >= 500) {
+      await new Promise((r) => setTimeout(r, 500));
+      primary = await fetchOnce({
+        "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)",
+      });
     }
 
-    // Size guard
-    const reader = res.body?.getReader();
-    if (!reader) {
-      finalHtml = await res.text();
-    } else {
-      const chunks: Uint8Array[] = [];
-      let received = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          received += value.byteLength;
-          if (received > maxBytes) {
-            reader.cancel();
-            throw new Error("Response too large");
+    // If 403, try with a common browser UA and reduced accept header
+    if (primary.status === 403) {
+      let secondary = await fetchOnce({
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      });
+
+      // If still 403, try AMP/mobile alternate if present in 403 body
+      if (secondary.status === 403) {
+        try {
+          const doc403 = new JSDOM(primary.text).window.document;
+          const altHref =
+            doc403.querySelector("link[rel='amphtml']")?.getAttribute("href") ||
+            doc403
+              .querySelector("link[rel='alternate'][media]")
+              ?.getAttribute("href");
+          if (altHref) {
+            const ampUrl = absolutizeUrl(url, altHref);
+            const controller = AbortSignal.timeout(timeoutMs);
+            const altRes = await fetch(ampUrl, {
+              headers: {
+                "user-agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                "accept-language": "en-US,en;q=0.9",
+                ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
+              },
+              signal: controller,
+            });
+            if (altRes.ok) {
+              primary = { status: 200, text: await altRes.text() };
+            } else {
+              throw new Error(`AMP_FALLBACK_MISS ${altRes.status}`);
+            }
+          } else {
+            throw new Error("AMP_FALLBACK_MISS");
           }
+        } catch (e) {
+          throw new Error(
+            `FETCH_403_SECONDARY: Failed to fetch URL (403). ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          );
         }
       }
-      finalHtml = new TextDecoder("utf-8").decode(Buffer.concat(chunks));
+
+      if (primary.status !== 200) {
+        // Either secondary succeeded and set primary to 200, or throw
+        if (secondary && secondary.status === 200) {
+          // do nothing; handled above
+        } else if (primary.status === 403) {
+          throw new Error("FETCH_403_PRIMARY: Failed to fetch URL (403)");
+        }
+      }
     }
+
+    if (primary.status !== 200) {
+      throw new Error(`Failed to fetch URL (${primary.status})`);
+    }
+
+    // Size guard after we have the text: enforce maxBytes by length
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(primary.text);
+    if (bytes.byteLength > maxBytes) {
+      throw new Error("Response too large");
+    }
+    finalHtml = primary.text;
   }
 
   const dom = new JSDOM(finalHtml, { url });
@@ -243,6 +317,20 @@ export async function extractAndSanitizeArticle({
     doc.querySelector("time[datetime]")?.getAttribute("datetime") ||
     null;
 
+  // Choose best image
+  const ogImage =
+    doc.querySelector("meta[property='og:image']")?.getAttribute("content") ||
+    doc.querySelector("meta[name='og:image']")?.getAttribute("content") ||
+    null;
+  const firstContentImg = images[0]?.src || null;
+  const faviconHref =
+    doc.querySelector("link[rel~='icon']")?.getAttribute("href") ||
+    "/favicon.ico";
+  const bestImageUrl =
+    (ogImage ? absolutizeUrl(url, ogImage) : null) ||
+    (firstContentImg ? absolutizeUrl(url, firstContentImg) : null) ||
+    absolutizeUrl(url, faviconHref);
+
   return {
     status: "ready",
     title,
@@ -254,6 +342,7 @@ export async function extractAndSanitizeArticle({
     contentHtml,
     images,
     datePublished,
+    bestImageUrl,
     updatedAt: new Date().toISOString(),
   };
 }

@@ -18,6 +18,7 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 import env from "@packages/env";
 import { v4 as uuidV4 } from "uuid";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
+import { put } from "@vercel/blob";
 import {
   generateClientTokenFromReadWriteToken,
   type GenerateClientTokenOptions,
@@ -1188,8 +1189,11 @@ export const entityRouter = createTRPCRouter({
             userId: schema.entities.userId,
             publicAccess: schema.entities.publicAccess,
             elements: schema.entities.elements,
+            title: schema.entities.title,
+            config: schema.users.config,
           })
           .from(schema.entities)
+          .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
           .where(eq(schema.entities.id, input.id))
       )[0];
 
@@ -1218,18 +1222,72 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
-      // 3) Run extractor
-      const distilled = await extractAndSanitizeArticle({ url });
+      // 3) Run extractor with optional per-domain cookies
+      let cookiesHeader: string | undefined;
+      const host = new URL(url).host.replace("www.", "");
+      const cookiesConfig = entity?.config?.cookies;
+      const cookieForHost = cookiesConfig?.find((cookie) => cookie.name === host);
+      if (cookieForHost?.value) cookiesHeader = cookieForHost.value;
 
-      // 4) Merge and persist
+      const distilled = await extractAndSanitizeArticle({
+        url,
+        cookiesHeader,
+      });
+
+      // 4) Upload best image to Blob (if any) and set screenshot columns
+      let screenShotLight: string | undefined;
+      let screenShotDark: string | undefined;
+      if (distilled.bestImageUrl) {
+        try {
+          const res = await fetch(distilled.bestImageUrl);
+          if (res.ok) {
+            const contentType = res.headers.get("content-type") || "image/jpeg";
+            const ext =
+              contentType.includes("png")
+                ? "png"
+                : contentType.includes("webp")
+                  ? "webp"
+                  : contentType.includes("svg")
+                    ? "svg"
+                    : contentType.includes("avif")
+                      ? "avif"
+                      : "jpg";
+            const buffer = Buffer.from(await res.arrayBuffer());
+            const key = `${input.id}-thumb.${ext}`;
+            const blob = await put(key, buffer, {
+              access: "public",
+              contentType,
+            });
+            screenShotLight = blob.url;
+            screenShotDark = blob.url;
+          }
+        } catch (e) {
+          console.warn("Failed to upload bestImageUrl", e);
+        }
+      }
+
+      // 5) Merge distilled payload and optionally update title/screenshots
       const mergedElements = JSON.stringify({
         ...elementsJson,
         distilled,
       });
 
+      const updates: Record<string, unknown> = {
+        elements: mergedElements,
+        updatedAt: new Date(),
+      };
+
+      // If default title, set to distilled.title
+      const isDefaultTitle = !entity?.title || entity.title === "New link";
+      if (isDefaultTitle && distilled.title) {
+        updates.title = distilled.title;
+      }
+      if (screenShotLight) updates.screenShotLight = screenShotLight;
+      if (screenShotDark) updates.screenShotDark = screenShotDark;
+
       await ctx.drizzle
         .update(schema.entities)
-        .set({ elements: mergedElements, updatedAt: new Date() })
+        .set(updates)
         .where(eq(schema.entities.id, input.id))
         .execute();
 
