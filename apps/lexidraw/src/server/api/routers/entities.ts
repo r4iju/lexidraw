@@ -17,6 +17,7 @@ import {
 import type { AppState } from "@excalidraw/excalidraw/types";
 import env from "@packages/env";
 import { v4 as uuidV4 } from "uuid";
+import { extractAndSanitizeArticle } from "~/server/extractors/article";
 import {
   generateClientTokenFromReadWriteToken,
   type GenerateClientTokenOptions,
@@ -1172,5 +1173,66 @@ export const entityRouter = createTRPCRouter({
         .limit(10);
 
       return results;
+    }),
+  /* --------------------------------------------------------------- */
+  /* URL DISTILLATION                                                */
+  /* --------------------------------------------------------------- */
+  distillUrl: protectedProcedure
+    .input(z.object({ id: z.string(), force: z.boolean().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      // 1) Load entity and verify access
+      const entity = (
+        await ctx.drizzle
+          .select({
+            id: schema.entities.id,
+            userId: schema.entities.userId,
+            publicAccess: schema.entities.publicAccess,
+            elements: schema.entities.elements,
+          })
+          .from(schema.entities)
+          .where(eq(schema.entities.id, input.id))
+      )[0];
+
+      if (!entity)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+      if (!isOwner && !anyOneCanEdit)
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
+
+      // 2) Parse existing elements
+      let elementsJson: Record<string, unknown> = {};
+      try {
+        elementsJson = JSON.parse(entity.elements ?? "{}") as Record<
+          string,
+          unknown
+        >;
+      } catch {
+        // keep empty
+      }
+      const url = (elementsJson?.url as string) || "";
+      if (!url) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No URL set on entity",
+        });
+      }
+
+      // 3) Run extractor
+      const distilled = await extractAndSanitizeArticle({ url });
+
+      // 4) Merge and persist
+      const mergedElements = JSON.stringify({
+        ...elementsJson,
+        distilled,
+      });
+
+      await ctx.drizzle
+        .update(schema.entities)
+        .set({ elements: mergedElements, updatedAt: new Date() })
+        .where(eq(schema.entities.id, input.id))
+        .execute();
+
+      return distilled;
     }),
 });

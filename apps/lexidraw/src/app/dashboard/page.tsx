@@ -2,7 +2,7 @@ import type { Metadata, ServerRuntime } from "next/types";
 import { Dashboard } from "./dashboard";
 import { z } from "zod";
 
-export const runtime: ServerRuntime = "edge";
+export const runtime: ServerRuntime = "nodejs";
 
 export const metadata: Metadata = {
   title: "Lexidraw | Dashboard",
