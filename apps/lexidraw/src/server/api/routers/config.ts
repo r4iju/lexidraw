@@ -69,6 +69,45 @@ export const configRouter = createTRPCRouter({
     },
   ),
 
+  // --- Audio preferences ---
+  getAudioConfig: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.drizzle.query.users.findFirst({
+      where: eq(schema.users.id, ctx.session.user.id),
+      columns: { config: true },
+    });
+    const preferredPlaybackRate =
+      user?.config?.audio?.preferredPlaybackRate ?? 1;
+    return { preferredPlaybackRate } as { preferredPlaybackRate: number };
+  }),
+
+  updateAudioConfig: protectedProcedure
+    .input(
+      z.object({
+        preferredPlaybackRate: z.number().min(0.5).max(3),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const current = await ctx.drizzle.query.users.findFirst({
+        where: eq(schema.users.id, ctx.session.user.id),
+        columns: { config: true },
+      });
+
+      const nextConfig = {
+        ...(current?.config ?? {}),
+        audio: {
+          ...(current?.config?.audio ?? {}),
+          preferredPlaybackRate: input.preferredPlaybackRate,
+        },
+      } satisfies NonNullable<(typeof schema.users)["config"]>;
+
+      await ctx.drizzle
+        .update(schema.users)
+        .set({ config: nextConfig })
+        .where(eq(schema.users.id, ctx.session.user.id));
+
+      return { preferredPlaybackRate: input.preferredPlaybackRate };
+    }),
+
   updateLlmConfig: protectedProcedure
     .input(PatchSchema)
     .mutation(async ({ ctx, input }): Promise<PartialLlmConfig> => {

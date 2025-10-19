@@ -15,9 +15,14 @@ type Segment = {
 type Props = {
   title?: string;
   segments: Segment[];
+  preferredPlaybackRate?: number;
 };
 
-export default function ArticleAudioPlayer({ title, segments }: Props) {
+export default function ArticleAudioPlayer({
+  title,
+  segments,
+  preferredPlaybackRate,
+}: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const current = useMemo(
     () => segments[currentIndex],
@@ -33,6 +38,7 @@ export default function ArticleAudioPlayer({ title, segments }: Props) {
         src={current?.audioUrl ?? ""}
         autoPlay
         title={title}
+        initialPlaybackRate={preferredPlaybackRate}
         onEnded={() => {
           if (currentIndex < segments.length - 1)
             setCurrentIndex(currentIndex + 1);

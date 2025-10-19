@@ -7,6 +7,7 @@ import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
+  preferredPlaybackRate?: number;
 };
 
 type TtsSegment = {
@@ -16,7 +17,10 @@ type TtsSegment = {
   durationSec?: number;
 };
 
-export default function ArticlePreview({ entity }: Props) {
+export default function ArticlePreview({
+  entity,
+  preferredPlaybackRate,
+}: Props) {
   const distilled = useMemo(() => {
     try {
       const parsed = JSON.parse(entity.elements ?? "{}") as {
@@ -159,7 +163,11 @@ export default function ArticlePreview({ entity }: Props) {
         </div>
       ) : segments.length ? (
         <div>
-          <ArticleAudioPlayer segments={segments} />
+          <ArticleAudioPlayer
+            title={savedTts?.title || distilled.title || entity.title}
+            segments={segments}
+            preferredPlaybackRate={preferredPlaybackRate}
+          />
         </div>
       ) : null}
       <div className="prose max-w-none dark:prose-invert">

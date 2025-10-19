@@ -10,9 +10,10 @@ import { cn } from "~/lib/utils";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
+  preferredPlaybackRate?: number;
 };
 
-export default function UrlViewer({ entity }: Props) {
+export default function UrlViewer({ entity, preferredPlaybackRate }: Props) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [width, setWidth] = useState<"narrow" | "medium" | "wide">("medium");
   const url = useMemo(() => {
@@ -52,7 +53,10 @@ export default function UrlViewer({ entity }: Props) {
             "mx-auto max-w-4xl": width === "wide",
           })}
         >
-          <ArticlePreview entity={entity} />
+          <ArticlePreview
+            entity={entity}
+            preferredPlaybackRate={preferredPlaybackRate}
+          />
         </div>
       )}
 

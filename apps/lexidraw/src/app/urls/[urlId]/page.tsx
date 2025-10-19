@@ -44,9 +44,17 @@ export default async function UrlPage(props: Props) {
     return redirect(`/urls/${urlId}`);
   }
 
-  const entity = await api.entities.load.query({ id: urlId });
+  const [entity, audioConfig] = await Promise.all([
+    api.entities.load.query({ id: urlId }),
+    api.config.getAudioConfig.query(),
+  ]);
   if (!entity) throw new Error("URL entity not found");
 
   const UrlViewer = (await import("./url-viewer")).default;
-  return <UrlViewer entity={entity} />;
+  return (
+    <UrlViewer
+      entity={entity}
+      preferredPlaybackRate={audioConfig?.preferredPlaybackRate ?? 1}
+    />
+  );
 }
