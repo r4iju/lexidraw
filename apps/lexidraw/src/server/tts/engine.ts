@@ -144,6 +144,24 @@ export async function synthesizeArticleOrText(
           languageCode: req.languageCode,
         })
       : undefined;
+    // Reuse existing segment if blob already exists
+    const path = `tts/${key}/${chunk.index}.${format}`;
+    const existingUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${path}`;
+    try {
+      const head = await fetch(existingUrl, { method: "HEAD" });
+      if (head.ok) {
+        segments.push({
+          index: chunk.index,
+          text: chunk.text,
+          ssml,
+          audioUrl: existingUrl,
+        });
+        // Do not synthesize or upload again; also skip adding to rawBuffers
+        continue;
+      }
+    } catch {
+      // ignore and proceed to synthesize
+    }
     let audioBuf: Buffer | null = null;
     try {
       const { audio } = await provider.synthesize({
@@ -175,39 +193,66 @@ export async function synthesizeArticleOrText(
         );
       }
     }
-    const path = `tts/${key}/${chunk.index}.${format}`;
-    const { url } = await put(path, audioBuf, {
-      access: "public",
-      contentType:
-        format === "mp3"
-          ? "audio/mpeg"
-          : format === "ogg"
-            ? "audio/ogg"
-            : "audio/wav",
-    });
-    segments.push({
-      index: chunk.index,
-      text: chunk.text,
-      ssml,
-      audioUrl: url,
-    });
+    try {
+      const { url } = await put(path, audioBuf, {
+        access: "public",
+        contentType:
+          format === "mp3"
+            ? "audio/mpeg"
+            : format === "ogg"
+              ? "audio/ogg"
+              : "audio/wav",
+      });
+      segments.push({
+        index: chunk.index,
+        text: chunk.text,
+        ssml,
+        audioUrl: url,
+      });
+    } catch (e) {
+      const message = (e as Error)?.message ?? "";
+      if (typeof message === "string" && message.includes("already exists")) {
+        // Reuse existing
+        segments.push({
+          index: chunk.index,
+          text: chunk.text,
+          ssml,
+          audioUrl: existingUrl,
+        });
+      } else {
+        throw e;
+      }
+    }
     rawBuffers.push(audioBuf);
   }
 
   // Write a manifest for easy GET retrieval
   // Naive server-side stitch for mp3: buffered concatenation works for many encoders
   let stitchedUrl: string | undefined;
-  if (format === "mp3" && rawBuffers.length > 1) {
-    try {
-      const combined = Buffer.concat(rawBuffers);
-      const { url } = await put(`tts/${key}/full.${format}`, combined, {
-        access: "public",
-        contentType: "audio/mpeg",
-      });
-      stitchedUrl = url;
-    } catch {
-      // best-effort; ignore stitching failure
+  // Prefer existing stitched file if present
+  try {
+    const fullUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/${key}/full.${format}`;
+    const headFull = await fetch(fullUrl, { method: "HEAD" });
+    if (headFull.ok) {
+      stitchedUrl = fullUrl;
+    } else if (format === "mp3" && rawBuffers.length === chunks.length && rawBuffers.length > 1) {
+      try {
+        const combined = Buffer.concat(rawBuffers);
+        const { url } = await put(`tts/${key}/full.${format}`, combined, {
+          access: "public",
+          contentType: "audio/mpeg",
+        });
+        stitchedUrl = url;
+      } catch (e) {
+        const msg = (e as Error)?.message ?? "";
+        if (typeof msg === "string" && msg.includes("already exists")) {
+          stitchedUrl = fullUrl;
+        }
+        // best-effort otherwise
+      }
     }
+  } catch {
+    // ignore failures
   }
 
   const manifest = {
@@ -221,14 +266,28 @@ export async function synthesizeArticleOrText(
     stitchedUrl,
   } satisfies TtsResult;
 
-  const { url: manifestUrl } = await put(
-    `tts/${key}/manifest.json`,
-    Buffer.from(JSON.stringify(manifest), "utf-8"),
-    {
-      access: "public",
-      contentType: "application/json",
-    },
-  );
+  const manifestPath = `tts/${key}/manifest.json`;
+  const manifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${manifestPath}`;
+  try {
+    const headManifest = await fetch(manifestUrl, { method: "HEAD" });
+    if (!headManifest.ok) {
+      await put(
+        manifestPath,
+        Buffer.from(JSON.stringify(manifest), "utf-8"),
+        {
+          access: "public",
+          contentType: "application/json",
+        },
+      );
+    }
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    if (typeof msg === "string" && msg.includes("already exists")) {
+      // reuse existing manifest
+    } else {
+      // best-effort; ignore manifest write failures to avoid blocking response
+    }
+  }
 
   return {
     id: key,
