@@ -1,90 +1,47 @@
-<!-- 843346ed-8c8d-4952-81db-46627ecb418c 8cb7e9cf-1211-4177-a880-055080ac6874 -->
-# Implement a reusable AudioPlayer with markers and integrate it
+<!-- 843346ed-8c8d-4952-81db-46627ecb418c 898a43a2-ed76-4f23-845c-ee9ca6ad9158 -->
+# Persist Preferred Playback Speed in User Config
 
-### What we'll build
+### Summary
 
-- A generic `AudioPlayer` in `apps/lexidraw/src/components/ui/audio-player.tsx` styled with our tokens (`bg-secondary`, `bg-primary`, `text-muted-foreground`, radii). It includes:
-  - Play/Pause, seek slider with time (current/duration)
-  - Volume control in a popover using the existing `Slider`
-  - Playback speed selector in a popover
-  - Optional `markers` prop to render chapter ticks on the seek track with tooltips and click-to-seek
+- Add `audio.preferredPlaybackRate` to `users.config` JSON type.
+- Create config endpoints to read/update audio settings for authenticated users.
+- Make `AudioPlayer` load preferred rate and persist updates on slider commit.
 
-### Key props (concise API)
+### Server changes
 
-```ts
-export type AudioMarker = { time: number; label?: string };
+- Update `packages/drizzle/src/drizzle-schema.ts` `users.config` type:
+  - Add `audio?: { preferredPlaybackRate?: number }`.
+- In `apps/lexidraw/src/server/api/routers/config.ts`:
+  - Add `AudioConfigSchema = z.object({ preferredPlaybackRate: z.number().min(0.5).max(3).default(1) })`.
+  - Add `getAudioConfig` (protected): read `users.config.audio`, return `{ preferredPlaybackRate: 1 }` if absent.
+  - Add `updateAudioConfig` (protected): merge into existing `users.config` (do NOT overwrite other keys):
+    ```ts
+    await ctx.drizzle.update(schema.users)
+      .set({ config: { ...(current?.config ?? {}), audio: { preferredPlaybackRate: input.preferredPlaybackRate } } })
+      .where(eq(schema.users.id, ctx.session.user.id));
+    ```
 
-export type AudioPlayerProps = {
-  src: string;
-  title?: string;
-  markers?: AudioMarker[];
-  initialVolume?: number; // 0..1
-  initialPlaybackRate?: number; // e.g., 1, 1.25, 1.5, 2
-  className?: string;
-  onPlay?: () => void;
-  onPause?: () => void;
-  onEnded?: () => void;
-};
-```
 
-### Implementation notes
+### Client changes
 
-- Use `~/components/ui/slider` for seek and volume; overlay marker ticks inside the Track (absolute positioned, tooltipped, clickable)
-- Use `Tooltip`, `Popover`, and `Button` primitives; icons from `lucide-react` (Play, Pause, Volume, VolumeX)
-- Format time as mm:ss or hh:mm:ss; sync state via `audio` events (`loadedmetadata`, `timeupdate`, `play`, `pause`, `ended`)
-- No `globals.css` changes; rely on semantic tokens
+- In `apps/lexidraw/src/components/ui/audio-player.tsx`:
+  - Import `api` from `~/trpc/react`.
+  - On mount, query `api.config.getAudioConfig.useQuery()` and set `rate` once data arrives (if different).
+  - On speed slider commit (`onValueCommit`), call `api.config.updateAudioConfig.mutate({ preferredPlaybackRate: next })`.
+  - Do not use localStorage; unauthenticated users simply won’t persist.
+  - Optional prop `persistPreferredRate?: boolean` (default true) to opt out per-usage if needed.
 
-### Integration
+### Behavior
 
-- Replace the inline `<audio>` element in `ArticleAudioPlayer` with the new `AudioPlayer`, keeping the segments button strip as-is
-
-Code area to swap:
-
-```30:45:apps/lexidraw/src/components/audio/ArticleAudioPlayer.tsx
-      <audio
-        key={current?.index}
-        src={current?.audioUrl}
-        controls
-        autoPlay
-        preload="auto"
-        playsInline
-        className="w-full"
-        onEnded={() => {
-          if (currentIndex < segments.length - 1)
-            setCurrentIndex(currentIndex + 1);
-        }}
-      >
-        <track kind="captions" srcLang="en" label="" />
-      </audio>
-```
-
-Replace with a usage like:
-
-```tsx
-<AudioPlayer
-  src={current?.audioUrl}
-  title={title}
-  onEnded={() => {
-    if (currentIndex < segments.length - 1) setCurrentIndex(currentIndex + 1);
-  }}
-/>
-```
-
-### Visual/UX
-
-- Compact horizontal layout; seek bar full width; controls grouped left (play/pause), right (volume popover, speed popover)
-- Markers: subtle 1px-2px bars using `bg-muted-foreground/40`; active range is `bg-primary`
-- Tooltips on interactive controls and marker labels (if provided)
-
-### Non-goals (now)
-
-- Skip ±15s, download, playlist UI — can add later
+- Initial `rate` = preferred from server if available; else default existing value.
+- When switching segments, `audio.playbackRate` is re-applied (already implemented).
+- Save occurs only on slider commit/release.
 
 ### To-dos
 
-- [ ] Create `components/ui/audio-player.tsx` with core controls
-- [ ] Add markers overlay with tooltips and click-to-seek
-- [ ] Add volume popover using `Slider`
-- [ ] Add playback speed popover and state wiring
-- [ ] Replace `<audio>` in `ArticleAudioPlayer` with `AudioPlayer`
-- [ ] Polish a11y (aria, focus), tokens, hover/active states
+- [ ] Add audio.preferredPlaybackRate to users.config type
+- [ ] Add config.getAudioConfig protected query
+- [ ] Add config.updateAudioConfig protected mutation
+- [ ] Read preferred rate in AudioPlayer and set initial rate
+- [ ] Persist rate on speed slider commit in AudioPlayer
+- [ ] Ensure unauthenticated users don’t persist or error UI
