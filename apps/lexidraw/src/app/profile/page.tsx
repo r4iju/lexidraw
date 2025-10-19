@@ -7,7 +7,7 @@ import { api } from "~/trpc/server";
 import type { ServerRuntime } from "next";
 
 export const dynamic = "force-dynamic";
-export const runtime: ServerRuntime = "edge";
+export const runtime: ServerRuntime = "nodejs";
 
 export default async function SignInPage() {
   const user = await api.auth.getProfile.query();

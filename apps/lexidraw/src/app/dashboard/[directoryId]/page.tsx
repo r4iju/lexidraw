@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import type { ServerRuntime } from "next/types";
 import { z } from "zod";
 
-export const runtime: ServerRuntime = "edge";
+export const runtime: ServerRuntime = "nodejs";
 
 const SearchParams = z.object({
   parentId: z.string().optional().nullable().default(null),

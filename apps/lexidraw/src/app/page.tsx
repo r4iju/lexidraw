@@ -6,7 +6,7 @@ import Header from "~/sections/header";
 import Footer from "~/sections/footer";
 import type { Metadata, ServerRuntime } from "next";
 
-export const runtime: ServerRuntime = "edge";
+export const runtime: ServerRuntime = "nodejs";
 
 export const metadata: Metadata = {
   title: "Lexidraw",
