@@ -1,10 +1,19 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
+import { Button } from "~/components/ui/button";
+import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
+};
+
+type TtsSegment = {
+  index: number;
+  audioUrl: string;
+  text: string;
+  durationSec?: number;
 };
 
 export default function ArticlePreview({ entity }: Props) {
@@ -19,12 +28,99 @@ export default function ArticlePreview({ entity }: Props) {
           updatedAt?: string;
           contentHtml?: string;
         };
+        url?: string;
       };
       return parsed.distilled;
     } catch {
       return undefined;
     }
   }, [entity.elements]);
+
+  const sourceUrl = useMemo(() => {
+    try {
+      const parsed = JSON.parse(entity.elements ?? "{}") as { url?: string };
+      return parsed.url ?? "";
+    } catch {
+      return "";
+    }
+  }, [entity.elements]);
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [segments, setSegments] = useState<TtsSegment[]>([]);
+  const [stitchedUrl, setStitchedUrl] = useState<string | undefined>(undefined);
+  const [ttsError, setTtsError] = useState<string | null>(null);
+  const [audioTitle, setAudioTitle] = useState<string | undefined>(undefined);
+
+  const savedTts = useMemo(() => {
+    try {
+      const parsed = JSON.parse(entity.elements ?? "{}") as {
+        tts?: {
+          stitchedUrl?: string;
+          segments?: TtsSegment[];
+          format?: string;
+          updatedAt?: string;
+          title?: string;
+        };
+      };
+      return parsed.tts;
+    } catch {
+      return undefined;
+    }
+  }, [entity.elements]);
+
+  // Seed from saved TTS if available
+  useEffect(() => {
+    if (!savedTts) return;
+    setStitchedUrl(
+      typeof savedTts.stitchedUrl === "string"
+        ? savedTts.stitchedUrl
+        : undefined,
+    );
+    setSegments(Array.isArray(savedTts.segments) ? savedTts.segments : []);
+    setAudioTitle(distilled?.title || entity.title);
+  }, [
+    savedTts,
+    savedTts?.stitchedUrl,
+    savedTts?.segments,
+    distilled?.title,
+    entity.title,
+  ]);
+
+  const handleGenerateAudio = useCallback(async () => {
+    if (!sourceUrl) return;
+    setIsGenerating(true);
+    setTtsError(null);
+    try {
+      const resp = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: sourceUrl,
+          title: distilled?.title || entity.title,
+          entityId: entity.id,
+        }),
+      });
+      if (!resp.ok) {
+        const msg = await resp.text();
+        throw new Error(msg || "Failed to generate audio");
+      }
+      const json = (await resp.json()) as {
+        segments?: TtsSegment[];
+        title?: string;
+        stitchedUrl?: string;
+      };
+      setSegments(Array.isArray(json.segments) ? json.segments : []);
+      setAudioTitle(json.title || distilled?.title || entity.title);
+      setStitchedUrl(
+        typeof json.stitchedUrl === "string" ? json.stitchedUrl : undefined,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error generating audio";
+      setTtsError(msg);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [sourceUrl, distilled?.title, entity.title, entity.id]);
 
   if (!distilled || !distilled.contentHtml) {
     return null;
@@ -46,7 +142,33 @@ export default function ArticlePreview({ entity }: Props) {
               : ""}
           </div>
         </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleGenerateAudio}
+            disabled={!sourceUrl || isGenerating}
+          >
+            {stitchedUrl || segments.length
+              ? "Regenerate audio"
+              : isGenerating
+                ? "Generating…"
+                : "Listen"}
+          </Button>
+        </div>
       </div>
+      {ttsError ? (
+        <div className="text-sm text-destructive">{ttsError}</div>
+      ) : null}
+      {stitchedUrl ? (
+        <div className="rounded-md border border-border p-3">
+          <audio controls className="w-full" src={stitchedUrl}>
+            <track kind="captions" srcLang="en" label="" />
+          </audio>
+        </div>
+      ) : segments.length ? (
+        <div className="rounded-md border border-border p-3">
+          <ArticleAudioPlayer segments={segments} />
+        </div>
+      ) : null}
       <div className="prose max-w-none dark:prose-invert">
         <div
           // biome-ignore lint/security/noDangerouslySetInnerHtml: content is sanitized on the server before persisting
