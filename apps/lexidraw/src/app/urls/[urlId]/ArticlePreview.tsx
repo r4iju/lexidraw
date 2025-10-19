@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
+import styles from "./ArticlePreview.module.css";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 import { AudioPlayer } from "~/components/ui/audio-player";
+import { cn } from "~/lib/utils";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
@@ -200,7 +202,12 @@ export default function ArticlePreview({
           />
         </div>
       ) : null}
-      <div className="prose max-w-none dark:prose-invert">
+      <div
+        className={cn(
+          "prose max-w-none dark:prose-invert ",
+          styles.proseWrapper,
+        )}
+      >
         <div
           // biome-ignore lint/security/noDangerouslySetInnerHtml: content is sanitized on the server before persisting
           dangerouslySetInnerHTML={{ __html: distilled.contentHtml ?? "" }}
