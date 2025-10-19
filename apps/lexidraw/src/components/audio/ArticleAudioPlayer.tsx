@@ -13,13 +13,11 @@ type Segment = {
 };
 
 type Props = {
-  title?: string;
   segments: Segment[];
   preferredPlaybackRate?: number;
 };
 
 export default function ArticleAudioPlayer({
-  title,
   segments,
   preferredPlaybackRate,
 }: Props) {
@@ -33,11 +31,9 @@ export default function ArticleAudioPlayer({
 
   return (
     <div className="space-y-2">
-      {title ? <h3 className="text-base font-medium">{title}</h3> : null}
       <AudioPlayer
         src={current?.audioUrl ?? ""}
         autoPlay
-        title={title}
         initialPlaybackRate={preferredPlaybackRate}
         onEnded={() => {
           if (currentIndex < segments.length - 1)
@@ -52,7 +48,6 @@ export default function ArticleAudioPlayer({
             key={s.index}
             onClick={() => setCurrentIndex(i)}
             variant={i === currentIndex ? "default" : "outline"}
-            title={s.text.slice(0, 80)}
             className={cn("", {
               "rounded-r-none": i === 0,
               "rounded-l-none": i === segments.length - 1,

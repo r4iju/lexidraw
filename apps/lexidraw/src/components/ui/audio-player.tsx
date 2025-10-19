@@ -21,7 +21,6 @@ export type AudioMarker = { time: number; label?: string };
 
 export type AudioPlayerProps = {
   src: string;
-  title?: string;
   markers?: AudioMarker[];
   initialVolume?: number; // 0..1
   initialPlaybackRate?: number; // e.g., 1, 1.25, 1.5, 2
@@ -46,7 +45,6 @@ function formatTime(totalSeconds: number): string {
 
 export function AudioPlayer({
   src,
-  title,
   markers,
   initialVolume = 1,
   initialPlaybackRate = 1,
@@ -187,10 +185,6 @@ export function AudioPlayer({
         className,
       )}
     >
-      {title ? (
-        <div className="mb-2 text-sm font-medium text-foreground">{title}</div>
-      ) : null}
-
       {/** biome-ignore lint/a11y/useMediaCaption: todo: add caption */}
       <audio ref={audioRef} src={src} preload="metadata" playsInline />
 
