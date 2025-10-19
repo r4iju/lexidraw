@@ -15,6 +15,7 @@ import {
 } from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
 import { Pause, Play, Volume2, Volume1, VolumeX, Gauge } from "lucide-react";
+import { api } from "~/trpc/react";
 
 export type AudioMarker = { time: number; label?: string };
 
@@ -26,6 +27,8 @@ export type AudioPlayerProps = {
   initialPlaybackRate?: number; // e.g., 1, 1.25, 1.5, 2
   autoPlay?: boolean;
   className?: string;
+  /** If true, read + persist preferred rate for authenticated users */
+  persistPreferredRate?: boolean;
   onPlay?: () => void;
   onPause?: () => void;
   onEnded?: () => void;
@@ -48,6 +51,7 @@ export function AudioPlayer({
   initialVolume = 1,
   initialPlaybackRate = 1,
   autoPlay = false,
+  persistPreferredRate = true,
   className,
   onPlay,
   onPause,
@@ -62,6 +66,22 @@ export function AudioPlayer({
   const [volume, setVolume] = useState(initialVolume);
   const [muted, setMuted] = useState(false);
   const [rate, setRate] = useState(initialPlaybackRate);
+
+  // Fetch preferred playback rate (authenticated users only)
+  const audioCfg = api.config.getAudioConfig.useQuery(undefined, {
+    enabled: persistPreferredRate,
+    staleTime: 5 * 60 * 1000,
+  });
+  const updateAudioCfg = api.config.updateAudioConfig.useMutation();
+
+  useEffect(() => {
+    if (!persistPreferredRate) return;
+    const preferred = audioCfg.data?.preferredPlaybackRate;
+    if (typeof preferred === "number" && preferred > 0 && preferred !== rate) {
+      setRate(preferred);
+      if (audioRef.current) audioRef.current.playbackRate = preferred;
+    }
+  }, [audioCfg.data?.preferredPlaybackRate, persistPreferredRate, rate]);
 
   // Wire up audio events
   useEffect(() => {
@@ -329,6 +349,17 @@ export function AudioPlayer({
                       Math.max(minSpeed, Math.round(next * 100) / 100),
                     );
                     setRate(snapped);
+                  }}
+                  onValueCommit={(v) => {
+                    const next = v[0] ?? rate;
+                    const snapped = Math.min(
+                      maxSpeed,
+                      Math.max(minSpeed, Math.round(next * 100) / 100),
+                    );
+                    setRate(snapped);
+                    if (persistPreferredRate) {
+                      updateAudioCfg.mutate({ preferredPlaybackRate: snapped });
+                    }
                   }}
                 />
                 <div className="mt-3 flex justify-between text-xs text-muted-foreground">

@@ -92,6 +92,9 @@ export const users = sqliteTable(
           maxOutputTokens: number;
         };
       };
+      audio?: {
+        preferredPlaybackRate?: number;
+      };
       cookies?: {
         name: string;
         value: string;
