@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "~/server/auth";
 import { extractDocumentFromUrl } from "~/lib/extract-document";
-import { synthesizeArticleOrText } from "~/server/tts/engine";
+import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -34,18 +34,47 @@ export async function POST(req: NextRequest) {
   } as const;
 
   try {
-    const text = body.text
-      ? body.text
-      : body.url
-        ? (await extractDocumentFromUrl(body.url)).contentText
-        : "";
-    const result = await synthesizeArticleOrText({
-      ...body,
-      text,
-      titleHint: body.title,
-      userKeys,
+    const { id, manifestUrl } = precomputeTtsKey({
+      url: body.url,
+      text: body.text,
+      provider: body.provider,
+      voiceId: body.voiceId,
+      speed: body.speed,
+      format: body.format,
+      languageCode: body.languageCode,
     });
-    return NextResponse.json(result);
+    const head = await fetch(manifestUrl, {
+      method: "HEAD",
+      cache: "no-store",
+    });
+    if (head.ok) {
+      const manifest = await fetch(manifestUrl, { cache: "no-store" }).then(
+        (r) => r.json(),
+      );
+      return NextResponse.json({ ...manifest, manifestUrl });
+    }
+
+    after(async () => {
+      try {
+        const text = body.text
+          ? body.text
+          : body.url
+            ? (await extractDocumentFromUrl(body.url)).contentText
+            : "";
+        await synthesizeArticleOrText({
+          ...body,
+          text,
+          titleHint: body.title,
+          userKeys,
+        });
+      } catch {
+        // swallow background failures
+      }
+    });
+    return NextResponse.json(
+      { id, manifestUrl, status: "queued" },
+      { status: 202 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "TTS error";
     return NextResponse.json({ error: message }, { status: 400 });
