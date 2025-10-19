@@ -12,7 +12,7 @@ import ViewBoard from "./board-view-client";
 import { redirect } from "next/navigation";
 import { UnsavedChangesProvider } from "~/hooks/use-unsaved-changes";
 
-export const runtime: ServerRuntime = "edge";
+export const runtime: ServerRuntime = "nodejs";
 export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 
