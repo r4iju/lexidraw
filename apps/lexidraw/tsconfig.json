@@ -42,7 +42,8 @@
     "**/*.cjs",
     "**/*.js",
     ".next/types/**/*.ts",
-    "../../packages/lib/src/get-zod-defaults.ts"
+    "../../packages/lib/src/get-zod-defaults.ts",
+    "src/types/third-party-shims.d.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

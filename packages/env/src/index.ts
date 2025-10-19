@@ -53,6 +53,13 @@ const env = createEnv({
     ANALYZE: z.preprocess((val) => val === "true", z.boolean()),
     MEDIA_DOWNLOADER_PORT: z.coerce.number().optional(),
     MEDIA_DOWNLOADER_URL: z.string().url(),
+    // Optional org/global LLM keys used as fallbacks when user-level keys are absent
+    OPENAI_API_KEY: z.string().optional(),
+    GOOGLE_API_KEY: z.string().optional(),
+    // Optional pricing/budget controls (USD values as strings)
+    TTS_PRICE_OPENAI_PER_MILLION_CHARS: z.string().optional(),
+    TTS_PRICE_GOOGLE_PER_MILLION_CHARS: z.string().optional(),
+    TTS_MAX_ESTIMATED_COST_USD: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_UNSPLASH_APP_NAME: z.string().min(1),
@@ -104,6 +111,13 @@ const env = createEnv({
     NEXT_PUBLIC_FIRESTORE_APP_ID: process.env.NEXT_PUBLIC_FIRESTORE_APP_ID,
     MEDIA_DOWNLOADER_PORT: process.env.MEDIA_DOWNLOADER_PORT,
     MEDIA_DOWNLOADER_URL: process.env.MEDIA_DOWNLOADER_URL,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+    TTS_PRICE_OPENAI_PER_MILLION_CHARS:
+      process.env.TTS_PRICE_OPENAI_PER_MILLION_CHARS,
+    TTS_PRICE_GOOGLE_PER_MILLION_CHARS:
+      process.env.TTS_PRICE_GOOGLE_PER_MILLION_CHARS,
+    TTS_MAX_ESTIMATED_COST_USD: process.env.TTS_MAX_ESTIMATED_COST_USD,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
