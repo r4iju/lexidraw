@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
-import styles from "./ArticlePreview.module.css";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import { cn } from "~/lib/utils";
@@ -203,16 +202,32 @@ export default function ArticlePreview({
         </div>
       ) : null}
       <div
-        className={cn(
-          "prose max-w-none dark:prose-invert ",
-          styles.proseWrapper,
-        )}
+        className={cn("prose max-w-none dark:prose-invert ")}
+        data-prose="scoped"
       >
         <div
           // biome-ignore lint/security/noDangerouslySetInnerHtml: content is sanitized on the server before persisting
           dangerouslySetInnerHTML={{ __html: distilled.contentHtml ?? "" }}
         />
       </div>
+      <style>{`
+        /* Scoped to this instance only */
+        [data-prose="scoped"] pre {
+          max-width: 100%;
+          overflow-x: auto;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+        [data-prose="scoped"] pre code {
+          white-space: inherit;
+          display: block;
+        }
+        [data-prose="scoped"] code {
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+      `}</style>
     </div>
   );
 }
