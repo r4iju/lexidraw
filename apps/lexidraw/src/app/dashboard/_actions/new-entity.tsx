@@ -13,12 +13,16 @@ import {
 } from "~/components/ui/navigation-menu";
 import { Brush, File, FolderPlus, Link2, Plus } from "lucide-react";
 import Link from "next/link";
+import { useState, useCallback } from "react";
+import CreateUrlModal from "./create-url-modal";
 
 type Props = {
   parentId: string | null;
 };
 
 export function NewEntity({ parentId }: Props) {
+  const [isCreateUrlOpen, setIsCreateUrlOpen] = useState(false);
+
   const newItem = (kind: "drawing" | "document" | "directory" | "url") => {
     const query = `?new=true${parentId ? `&parentId=${parentId}` : ""}`;
     switch (kind) {
@@ -29,7 +33,8 @@ export function NewEntity({ parentId }: Props) {
       case "directory":
         return `/dashboard/${uuidv4()}${query}`;
       case "url":
-        return `/urls/${uuidv4()}${query}`;
+        // We no longer navigate for URL; handled via modal
+        return "#";
     }
   };
 
@@ -82,12 +87,18 @@ export function NewEntity({ parentId }: Props) {
                   description={component.description}
                   href={component.href}
                   icon={component.icon}
+                  onOpenCreateUrl={() => setIsCreateUrlOpen(true)}
                 ></ListItem>
               ))}
             </ul>
           </NavigationMenuContent>
         </NavigationMenuItem>
       </NavigationMenuList>
+      <CreateUrlModal
+        parentId={parentId}
+        open={isCreateUrlOpen}
+        onOpenChange={setIsCreateUrlOpen}
+      />
     </NavigationMenu>
   );
 }
@@ -98,6 +109,7 @@ type ListItemProps = {
   description: string;
   icon: JSX.Element;
   href: string;
+  onOpenCreateUrl: () => void;
 };
 
 const ListItem = ({
@@ -106,6 +118,7 @@ const ListItem = ({
   description,
   icon,
   href,
+  onOpenCreateUrl,
 }: ListItemProps) => (
   <li>
     <NavigationMenuLink asChild>
@@ -115,6 +128,12 @@ const ListItem = ({
           "flex items-center gap-3 select-none rounded-md p-3 no-underline outline-hidden transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
           className,
         )}
+        onClick={(e) => {
+          if (title === "URL") {
+            e.preventDefault();
+            onOpenCreateUrl();
+          }
+        }}
       >
         <span className="shrink-0">{icon}</span>
         <div className="flex flex-col gap-1">
