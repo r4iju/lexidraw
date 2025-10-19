@@ -68,20 +68,6 @@ export default function CreateUrlModal({ parentId, open, onOpenChange }: Props) 
       elements: JSON.stringify({ url: normalizedUrl }),
       parentId: parentId ?? null,
     });
-    await utils.entities.list.invalidate({ parentId: parentId ?? null });
-    toast.success("Saved link");
-    onOpenChange(false);
-  };
-
-  const handleGet = async () => {
-    const id = uuidv4();
-    await createMutation.mutateAsync({
-      id,
-      title: "New link",
-      entityType: "url",
-      elements: JSON.stringify({ url: normalizedUrl }),
-      parentId: parentId ?? null,
-    });
     // Trigger distillation and let the mutation close the modal on success
     distillMutation.mutate({ id });
   };
@@ -111,18 +97,13 @@ export default function CreateUrlModal({ parentId, open, onOpenChange }: Props) 
           <div className="flex gap-2">
             <Button
               onClick={handleSave}
-              disabled={!isValidUrl || createMutation.isPending}
-            >
-              {createMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={handleGet}
               disabled={
                 !isValidUrl || createMutation.isPending || distillMutation.isPending
               }
             >
-              {distillMutation.isPending ? "Getting..." : "Get"}
+              {createMutation.isPending || distillMutation.isPending
+                ? "Saving..."
+                : "Save"}
             </Button>
           </div>
         </DialogFooter>
