@@ -117,6 +117,7 @@ export function AudioPlayer({
   }, [rate]);
 
   useEffect(() => {
+    // reference src so dependency matches usage and linter doesn't flag it
     void src;
     setCurrentTime(0);
     setDisplayTime(null);
@@ -125,11 +126,13 @@ export function AudioPlayer({
     if (audio) {
       audio.pause();
       audio.load();
+      // ensure playback rate persists across source changes
+      audio.playbackRate = rate;
       if (autoPlay) {
         void audio.play().catch(() => undefined);
       }
     }
-  }, [autoPlay, src]);
+  }, [autoPlay, rate, src]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -146,7 +149,9 @@ export function AudioPlayer({
   const VolumeIcon =
     effectiveVolume === 0 ? VolumeX : effectiveVolume < 0.5 ? Volume1 : Volume2;
 
-  const speeds = [0.75, 1, 1.25, 1.5, 1.75, 2];
+  const speeds = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+  const minSpeed: number = 0.75;
+  const maxSpeed: number = 2;
 
   const safeMarkers = useMemo(() => {
     if (!markers || duration <= 0) return [] as AudioMarker[];
@@ -285,23 +290,52 @@ export function AudioPlayer({
             <Button
               aria-label="Playback speed"
               variant="secondary"
-              className="px-2"
+              className="px-2 min-w-18"
             >
               <Gauge className="mr-1 size-4" /> {rate}x
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-56" sideOffset={8}>
-            <div className="flex flex-wrap gap-2">
-              {speeds.map((s) => (
-                <Button
-                  key={s}
-                  variant={s === rate ? "default" : "ghost"}
-                  onClick={() => setRate(s)}
-                  className="px-3"
-                >
-                  {s}x
-                </Button>
-              ))}
+          <PopoverContent className="w-64 p-2" sideOffset={8}>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Speed</span>
+                <span className="font-medium">{rate}x</span>
+              </div>
+              <div className="relative px-1 py-2">
+                {/* tick marks overlay (raised to avoid label overlap) */}
+                <div className="pointer-events-none absolute inset-x-2 top-[calc(50%-10px)]">
+                  {speeds.map((s) => {
+                    const left = `${((s - minSpeed) / (maxSpeed - minSpeed)) * 100}%`;
+                    return (
+                      <div
+                        key={`tick-${s}`}
+                        className="absolute h-3 w-1 rounded-b-full bg-muted"
+                        style={{ left }}
+                      />
+                    );
+                  })}
+                </div>
+                <Slider
+                  aria-label="Playback speed"
+                  min={minSpeed}
+                  max={maxSpeed}
+                  step={0.25}
+                  value={[rate]}
+                  onValueChange={(v) => {
+                    const next = v[0] ?? rate;
+                    // snap to two decimals to avoid float noise
+                    const snapped = Math.min(
+                      maxSpeed,
+                      Math.max(minSpeed, Math.round(next * 100) / 100),
+                    );
+                    setRate(snapped);
+                  }}
+                />
+                <div className="mt-3 flex justify-between text-xs text-muted-foreground">
+                  <span>{minSpeed}x</span>
+                  <span>{maxSpeed}x</span>
+                </div>
+              </div>
             </div>
           </PopoverContent>
         </Popover>
