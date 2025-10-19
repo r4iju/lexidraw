@@ -39,6 +39,29 @@ function stableHash(
   return h.digest("hex");
 }
 
+export function precomputeTtsKey(req: TtsRequest) {
+  const providerName = chooseProvider({
+    requested: req.provider,
+    languageCode: req.languageCode,
+  });
+  const format = req.format ?? "mp3";
+  const voiceId =
+    req.voiceId ?? (providerName === "google" ? "en-US-Standard-C" : "alloy");
+  const speed = req.speed ?? 1.0;
+
+  const discriminator = req.url || (req.text ? req.text.slice(0, 8192) : "");
+  const key = stableHash([
+    discriminator,
+    providerName,
+    voiceId,
+    speed,
+    format,
+    req.languageCode ?? "",
+  ]);
+  const manifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/${key}/manifest.json`;
+  return { id: key, manifestUrl } as const;
+}
+
 export async function synthesizeArticleOrText(
   req: TtsRequest & { userKeys: UserProviderKeys; titleHint?: string },
 ): Promise<TtsResult> {
@@ -112,7 +135,8 @@ export async function synthesizeArticleOrText(
     hardCap: provider.maxCharsPerRequest,
   });
   const segments: TtsResult["segments"] = [];
-  const rawBuffers: Buffer[] = [];
+  // Track audio buffers by segment index for stitching; reused segments may be fetched later
+  const bufferByIndex = new Map<number, Buffer>();
 
   for (const chunk of chunks) {
     const ssml = provider.supportsSsml
@@ -121,6 +145,24 @@ export async function synthesizeArticleOrText(
           languageCode: req.languageCode,
         })
       : undefined;
+    // Reuse existing segment if blob already exists
+    const path = `tts/${key}/${chunk.index}.${format}`;
+    const existingUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${path}`;
+    try {
+      const head = await fetch(existingUrl, { method: "HEAD" });
+      if (head.ok) {
+        segments.push({
+          index: chunk.index,
+          text: chunk.text,
+          ssml,
+          audioUrl: existingUrl,
+        });
+        // Do not synthesize or upload again; also skip adding to rawBuffers
+        continue;
+      }
+    } catch {
+      // ignore and proceed to synthesize
+    }
     let audioBuf: Buffer | null = null;
     try {
       const { audio } = await provider.synthesize({
@@ -152,39 +194,88 @@ export async function synthesizeArticleOrText(
         );
       }
     }
-    const path = `tts/${key}/${chunk.index}.${format}`;
-    const { url } = await put(path, audioBuf, {
-      access: "public",
-      contentType:
-        format === "mp3"
-          ? "audio/mpeg"
-          : format === "ogg"
-            ? "audio/ogg"
-            : "audio/wav",
-    });
-    segments.push({
-      index: chunk.index,
-      text: chunk.text,
-      ssml,
-      audioUrl: url,
-    });
-    rawBuffers.push(audioBuf);
+    try {
+      const { url } = await put(path, audioBuf, {
+        access: "public",
+        contentType:
+          format === "mp3"
+            ? "audio/mpeg"
+            : format === "ogg"
+              ? "audio/ogg"
+              : "audio/wav",
+      });
+      segments.push({
+        index: chunk.index,
+        text: chunk.text,
+        ssml,
+        audioUrl: url,
+      });
+      if (audioBuf) bufferByIndex.set(chunk.index, audioBuf);
+    } catch (e) {
+      const message = (e as Error)?.message ?? "";
+      if (typeof message === "string" && message.includes("already exists")) {
+        // Reuse existing
+        segments.push({
+          index: chunk.index,
+          text: chunk.text,
+          ssml,
+          audioUrl: existingUrl,
+        });
+      } else {
+        throw e;
+      }
+    }
+    // If we skipped upload due to existing, buffer will be fetched later if stitching
   }
 
   // Write a manifest for easy GET retrieval
   // Naive server-side stitch for mp3: buffered concatenation works for many encoders
   let stitchedUrl: string | undefined;
-  if (format === "mp3" && rawBuffers.length > 1) {
-    try {
-      const combined = Buffer.concat(rawBuffers);
-      const { url } = await put(`tts/${key}/full.${format}`, combined, {
-        access: "public",
-        contentType: "audio/mpeg",
-      });
-      stitchedUrl = url;
-    } catch {
-      // best-effort; ignore stitching failure
+  // Prefer existing stitched file if present
+  try {
+    const fullUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/${key}/full.${format}`;
+    const headFull = await fetch(fullUrl, { method: "HEAD" });
+    if (headFull.ok) {
+      stitchedUrl = fullUrl;
+    } else if (format === "mp3" && segments.length > 1) {
+      // Build complete ordered buffers: use in-memory when available, otherwise fetch from blob URLs
+      try {
+        const orderedBuffers: Buffer[] = [];
+        // Ensure segments are ordered by index
+        const ordered = [...segments].sort((a, b) => a.index - b.index);
+        for (const seg of ordered) {
+          const inMem = bufferByIndex.get(seg.index);
+          if (inMem) {
+            orderedBuffers.push(inMem);
+            continue;
+          }
+          const url = seg.audioUrl;
+          if (!url) {
+            // Missing URL; abort stitching
+            throw new Error("Missing segment URL for stitching");
+          }
+          const r = await fetch(url, { method: "GET", cache: "no-store" });
+          if (!r.ok) throw new Error(`Failed to fetch segment ${seg.index}`);
+          const arr = new Uint8Array(await r.arrayBuffer());
+          orderedBuffers.push(Buffer.from(arr));
+        }
+        // Concatenate and upload stitched mp3
+        const combined = Buffer.concat(orderedBuffers);
+        const { url } = await put(`tts/${key}/full.${format}`, combined, {
+          access: "public",
+          contentType: "audio/mpeg",
+        });
+        stitchedUrl = url;
+      } catch (e) {
+        const msg = (e as Error)?.message ?? "";
+        if (typeof msg === "string" && msg.includes("already exists")) {
+          stitchedUrl = fullUrl;
+        }
+        // Otherwise leave stitchedUrl undefined (best-effort)
+      }
     }
+  } catch {
+    // ignore failures
   }
 
   const manifest = {
@@ -198,14 +289,24 @@ export async function synthesizeArticleOrText(
     stitchedUrl,
   } satisfies TtsResult;
 
-  const { url: manifestUrl } = await put(
-    `tts/${key}/manifest.json`,
-    Buffer.from(JSON.stringify(manifest), "utf-8"),
-    {
-      access: "public",
-      contentType: "application/json",
-    },
-  );
+  const manifestPath = `tts/${key}/manifest.json`;
+  const manifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${manifestPath}`;
+  try {
+    const headManifest = await fetch(manifestUrl, { method: "HEAD" });
+    if (!headManifest.ok) {
+      await put(manifestPath, Buffer.from(JSON.stringify(manifest), "utf-8"), {
+        access: "public",
+        contentType: "application/json",
+      });
+    }
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    if (typeof msg === "string" && msg.includes("already exists")) {
+      // reuse existing manifest
+    } else {
+      // best-effort; ignore manifest write failures to avoid blocking response
+    }
+  }
 
   return {
     id: key,

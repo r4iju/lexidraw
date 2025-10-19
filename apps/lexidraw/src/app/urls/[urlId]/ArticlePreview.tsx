@@ -96,20 +96,48 @@ export default function ArticlePreview({
           entityId: entity.id,
         }),
       });
-      if (!resp.ok) {
+      if (resp.status === 202) {
+        const queued = (await resp.json()) as {
+          id: string;
+          manifestUrl: string;
+          status: string;
+        };
+        // Poll manifest until available
+        const data = await (async function poll(manifestUrl: string) {
+          let delay = 1500;
+          const max = 5 * 60_000;
+          const start = Date.now();
+          for (;;) {
+            const r = await fetch(manifestUrl, { cache: "no-store" });
+            if (r.ok)
+              return (await r.json()) as {
+                stitchedUrl?: string;
+                segments?: TtsSegment[];
+              };
+            if (Date.now() - start > max)
+              throw new Error("Timed out waiting for audio");
+            await new Promise((res) => setTimeout(res, delay));
+            delay = Math.min(Math.floor(delay * 1.5), 5000);
+          }
+        })(queued.manifestUrl);
+        setSegments(Array.isArray(data.segments) ? data.segments : []);
+        setStitchedUrl(
+          typeof data.stitchedUrl === "string" ? data.stitchedUrl : undefined,
+        );
+      } else if (resp.ok) {
+        const json = (await resp.json()) as {
+          segments?: TtsSegment[];
+          title?: string;
+          stitchedUrl?: string;
+        };
+        setSegments(Array.isArray(json.segments) ? json.segments : []);
+        setStitchedUrl(
+          typeof json.stitchedUrl === "string" ? json.stitchedUrl : undefined,
+        );
+      } else {
         const msg = await resp.text();
         throw new Error(msg || "Failed to generate audio");
       }
-      const json = (await resp.json()) as {
-        segments?: TtsSegment[];
-        title?: string;
-        stitchedUrl?: string;
-      };
-      setSegments(Array.isArray(json.segments) ? json.segments : []);
-
-      setStitchedUrl(
-        typeof json.stitchedUrl === "string" ? json.stitchedUrl : undefined,
-      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error generating audio";
       setTtsError(msg);
