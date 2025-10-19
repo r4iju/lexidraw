@@ -5,7 +5,7 @@ import { extractDocumentFromUrl } from "~/lib/extract-document";
 import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 1200;
 
 export async function POST(req: NextRequest) {
   const session = await auth();

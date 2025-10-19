@@ -5,6 +5,7 @@ import { drizzle, schema, eq, and } from "@packages/drizzle";
 import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 import type { TtsRequest } from "~/server/tts/types";
 
+export const maxDuration = 1200; // 20 minutes
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
