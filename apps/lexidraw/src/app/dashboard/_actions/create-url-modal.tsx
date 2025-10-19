@@ -15,6 +15,7 @@ import { Label } from "~/components/ui/label";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
+import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   parentId: string | null;
@@ -22,7 +23,11 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-export default function CreateUrlModal({ parentId, open, onOpenChange }: Props) {
+export default function CreateUrlModal({
+  parentId,
+  open,
+  onOpenChange,
+}: Props) {
   const utils = api.useUtils();
   const [url, setUrl] = useState("");
   const urlId = useId();
@@ -69,7 +74,14 @@ export default function CreateUrlModal({ parentId, open, onOpenChange }: Props) 
       parentId: parentId ?? null,
     });
     // Trigger distillation and let the mutation close the modal on success
-    distillMutation.mutate({ id });
+    distillMutation.mutate(
+      { id },
+      {
+        onSettled: async () => {
+          await revalidateDashboard();
+        },
+      },
+    );
   };
 
   return (
@@ -98,7 +110,9 @@ export default function CreateUrlModal({ parentId, open, onOpenChange }: Props) 
             <Button
               onClick={handleSave}
               disabled={
-                !isValidUrl || createMutation.isPending || distillMutation.isPending
+                !isValidUrl ||
+                createMutation.isPending ||
+                distillMutation.isPending
               }
             >
               {createMutation.isPending || distillMutation.isPending
