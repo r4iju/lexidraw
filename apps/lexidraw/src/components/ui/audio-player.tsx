@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useId } from "react";
 import { Button } from "~/components/ui/button";
 import { Slider } from "~/components/ui/slider";
 import {
@@ -72,14 +72,15 @@ export function AudioPlayer({
   });
   const updateAudioCfg = api.config.updateAudioConfig.useMutation();
 
-  useEffect(() => {
-    if (!persistPreferredRate) return;
-    const preferred = audioCfg.data?.preferredPlaybackRate;
-    if (typeof preferred === "number" && preferred > 0 && preferred !== rate) {
-      setRate(preferred);
-      if (audioRef.current) audioRef.current.playbackRate = preferred;
-    }
-  }, [audioCfg.data?.preferredPlaybackRate, persistPreferredRate, rate]);
+  // Update rate when preferred rate changes
+  // useEffect(() => {
+  //   if (!persistPreferredRate) return;
+  //   const preferred = audioCfg.data?.preferredPlaybackRate;
+  //   if (typeof preferred === "number" && preferred > 0 && preferred !== rate) {
+  //     setRate(preferred);
+  //     if (audioRef.current) audioRef.current.playbackRate = preferred;
+  //   }
+  // }, [audioCfg.data?.preferredPlaybackRate, persistPreferredRate, rate]);
 
   // Wire up audio events
   useEffect(() => {
@@ -129,11 +130,13 @@ export function AudioPlayer({
     audioRef.current.volume = muted ? 0 : Math.min(Math.max(volume, 0), 1);
   }, [volume, muted]);
 
+  // Apply rate to audio element
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.playbackRate = rate;
   }, [rate]);
 
+  // Reset audio state when src changes
   useEffect(() => {
     // reference src so dependency matches usage and linter doesn't flag it
     void src;
@@ -178,6 +181,10 @@ export function AudioPlayer({
       .sort((a, b) => a.time - b.time);
   }, [markers, duration]);
 
+  const speedSliderId = useId();
+  const volumeSliderId = useId();
+  const seekSliderId = useId();
+
   return (
     <div
       className={cn(
@@ -197,6 +204,7 @@ export function AudioPlayer({
               onClick={togglePlay}
               size="icon"
               variant="secondary"
+              type="button"
             >
               {isPlaying ? (
                 <Pause className="size-4" />
@@ -238,8 +246,8 @@ export function AudioPlayer({
                 })}
               </div>
             ) : null}
-
             <Slider
+              id={seekSliderId}
               aria-label="Seek"
               value={[displayTime ?? currentTime]}
               min={0}
@@ -263,7 +271,12 @@ export function AudioPlayer({
         {/* Volume */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button aria-label="Volume" variant="secondary" size="icon">
+            <Button
+              aria-label="Volume"
+              variant="secondary"
+              size="icon"
+              type="button"
+            >
               <VolumeIcon className="size-4" />
             </Button>
           </PopoverTrigger>
@@ -274,6 +287,7 @@ export function AudioPlayer({
                 size="icon"
                 aria-label={muted ? "Unmute" : "Mute"}
                 onClick={toggleMute}
+                type="button"
               >
                 {muted ? (
                   <VolumeX className="size-4" />
@@ -282,6 +296,7 @@ export function AudioPlayer({
                 )}
               </Button>
               <Slider
+                id={volumeSliderId}
                 aria-label="Volume"
                 value={[muted ? 0 : volume]}
                 min={0}
@@ -299,17 +314,18 @@ export function AudioPlayer({
         </Popover>
 
         {/* Speed */}
-        <Popover>
+        <Popover modal>
           <PopoverTrigger asChild>
             <Button
               aria-label="Playback speed"
               variant="secondary"
               className="px-2 min-w-18"
+              type="button"
             >
               <Gauge className="mr-1 size-4" /> {rate}x
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 p-2" sideOffset={8}>
+          <PopoverContent className="w-64 p-2 z-60" sideOffset={8}>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Speed</span>
@@ -330,7 +346,9 @@ export function AudioPlayer({
                   })}
                 </div>
                 <Slider
+                  id={speedSliderId}
                   aria-label="Playback speed"
+                  className="relative z-10"
                   min={minSpeed}
                   max={maxSpeed}
                   step={0.25}
