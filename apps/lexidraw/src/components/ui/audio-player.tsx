@@ -64,6 +64,7 @@ export function AudioPlayer({
   const [volume, setVolume] = useState(initialVolume);
   const [muted, setMuted] = useState(false);
   const [rate, setRate] = useState(initialPlaybackRate);
+  const hasUserAdjustedRateRef = useRef(false);
 
   // Fetch preferred playback rate (authenticated users only)
   const audioCfg = api.config.getAudioConfig.useQuery(undefined, {
@@ -72,15 +73,16 @@ export function AudioPlayer({
   });
   const updateAudioCfg = api.config.updateAudioConfig.useMutation();
 
-  // Update rate when preferred rate changes
-  // useEffect(() => {
-  //   if (!persistPreferredRate) return;
-  //   const preferred = audioCfg.data?.preferredPlaybackRate;
-  //   if (typeof preferred === "number" && preferred > 0 && preferred !== rate) {
-  //     setRate(preferred);
-  //     if (audioRef.current) audioRef.current.playbackRate = preferred;
-  //   }
-  // }, [audioCfg.data?.preferredPlaybackRate, persistPreferredRate, rate]);
+  // Apply preferred playback rate once (on data resolve) unless user already adjusted
+  useEffect(() => {
+    if (!persistPreferredRate) return;
+    const preferred = audioCfg.data?.preferredPlaybackRate;
+    if (hasUserAdjustedRateRef.current) return;
+    if (typeof preferred === "number" && preferred > 0) {
+      setRate(preferred);
+      if (audioRef.current) audioRef.current.playbackRate = preferred;
+    }
+  }, [audioCfg.data?.preferredPlaybackRate, persistPreferredRate]);
 
   // Wire up audio events
   useEffect(() => {
@@ -314,7 +316,7 @@ export function AudioPlayer({
         </Popover>
 
         {/* Speed */}
-        <Popover modal>
+        <Popover>
           <PopoverTrigger asChild>
             <Button
               aria-label="Playback speed"
@@ -325,7 +327,7 @@ export function AudioPlayer({
               <Gauge className="mr-1 size-4" /> {rate}x
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 p-2 z-60" sideOffset={8}>
+          <PopoverContent className="w-64 p-2" sideOffset={8}>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Speed</span>
@@ -354,6 +356,7 @@ export function AudioPlayer({
                   step={0.25}
                   value={[rate]}
                   onValueChange={(v) => {
+                    hasUserAdjustedRateRef.current = true;
                     const next = v[0] ?? rate;
                     // snap to two decimals to avoid float noise
                     const snapped = Math.min(
