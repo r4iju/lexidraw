@@ -39,6 +39,29 @@ function stableHash(
   return h.digest("hex");
 }
 
+export function precomputeTtsKey(req: TtsRequest) {
+  const providerName = chooseProvider({
+    requested: req.provider,
+    languageCode: req.languageCode,
+  });
+  const format = req.format ?? "mp3";
+  const voiceId =
+    req.voiceId ?? (providerName === "google" ? "en-US-Standard-C" : "alloy");
+  const speed = req.speed ?? 1.0;
+
+  const discriminator = req.url || (req.text ? req.text.slice(0, 8192) : "");
+  const key = stableHash([
+    discriminator,
+    providerName,
+    voiceId,
+    speed,
+    format,
+    req.languageCode ?? "",
+  ]);
+  const manifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/${key}/manifest.json`;
+  return { id: key, manifestUrl } as const;
+}
+
 export async function synthesizeArticleOrText(
   req: TtsRequest & { userKeys: UserProviderKeys; titleHint?: string },
 ): Promise<TtsResult> {

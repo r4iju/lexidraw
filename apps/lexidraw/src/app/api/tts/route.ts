@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "~/server/auth";
 import { drizzle, schema, eq, and } from "@packages/drizzle";
-import { synthesizeArticleOrText } from "~/server/tts/engine";
+import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 import type { TtsRequest } from "~/server/tts/types";
 
 export const dynamic = "force-dynamic";
@@ -24,47 +24,111 @@ export async function POST(req: NextRequest) {
   } as const;
 
   try {
-    const result = await synthesizeArticleOrText({
-      ...body,
-      titleHint: body.title,
-      userKeys,
+    // Precompute job id + manifest url; if already exists, return immediately
+    const { id, manifestUrl } = precomputeTtsKey(body);
+    const head = await fetch(manifestUrl, {
+      method: "HEAD",
+      cache: "no-store",
     });
-    // optional persistence: store in entity elements if entityId provided and user owns it
-    if (body.entityId) {
-      const existing = await drizzle.query.entities.findFirst({
-        where: (e) =>
-          and(eq(e.id, body.entityId as string), eq(e.userId, session.user.id)),
-      });
-      if (existing?.elements) {
-        try {
-          const parsed = JSON.parse(existing.elements) as Record<
-            string,
-            unknown
-          >;
-          const next = {
-            ...parsed,
-            tts: {
-              id: result.id,
-              provider: result.provider,
-              voiceId: result.voiceId,
-              format: result.format,
-              stitchedUrl: result.stitchedUrl ?? "",
-              segments: result.segments,
-              manifestUrl: result.manifestUrl ?? "",
-              updatedAt: new Date().toISOString(),
-            },
-          } satisfies Record<string, unknown>;
-          await drizzle
-            .update(schema.entities)
-            .set({ elements: JSON.stringify(next), updatedAt: new Date() })
-            .where(eq(schema.entities.id, body.entityId))
-            .execute();
-        } catch {
-          // ignore persistence errors; respond with result
+    if (head.ok) {
+      const manifest = await fetch(manifestUrl, { cache: "no-store" }).then(
+        (r) => r.json(),
+      );
+      // Optionally persist to entity if provided
+      if (body.entityId) {
+        const existing = await drizzle.query.entities.findFirst({
+          where: (e) =>
+            and(
+              eq(e.id, body.entityId as string),
+              eq(e.userId, session.user.id),
+            ),
+        });
+        if (existing?.elements) {
+          try {
+            const parsed = JSON.parse(existing.elements) as Record<
+              string,
+              unknown
+            >;
+            const next = {
+              ...parsed,
+              tts: {
+                id: manifest.id ?? id,
+                provider: manifest.provider,
+                voiceId: manifest.voiceId,
+                format: manifest.format,
+                stitchedUrl: manifest.stitchedUrl ?? "",
+                segments: manifest.segments ?? [],
+                manifestUrl,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies Record<string, unknown>;
+            await drizzle
+              .update(schema.entities)
+              .set({ elements: JSON.stringify(next), updatedAt: new Date() })
+              .where(eq(schema.entities.id, body.entityId))
+              .execute();
+          } catch {
+            // ignore persistence errors
+          }
         }
       }
+      return NextResponse.json({ ...manifest, manifestUrl });
     }
-    return NextResponse.json(result);
+
+    // Otherwise, schedule background synthesis and return 202
+    after(async () => {
+      try {
+        const result = await synthesizeArticleOrText({
+          ...body,
+          titleHint: body.title,
+          userKeys,
+        });
+        if (body.entityId) {
+          const existing = await drizzle.query.entities.findFirst({
+            where: (e) =>
+              and(
+                eq(e.id, body.entityId as string),
+                eq(e.userId, session.user.id),
+              ),
+          });
+          if (existing?.elements) {
+            try {
+              const parsed = JSON.parse(existing.elements) as Record<
+                string,
+                unknown
+              >;
+              const next = {
+                ...parsed,
+                tts: {
+                  id: result.id,
+                  provider: result.provider,
+                  voiceId: result.voiceId,
+                  format: result.format,
+                  stitchedUrl: result.stitchedUrl ?? "",
+                  segments: result.segments,
+                  manifestUrl: result.manifestUrl ?? "",
+                  updatedAt: new Date().toISOString(),
+                },
+              } satisfies Record<string, unknown>;
+              await drizzle
+                .update(schema.entities)
+                .set({ elements: JSON.stringify(next), updatedAt: new Date() })
+                .where(eq(schema.entities.id, body.entityId))
+                .execute();
+            } catch {
+              // ignore persistence errors
+            }
+          }
+        }
+      } catch {
+        // swallow background failures; client will keep polling manifest
+      }
+    });
+
+    return NextResponse.json(
+      { id, manifestUrl, status: "queued" },
+      { status: 202 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "TTS error";
     return NextResponse.json({ error: message }, { status: 400 });
