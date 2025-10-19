@@ -65,7 +65,9 @@ export default function UrlHeader({
                 <ToggleGroupItem
                   value="narrow"
                   aria-label="Narrow width"
-                  className="rounded-r-none"
+                  className={cn("rounded-r-none", {
+                    "bg-primary text-primary-foreground": width === "narrow",
+                  })}
                 >
                   <IconNarrow />
                 </ToggleGroupItem>
@@ -79,7 +81,9 @@ export default function UrlHeader({
                 <ToggleGroupItem
                   value="medium"
                   aria-label="Medium width"
-                  className="rounded-none"
+                  className={cn("rounded-none", {
+                    "bg-primary text-primary-foreground": width === "medium",
+                  })}
                 >
                   <IconMedium />
                 </ToggleGroupItem>
@@ -93,7 +97,9 @@ export default function UrlHeader({
                 <ToggleGroupItem
                   value="wide"
                   aria-label="Wide width"
-                  className="rounded-l-none"
+                  className={cn("rounded-l-none", {
+                    "bg-primary text-primary-foreground": width === "wide",
+                  })}
                 >
                   <IconWide />
                 </ToggleGroupItem>
