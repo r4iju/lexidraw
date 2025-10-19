@@ -1,0 +1,22 @@
+.proseWrapper pre {
+  /* Keep within container and avoid horizontal overflow */
+  max-width: 100%;
+  overflow-x: auto;
+
+  /* Allow wrapping of long inline text while largely preserving formatting */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.proseWrapper pre code {
+  /* Inherit wrapping behavior from pre */
+  white-space: inherit;
+  display: block;
+}
+
+.proseWrapper code {
+  /* Prevent inline code from pushing layout */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
