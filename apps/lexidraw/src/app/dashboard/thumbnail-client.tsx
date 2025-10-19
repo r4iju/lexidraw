@@ -42,7 +42,26 @@ export function ThumbnailClient({ entity }: Props) {
   }
 
   if (entity.entityType === "url") {
-    return <LinkVisual title={entity.title} />;
+    return (
+      <div className="relative size-full aspect-4/3 rounded-sm border border-border overflow-hidden grid place-items-center">
+        <span className="sr-only">{`Link: ${entity.title}`}</span>
+        {src ? (
+          <Image
+            src={src}
+            alt={entity.title.substring(0, 14)}
+            fill
+            crossOrigin="anonymous"
+            quality={75}
+            loading="eager"
+            draggable={false}
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          />
+        ) : (
+          <Link2 className="size-10 text-muted-foreground" />
+        )}
+      </div>
+    );
   }
 
   return (
