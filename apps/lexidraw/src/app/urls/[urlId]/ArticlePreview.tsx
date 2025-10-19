@@ -188,7 +188,6 @@ export default function ArticlePreview({
         <div>
           <AudioPlayer
             src={stitchedUrl}
-            title={savedTts?.title || distilled.title || entity.title}
             initialPlaybackRate={preferredPlaybackRate}
             autoPlay
           />
@@ -196,7 +195,6 @@ export default function ArticlePreview({
       ) : segments.length ? (
         <div>
           <ArticleAudioPlayer
-            title={savedTts?.title || distilled.title || entity.title}
             segments={segments}
             preferredPlaybackRate={preferredPlaybackRate}
           />
