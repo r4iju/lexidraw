@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
+import { AudioPlayer } from "~/components/ui/audio-player";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
@@ -185,9 +186,12 @@ export default function ArticlePreview({
       ) : null}
       {stitchedUrl ? (
         <div>
-          <audio controls className="w-full" src={stitchedUrl}>
-            <track kind="captions" srcLang="en" label="" />
-          </audio>
+          <AudioPlayer
+            src={stitchedUrl}
+            title={savedTts?.title || distilled.title || entity.title}
+            initialPlaybackRate={preferredPlaybackRate}
+            autoPlay
+          />
         </div>
       ) : segments.length ? (
         <div>
