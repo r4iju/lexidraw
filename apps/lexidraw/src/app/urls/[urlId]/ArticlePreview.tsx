@@ -109,8 +109,13 @@ export default function ArticlePreview({
           const start = Date.now();
           for (;;) {
             const r = await fetch(manifestUrl, { cache: "no-store" });
-            if (r.ok) return (await r.json()) as { stitchedUrl?: string; segments?: TtsSegment[] };
-            if (Date.now() - start > max) throw new Error("Timed out waiting for audio");
+            if (r.ok)
+              return (await r.json()) as {
+                stitchedUrl?: string;
+                segments?: TtsSegment[];
+              };
+            if (Date.now() - start > max)
+              throw new Error("Timed out waiting for audio");
             await new Promise((res) => setTimeout(res, delay));
             delay = Math.min(Math.floor(delay * 1.5), 5000);
           }
