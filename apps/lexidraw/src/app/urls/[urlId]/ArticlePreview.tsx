@@ -49,7 +49,6 @@ export default function ArticlePreview({ entity }: Props) {
   const [segments, setSegments] = useState<TtsSegment[]>([]);
   const [stitchedUrl, setStitchedUrl] = useState<string | undefined>(undefined);
   const [ttsError, setTtsError] = useState<string | null>(null);
-  const [audioTitle, setAudioTitle] = useState<string | undefined>(undefined);
 
   const savedTts = useMemo(() => {
     try {
@@ -77,14 +76,7 @@ export default function ArticlePreview({ entity }: Props) {
         : undefined,
     );
     setSegments(Array.isArray(savedTts.segments) ? savedTts.segments : []);
-    setAudioTitle(distilled?.title || entity.title);
-  }, [
-    savedTts,
-    savedTts?.stitchedUrl,
-    savedTts?.segments,
-    distilled?.title,
-    entity.title,
-  ]);
+  }, [savedTts, savedTts?.stitchedUrl, savedTts?.segments]);
 
   const handleGenerateAudio = useCallback(async () => {
     if (!sourceUrl) return;
@@ -110,7 +102,7 @@ export default function ArticlePreview({ entity }: Props) {
         stitchedUrl?: string;
       };
       setSegments(Array.isArray(json.segments) ? json.segments : []);
-      setAudioTitle(json.title || distilled?.title || entity.title);
+
       setStitchedUrl(
         typeof json.stitchedUrl === "string" ? json.stitchedUrl : undefined,
       );
@@ -144,6 +136,7 @@ export default function ArticlePreview({ entity }: Props) {
         </div>
         <div className="flex gap-2">
           <Button
+            variant="secondary"
             onClick={handleGenerateAudio}
             disabled={!sourceUrl || isGenerating}
           >
@@ -159,13 +152,13 @@ export default function ArticlePreview({ entity }: Props) {
         <div className="text-sm text-destructive">{ttsError}</div>
       ) : null}
       {stitchedUrl ? (
-        <div className="rounded-md border border-border p-3">
+        <div>
           <audio controls className="w-full" src={stitchedUrl}>
             <track kind="captions" srcLang="en" label="" />
           </audio>
         </div>
       ) : segments.length ? (
-        <div className="rounded-md border border-border p-3">
+        <div>
           <ArticleAudioPlayer segments={segments} />
         </div>
       ) : null}

@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
+import { AudioPlayer } from "~/components/ui/audio-player";
 import { cn } from "~/lib/utils";
+import { Label } from "../ui/label";
 
 type Segment = {
   index: number;
@@ -27,24 +29,20 @@ export default function ArticleAudioPlayer({ title, segments }: Props) {
   return (
     <div className="space-y-2">
       {title ? <h3 className="text-base font-medium">{title}</h3> : null}
-      <audio
-        key={current?.index}
-        src={current?.audioUrl}
-        controls
+      <AudioPlayer
+        src={current?.audioUrl ?? ""}
         autoPlay
-        preload="auto"
-        playsInline
-        className="w-full"
+        title={title}
         onEnded={() => {
           if (currentIndex < segments.length - 1)
             setCurrentIndex(currentIndex + 1);
         }}
-      >
-        <track kind="captions" srcLang="en" label="" />
-      </audio>
-      <div className="flex flex-wrap gap-0">
+      />
+      <Label htmlFor="Segment">Segments</Label>
+      <div className="flex flex-wrap gap-0 items-center">
         {segments.map((s, i) => (
           <Button
+            size="sm"
             key={s.index}
             onClick={() => setCurrentIndex(i)}
             variant={i === currentIndex ? "default" : "outline"}
@@ -53,9 +51,10 @@ export default function ArticleAudioPlayer({ title, segments }: Props) {
               "rounded-r-none": i === 0,
               "rounded-l-none": i === segments.length - 1,
               "rounded-none": i !== 0 && i !== segments.length - 1,
+              "px-4": i === currentIndex,
             })}
           >
-            Part {i + 1}
+            {i + 1}
           </Button>
         ))}
       </div>
