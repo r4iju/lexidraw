@@ -135,7 +135,8 @@ export async function synthesizeArticleOrText(
     hardCap: provider.maxCharsPerRequest,
   });
   const segments: TtsResult["segments"] = [];
-  const rawBuffers: Buffer[] = [];
+  // Track audio buffers by segment index for stitching; reused segments may be fetched later
+  const bufferByIndex = new Map<number, Buffer>();
 
   for (const chunk of chunks) {
     const ssml = provider.supportsSsml
@@ -209,6 +210,7 @@ export async function synthesizeArticleOrText(
         ssml,
         audioUrl: url,
       });
+      if (audioBuf) bufferByIndex.set(chunk.index, audioBuf);
     } catch (e) {
       const message = (e as Error)?.message ?? "";
       if (typeof message === "string" && message.includes("already exists")) {
@@ -223,7 +225,7 @@ export async function synthesizeArticleOrText(
         throw e;
       }
     }
-    rawBuffers.push(audioBuf);
+    // If we skipped upload due to existing, buffer will be fetched later if stitching
   }
 
   // Write a manifest for easy GET retrieval
@@ -235,9 +237,30 @@ export async function synthesizeArticleOrText(
     const headFull = await fetch(fullUrl, { method: "HEAD" });
     if (headFull.ok) {
       stitchedUrl = fullUrl;
-    } else if (format === "mp3" && rawBuffers.length === chunks.length && rawBuffers.length > 1) {
+    } else if (format === "mp3" && segments.length > 1) {
+      // Build complete ordered buffers: use in-memory when available, otherwise fetch from blob URLs
       try {
-        const combined = Buffer.concat(rawBuffers);
+        const orderedBuffers: Buffer[] = [];
+        // Ensure segments are ordered by index
+        const ordered = [...segments].sort((a, b) => a.index - b.index);
+        for (const seg of ordered) {
+          const inMem = bufferByIndex.get(seg.index);
+          if (inMem) {
+            orderedBuffers.push(inMem);
+            continue;
+          }
+          const url = seg.audioUrl;
+          if (!url) {
+            // Missing URL; abort stitching
+            throw new Error("Missing segment URL for stitching");
+          }
+          const r = await fetch(url, { method: "GET", cache: "no-store" });
+          if (!r.ok) throw new Error(`Failed to fetch segment ${seg.index}`);
+          const arr = new Uint8Array(await r.arrayBuffer());
+          orderedBuffers.push(Buffer.from(arr));
+        }
+        // Concatenate and upload stitched mp3
+        const combined = Buffer.concat(orderedBuffers);
         const { url } = await put(`tts/${key}/full.${format}`, combined, {
           access: "public",
           contentType: "audio/mpeg",
@@ -248,7 +271,7 @@ export async function synthesizeArticleOrText(
         if (typeof msg === "string" && msg.includes("already exists")) {
           stitchedUrl = fullUrl;
         }
-        // best-effort otherwise
+        // Otherwise leave stitchedUrl undefined (best-effort)
       }
     }
   } catch {
@@ -271,14 +294,10 @@ export async function synthesizeArticleOrText(
   try {
     const headManifest = await fetch(manifestUrl, { method: "HEAD" });
     if (!headManifest.ok) {
-      await put(
-        manifestPath,
-        Buffer.from(JSON.stringify(manifest), "utf-8"),
-        {
-          access: "public",
-          contentType: "application/json",
-        },
-      );
+      await put(manifestPath, Buffer.from(JSON.stringify(manifest), "utf-8"), {
+        access: "public",
+        contentType: "application/json",
+      });
     }
   } catch (e) {
     const msg = (e as Error)?.message ?? "";
