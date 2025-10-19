@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const runtime: ServerRuntime = "edge";
+export const runtime: ServerRuntime = "nodejs";
 export const fetchCache = "force-no-store";
 export const dynamic = "force-dynamic";
 
@@ -47,6 +47,6 @@ export default async function UrlPage(props: Props) {
   const entity = await api.entities.load.query({ id: urlId });
   if (!entity) throw new Error("URL entity not found");
 
-  const UrlEditor = (await import("./url-editor-client")).default;
-  return <UrlEditor entity={entity} />;
+  const UrlViewer = (await import("./url-viewer")).default;
+  return <UrlViewer entity={entity} />;
 }

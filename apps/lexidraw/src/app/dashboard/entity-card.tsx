@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
-import { EntityType } from "@packages/types";
+import type { EntityType } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -49,21 +49,22 @@ export function EntityCard({
     searchParams,
   }: {
     id: string;
-    entityType: EntityType;
+    entityType: EntityType | string;
     searchParams: URLSearchParams;
   }) => {
-    switch (entityType) {
-      case EntityType.DIRECTORY:
+    const t = String(entityType || "").toLowerCase();
+    switch (t) {
+      case "directory":
         return `/dashboard/${id}?${searchParams.toString()}`;
-      case EntityType.DRAWING:
+      case "drawing":
         return `/drawings/${id}`;
-      case EntityType.DOCUMENT:
+      case "document":
         return `/documents/${id}`;
-      case EntityType.URL:
+      case "url":
         return `/urls/${id}`;
       default:
-        console.warn(`Unknown entity type: ${entityType satisfies never}`);
-        return `/dashboard/${id}?${searchParams.toString()}`;
+        console.warn(`Unknown entity type: ${t}`);
+        return `/urls/${id}`;
     }
   };
 
@@ -186,7 +187,9 @@ export function EntityCard({
               searchParams,
             })}
           >
-            {entity.entityType === "directory" ? "Open folder" : "Open"}
+            {String(entity.entityType).toLowerCase() === "directory"
+              ? "Open folder"
+              : "Open"}
           </Link>
         </Button>
       )}

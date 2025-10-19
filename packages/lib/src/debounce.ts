@@ -63,7 +63,7 @@ export function debounce<T extends AnyFn>(
   }
 
   // Internal state
-  let timerId: ReturnType<typeof setTimeout> | undefined;
+  let timerId: NodeJS.Timeout | undefined;
   let lastCallTime: number | undefined;
   let lastInvokeTime = 0;
   let lastArgs: Parameters<T> | undefined;
