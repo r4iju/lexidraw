@@ -4,7 +4,6 @@ import env from "@packages/env";
 type UnsplashClient = ReturnType<typeof createApi>;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __unsplashClient: UnsplashClient | undefined;
 }
 

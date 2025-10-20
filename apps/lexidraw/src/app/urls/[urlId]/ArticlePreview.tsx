@@ -214,6 +214,7 @@ export default function ArticlePreview({
     try {
       const userArticles = (
         typeof window !== "undefined"
+          // biome-ignore lint/suspicious/noExplicitAny: we do pollute the window object with session user
           ? (window as any).__SESSION_USER__?.config?.articles
           : undefined
       ) as { autoGenerateAudioOnImport?: boolean } | undefined;
