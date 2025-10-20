@@ -313,6 +313,8 @@ export const entityRouter = createTRPCRouter({
           .optional()
           .default("updatedAt"),
         sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
+        includeArchived: z.coerce.boolean().optional().default(false),
+        onlyFavorites: z.coerce.boolean().optional().default(false),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -348,6 +350,8 @@ export const entityRouter = createTRPCRouter({
           userId: schema.entities.userId,
           publicAccess: schema.entities.publicAccess,
           parentId: schema.entities.parentId,
+          favoritedAt: schema.userEntityPrefs.favoritedAt,
+          archivedAt: schema.userEntityPrefs.archivedAt,
           sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
           tags: sql<string>`group_concat(${schema.tags.name}, ',')`,
           // number of direct children for directories
@@ -358,6 +362,13 @@ export const entityRouter = createTRPCRouter({
         .leftJoin(
           schema.sharedEntities,
           eq(schema.entities.id, schema.sharedEntities.entityId),
+        )
+        .leftJoin(
+          schema.userEntityPrefs,
+          and(
+            eq(schema.userEntityPrefs.entityId, schema.entities.id),
+            eq(schema.userEntityPrefs.userId, ctx.session.user.id),
+          ),
         )
         .leftJoin(
           schema.entityTags,
@@ -374,6 +385,14 @@ export const entityRouter = createTRPCRouter({
             input.parentId
               ? eq(schema.entities.parentId, input.parentId)
               : isNull(schema.entities.parentId),
+            // favorites filter
+            input.onlyFavorites
+              ? sql`${schema.userEntityPrefs.favoritedAt} is not null`
+              : undefined,
+            // archived filter (exclude archived unless includeArchived=true)
+            input.includeArchived
+              ? undefined
+              : isNull(schema.userEntityPrefs.archivedAt),
             // Include the tag filter if tag names were provided
             tagFilteredEntityIds
               ? inArray(schema.entities.id, tagFilteredEntityIds)
@@ -392,6 +411,68 @@ export const entityRouter = createTRPCRouter({
         ...entity,
         tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
       }));
+    }),
+  updateUserPrefs: protectedProcedure
+    .input(
+      z.object({
+        entityId: z.string(),
+        favorite: z.boolean().optional(),
+        archive: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      const existing = (
+        await ctx.drizzle
+          .select({
+            favoritedAt: schema.userEntityPrefs.favoritedAt,
+            archivedAt: schema.userEntityPrefs.archivedAt,
+          })
+          .from(schema.userEntityPrefs)
+          .where(
+            and(
+              eq(schema.userEntityPrefs.userId, userId),
+              eq(schema.userEntityPrefs.entityId, input.entityId),
+            ),
+          )
+      )[0];
+
+      const newFavoritedAt =
+        input.favorite === undefined
+          ? (existing?.favoritedAt ?? null)
+          : input.favorite
+            ? new Date()
+            : null;
+      const newArchivedAt =
+        input.archive === undefined
+          ? (existing?.archivedAt ?? null)
+          : input.archive
+            ? new Date()
+            : null;
+
+      await ctx.drizzle
+        .insert(schema.userEntityPrefs)
+        .values({
+          userId,
+          entityId: input.entityId,
+          favoritedAt: newFavoritedAt ?? undefined,
+          archivedAt: newArchivedAt ?? undefined,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.userEntityPrefs.userId,
+            schema.userEntityPrefs.entityId,
+          ],
+          set: {
+            favoritedAt: newFavoritedAt ?? undefined,
+            archivedAt: newArchivedAt ?? undefined,
+            updatedAt: new Date(),
+          },
+        })
+        .execute();
     }),
   getCookies: protectedProcedure.query(async ({ ctx }) => {
     const result = await ctx.drizzle
@@ -1226,7 +1307,9 @@ export const entityRouter = createTRPCRouter({
       let cookiesHeader: string | undefined;
       const host = new URL(url).host.replace("www.", "");
       const cookiesConfig = entity?.config?.cookies;
-      const cookieForHost = cookiesConfig?.find((cookie) => cookie.name === host);
+      const cookieForHost = cookiesConfig?.find(
+        (cookie) => cookie.name === host,
+      );
       if (cookieForHost?.value) cookiesHeader = cookieForHost.value;
 
       const distilled = await extractAndSanitizeArticle({
@@ -1242,16 +1325,15 @@ export const entityRouter = createTRPCRouter({
           const res = await fetch(distilled.bestImageUrl);
           if (res.ok) {
             const contentType = res.headers.get("content-type") || "image/jpeg";
-            const ext =
-              contentType.includes("png")
-                ? "png"
-                : contentType.includes("webp")
-                  ? "webp"
-                  : contentType.includes("svg")
-                    ? "svg"
-                    : contentType.includes("avif")
-                      ? "avif"
-                      : "jpg";
+            const ext = contentType.includes("png")
+              ? "png"
+              : contentType.includes("webp")
+                ? "webp"
+                : contentType.includes("svg")
+                  ? "svg"
+                  : contentType.includes("avif")
+                    ? "avif"
+                    : "jpg";
             const buffer = Buffer.from(await res.arrayBuffer());
             const key = `${input.id}-thumb.${ext}`;
             const blob = await put(key, buffer, {

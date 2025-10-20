@@ -3,7 +3,12 @@
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { ProfileSchema } from "./schema";
-import FormProvider, { RHFTextField } from "~/components/hook-form";
+import FormProvider, {
+  RHFTextField,
+  RHFSlider,
+  RHFSelect,
+  RHFCheckbox,
+} from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
@@ -25,6 +30,21 @@ export default function ProfileForm({ user }: Props) {
       name: user?.name ?? "",
       googleApiKey: user?.config?.llm?.googleApiKey ?? "",
       openaiApiKey: user?.config?.llm?.openaiApiKey ?? "",
+      tts: {
+        provider: user?.config?.tts?.provider,
+        voiceId: user?.config?.tts?.voiceId,
+        speed: user?.config?.tts?.speed,
+        format: user?.config?.tts?.format,
+        languageCode: user?.config?.tts?.languageCode,
+        sampleRate: user?.config?.tts?.sampleRate,
+      },
+      articles: {
+        languageCode: user?.config?.articles?.languageCode,
+        maxChars: user?.config?.articles?.maxChars,
+        keepQuotes: user?.config?.articles?.keepQuotes,
+        autoGenerateAudioOnImport:
+          user?.config?.articles?.autoGenerateAudioOnImport,
+      },
     },
     mode: "onBlur",
   });
@@ -53,6 +73,12 @@ export default function ProfileForm({ user }: Props) {
                 googleApiKey: data.googleApiKey ?? "",
                 openaiApiKey: data.openaiApiKey ?? "",
               },
+              tts: data.tts
+                ? { ...session?.user.config?.tts, ...data.tts }
+                : session?.user.config?.tts,
+              articles: data.articles
+                ? { ...session?.user.config?.articles, ...data.articles }
+                : session?.user.config?.articles,
             },
           },
         });
@@ -82,6 +108,53 @@ export default function ProfileForm({ user }: Props) {
             name="openaiApiKey"
             type="openaiApiKey"
           />
+          <div className="pt-2 border-t">
+            <div className="text-sm font-medium">Audio generation (TTS)</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              <RHFSelect name="tts.provider" label="Provider">
+                <option value="openai">OpenAI</option>
+                <option value="google">Google</option>
+              </RHFSelect>
+              <RHFTextField label="Voice ID" name="tts.voiceId" />
+              <RHFSlider
+                name="tts.speed"
+                label="Speed"
+                min={0.25}
+                max={4}
+                step={0.05}
+              />
+              <RHFSelect name="tts.format" label="Format">
+                <option value="mp3">MP3</option>
+                <option value="ogg">OGG</option>
+                <option value="wav">WAV</option>
+              </RHFSelect>
+              <RHFTextField label="Language code" name="tts.languageCode" />
+              <RHFTextField
+                label="Sample rate"
+                name="tts.sampleRate"
+                type="number"
+              />
+            </div>
+          </div>
+          <div className="pt-2 border-t">
+            <div className="text-sm font-medium">Articles</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              <RHFTextField
+                label="Language code"
+                name="articles.languageCode"
+              />
+              <RHFTextField
+                label="Max chars"
+                name="articles.maxChars"
+                type="number"
+              />
+              <RHFCheckbox label="Keep quotes" name="articles.keepQuotes" />
+              <RHFCheckbox
+                label="Auto-generate audio on import"
+                name="articles.autoGenerateAudioOnImport"
+              />
+            </div>
+          </div>
         </div>
         <Button
           className="w-full"

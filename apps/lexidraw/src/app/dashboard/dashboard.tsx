@@ -20,6 +20,8 @@ type Props = {
   sortOrder: "asc" | "desc";
   flex: "flex-row" | "flex-col";
   tags?: string;
+  includeArchived?: boolean;
+  onlyFavorites?: boolean;
 };
 
 export async function Dashboard({
@@ -28,18 +30,24 @@ export async function Dashboard({
   sortOrder,
   flex,
   tags,
+  includeArchived = false,
+  onlyFavorites = false,
 }: Props) {
   const searchParams = new URLSearchParams({
     ...(flex ? { flex } : {}),
     ...(sortBy ? { sortBy } : {}),
     ...(sortOrder ? { sortOrder } : {}),
     ...(tags ? { tags } : {}),
+    ...(includeArchived ? { includeArchived: String(includeArchived) } : {}),
+    ...(onlyFavorites ? { onlyFavorites: String(onlyFavorites) } : {}),
   });
   const entities = await api.entities.list.query({
     parentId: directory ? directory.id : null,
     sortBy,
     sortOrder,
     tagNames: tags ? tags.split(",").filter(Boolean) : [],
+    includeArchived,
+    onlyFavorites,
   });
 
   const llmConfig = await api.auth.getLlmConfig.query();
@@ -99,6 +107,42 @@ export async function Dashboard({
               {/* filter by tags */}
 
               <FilterByTags options={allTags} />
+
+              {/* favorites / archived toggles */}
+              <div className="flex gap-1">
+                <Button
+                  variant={onlyFavorites ? "secondary" : "outline"}
+                  size="sm"
+                  asChild
+                >
+                  <Link
+                    href={replaceSearchParam({
+                      pathname: `/dashboard/${directory?.id ?? ""}`,
+                      prevParams: searchParams,
+                      key: "onlyFavorites",
+                      value: onlyFavorites ? null : "true",
+                    })}
+                  >
+                    Favorites
+                  </Link>
+                </Button>
+                <Button
+                  variant={includeArchived ? "secondary" : "outline"}
+                  size="sm"
+                  asChild
+                >
+                  <Link
+                    href={replaceSearchParam({
+                      pathname: `/dashboard/${directory?.id ?? ""}`,
+                      prevParams: searchParams,
+                      key: "includeArchived",
+                      value: includeArchived ? null : "true",
+                    })}
+                  >
+                    Archived
+                  </Link>
+                </Button>
+              </div>
 
               <Button
                 variant={flex === "flex-row" ? "secondary" : "outline"}

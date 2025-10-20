@@ -92,6 +92,15 @@ export const authRouter = createTRPCRouter({
               chat: input.chat ?? currentLlmConfig.chat,
               autocomplete: input.autocomplete ?? currentLlmConfig.autocomplete,
             },
+            // Merge optional TTS and Article config if provided
+            tts: {
+              ...currentConfig.tts,
+              ...input.tts,
+            },
+            articles: {
+              ...currentConfig.articles,
+              ...input.articles,
+            },
           },
         })
         .where(eq(schema.users.id, ctx.session.user.id));

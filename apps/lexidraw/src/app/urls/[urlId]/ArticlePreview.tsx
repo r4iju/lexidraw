@@ -1,11 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useId } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import { cn } from "~/lib/utils";
+import { Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import { Input } from "~/components/ui/input";
+import { Switch } from "~/components/ui/switch";
+import { Slider } from "~/components/ui/slider";
+import { api } from "~/trpc/react";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
@@ -55,6 +72,50 @@ export default function ArticlePreview({
   const [segments, setSegments] = useState<TtsSegment[]>([]);
   const [stitchedUrl, setStitchedUrl] = useState<string | undefined>(undefined);
   const [ttsError, setTtsError] = useState<string | null>(null);
+  const [autoTriggered, setAutoTriggered] = useState(false);
+  const uid = useId();
+
+  // Fetch per-user defaults
+  const utils = api.useUtils();
+  const ttsQuery = api.config.getTtsConfig.useQuery();
+  const articleQuery = api.config.getArticleConfig.useQuery();
+  const updateTts = api.config.updateTtsConfig.useMutation({
+    onSuccess: () => utils.config.getTtsConfig.invalidate(),
+  });
+  const updateArticle = api.config.updateArticleConfig.useMutation({
+    onSuccess: () => utils.config.getArticleConfig.invalidate(),
+  });
+
+  // Local config state
+  const [ttsCfg, setTtsCfg] = useState({
+    provider: "openai" as "openai" | "google",
+    voiceId: "alloy",
+    speed: 1,
+    format: "mp3" as "mp3" | "ogg" | "wav",
+    languageCode: "en-US",
+    sampleRate: undefined as number | undefined,
+  });
+  const ttsOptionsQuery = api.config.getTtsOptions.useQuery(
+    { provider: ttsCfg.provider },
+    { enabled: true },
+  );
+  const [articleCfg, setArticleCfg] = useState({
+    languageCode: "en-US",
+    maxChars: 120000,
+    keepQuotes: true,
+    autoGenerateAudioOnImport: false,
+  });
+
+  useEffect(() => {
+    if (ttsQuery.data) {
+      setTtsCfg((prev) => ({ ...prev, ...ttsQuery.data }));
+    }
+  }, [ttsQuery.data]);
+  useEffect(() => {
+    if (articleQuery.data) {
+      setArticleCfg((prev) => ({ ...prev, ...articleQuery.data }));
+    }
+  }, [articleQuery.data]);
 
   const savedTts = useMemo(() => {
     try {
@@ -148,13 +209,58 @@ export default function ArticlePreview({
     }
   }, [sourceUrl, distilled?.title, entity.title, entity.id]);
 
+  // Auto-generate when enabled in user Article settings and not yet generated
+  useEffect(() => {
+    try {
+      const userArticles = (
+        typeof window !== "undefined"
+          ? (window as any).__SESSION_USER__?.config?.articles
+          : undefined
+      ) as { autoGenerateAudioOnImport?: boolean } | undefined;
+      const shouldAuto = Boolean(userArticles?.autoGenerateAudioOnImport);
+      if (
+        shouldAuto &&
+        sourceUrl &&
+        distilled?.contentHtml &&
+        !stitchedUrl &&
+        segments.length === 0 &&
+        !isGenerating &&
+        !autoTriggered
+      ) {
+        setAutoTriggered(true);
+        void handleGenerateAudio();
+      }
+    } catch {
+      // ignore
+    }
+  }, [
+    sourceUrl,
+    distilled?.contentHtml,
+    stitchedUrl,
+    segments.length,
+    isGenerating,
+    autoTriggered,
+    handleGenerateAudio,
+  ]);
+
   if (!distilled || !distilled.contentHtml) {
     return null;
   }
 
+  const hasAudio = Boolean(stitchedUrl || (segments?.length ?? 0) > 0);
+  let buttonLabel = "Listen";
+  if (hasAudio) {
+    buttonLabel = "Regenerate audio";
+  }
+  if (isGenerating && hasAudio) {
+    buttonLabel = "Regenerating…";
+  } else if (isGenerating) {
+    buttonLabel = "Generating…";
+  }
+
   return (
     <div className="w-full space-y-3 md:border-x md:border-border p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col space-y-2 items-center justify-between">
         <div className="space-y-1">
           <div className="text-lg font-semibold">
             {distilled.title || entity.title}
@@ -168,39 +274,284 @@ export default function ArticlePreview({
               : ""}
           </div>
         </div>
-        <div className="flex gap-2">
+      </div>
+      {ttsError ? (
+        <div className="text-sm text-destructive">{ttsError}</div>
+      ) : null}
+      <div className="flex flex-col gap-2">
+        <div className="flex w-full justify-end gap-2">
           <Button
             variant="secondary"
             onClick={handleGenerateAudio}
             disabled={!sourceUrl || isGenerating}
           >
-            {stitchedUrl || segments.length
-              ? "Regenerate audio"
-              : isGenerating
-                ? "Generating…"
-                : "Listen"}
+            {isGenerating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            {buttonLabel}
           </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">Settings</Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[380px]">
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium mb-2">Audio (TTS)</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label
+                        htmlFor={`${uid}-tts-provider`}
+                        className="block text-xs mb-1"
+                      >
+                        Provider
+                      </label>
+                      <Select
+                        name={`${uid}-tts-provider`}
+                        value={ttsCfg.provider}
+                        onValueChange={(v) =>
+                          setTtsCfg((s) => ({
+                            ...s,
+                            provider: v as typeof s.provider,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id={`${uid}-tts-provider`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="openai">OpenAI</SelectItem>
+                          <SelectItem value="google">Google</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`${uid}-tts-voice`}
+                        className="block text-xs mb-1"
+                      >
+                        Voice ID
+                      </label>
+                      <Select
+                        name={`${uid}-tts-voice`}
+                        value={ttsCfg.voiceId}
+                        onValueChange={(v) =>
+                          setTtsCfg((s) => ({ ...s, voiceId: v }))
+                        }
+                        disabled={ttsOptionsQuery.isLoading}
+                      >
+                        <SelectTrigger id={`${uid}-tts-voice`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(ttsOptionsQuery.data?.voices ?? []).map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-2">
+                      <label
+                        htmlFor={`${uid}-tts-speed`}
+                        className="block text-xs mb-2"
+                      >
+                        Speed ({ttsCfg.speed.toFixed(2)})
+                      </label>
+                      <Slider
+                        id={`${uid}-tts-speed`}
+                        min={0.25}
+                        max={4}
+                        step={0.05}
+                        value={[ttsCfg.speed]}
+                        onValueChange={([v]) =>
+                          setTtsCfg((s) => ({ ...s, speed: v ?? s.speed }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`${uid}-tts-format`}
+                        className="block text-xs mb-1"
+                      >
+                        Format
+                      </label>
+                      <Select
+                        name={`${uid}-tts-format`}
+                        value={ttsCfg.format}
+                        onValueChange={(v) =>
+                          setTtsCfg((s) => ({
+                            ...s,
+                            format: v as typeof s.format,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id={`${uid}-tts-format`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mp3">MP3</SelectItem>
+                          <SelectItem value="ogg">OGG</SelectItem>
+                          <SelectItem value="wav">WAV</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`${uid}-tts-lang`}
+                        className="block text-xs mb-1"
+                      >
+                        Language
+                      </label>
+                      <Select
+                        name={`${uid}-tts-lang`}
+                        value={ttsCfg.languageCode}
+                        onValueChange={(v) =>
+                          setTtsCfg((s) => ({ ...s, languageCode: v }))
+                        }
+                        disabled={ttsOptionsQuery.isLoading}
+                      >
+                        <SelectTrigger id={`${uid}-tts-lang`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(ttsOptionsQuery.data?.languages ?? []).map((lc) => (
+                            <SelectItem key={lc} value={lc}>
+                              {lc}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`${uid}-tts-sample`}
+                        className="block text-xs mb-1"
+                      >
+                        Sample rate
+                      </label>
+                      <Input
+                        id={`${uid}-tts-sample`}
+                        type="number"
+                        value={ttsCfg.sampleRate ?? ""}
+                        onChange={(e) =>
+                          setTtsCfg((s) => ({
+                            ...s,
+                            sampleRate: e.target.value
+                              ? Number(e.target.value)
+                              : undefined,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Article</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Article language removed; synced from TTS Language on save */}
+                    <div>
+                      <label
+                        htmlFor={`${uid}-article-max`}
+                        className="block text-xs mb-1"
+                      >
+                        Max chars
+                      </label>
+                      <Input
+                        id={`${uid}-article-max`}
+                        type="number"
+                        value={articleCfg.maxChars}
+                        onChange={(e) =>
+                          setArticleCfg((s) => ({
+                            ...s,
+                            maxChars: Number(e.target.value || 0),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={articleCfg.keepQuotes}
+                        onCheckedChange={(v) =>
+                          setArticleCfg((s) => ({ ...s, keepQuotes: v }))
+                        }
+                      />
+                      <span className="text-xs">Keep quotes</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={articleCfg.autoGenerateAudioOnImport}
+                        onCheckedChange={(v) =>
+                          setArticleCfg((s) => ({
+                            ...s,
+                            autoGenerateAudioOnImport: v,
+                          }))
+                        }
+                      />
+                      <span className="text-xs">Auto-generate on import</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-xs text-muted-foreground">
+                    Changes apply to future generations. Click Regenerate to
+                    apply now.
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={updateTts.isPending || updateArticle.isPending}
+                      onClick={async () => {
+                        try {
+                          await Promise.all([
+                            updateTts.mutateAsync({
+                              provider: ttsCfg.provider,
+                              voiceId: ttsCfg.voiceId,
+                              speed: ttsCfg.speed,
+                              format: ttsCfg.format,
+                              languageCode: ttsCfg.languageCode,
+                              sampleRate: ttsCfg.sampleRate,
+                            }),
+                            updateArticle.mutateAsync({
+                              languageCode: ttsCfg.languageCode,
+                              maxChars: articleCfg.maxChars,
+                              keepQuotes: articleCfg.keepQuotes,
+                              autoGenerateAudioOnImport:
+                                articleCfg.autoGenerateAudioOnImport,
+                            }),
+                          ]);
+                        } catch (_e) {
+                          // noop: error surfaced by tRPC hook
+                        }
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
+        {stitchedUrl ? (
+          <div>
+            <AudioPlayer
+              src={stitchedUrl}
+              initialPlaybackRate={preferredPlaybackRate}
+              autoPlay
+            />
+          </div>
+        ) : segments.length ? (
+          <div>
+            <ArticleAudioPlayer
+              segments={segments}
+              preferredPlaybackRate={preferredPlaybackRate}
+            />
+          </div>
+        ) : null}
       </div>
-      {ttsError ? (
-        <div className="text-sm text-destructive">{ttsError}</div>
-      ) : null}
-      {stitchedUrl ? (
-        <div>
-          <AudioPlayer
-            src={stitchedUrl}
-            initialPlaybackRate={preferredPlaybackRate}
-            autoPlay
-          />
-        </div>
-      ) : segments.length ? (
-        <div>
-          <ArticleAudioPlayer
-            segments={segments}
-            preferredPlaybackRate={preferredPlaybackRate}
-          />
-        </div>
-      ) : null}
       <div
         className={cn("prose max-w-none dark:prose-invert ")}
         data-prose="scoped"

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
+import env from "@packages/env";
 
 export const LlmBaseConfigSchema = z.object({
   modelId: z.string(),
@@ -40,6 +41,40 @@ const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   provider: "google",
   temperature: 0.3,
   maxOutputTokens: 500,
+};
+
+// --- TTS and Article Config Schemas & Defaults ---
+const TtsConfigSchema = z.object({
+  provider: z.enum(["openai", "google"]),
+  voiceId: z.string(),
+  speed: z.number().min(0.25).max(4),
+  format: z.enum(["mp3", "ogg", "wav"]),
+  languageCode: z.string(),
+  sampleRate: z.number().int().positive().optional(),
+});
+const TtsPatchSchema = TtsConfigSchema.partial();
+
+const ArticleConfigSchema = z.object({
+  languageCode: z.string(),
+  maxChars: z.number().int().positive(),
+  keepQuotes: z.boolean(),
+  autoGenerateAudioOnImport: z.boolean(),
+});
+const ArticlePatchSchema = ArticleConfigSchema.partial();
+
+const defaultTts: z.infer<typeof TtsConfigSchema> = {
+  provider: "openai",
+  voiceId: "alloy",
+  speed: 1,
+  format: "mp3",
+  languageCode: "en-US",
+};
+
+const defaultArticles: z.infer<typeof ArticleConfigSchema> = {
+  languageCode: "en-US",
+  maxChars: 120000,
+  keepQuotes: true,
+  autoGenerateAudioOnImport: false,
 };
 
 export const configRouter = createTRPCRouter({
@@ -98,14 +133,152 @@ export const configRouter = createTRPCRouter({
           ...(current?.config?.audio ?? {}),
           preferredPlaybackRate: input.preferredPlaybackRate,
         },
-      } satisfies NonNullable<(typeof schema.users)["config"]>;
+      } as (typeof schema.users.$inferInsert)["config"];
 
       await ctx.drizzle
         .update(schema.users)
-        .set({ config: nextConfig })
+        .set({
+          config:
+            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
+        })
         .where(eq(schema.users.id, ctx.session.user.id));
 
       return { preferredPlaybackRate: input.preferredPlaybackRate };
+    }),
+
+  // --- Read-only TTS options (voices/languages) ---
+  getTtsOptions: protectedProcedure
+    .input(z.object({ provider: z.enum(["openai", "google"]) }))
+    .query(async ({ ctx, input }) => {
+      type Voice = { id: string; label: string; languageCodes: string[] };
+      type Result = { voices: Voice[]; languages: string[] };
+
+      // In-memory cache per user+provider for 10 minutes
+      const now = Date.now();
+      const cacheKey = `${ctx.session.user.id}:${input.provider}`;
+      const g = globalThis as unknown as {
+        __ttsOptionsCache?: Map<string, { expires: number; data: Result }>;
+      };
+      if (!g.__ttsOptionsCache) {
+        g.__ttsOptionsCache = new Map<
+          string,
+          { expires: number; data: Result }
+        >();
+      }
+      const bag = g.__ttsOptionsCache;
+      const cached = bag.get(cacheKey);
+      if (cached && cached.expires > now) return cached.data;
+
+      if (input.provider === "openai") {
+        const data: Result = {
+          voices: [
+            { id: "alloy", label: "alloy", languageCodes: ["en-US"] },
+            { id: "aria", label: "aria", languageCodes: ["en-US"] },
+            { id: "verse", label: "verse", languageCodes: ["en-US"] },
+            { id: "sage", label: "sage", languageCodes: ["en-US"] },
+            { id: "luna", label: "luna", languageCodes: ["en-US"] },
+          ],
+          languages: ["en-US"],
+        };
+        bag.set(cacheKey, { expires: now + 10 * 60_000, data });
+        return data;
+      }
+
+      // Google
+      const userKey = ctx.session.user.config?.llm?.googleApiKey;
+      const apiKey = userKey || env.GOOGLE_API_KEY;
+      if (!apiKey) {
+        const empty: Result = { voices: [], languages: [] };
+        bag.set(cacheKey, { expires: now + 60_000, data: empty });
+        return empty;
+      }
+      try {
+        const resp = await fetch(
+          `https://texttospeech.googleapis.com/v1/voices?key=${encodeURIComponent(apiKey)}`,
+          { method: "GET" },
+        );
+        if (!resp.ok) throw new Error(`${resp.status}`);
+        const json = (await resp.json()) as {
+          voices?: {
+            name?: string;
+            languageCodes?: string[];
+            ssmlGender?: string;
+          }[];
+        };
+        const voices: Voice[] = (json.voices || [])
+          .filter((v) => typeof v.name === "string" && v.name)
+          .map((v) => ({
+            id: v.name as string,
+            label: v.ssmlGender
+              ? `${v.name} (${v.ssmlGender})`
+              : (v.name as string),
+            languageCodes: Array.isArray(v.languageCodes)
+              ? v.languageCodes
+              : [],
+          }));
+        const langSet = new Set<string>();
+        for (const v of voices)
+          for (const lc of v.languageCodes) langSet.add(lc);
+        const data: Result = { voices, languages: Array.from(langSet).sort() };
+        bag.set(cacheKey, { expires: now + 10 * 60_000, data });
+        return data;
+      } catch {
+        const empty: Result = { voices: [], languages: [] };
+        bag.set(cacheKey, { expires: now + 60_000, data: empty });
+        return empty;
+      }
+    }),
+
+  // --- TTS config ---
+  getTtsConfig: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.drizzle.query.users.findFirst({
+      where: eq(schema.users.id, ctx.session.user.id),
+      columns: { config: true },
+    });
+    const tts = { ...defaultTts, ...(user?.config?.tts ?? {}) };
+    return TtsConfigSchema.parse(tts);
+  }),
+  updateTtsConfig: protectedProcedure
+    .input(TtsPatchSchema)
+    .mutation(async ({ ctx, input }) => {
+      const current = await ctx.drizzle.query.users.findFirst({
+        where: eq(schema.users.id, ctx.session.user.id),
+        columns: { config: true },
+      });
+      const next = { ...defaultTts, ...(current?.config?.tts ?? {}), ...input };
+      await ctx.drizzle
+        .update(schema.users)
+        .set({ config: { ...(current?.config ?? {}), tts: next } })
+        .where(eq(schema.users.id, ctx.session.user.id));
+      return TtsConfigSchema.parse(next);
+    }),
+
+  // --- Article config ---
+  getArticleConfig: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.drizzle.query.users.findFirst({
+      where: eq(schema.users.id, ctx.session.user.id),
+      columns: { config: true },
+    });
+    const articles = { ...defaultArticles, ...(user?.config?.articles ?? {}) };
+    return ArticleConfigSchema.parse(articles);
+  }),
+  updateArticleConfig: protectedProcedure
+    .input(ArticlePatchSchema)
+    .mutation(async ({ ctx, input }) => {
+      const current = await ctx.drizzle.query.users.findFirst({
+        where: eq(schema.users.id, ctx.session.user.id),
+        columns: { config: true },
+      });
+      const next = {
+        ...defaultArticles,
+        ...(current?.config?.articles ?? {}),
+        ...input,
+      };
+      await ctx.drizzle
+        .update(schema.users)
+        .set({ config: { ...(current?.config ?? {}), articles: next } })
+        .where(eq(schema.users.id, ctx.session.user.id));
+      return ArticleConfigSchema.parse(next);
     }),
 
   updateLlmConfig: protectedProcedure
@@ -130,9 +303,19 @@ export const configRouter = createTRPCRouter({
         },
       });
 
+      // Merge LLM into existing config to avoid clobbering audio/tts/articles
+      const existing = await ctx.drizzle.query.users.findFirst({
+        where: eq(schema.users.id, ctx.session.user.id),
+        columns: { config: true },
+      });
       await ctx.drizzle
         .update(schema.users)
-        .set({ config: { llm: newLlmConfigToSave } })
+        .set({
+          config: {
+            ...(existing?.config ?? {}),
+            llm: newLlmConfigToSave,
+          } as (typeof schema.users.$inferInsert)["config"],
+        })
         .where(eq(schema.users.id, ctx.session.user.id));
 
       // Return as partial config

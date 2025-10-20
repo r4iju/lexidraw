@@ -24,9 +24,27 @@ export async function POST(req: NextRequest) {
     googleApiKey: session.user.config?.llm?.googleApiKey ?? null,
   } as const;
 
+  // Merge user TTS defaults
+  const ttsDefaults = session.user.config?.tts ?? {};
+  const resolved = {
+    provider: body.provider ?? ttsDefaults.provider ?? "openai",
+    voiceId: body.voiceId ?? ttsDefaults.voiceId ?? "alloy",
+    speed: body.speed ?? ttsDefaults.speed ?? 1,
+    format: body.format ?? ttsDefaults.format ?? "mp3",
+    languageCode: body.languageCode ?? ttsDefaults.languageCode ?? "en-US",
+    sampleRate: session.user.config?.tts?.sampleRate ?? undefined,
+  } as const;
+
   try {
     // Precompute job id + manifest url; if already exists, return immediately
-    const { id, manifestUrl } = precomputeTtsKey(body);
+    const { id, manifestUrl } = precomputeTtsKey({
+      ...body,
+      provider: resolved.provider,
+      voiceId: resolved.voiceId,
+      speed: resolved.speed,
+      format: resolved.format,
+      languageCode: resolved.languageCode,
+    });
     const head = await fetch(manifestUrl, {
       method: "HEAD",
       cache: "no-store",
@@ -80,7 +98,13 @@ export async function POST(req: NextRequest) {
     after(async () => {
       try {
         const result = await synthesizeArticleOrText({
-          ...body,
+          url: body.url,
+          text: body.text,
+          provider: resolved.provider,
+          voiceId: resolved.voiceId,
+          speed: resolved.speed,
+          format: resolved.format,
+          languageCode: resolved.languageCode,
           titleHint: body.title,
           userKeys,
         });
