@@ -95,6 +95,20 @@ export const users = sqliteTable(
       audio?: {
         preferredPlaybackRate?: number;
       };
+      tts?: {
+        provider?: "openai" | "google";
+        voiceId?: string;
+        speed?: number;
+        format?: "mp3" | "ogg" | "wav";
+        languageCode?: string;
+        sampleRate?: number;
+      };
+      articles?: {
+        languageCode?: string;
+        maxChars?: number;
+        keepQuotes?: boolean;
+        autoGenerateAudioOnImport?: boolean;
+      };
       cookies?: {
         name: string;
         value: string;
@@ -476,4 +490,36 @@ export const uploadedVideos = sqliteTable(
     deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [index("UploadedVideo_userId_idx").on(table.userId)],
+);
+
+// Per-user preferences for entities (favorite/archive timestamps)
+export const userEntityPrefs = sqliteTable(
+  "UserEntityPrefs",
+  {
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    entityId: text("entityId")
+      .notNull()
+      .references(() => entities.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    favoritedAt: integer("favoritedAt", { mode: "timestamp_ms" }),
+    archivedAt: integer("archivedAt", { mode: "timestamp_ms" }),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("UserEntityPrefs_user_entity_unique").on(
+      table.userId,
+      table.entityId,
+    ),
+    index("UserEntityPrefs_userId_idx").on(table.userId),
+    index("UserEntityPrefs_entityId_idx").on(table.entityId),
+  ],
 );

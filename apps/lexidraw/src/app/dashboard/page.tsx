@@ -18,6 +18,8 @@ const Sort = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   flex: z.enum(["flex-row", "flex-col"]).default("flex-col"),
   tags: z.string().optional(),
+  includeArchived: z.coerce.boolean().optional().default(false),
+  onlyFavorites: z.coerce.boolean().optional().default(false),
 });
 
 type Sort = z.infer<typeof Sort>;

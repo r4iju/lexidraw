@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse, after } from "next/server";
 import { auth } from "~/server/auth";
-import { extractDocumentFromUrl } from "~/lib/extract-document";
+import { extractArticleFromUrl } from "~/lib/extract-article";
 import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 
 export const dynamic = "force-dynamic";
@@ -33,15 +33,31 @@ export async function POST(req: NextRequest) {
     googleApiKey: session.user.config?.llm?.googleApiKey ?? null,
   } as const;
 
+  // Merge user TTS defaults
+  const ttsDefaults = session.user.config?.tts ?? {};
+  const articleDefaults = session.user.config?.articles ?? {};
+  const resolved = {
+    provider: body.provider ?? ttsDefaults.provider ?? "openai",
+    voiceId: body.voiceId ?? ttsDefaults.voiceId ?? "alloy",
+    speed: body.speed ?? ttsDefaults.speed ?? 1,
+    format: body.format ?? ttsDefaults.format ?? "mp3",
+    languageCode:
+      body.languageCode ??
+      ttsDefaults.languageCode ??
+      articleDefaults.languageCode ??
+      "en-US",
+    sampleRate: session.user.config?.tts?.sampleRate ?? undefined,
+  } as const;
+
   try {
     const { id, manifestUrl } = precomputeTtsKey({
       url: body.url,
       text: body.text,
-      provider: body.provider,
-      voiceId: body.voiceId,
-      speed: body.speed,
-      format: body.format,
-      languageCode: body.languageCode,
+      provider: resolved.provider,
+      voiceId: resolved.voiceId,
+      speed: resolved.speed,
+      format: resolved.format,
+      languageCode: resolved.languageCode,
     });
     const head = await fetch(manifestUrl, {
       method: "HEAD",
@@ -59,11 +75,21 @@ export async function POST(req: NextRequest) {
         const text = body.text
           ? body.text
           : body.url
-            ? (await extractDocumentFromUrl(body.url)).contentText
+            ? (
+                await extractArticleFromUrl(body.url, {
+                  maxChars: articleDefaults.maxChars,
+                  keepQuotes: articleDefaults.keepQuotes,
+                })
+              ).contentText
             : "";
         await synthesizeArticleOrText({
-          ...body,
+          url: body.url,
           text,
+          provider: resolved.provider,
+          voiceId: resolved.voiceId,
+          speed: resolved.speed,
+          format: resolved.format,
+          languageCode: resolved.languageCode,
           titleHint: body.title,
           userKeys,
         });

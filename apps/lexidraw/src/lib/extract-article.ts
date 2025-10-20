@@ -11,6 +11,7 @@ export type ExtractedArticle = {
 
 export async function extractArticleFromUrl(
   url: string,
+  opts?: { maxChars?: number; keepQuotes?: boolean },
 ): Promise<ExtractedArticle> {
   const res = await fetch(url, {
     // identify politely; user agent may be proxied by platform
@@ -47,7 +48,24 @@ export async function extractArticleFromUrl(
     allowedAttributes: { "*": [] },
     exclusiveFilter: (frame) => frame.tag === "script" || frame.tag === "style",
   });
-  const contentText = htmlToPlainText(safeHtml);
+  let contentText = htmlToPlainText(safeHtml);
+  if (opts?.keepQuotes === false) {
+    // remove long quoted blocks heuristically (lines starting with ">" or wrapped in quotes)
+    contentText = contentText
+      .split("\n")
+      .filter((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return true;
+        if (trimmed.startsWith(">")) return false;
+        if (trimmed.length > 80 && /^".*"$/.test(trimmed)) return false;
+        return true;
+      })
+      .join("\n")
+      .trim();
+  }
+  if (typeof opts?.maxChars === "number" && opts.maxChars > 0) {
+    contentText = contentText.slice(0, opts.maxChars);
+  }
   return { title, contentText, byline: article?.byline ?? null };
 }
 

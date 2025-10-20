@@ -28,6 +28,10 @@ import { Icon } from "@radix-ui/react-select";
 import { ImageGenerationProvider } from "~/hooks/use-image-generation";
 import { ImageProvider } from "~/hooks/use-image-insertion";
 import { toast } from "sonner";
+import { api } from "~/trpc/react";
+import { useSearchParams } from "next/navigation";
+import { z } from "zod";
+import { revalidateDashboard } from "../server-actions";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -59,6 +63,39 @@ export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
     }
   };
 
+  // mutations for favorite/archive
+  const searchParams = useSearchParams();
+  z.object({
+    sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
+    sortOrder: z.enum(["asc", "desc"]).default("desc"),
+    view: z.enum(["all", "favorites", "archived"]).default("all"),
+  }).parse(Object.fromEntries(searchParams.entries()));
+
+  const { mutate: updatePrefs } = api.entities.updateUserPrefs.useMutation({
+    onSuccess: async () => {
+      await revalidateDashboard();
+    },
+  });
+
+  const toggleFavorite = () => {
+    const isFavorited = Boolean(entity.favoritedAt);
+    updatePrefs({ entityId: entity.id, favorite: !isFavorited });
+    toast.success(
+      isFavorited ? "Removed from favorites" : "Added to favorites",
+    );
+  };
+  const toggleArchive = () => {
+    const isArchived = Boolean(entity.archivedAt);
+    updatePrefs(
+      { entityId: entity.id, archive: !isArchived },
+      {
+        onSuccess: () => {
+          toast.success(isArchived ? "Unarchived" : "Archived");
+        },
+      },
+    );
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -69,6 +106,18 @@ export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuGroup>
+            <DropdownMenuItem
+              onSelect={toggleFavorite}
+              className="justify-between"
+            >
+              {entity.favoritedAt ? "Unfavorite" : "Favorite"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={toggleArchive}
+              className="justify-between"
+            >
+              {entity.archivedAt ? "Unarchive" : "Archive"}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={handleOpenDelete}
               className="justify-between"

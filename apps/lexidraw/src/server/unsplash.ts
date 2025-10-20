@@ -1,25 +1,31 @@
 import { createApi } from "unsplash-js";
 import env from "@packages/env";
 
-// Infer type from the factory function
 type UnsplashClient = ReturnType<typeof createApi>;
 
-let unsplashInstance: UnsplashClient | undefined;
+declare global {
+  // eslint-disable-next-line no-var
+  var __unsplashClient: UnsplashClient | undefined;
+}
 
-const createClient = (): UnsplashClient => {
+function createClient(): UnsplashClient {
   if (!env.UNSPLASH_ACCESS_KEY) {
     console.warn(
       "UNSPLASH_ACCESS_KEY is not set. Unsplash client created, but API calls will fail.",
     );
   }
-  console.log("Creating Unsplash API client...");
-  return createApi({
-    accessKey: env.UNSPLASH_ACCESS_KEY,
-  });
-};
-
-if (!unsplashInstance) {
-  unsplashInstance = createClient();
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Creating Unsplash API client...");
+  }
+  return createApi({ accessKey: env.UNSPLASH_ACCESS_KEY });
 }
 
-export const unsplash = unsplashInstance;
+export function getUnsplash(): UnsplashClient {
+  if (!globalThis.__unsplashClient) {
+    globalThis.__unsplashClient = createClient();
+  }
+  return globalThis.__unsplashClient;
+}
+
+// Back-compat default export for existing imports
+export const unsplash = getUnsplash();

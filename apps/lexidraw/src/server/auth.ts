@@ -21,6 +21,22 @@ type LlmConfig = {
   autocomplete?: LlmBaseConfig;
 };
 
+type TtsConfig = {
+  provider?: "openai" | "google";
+  voiceId?: string;
+  speed?: number;
+  format?: "mp3" | "ogg" | "wav";
+  languageCode?: string;
+  sampleRate?: number;
+};
+
+type ArticleConfig = {
+  languageCode?: string;
+  maxChars?: number;
+  keepQuotes?: boolean;
+  autoGenerateAudioOnImport?: boolean;
+};
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
@@ -28,6 +44,9 @@ declare module "next-auth" {
       // Update the config type here
       config?: {
         llm?: Partial<LlmConfig>; // Use the defined LlmConfig type, make it partial
+        audio?: { preferredPlaybackRate?: number };
+        tts?: Partial<TtsConfig>;
+        articles?: Partial<ArticleConfig>;
       };
     } & DefaultSession["user"];
   }

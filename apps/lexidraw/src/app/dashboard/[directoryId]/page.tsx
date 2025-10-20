@@ -13,6 +13,8 @@ const SearchParams = z.object({
   sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   tags: z.string().optional(),
+  includeArchived: z.coerce.boolean().optional().default(false),
+  onlyFavorites: z.coerce.boolean().optional().default(false),
 });
 
 type SearchParams = z.infer<typeof SearchParams>;
@@ -34,6 +36,8 @@ export default async function DashboardPage({ params, searchParams }: Props) {
     sortOrder,
     flex,
     tags,
+    includeArchived,
+    onlyFavorites,
   } = SearchParams.parse(queryParams);
 
   if (isNew) {
@@ -57,6 +61,8 @@ export default async function DashboardPage({ params, searchParams }: Props) {
       sortOrder={sortOrder}
       flex={flex}
       tags={tags}
+      includeArchived={includeArchived}
+      onlyFavorites={onlyFavorites}
     />
   );
 }

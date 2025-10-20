@@ -2,7 +2,7 @@ type Props = {
   pathname: string;
   prevParams: URLSearchParams;
   key: string;
-  value: string;
+  value?: string | null;
 };
 
 export const replaceSearchParam = ({
@@ -12,6 +12,11 @@ export const replaceSearchParam = ({
   value,
 }: Props) => {
   const newParams = new URLSearchParams(prevParams);
-  newParams.set(key, value);
-  return `${pathname}?${newParams.toString()}`;
+  if (value == null || value === "") {
+    newParams.delete(key);
+  } else {
+    newParams.set(key, value);
+  }
+  const qs = newParams.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
 };
