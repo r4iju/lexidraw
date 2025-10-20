@@ -15,14 +15,15 @@ import {
   inArray,
 } from "@packages/drizzle";
 import type { AppState } from "@excalidraw/excalidraw/types";
-import env from "@packages/env";
 import { v4 as uuidV4 } from "uuid";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
+import env from "@packages/env";
 import { put } from "@vercel/blob";
 import {
   generateClientTokenFromReadWriteToken,
   type GenerateClientTokenOptions,
 } from "@vercel/blob/client";
+import { headers } from "next/headers";
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -1312,10 +1313,70 @@ export const entityRouter = createTRPCRouter({
       );
       if (cookieForHost?.value) cookiesHeader = cookieForHost.value;
 
-      const distilled = await extractAndSanitizeArticle({
+      let distilled = await extractAndSanitizeArticle({
         url,
         cookiesHeader,
       });
+
+      // Headless fallback when content is too short
+      const tooShort =
+        (distilled.contentHtml?.length ?? 0) < 200 ||
+        (distilled.wordCount ?? 0) < 50;
+      const headlessEnabled = !!env.HEADLESS_RENDER_ENABLED;
+      const endpoint = `http${(await headers()).get("x-forwarded-proto") === "https" ? "s" : ""}://${(await headers()).get("host")}/api/render-html`;
+      console.log({ headlessEnabled, tooShort, endpoint });
+      if (headlessEnabled && tooShort) {
+        try {
+          if (env.NODE_ENV !== "production") {
+            console.log("headless:fetch", { endpoint, url });
+          }
+          const controller = AbortSignal.timeout(15000);
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              url,
+              cookiesHeader,
+              waitUntil: "domcontentloaded",
+              timeoutMs: 15000,
+            }),
+            signal: controller,
+          });
+          if (res.ok) {
+            const ct = res.headers.get("content-type") || "";
+            if (ct.includes("application/json")) {
+              const json = (await res.json()) as { html?: string };
+              if (json?.html) {
+                const rendered = await extractAndSanitizeArticle({
+                  url,
+                  html: json.html,
+                  cookiesHeader,
+                });
+                const improved =
+                  (rendered.contentHtml?.length ?? 0) >
+                    (distilled.contentHtml?.length ?? 0) ||
+                  (rendered.wordCount ?? 0) > (distilled.wordCount ?? 0);
+                if (improved) {
+                  distilled = rendered;
+                  if (process.env.NODE_ENV !== "production") {
+                    console.log("headless:used", {
+                      words: rendered.wordCount,
+                      chars: rendered.contentHtml.length,
+                    });
+                  }
+                }
+              }
+            } else {
+              const snippet = (await res.text()).slice(0, 200);
+              console.warn("headless:non_json", { ct, snippet });
+            }
+          } else if (process.env.NODE_ENV !== "production") {
+            console.warn("headless:failed", res.status);
+          }
+        } catch (e) {
+          console.warn("headless:error", e);
+        }
+      }
 
       // 4) Upload best image to Blob (if any) and set screenshot columns
       let screenShotLight: string | undefined;

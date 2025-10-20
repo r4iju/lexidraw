@@ -101,6 +101,7 @@ const config = {
       },
     ],
   },
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
 } satisfies NextConfig;
 
 export default withBundleAnalyzer(config);

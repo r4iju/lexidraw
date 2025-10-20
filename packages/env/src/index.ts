@@ -60,6 +60,10 @@ const env = createEnv({
     TTS_PRICE_OPENAI_PER_MILLION_CHARS: z.string().optional(),
     TTS_PRICE_GOOGLE_PER_MILLION_CHARS: z.string().optional(),
     TTS_MAX_ESTIMATED_COST_USD: z.string().optional(),
+    HEADLESS_RENDER_ENABLED: z
+      .preprocess((val) => val === "true", z.boolean())
+      .optional(),
+    HEADLESS_RENDER_URL: z.string().url().optional(),
   },
   client: {
     NEXT_PUBLIC_UNSPLASH_APP_NAME: z.string().min(1),
@@ -118,6 +122,8 @@ const env = createEnv({
     TTS_PRICE_GOOGLE_PER_MILLION_CHARS:
       process.env.TTS_PRICE_GOOGLE_PER_MILLION_CHARS,
     TTS_MAX_ESTIMATED_COST_USD: process.env.TTS_MAX_ESTIMATED_COST_USD,
+    HEADLESS_RENDER_ENABLED: process.env.HEADLESS_RENDER_ENABLED,
+    HEADLESS_RENDER_URL: process.env.HEADLESS_RENDER_URL,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
