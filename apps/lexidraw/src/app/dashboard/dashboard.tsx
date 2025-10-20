@@ -7,7 +7,7 @@ import { NewEntity } from "./_actions/new-entity";
 import { Drag } from "./drag";
 import { Drop } from "./drop";
 import { SortMenu } from "./sort-menu";
-import { LayoutGrid, Rows3 } from "lucide-react";
+import { Archive, Heart, LayoutGrid, Rows3 } from "lucide-react";
 import { DraggingContext } from "./dnd-context";
 import { EntityCard } from "./entity-card";
 import { replaceSearchParam } from "./utils";
@@ -112,7 +112,7 @@ export async function Dashboard({
               <div className="flex gap-1">
                 <Button
                   variant={onlyFavorites ? "secondary" : "outline"}
-                  size="sm"
+                  size="icon"
                   asChild
                 >
                   <Link
@@ -123,12 +123,13 @@ export async function Dashboard({
                       value: onlyFavorites ? null : "true",
                     })}
                   >
-                    Favorites
+                    <Heart className="md:hidden" />
+                    <span className="hidden md:block">Favorites</span>
                   </Link>
                 </Button>
                 <Button
                   variant={includeArchived ? "secondary" : "outline"}
-                  size="sm"
+                  size="icon"
                   asChild
                 >
                   <Link
@@ -139,7 +140,8 @@ export async function Dashboard({
                       value: includeArchived ? null : "true",
                     })}
                   >
-                    Archived
+                    <Archive className="md:hidden" />
+                    <span className="hidden md:block">Archived</span>
                   </Link>
                 </Button>
               </div>

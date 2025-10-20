@@ -1339,6 +1339,7 @@ export const entityRouter = createTRPCRouter({
             const blob = await put(key, buffer, {
               access: "public",
               contentType,
+              allowOverwrite: true,
             });
             screenShotLight = blob.url;
             screenShotDark = blob.url;
