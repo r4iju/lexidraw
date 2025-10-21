@@ -5,11 +5,5 @@
       "path": "/api/crons/bucket-cleanup",
       "schedule": "50 * * * *"
     }
-  ],
-  "functions": {
-    "api/render-html/**": {
-      "memory": 3008,
-      "maxDuration": 60
-    }
-  }
+  ]
 }
