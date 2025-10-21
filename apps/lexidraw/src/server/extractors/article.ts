@@ -311,12 +311,22 @@ export async function extractAndSanitizeArticle({
     const user = env.NORDVPN_SERVICE_USER;
     const pass = env.NORDVPN_SERVICE_PASS;
     if (user && pass) {
-      const urls = (
-        await getNordHttpsProxyUrls({ user, pass, limit: 50 })
-      ).slice(0, 20);
+      const urls = await getNordHttpsProxyUrls({ user, pass, limit: 50 });
+      // Use up to 10 hosts and for each try https and http schemes (20 total)
+      const pairUrls: string[] = [];
+      for (const u of urls) {
+        if (pairUrls.length >= 20) break;
+        pairUrls.push(u);
+        if (u.startsWith("https://")) {
+          pairUrls.push("http://" + u.slice("https://".length));
+        } else if (u.startsWith("http://")) {
+          pairUrls.push(u);
+        }
+      }
+      const limited = pairUrls.slice(0, 20);
       attemptDispatchers = [
         { label: "direct", dispatcher: undefined },
-        ...urls.map((proxyUrl) => ({
+        ...limited.map((proxyUrl) => ({
           label: `proxy:${proxyUrl}`,
           dispatcher: new ProxyAgent(proxyUrl),
         })),
@@ -346,8 +356,58 @@ export async function extractAndSanitizeArticle({
       return undiciFetch(input, { ...init, dispatcher } as any);
     };
 
+    const isProxy = Boolean(dispatcher);
+    const buildBrowserHeaders = (targetUrl: string): Record<string, string> => {
+      const { origin } = new URL(targetUrl);
+      return {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        "accept-encoding": "gzip, deflate, br",
+        "sec-ch-ua": '\"Chromium\";v=\"124\", \"Not.A/Brand\";v=\"24\"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "none",
+        "sec-fetch-user": "?1",
+        referer: origin,
+        "upgrade-insecure-requests": "1",
+        connection: "keep-alive",
+      };
+    };
+
     let finalHtml = html;
     if (!finalHtml) {
+      // Probe proxy reachability with a fast 204 endpoint to avoid slow dead proxies
+      if (isProxy) {
+        try {
+          const controller = AbortSignal.timeout(
+            Math.max(1500, Math.min(4000, Math.floor(timeoutMs / 4))),
+          );
+          const probeRes = await performFetch(
+            "https://www.gstatic.com/generate_204",
+            {
+              method: "GET",
+              headers: buildBrowserHeaders(
+                "https://www.gstatic.com/generate_204",
+              ),
+              redirect: "manual",
+              signal: controller,
+            } as any,
+          );
+          if (!(probeRes.ok || probeRes.status === 204)) {
+            throw new Error(`PROXY_PROBE_STATUS_${probeRes.status}`);
+          }
+        } catch (e) {
+          throw new Error(
+            `PROXY_DEAD ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
+
       devLog("fetch:start", {
         url: loggableUrl,
         withCookies: Boolean(cookiesHeader),
@@ -373,10 +433,12 @@ export async function extractAndSanitizeArticle({
         return { status: res.status, text };
       };
 
-      // Primary attempt: modest UA
-      let primary = await fetchOnce({
-        "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)",
-      });
+      // Primary attempt: browser-like headers if using a proxy; modest UA if direct
+      let primary = await fetchOnce(
+        isProxy
+          ? buildBrowserHeaders(url)
+          : { "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)" },
+      );
 
       // Retry once on 429/5xx
       if (primary.status === 429 || primary.status >= 500) {
