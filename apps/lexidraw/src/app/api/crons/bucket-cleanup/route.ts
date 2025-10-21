@@ -4,7 +4,7 @@ import { drizzle, schema, sql } from "@packages/drizzle"; // Removed unused coun
 import type { ServerRuntime } from "next";
 import { canRunCron } from "../cron-middleware";
 
-export const maxDuration = 600; // 10 minutes
+export const maxDuration = 300;
 export const runtime: ServerRuntime = "edge";
 export const dynamic = "force-dynamic";
 

@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import type { Browser, LaunchOptions } from "puppeteer-core";
 // Avoid importing external types that may not resolve at type time in serverless envs
 // Define minimal interfaces used below
@@ -65,11 +66,13 @@ export async function POST(req: NextRequest) {
           headless?: boolean;
         };
         const puppeteer = await import("puppeteer-core");
-        // Ensure the dynamic linker can find Chromium's bundled NSS libraries on Vercel
+        // Ensure the dynamic linker can find Chromium's bundled NSS libraries on Vercel (Fluid Compute)
         try {
           const execPath = await chromium.executablePath();
+          const baseDir = path.dirname(execPath);
           const libDirCandidates = [
-            path.join(path.dirname(execPath), "lib"),
+            path.join(baseDir, "lib"),
+            "/var/task/node_modules/@sparticuz/chromium/lib",
             path.join(
               process.cwd(),
               "node_modules",
@@ -78,8 +81,26 @@ export async function POST(req: NextRequest) {
               "lib",
             ),
           ];
+          const tmpLibDir = "/tmp/chromium-libs";
+          try {
+            await fs.mkdir(tmpLibDir, { recursive: true });
+          } catch {}
+          for (const dir of libDirCandidates) {
+            try {
+              const entries = await fs.readdir(dir);
+              for (const name of entries) {
+                if (!name.startsWith("lib")) continue;
+                if (!(name.endsWith(".so") || name.includes(".so."))) continue;
+                const src = path.join(dir, name);
+                const dst = path.join(tmpLibDir, name);
+                try {
+                  await fs.copyFile(src, dst);
+                } catch {}
+              }
+            } catch {}
+          }
           const existingLd = process.env.LD_LIBRARY_PATH || "";
-          const mergedLd = libDirCandidates.join(":");
+          const mergedLd = [tmpLibDir, ...libDirCandidates].join(":");
           process.env.LD_LIBRARY_PATH = existingLd
             ? `${mergedLd}:${existingLd}`
             : mergedLd;
