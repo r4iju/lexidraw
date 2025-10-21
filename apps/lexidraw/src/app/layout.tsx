@@ -11,7 +11,7 @@ import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/sonner";
 import Script from "next/script";
 import env from "@packages/env";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import LayoutListener from "./layout-listener";
 
 const fredoka = Fredoka({
@@ -22,13 +22,14 @@ const fredoka = Fredoka({
 export const metadata = {
   title: "Lexidraw",
   description: "An Excalidraw demo app",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    interactiveWidget: "resizes-content",
-    userScalable: true,
-  },
 } satisfies Metadata;
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+  userScalable: true,
+};
 
 type Props = {
   children: React.ReactNode;

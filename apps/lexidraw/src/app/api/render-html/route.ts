@@ -8,6 +8,7 @@ import type { Browser, LaunchOptions } from "puppeteer-core";
 type WaitUntil = "load" | "domcontentloaded" | "networkidle0" | "networkidle2";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 function isHttpUrl(u: string): boolean {
   try {
