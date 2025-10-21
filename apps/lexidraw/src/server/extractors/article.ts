@@ -300,6 +300,8 @@ export async function extractAndSanitizeArticle({
   if (isPrivateHostname(hostname)) {
     throw new Error("Private hostnames are not allowed");
   }
+  // replace username and password with *
+  const loggableUrl = url.replace(/https?:\/\/[^/]+@/, "https://***@");
 
   // Build dispatcher attempts: 1 direct + up to 20 Nord HTTPS proxies
   let attemptDispatchers: Array<{ label: string; dispatcher?: unknown }> = [
@@ -346,7 +348,10 @@ export async function extractAndSanitizeArticle({
 
     let finalHtml = html;
     if (!finalHtml) {
-      devLog("fetch:start", { url, withCookies: Boolean(cookiesHeader) });
+      devLog("fetch:start", {
+        url: loggableUrl,
+        withCookies: Boolean(cookiesHeader),
+      });
       const fetchOnce = async (
         customHeaders: Record<string, string>,
       ): Promise<{ status: number; text: string }> => {
@@ -858,8 +863,9 @@ export async function extractAndSanitizeArticle({
 
   // Try direct + randomized proxies until quality threshold is met
   for (const { label, dispatcher } of attemptDispatchers) {
+    const loggableLabel = label.replace(/https?:\/\/[^/]+@/, "https://***@");
     try {
-      devLog("attempt", { transport: label });
+      devLog("attempt", { transport: loggableLabel });
       const { distilled, qualityWords, qualityChars } =
         await runAttempt(dispatcher);
       const isGood = (qualityWords ?? 0) >= 50 && (qualityChars ?? 0) >= 200;
@@ -875,7 +881,7 @@ export async function extractAndSanitizeArticle({
     } catch (e) {
       lastError = e;
       devLog("attempt:error", {
-        transport: label,
+        transport: loggableLabel,
         error: e instanceof Error ? e.message : String(e),
       });
       continue;
