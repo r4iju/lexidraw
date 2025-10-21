@@ -4,6 +4,8 @@ import { JSDOM } from "jsdom";
 import sanitizeHtml, { type IOptions } from "sanitize-html";
 import { Readability } from "@mozilla/readability";
 import { z } from "zod";
+import env from "@packages/env";
+import { ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 
 type DistilledImage = {
   src: string;
@@ -298,115 +300,152 @@ export async function extractAndSanitizeArticle({
     throw new Error("Private hostnames are not allowed");
   }
 
-  let finalHtml = html;
-  if (!finalHtml) {
-    devLog("fetch:start", { url, withCookies: Boolean(cookiesHeader) });
-    const fetchOnce = async (
-      customHeaders: Record<string, string>,
-    ): Promise<{ status: number; text: string }> => {
-      const controller = AbortSignal.timeout(timeoutMs);
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-          "accept-language": "en-US,en;q=0.9",
-          ...customHeaders,
-          ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
-        },
-        redirect: "follow",
-        signal: controller,
-      });
-      const text = await res.text();
-      devLog("fetch:done", { status: res.status, length: text.length });
-      return { status: res.status, text };
+  // Helper to parse and randomize proxy URLs from env
+  const parseProxyUrls = (): string[] => {
+    const raw = env.NORDVPN_PROXY_URLS?.trim();
+    if (!raw) return [];
+    const parts = raw
+      .split(/[\s,\n;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    // Only http(s) proxies are supported here
+    return parts.filter((p) => /^https?:\/\//i.test(p));
+  };
+
+  const proxies = parseProxyUrls();
+  // Randomize order
+  for (let i = proxies.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [proxies[i], proxies[j]] = [proxies[j]!, proxies[i]!];
+  }
+  const maxProxyAttempts = Math.max(0, Math.min(10, env.NORDVPN_PROXY_MAX_RETRIES ?? 4));
+  const attemptDispatchers: Array<{ label: string; dispatcher?: Dispatcher }>= [
+    { label: "direct", dispatcher: undefined },
+    ...proxies.slice(0, maxProxyAttempts).map((proxyUrl) => ({
+      label: `proxy:${proxyUrl}`,
+      dispatcher: new ProxyAgent(proxyUrl),
+    })),
+  ];
+
+  type AttemptResult = { distilled: DistilledArticle; qualityWords: number; qualityChars: number };
+  let best: AttemptResult | null = null;
+  let lastError: unknown = null;
+
+  const runAttempt = async (dispatcher: Dispatcher | undefined): Promise<AttemptResult> => {
+    const performFetch = (input: string, init: RequestInit & { dispatcher?: Dispatcher } = {} as any) => {
+      // use undici's fetch with dispatcher for proxy support
+      return undiciFetch(input, { ...init, dispatcher });
     };
 
-    // Primary attempt: modest UA
-    let primary = await fetchOnce({
-      "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)",
-    });
+    let finalHtml = html;
+    if (!finalHtml) {
+      devLog("fetch:start", { url, withCookies: Boolean(cookiesHeader) });
+      const fetchOnce = async (
+        customHeaders: Record<string, string>,
+      ): Promise<{ status: number; text: string }> => {
+        const controller = AbortSignal.timeout(timeoutMs);
+        const res = await performFetch(url, {
+          method: "GET",
+          headers: {
+            accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "accept-language": "en-US,en;q=0.9",
+            ...customHeaders,
+            ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
+          },
+          redirect: "follow",
+          signal: controller,
+        } as any);
+        const text = await res.text();
+        devLog("fetch:done", { status: res.status, length: text.length });
+        return { status: res.status, text };
+      };
 
-    // Retry once on 429/5xx
-    if (primary.status === 429 || primary.status >= 500) {
-      await new Promise((r) => setTimeout(r, 500));
-      primary = await fetchOnce({
+      // Primary attempt: modest UA
+      let primary = await fetchOnce({
         "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)",
       });
-    }
 
-    // If 403, try with a common browser UA and reduced accept header
-    if (primary.status === 403) {
-      const secondary = await fetchOnce({
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-        accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      });
+      // Retry once on 429/5xx
+      if (primary.status === 429 || primary.status >= 500) {
+        await new Promise((r) => setTimeout(r, 500));
+        primary = await fetchOnce({
+          "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.app)",
+        });
+      }
 
-      // If still 403, try AMP/mobile alternate if present in 403 body
-      if (secondary.status === 403) {
-        try {
-          const doc403 = new JSDOM(primary.text).window.document;
-          const altHref =
-            doc403.querySelector("link[rel='amphtml']")?.getAttribute("href") ||
-            doc403
-              .querySelector("link[rel='alternate'][media]")
-              ?.getAttribute("href");
-          if (altHref) {
-            const ampUrl = absolutizeUrl(url, altHref);
-            const controller = AbortSignal.timeout(timeoutMs);
-            const altRes = await fetch(ampUrl, {
-              headers: {
-                "user-agent":
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-                "accept-language": "en-US,en;q=0.9",
-                ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
-              },
-              signal: controller,
-            });
-            if (altRes.ok) {
-              primary = { status: 200, text: await altRes.text() };
+      // If 403, try with a common browser UA and reduced accept header
+      if (primary.status === 403) {
+        const secondary = await fetchOnce({
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+          accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        });
+
+        // If still 403, try AMP/mobile alternate if present in 403 body
+        if (secondary.status === 403) {
+          try {
+            const doc403 = new JSDOM(primary.text).window.document;
+            const altHref =
+              doc403.querySelector("link[rel='amphtml']")?.getAttribute("href") ||
+              doc403
+                .querySelector("link[rel='alternate'][media]")
+                ?.getAttribute("href");
+            if (altHref) {
+              const ampUrl = absolutizeUrl(url, altHref);
+              const controller = AbortSignal.timeout(timeoutMs);
+              const altRes = await performFetch(ampUrl, {
+                headers: {
+                  "user-agent":
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                  "accept-language": "en-US,en;q=0.9",
+                  ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
+                },
+                signal: controller,
+              } as any);
+              if (altRes.ok) {
+                primary = { status: 200, text: await altRes.text() };
+              } else {
+                throw new Error(`AMP_FALLBACK_MISS ${altRes.status}`);
+              }
             } else {
-              throw new Error(`AMP_FALLBACK_MISS ${altRes.status}`);
+              throw new Error("AMP_FALLBACK_MISS");
             }
-          } else {
-            throw new Error("AMP_FALLBACK_MISS");
+          } catch (e) {
+            throw new Error(
+              `FETCH_403_SECONDARY: Failed to fetch URL (403). ${
+                e instanceof Error ? e.message : String(e)
+              }`,
+            );
           }
-        } catch (e) {
-          throw new Error(
-            `FETCH_403_SECONDARY: Failed to fetch URL (403). ${
-              e instanceof Error ? e.message : String(e)
-            }`,
-          );
+        }
+
+        if (primary.status !== 200) {
+          // Either secondary succeeded and set primary to 200, or throw
+          if (secondary && secondary.status === 200) {
+            // do nothing; handled above
+          } else if (primary.status === 403) {
+            throw new Error("FETCH_403_PRIMARY: Failed to fetch URL (403)");
+          }
         }
       }
 
       if (primary.status !== 200) {
-        // Either secondary succeeded and set primary to 200, or throw
-        if (secondary && secondary.status === 200) {
-          // do nothing; handled above
-        } else if (primary.status === 403) {
-          throw new Error("FETCH_403_PRIMARY: Failed to fetch URL (403)");
-        }
+        throw new Error(`Failed to fetch URL (${primary.status})`);
       }
+
+      // Size guard after we have the text: enforce maxBytes by length
+      const encoder = new TextEncoder();
+      const bytes = encoder.encode(primary.text);
+      if (bytes.byteLength > maxBytes) {
+        throw new Error("Response too large");
+      }
+      finalHtml = primary.text;
+      devLog("fetch:primary_ok", { chars: finalHtml.length });
     }
 
-    if (primary.status !== 200) {
-      throw new Error(`Failed to fetch URL (${primary.status})`);
-    }
-
-    // Size guard after we have the text: enforce maxBytes by length
-    const encoder = new TextEncoder();
-    const bytes = encoder.encode(primary.text);
-    if (bytes.byteLength > maxBytes) {
-      throw new Error("Response too large");
-    }
-    finalHtml = primary.text;
-    devLog("fetch:primary_ok", { chars: finalHtml.length });
-  }
-
-  const dom = new JSDOM(finalHtml, { url });
+    const dom = new JSDOM(finalHtml, { url });
   const doc = dom.window.document;
   const reader = new Readability(doc);
   const article = reader.parse();
@@ -457,7 +496,7 @@ export async function extractAndSanitizeArticle({
       if (altHref) {
         const ampUrl = absolutizeUrl(url, altHref);
         const controller = AbortSignal.timeout(timeoutMs);
-        const altRes = await fetch(ampUrl, {
+        const altRes = await performFetch(ampUrl, {
           headers: {
             "user-agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -554,7 +593,7 @@ export async function extractAndSanitizeArticle({
       });
       if (canonicalUrl && canonicalUrl !== url) {
         const controller = AbortSignal.timeout(timeoutMs);
-        const canRes = await fetch(canonicalUrl, {
+        const canRes = await performFetch(canonicalUrl, {
           headers: {
             "user-agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -681,7 +720,7 @@ export async function extractAndSanitizeArticle({
             continue; // avoid fetching arbitrary third-party frames
           }
           const controller = AbortSignal.timeout(timeoutMs);
-          const frRes = await fetch(abs, {
+          const frRes = await performFetch(abs, {
             headers: {
               "user-agent":
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -777,7 +816,7 @@ export async function extractAndSanitizeArticle({
     bestImageUrl,
   });
 
-  const result: DistilledArticle = {
+    const result: DistilledArticle = {
     status: "ready",
     title,
     byline,
@@ -790,11 +829,36 @@ export async function extractAndSanitizeArticle({
     datePublished,
     bestImageUrl,
     updatedAt: new Date().toISOString(),
+    };
+    devLog("result", {
+      title,
+      words: wordCount,
+      chars: selectedContentHtml.length,
+    });
+    return { distilled: result, qualityWords: wordCount || 0, qualityChars: selectedContentHtml.length };
   };
-  devLog("result", {
-    title,
-    words: wordCount,
-    chars: selectedContentHtml.length,
-  });
-  return result;
+
+  // Try direct + randomized proxies until quality threshold is met
+  for (const { label, dispatcher } of attemptDispatchers) {
+    try {
+      devLog("attempt", { transport: label });
+      const { distilled, qualityWords, qualityChars } = await runAttempt(dispatcher);
+      const isGood = (qualityWords ?? 0) >= 50 && (qualityChars ?? 0) >= 200;
+      if (!best || qualityWords > best.qualityWords || qualityChars > best.qualityChars) {
+        best = { distilled, qualityWords, qualityChars };
+      }
+      if (isGood) return distilled;
+      // otherwise continue to next proxy
+    } catch (e) {
+      lastError = e;
+      devLog("attempt:error", { transport: label, error: e instanceof Error ? e.message : String(e) });
+      continue;
+    }
+  }
+
+  if (best) {
+    return best.distilled;
+  }
+  // All attempts failed
+  throw lastError instanceof Error ? lastError : new Error("Failed to distill article: all attempts failed");
 }
