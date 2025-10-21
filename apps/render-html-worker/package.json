@@ -1,0 +1,28 @@
+{
+  "name": "@apps/render-html-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 4025",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 4025",
+    "test:ts": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^15.5.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "puppeteer-core": "^24.25.0",
+    "@sparticuz/chromium": "^129.0.0",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.19",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5"
+  }
+}

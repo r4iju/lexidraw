@@ -1323,7 +1323,15 @@ export const entityRouter = createTRPCRouter({
         (distilled.contentHtml?.length ?? 0) < 200 ||
         (distilled.wordCount ?? 0) < 50;
       const headlessEnabled = !!env.HEADLESS_RENDER_ENABLED;
-      const endpoint = `http${(await headers()).get("x-forwarded-proto") === "https" ? "s" : ""}://${(await headers()).get("host")}/api/render-html`;
+      let endpoint: string;
+      if (env.HEADLESS_RENDER_URL) {
+        const base = env.HEADLESS_RENDER_URL.replace(/\/+$/, "");
+        endpoint = base.endsWith("/api/render-html")
+          ? base
+          : `${base}/api/render-html`;
+      } else {
+        endpoint = `http${(await headers()).get("x-forwarded-proto") === "https" ? "s" : ""}://${(await headers()).get("host")}/api/render-html`;
+      }
       console.log({ headlessEnabled, tooShort, endpoint });
       if (headlessEnabled && tooShort) {
         try {
