@@ -37,19 +37,17 @@ export async function POST(req: NextRequest) {
 
   try {
     // Precompute job id + manifest url; if already exists, return immediately
-    if (process.env.TTS_DEBUG === "true") {
-      console.log("[tts][route] incoming", {
-        hasUrl: !!body.url,
-        textLen: typeof body.text === "string" ? body.text.length : undefined,
-        provider: resolved.provider,
-        voiceId: resolved.voiceId,
-        speed: resolved.speed,
-        format: resolved.format,
-        languageCode: resolved.languageCode,
-        hasUserGoogleKey: !!userKeys.googleApiKey,
-        hasUserOpenaiKey: !!userKeys.openaiApiKey,
-      });
-    }
+    console.log("[tts][route] incoming", {
+      hasUrl: !!body.url,
+      textLen: typeof body.text === "string" ? body.text.length : undefined,
+      provider: resolved.provider,
+      voiceId: resolved.voiceId,
+      speed: resolved.speed,
+      format: resolved.format,
+      languageCode: resolved.languageCode,
+      hasUserGoogleKey: !!userKeys.googleApiKey,
+      hasUserOpenaiKey: !!userKeys.openaiApiKey,
+    });
     const { id, manifestUrl } = precomputeTtsKey({
       ...body,
       provider: resolved.provider,
@@ -159,10 +157,7 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (e) {
-        if (process.env.TTS_DEBUG === "true") {
-          console.warn("[tts][route] background error", e);
-        }
-        // swallow background failures; client will keep polling manifest
+        console.warn("[tts][route] background error", e);
       }
     });
 
@@ -171,9 +166,7 @@ export async function POST(req: NextRequest) {
       { status: 202 },
     );
   } catch (err) {
-    if (process.env.TTS_DEBUG === "true") {
-      console.warn("[tts][route] immediate error", err);
-    }
+    console.warn("[tts][route] immediate error", err);
     const message = err instanceof Error ? err.message : "TTS error";
     return NextResponse.json({ error: message }, { status: 400 });
   }
