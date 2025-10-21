@@ -5,7 +5,7 @@ import { extractArticleFromUrl } from "~/lib/extract-article";
 import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -50,6 +50,17 @@ export async function POST(req: NextRequest) {
   } as const;
 
   try {
+    if (process.env.TTS_DEBUG === "true") {
+      console.log("[tts][route:document] incoming", {
+        hasUrl: !!body.url,
+        textLen: typeof body.text === "string" ? body.text.length : undefined,
+        provider: resolved.provider,
+        voiceId: resolved.voiceId,
+        speed: resolved.speed,
+        format: resolved.format,
+        languageCode: resolved.languageCode,
+      });
+    }
     const { id, manifestUrl } = precomputeTtsKey({
       url: body.url,
       text: body.text,
@@ -93,7 +104,10 @@ export async function POST(req: NextRequest) {
           titleHint: body.title,
           userKeys,
         });
-      } catch {
+      } catch (e) {
+        if (process.env.TTS_DEBUG === "true") {
+          console.warn("[tts][route:document] background error", e);
+        }
         // swallow background failures
       }
     });
@@ -102,6 +116,9 @@ export async function POST(req: NextRequest) {
       { status: 202 },
     );
   } catch (err) {
+    if (process.env.TTS_DEBUG === "true") {
+      console.warn("[tts][route:document] immediate error", err);
+    }
     const message = err instanceof Error ? err.message : "TTS error";
     return NextResponse.json({ error: message }, { status: 400 });
   }
