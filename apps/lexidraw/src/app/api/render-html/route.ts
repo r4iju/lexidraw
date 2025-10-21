@@ -63,9 +63,17 @@ export async function POST(req: NextRequest) {
           executablePath: (remotePackUrl: string) => Promise<string>;
         };
         const puppeteer = await import("puppeteer-core");
-        const vercelHost =
-          process.env.VERCEL_URL || req.headers.get("host") || "";
-        const CHROMIUM_PACK_URL = `https://${vercelHost}/chromium-pack.tar`;
+        const hostHeader =
+          req.headers.get("x-forwarded-host") ||
+          req.headers.get("host") ||
+          process.env.VERCEL_URL ||
+          "";
+        const proto = (req.headers.get("x-forwarded-proto") || "https").replace(
+          /:$/,
+          "",
+        );
+        const vercelHost = hostHeader.replace(/^https?:\/\//, "");
+        const CHROMIUM_PACK_URL = `${proto}://${vercelHost}/chromium-pack.tar`;
         const launchOptions: LaunchOptions = {
           headless: chromium.headless ?? true,
           args: chromium.args,
