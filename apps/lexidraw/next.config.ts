@@ -107,7 +107,7 @@ const config = {
       "node_modules/@sparticuz/chromium/lib/**",
     ],
   },
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  serverExternalPackages: ["@sparticuz/chromium-min", "puppeteer-core"],
 } satisfies NextConfig;
 
 export default withBundleAnalyzer(config);
