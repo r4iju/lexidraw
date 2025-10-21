@@ -9,11 +9,7 @@
   "functions": {
     "api/render-html": {
       "memory": 3008,
-      "maxDuration": 300,
-      "includeFiles": [
-        "node_modules/@sparticuz/chromium/bin/**",
-        "node_modules/@sparticuz/chromium/lib/**"
-      ]
+      "maxDuration": 300
     }
   }
 }
