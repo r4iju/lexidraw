@@ -50,17 +50,15 @@ export async function POST(req: NextRequest) {
   } as const;
 
   try {
-    if (process.env.TTS_DEBUG === "true") {
-      console.log("[tts][route:document] incoming", {
-        hasUrl: !!body.url,
-        textLen: typeof body.text === "string" ? body.text.length : undefined,
-        provider: resolved.provider,
-        voiceId: resolved.voiceId,
-        speed: resolved.speed,
-        format: resolved.format,
-        languageCode: resolved.languageCode,
-      });
-    }
+    console.log("[tts][route:document] incoming", {
+      hasUrl: !!body.url,
+      textLen: typeof body.text === "string" ? body.text.length : undefined,
+      provider: resolved.provider,
+      voiceId: resolved.voiceId,
+      speed: resolved.speed,
+      format: resolved.format,
+      languageCode: resolved.languageCode,
+    });
     const { id, manifestUrl } = precomputeTtsKey({
       url: body.url,
       text: body.text,
@@ -105,10 +103,7 @@ export async function POST(req: NextRequest) {
           userKeys,
         });
       } catch (e) {
-        if (process.env.TTS_DEBUG === "true") {
-          console.warn("[tts][route:document] background error", e);
-        }
-        // swallow background failures
+        console.warn("[tts][route:document] background error", e);
       }
     });
     return NextResponse.json(
@@ -116,9 +111,7 @@ export async function POST(req: NextRequest) {
       { status: 202 },
     );
   } catch (err) {
-    if (process.env.TTS_DEBUG === "true") {
-      console.warn("[tts][route:document] immediate error", err);
-    }
+    console.warn("[tts][route:document] immediate error", err);
     const message = err instanceof Error ? err.message : "TTS error";
     return NextResponse.json({ error: message }, { status: 400 });
   }
