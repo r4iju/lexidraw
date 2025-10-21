@@ -101,13 +101,6 @@ const config = {
       },
     ],
   },
-  outputFileTracingIncludes: {
-    "/api/render-html": [
-      "node_modules/@sparticuz/chromium/bin/**",
-      "node_modules/@sparticuz/chromium/lib/**",
-    ],
-  },
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
 } satisfies NextConfig;
 
 export default withBundleAnalyzer(config);

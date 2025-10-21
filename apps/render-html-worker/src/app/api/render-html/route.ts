@@ -51,29 +51,46 @@ export async function POST(req: NextRequest) {
 
     let browser: Browser;
     try {
-      // Ensure @sparticuz/chromium inflates libs for AL2023
-      process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
-      process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
-      process.env.FONTCONFIG_PATH ??= "/tmp/fonts";
-      const prevLd = process.env.LD_LIBRARY_PATH || "";
-      process.env.LD_LIBRARY_PATH = ["/tmp/al2023/lib", "/tmp/al2/lib", prevLd]
-        .filter(Boolean)
-        .join(":");
+      const isProdVercel =
+        process.env.VERCEL === "1" && process.env.NODE_ENV === "production";
+      if (isProdVercel) {
+        // Ensure @sparticuz/chromium inflates libs for AL2023
+        process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
+        process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
+        process.env.FONTCONFIG_PATH ??= "/tmp/fonts";
+        const prevLd = process.env.LD_LIBRARY_PATH || "";
+        process.env.LD_LIBRARY_PATH = [
+          "/tmp/al2023/lib",
+          "/tmp/al2/lib",
+          prevLd,
+        ]
+          .filter(Boolean)
+          .join(":");
 
-      const chromium = (await import("@sparticuz/chromium"))
-        .default as unknown as {
-        args: string[];
-        headless?: boolean;
-        executablePath: () => Promise<string>;
-      };
-      const puppeteer = await import("puppeteer-core");
-      const launchOptions: LaunchOptions = {
-        headless: chromium.headless ?? true,
-        args: chromium.args,
-        executablePath: await chromium.executablePath(),
-        defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-      };
-      browser = await puppeteer.launch(launchOptions);
+        const chromium = (await import("@sparticuz/chromium"))
+          .default as unknown as {
+          args: string[];
+          headless?: boolean;
+          executablePath: () => Promise<string>;
+        };
+        const puppeteer = await import("puppeteer-core");
+        const launchOptions: LaunchOptions = {
+          headless: chromium.headless ?? true,
+          args: chromium.args,
+          executablePath: await chromium.executablePath(),
+          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+        };
+        browser = await puppeteer.launch(launchOptions);
+      } else {
+        // Local dev / non-Vercel: use full Puppeteer (bundled Chromium) for host OS
+        const puppeteer = (await import("puppeteer")) as unknown as {
+          launch: (opts?: LaunchOptions) => Promise<Browser>;
+        };
+        browser = await puppeteer.launch({
+          headless: true,
+          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+        });
+      }
     } catch (e) {
       console.error("render-html:launch_error", e);
       return new NextResponse("Failed to launch browser", { status: 500 });
