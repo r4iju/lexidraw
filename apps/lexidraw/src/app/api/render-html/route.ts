@@ -53,38 +53,32 @@ export async function POST(req: NextRequest) {
 
     const isVercel = Boolean(process.env.VERCEL);
 
-    let chromium: {
-      args: string[];
-      executablePath: () => Promise<string>;
-    } | null = null;
-    if (isVercel) {
-      const mod = (await import("@sparticuz/chromium")) as unknown as {
-        default: { args: string[]; executablePath: () => Promise<string> };
-      };
-      chromium = mod.default;
-    }
-
-    const puppeteer = (await import("puppeteer-core")) as unknown as {
-      launch: (opts?: LaunchOptions) => Promise<Browser>;
-    };
-
-    const launchOptions: LaunchOptions = isVercel
-      ? {
-          headless: true,
-          args: chromium?.args ?? [],
-          executablePath: chromium
-            ? await chromium.executablePath()
-            : undefined,
-          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-        }
-      : {
-          headless: true,
-          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-        };
-
     let browser: Browser;
     try {
-      browser = await puppeteer.launch(launchOptions);
+      if (isVercel) {
+        const chromium = (await import("@sparticuz/chromium"))
+          .default as unknown as {
+          args: string[];
+          executablePath: () => Promise<string>;
+        };
+        const puppeteer = await import("puppeteer-core");
+        const launchOptions: LaunchOptions = {
+          headless: true,
+          args: chromium.args,
+          executablePath: await chromium.executablePath(),
+          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+        };
+        browser = await puppeteer.launch(launchOptions);
+      } else {
+        // Local dev: use full puppeteer which bundles a browser
+        const puppeteer = (await import("puppeteer")) as unknown as {
+          launch: (opts?: LaunchOptions) => Promise<Browser>;
+        };
+        browser = await puppeteer.launch({
+          headless: true,
+          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+        });
+      }
     } catch (e) {
       console.error("render-html:launch_error", e);
       return new NextResponse("Failed to launch browser", { status: 500 });
@@ -100,13 +94,106 @@ export async function POST(req: NextRequest) {
         ...(body?.cookiesHeader ? { cookie: body.cookiesHeader } : {}),
       });
       // Fail fast on dialogs
-      page.on("dialog", async (d: { dismiss: () => Promise<void> }) => {
+      page.on("dialog", async (d: any) => {
         try {
           await d.dismiss();
         } catch {}
       });
 
       await page.goto(url, { waitUntil, timeout: timeoutMs });
+
+      // Generic consent approver (toggleable via env, default true)
+      const autoConsent =
+        String(
+          process.env.HEADLESS_AUTO_CONSENT_ENABLED ?? "true",
+        ).toLowerCase() === "true";
+      if (autoConsent) {
+        try {
+          const clicked = await page.evaluate(async () => {
+            const attemptClick = (sel: string): boolean => {
+              const el = document.querySelector(sel) as HTMLElement | null;
+              if (!el) return false;
+              const rect = el.getBoundingClientRect();
+              const visible = rect.width > 0 && rect.height > 0;
+              if (!visible) return false;
+              try {
+                el.click();
+                return true;
+              } catch {
+                return false;
+              }
+            };
+            const selectors = [
+              "#onetrust-accept-btn-handler",
+              ".fc-cta-consent",
+              ".sp_choice_type_11",
+              "[data-testid*='consent'] button",
+              "button[aria-label*='consent']",
+            ];
+            for (const sel of selectors) {
+              if (attemptClick(sel)) return true;
+            }
+            // Fallback by button text
+            const btns = Array.from(
+              document.querySelectorAll("button"),
+            ) as HTMLButtonElement[];
+            const re = /\b(accept|agree|consent|godkänn|acceptera)\b/i;
+            for (const b of btns) {
+              const txt = (b.innerText || b.textContent || "").trim();
+              if (!txt) continue;
+              const rect = b.getBoundingClientRect();
+              const visible = rect.width > 0 && rect.height > 0;
+              if (!visible) continue;
+              if (re.test(txt)) {
+                try {
+                  b.click();
+                  return true;
+                } catch {}
+              }
+            }
+            return false;
+          });
+          if (process.env.NODE_ENV !== "production") {
+            console.log("consent:clicked", { clicked });
+          }
+        } catch {
+          // ignore failures
+        }
+      }
+
+      // Nudge lazy content and wait for article-like selectors
+      try {
+        await page.evaluate(async () => {
+          const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+          for (let i = 0; i < 3; i++) {
+            window.scrollBy(0, Math.floor(window.innerHeight * 0.5));
+            // @ts-ignore
+            await sleep(75);
+          }
+        });
+      } catch {}
+      try {
+        const start = Date.now();
+        const timeout = Math.min(8000, timeoutMs);
+        // Poll for content readiness
+        // eslint-disable-next-line no-constant-condition
+        while (Date.now() - start < timeout) {
+          const ready = await page.evaluate(() => {
+            const q = (sel: string) => document.querySelector(sel);
+            if (q("main article") || q("[role='main'] article") || q("article"))
+              return true;
+            const pCount = document.querySelectorAll("main p, body p").length;
+            return pCount >= 10;
+          });
+          if (ready) {
+            if (process.env.NODE_ENV !== "production") {
+              console.log("content:ready");
+            }
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      } catch {}
 
       // Cap size
       const html = await page.content();
