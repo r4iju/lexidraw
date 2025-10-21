@@ -79,7 +79,6 @@
         "@radix-ui/react-tooltip": "^1.2.6",
         "@radix-ui/react-visually-hidden": "^1.2.2",
         "@sparticuz/chromium": "^129.0.0",
-        "@sparticuz/chromium-min": "^129.0.0",
         "@tanstack/react-query": "^5.76.1",
         "@trpc/client": "11.1.0",
         "@trpc/next": "11.1.0",
@@ -1232,8 +1231,6 @@
     "@socket.io/component-emitter": ["@socket.io/component-emitter@3.1.2", "", {}, "sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA=="],
 
     "@sparticuz/chromium": ["@sparticuz/chromium@129.0.0", "", { "dependencies": { "follow-redirects": "^1.15.9", "tar-fs": "^3.0.6" } }, "sha512-39B1OTmq0VG7QvBWDeLG+LqBclmeYLPOpjsmzb1gcC0wJwPHvbccNKcUAUH3D07cop2VCwrqmyl3zUB138ho2w=="],
-
-    "@sparticuz/chromium-min": ["@sparticuz/chromium-min@129.0.0", "", { "dependencies": { "follow-redirects": "^1.15.9", "tar-fs": "^3.0.6" } }, "sha512-YrwL+8dCtlXmhLavD68/tdxcTAAwUFiCehR0+gbRpOQ1+j44MlwRmNoX9mZ7+S+2rSeD+veTdjSs6QL8Hdh08g=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.0.0", "", {}, "sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA=="],
 
