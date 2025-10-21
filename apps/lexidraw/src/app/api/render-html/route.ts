@@ -60,10 +60,11 @@ export async function POST(req: NextRequest) {
           .default as unknown as {
           args: string[];
           executablePath: () => Promise<string>;
+          headless?: boolean;
         };
         const puppeteer = await import("puppeteer-core");
         const launchOptions: LaunchOptions = {
-          headless: true,
+          headless: chromium.headless ?? true,
           args: chromium.args,
           executablePath: await chromium.executablePath(),
           defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },

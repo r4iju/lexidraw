@@ -2,6 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
     "ANALYZE",
+    "AWS_LAMBDA_JS_RUNTIME",
     "NEXT_PUBLIC_NODE_ENV",
     "NEXT_PUBLIC_WS_SERVER",
     "SHARED_KEY",
