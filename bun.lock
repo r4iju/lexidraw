@@ -171,6 +171,23 @@
         "typescript": "^5.8.3",
       },
     },
+    "apps/render-html-worker": {
+      "name": "@apps/render-html-worker",
+      "version": "1.0.0",
+      "dependencies": {
+        "@sparticuz/chromium": "^129.0.0",
+        "next": "^15.5.5",
+        "puppeteer-core": "^24.25.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+        "typescript": "^5.8.3",
+      },
+      "devDependencies": {
+        "@types/node": "^22.15.19",
+        "@types/react": "^19.1.4",
+        "@types/react-dom": "^19.1.5",
+      },
+    },
     "apps/signaling-server": {
       "name": "@apps/signaling-server",
       "version": "1.0.0",
@@ -265,6 +282,8 @@
     "@apps/lexidraw": ["@apps/lexidraw@workspace:apps/lexidraw"],
 
     "@apps/media-downloader": ["@apps/media-downloader@workspace:apps/media-downloader"],
+
+    "@apps/render-html-worker": ["@apps/render-html-worker@workspace:apps/render-html-worker"],
 
     "@apps/signaling-server": ["@apps/signaling-server@workspace:apps/signaling-server"],
 
