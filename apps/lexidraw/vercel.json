@@ -7,7 +7,7 @@
     }
   ],
   "functions": {
-    "api/render-html/*.ts": {
+    "app/api/render-html/*.ts": {
       "memory": 3008,
       "maxDuration": 300
     }
