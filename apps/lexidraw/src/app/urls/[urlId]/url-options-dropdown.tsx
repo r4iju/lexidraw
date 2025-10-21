@@ -15,9 +15,9 @@ import { useState } from "react";
 import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
 import DeleteEntityModal from "~/app/dashboard/_actions/delete-entity";
 import type { RouterOutputs } from "~/trpc/shared";
-import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import Link from "next/link";
+import { revalidateUrl } from "./actions";
 
 type Props = {
   className?: string;
@@ -33,12 +33,12 @@ export default function UrlOptionsDropdown({
   entity,
   onChangeUrl,
 }: Props) {
-  const router = useRouter();
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const { mutate: refresh, isPending } = api.entities.distillUrl.useMutation({
     onSuccess: async () => {
       toast.success("Refreshed article");
+      await revalidateUrl(entity.id);
     },
     onError: (error) => toast.error(error.message),
   });
