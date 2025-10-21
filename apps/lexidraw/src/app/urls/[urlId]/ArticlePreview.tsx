@@ -95,6 +95,9 @@ export default function ArticlePreview({
     languageCode: "en-US",
     sampleRate: undefined as number | undefined,
   });
+
+  // Additional UI filter: voice family (e.g., Chirp3-HD, Neural2, WaveNet)
+  const [voiceFamily, setVoiceFamily] = useState<string>("all");
   const ttsOptionsQuery = api.config.getTtsOptions.useQuery(
     { provider: ttsCfg.provider },
     { enabled: true, refetchOnMount: true, refetchOnWindowFocus: false },
@@ -131,13 +134,51 @@ export default function ArticlePreview({
     });
   }, [ttsOptionsQuery.data]);
 
+  // Helpers: parse family and render concise label
+  const parseVoiceFamily = useCallback(
+    (id: string): string => {
+      if (ttsCfg.provider === "openai") return "OpenAI";
+      const parts = id.split("-");
+      if (parts.length < 3) return "";
+      const family = parts.slice(2, parts.length - 1).join("-") || "";
+      if (/^Chirp3-HD$/i.test(family)) return "Chirp3-HD";
+      if (/^Chirp3$/i.test(family)) return "Chirp3";
+      if (/^Chirp2$/i.test(family)) return "Chirp2";
+      if (/^Chirp$/i.test(family)) return "Chirp";
+      if (/^Neural2$/i.test(family)) return "Neural2";
+      if (/^WaveNet$/i.test(family)) return "WaveNet";
+      if (/^Standard$/i.test(family)) return "Standard";
+      return family || "Other";
+    },
+    [ttsCfg.provider],
+  );
+
   // Filter voices by selected language for the voice dropdown
   const filteredVoices = useMemo(() => {
     const all = ttsOptionsQuery.data?.voices ?? [];
     const lang = ttsCfg.languageCode;
     if (!lang) return all;
-    return all.filter((v) => (v.languageCodes ?? []).includes(lang));
-  }, [ttsOptionsQuery.data?.voices, ttsCfg.languageCode]);
+    const byLang = all.filter((v) => (v.languageCodes ?? []).includes(lang));
+    if (voiceFamily === "all") return byLang;
+    return byLang.filter((v) => parseVoiceFamily(v.id) === voiceFamily);
+  }, [
+    ttsOptionsQuery.data?.voices,
+    ttsCfg.languageCode,
+    voiceFamily,
+    parseVoiceFamily,
+  ]);
+
+  // Derive available families from language-filtered voices
+  const availableFamilies = useMemo(() => {
+    const all = ttsOptionsQuery.data?.voices ?? [];
+    const lang = ttsCfg.languageCode;
+    const byLang = lang
+      ? all.filter((v) => (v.languageCodes ?? []).includes(lang))
+      : all;
+    const fams = new Set<string>();
+    for (const v of byLang) fams.add(parseVoiceFamily(v.id));
+    return Array.from(fams);
+  }, [ttsOptionsQuery.data?.voices, ttsCfg.languageCode, parseVoiceFamily]);
 
   // Ensure selected voice remains valid for the selected language
   useEffect(() => {
@@ -149,6 +190,45 @@ export default function ArticlePreview({
       return prev;
     });
   }, [filteredVoices]);
+
+  // Reset family when provider or language changes; prefer higher quality
+  useEffect(() => {
+    if (ttsCfg.provider === "openai") {
+      setVoiceFamily("all");
+      return;
+    }
+    const prefs = [
+      "Chirp3-HD",
+      "Chirp3",
+      "Chirp2",
+      "Chirp",
+      "Neural2",
+      "WaveNet",
+      "Standard",
+    ];
+    if (voiceFamily !== "all" && availableFamilies.includes(voiceFamily))
+      return;
+    for (const p of prefs) {
+      if (availableFamilies.includes(p)) {
+        setVoiceFamily(p);
+        return;
+      }
+    }
+    setVoiceFamily("all");
+  }, [ttsCfg.provider, availableFamilies, voiceFamily]);
+
+  function renderVoiceLabel(id: string, label: string): string {
+    if (ttsCfg.provider === "openai") return label;
+    const genderMatch = label.match(/\(([^)]+)\)\s*$/);
+    const gender: string = genderMatch?.[1] ?? "";
+    const parts = id.split("-");
+    const last = parts.length >= 1 ? parts[parts.length - 1] : undefined;
+    const variant = typeof last === "string" && last ? last : id;
+    const prettyGender = gender
+      ? gender.charAt(0) + gender.slice(1).toLowerCase()
+      : "";
+    return prettyGender ? `${variant} (${prettyGender})` : variant;
+  }
   useEffect(() => {
     if (articleQuery.data) {
       setArticleCfg((prev) => ({ ...prev, ...articleQuery.data }));
@@ -398,6 +478,32 @@ export default function ArticlePreview({
                     </div>
                     <div>
                       <label
+                        htmlFor={`${uid}-tts-family`}
+                        className="block text-xs mb-1"
+                      >
+                        Voice family
+                      </label>
+                      <Select
+                        name={`${uid}-tts-family`}
+                        value={voiceFamily}
+                        onValueChange={(v) => setVoiceFamily(v)}
+                        disabled={ttsOptionsQuery.isLoading}
+                      >
+                        <SelectTrigger id={`${uid}-tts-family`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          {availableFamilies.map((fam) => (
+                            <SelectItem key={fam} value={fam}>
+                              {fam}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label
                         htmlFor={`${uid}-tts-voice`}
                         className="block text-xs mb-1"
                       >
@@ -420,7 +526,7 @@ export default function ArticlePreview({
                         <SelectContent>
                           {filteredVoices.map((v) => (
                             <SelectItem key={v.id} value={v.id}>
-                              {v.label}
+                              {renderVoiceLabel(v.id, v.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
