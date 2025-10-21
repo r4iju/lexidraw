@@ -97,7 +97,7 @@ export default function ArticlePreview({
   });
   const ttsOptionsQuery = api.config.getTtsOptions.useQuery(
     { provider: ttsCfg.provider },
-    { enabled: true },
+    { enabled: true, refetchOnMount: true, refetchOnWindowFocus: false },
   );
   const [articleCfg, setArticleCfg] = useState({
     languageCode: "en-US",
@@ -111,6 +111,25 @@ export default function ArticlePreview({
       setTtsCfg((prev) => ({ ...prev, ...ttsQuery.data }));
     }
   }, [ttsQuery.data]);
+
+  // Auto-select defaults when provider changes or new options load
+  useEffect(() => {
+    const voices = ttsOptionsQuery.data?.voices ?? [];
+    const languages = ttsOptionsQuery.data?.languages ?? [];
+    setTtsCfg((prev) => {
+      let next = prev;
+      if (voices.length > 0 && !voices.some((v) => v.id === prev.voiceId)) {
+        next = { ...next, voiceId: voices[0]?.id ?? prev.voiceId };
+      }
+      if (
+        languages.length > 0 &&
+        !languages.some((lc) => lc === prev.languageCode)
+      ) {
+        next = { ...next, languageCode: languages[0] ?? prev.languageCode };
+      }
+      return next;
+    });
+  }, [ttsOptionsQuery.data]);
   useEffect(() => {
     if (articleQuery.data) {
       setArticleCfg((prev) => ({ ...prev, ...articleQuery.data }));
@@ -214,8 +233,8 @@ export default function ArticlePreview({
     try {
       const userArticles = (
         typeof window !== "undefined"
-          // biome-ignore lint/suspicious/noExplicitAny: we do pollute the window object with session user
-          ? (window as any).__SESSION_USER__?.config?.articles
+          ? // biome-ignore lint/suspicious/noExplicitAny: we do pollute the window object with session user
+            (window as any).__SESSION_USER__?.config?.articles
           : undefined
       ) as { autoGenerateAudioOnImport?: boolean } | undefined;
       const shouldAuto = Boolean(userArticles?.autoGenerateAudioOnImport);
@@ -339,7 +358,11 @@ export default function ArticlePreview({
                         onValueChange={(v) =>
                           setTtsCfg((s) => ({ ...s, voiceId: v }))
                         }
-                        disabled={ttsOptionsQuery.isLoading}
+                        disabled={
+                          ttsOptionsQuery.isLoading ||
+                          (ttsCfg.provider === "google" &&
+                            (ttsOptionsQuery.data?.voices?.length ?? 0) === 0)
+                        }
                       >
                         <SelectTrigger id={`${uid}-tts-voice`}>
                           <SelectValue />
@@ -411,7 +434,12 @@ export default function ArticlePreview({
                         onValueChange={(v) =>
                           setTtsCfg((s) => ({ ...s, languageCode: v }))
                         }
-                        disabled={ttsOptionsQuery.isLoading}
+                        disabled={
+                          ttsOptionsQuery.isLoading ||
+                          (ttsCfg.provider === "google" &&
+                            (ttsOptionsQuery.data?.languages?.length ?? 0) ===
+                              0)
+                        }
                       >
                         <SelectTrigger id={`${uid}-tts-lang`}>
                           <SelectValue />
@@ -425,6 +453,33 @@ export default function ArticlePreview({
                         </SelectContent>
                       </Select>
                     </div>
+                    {ttsCfg.provider === "google" &&
+                    (ttsOptionsQuery.data?.voices?.length ?? 0) === 0 ? (
+                      <div className="col-span-2 text-xs rounded-md p-2 bg-destructive/10 text-destructive">
+                        {ttsOptionsQuery.data?.diagnostics?.code ===
+                        "missing_api_key" ? (
+                          <>
+                            Google TTS requires an API key. Add it in
+                            <a
+                              className="underline ml-1"
+                              href="/profile"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Profile
+                            </a>
+                            .
+                          </>
+                        ) : (
+                          <>
+                            Unable to load Google voices.
+                            {ttsOptionsQuery.data?.diagnostics?.message
+                              ? ` ${ttsOptionsQuery.data?.diagnostics?.message}`
+                              : ""}
+                          </>
+                        )}
+                      </div>
+                    ) : null}
                     <div>
                       <label
                         htmlFor={`${uid}-tts-sample`}
