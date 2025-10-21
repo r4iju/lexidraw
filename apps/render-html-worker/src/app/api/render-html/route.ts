@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
               } catch {}
             }
           }
-          await page.waitForTimeout(300);
+          await page?.waitForTimeout(300);
           if (process.env.NODE_ENV !== "production") {
             console.log("consent:clicked", { clickedMain, clickedFrame });
           }
