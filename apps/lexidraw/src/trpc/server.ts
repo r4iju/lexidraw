@@ -31,10 +31,10 @@ const SENSITIVE_KEY_REGEXES = [
 function sanitizeString(str: string): string {
   let s = str;
   // Bearer tokens
-  s = s.replace(/\bBearer\s+[A-Za-z0-9\-\._~+/]+=*/gi, `Bearer ${REDACTED}`);
+  s = s.replace(/\bBearer\s+[A-Za-z0-9\-._~+/]+=*/gi, `Bearer ${REDACTED}`);
   // OpenAI keys (sk-..., sk-proj-...)
   s = s.replace(/\bsk-[A-Za-z0-9]{10,}\b/g, REDACTED);
-  s = s.replace(/\bsk-proj-[A-Za-z0-9\-\._]{10,}\b/g, REDACTED);
+  s = s.replace(/\bsk-proj-[A-Za-z0-9\-._]{10,}\b/g, REDACTED);
   // Google API keys (AIza...)
   s = s.replace(/\bAIza[0-9A-Za-z\-_]{10,}\b/g, REDACTED);
   // JWTs (three base64url segments)

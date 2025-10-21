@@ -318,7 +318,7 @@ export async function extractAndSanitizeArticle({
         if (pairUrls.length >= 20) break;
         pairUrls.push(u);
         if (u.startsWith("https://")) {
-          pairUrls.push("http://" + u.slice("https://".length));
+          pairUrls.push(`http://${u.slice("https://".length)}`);
         } else if (u.startsWith("http://")) {
           pairUrls.push(u);
         }
@@ -350,10 +350,10 @@ export async function extractAndSanitizeArticle({
   const runAttempt = async (dispatcher: unknown): Promise<AttemptResult> => {
     const performFetch = (
       input: string,
-      init: RequestInit & { dispatcher?: unknown } = {} as any,
+      init: RequestInit & { dispatcher?: unknown } = {},
     ) => {
       // use undici's fetch with dispatcher for proxy support
-      return undiciFetch(input, { ...init, dispatcher } as any);
+      return undiciFetch(input, { ...init, dispatcher });
     };
 
     const isProxy = Boolean(dispatcher);
@@ -366,7 +366,7 @@ export async function extractAndSanitizeArticle({
           "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "accept-language": "en-US,en;q=0.9",
         "accept-encoding": "gzip, deflate, br",
-        "sec-ch-ua": '\"Chromium\";v=\"124\", \"Not.A/Brand\";v=\"24\"',
+        "sec-ch-ua": '"Chromium";v="124", "Not.A/Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "document",
@@ -396,7 +396,7 @@ export async function extractAndSanitizeArticle({
               ),
               redirect: "manual",
               signal: controller,
-            } as any,
+            },
           );
           if (!(probeRes.ok || probeRes.status === 204)) {
             throw new Error(`PROXY_PROBE_STATUS_${probeRes.status}`);
@@ -427,7 +427,7 @@ export async function extractAndSanitizeArticle({
           },
           redirect: "follow",
           signal: controller,
-        } as any);
+        });
         const text = await res.text();
         devLog("fetch:done", { status: res.status, length: text.length });
         return { status: res.status, text };
@@ -479,7 +479,7 @@ export async function extractAndSanitizeArticle({
                   ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
                 },
                 signal: controller,
-              } as any);
+              });
               if (altRes.ok) {
                 primary = { status: 200, text: await altRes.text() };
               } else {
@@ -946,7 +946,6 @@ export async function extractAndSanitizeArticle({
         transport: loggableLabel,
         error: e instanceof Error ? e.message : String(e),
       });
-      continue;
     }
   }
 
