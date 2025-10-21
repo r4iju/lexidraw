@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
+import path from "node:path";
 import type { Browser, LaunchOptions } from "puppeteer-core";
 // Avoid importing external types that may not resolve at type time in serverless envs
 // Define minimal interfaces used below
@@ -64,6 +65,25 @@ export async function POST(req: NextRequest) {
           headless?: boolean;
         };
         const puppeteer = await import("puppeteer-core");
+        // Ensure the dynamic linker can find Chromium's bundled NSS libraries on Vercel
+        try {
+          const execPath = await chromium.executablePath();
+          const libDirCandidates = [
+            path.join(path.dirname(execPath), "lib"),
+            path.join(
+              process.cwd(),
+              "node_modules",
+              "@sparticuz",
+              "chromium",
+              "lib",
+            ),
+          ];
+          const existingLd = process.env.LD_LIBRARY_PATH || "";
+          const mergedLd = libDirCandidates.join(":");
+          process.env.LD_LIBRARY_PATH = existingLd
+            ? `${mergedLd}:${existingLd}`
+            : mergedLd;
+        } catch {}
         const launchOptions: LaunchOptions = {
           headless: chromium.headless ?? true,
           args: chromium.args,
