@@ -11,15 +11,13 @@ async function main() {
     const resolved = import.meta.resolve("@sparticuz/chromium");
     const chromiumPath = resolved.replace(/^file:\/\//, "");
     const chromiumDir = dirname(dirname(dirname(chromiumPath))); // up from build/esm/index.js
-    const binDir = join(chromiumDir, "bin");
-    const libDir = join(chromiumDir, "lib");
 
     const publicDir = join(projectRoot, "public");
     const outTar = join(publicDir, "chromium-pack.tar");
 
     // Create tar archive in public folder (bin and lib)
     execSync(`mkdir -p ${publicDir}`);
-    execSync(`tar -cf ${outTar} -C ${binDir} . -C ${libDir} .`);
+    execSync(`tar -chf ${outTar} -C ${chromiumDir} bin lib`);
     console.log("Created chromium-pack.tar in /public");
   } catch (err) {
     console.warn(
