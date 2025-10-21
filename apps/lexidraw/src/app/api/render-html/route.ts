@@ -58,8 +58,23 @@ export async function POST(req: NextRequest) {
     try {
       if (isProdVercel) {
         if (process.env.VERCEL === "1") {
-          process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
-          process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
+          // Force @sparticuz/chromium to inflate both AL2 and AL2023 libs and set LD_LIBRARY_PATH
+          process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs18.x"; // triggers AL2
+          process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x"; // triggers AL2023
+          if (
+            !process.env.LD_LIBRARY_PATH ||
+            !process.env.LD_LIBRARY_PATH.includes("/tmp/al2023/lib")
+          ) {
+            process.env.LD_LIBRARY_PATH = [
+              "/tmp/al2023/lib",
+              "/tmp/al2/lib",
+              process.env.LD_LIBRARY_PATH,
+            ]
+              .filter(Boolean)
+              .join(":");
+          }
+          if (!process.env.FONTCONFIG_PATH)
+            process.env.FONTCONFIG_PATH = "/tmp/fonts";
         }
         const chromium = (await import("@sparticuz/chromium"))
           .default as unknown as {
