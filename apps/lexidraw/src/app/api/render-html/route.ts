@@ -8,7 +8,7 @@ import type { Browser, LaunchOptions } from "puppeteer-core";
 type WaitUntil = "load" | "domcontentloaded" | "networkidle0" | "networkidle2";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 function isHttpUrl(u: string): boolean {
   try {
@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
     let browser: Browser;
     try {
       if (isProdVercel) {
+        if (process.env.VERCEL === "1") {
+          process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
+          process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
+        }
         const chromium = (await import("@sparticuz/chromium"))
           .default as unknown as {
           args: string[];
