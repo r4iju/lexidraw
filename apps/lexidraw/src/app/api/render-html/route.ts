@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
           "",
         );
         const vercelHost = hostHeader.replace(/^https?:\/\//, "");
-        const CHROMIUM_PACK_URL = `${proto}://${vercelHost}/chromium-pack.tar`;
+        const CHROMIUM_PACK_URL = `${proto}://${vercelHost}/api/chromium-pack`;
         const launchOptions: LaunchOptions = {
           headless: chromium.headless ?? true,
           args: chromium.args,
