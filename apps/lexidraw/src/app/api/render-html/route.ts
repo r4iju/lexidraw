@@ -51,11 +51,12 @@ export async function POST(req: NextRequest) {
     const waitUntil = body?.waitUntil ?? "domcontentloaded";
     const timeoutMs = Math.max(1000, Math.min(60000, body?.timeoutMs ?? 15000));
 
-    const isVercel = Boolean(process.env.VERCEL);
+    const isProdVercel =
+      process.env.VERCEL === "1" && process.env.NODE_ENV === "production";
 
     let browser: Browser;
     try {
-      if (isVercel) {
+      if (isProdVercel) {
         const chromium = (await import("@sparticuz/chromium-min"))
           .default as unknown as {
           args: string[];
@@ -68,12 +69,8 @@ export async function POST(req: NextRequest) {
           req.headers.get("host") ||
           process.env.VERCEL_URL ||
           "";
-        const proto = (req.headers.get("x-forwarded-proto") || "https").replace(
-          /:$/,
-          "",
-        );
         const vercelHost = hostHeader.replace(/^https?:\/\//, "");
-        const CHROMIUM_PACK_URL = `${proto}://${vercelHost}/api/chromium-pack`;
+        const CHROMIUM_PACK_URL = `https://${vercelHost}/api/chromium-pack?v=${Date.now()}`;
         const launchOptions: LaunchOptions = {
           headless: chromium.headless ?? true,
           args: chromium.args,
