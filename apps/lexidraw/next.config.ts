@@ -106,9 +106,8 @@ const config = {
       "node_modules/@sparticuz/chromium/bin/**",
       "node_modules/@sparticuz/chromium/lib/**",
     ],
-    "/api/chromium-pack": ["public/chromium-pack.tar"],
   },
-  serverExternalPackages: ["@sparticuz/chromium-min", "puppeteer-core"],
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
 } satisfies NextConfig;
 
 export default withBundleAnalyzer(config);

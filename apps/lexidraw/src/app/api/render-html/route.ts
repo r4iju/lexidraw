@@ -57,24 +57,17 @@ export async function POST(req: NextRequest) {
     let browser: Browser;
     try {
       if (isProdVercel) {
-        const chromium = (await import("@sparticuz/chromium-min"))
+        const chromium = (await import("@sparticuz/chromium"))
           .default as unknown as {
           args: string[];
           headless?: boolean;
-          executablePath: (remotePackUrl: string) => Promise<string>;
+          executablePath: () => Promise<string>;
         };
         const puppeteer = await import("puppeteer-core");
-        const hostHeader =
-          req.headers.get("x-forwarded-host") ||
-          req.headers.get("host") ||
-          process.env.VERCEL_URL ||
-          "";
-        const vercelHost = hostHeader.replace(/^https?:\/\//, "");
-        const CHROMIUM_PACK_URL = `https://${vercelHost}/api/chromium-pack?v=${Date.now()}`;
         const launchOptions: LaunchOptions = {
           headless: chromium.headless ?? true,
           args: chromium.args,
-          executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
+          executablePath: await chromium.executablePath(),
           defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
         };
         browser = await puppeteer.launch(launchOptions);
