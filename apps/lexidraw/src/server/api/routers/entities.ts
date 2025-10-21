@@ -1330,7 +1330,12 @@ export const entityRouter = createTRPCRouter({
           ? base
           : `${base}/api/render-html`;
       } else {
-        endpoint = `http${(await headers()).get("x-forwarded-proto") === "https" ? "s" : ""}://${(await headers()).get("host")}/api/render-html`;
+        // Local dev fallback to worker
+        if (env.NODE_ENV !== "production") {
+          endpoint = "http://localhost:4025/api/render-html";
+        } else {
+          endpoint = `http${(await headers()).get("x-forwarded-proto") === "https" ? "s" : ""}://${(await headers()).get("host")}/api/render-html`;
+        }
       }
       console.log({ headlessEnabled, tooShort, endpoint });
       if (headlessEnabled && tooShort) {

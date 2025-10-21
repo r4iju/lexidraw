@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "./build.sh; bun dotenv -e .env.production -- turbo run build",
-    "dev": "bun dotenv -e .env.development -- turbo run dev --filter=@apps/lexidraw",
+    "dev": "bun dotenv -e .env.development -- turbo run dev --parallel --filter=@apps/lexidraw --filter=@apps/render-html-worker",
     "start": "bun dotenv -e .env.production -- turbo run start",
     "clean": "turbo run clean && rm -rf node_modules && rm -f bun.lockb && rm -rf .turbo",
     "db:studio": "bun dotenv -e .env.development -- turbo run db:studio",
