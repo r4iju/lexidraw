@@ -1,8 +1,6 @@
 export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
-import path from "node:path";
-import { promises as fs } from "node:fs";
 import type { Browser, LaunchOptions } from "puppeteer-core";
 // Avoid importing external types that may not resolve at type time in serverless envs
 // Define minimal interfaces used below
@@ -57,56 +55,20 @@ export async function POST(req: NextRequest) {
     let browser: Browser;
     try {
       if (isVercel) {
-        const chromium = (await import("@sparticuz/chromium"))
+        const chromium = (await import("@sparticuz/chromium-min"))
           .default as unknown as {
           args: string[];
-          executablePath: () => Promise<string>;
           headless?: boolean;
+          executablePath: (remotePackUrl: string) => Promise<string>;
         };
         const puppeteer = await import("puppeteer-core");
-        // Ensure the dynamic linker can find Chromium's bundled NSS libraries on Vercel (Fluid Compute)
-        try {
-          const execPath = await chromium.executablePath();
-          const baseDir = path.dirname(execPath);
-          const libDirCandidates = [
-            path.join(baseDir, "lib"),
-            "/var/task/node_modules/@sparticuz/chromium/lib",
-            path.join(
-              process.cwd(),
-              "node_modules",
-              "@sparticuz",
-              "chromium",
-              "lib",
-            ),
-          ];
-          const tmpLibDir = "/tmp/chromium-libs";
-          try {
-            await fs.mkdir(tmpLibDir, { recursive: true });
-          } catch {}
-          for (const dir of libDirCandidates) {
-            try {
-              const entries = await fs.readdir(dir);
-              for (const name of entries) {
-                if (!name.startsWith("lib")) continue;
-                if (!(name.endsWith(".so") || name.includes(".so."))) continue;
-                const src = path.join(dir, name);
-                const dst = path.join(tmpLibDir, name);
-                try {
-                  await fs.copyFile(src, dst);
-                } catch {}
-              }
-            } catch {}
-          }
-          const existingLd = process.env.LD_LIBRARY_PATH || "";
-          const mergedLd = [tmpLibDir, ...libDirCandidates].join(":");
-          process.env.LD_LIBRARY_PATH = existingLd
-            ? `${mergedLd}:${existingLd}`
-            : mergedLd;
-        } catch {}
+        const vercelHost =
+          process.env.VERCEL_URL || req.headers.get("host") || "";
+        const CHROMIUM_PACK_URL = `https://${vercelHost}/chromium-pack.tar`;
         const launchOptions: LaunchOptions = {
           headless: chromium.headless ?? true,
           args: chromium.args,
-          executablePath: await chromium.executablePath(),
+          executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
           defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
         };
         browser = await puppeteer.launch(launchOptions);
@@ -208,7 +170,6 @@ export async function POST(req: NextRequest) {
           const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
           for (let i = 0; i < 3; i++) {
             window.scrollBy(0, Math.floor(window.innerHeight * 0.5));
-            // @ts-ignore
             await sleep(75);
           }
         });
