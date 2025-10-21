@@ -28,6 +28,18 @@ export const PatchSchema = z.object({
 export type StoredLlmConfig = z.infer<typeof LlmConfigSchema>;
 export type PartialLlmConfig = z.infer<typeof PatchSchema>;
 
+// --- Shared TTS options result types (exported for client usage) ---
+export type TtsVoice = { id: string; label: string; languageCodes: string[] };
+export type TtsOptionsDiagnostics =
+  | { code: "missing_api_key"; message?: string }
+  | { code: "invalid_api_key"; message?: string }
+  | { code: "http_error"; status?: number; message?: string };
+export type TtsOptionsResult = {
+  voices: TtsVoice[];
+  languages: string[];
+  diagnostics?: TtsOptionsDiagnostics;
+};
+
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   modelId: "gemini-2.5-flash",
@@ -150,8 +162,8 @@ export const configRouter = createTRPCRouter({
   getTtsOptions: protectedProcedure
     .input(z.object({ provider: z.enum(["openai", "google"]) }))
     .query(async ({ ctx, input }) => {
-      type Voice = { id: string; label: string; languageCodes: string[] };
-      type Result = { voices: Voice[]; languages: string[] };
+      type Voice = TtsVoice;
+      type Result = TtsOptionsResult;
 
       // In-memory cache per user+provider for 10 minutes
       const now = Date.now();
@@ -188,7 +200,15 @@ export const configRouter = createTRPCRouter({
       const userKey = ctx.session.user.config?.llm?.googleApiKey;
       const apiKey = userKey || env.GOOGLE_API_KEY;
       if (!apiKey) {
-        const empty: Result = { voices: [], languages: [] };
+        const empty: Result = {
+          voices: [],
+          languages: [],
+          diagnostics: {
+            code: "missing_api_key",
+            message:
+              "Google TTS requires an API key. Add it in Profile → Google API Key.",
+          },
+        };
         bag.set(cacheKey, { expires: now + 60_000, data: empty });
         return empty;
       }
@@ -197,7 +217,26 @@ export const configRouter = createTRPCRouter({
           `https://texttospeech.googleapis.com/v1/voices?key=${encodeURIComponent(apiKey)}`,
           { method: "GET" },
         );
-        if (!resp.ok) throw new Error(`${resp.status}`);
+        if (!resp.ok) {
+          let text = "";
+          try {
+            text = await resp.text();
+          } catch {}
+          const isAuthError =
+            resp.status === 400 || resp.status === 401 || resp.status === 403;
+          const empty: Result = {
+            voices: [],
+            languages: [],
+            diagnostics: isAuthError
+              ? {
+                  code: "invalid_api_key",
+                  message: text || "Google API key invalid or unauthorized.",
+                }
+              : { code: "http_error", status: resp.status, message: text },
+          };
+          bag.set(cacheKey, { expires: now + 60_000, data: empty });
+          return empty;
+        }
         const json = (await resp.json()) as {
           voices?: {
             name?: string;
@@ -219,11 +258,21 @@ export const configRouter = createTRPCRouter({
         const langSet = new Set<string>();
         for (const v of voices)
           for (const lc of v.languageCodes) langSet.add(lc);
-        const data: Result = { voices, languages: Array.from(langSet).sort() };
+        const data: Result = {
+          voices,
+          languages: Array.from(langSet).sort(),
+        };
         bag.set(cacheKey, { expires: now + 10 * 60_000, data });
         return data;
-      } catch {
-        const empty: Result = { voices: [], languages: [] };
+      } catch (e) {
+        const empty: Result = {
+          voices: [],
+          languages: [],
+          diagnostics: {
+            code: "http_error",
+            message: (e as Error)?.message,
+          },
+        };
         bag.set(cacheKey, { expires: now + 60_000, data: empty });
         return empty;
       }
