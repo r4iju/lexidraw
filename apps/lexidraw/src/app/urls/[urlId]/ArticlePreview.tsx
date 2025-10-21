@@ -130,6 +130,25 @@ export default function ArticlePreview({
       return next;
     });
   }, [ttsOptionsQuery.data]);
+
+  // Filter voices by selected language for the voice dropdown
+  const filteredVoices = useMemo(() => {
+    const all = ttsOptionsQuery.data?.voices ?? [];
+    const lang = ttsCfg.languageCode;
+    if (!lang) return all;
+    return all.filter((v) => (v.languageCodes ?? []).includes(lang));
+  }, [ttsOptionsQuery.data?.voices, ttsCfg.languageCode]);
+
+  // Ensure selected voice remains valid for the selected language
+  useEffect(() => {
+    setTtsCfg((prev) => {
+      if (filteredVoices.length === 0) return prev;
+      if (!filteredVoices.some((v) => v.id === prev.voiceId)) {
+        return { ...prev, voiceId: filteredVoices[0]?.id ?? prev.voiceId };
+      }
+      return prev;
+    });
+  }, [filteredVoices]);
   useEffect(() => {
     if (articleQuery.data) {
       setArticleCfg((prev) => ({ ...prev, ...articleQuery.data }));
@@ -347,6 +366,38 @@ export default function ArticlePreview({
                     </div>
                     <div>
                       <label
+                        htmlFor={`${uid}-tts-lang`}
+                        className="block text-xs mb-1"
+                      >
+                        Language
+                      </label>
+                      <Select
+                        name={`${uid}-tts-lang`}
+                        value={ttsCfg.languageCode}
+                        onValueChange={(v) =>
+                          setTtsCfg((s) => ({ ...s, languageCode: v }))
+                        }
+                        disabled={
+                          ttsOptionsQuery.isLoading ||
+                          (ttsCfg.provider === "google" &&
+                            (ttsOptionsQuery.data?.languages?.length ?? 0) ===
+                              0)
+                        }
+                      >
+                        <SelectTrigger id={`${uid}-tts-lang`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(ttsOptionsQuery.data?.languages ?? []).map((lc) => (
+                            <SelectItem key={lc} value={lc}>
+                              {lc}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label
                         htmlFor={`${uid}-tts-voice`}
                         className="block text-xs mb-1"
                       >
@@ -360,15 +411,14 @@ export default function ArticlePreview({
                         }
                         disabled={
                           ttsOptionsQuery.isLoading ||
-                          (ttsCfg.provider === "google" &&
-                            (ttsOptionsQuery.data?.voices?.length ?? 0) === 0)
+                          filteredVoices.length === 0
                         }
                       >
                         <SelectTrigger id={`${uid}-tts-voice`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {(ttsOptionsQuery.data?.voices ?? []).map((v) => (
+                          {filteredVoices.map((v) => (
                             <SelectItem key={v.id} value={v.id}>
                               {v.label}
                             </SelectItem>
@@ -418,38 +468,6 @@ export default function ArticlePreview({
                           <SelectItem value="mp3">MP3</SelectItem>
                           <SelectItem value="ogg">OGG</SelectItem>
                           <SelectItem value="wav">WAV</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor={`${uid}-tts-lang`}
-                        className="block text-xs mb-1"
-                      >
-                        Language
-                      </label>
-                      <Select
-                        name={`${uid}-tts-lang`}
-                        value={ttsCfg.languageCode}
-                        onValueChange={(v) =>
-                          setTtsCfg((s) => ({ ...s, languageCode: v }))
-                        }
-                        disabled={
-                          ttsOptionsQuery.isLoading ||
-                          (ttsCfg.provider === "google" &&
-                            (ttsOptionsQuery.data?.languages?.length ?? 0) ===
-                              0)
-                        }
-                      >
-                        <SelectTrigger id={`${uid}-tts-lang`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(ttsOptionsQuery.data?.languages ?? []).map((lc) => (
-                            <SelectItem key={lc} value={lc}>
-                              {lc}
-                            </SelectItem>
-                          ))}
                         </SelectContent>
                       </Select>
                     </div>
