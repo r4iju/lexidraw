@@ -113,6 +113,158 @@ export async function POST(req: NextRequest) {
 
       await page.goto(url, { waitUntil, timeout: timeoutMs });
 
+      // Generic consent approver (toggleable via env, default true)
+      const autoConsent =
+        String(
+          process.env.HEADLESS_AUTO_CONSENT_ENABLED ?? "true",
+        ).toLowerCase() === "true";
+      if (autoConsent) {
+        try {
+          // Try in main document first
+          const clickedMain = await page.evaluate(async () => {
+            const attemptClick = (sel: string): boolean => {
+              const el = document.querySelector(sel) as HTMLElement | null;
+              if (!el) return false;
+              const rect = el.getBoundingClientRect();
+              const visible = rect.width > 0 && rect.height > 0;
+              if (!visible) return false;
+              try {
+                el.click();
+                return true;
+              } catch {
+                return false;
+              }
+            };
+            const selectors = [
+              "#onetrust-accept-btn-handler",
+              ".fc-cta-consent",
+              ".sp_choice_type_11",
+              "[data-testid*='consent'] button",
+              "button[aria-label*='consent']",
+            ];
+            for (const sel of selectors) {
+              if (attemptClick(sel)) return true;
+            }
+            // Fallback by button text
+            const btns = Array.from(
+              document.querySelectorAll("button"),
+            ) as HTMLButtonElement[];
+            const re = /\b(accept|agree|consent|godkänn|acceptera)\b/i;
+            for (const b of btns) {
+              const txt = (b.innerText || b.textContent || "").trim();
+              if (!txt) continue;
+              const rect = b.getBoundingClientRect();
+              const visible = rect.width > 0 && rect.height > 0;
+              if (!visible) continue;
+              if (re.test(txt)) {
+                try {
+                  b.click();
+                  return true;
+                } catch {}
+              }
+            }
+            return false;
+          });
+          let clickedFrame = false;
+          if (!clickedMain) {
+            // Try common CMP iframes (Sourcepoint/OneTrust)
+            for (const frame of page.frames()) {
+              try {
+                const res = await frame.evaluate(() => {
+                  const attemptClick = (sel: string): boolean => {
+                    const el = document.querySelector(
+                      sel,
+                    ) as HTMLElement | null;
+                    if (!el) return false;
+                    const rect = el.getBoundingClientRect();
+                    const visible = rect.width > 0 && rect.height > 0;
+                    if (!visible) return false;
+                    try {
+                      (el as HTMLElement).click();
+                      return true;
+                    } catch {
+                      return false;
+                    }
+                  };
+                  const selectors = [
+                    "#onetrust-accept-btn-handler",
+                    ".fc-cta-consent",
+                    ".sp_choice_type_11",
+                    "[data-testid*='consent'] button",
+                    "button[aria-label*='consent']",
+                  ];
+                  for (const sel of selectors) {
+                    if (attemptClick(sel)) return true;
+                  }
+                  const btns = Array.from(
+                    document.querySelectorAll("button"),
+                  ) as HTMLButtonElement[];
+                  const re = /\b(accept|agree|consent|godkänn|acceptera)\b/i;
+                  for (const b of btns) {
+                    const txt = (b.innerText || b.textContent || "").trim();
+                    if (!txt) continue;
+                    const rect = b.getBoundingClientRect();
+                    const visible = rect.width > 0 && rect.height > 0;
+                    if (!visible) continue;
+                    if (re.test(txt)) {
+                      try {
+                        b.click();
+                        return true;
+                      } catch {}
+                    }
+                  }
+                  return false;
+                });
+                if (res) {
+                  clickedFrame = true;
+                  break;
+                }
+              } catch {}
+            }
+          }
+          await page.waitForTimeout(300);
+          if (process.env.NODE_ENV !== "production") {
+            console.log("consent:clicked", { clickedMain, clickedFrame });
+          }
+        } catch {
+          // ignore failures
+        }
+      }
+
+      // Nudge lazy content
+      try {
+        await page.evaluate(async () => {
+          const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+          for (let i = 0; i < 3; i++) {
+            window.scrollBy(0, Math.floor(window.innerHeight * 0.5));
+            await sleep(75);
+          }
+        });
+      } catch {}
+
+      // Poll for content readiness
+      try {
+        const start = Date.now();
+        const timeout = Math.min(12000, timeoutMs);
+        // eslint-disable-next-line no-constant-condition
+        while (Date.now() - start < timeout) {
+          const ready = await page.evaluate(() => {
+            const q = (sel: string) => document.querySelector(sel);
+            if (q("main article") || q("[role='main'] article") || q("article"))
+              return true;
+            const pCount = document.querySelectorAll("main p, body p").length;
+            return pCount >= 10;
+          });
+          if (ready) {
+            if (process.env.NODE_ENV !== "production") {
+              console.log("content:ready");
+            }
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      } catch {}
+
       const html = await page.content();
       const bytes = Buffer.byteLength(html, "utf8");
       const MAX_BYTES = 10 * 1024 * 1024; // 10MB
