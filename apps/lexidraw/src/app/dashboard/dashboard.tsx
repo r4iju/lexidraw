@@ -103,7 +103,7 @@ export async function Dashboard({
           <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-2 md:gap-6">
             {/* but dont cannibalize the search the buttons */}
             <SearchBar className="w-full" />
-            <div className="flex justify-end space-x-2 w-full md:w-auto">
+            <div className="flex flex-wrap justify-end space-x-2 space-y-2 w-full md:w-auto">
               {/* filter by tags */}
 
               <FilterByTags options={allTags} />
@@ -114,6 +114,7 @@ export async function Dashboard({
                   variant={onlyFavorites ? "secondary" : "outline"}
                   size="icon"
                   asChild
+                  className="md:min-w-20"
                 >
                   <Link
                     href={replaceSearchParam({
@@ -131,6 +132,7 @@ export async function Dashboard({
                   variant={includeArchived ? "secondary" : "outline"}
                   size="icon"
                   asChild
+                  className="md:min-w-20"
                 >
                   <Link
                     href={replaceSearchParam({
