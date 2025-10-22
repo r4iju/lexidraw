@@ -467,7 +467,7 @@ export async function POST(req: NextRequest) {
           Math.min(info.y + info.height, root.y + root.height) - clipY;
         // Adaptive trim: measure spacing from content root to first visible child
         const TRIM_CAP = 64; // safety
-        const measured = ((info as any).topTrimPx ?? 0) as number;
+        const measured = info.topTrimPx ?? 0;
         const trim = Math.min(
           TRIM_CAP,
           Math.max(0, Math.min(measured, clipH - 1)),
