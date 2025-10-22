@@ -65,6 +65,11 @@ export function AudioPlayer({
   const [muted, setMuted] = useState(false);
   const [rate, setRate] = useState(initialPlaybackRate);
   const hasUserAdjustedRateRef = useRef(false);
+  // Track latest rate for effects that should not re-run on rate changes
+  const latestRateRef = useRef(rate);
+  useEffect(() => {
+    latestRateRef.current = rate;
+  }, [rate]);
 
   // Fetch preferred playback rate (authenticated users only)
   const audioCfg = api.config.getAudioConfig.useQuery(undefined, {
@@ -138,7 +143,7 @@ export function AudioPlayer({
     audioRef.current.playbackRate = rate;
   }, [rate]);
 
-  // Reset audio state when src changes
+  // Reset audio state when src changes (do not depend on rate to avoid restart)
   useEffect(() => {
     // reference src so dependency matches usage and linter doesn't flag it
     void src;
@@ -150,12 +155,12 @@ export function AudioPlayer({
       audio.pause();
       audio.load();
       // ensure playback rate persists across source changes
-      audio.playbackRate = rate;
+      audio.playbackRate = latestRateRef.current;
       if (autoPlay) {
         void audio.play().catch(() => undefined);
       }
     }
-  }, [autoPlay, rate, src]);
+  }, [autoPlay, src]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
