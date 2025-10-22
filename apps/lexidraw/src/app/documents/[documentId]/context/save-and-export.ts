@@ -27,6 +27,8 @@ export function useSaveAndExportDocument({
   const { mutate: generateTokens } =
     api.snapshot.generateClientUploadTokens.useMutation();
   const { mutate: updateEntity } = api.entities.update.useMutation();
+  const { mutateAsync: generateThumbnailsViaWorker } =
+    api.entities.generateThumbnailsViaWorker.useMutation();
   const { exportWebp } = useExportWebp();
   const [isUploading, setIsUploading] = useState(false);
   const { defaultFontFamily } = useDocumentSettings();
@@ -125,6 +127,7 @@ export function useSaveAndExportDocument({
       toast.error("No state to save");
       return;
     }
+
     const TOAST_ID = `save-${entity.id}`;
     toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
     save(
@@ -141,7 +144,11 @@ export function useSaveAndExportDocument({
               id: TOAST_ID,
               duration: Infinity,
             });
-            await exportDocumentAsImage();
+            try {
+              await generateThumbnailsViaWorker({ id: entity.id });
+            } catch {
+              await exportDocumentAsImage();
+            }
             toast.success("Saved", { id: TOAST_ID });
             router.push("/dashboard");
           } catch (e) {
@@ -182,7 +189,11 @@ export function useSaveAndExportDocument({
               id: TOAST_ID,
               duration: Infinity,
             });
-            await exportDocumentAsImage();
+            try {
+              await generateThumbnailsViaWorker({ id: entity.id });
+            } catch {
+              await exportDocumentAsImage();
+            }
             toast.success("Saved", { id: TOAST_ID });
             onSaveSuccessCallback?.();
           } catch (e) {
