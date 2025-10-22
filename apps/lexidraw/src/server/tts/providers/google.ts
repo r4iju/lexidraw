@@ -38,7 +38,10 @@ export function createGoogleTtsProvider(
         input: input.textOrSsml.trim().startsWith("<speak")
           ? { ssml: input.textOrSsml }
           : { text: input.textOrSsml },
-        voice: { name: input.voiceId },
+        voice: {
+          name: input.voiceId,
+          languageCode: input.languageCode,
+        },
         audioConfig: {
           audioEncoding: encoding,
           speakingRate: input.speed,

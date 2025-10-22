@@ -170,6 +170,8 @@ export async function synthesizeArticleOrText(
         voiceId,
         speed,
         format,
+        languageCode: req.languageCode,
+        sampleRate: req.sampleRate,
       });
       audioBuf = audio;
     } catch (primaryError) {
@@ -184,6 +186,8 @@ export async function synthesizeArticleOrText(
           voiceId: providerName === "google" ? "alloy" : voiceId,
           speed,
           format,
+          languageCode: req.languageCode,
+          sampleRate: req.sampleRate,
         });
         audioBuf = audio;
       } catch (fallbackError) {
