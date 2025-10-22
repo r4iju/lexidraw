@@ -13,6 +13,7 @@
     "test:ts": "tsc --noEmit"
   },
   "dependencies": {
+    "@packages/lib": "workspace:*",
     "next": "^15.5.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -5,7 +5,7 @@ import sanitizeHtml, { type IOptions } from "sanitize-html";
 import { Readability } from "@mozilla/readability";
 import { z } from "zod";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
-import { getNordHttpsProxyUrls } from "../network/nord-proxy";
+import { getNordHttpsProxyUrls } from "@packages/lib";
 import env from "@packages/env";
 
 type DistilledImage = {
@@ -315,7 +315,7 @@ export async function extractAndSanitizeArticle({
       const limited = urls.slice(0, 50);
       attemptDispatchers = [
         { label: "direct", dispatcher: undefined },
-        ...limited.map((proxyUrl) => ({
+        ...limited.map((proxyUrl: string) => ({
           label: `proxy:${proxyUrl}`,
           dispatcher: new ProxyAgent(proxyUrl),
         })),
