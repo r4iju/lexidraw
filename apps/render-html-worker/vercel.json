@@ -1,9 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "app/api/screenshot/route": {
+      "maxDuration": 30,
+      "includeFiles": [
+        "node_modules/@sparticuz/chromium/bin/**",
+        "node_modules/@sparticuz/chromium/lib/**"
+      ]
+    },
     "app/api/render-html/route": {
-      "memory": 1024,
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": [
+        "node_modules/@sparticuz/chromium/bin/**",
+        "node_modules/@sparticuz/chromium/lib/**"
+      ]
     }
   }
 }
