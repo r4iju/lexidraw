@@ -15,7 +15,7 @@
     "clean": "turbo run clean && rm -rf node_modules && rm -f bun.lockb && rm -rf .turbo",
     "db:studio": "bun dotenv -e .env.development -- turbo run db:studio",
     "db:pull": "bun dotenv -e .env.development -- turbo run db:pull",
-    "db:push": "bun dotenv -e .env.production -- turbo run db:push",
+    "db:push": "bun dotenv -e .env.development -- turbo run db:push",
     "db:migrate": "bun dotenv -e .env.development -- turbo run db:migrate",
     "db:generate": "bun dotenv -e .env.development -- turbo run db:generate",
     "lint": "bun dotenv -e .env.development -- turbo run lint --write --continue",
