@@ -40,12 +40,11 @@ export const useDiagramTools = () => {
     description: `Parses a Mermaid DSL string into an Excalidraw canvas and inserts it at the desired location.  
           – Fully supports \`MermaidConfig\` (theme variables, edge limits, etc.).  
           – Supports \`ExcalidrawConfig\` (font sizing).`,
-    inputSchema: z
-      .object({
-        mermaidLines: z
-          .array(z.string())
-          .describe(
-            `A list of Mermaid DSL strings. 
+    inputSchema: z.object({
+      mermaidLines: z
+        .array(z.string())
+        .describe(
+          `A list of Mermaid DSL strings. 
               For ER diagrams, use the \`insertMermaidSvg\` tool instead.
               Example: [
               "graph TD",
@@ -53,41 +52,48 @@ export const useDiagramTools = () => {
               "  BrowserUI -->|API Calls| APIServer[API Server (Backend)]",
               "  …"
             ]`,
-          )
-          .nonempty("Mermaid definition must not be empty."),
-        mermaidConfig: z
-          .object({}) // allow any shape – full validation happens at runtime merge
-          .passthrough()
-          .optional(),
-        excalidrawConfig: z
-          .object({ fontSize: z.number().optional() })
-          .passthrough()
-          .optional(),
-        width: z
-          .union([z.number().min(100), z.literal("inherit")])
-          .describe(
-            "Optional. The width of the Excalidraw canvas. If 'inherit', the width will be determined by the parent container. Minimum width is 100px.",
-          )
-          .optional()
-          .default(DEFAULT_CANVAS_WIDTH),
-        height: z
-          .union([z.number().min(100), z.literal("inherit")])
-          .describe(
-            "Optional. The height of the Excalidraw canvas. If 'inherit', the height will be determined by the parent container. Minimum height is 100px.",
-          )
-          .optional()
-          .default(DEFAULT_CANVAS_HEIGHT),
-        relation: InsertionRelationSchema,
-        anchor: InsertionAnchorSchema.optional(),
-        editorKey: EditorKeySchema.optional(),
-      })
-      .transform(({ mermaidLines, ...rest }) => ({
-        ...rest,
-        mermaid: mermaidLines.join("\n"), // Add mermaid string property
-      })),
+        )
+        .nonempty("Mermaid definition must not be empty."),
+      mermaidConfig: z
+        .object({}) // allow any shape – full validation happens at runtime merge
+        .passthrough()
+        .optional(),
+      excalidrawConfig: z
+        .object({ fontSize: z.number().optional() })
+        .passthrough()
+        .optional(),
+      width: z
+        .union([z.number().min(100), z.literal("inherit")])
+        .describe(
+          "Optional. The width of the Excalidraw canvas. If 'inherit', the width will be determined by the parent container. Minimum width is 100px.",
+        )
+        .optional()
+        .default(DEFAULT_CANVAS_WIDTH),
+      height: z
+        .union([z.number().min(100), z.literal("inherit")])
+        .describe(
+          "Optional. The height of the Excalidraw canvas. If 'inherit', the height will be determined by the parent container. Minimum height is 100px.",
+        )
+        .optional()
+        .default(DEFAULT_CANVAS_HEIGHT),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
+    }),
     execute: async (options) => {
+      type ExcalidrawInput = {
+        mermaidLines: string[];
+        mermaidConfig?: Record<string, unknown>;
+        excalidrawConfig?: { fontSize?: number } & Record<string, unknown>;
+        width?: number | "inherit";
+        height?: number | "inherit";
+        relation: InsertionRelation;
+        anchor?: InsertionAnchor;
+        editorKey?: string;
+      };
+
       const {
-        mermaid,
+        mermaidLines,
         mermaidConfig,
         excalidrawConfig,
         width,
@@ -95,7 +101,9 @@ export const useDiagramTools = () => {
         relation,
         anchor,
         editorKey,
-      } = options;
+      } = options as ExcalidrawInput;
+
+      const mermaid = mermaidLines.join("\n");
 
       // Perform asynchronous parsing before calling insertionExecutor
       let parseResult: MermaidToExcalidrawResult;
@@ -191,36 +199,38 @@ export const useDiagramTools = () => {
   const insertMermaidDiagram = tool({
     description:
       "Insert a Mermaid diagram using the custom MermaidNode (schema only, no SVG in state).",
-    inputSchema: z
-      .object({
-        mermaidLines: z.array(z.string()).nonempty(),
-        width: z
-          .union([z.number().min(100), z.literal("inherit")])
-          .optional()
-          .default("inherit"),
-        height: z
-          .union([z.number().min(100), z.literal("inherit")])
-          .optional()
-          .default("inherit"),
-        relation: InsertionRelationSchema,
-        anchor: InsertionAnchorSchema.optional(),
-        editorKey: EditorKeySchema.optional(),
-      })
-      .transform(({ mermaidLines, ...rest }) => ({
-        ...rest,
-        schema: mermaidLines.join("\n"),
-      })),
+    inputSchema: z.object({
+      mermaidLines: z.array(z.string()).nonempty(),
+      width: z
+        .union([z.number().min(100), z.literal("inherit")])
+        .optional()
+        .default("inherit"),
+      height: z
+        .union([z.number().min(100), z.literal("inherit")])
+        .optional()
+        .default("inherit"),
+      relation: InsertionRelationSchema,
+      anchor: InsertionAnchorSchema.optional(),
+      editorKey: EditorKeySchema.optional(),
+    }),
     execute: async (options) => {
-      // 'schema' is added by the transform. Define options for the inserter.
+      type BaseOptions = typeof options & { mermaidLines: string[] };
+      const base = options as BaseOptions;
+      const schema = base.mermaidLines.join("\n");
+
+      // Provide schema to the inserter explicitly.
+      const mergedOptions = { ...options, schema } as const;
+
+      // Define options for the inserter.
       type InserterOptions = Omit<
-        typeof options,
+        typeof mergedOptions,
         "relation" | "anchor" | "editorKey"
       > & { schema: string };
 
       return insertionExecutor(
         "insertMermaidDiagram",
         editor,
-        options,
+        mergedOptions,
         (resolution, specificOptions, _currentTargetEditor) => {
           const { schema, width, height } = specificOptions as InserterOptions;
 
