@@ -64,15 +64,15 @@ export function useSaveAndExportDocument({
                 {
                   theme,
                   isolateCloneDocument: true,
-                  pruneDepth: 3,
-                  keepFirstChildren: 8,
+                  pruneDepth: null,
+                  keepFirstChildren: null,
                   charLimitPerTextNode: 400,
                   skipHeavyEmbeds: true,
-                  replaceImages: "dominantColor",
-                  stripComplexStyles: true,
-                  foreignObjectRendering: false, // foreignObject is slower; prefer canvas
-                  maxTraverseNodes: 4000,
-                  reduceFonts: true,
+                  replaceImages: "none",
+                  stripComplexStyles: false,
+                  foreignObjectRendering: true,
+                  maxTraverseNodes: 6000,
+                  reduceFonts: false,
                   scale: 1,
                 },
               );

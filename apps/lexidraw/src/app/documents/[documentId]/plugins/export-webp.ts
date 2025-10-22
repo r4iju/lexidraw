@@ -294,6 +294,28 @@ export function useExportWebp() {
       throw new Error("Failed to create blob");
     }
 
+    // optional retry: if mostly transparent and not using foreignObject, try again with foreignObject
+    if (!opts || opts.foreignObjectRendering !== true) {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      let opaque = 0;
+      for (let i = 3; i < data.length; i += 4) {
+        const alpha = data[i] ?? 0;
+        if (alpha > 8) opaque++;
+      }
+      const total = canvas.width * canvas.height;
+      const opaqueRatio = total ? opaque / total : 0;
+      if (opaqueRatio < 0.05) {
+        return await exportWebp(
+          { setTheme, restoreTheme },
+          {
+            ...opts,
+            foreignObjectRendering: true,
+          },
+        );
+      }
+    }
+
     return blob;
   }
 
