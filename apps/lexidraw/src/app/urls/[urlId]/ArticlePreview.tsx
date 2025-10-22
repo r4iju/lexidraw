@@ -23,6 +23,7 @@ import { Input } from "~/components/ui/input";
 import { Switch } from "~/components/ui/switch";
 import { Slider } from "~/components/ui/slider";
 import { api } from "~/trpc/react";
+import { htmlToPlainText } from "~/lib/html-to-text";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
@@ -268,11 +269,20 @@ export default function ArticlePreview({
     setIsGenerating(true);
     setTtsError(null);
     try {
+      // Derive plain text from already distilled HTML to avoid server refetch
+      const distilledHtml = distilled?.contentHtml ?? "";
+      const derivedText = distilledHtml ? htmlToPlainText(distilledHtml) : "";
       const resp = await fetch("/api/tts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           url: sourceUrl,
+          text: derivedText,
+          provider: ttsCfg.provider,
+          voiceId: ttsCfg.voiceId,
+          speed: ttsCfg.speed,
+          format: ttsCfg.format,
+          languageCode: ttsCfg.languageCode,
           title: distilled?.title || entity.title,
           entityId: entity.id,
         }),
@@ -325,7 +335,18 @@ export default function ArticlePreview({
     } finally {
       setIsGenerating(false);
     }
-  }, [sourceUrl, distilled?.title, entity.title, entity.id]);
+  }, [
+    sourceUrl,
+    distilled?.title,
+    distilled?.contentHtml,
+    entity.title,
+    entity.id,
+    ttsCfg.provider,
+    ttsCfg.voiceId,
+    ttsCfg.speed,
+    ttsCfg.format,
+    ttsCfg.languageCode,
+  ]);
 
   // Auto-generate when enabled in user Article settings and not yet generated
   useEffect(() => {
