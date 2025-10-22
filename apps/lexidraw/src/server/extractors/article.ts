@@ -303,7 +303,7 @@ export async function extractAndSanitizeArticle({
   // replace username and password with *
   const loggableUrl = url.replace(/https?:\/\/[^/]+@/, "https://***@");
 
-  // Build dispatcher attempts: 1 direct + up to 20 Nord HTTPS proxies
+  // Build dispatcher attempts: 1 direct + up to 50 Nord HTTPS proxies
   let attemptDispatchers: Array<{ label: string; dispatcher?: unknown }> = [
     { label: "direct", dispatcher: undefined },
   ];
@@ -311,19 +311,8 @@ export async function extractAndSanitizeArticle({
     const user = env.NORDVPN_SERVICE_USER;
     const pass = env.NORDVPN_SERVICE_PASS;
     if (user && pass) {
-      const urls = await getNordHttpsProxyUrls({ user, pass, limit: 50 });
-      // Use up to 10 hosts and for each try https and http schemes (20 total)
-      const pairUrls: string[] = [];
-      for (const u of urls) {
-        if (pairUrls.length >= 20) break;
-        pairUrls.push(u);
-        if (u.startsWith("https://")) {
-          pairUrls.push(`http://${u.slice("https://".length)}`);
-        } else if (u.startsWith("http://")) {
-          pairUrls.push(u);
-        }
-      }
-      const limited = pairUrls.slice(0, 20);
+      const urls = await getNordHttpsProxyUrls({ user, pass, limit: 120 });
+      const limited = urls.slice(0, 50);
       attemptDispatchers = [
         { label: "direct", dispatcher: undefined },
         ...limited.map((proxyUrl) => ({
@@ -347,7 +336,10 @@ export async function extractAndSanitizeArticle({
   let best: AttemptResult | null = null;
   let lastError: unknown = null;
 
-  const runAttempt = async (dispatcher: unknown): Promise<AttemptResult> => {
+  const runAttempt = async (
+    dispatcher: unknown,
+    externalSignal?: AbortSignal,
+  ): Promise<AttemptResult> => {
     const performFetch = (
       input: string,
       init: RequestInit & { dispatcher?: unknown } = {},
@@ -384,9 +376,22 @@ export async function extractAndSanitizeArticle({
       // Probe proxy reachability with a fast 204 endpoint to avoid slow dead proxies
       if (isProxy) {
         try {
-          const controller = AbortSignal.timeout(
+          const probeController = new AbortController();
+          const probeTo = setTimeout(
+            () => probeController.abort(),
             Math.max(1500, Math.min(4000, Math.floor(timeoutMs / 4))),
           );
+          if (externalSignal) {
+            if (externalSignal.aborted) probeController.abort();
+            else
+              externalSignal.addEventListener(
+                "abort",
+                () => probeController.abort(),
+                {
+                  once: true,
+                },
+              );
+          }
           const probeRes = await performFetch(
             "https://www.gstatic.com/generate_204",
             {
@@ -395,9 +400,10 @@ export async function extractAndSanitizeArticle({
                 "https://www.gstatic.com/generate_204",
               ),
               redirect: "manual",
-              signal: controller,
+              signal: probeController.signal,
             },
           );
+          clearTimeout(probeTo);
           if (!(probeRes.ok || probeRes.status === 204)) {
             throw new Error(`PROXY_PROBE_STATUS_${probeRes.status}`);
           }
@@ -415,7 +421,15 @@ export async function extractAndSanitizeArticle({
       const fetchOnce = async (
         customHeaders: Record<string, string>,
       ): Promise<{ status: number; text: string }> => {
-        const controller = AbortSignal.timeout(timeoutMs);
+        const controller = new AbortController();
+        const to = setTimeout(() => controller.abort(), timeoutMs);
+        if (externalSignal) {
+          if (externalSignal.aborted) controller.abort();
+          else
+            externalSignal.addEventListener("abort", () => controller.abort(), {
+              once: true,
+            });
+        }
         const res = await performFetch(url, {
           method: "GET",
           headers: {
@@ -426,8 +440,9 @@ export async function extractAndSanitizeArticle({
             ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
           },
           redirect: "follow",
-          signal: controller,
+          signal: controller.signal,
         });
+        clearTimeout(to);
         const text = await res.text();
         devLog("fetch:done", { status: res.status, length: text.length });
         return { status: res.status, text };
@@ -470,7 +485,17 @@ export async function extractAndSanitizeArticle({
                 ?.getAttribute("href");
             if (altHref) {
               const ampUrl = absolutizeUrl(url, altHref);
-              const controller = AbortSignal.timeout(timeoutMs);
+              const controller = new AbortController();
+              const to = setTimeout(() => controller.abort(), timeoutMs);
+              if (externalSignal) {
+                if (externalSignal.aborted) controller.abort();
+                else
+                  externalSignal.addEventListener(
+                    "abort",
+                    () => controller.abort(),
+                    { once: true },
+                  );
+              }
               const altRes = await performFetch(ampUrl, {
                 headers: {
                   "user-agent":
@@ -478,8 +503,9 @@ export async function extractAndSanitizeArticle({
                   "accept-language": "en-US,en;q=0.9",
                   ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
                 },
-                signal: controller,
+                signal: controller.signal,
               });
+              clearTimeout(to);
               if (altRes.ok) {
                 primary = { status: 200, text: await altRes.text() };
               } else {
@@ -574,7 +600,17 @@ export async function extractAndSanitizeArticle({
         devLog("fallback:amp:link", { hasAlt: Boolean(altHref), altHref });
         if (altHref) {
           const ampUrl = absolutizeUrl(url, altHref);
-          const controller = AbortSignal.timeout(timeoutMs);
+          const controller = new AbortController();
+          const to = setTimeout(() => controller.abort(), timeoutMs);
+          if (externalSignal) {
+            if (externalSignal.aborted) controller.abort();
+            else
+              externalSignal.addEventListener(
+                "abort",
+                () => controller.abort(),
+                { once: true },
+              );
+          }
           const altRes = await performFetch(ampUrl, {
             headers: {
               "user-agent":
@@ -582,8 +618,9 @@ export async function extractAndSanitizeArticle({
               "accept-language": "en-US,en;q=0.9",
               ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
             },
-            signal: controller,
+            signal: controller.signal,
           });
+          clearTimeout(to);
           devLog("fallback:amp:response", { status: altRes.status });
           if (altRes.ok) {
             const altHtml = await altRes.text();
@@ -671,7 +708,17 @@ export async function extractAndSanitizeArticle({
           canonicalUrl,
         });
         if (canonicalUrl && canonicalUrl !== url) {
-          const controller = AbortSignal.timeout(timeoutMs);
+          const controller = new AbortController();
+          const to = setTimeout(() => controller.abort(), timeoutMs);
+          if (externalSignal) {
+            if (externalSignal.aborted) controller.abort();
+            else
+              externalSignal.addEventListener(
+                "abort",
+                () => controller.abort(),
+                { once: true },
+              );
+          }
           const canRes = await performFetch(canonicalUrl, {
             headers: {
               "user-agent":
@@ -679,8 +726,9 @@ export async function extractAndSanitizeArticle({
               "accept-language": "en-US,en;q=0.9",
               ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
             },
-            signal: controller,
+            signal: controller.signal,
           });
+          clearTimeout(to);
           devLog("fallback:canonical:response", { status: canRes.status });
           if (canRes.ok) {
             const canHtml = await canRes.text();
@@ -800,7 +848,17 @@ export async function extractAndSanitizeArticle({
               devLog("fallback:iframe:skip_cross_origin", { src: abs });
               continue; // avoid fetching arbitrary third-party frames
             }
-            const controller = AbortSignal.timeout(timeoutMs);
+            const controller = new AbortController();
+            const to = setTimeout(() => controller.abort(), timeoutMs);
+            if (externalSignal) {
+              if (externalSignal.aborted) controller.abort();
+              else
+                externalSignal.addEventListener(
+                  "abort",
+                  () => controller.abort(),
+                  { once: true },
+                );
+            }
             const frRes = await performFetch(abs, {
               headers: {
                 "user-agent":
@@ -808,8 +866,9 @@ export async function extractAndSanitizeArticle({
                 "accept-language": "en-US,en;q=0.9",
                 ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
               },
-              signal: controller,
+              signal: controller.signal,
             });
+            clearTimeout(to);
             devLog("fallback:iframe:response", {
               status: frRes.status,
               url: abs,
@@ -923,13 +982,30 @@ export async function extractAndSanitizeArticle({
     };
   };
 
-  // Try direct + randomized proxies until quality threshold is met
-  for (const { label, dispatcher } of attemptDispatchers) {
+  // Try direct + randomized proxies with concurrency until quality threshold is met
+  const CONCURRENCY = 10;
+  const total = attemptDispatchers.length;
+  const abortAll = new AbortController();
+  let nextIndex = 0;
+  let inFlight = 0;
+  let resolved: DistilledArticle | null = null;
+
+  const launchNext = async (): Promise<void> => {
+    if (resolved) return;
+    if (nextIndex >= total) return;
+    const current = nextIndex++;
+    const { label, dispatcher } = attemptDispatchers[current] as {
+      label: string;
+      dispatcher?: unknown;
+    };
     const loggableLabel = label.replace(/https?:\/\/[^/]+@/, "https://***@");
+    inFlight += 1;
     try {
       devLog("attempt", { transport: loggableLabel });
-      const { distilled, qualityWords, qualityChars } =
-        await runAttempt(dispatcher);
+      const { distilled, qualityWords, qualityChars } = (await runAttempt(
+        dispatcher,
+        abortAll.signal,
+      )) as AttemptResult;
       const isGood = (qualityWords ?? 0) >= 50 && (qualityChars ?? 0) >= 200;
       if (
         !best ||
@@ -938,19 +1014,40 @@ export async function extractAndSanitizeArticle({
       ) {
         best = { distilled, qualityWords, qualityChars };
       }
-      if (isGood) return distilled;
-      // otherwise continue to next proxy
+      if (isGood && !resolved) {
+        resolved = distilled;
+        abortAll.abort();
+        return;
+      }
     } catch (e) {
       lastError = e;
       devLog("attempt:error", {
         transport: loggableLabel,
         error: e instanceof Error ? e.message : String(e),
       });
+    } finally {
+      inFlight -= 1;
+      // Launch another if there are remaining
+      if (!resolved && nextIndex < total) void launchNext();
     }
+  };
+
+  // Prime the pool
+  const starters = Math.min(CONCURRENCY, total);
+  for (let i = 0; i < starters; i++) {
+    void launchNext();
+  }
+  // Await completion: spin until resolved or all attempts finished
+  while (!resolved && (inFlight > 0 || nextIndex < total)) {
+    // 25ms tick; lightweight without introducing extra deps
+    await new Promise((r) => setTimeout(r, 25));
   }
 
+  if (resolved) return resolved;
+
   if (best) {
-    return best.distilled;
+    const b = best as AttemptResult;
+    return b.distilled;
   }
   // All attempts failed
   throw lastError instanceof Error
