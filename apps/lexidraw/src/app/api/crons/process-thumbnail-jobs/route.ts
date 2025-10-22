@@ -94,7 +94,13 @@ export async function GET(_req: NextRequest) {
       });
       const entity = (
         await drizzle
-          .select()
+          .select({
+            id: schema.entities.id,
+            userId: schema.entities.userId,
+            updatedAt: schema.entities.updatedAt,
+            thumbnailVersion: schema.entities.thumbnailVersion,
+            thumbnailStatus: schema.entities.thumbnailStatus,
+          })
           .from(schema.entities)
           .where(eq(schema.entities.id, job.entityId))
       )[0] as unknown as
@@ -103,6 +109,7 @@ export async function GET(_req: NextRequest) {
             userId: string;
             updatedAt: Date;
             thumbnailVersion?: string | null;
+            thumbnailStatus?: string | null;
           }
         | undefined;
 
@@ -122,10 +129,11 @@ export async function GET(_req: NextRequest) {
 
       // staleness
       if (
-        // Skip if entity already has this version rendered
-        (entity.thumbnailVersion && entity.thumbnailVersion === job.version) ||
-        // Or if entity was updated after this job was created
-        (entity.updatedAt && entity.updatedAt > job.createdAt)
+        // 1) Outdated job: entity changed after job creation
+        (entity.updatedAt && entity.updatedAt > job.createdAt) ||
+        // 2) Duplicate job: same version already marked ready
+        (entity.thumbnailVersion === job.version &&
+          entity.thumbnailStatus === "ready")
       ) {
         await drizzle
           .update(schema.thumbnailJobs)
@@ -139,6 +147,7 @@ export async function GET(_req: NextRequest) {
           jobVersion: job.version,
           entityUpdatedAt: (entity.updatedAt as Date)?.toISOString?.() ?? null,
           jobCreatedAt: (job.createdAt as Date)?.toISOString?.() ?? null,
+          thumbnailStatus: (entity.thumbnailStatus as string) ?? null,
         });
         stale++;
         continue;
