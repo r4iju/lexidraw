@@ -86,6 +86,7 @@
     },
     "db:generate": {},
     "db:pull": {},
+    "db:migrate": {},
     "test:ts": {
       "dependsOn": ["^test"],
       "outputs": []

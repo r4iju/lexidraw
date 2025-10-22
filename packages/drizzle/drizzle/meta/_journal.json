@@ -71,6 +71,13 @@
       "when": 1747060800434,
       "tag": "0011_tiny_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1761134670485,
+      "tag": "0012_clear_diamondback",
+      "breakpoints": true
     }
   ]
 }
