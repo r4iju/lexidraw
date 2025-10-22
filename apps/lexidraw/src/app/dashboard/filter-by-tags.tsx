@@ -61,8 +61,6 @@ export function FilterByTags({ options }: Props) {
     router.push(`${pathname}?${restParams.toString()}`);
   };
 
-  console.log({ selected, options });
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

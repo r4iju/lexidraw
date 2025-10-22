@@ -35,6 +35,19 @@ function backoffDelayMs(attempts: number): number {
   }
 }
 
+function logCron(event: string, data: Record<string, unknown> = {}): void {
+  try {
+    console.log(
+      JSON.stringify({
+        source: "thumbnail_cron",
+        event,
+        ts: Date.now(),
+        ...data,
+      }),
+    );
+  } catch {}
+}
+
 export async function GET(_req: NextRequest) {
   const ok = await canRunCron();
   if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -64,6 +77,8 @@ export async function GET(_req: NextRequest) {
     )
     .limit(limit)) as JobRow[];
 
+  logCron("picked_jobs", { count: jobs.length, jobIds: jobs.map((j) => j.id) });
+
   let processed = 0;
   let failed = 0;
   let stale = 0;
@@ -71,6 +86,12 @@ export async function GET(_req: NextRequest) {
   for (const job of jobs) {
     const t0 = Date.now();
     try {
+      logCron("job_start", {
+        jobId: job.id,
+        entityId: job.entityId,
+        attempts: job.attempts,
+        version: job.version,
+      });
       const entity = (
         await drizzle
           .select()
@@ -91,6 +112,10 @@ export async function GET(_req: NextRequest) {
           .set({ status: "stale", updatedAt: new Date() })
           .where(eq(schema.thumbnailJobs.id, job.id))
           .execute();
+        logCron("job_stale_no_entity", {
+          jobId: job.id,
+          entityId: job.entityId,
+        });
         stale++;
         continue;
       }
@@ -105,6 +130,14 @@ export async function GET(_req: NextRequest) {
           .set({ status: "stale", updatedAt: new Date() })
           .where(eq(schema.thumbnailJobs.id, job.id))
           .execute();
+        logCron("job_stale_version_mismatch", {
+          jobId: job.id,
+          entityId: job.entityId,
+          entityVersion: entity.thumbnailVersion ?? null,
+          jobVersion: job.version,
+          entityUpdatedAt: (entity.updatedAt as Date)?.toISOString?.() ?? null,
+          jobCreatedAt: (job.createdAt as Date)?.toISOString?.() ?? null,
+        });
         stale++;
         continue;
       }
@@ -122,6 +155,11 @@ export async function GET(_req: NextRequest) {
         })
         .where(eq(schema.thumbnailJobs.id, job.id))
         .execute();
+      logCron("job_mark_processing", {
+        jobId: job.id,
+        attempts,
+        nextRunAt: next.toISOString(),
+      });
 
       // build screenshot URL
       const heads = await nextHeaders();
@@ -136,12 +174,15 @@ export async function GET(_req: NextRequest) {
       const targetW = 640;
       const targetH = 480;
       const pageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(entity.id)}?st=${encodeURIComponent(token)}&width=${targetW}&height=${targetH}`;
+      logCron("render_prepare", { jobId: job.id, pageUrl, targetW, targetH });
 
       if (!env.HEADLESS_RENDER_ENABLED || !env.HEADLESS_RENDER_URL) {
         throw new Error("HEADLESS_RENDER not configured");
       }
 
       const render = async (theme: "light" | "dark"): Promise<Uint8Array> => {
+        const t = Date.now();
+        logCron("render_start", { jobId: job.id, theme });
         const r = await fetch(`${env.HEADLESS_RENDER_URL}/api/screenshot`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -156,6 +197,12 @@ export async function GET(_req: NextRequest) {
         });
         if (!r.ok) throw new Error(`screenshot ${theme} failed: ${r.status}`);
         const buf = new Uint8Array(await r.arrayBuffer());
+        logCron("render_done", {
+          jobId: job.id,
+          theme,
+          ms: Date.now() - t,
+          bytes: buf.byteLength,
+        });
         return buf;
       };
 
@@ -167,17 +214,29 @@ export async function GET(_req: NextRequest) {
       // upload
       const lightKey = `${entity.id}-light.webp`;
       const darkKey = `${entity.id}-dark.webp`;
-      const upLight = await put(lightKey, light, {
+      const upLight = await put(lightKey, new Blob([new Uint8Array(light)]), {
         access: "public",
         contentType: "image/webp",
         token: env.BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false,
       });
-      const upDark = await put(darkKey, dark, {
+      logCron("upload_done", {
+        jobId: job.id,
+        theme: "light",
+        key: lightKey,
+        url: upLight.url,
+      });
+      const upDark = await put(darkKey, new Blob([new Uint8Array(dark)]), {
         access: "public",
         contentType: "image/webp",
         token: env.BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false,
+      });
+      logCron("upload_done", {
+        jobId: job.id,
+        theme: "dark",
+        key: darkKey,
+        url: upDark.url,
       });
 
       await drizzle
@@ -192,6 +251,13 @@ export async function GET(_req: NextRequest) {
         })
         .where(eq(schema.entities.id, entity.id))
         .execute();
+      logCron("db_entity_updated", {
+        jobId: job.id,
+        entityId: entity.id,
+        lightUrl: upLight.url,
+        darkUrl: upDark.url,
+        version: job.version,
+      });
 
       await drizzle
         .update(schema.thumbnailJobs)
@@ -200,9 +266,12 @@ export async function GET(_req: NextRequest) {
         .execute();
 
       processed++;
-      console.log("thumbnail_job_ok", { id: job.id, ms: Date.now() - t0 });
+      logCron("job_done", { jobId: job.id, ms: Date.now() - t0 });
     } catch (e) {
-      console.error("thumbnail_job_error", { id: job.id, error: e });
+      logCron("job_error", {
+        jobId: job.id,
+        error: (e as Error)?.message ?? String(e),
+      });
       const attempts = (job.attempts ?? 0) + 1;
       const next = new Date(Date.now() + backoffDelayMs(attempts));
       await drizzle
@@ -220,5 +289,6 @@ export async function GET(_req: NextRequest) {
     }
   }
 
+  logCron("batch_complete", { processed, failed, stale, picked: jobs.length });
   return NextResponse.json({ processed, failed, stale, picked: jobs.length });
 }

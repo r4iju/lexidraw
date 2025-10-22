@@ -80,6 +80,80 @@ async function ensurePageReady(page: Page, timeoutMs: number) {
   } catch {}
 }
 
+async function waitForIframeAndContent(
+  page: Page,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  // Wait for screenshot-root and optional iframe to mount
+  await page
+    .waitForSelector("#screenshot-root", { timeout: timeoutMs })
+    .catch(() => {});
+  // Wait for iframe document to be ready, if present
+  while (Date.now() < deadline) {
+    const hasReady = await page.evaluate(() => {
+      const iframe = document.getElementById(
+        "doc-frame",
+      ) as HTMLIFrameElement | null;
+      if (!iframe) return false;
+      try {
+        const d = iframe.contentDocument as Document | null;
+        return !!d && d.readyState === "complete";
+      } catch {
+        return false;
+      }
+    });
+    if (hasReady) break;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
+  // If a frame is present, wait for content root in the frame
+  try {
+    const frame = page
+      .frames()
+      .find((f) => f.url().includes("/screenshot/view/"));
+    if (frame) {
+      await frame
+        .waitForSelector("#lexical-content, [id^='lexical-content-']", {
+          timeout: Math.max(500, timeoutMs / 2),
+        })
+        .catch(() => {});
+    }
+  } catch {}
+}
+
+async function waitForStableLayout(
+  page: Page,
+  selector: string,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let last: { w: number; h: number } | null = null;
+  let stableCount = 0;
+  while (Date.now() < deadline && stableCount < 3) {
+    const cur = await page.evaluate((sel: string) => {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      const r = el?.getBoundingClientRect();
+      return r ? { w: Math.round(r.width), h: Math.round(r.height) } : null;
+    }, selector);
+    if (!cur) {
+      await new Promise((r) => setTimeout(r, 120));
+      continue;
+    }
+    if (
+      last &&
+      Math.abs(last.w - cur.w) <= 1 &&
+      Math.abs(last.h - cur.h) <= 1
+    ) {
+      stableCount += 1;
+    } else {
+      stableCount = 0;
+      last = cur;
+    }
+    await new Promise((r) => setTimeout(r, 120));
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
@@ -167,9 +241,11 @@ export async function POST(req: NextRequest) {
       await page.setUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       );
+      const vercelBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "";
       await page.setExtraHTTPHeaders({
         "accept-language": "en-US,en;q=0.9",
         ...(body?.cookiesHeader ? { cookie: body.cookiesHeader } : {}),
+        ...(vercelBypass ? { "x-vercel-protection-bypass": vercelBypass } : {}),
       });
       page.on("dialog", async (d) => {
         try {
@@ -177,7 +253,18 @@ export async function POST(req: NextRequest) {
         } catch {}
       });
 
-      await page.goto(url, { waitUntil, timeout: timeoutMs });
+      // Always pass Vercel protection bypass (header already set globally). As a fallback, add query param.
+      const gotoUrl = (() => {
+        try {
+          if (!vercelBypass) return url;
+          const u = new URL(url);
+          u.searchParams.set("x-vercel-protection-bypass", vercelBypass);
+          return u.toString();
+        } catch {
+          return url;
+        }
+      })();
+      await page.goto(gotoUrl, { waitUntil, timeout: timeoutMs });
       // Enforce theme if provided
       if (body?.theme === "dark" || body?.theme === "light") {
         await page.evaluate((t) => {
@@ -216,6 +303,12 @@ export async function POST(req: NextRequest) {
         } catch {}
       }
       await ensurePageReady(page, timeoutMs);
+      await waitForIframeAndContent(page, timeoutMs);
+      await waitForStableLayout(
+        page,
+        "#screenshot-root",
+        Math.max(600, timeoutMs / 3),
+      );
 
       // Locate element and compute clip (wait for client-rendered content)
       const started = Date.now();
@@ -364,44 +457,45 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      const DESIRED_RATIO = 4 / 3; // width / height
-
-      // Simplified crop with correct top offset: anchor left to root,
-      // start y at target element top plus mt-8 (24px) trim,
-      // then take the largest 4:3 that fits.
-      const MARGIN_TRIM_PX_DEFAULT = 24;
-      const yStart = Math.max(
-        root.y,
-        (info?.y ?? root.y) + (info?.topTrimPx ?? MARGIN_TRIM_PX_DEFAULT),
-      );
-      const availableWidth = Math.max(1, Math.floor(root.width));
-      const availableHeight = Math.max(
-        1,
-        Math.floor(root.y + root.height - yStart),
-      );
-      let clipW = availableWidth;
-      let clipH = Math.floor(clipW / DESIRED_RATIO);
-      if (clipH > availableHeight) {
-        clipH = availableHeight;
-        clipW = Math.max(1, Math.floor(clipH * DESIRED_RATIO));
+      let buffer: Buffer;
+      if (info && info.width > 0 && info.height > 0) {
+        const clipX = Math.max(info.x, root.x);
+        let clipY = Math.max(info.y, root.y);
+        const clipW =
+          Math.min(info.x + info.width, root.x + root.width) - clipX;
+        let clipH =
+          Math.min(info.y + info.height, root.y + root.height) - clipY;
+        // Adaptive trim: measure spacing from content root to first visible child
+        const TRIM_CAP = 64; // safety
+        const measured = ((info as any).topTrimPx ?? 0) as number;
+        const trim = Math.min(
+          TRIM_CAP,
+          Math.max(0, Math.min(measured, clipH - 1)),
+        );
+        clipY += trim;
+        // Add the trimmed amount back at the bottom, clamped to root bounds
+        const rootBottom = root.y + root.height;
+        const desired = clipH + trim;
+        const maxPossible = rootBottom - clipY;
+        clipH = Math.max(1, Math.min(desired, maxPossible));
+        buffer = (await page.screenshot({
+          type: (image.type as "png" | "webp") ?? "webp",
+          quality: image.quality,
+          clip: {
+            x: Math.max(0, clipX),
+            y: Math.max(0, clipY),
+            width: Math.max(1, clipW),
+            height: Math.max(1, clipH),
+          },
+          omitBackground: true,
+        })) as Buffer;
+      } else {
+        // fallback full viewport
+        buffer = (await page.screenshot({
+          type: (image.type as "png" | "webp") ?? "webp",
+          quality: image.quality,
+        })) as Buffer;
       }
-      const fourThree = {
-        x: Math.max(0, Math.floor(root.x)),
-        y: Math.max(0, Math.floor(yStart)),
-        width: clipW,
-        height: clipH,
-      };
-      const buffer = (await page.screenshot({
-        type: (image.type as "png" | "webp") ?? "webp",
-        quality: image.quality,
-        clip: {
-          x: Math.max(0, fourThree.x),
-          y: Math.max(0, fourThree.y),
-          width: Math.max(1, fourThree.width),
-          height: Math.max(1, fourThree.height),
-        },
-        omitBackground: true,
-      })) as Buffer;
 
       const u8 = new Uint8Array(buffer);
       const blob = new Blob([u8.buffer], {
