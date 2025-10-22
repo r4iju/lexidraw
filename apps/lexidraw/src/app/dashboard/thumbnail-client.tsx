@@ -65,7 +65,7 @@ export function ThumbnailClient({ entity }: Props) {
             quality={75}
             loading="eager"
             draggable={false}
-            className="object-cover"
+            className="object-contain bg-background"
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
@@ -76,7 +76,7 @@ export function ThumbnailClient({ entity }: Props) {
   }
 
   return (
-    <div className="relative size-full aspect-4/3 rounded-sm border border-border overflow-hidden">
+    <div className="relative size-full aspect-4/3 rounded-sm overflow-hidden">
       <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
       {src && (
         <Image
@@ -92,6 +92,7 @@ export function ThumbnailClient({ entity }: Props) {
         />
       )}
       {!src && <ThumbnailFallback />}
+      <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
     </div>
   );
 }
@@ -195,15 +196,6 @@ function FolderVisual({
           {childCount}
         </div>
       )}
-    </div>
-  );
-}
-
-function LinkVisual({ title }: { title: string }) {
-  return (
-    <div className="relative size-full aspect-4/3 rounded-sm border border-border grid place-items-center overflow-hidden">
-      <span className="sr-only">{`Link: ${title}`}</span>
-      <Link2 className="size-10 text-muted-foreground" />
     </div>
   );
 }

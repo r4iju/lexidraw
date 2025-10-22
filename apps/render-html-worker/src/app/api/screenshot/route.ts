@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       height: 900,
       deviceScaleFactor: 1,
     };
-    const image = body?.image ?? { type: "webp", quality: 90 };
+    const image = body?.image ?? { type: "webp", quality: 92 };
 
     // Launch Chromium
     let browser: Browser | undefined;
@@ -226,6 +226,7 @@ export async function POST(req: NextRequest) {
         width: number;
         height: number;
         dpr: number;
+        topTrimPx?: number;
       } | null;
       while (Date.now() - started < maxWait && !info) {
         info = await page.evaluate((sel: string) => {
@@ -233,12 +234,40 @@ export async function POST(req: NextRequest) {
           if (!el) return null;
           const r = el.getBoundingClientRect();
           if (r.width < 10 || r.height < 10) return null;
+
+          // Heuristic: measure spacing to first visible child (e.g., heading with mt-8)
+          const getFirstVisibleTop = (root: Element): number | null => {
+            const walker = document.createTreeWalker(
+              root,
+              NodeFilter.SHOW_ELEMENT,
+            );
+            while (walker.nextNode()) {
+              const n = walker.currentNode as HTMLElement;
+              const cs = getComputedStyle(n);
+              if (cs.display === "none" || cs.visibility === "hidden") continue;
+              const rr = n.getBoundingClientRect();
+              if (rr.height > 2 && rr.width > 2) return rr.top;
+            }
+            return null;
+          };
+          const firstTop = getFirstVisibleTop(el);
+          const topTrimPx =
+            firstTop != null ? Math.max(0, firstTop - r.top) : 0;
+
           return {
             x: r.x,
             y: r.y,
             width: r.width,
             height: r.height,
             dpr: window.devicePixelRatio || 1,
+            topTrimPx,
+          } as {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            dpr: number;
+            topTrimPx: number;
           };
         }, selector);
         if (info) break;
@@ -266,6 +295,7 @@ export async function POST(req: NextRequest) {
               y: number;
               width: number;
               height: number;
+              topTrimPx?: number;
             } | null = null;
             while (Date.now() - t0 < maxWait && !inner) {
               inner = await frame.evaluate((sel: string) => {
@@ -273,7 +303,31 @@ export async function POST(req: NextRequest) {
                 if (!el) return null;
                 const r = el.getBoundingClientRect();
                 if (r.width < 10 || r.height < 10) return null;
-                return { x: r.x, y: r.y, width: r.width, height: r.height };
+                const getFirstVisibleTop = (root: Element): number | null => {
+                  const walker = document.createTreeWalker(
+                    root,
+                    NodeFilter.SHOW_ELEMENT,
+                  );
+                  while (walker.nextNode()) {
+                    const n = walker.currentNode as HTMLElement;
+                    const cs = getComputedStyle(n);
+                    if (cs.display === "none" || cs.visibility === "hidden")
+                      continue;
+                    const rr = n.getBoundingClientRect();
+                    if (rr.height > 2 && rr.width > 2) return rr.top;
+                  }
+                  return null;
+                };
+                const firstTop = getFirstVisibleTop(el);
+                const topTrimPx =
+                  firstTop != null ? Math.max(0, firstTop - r.top) : 0;
+                return {
+                  x: r.x,
+                  y: r.y,
+                  width: r.width,
+                  height: r.height,
+                  topTrimPx,
+                };
               }, selector);
               if (inner) break;
               await new Promise((r) => setTimeout(r, 120));
@@ -285,6 +339,7 @@ export async function POST(req: NextRequest) {
                 width: inner.width,
                 height: inner.height,
                 dpr: 1,
+                topTrimPx: inner.topTrimPx ?? 0,
               };
               info = merged as unknown as typeof info;
             }
@@ -309,31 +364,44 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      let buffer: Buffer;
-      if (info && info.width > 0 && info.height > 0) {
-        const clipX = Math.max(info.x, root.x);
-        const clipY = Math.max(info.y, root.y);
-        const clipW =
-          Math.min(info.x + info.width, root.x + root.width) - clipX;
-        const clipH =
-          Math.min(info.y + info.height, root.y + root.height) - clipY;
-        buffer = (await page.screenshot({
-          type: (image.type as "png" | "webp") ?? "webp",
-          quality: image.quality,
-          clip: {
-            x: Math.max(0, clipX),
-            y: Math.max(0, clipY),
-            width: Math.max(1, clipW),
-            height: Math.max(1, clipH),
-          },
-        })) as Buffer;
-      } else {
-        // fallback full viewport
-        buffer = (await page.screenshot({
-          type: (image.type as "png" | "webp") ?? "webp",
-          quality: image.quality,
-        })) as Buffer;
+      const DESIRED_RATIO = 4 / 3; // width / height
+
+      // Simplified crop with correct top offset: anchor left to root,
+      // start y at target element top plus mt-8 (24px) trim,
+      // then take the largest 4:3 that fits.
+      const MARGIN_TRIM_PX_DEFAULT = 24;
+      const yStart = Math.max(
+        root.y,
+        (info?.y ?? root.y) + (info?.topTrimPx ?? MARGIN_TRIM_PX_DEFAULT),
+      );
+      const availableWidth = Math.max(1, Math.floor(root.width));
+      const availableHeight = Math.max(
+        1,
+        Math.floor(root.y + root.height - yStart),
+      );
+      let clipW = availableWidth;
+      let clipH = Math.floor(clipW / DESIRED_RATIO);
+      if (clipH > availableHeight) {
+        clipH = availableHeight;
+        clipW = Math.max(1, Math.floor(clipH * DESIRED_RATIO));
       }
+      const fourThree = {
+        x: Math.max(0, Math.floor(root.x)),
+        y: Math.max(0, Math.floor(yStart)),
+        width: clipW,
+        height: clipH,
+      };
+      const buffer = (await page.screenshot({
+        type: (image.type as "png" | "webp") ?? "webp",
+        quality: image.quality,
+        clip: {
+          x: Math.max(0, fourThree.x),
+          y: Math.max(0, fourThree.y),
+          width: Math.max(1, fourThree.width),
+          height: Math.max(1, fourThree.height),
+        },
+        omitBackground: true,
+      })) as Buffer;
 
       const u8 = new Uint8Array(buffer);
       const blob = new Blob([u8.buffer], {

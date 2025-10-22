@@ -765,7 +765,9 @@ export const entityRouter = createTRPCRouter({
         entityId: input.id,
         ttlMs: 3 * 60_000,
       });
-      const pageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(input.id)}?st=${encodeURIComponent(token)}`;
+      const targetW = 640;
+      const targetH = 480;
+      const pageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(input.id)}?st=${encodeURIComponent(token)}&width=${targetW}&height=${targetH}`;
 
       let endpoint: string;
       {
@@ -792,8 +794,8 @@ export const entityRouter = createTRPCRouter({
             url: pageUrl,
             cookiesHeader: cookieHeader,
             selector: `[id^="lexical-content-"]`,
-            viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-            image: { type: "webp", quality: 90 },
+            viewport: { width: targetW, height: targetH, deviceScaleFactor: 2 },
+            image: { type: "webp", quality: 92 },
             waitUntil: "networkidle2",
             timeoutMs: 20000,
             theme,
