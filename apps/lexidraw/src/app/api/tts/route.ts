@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { drizzle, schema, eq, and } from "@packages/drizzle";
 import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 import type { TtsRequest } from "~/server/tts/types";
+import { htmlToPlainText } from "~/lib/html-to-text";
 
 export const maxDuration = 800;
 export const dynamic = "force-dynamic";
@@ -36,10 +37,34 @@ export async function POST(req: NextRequest) {
   } as const;
 
   try {
+    // Resolve source text: prefer explicit text, otherwise pull from entity.distilled
+    let resolvedText = typeof body.text === "string" ? body.text : undefined;
+    if ((!resolvedText || resolvedText.trim() === "") && body.entityId) {
+      try {
+        const existing = await drizzle.query.entities.findFirst({
+          where: (e) =>
+            and(
+              eq(e.id, body.entityId as string),
+              eq(e.userId, session.user.id),
+            ),
+        });
+        if (existing?.elements) {
+          const parsed = JSON.parse(existing.elements) as {
+            distilled?: { contentHtml?: string };
+          };
+          const html = parsed?.distilled?.contentHtml ?? "";
+          if (html) resolvedText = htmlToPlainText(html);
+        }
+      } catch {
+        // ignore DB errors; fallback to other sources
+      }
+    }
+
     // Precompute job id + manifest url; if already exists, return immediately
     console.log("[tts][route] incoming", {
       hasUrl: !!body.url,
-      textLen: typeof body.text === "string" ? body.text.length : undefined,
+      textLen:
+        typeof resolvedText === "string" ? resolvedText.length : undefined,
       provider: resolved.provider,
       voiceId: resolved.voiceId,
       speed: resolved.speed,
@@ -50,6 +75,7 @@ export async function POST(req: NextRequest) {
     });
     const { id, manifestUrl } = precomputeTtsKey({
       ...body,
+      text: resolvedText,
       provider: resolved.provider,
       voiceId: resolved.voiceId,
       speed: resolved.speed,
@@ -110,7 +136,7 @@ export async function POST(req: NextRequest) {
       try {
         const result = await synthesizeArticleOrText({
           url: body.url,
-          text: body.text,
+          text: resolvedText,
           provider: resolved.provider,
           voiceId: resolved.voiceId,
           speed: resolved.speed,
