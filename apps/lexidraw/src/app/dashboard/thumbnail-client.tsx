@@ -20,12 +20,23 @@ type Props = {
 export function ThumbnailClient({ entity }: Props) {
   const isDarkTheme = useIsDarkTheme();
   const deferredIsDarkTheme = useDeferredValue(isDarkTheme);
-  const src = useMemo(
-    () =>
-      deferredIsDarkTheme ? entity.screenShotDark : entity.screenShotLight,
-    [deferredIsDarkTheme, entity.screenShotDark, entity.screenShotLight],
-  );
-  const _isDefaultDirectory = entity.entityType === "directory" && !src;
+  const src = useMemo(() => {
+    const base = deferredIsDarkTheme
+      ? entity.screenShotDark
+      : entity.screenShotLight;
+    if (!base) return base;
+    const ver = String(
+      (entity as unknown as { updatedAt?: number | string }).updatedAt ?? "",
+    );
+    if (!ver) return base;
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}v=${ver}`;
+  }, [
+    deferredIsDarkTheme,
+    entity.screenShotDark,
+    entity.screenShotLight,
+    entity,
+  ]);
 
   // Folder visual using design-system colors; keeps screenshot visible under outline
   if (entity.entityType === "directory") {
