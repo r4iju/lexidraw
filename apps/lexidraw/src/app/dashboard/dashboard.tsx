@@ -55,9 +55,9 @@ export async function Dashboard({
 
   return (
     <DraggingContext sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
-      <main className="flex size-full min-h-0 flex-col overflow-auto pb-6">
+      <main className="flex size-full min-h-0 flex-col overflow-auto pb-6 px-4">
         {/* Breadcrumb: each ancestor is droppable */}
-        <nav className="flex flex-col space-x-2 px-4 md:px-8 py-2 gap-y-4">
+        <nav className="flex flex-col space-x-2 md:px-8 py-2 gap-y-4">
           <div className="flex justify-between items-center ">
             <div className="flex items-center space-x-2 truncate">
               {directory && directory.ancestors?.length > 0 ? (
@@ -103,13 +103,13 @@ export async function Dashboard({
           <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-2 md:gap-6">
             {/* but dont cannibalize the search the buttons */}
             <SearchBar className="w-full" />
-            <div className="flex flex-wrap justify-end space-x-2 space-y-2 w-full md:w-auto">
+            <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 w-full md:w-auto">
               {/* filter by tags */}
 
               <FilterByTags options={allTags} />
 
               {/* favorites / archived toggles */}
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 <Button
                   variant={onlyFavorites ? "secondary" : "outline"}
                   size="icon"
@@ -186,7 +186,7 @@ export async function Dashboard({
         </nav>
 
         <div className="flex-1 md:container">
-          <section className="w-full p-4">
+          <section className="w-full">
             <div
               className={cn(
                 "grid auto-rows-auto",
