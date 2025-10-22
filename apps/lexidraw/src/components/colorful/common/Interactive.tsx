@@ -1,4 +1,5 @@
-import React, { useRef, useMemo, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
+import { getParentWindow } from "./dom";
 
 import { useEventCallback } from "../hooks/useEventCallback";
 import { useClampUtils } from "../utils/clamp";
@@ -20,10 +21,7 @@ const getTouchPoint = (touches: TouchList, touchId: null | number): Touch => {
   return touches[0] as Touch;
 };
 
-// Finds the proper window object to fix iframe embedding issues
-const getParentWindow = (node?: HTMLDivElement | null): Window => {
-  return node?.ownerDocument.defaultView || self;
-};
+// getParentWindow moved to ./dom to avoid React Compiler hook inference
 
 // Browsers introduced an intervention, making touch events passive by default.
 // This workaround removes `preventDefault` call from the touch handlers.
@@ -47,13 +45,15 @@ interface Props {
   children: React.ReactNode;
 }
 
-const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
+const InteractiveBase = ({ onMove, onKey, children, ...rest }: Props) => {
   const { clamp } = useClampUtils();
   const container = useRef<HTMLDivElement>(null);
   const onMoveCallback = useEventCallback<Interaction>(onMove);
   const onKeyCallback = useEventCallback<Interaction>(onKey);
   const touchId = useRef<null | number>(null);
   const hasTouch = useRef(false);
+  // Hold a stable reference to the toggle function to safely call in cleanup
+  const toggleDocumentEventsRef = useRef<(state?: boolean) => void>(() => {});
 
   const getRelativePosition = useCallback(
     (
@@ -82,10 +82,53 @@ const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
     [clamp],
   );
 
-  const [handleMoveStart, handleKeyDown, toggleDocumentEvents] = useMemo(() => {
-    const handleMoveStart = ({
-      nativeEvent,
-    }: React.MouseEvent | React.TouchEvent) => {
+  const handleMove = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      // Prevent text selection
+      preventDefaultMove(event);
+
+      // If user moves the pointer outside of the window or iframe bounds and release it there,
+      // `mouseup`/`touchend` won't be fired. In order to stop the picker from following the cursor
+      // after the user has moved the mouse/finger back to the document, we check `event.buttons`
+      // and `event.touches`. It allows us to detect that the user is just moving his pointer
+      // without pressing it down
+      const isDown = isTouch(event)
+        ? event.touches.length > 0
+        : event.buttons > 0;
+
+      if (isDown && container.current) {
+        onMoveCallback(
+          getRelativePosition(container.current, event, touchId.current),
+        );
+      } else {
+        toggleDocumentEventsRef.current(false);
+      }
+    },
+    [onMoveCallback, getRelativePosition],
+  );
+
+  const handleMoveEnd = useCallback(() => {
+    toggleDocumentEventsRef.current(false);
+  }, []);
+
+  const toggleDocumentEvents = useCallback(
+    (state?: boolean) => {
+      const touch = hasTouch.current;
+      const el = container.current;
+      const parentWindow = getParentWindow(el);
+
+      // Add or remove additional pointer event listeners
+      const toggleEvent = state
+        ? parentWindow.addEventListener
+        : parentWindow.removeEventListener;
+      toggleEvent(touch ? "touchmove" : "mousemove", handleMove);
+      toggleEvent(touch ? "touchend" : "mouseup", handleMoveEnd);
+    },
+    [handleMove, handleMoveEnd],
+  );
+
+  const handleMoveStart = useCallback(
+    ({ nativeEvent }: React.MouseEvent | React.TouchEvent) => {
       const el = container.current;
       if (!el) return;
 
@@ -105,33 +148,12 @@ const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
       el.focus();
       onMoveCallback(getRelativePosition(el, nativeEvent, touchId.current));
       toggleDocumentEvents(true);
-    };
+    },
+    [onMoveCallback, getRelativePosition, toggleDocumentEvents],
+  );
 
-    const handleMove = (event: MouseEvent | TouchEvent) => {
-      // Prevent text selection
-      preventDefaultMove(event);
-
-      // If user moves the pointer outside of the window or iframe bounds and release it there,
-      // `mouseup`/`touchend` won't be fired. In order to stop the picker from following the cursor
-      // after the user has moved the mouse/finger back to the document, we check `event.buttons`
-      // and `event.touches`. It allows us to detect that the user is just moving his pointer
-      // without pressing it down
-      const isDown = isTouch(event)
-        ? event.touches.length > 0
-        : event.buttons > 0;
-
-      if (isDown && container.current) {
-        onMoveCallback(
-          getRelativePosition(container.current, event, touchId.current),
-        );
-      } else {
-        toggleDocumentEvents(false);
-      }
-    };
-
-    const handleMoveEnd = () => toggleDocumentEvents(false);
-
-    const handleKeyDown = (event: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
       const keyCode = event.which || event.keyCode;
 
       // Ignore all keys except arrow ones
@@ -145,26 +167,21 @@ const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
         left: keyCode === 39 ? 0.05 : keyCode === 37 ? -0.05 : 0,
         top: keyCode === 40 ? 0.05 : keyCode === 38 ? -0.05 : 0,
       });
-    };
+    },
+    [onKeyCallback],
+  );
 
-    function toggleDocumentEvents(state?: boolean) {
-      const touch = hasTouch.current;
-      const el = container.current;
-      const parentWindow = getParentWindow(el);
-
-      // Add or remove additional pointer event listeners
-      const toggleEvent = state
-        ? parentWindow.addEventListener
-        : parentWindow.removeEventListener;
-      toggleEvent(touch ? "touchmove" : "mousemove", handleMove);
-      toggleEvent(touch ? "touchend" : "mouseup", handleMoveEnd);
-    }
-
-    return [handleMoveStart, handleKeyDown, toggleDocumentEvents];
-  }, [onKeyCallback, onMoveCallback, getRelativePosition]);
+  // Keep ref updated outside of render
+  useEffect(() => {
+    toggleDocumentEventsRef.current = toggleDocumentEvents;
+  }, [toggleDocumentEvents]);
 
   // Remove window event listeners before unmounting
-  useEffect(() => toggleDocumentEvents, [toggleDocumentEvents]);
+  useEffect(() => {
+    return () => {
+      toggleDocumentEventsRef.current(false);
+    };
+  }, []);
 
   return (
     <div
@@ -177,7 +194,9 @@ const InteractiveBase = ({ onMove, onKey, ...rest }: Props) => {
       tabIndex={0}
       role="slider"
       aria-valuenow={0}
-    />
+    >
+      {children}
+    </div>
   );
 };
 
