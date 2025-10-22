@@ -49,6 +49,7 @@ import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
 import type { EditorState, Klass, LexicalNode } from "lexical";
+import { $getRoot } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
@@ -294,6 +295,7 @@ function EditorHandler({
   const [previousDefaultFontFamily, setPreviousDefaultFontFamily] = useState<
     string | null
   >(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
     if (_floatingAnchorElem !== null) {
@@ -409,6 +411,17 @@ function EditorHandler({
     }
   }, [defaultFontFamily, previousDefaultFontFamily]);
 
+  // Default viewport and caret to the top on initial open (unless deep-linked)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.location.hash && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+    editor.update(() => {
+      $getRoot().selectStart();
+    });
+  }, [editor]);
+
   return (
     <FlashMessageContext>
       <EditorRegistryProvider>
@@ -467,7 +480,10 @@ function EditorHandler({
                           {/* editor + sidebar container */}
                           <div className="flex flex-1 overflow-hidden bg-muted">
                             {/* editor */}
-                            <div className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto bg-background border-x border-border">
+                            <div
+                              ref={scrollRef}
+                              className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto bg-background border-x border-border"
+                            >
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />
                               <LayoutPlugin />
