@@ -64,6 +64,8 @@ const env = createEnv({
       .preprocess((val) => val === "true", z.boolean())
       .optional(),
     HEADLESS_RENDER_URL: z.string().url().optional(),
+    NORDVPN_SERVICE_USER: z.string(),
+    NORDVPN_SERVICE_PASS: z.string(),
   },
   client: {
     NEXT_PUBLIC_UNSPLASH_APP_NAME: z.string().min(1),
@@ -124,6 +126,8 @@ const env = createEnv({
     TTS_MAX_ESTIMATED_COST_USD: process.env.TTS_MAX_ESTIMATED_COST_USD,
     HEADLESS_RENDER_ENABLED: process.env.HEADLESS_RENDER_ENABLED,
     HEADLESS_RENDER_URL: process.env.HEADLESS_RENDER_URL,
+    NORDVPN_SERVICE_USER: process.env.NORDVPN_SERVICE_USER,
+    NORDVPN_SERVICE_PASS: process.env.NORDVPN_SERVICE_PASS,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
