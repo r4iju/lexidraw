@@ -142,9 +142,57 @@ export const entityRouter = createTRPCRouter({
         appState: appState,
         elements: input.elements,
         ...(input.parentId ? { parentId: input.parentId } : {}),
+        updatedAt: new Date(),
+        // move thumbnail status bump here to avoid a second UPDATE
+        // and ensure the UPDATE has at least one column always
+        thumbnailStatus: "pending",
       })
       .where(eq(schema.entities.id, input.id))
       .execute();
+
+    // Enqueue thumbnail job (deduped by entityId+version)
+    try {
+      const crypto = await import("node:crypto");
+      const version = crypto
+        .createHash("md5")
+        .update(
+          JSON.stringify({
+            elements: input.elements,
+            appState: appState ?? "",
+          }),
+        )
+        .digest("hex");
+
+      // upsert job
+      await ctx.drizzle
+        .insert(ctx.schema.thumbnailJobs)
+        .values({
+          id: uuidV4(),
+          entityId: input.id,
+          version,
+          status: "pending",
+          attempts: 0,
+          nextRunAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [
+            ctx.schema.thumbnailJobs.entityId,
+            ctx.schema.thumbnailJobs.version,
+          ],
+          set: {
+            status: "pending",
+            updatedAt: new Date(),
+            nextRunAt: new Date(),
+            lastError: null,
+          },
+        })
+        .execute();
+    } catch (e) {
+      console.error("enqueue_thumbnail_job_failed", e);
+      // swallow: saving the document should not fail due to queueing issues
+    }
   }),
   load: publicProcedure
     .input(z.object({ id: z.string() }))
@@ -348,6 +396,9 @@ export const entityRouter = createTRPCRouter({
           updatedAt: schema.entities.updatedAt,
           screenShotLight: schema.entities.screenShotLight,
           screenShotDark: schema.entities.screenShotDark,
+          thumbnailStatus: schema.entities.thumbnailStatus,
+          thumbnailVersion: schema.entities.thumbnailVersion,
+          thumbnailUpdatedAt: schema.entities.thumbnailUpdatedAt,
           userId: schema.entities.userId,
           publicAccess: schema.entities.publicAccess,
           parentId: schema.entities.parentId,
@@ -1565,5 +1616,73 @@ export const entityRouter = createTRPCRouter({
         .execute();
 
       return distilled;
+    }),
+  regenerateThumbnail: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const entity = (
+        await ctx.drizzle
+          .select({
+            id: ctx.schema.entities.id,
+            userId: ctx.schema.entities.userId,
+            publicAccess: ctx.schema.entities.publicAccess,
+            elements: ctx.schema.entities.elements,
+            appState: ctx.schema.entities.appState,
+          })
+          .from(schema.entities)
+          .where(eq(schema.entities.id, input.id))
+      )[0];
+      if (!entity)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
+
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+      if (!isOwner && !anyOneCanEdit)
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
+
+      const crypto = await import("node:crypto");
+      const version = crypto
+        .createHash("md5")
+        .update(
+          JSON.stringify({
+            elements: entity.elements,
+            appState: entity.appState ?? "",
+          }),
+        )
+        .digest("hex");
+
+      await ctx.drizzle
+        .update(ctx.schema.entities)
+        .set({ thumbnailStatus: "pending", thumbnailVersion: version })
+        .where(eq(ctx.schema.entities.id, input.id))
+        .execute();
+
+      await ctx.drizzle
+        .insert(ctx.schema.thumbnailJobs)
+        .values({
+          id: uuidV4(),
+          entityId: input.id,
+          version,
+          status: "pending",
+          attempts: 0,
+          nextRunAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [
+            ctx.schema.thumbnailJobs.entityId,
+            ctx.schema.thumbnailJobs.version,
+          ],
+          set: {
+            status: "pending",
+            updatedAt: new Date(),
+            nextRunAt: new Date(),
+            lastError: null,
+          },
+        })
+        .execute();
+
+      return { ok: true };
     }),
 });

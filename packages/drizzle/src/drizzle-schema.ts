@@ -286,6 +286,12 @@ export const entities = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     publicAccess: text("publicAccess").$type<PublicAccess>().notNull(),
+    // thumbnail generation state
+    thumbnailStatus: text("thumbnailStatus")
+      .$type<"pending" | "ready" | "error">()
+      .default("pending"),
+    thumbnailUpdatedAt: integer("thumbnailUpdatedAt", { mode: "timestamp_ms" }),
+    thumbnailVersion: text("thumbnailVersion"),
   },
   (table) => [
     index("Entity_userId_idx").on(table.userId),
@@ -490,6 +496,44 @@ export const uploadedVideos = sqliteTable(
     deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
   (table) => [index("UploadedVideo_userId_idx").on(table.userId)],
+);
+
+// Durable thumbnail generation jobs
+export const thumbnailJobs = sqliteTable(
+  "ThumbnailJobs",
+  {
+    id: text("id").primaryKey().notNull(),
+    entityId: text("entityId")
+      .notNull()
+      .references(() => entities.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    version: text("version").notNull(),
+    status: text("status")
+      .$type<"pending" | "processing" | "done" | "error" | "stale">()
+      .notNull()
+      .default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextRunAt: integer("nextRunAt", { mode: "timestamp_ms" }),
+    lastError: text("lastError"),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("ThumbnailJobs_entity_version_key").on(
+      table.entityId,
+      table.version,
+    ),
+    index("ThumbnailJobs_status_nextRunAt_idx").on(
+      table.status,
+      table.nextRunAt,
+    ),
+  ],
 );
 
 // Per-user preferences for entities (favorite/archive timestamps)
