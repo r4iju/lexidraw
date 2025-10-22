@@ -199,6 +199,7 @@ export async function GET(_req: NextRequest) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             url: pageUrl,
+            selector: `[id^="lexical-content-"]`,
             viewport: { width: targetW, height: targetH, deviceScaleFactor: 2 },
             image: { type: "webp", quality: 92 },
             waitUntil: "networkidle2",
