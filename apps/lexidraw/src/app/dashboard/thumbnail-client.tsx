@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
 import type { RouterOutputs } from "~/trpc/shared";
 
@@ -20,6 +22,13 @@ type Props = {
 export function ThumbnailClient({ entity }: Props) {
   const isDarkTheme = useIsDarkTheme();
   const deferredIsDarkTheme = useDeferredValue(isDarkTheme);
+  const router = useRouter();
+  useEffect(() => {
+    if ((entity as any).thumbnailStatus === "pending") {
+      const t = setInterval(() => router.refresh(), 8000);
+      return () => clearInterval(t);
+    }
+  }, [entity, router]);
   const src = useMemo(() => {
     const base = deferredIsDarkTheme
       ? entity.screenShotDark
@@ -92,6 +101,9 @@ export function ThumbnailClient({ entity }: Props) {
         />
       )}
       {!src && <ThumbnailFallback />}
+      {(entity as any).thumbnailStatus === "pending" && (
+        <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
+      )}
       <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
     </div>
   );
