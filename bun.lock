@@ -23,6 +23,14 @@
         "typescript": "^5.8.3",
       },
     },
+    "apps/cron-runner": {
+      "name": "@apps/cron-runner",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@types/node": "^22.15.19",
+        "typescript": "^5.8.3",
+      },
+    },
     "apps/lexidraw": {
       "name": "@apps/lexidraw",
       "version": "1.0.0",
@@ -278,6 +286,8 @@
     "@antfu/utils": ["@antfu/utils@8.1.1", "", {}, "sha512-Mex9nXf9vR6AhcXmMrlz/HVgYYZpVGJ6YlPgwl7UnaFpnshXs6EK/oa5Gpf3CzENMjkvEx2tQtntGnb7UtSTOQ=="],
 
     "@apps/collaborator": ["@apps/collaborator@workspace:apps/collaborator"],
+
+    "@apps/cron-runner": ["@apps/cron-runner@workspace:apps/cron-runner"],
 
     "@apps/lexidraw": ["@apps/lexidraw@workspace:apps/lexidraw"],
 
