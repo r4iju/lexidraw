@@ -1,5 +1,3 @@
-import "server-only";
-
 type NordServer = {
   hostname?: string;
   domain?: string;
