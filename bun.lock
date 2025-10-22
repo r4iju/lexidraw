@@ -173,7 +173,6 @@
       "name": "@apps/render-html-worker",
       "version": "1.0.0",
       "dependencies": {
-        "@packages/env": "workspace:*",
         "@packages/lib": "workspace:*",
         "@sparticuz/chromium": "^129.0.0",
         "next": "^15.5.5",

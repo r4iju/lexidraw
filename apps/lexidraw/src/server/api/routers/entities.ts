@@ -724,6 +724,120 @@ export const entityRouter = createTRPCRouter({
         .where(eq(schema.entities.id, input.id))
         .execute();
     }),
+  /** Generate thumbnails via headless worker (WEBP light/dark). */
+  generateThumbnailsViaWorker: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!env.HEADLESS_RENDER_ENABLED) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Headless not enabled",
+        });
+      }
+
+      const entity = (
+        await ctx.drizzle
+          .select({
+            id: schema.entities.id,
+            userId: schema.entities.userId,
+            publicAccess: schema.entities.publicAccess,
+          })
+          .from(schema.entities)
+          .where(eq(schema.entities.id, input.id))
+      )[0];
+      if (!entity)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
+
+      const isOwner = entity.userId === ctx.session?.user.id;
+      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
+      if (!isOwner && !anyOneCanEdit)
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
+
+      const heads = ctx.headers as Headers;
+      const proto = heads.get("x-forwarded-proto") || "http";
+      const host = heads.get("host") || "localhost:3000";
+      const appBase = `${proto}://${host}`.replace(/\/$/, "");
+      const { createScreenshotToken } = await import(
+        "~/server/auth/screenshot-token"
+      );
+      const token = createScreenshotToken({
+        userId: ctx.session?.user?.id as string,
+        entityId: input.id,
+        ttlMs: 3 * 60_000,
+      });
+      const pageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(input.id)}?st=${encodeURIComponent(token)}`;
+
+      let endpoint: string;
+      {
+        const base = (env.HEADLESS_RENDER_URL || "").replace(/\/$/, "");
+        if (base) {
+          endpoint = base.endsWith("/api/screenshot")
+            ? base
+            : `${base}/api/screenshot`;
+        } else if (env.NODE_ENV !== "production") {
+          // Dev fallback to the worker dev server
+          endpoint = "http://localhost:4025/api/screenshot";
+        } else {
+          endpoint = `${proto}://${host}/api/screenshot`;
+        }
+      }
+
+      const cookieHeader = undefined; // not used with token route
+
+      async function shoot(theme: "light" | "dark"): Promise<Buffer> {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            url: pageUrl,
+            cookiesHeader: cookieHeader,
+            selector: `[id^="lexical-content-"]`,
+            viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+            image: { type: "webp", quality: 90 },
+            waitUntil: "networkidle2",
+            timeoutMs: 20000,
+            theme,
+          }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Screenshot failed (${theme}): ${text}`,
+          });
+        }
+        const arr = await res.arrayBuffer();
+        return Buffer.from(arr);
+      }
+
+      const [lightBuf, darkBuf] = await Promise.all([
+        shoot("light"),
+        shoot("dark"),
+      ]);
+
+      const lightBlob = await put(`${input.id}-light.webp`, lightBuf, {
+        access: "public",
+        contentType: "image/webp",
+        addRandomSuffix: true,
+      });
+      const darkBlob = await put(`${input.id}-dark.webp`, darkBuf, {
+        access: "public",
+        contentType: "image/webp",
+        addRandomSuffix: true,
+      });
+
+      await ctx.drizzle
+        .update(schema.entities)
+        .set({
+          screenShotLight: lightBlob.url,
+          screenShotDark: darkBlob.url,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.entities.id, input.id))
+        .execute();
+
+      return { light: lightBlob.url, dark: darkBlob.url };
+    }),
   share: protectedProcedure
     .input(
       z.object({
