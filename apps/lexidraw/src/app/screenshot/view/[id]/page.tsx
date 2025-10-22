@@ -4,7 +4,7 @@ import { api } from "~/trpc/server";
 import DocumentEditor from "../../../documents/[documentId]/document-editor-client";
 import { drizzle as db, schema, eq } from "@packages/drizzle";
 import type { StoredLlmConfig } from "~/server/api/routers/config";
-import { AccessLevel, PublicAccess } from "@packages/types";
+import { AccessLevel, type PublicAccess } from "@packages/types";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,7 @@ type Props = {
 export default async function ScreenshotDocumentPage(props: Props) {
   const [p, s] = await Promise.all([props.params, props.searchParams]);
   const { id } = p;
-  const { st, theme } = s;
+  const { st } = s;
 
   // Validate token
   const payload = st ? verifyScreenshotToken(st) : null;
