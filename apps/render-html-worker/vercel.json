@@ -3,17 +3,11 @@
   "functions": {
     "app/api/screenshot/route": {
       "maxDuration": 30,
-      "includeFiles": [
-        "node_modules/@sparticuz/chromium/bin/**",
-        "node_modules/@sparticuz/chromium/lib/**"
-      ]
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**,node_modules/@sparticuz/chromium/lib/**"
     },
     "app/api/render-html/route": {
       "maxDuration": 30,
-      "includeFiles": [
-        "node_modules/@sparticuz/chromium/bin/**",
-        "node_modules/@sparticuz/chromium/lib/**"
-      ]
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**,node_modules/@sparticuz/chromium/lib/**"
     }
   }
 }
