@@ -31,89 +31,93 @@ export function useSaveAndExportDocument({
   const [isUploading, setIsUploading] = useState(false);
   const { defaultFontFamily } = useDocumentSettings();
 
-  const exportDocumentAsImage = async () => {
+  const exportDocumentAsImage = async (): Promise<void> => {
     setIsUploading(true);
-
-    generateTokens(
-      {
-        entityId: entity.id,
-        contentType: "image/webp",
-      },
-      {
-        onError: (e) => {
-          toast.error("Could not prepare upload", { description: e.message });
-          setIsUploading(false);
+    return await new Promise<void>((resolve, reject) => {
+      generateTokens(
+        {
+          entityId: entity.id,
+          contentType: "image/webp",
         },
-        onSuccess: async (tokens) => {
-          try {
-            const nextTheme = isDarkTheme ? Theme.DARK : Theme.LIGHT;
+        {
+          onError: (e) => {
+            setIsUploading(false);
+            reject(e);
+          },
+          onSuccess: async (tokens) => {
+            try {
+              const nextTheme = isDarkTheme ? Theme.DARK : Theme.LIGHT;
 
-            // Run sequentially to avoid multiple heavy html2canvas clones at once
-            const uploaded: { theme: string; url: string }[] = [];
-            for (const { token, pathname, theme } of tokens) {
-              // Switch theme, wait for next two frames to ensure styles/layout settle
-              setTheme(theme);
-              await new Promise((r) =>
-                requestAnimationFrame(() => requestAnimationFrame(r)),
-              );
-              const webpBlob = await exportWebp(
-                {
-                  setTheme: () => {},
-                  restoreTheme: () => setTheme(nextTheme),
-                },
-                {
-                  theme,
-                  isolateCloneDocument: true,
-                  pruneDepth: null,
-                  keepFirstChildren: null,
-                  charLimitPerTextNode: 400,
-                  skipHeavyEmbeds: true,
-                  replaceImages: "none",
-                  stripComplexStyles: false,
-                  foreignObjectRendering: true,
-                  maxTraverseNodes: 6000,
-                  reduceFonts: false,
-                  scale: 1,
-                },
-              );
+              // Run sequentially to avoid multiple heavy html2canvas clones at once
+              const uploaded: { theme: string; url: string }[] = [];
+              for (const { token, pathname, theme } of tokens) {
+                // Switch theme, wait for next two frames to ensure styles/layout settle
+                setTheme(theme);
+                await new Promise((r) =>
+                  requestAnimationFrame(() => requestAnimationFrame(r)),
+                );
+                const webpBlob = await exportWebp(
+                  {
+                    setTheme: () => {},
+                    restoreTheme: () => setTheme(nextTheme),
+                  },
+                  {
+                    theme,
+                    isolateCloneDocument: true,
+                    pruneDepth: null,
+                    keepFirstChildren: null,
+                    charLimitPerTextNode: 400,
+                    skipHeavyEmbeds: true,
+                    replaceImages: "none",
+                    stripComplexStyles: false,
+                    foreignObjectRendering: true,
+                    maxTraverseNodes: 6000,
+                    reduceFonts: false,
+                    scale: 1,
+                  },
+                );
 
-              const { url } = await put(pathname, webpBlob, {
-                access: "public",
-                multipart: true,
-                contentType: webpBlob.type,
-                token,
+                const { url } = await put(pathname, webpBlob, {
+                  access: "public",
+                  multipart: true,
+                  contentType: webpBlob.type,
+                  token,
+                });
+
+                uploaded.push({ theme, url });
+              }
+
+              const light = uploaded.find((u) => u.theme === "light")?.url;
+              const dark = uploaded.find((u) => u.theme === "dark")?.url;
+
+              await new Promise<void>((resolveUpdate, rejectUpdate) => {
+                updateEntity(
+                  {
+                    id: entity.id,
+                    screenShotLight: light,
+                    screenShotDark: dark,
+                  },
+                  {
+                    onSuccess: () => resolveUpdate(),
+                    onError: (e) => rejectUpdate(e),
+                  },
+                );
               });
 
-              uploaded.push({ theme, url });
-            }
-
-            const light = uploaded.find((u) => u.theme === "light")?.url;
-            const dark = uploaded.find((u) => u.theme === "dark")?.url;
-
-            await new Promise<void>((resolve, reject) => {
-              updateEntity(
-                {
-                  id: entity.id,
-                  screenShotLight: light,
-                  screenShotDark: dark,
-                },
-                { onSuccess: () => resolve(), onError: (e) => reject(e) },
+              resolve();
+            } catch (e) {
+              console.error(
+                "Error exporting thumbnails in options-dropdown.tsx",
+                e,
               );
-            });
-
-            toast.success("Exported thumbnails!");
-          } catch (e) {
-            console.error(
-              "Error exporting thumbnails in options-dropdown.tsx",
-              e,
-            );
-            toast.error("Upload failed", { description: (e as Error).message });
-          } finally {
-            setIsUploading(false);
-          }
+              reject(e);
+            } finally {
+              setIsUploading(false);
+            }
+          },
         },
-      },
-    );
+      );
+    });
   };
 
   const handleSaveAndLeave = () => {
@@ -121,6 +125,8 @@ export function useSaveAndExportDocument({
       toast.error("No state to save");
       return;
     }
+    const TOAST_ID = `save-${entity.id}`;
+    toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
     save(
       {
         id: entity.id,
@@ -130,12 +136,24 @@ export function useSaveAndExportDocument({
       },
       {
         onSuccess: async () => {
-          toast.success("Saved!");
-          await exportDocumentAsImage();
-          router.push("/dashboard");
+          try {
+            toast.loading("Uploading thumbnails…", {
+              id: TOAST_ID,
+              duration: Infinity,
+            });
+            await exportDocumentAsImage();
+            toast.success("Saved", { id: TOAST_ID });
+            router.push("/dashboard");
+          } catch (e) {
+            toast.error("Error saving", {
+              id: TOAST_ID,
+              description: (e as Error).message,
+            });
+          }
         },
         onError: (error: TRPCClientErrorLike<AppRouter>) => {
           toast.error("Error saving", {
+            id: TOAST_ID,
             description: error.message,
           });
         },
@@ -148,6 +166,8 @@ export function useSaveAndExportDocument({
       toast.error("No state to save");
       return;
     }
+    const TOAST_ID = `save-${entity.id}`;
+    toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
     save(
       {
         id: entity.id,
@@ -157,12 +177,24 @@ export function useSaveAndExportDocument({
       },
       {
         onSuccess: async () => {
-          toast.success("Saved!");
-          await exportDocumentAsImage();
-          onSaveSuccessCallback?.();
+          try {
+            toast.loading("Uploading thumbnails…", {
+              id: TOAST_ID,
+              duration: Infinity,
+            });
+            await exportDocumentAsImage();
+            toast.success("Saved", { id: TOAST_ID });
+            onSaveSuccessCallback?.();
+          } catch (e) {
+            toast.error("Error saving", {
+              id: TOAST_ID,
+              description: (e as Error).message,
+            });
+          }
         },
         onError: (error) => {
           toast.error("Error saving", {
+            id: TOAST_ID,
             description: error.message,
           });
         },
