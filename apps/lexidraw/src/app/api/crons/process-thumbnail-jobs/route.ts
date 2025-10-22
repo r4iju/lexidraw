@@ -230,6 +230,7 @@ export async function GET(_req: NextRequest) {
         contentType: "image/webp",
         token: env.BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false,
+        allowOverwrite: true,
       });
       logCron("upload_done", {
         jobId: job.id,
@@ -242,6 +243,7 @@ export async function GET(_req: NextRequest) {
         contentType: "image/webp",
         token: env.BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false,
+        allowOverwrite: true,
       });
       logCron("upload_done", {
         jobId: job.id,
