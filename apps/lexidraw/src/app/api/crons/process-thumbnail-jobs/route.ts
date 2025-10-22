@@ -122,7 +122,9 @@ export async function GET(_req: NextRequest) {
 
       // staleness
       if (
-        (entity.thumbnailVersion && entity.thumbnailVersion !== job.version) ||
+        // Skip if entity already has this version rendered
+        (entity.thumbnailVersion && entity.thumbnailVersion === job.version) ||
+        // Or if entity was updated after this job was created
         (entity.updatedAt && entity.updatedAt > job.createdAt)
       ) {
         await drizzle
@@ -130,7 +132,7 @@ export async function GET(_req: NextRequest) {
           .set({ status: "stale", updatedAt: new Date() })
           .where(eq(schema.thumbnailJobs.id, job.id))
           .execute();
-        logCron("job_stale_version_mismatch", {
+        logCron("job_stale_skipped", {
           jobId: job.id,
           entityId: job.entityId,
           entityVersion: entity.thumbnailVersion ?? null,
