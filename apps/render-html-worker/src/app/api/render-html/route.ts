@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { type NextRequest, NextResponse } from "next/server";
 import type { Browser, LaunchOptions } from "puppeteer-core";
+import { getNordHttpsProxyUrls } from "@packages/lib";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -24,6 +25,164 @@ function isPrivateHostname(hostname: string): boolean {
     hostname === "127.0.0.1" ||
     hostname === "::1"
   );
+}
+
+async function performPageWorkflow(
+  page: any,
+  url: string,
+  cookiesHeader: string | undefined,
+  waitUntil: WaitUntil,
+  timeoutMs: number,
+): Promise<string> {
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  );
+  await page.setExtraHTTPHeaders({
+    "accept-language": "en-US,en;q=0.9",
+    ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
+  });
+  page.on("dialog", async (d: any) => {
+    try {
+      await d.dismiss();
+    } catch {}
+  });
+
+  await page.goto(url, { waitUntil, timeout: timeoutMs });
+
+  const autoConsent =
+    String(
+      process.env.HEADLESS_AUTO_CONSENT_ENABLED ?? "true",
+    ).toLowerCase() === "true";
+  if (autoConsent) {
+    try {
+      const clickedMain = await page.evaluate(async () => {
+        const attemptClick = (sel: string): boolean => {
+          const el = document.querySelector(sel) as HTMLElement | null;
+          if (!el) return false;
+          const rect = el.getBoundingClientRect();
+          const visible = rect.width > 0 && rect.height > 0;
+          if (!visible) return false;
+          try {
+            el.click();
+            return true;
+          } catch {
+            return false;
+          }
+        };
+        const selectors = [
+          "#onetrust-accept-btn-handler",
+          ".fc-cta-consent",
+          ".sp_choice_type_11",
+          "[data-testid*='consent'] button",
+          "button[aria-label*='consent']",
+        ];
+        for (const sel of selectors) {
+          if (attemptClick(sel)) return true;
+        }
+        const btns = Array.from(
+          document.querySelectorAll("button"),
+        ) as HTMLButtonElement[];
+        const re = /\b(accept|agree|consent|godkänn|acceptera)\b/i;
+        for (const b of btns) {
+          const txt = (b.innerText || b.textContent || "").trim();
+          if (!txt) continue;
+          const rect = b.getBoundingClientRect();
+          const visible = rect.width > 0 && rect.height > 0;
+          if (!visible) continue;
+          if (re.test(txt)) {
+            try {
+              b.click();
+              return true;
+            } catch {}
+          }
+        }
+        return false;
+      });
+      if (!clickedMain) {
+        for (const frame of page.frames()) {
+          try {
+            const res = await frame.evaluate(() => {
+              const attemptClick = (sel: string): boolean => {
+                const el = document.querySelector(sel) as HTMLElement | null;
+                if (!el) return false;
+                const rect = el.getBoundingClientRect();
+                const visible = rect.width > 0 && rect.height > 0;
+                if (!visible) return false;
+                try {
+                  (el as HTMLElement).click();
+                  return true;
+                } catch {
+                  return false;
+                }
+              };
+              const selectors = [
+                "#onetrust-accept-btn-handler",
+                ".fc-cta-consent",
+                ".sp_choice_type_11",
+                "[data-testid*='consent'] button",
+                "button[aria-label*='consent']",
+              ];
+              for (const sel of selectors) {
+                if (attemptClick(sel)) return true;
+              }
+              const btns = Array.from(
+                document.querySelectorAll("button"),
+              ) as HTMLButtonElement[];
+              const re = /\b(accept|agree|consent|godkänn|acceptera)\b/i;
+              for (const b of btns) {
+                const txt = (b.innerText || b.textContent || "").trim();
+                if (!txt) continue;
+                const rect = b.getBoundingClientRect();
+                const visible = rect.width > 0 && rect.height > 0;
+                if (!visible) continue;
+                if (re.test(txt)) {
+                  try {
+                    b.click();
+                    return true;
+                  } catch {}
+                }
+              }
+              return false;
+            });
+            if (res) break;
+          } catch {}
+        }
+      }
+      await page?.waitForTimeout(300);
+    } catch {}
+  }
+
+  try {
+    await page.evaluate(async () => {
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 3; i++) {
+        window.scrollBy(0, Math.floor(window.innerHeight * 0.5));
+        await sleep(75);
+      }
+    });
+  } catch {}
+
+  try {
+    const start = Date.now();
+    const timeout = Math.min(12000, timeoutMs);
+    while (Date.now() - start < timeout) {
+      const ready = await page.evaluate(() => {
+        const q = (sel: string) => document.querySelector(sel);
+        if (q("main article") || q("[role='main'] article") || q("article"))
+          return true;
+        const pCount = document.querySelectorAll("main p, body p").length;
+        return pCount >= 10;
+      });
+      if (ready) break;
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  } catch {}
+
+  const html = await page.content();
+  const bytes = Buffer.byteLength(html, "utf8");
+  const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+  if (bytes > MAX_BYTES) throw new Error("Rendered HTML too large");
+  return html;
 }
 
 export async function POST(req: NextRequest) {
@@ -49,6 +208,7 @@ export async function POST(req: NextRequest) {
     const waitUntil = body?.waitUntil ?? "domcontentloaded";
     const timeoutMs = Math.max(1000, Math.min(60000, body?.timeoutMs ?? 15000));
 
+    // 1) Direct attempt
     let browser: Browser;
     try {
       const isProdVercel =
@@ -93,188 +253,131 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error("render-html:launch_error", e);
-      return new NextResponse("Failed to launch browser", { status: 500 });
+      browser = undefined as unknown as Browser; // fallthrough to proxy pool
     }
 
     try {
       const page = await browser.newPage();
-      await page.setUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+      const html = await performPageWorkflow(
+        page,
+        url,
+        body?.cookiesHeader,
+        waitUntil,
+        timeoutMs,
       );
-      await page.setExtraHTTPHeaders({
-        "accept-language": "en-US,en;q=0.9",
-        ...(body?.cookiesHeader ? { cookie: body.cookiesHeader } : {}),
-      });
-      page.on("dialog", async (d: any) => {
-        try {
-          await d.dismiss();
-        } catch {}
-      });
-
-      await page.goto(url, { waitUntil, timeout: timeoutMs });
-
-      // Generic consent approver (toggleable via env, default true)
-      const autoConsent =
-        String(
-          process.env.HEADLESS_AUTO_CONSENT_ENABLED ?? "true",
-        ).toLowerCase() === "true";
-      if (autoConsent) {
-        try {
-          // Try in main document first
-          const clickedMain = await page.evaluate(async () => {
-            const attemptClick = (sel: string): boolean => {
-              const el = document.querySelector(sel) as HTMLElement | null;
-              if (!el) return false;
-              const rect = el.getBoundingClientRect();
-              const visible = rect.width > 0 && rect.height > 0;
-              if (!visible) return false;
-              try {
-                el.click();
-                return true;
-              } catch {
-                return false;
-              }
-            };
-            const selectors = [
-              "#onetrust-accept-btn-handler",
-              ".fc-cta-consent",
-              ".sp_choice_type_11",
-              "[data-testid*='consent'] button",
-              "button[aria-label*='consent']",
-            ];
-            for (const sel of selectors) {
-              if (attemptClick(sel)) return true;
-            }
-            // Fallback by button text
-            const btns = Array.from(
-              document.querySelectorAll("button"),
-            ) as HTMLButtonElement[];
-            const re = /\b(accept|agree|consent|godkänn|acceptera)\b/i;
-            for (const b of btns) {
-              const txt = (b.innerText || b.textContent || "").trim();
-              if (!txt) continue;
-              const rect = b.getBoundingClientRect();
-              const visible = rect.width > 0 && rect.height > 0;
-              if (!visible) continue;
-              if (re.test(txt)) {
-                try {
-                  b.click();
-                  return true;
-                } catch {}
-              }
-            }
-            return false;
-          });
-          let clickedFrame = false;
-          if (!clickedMain) {
-            // Try common CMP iframes (Sourcepoint/OneTrust)
-            for (const frame of page.frames()) {
-              try {
-                const res = await frame.evaluate(() => {
-                  const attemptClick = (sel: string): boolean => {
-                    const el = document.querySelector(
-                      sel,
-                    ) as HTMLElement | null;
-                    if (!el) return false;
-                    const rect = el.getBoundingClientRect();
-                    const visible = rect.width > 0 && rect.height > 0;
-                    if (!visible) return false;
-                    try {
-                      (el as HTMLElement).click();
-                      return true;
-                    } catch {
-                      return false;
-                    }
-                  };
-                  const selectors = [
-                    "#onetrust-accept-btn-handler",
-                    ".fc-cta-consent",
-                    ".sp_choice_type_11",
-                    "[data-testid*='consent'] button",
-                    "button[aria-label*='consent']",
-                  ];
-                  for (const sel of selectors) {
-                    if (attemptClick(sel)) return true;
-                  }
-                  const btns = Array.from(
-                    document.querySelectorAll("button"),
-                  ) as HTMLButtonElement[];
-                  const re = /\b(accept|agree|consent|godkänn|acceptera)\b/i;
-                  for (const b of btns) {
-                    const txt = (b.innerText || b.textContent || "").trim();
-                    if (!txt) continue;
-                    const rect = b.getBoundingClientRect();
-                    const visible = rect.width > 0 && rect.height > 0;
-                    if (!visible) continue;
-                    if (re.test(txt)) {
-                      try {
-                        b.click();
-                        return true;
-                      } catch {}
-                    }
-                  }
-                  return false;
-                });
-                if (res) {
-                  clickedFrame = true;
-                  break;
-                }
-              } catch {}
-            }
-          }
-          await page?.waitForTimeout(300);
-          if (process.env.NODE_ENV !== "production") {
-            console.log("consent:clicked", { clickedMain, clickedFrame });
-          }
-        } catch {
-          // ignore failures
-        }
-      }
-
-      // Nudge lazy content
-      try {
-        await page.evaluate(async () => {
-          const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-          for (let i = 0; i < 3; i++) {
-            window.scrollBy(0, Math.floor(window.innerHeight * 0.5));
-            await sleep(75);
-          }
-        });
-      } catch {}
-
-      // Poll for content readiness
-      try {
-        const start = Date.now();
-        const timeout = Math.min(12000, timeoutMs);
-        // eslint-disable-next-line no-constant-condition
-        while (Date.now() - start < timeout) {
-          const ready = await page.evaluate(() => {
-            const q = (sel: string) => document.querySelector(sel);
-            if (q("main article") || q("[role='main'] article") || q("article"))
-              return true;
-            const pCount = document.querySelectorAll("main p, body p").length;
-            return pCount >= 10;
-          });
-          if (ready) {
-            if (process.env.NODE_ENV !== "production") {
-              console.log("content:ready");
-            }
-            break;
-          }
-          await new Promise((r) => setTimeout(r, 150));
-        }
-      } catch {}
-
-      const html = await page.content();
-      const bytes = Buffer.byteLength(html, "utf8");
-      const MAX_BYTES = 10 * 1024 * 1024; // 10MB
-      if (bytes > MAX_BYTES) {
-        return new NextResponse("Rendered HTML too large", { status: 413 });
-      }
-
       return NextResponse.json({ html });
     } catch (e) {
-      console.error("render-html:error", e);
+      // 2) Proxy pool fallback with concurrency
+      console.error("render-html:direct_error", e);
+      try {
+        await browser?.close();
+      } catch {}
+
+      const user = process.env.NORDVPN_SERVICE_USER;
+      const pass = process.env.NORDVPN_SERVICE_PASS;
+      if (!user || !pass)
+        return new NextResponse("Proxy creds missing", { status: 500 });
+
+      const urls = (
+        await getNordHttpsProxyUrls({ user, pass, limit: 100 })
+      ).slice(0, 50);
+      const isProdVercel =
+        process.env.VERCEL === "1" && process.env.NODE_ENV === "production";
+      const CONCURRENCY = isProdVercel ? 3 : 10;
+      let idx = 0;
+      let inFlight = 0;
+      let resolvedHtml: string | null = null;
+
+      const runOne = async (): Promise<void> => {
+        if (resolvedHtml) return;
+        const myIdx = idx++;
+        if (myIdx >= urls.length) return;
+        const proxyUrl = urls[myIdx];
+        inFlight += 1;
+        try {
+          const u = new URL(proxyUrl);
+          const proxyServer = `${u.protocol}//${u.hostname}:${u.port || 89}`;
+          const username = decodeURIComponent(u.username || user);
+          const password = decodeURIComponent(u.password || pass);
+
+          const isProd = isProdVercel;
+          let browserLocal: Browser;
+          if (isProd) {
+            process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
+            process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
+            process.env.FONTCONFIG_PATH ??= "/tmp/fonts";
+            const prevLd = process.env.LD_LIBRARY_PATH || "";
+            process.env.LD_LIBRARY_PATH = [
+              "/tmp/al2023/lib",
+              "/tmp/al2/lib",
+              prevLd,
+            ]
+              .filter(Boolean)
+              .join(":");
+            const chromium = (await import("@sparticuz/chromium"))
+              .default as unknown as {
+              args: string[];
+              headless?: boolean;
+              executablePath: () => Promise<string>;
+            };
+            const puppeteer = await import("puppeteer-core");
+            const launchOptions: LaunchOptions = {
+              headless: chromium.headless ?? true,
+              args: [...chromium.args, `--proxy-server=${proxyServer}`],
+              executablePath: await chromium.executablePath(),
+              defaultViewport: {
+                width: 1200,
+                height: 900,
+                deviceScaleFactor: 1,
+              },
+            };
+            browserLocal = await puppeteer.launch(launchOptions);
+          } else {
+            const puppeteer = (await import("puppeteer")) as unknown as {
+              launch: (opts?: LaunchOptions) => Promise<Browser>;
+            };
+            browserLocal = await puppeteer.launch({
+              headless: true,
+              args: [`--proxy-server=${proxyServer}`],
+              defaultViewport: {
+                width: 1200,
+                height: 900,
+                deviceScaleFactor: 1,
+              },
+            });
+          }
+
+          try {
+            const page = await browserLocal.newPage();
+            if (username && password)
+              await page.authenticate({ username, password });
+            const html = await performPageWorkflow(
+              page,
+              url,
+              body?.cookiesHeader,
+              waitUntil,
+              timeoutMs,
+            );
+            if (!resolvedHtml) resolvedHtml = html;
+          } finally {
+            try {
+              await browserLocal.close();
+            } catch {}
+          }
+        } catch (_e) {
+          // ignore and let others continue
+        } finally {
+          inFlight -= 1;
+          if (!resolvedHtml && idx < urls.length) void runOne();
+        }
+      };
+
+      const starters = Math.min(CONCURRENCY, urls.length);
+      for (let i = 0; i < starters; i++) void runOne();
+      while (!resolvedHtml && (inFlight > 0 || idx < urls.length)) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      if (resolvedHtml) return NextResponse.json({ html: resolvedHtml });
       return new NextResponse("Render failed", { status: 500 });
     } finally {
       try {
