@@ -9,6 +9,7 @@ export type TtsSynthesizeInput = {
   speed?: number;
   format: TtsAudioFormat;
   sampleRate?: number;
+  languageCode?: string;
   metadata?: Record<string, string>;
 };
 
@@ -30,6 +31,7 @@ export type TtsRequest = {
   speed?: number; // 0.25–4.0, defaults provider-specific
   format?: TtsAudioFormat; // default mp3
   languageCode?: string; // optional (Google)
+  sampleRate?: number; // optional
 };
 
 export type TtsSegment = {
