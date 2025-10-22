@@ -1,13 +1,9 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const config = {
   experimental: {},
-  outputFileTracingIncludes: {
-    "/api/render-html": [
-      "node_modules/@sparticuz/chromium/bin/**",
-      "node_modules/@sparticuz/chromium/lib/**",
-    ],
-  },
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
