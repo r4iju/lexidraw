@@ -127,7 +127,7 @@ export function useExportWebp() {
    */
   async function exportWebp(
     { setTheme, restoreTheme }: Props,
-    opts?: Partial<ThumbnailExportFlags>,
+    opts?: Partial<ThumbnailExportFlags> & { theme?: "dark" | "light" },
   ): Promise<Blob> {
     const flags = resolveFlags(opts);
     const element = (document.querySelector('[id^="lexical-content-"]') ||
@@ -187,6 +187,14 @@ export function useExportWebp() {
           }
         : undefined,
       onclone: (clonedDocument) => {
+        // Force theme on the cloned document to avoid race with app-level theme
+        if (opts?.theme) {
+          const isDark = opts.theme === "dark";
+          clonedDocument.documentElement.classList.toggle("dark", isDark);
+          (clonedDocument.documentElement as HTMLElement).style.colorScheme =
+            isDark ? "dark" : "light";
+          clonedDocument.body.classList.toggle("dark", isDark);
+        }
         const clonedTarget = (
           element.id
             ? clonedDocument.getElementById(element.id)

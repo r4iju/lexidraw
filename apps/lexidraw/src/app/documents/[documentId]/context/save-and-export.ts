@@ -51,13 +51,18 @@ export function useSaveAndExportDocument({
             // Run sequentially to avoid multiple heavy html2canvas clones at once
             const uploaded: { theme: string; url: string }[] = [];
             for (const { token, pathname, theme } of tokens) {
-              /* let exportWebp switch theme on the fly */
+              // Switch theme, wait for next two frames to ensure styles/layout settle
+              setTheme(theme);
+              await new Promise((r) =>
+                requestAnimationFrame(() => requestAnimationFrame(r)),
+              );
               const webpBlob = await exportWebp(
                 {
-                  setTheme: () => setTheme(theme),
+                  setTheme: () => {},
                   restoreTheme: () => setTheme(nextTheme),
                 },
                 {
+                  theme,
                   isolateCloneDocument: true,
                   pruneDepth: 3,
                   keepFirstChildren: 8,
