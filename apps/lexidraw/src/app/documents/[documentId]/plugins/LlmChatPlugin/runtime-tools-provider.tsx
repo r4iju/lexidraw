@@ -24,6 +24,7 @@ import { usePollTools } from "./tools/poll";
 import { useTweetTools } from "./tools/tweet";
 import { useImageTools } from "./tools/image";
 import { useCombinedTools } from "./tools/combined-tools";
+import { useWebTools } from "./tools/web";
 
 const RuntimeToolsCtx = createContext<RuntimeToolMap | null>(null);
 
@@ -79,6 +80,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const { insertPollNode } = usePollTools();
   const { insertTweetNode } = useTweetTools();
   const { searchAndInsertImage, generateAndInsertImage } = useImageTools();
+  const { googleSearch, extractWebpageContent } = useWebTools();
 
   const individualTools = {
     ...(patchNodeByJSON && { patchNodeByJSON }),
@@ -117,6 +119,8 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(summarizeExecution && { summarizeExecution }),
     ...(searchAndInsertImage && { searchAndInsertImage }),
     ...(generateAndInsertImage && { generateAndInsertImage }),
+    ...(googleSearch && { googleSearch }),
+    ...(extractWebpageContent && { extractWebpageContent }),
     ...(sendReply && { sendReply }),
     ...(addCommentThread && { addCommentThread }),
     ...(addReplyToThread && { addReplyToThread }),
@@ -137,11 +141,12 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(saveAudienceDataTool && { saveAudienceDataTool }),
   } as unknown as RuntimeToolMap;
 
-  const { combinedTools } = useCombinedTools(individualTools);
+  const { combinedTools, webResearch } = useCombinedTools(individualTools);
 
   const tools = {
     ...individualTools,
     combinedTools,
+    webResearch,
   } as unknown as RuntimeToolMap;
 
   return (

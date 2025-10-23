@@ -11,7 +11,7 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
     .map(([toolName, tool]) => {
       return z.object({
         toolName: z.literal(toolName),
-        args: (tool as any).inputSchema as ZodTypeAny,
+        args: (tool as unknown as { inputSchema: ZodTypeAny }).inputSchema,
       });
     });
 
@@ -93,10 +93,12 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
           }
 
           // Validate via Zod input schema if available; otherwise pass-through
-          const schema: ZodTypeAny | undefined = (subTool as any).inputSchema as
-            | ZodTypeAny
-            | undefined;
-          const validatedArgs = schema ? schema.parse(args) : (args as any);
+          const schema: ZodTypeAny | undefined = (
+            subTool as unknown as { inputSchema?: ZodTypeAny }
+          ).inputSchema as ZodTypeAny | undefined;
+          const validatedArgs = schema
+            ? schema.parse(args)
+            : (args as Record<string, unknown>);
           // Execute expects the input directly in v5
           // @ts-expect-error execute is provided by tool
           const result = await subTool.execute(validatedArgs);
@@ -162,5 +164,100 @@ export const useCombinedTools = (individualTools: RuntimeToolMap) => {
     },
   });
 
-  return { combinedTools };
+  const webResearch = tool({
+    description:
+      "Conducts lightweight web research: search, extract top results, and summarize with citations.",
+    inputSchema: z.object({
+      question: z.string().min(1),
+      num: z.number().int().min(1).max(5).optional().default(3),
+      maxCharsPerDoc: z
+        .number()
+        .int()
+        .min(500)
+        .max(5000)
+        .optional()
+        .default(1500),
+    }),
+    execute: async ({ question, num, maxCharsPerDoc }) => {
+      const searchTool = individualTools["googleSearch"] as unknown as {
+        execute: (input: { query: string; num?: number }) => Promise<
+          | {
+              success: true;
+              content?: { results?: Array<{ url?: string; title?: string }> };
+            }
+          | { success: false; error?: string }
+        >;
+      };
+      const extractTool = individualTools[
+        "extractWebpageContent"
+      ] as unknown as {
+        execute: (input: { url: string; maxChars?: number }) => Promise<
+          | {
+              success: true;
+              content?: {
+                article?: {
+                  title?: string;
+                  excerpt?: string;
+                  content?: string;
+                };
+              };
+            }
+          | { success: false; error?: string }
+        >;
+      };
+      if (!searchTool || !extractTool) {
+        return {
+          success: false,
+          error:
+            "googleSearch/extractWebpageContent tools are required for webResearch.",
+        } as const;
+      }
+
+      const search = await searchTool.execute({ query: question, num });
+      if (!search?.success) {
+        return {
+          success: false,
+          error: search?.error ?? "Search failed",
+        } as const;
+      }
+      const results = (search.content?.results ?? []).slice(0, num ?? 3);
+      const articles: Array<{
+        url: string;
+        title: string;
+        excerpt?: string;
+        content?: string;
+      }> = [];
+      for (const r of results) {
+        if (!r?.url) continue;
+        try {
+          const extracted = await extractTool.execute({
+            url: r.url,
+            maxChars: maxCharsPerDoc,
+          });
+          if (extracted?.success) {
+            const a = extracted.content?.article;
+            articles.push({
+              url: r.url,
+              title: a?.title ?? r.title ?? r.url,
+              excerpt: a?.excerpt,
+              content: a?.content,
+            });
+          }
+        } catch {
+          // ignore failing doc
+        }
+      }
+
+      const bullets = articles
+        .map((a, i) => `- [${i + 1}] ${a.title} — ${a.url}`)
+        .join("\n");
+      const summary = `Searched and extracted ${articles.length} sources for: "${question}"\n\nSources:\n${bullets}`;
+      return {
+        success: true,
+        content: { summary, sources: articles },
+      } as const;
+    },
+  });
+
+  return { combinedTools, webResearch };
 };
