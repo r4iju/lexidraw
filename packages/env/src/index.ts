@@ -56,6 +56,8 @@ const env = createEnv({
     // Optional org/global LLM keys used as fallbacks when user-level keys are absent
     OPENAI_API_KEY: z.string().optional(),
     GOOGLE_API_KEY: z.string().optional(),
+    // Google Custom Search (required org-level for server-side proxy)
+    GOOGLE_SEARCH_ENGINE_ID: z.string().min(1),
     // Optional pricing/budget controls (USD values as strings)
     TTS_PRICE_OPENAI_PER_MILLION_CHARS: z.string().optional(),
     TTS_PRICE_GOOGLE_PER_MILLION_CHARS: z.string().optional(),
@@ -119,6 +121,7 @@ const env = createEnv({
     MEDIA_DOWNLOADER_URL: process.env.MEDIA_DOWNLOADER_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+    GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
     TTS_PRICE_OPENAI_PER_MILLION_CHARS:
       process.env.TTS_PRICE_OPENAI_PER_MILLION_CHARS,
     TTS_PRICE_GOOGLE_PER_MILLION_CHARS:

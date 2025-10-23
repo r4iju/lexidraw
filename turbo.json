@@ -43,7 +43,8 @@
     "SKIP_ENV_VALIDATION",
     "REACT_SCAN_ENABLED",
     "MEDIA_DOWNLOADER_URL",
-    "MEDIA_DOWNLOADER_PORT"
+    "MEDIA_DOWNLOADER_PORT",
+    "GOOGLE_SEARCH_ENGINE_ID"
   ],
   "globalDependencies": [
     ".env",

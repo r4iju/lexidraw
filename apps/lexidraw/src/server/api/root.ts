@@ -6,6 +6,7 @@ import { webRtcRouter } from "./routers/web-rtc";
 import { cronRouter } from "./routers/crons";
 import { configRouter } from "./routers/config";
 import { imageRouter } from "./routers/image";
+import { webRouter } from "./routers/web";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -15,6 +16,7 @@ export const appRouter = createTRPCRouter({
   webRtc: webRtcRouter,
   config: configRouter,
   image: imageRouter,
+  web: webRouter,
 });
 
 // export type definition of API
