@@ -12,7 +12,6 @@ import { ThumbnailClient } from "./thumbnail-client";
 import EntityTitle from "./_actions/rename-inline";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { TagTooltip } from "./entity-card-tag-tooltip";
-import EntityTypeBadge from "./entity-type-badge";
 
 type Entity = RouterOutputs["entities"]["list"][number];
 
@@ -107,7 +106,7 @@ export function EntityCard({
             className="block size-full"
             draggable={false}
           >
-            <ThumbnailClient entity={entity} />
+            <ThumbnailClient entity={entity} size="small" />
           </Link>
         </div>
         <Link
@@ -119,7 +118,6 @@ export function EntityCard({
         >
           <span className="font-semibold line-clamp-1 w-full select-none flex items-center gap-2">
             <span className="truncate">{entity.title}</span>
-            <EntityTypeBadge entityType={entity.entityType} />
           </span>
         </Link>
       </div>

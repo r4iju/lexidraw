@@ -18,9 +18,10 @@ import type { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
+  size?: "small" | "large"; // list vs card
 };
 
-export function ThumbnailClient({ entity }: Props) {
+export function ThumbnailClient({ entity, size = "large" }: Props) {
   const isDarkTheme = useIsDarkTheme();
   const deferredIsDarkTheme = useDeferredValue(isDarkTheme);
   const router = useRouter();
@@ -107,6 +108,7 @@ export function ThumbnailClient({ entity }: Props) {
         isPending={
           (entity as unknown as WithThumb).thumbnailStatus === "pending"
         }
+        size={size}
       />
     );
   }
@@ -119,6 +121,7 @@ export function ThumbnailClient({ entity }: Props) {
         isPending={
           (entity as unknown as WithThumb).thumbnailStatus === "pending"
         }
+        size={size}
       />
     );
   }
@@ -254,18 +257,44 @@ function FolderVisual({
 function TypeRibbon({
   variant,
   icon,
+  size,
 }: {
   variant: "document" | "drawing";
   icon: JSX.Element;
+  size: "small" | "large";
 }) {
-  return (
-    <div className="pointer-events-none absolute left-1 top-1">
+  const isDoc = variant === "document";
+  if (size === "large") {
+    // Corner tab that bleeds outside the right edge ~30%
+    return (
       <div
         className={cn(
-          "grid place-items-center h-5 w-5 rounded-full bg-background shadow-sm",
-          variant === "document"
-            ? "ring-2 ring-accent text-accent"
-            : "ring-2 ring-primary text-primary",
+          "pointer-events-none absolute right-0 top-0 translate-x-1/8 -translate-y-1/3 z-10",
+          "rounded-md bg-background/90 backdrop-blur-xs shadow-md",
+          "ring-2 ring-muted-foreground ring-offset-2 ring-offset-background text-muted-foreground",
+          "h-7 px-2 flex items-center gap-1",
+        )}
+      >
+        <span className="grid place-items-center p-[2px]" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="text-2xs font-medium select-none">
+          {isDoc ? "Doc" : "Drawing"}
+        </span>
+      </div>
+    );
+  }
+  // Small circular chip for list view, stays inside bounds
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute right-[-4px] top-[-4px] h-5 w-5",
+      )}
+    >
+      <div
+        className={cn(
+          "grid place-items-center rounded-lg bg-background/90 backdrop-blur-xs shadow-sm h-5 w-5",
+          "ring-2 ring-muted-foreground text-muted-foreground",
         )}
       >
         <span className="grid place-items-center p-[1px]" aria-hidden="true">
@@ -280,43 +309,54 @@ function DocumentVisual({
   title,
   src,
   isPending,
+  size,
 }: {
   title: string;
   src?: string | null;
   isPending?: boolean;
+  size: "small" | "large";
 }) {
   return (
-    <div className="relative size-full aspect-4/3 rounded-sm overflow-hidden">
+    <div className="relative size-full aspect-4/3">
       <span className="sr-only">{`Document: ${title}`}</span>
-      {src ? (
-        <Image
-          src={src}
-          alt={title.substring(0, 14)}
-          fill
-          crossOrigin="anonymous"
-          quality={75}
-          loading="eager"
-          draggable={false}
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-card" />
-      )}
+      <div className="absolute inset-0 rounded-sm overflow-hidden">
+        {src ? (
+          <Image
+            src={src}
+            alt={title.substring(0, 14)}
+            fill
+            crossOrigin="anonymous"
+            quality={75}
+            loading="eager"
+            draggable={false}
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-card" />
+        )}
 
-      {!src && (
-        <div className="absolute inset-0 opacity-70 bg-[repeating-linear-gradient(transparent,transparent_12px,theme(colors.border)_12px,theme(colors.border)_13px)]" />
-      )}
+        {!src && (
+          <div className="absolute inset-0 opacity-70 bg-[repeating-linear-gradient(transparent,transparent_12px,theme(colors.border)_12px,theme(colors.border)_13px)]" />
+        )}
 
-      {isPending && (
-        <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
-      )}
+        {isPending && (
+          <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
+        )}
+
+        <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+      </div>
 
       <TypeRibbon
         variant="document"
-        icon={<File className="size-3" aria-hidden="true" />}
+        icon={
+          <File
+            className={cn(size === "large" ? "size-4" : "size-3")}
+            aria-hidden="true"
+          />
+        }
+        size={size}
       />
-      <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
     </div>
   );
 }
@@ -325,47 +365,58 @@ function DrawingVisual({
   title,
   src,
   isPending,
+  size,
 }: {
   title: string;
   src?: string | null;
   isPending?: boolean;
+  size: "small" | "large";
 }) {
   return (
-    <div className="relative size-full aspect-4/3 rounded-sm overflow-hidden">
+    <div className="relative size-full aspect-4/3">
       <span className="sr-only">{`Drawing: ${title}`}</span>
-      {src ? (
-        <Image
-          src={src}
-          alt={title.substring(0, 14)}
-          fill
-          crossOrigin="anonymous"
-          quality={75}
-          loading="eager"
-          draggable={false}
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-muted/30" />
-      )}
-
-      {/* subtle dot grid overlay when missing screenshot; very faint when has screenshot */}
-      <div
-        className={cn(
-          "absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px]",
-          src ? "opacity-20" : "opacity-60",
+      <div className="absolute inset-0 rounded-sm overflow-hidden">
+        {src ? (
+          <Image
+            src={src}
+            alt={title.substring(0, 14)}
+            fill
+            crossOrigin="anonymous"
+            quality={75}
+            loading="eager"
+            draggable={false}
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-muted/30" />
         )}
-      />
 
-      {isPending && (
-        <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
-      )}
+        {/* subtle dot grid overlay when missing screenshot; very faint when has screenshot */}
+        <div
+          className={cn(
+            "absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px]",
+            src ? "opacity-20" : "opacity-60",
+          )}
+        />
+
+        {isPending && (
+          <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
+        )}
+
+        <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+      </div>
 
       <TypeRibbon
         variant="drawing"
-        icon={<Brush className="size-3" aria-hidden="true" />}
+        icon={
+          <Brush
+            className={cn(size === "large" ? "size-4" : "size-3")}
+            aria-hidden="true"
+          />
+        }
+        size={size}
       />
-      <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
     </div>
   );
 }
