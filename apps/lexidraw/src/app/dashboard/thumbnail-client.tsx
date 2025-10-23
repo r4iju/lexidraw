@@ -1,6 +1,7 @@
 "use client";
 
-import { Folder, Link2 } from "lucide-react";
+import { Folder, Link2, File, Brush } from "lucide-react";
+import type { JSX } from "react";
 import Image from "next/image";
 import {
   useDeferredValue,
@@ -23,12 +24,25 @@ export function ThumbnailClient({ entity }: Props) {
   const isDarkTheme = useIsDarkTheme();
   const deferredIsDarkTheme = useDeferredValue(isDarkTheme);
   const router = useRouter();
+  type WithThumb = { thumbnailStatus?: "pending" | "ready" | "error" };
+  const thumbnailStatus = (entity as unknown as WithThumb).thumbnailStatus;
   useEffect(() => {
-    if ((entity as any).thumbnailStatus === "pending") {
-      const t = setInterval(() => router.refresh(), 8000);
-      return () => clearInterval(t);
-    }
-  }, [entity, router]);
+    if (thumbnailStatus !== "pending") return;
+    const id = setTimeout(() => {
+      // Throttle with per-tab memory to avoid spamming RSC
+      const now = Date.now();
+      const MIN_GAP_MS = 8000;
+      try {
+        const last = Number(sessionStorage.getItem("ld_dash_refresh_at") || 0);
+        if (now - last < MIN_GAP_MS) return;
+        sessionStorage.setItem("ld_dash_refresh_at", String(now));
+      } catch {
+        // sessionStorage might be unavailable; proceed without throttle
+      }
+      router.refresh();
+    }, 8000);
+    return () => clearTimeout(id);
+  }, [thumbnailStatus, router]);
   const src = useMemo(() => {
     const base = deferredIsDarkTheme
       ? entity.screenShotDark
@@ -84,6 +98,31 @@ export function ThumbnailClient({ entity }: Props) {
     );
   }
 
+  // Differentiated visuals for documents and drawings
+  if (entity.entityType === "document") {
+    return (
+      <DocumentVisual
+        title={entity.title}
+        src={src}
+        isPending={
+          (entity as unknown as WithThumb).thumbnailStatus === "pending"
+        }
+      />
+    );
+  }
+
+  if (entity.entityType === "drawing") {
+    return (
+      <DrawingVisual
+        title={entity.title}
+        src={src}
+        isPending={
+          (entity as unknown as WithThumb).thumbnailStatus === "pending"
+        }
+      />
+    );
+  }
+
   return (
     <div className="relative size-full aspect-4/3 rounded-sm overflow-hidden">
       <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
@@ -101,7 +140,7 @@ export function ThumbnailClient({ entity }: Props) {
         />
       )}
       {!src && <ThumbnailFallback />}
-      {(entity as any).thumbnailStatus === "pending" && (
+      {(entity as unknown as WithThumb).thumbnailStatus === "pending" && (
         <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
       )}
       <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
@@ -208,6 +247,125 @@ function FolderVisual({
           {childCount}
         </div>
       )}
+    </div>
+  );
+}
+
+function TypeRibbon({
+  variant,
+  icon,
+}: {
+  variant: "document" | "drawing";
+  icon: JSX.Element;
+}) {
+  return (
+    <div className="pointer-events-none absolute left-1 top-1">
+      <div
+        className={cn(
+          "grid place-items-center h-5 w-5 rounded-full bg-background shadow-sm",
+          variant === "document"
+            ? "ring-2 ring-accent text-accent"
+            : "ring-2 ring-primary text-primary",
+        )}
+      >
+        <span className="grid place-items-center p-[1px]" aria-hidden="true">
+          {icon}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function DocumentVisual({
+  title,
+  src,
+  isPending,
+}: {
+  title: string;
+  src?: string | null;
+  isPending?: boolean;
+}) {
+  return (
+    <div className="relative size-full aspect-4/3 rounded-sm overflow-hidden">
+      <span className="sr-only">{`Document: ${title}`}</span>
+      {src ? (
+        <Image
+          src={src}
+          alt={title.substring(0, 14)}
+          fill
+          crossOrigin="anonymous"
+          quality={75}
+          loading="eager"
+          draggable={false}
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-card" />
+      )}
+
+      {!src && (
+        <div className="absolute inset-0 opacity-70 bg-[repeating-linear-gradient(transparent,transparent_12px,theme(colors.border)_12px,theme(colors.border)_13px)]" />
+      )}
+
+      {isPending && (
+        <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
+      )}
+
+      <TypeRibbon
+        variant="document"
+        icon={<File className="size-3" aria-hidden="true" />}
+      />
+      <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+    </div>
+  );
+}
+
+function DrawingVisual({
+  title,
+  src,
+  isPending,
+}: {
+  title: string;
+  src?: string | null;
+  isPending?: boolean;
+}) {
+  return (
+    <div className="relative size-full aspect-4/3 rounded-sm overflow-hidden">
+      <span className="sr-only">{`Drawing: ${title}`}</span>
+      {src ? (
+        <Image
+          src={src}
+          alt={title.substring(0, 14)}
+          fill
+          crossOrigin="anonymous"
+          quality={75}
+          loading="eager"
+          draggable={false}
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-muted/30" />
+      )}
+
+      {/* subtle dot grid overlay when missing screenshot; very faint when has screenshot */}
+      <div
+        className={cn(
+          "absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px]",
+          src ? "opacity-20" : "opacity-60",
+        )}
+      />
+
+      {isPending && (
+        <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
+      )}
+
+      <TypeRibbon
+        variant="drawing"
+        icon={<Brush className="size-3" aria-hidden="true" />}
+      />
+      <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
     </div>
   );
 }
