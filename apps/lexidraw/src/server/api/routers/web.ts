@@ -40,6 +40,9 @@ export const webRouter = createTRPCRouter({
         q,
         num: String(Math.max(1, Math.min(10, input.num ?? 5))),
         safe: input.safe ?? "off",
+        fields:
+          "items(title,link,snippet,htmlSnippet,displayLink),searchInformation(totalResults)",
+        prettyPrint: "false",
       });
 
       const url = `https://www.googleapis.com/customsearch/v1?${params.toString()}`;
@@ -50,11 +53,21 @@ export const webRouter = createTRPCRouter({
         signal: AbortSignal.timeout(6000),
       });
       if (!res.ok) {
-        const body = await res.text();
+        let reason = "";
+        try {
+          const asJson = (await res.json()) as {
+            error?: { code?: number; status?: string; message?: string };
+          };
+          reason = asJson?.error?.message || asJson?.error?.status || "";
+          console.error("[web.googleSearch] error body:", asJson);
+        } catch {
+          const body = await res.text();
+          reason = body?.slice(0, 300);
+          console.error("[web.googleSearch] error text:", reason);
+        }
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Google CSE error: ${res.status}`,
-          cause: body,
+          message: `Google CSE error: ${res.status}${reason ? ` - ${reason}` : ""}`,
         });
       }
       type GoogleCseItem = {
