@@ -46,6 +46,6 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-setTimeout(() => {
-  void tick();
-}, 4000);
+// setTimeout(() => {
+//   void tick();
+// }, 4000);
