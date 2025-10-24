@@ -1,11 +1,13 @@
+"use client";
 import { useCallback } from "react";
 import { useChatDispatch, useChatState } from "./llm-chat-context";
-import type { ToolChoice, ToolSet } from "ai";
+import type { ToolChoice, ToolSet, StepResult } from "ai";
 import {
   useLLM,
   type AppToolCall,
   type StreamCallbacks,
   type GenerateChatResponseResult,
+  type RuntimeToolMap,
 } from "../../context/llm-context";
 import { useRuntimeTools } from "./runtime-tools-provider";
 import { useSystemPrompt } from "./use-system-prompt";
@@ -20,6 +22,8 @@ type HistoryMessage = {
   content: string;
   toolCalls?: AppToolCall[];
 };
+
+// Helper types for narrowing tool result shapes locally
 
 // Utility: if the whole response is a sendReply code-block, unwrap it
 function unwrapSendReply(jsonish: string): string | null {
@@ -43,6 +47,23 @@ function unwrapSendReply(jsonish: string): string | null {
   return null;
 }
 
+const MAX_SELECTED_TOOLS = 6;
+const DEFAULT_AGENT_TOOL_NAMES: string[] = [
+  "requestClarificationOrPlan",
+  "sendReply",
+  "insertTextNode",
+  "insertHeadingNode",
+];
+
+// stripCodeFences now defined as a closure inside the hook
+
+// tryParseJson now defined as a closure inside the hook
+
+// Legacy top-level helpers kept for backward compatibility (not used now)
+// pickToolsByNames is replaced by pickToolsByNamesMemo inside the hook
+
+// extractReplyTextFromToolResult now defined inside the hook
+
 // Define the expected parameters for the sendQuery callback
 interface SendQueryParams {
   prompt: string;
@@ -59,6 +80,75 @@ export const useSendQuery = () => {
 
   const systemPrompt = useSystemPrompt(mode);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
+
+  // Inline helpers as memoized closures
+  const stripCodeFences = useCallback((text: string): string => {
+    return text
+      .replace(/^\s*```json/i, "")
+      .replace(/^\s*```javascript/i, "")
+      .replace(/^\s*```ts/i, "")
+      .replace(/^\s*```/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+  }, []);
+
+  const tryParseJson = useCallback(
+    <T>(text: string): T | null => {
+      try {
+        return JSON.parse(stripCodeFences(text)) as T;
+      } catch {
+        const start = text.indexOf("{");
+        const end = text.lastIndexOf("}");
+        if (start !== -1 && end !== -1 && end > start) {
+          const slice = text.slice(start, end + 1);
+          try {
+            return JSON.parse(slice) as T;
+          } catch {
+            return null;
+          }
+        }
+        const aStart = text.indexOf("[");
+        const aEnd = text.lastIndexOf("]");
+        if (aStart !== -1 && aEnd !== -1 && aEnd > aStart) {
+          const slice = text.slice(aStart, aEnd + 1);
+          try {
+            return JSON.parse(slice) as T;
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      }
+    },
+    [stripCodeFences],
+  );
+
+  const pickToolsByNamesMemo = useCallback(
+    (names: string[]): RuntimeToolMap => {
+      const entries = names
+        .filter((n) => n && typeof n === "string")
+        .map((n) => n.trim())
+        .filter((n) => n in runtimeTools)
+        .slice(0, MAX_SELECTED_TOOLS)
+        .map((n) => [n, runtimeTools[n] as unknown]);
+      return Object.fromEntries(entries) as unknown as RuntimeToolMap;
+    },
+    [runtimeTools],
+  );
+
+  const extractReplyTextFromToolResult = useCallback(
+    (result: unknown): string | null => {
+      if (!result || typeof result !== "object") return null;
+      const maybeArgs = (result as { args?: unknown }).args;
+      if (maybeArgs && typeof maybeArgs === "object") {
+        const rec = maybeArgs as Record<string, unknown>;
+        const val = rec.replyText;
+        if (typeof val === "string") return val;
+      }
+      return null;
+    },
+    [],
+  );
 
   return useCallback(
     async ({ prompt, editorStateJson, files }: SendQueryParams) => {
@@ -195,86 +285,118 @@ export const useSendQuery = () => {
             files: files,
           });
         } else {
-          const prepareStepForMode = async ({
+          // Staged provisioning: planner call -> main call with selected subset
+          const availableToolNames = Object.keys(runtimeTools);
+          const plannerInstruction =
+            "You are a tool selection planner. From the provided list of available tool names, choose at most " +
+            String(MAX_SELECTED_TOOLS) +
+            ' that best solve the user\'s request. Return ONLY this exact format and nothing else: {"tools": ["name1", "name2"]}. Use names exactly from the list, max ' +
+            String(MAX_SELECTED_TOOLS) +
+            " items.";
+
+          const plannerPrompt = [
+            "AVAILABLE_TOOLS:",
+            availableToolNames.join(", "),
+            "USER_PROMPT:",
+            prompt,
+          ].join("\n\n");
+
+          const plannerResult = await generateChatResponse({
+            prompt: plannerPrompt,
+            system: plannerInstruction,
+            temperature: 0,
+            maxOutputTokens: 5000,
+            toolChoice: "none",
+            maxSteps: 0,
+          });
+
+          let selectedNames: string[] = [];
+          const parsed = tryParseJson<{ tools?: unknown } | string[]>(
+            plannerResult.text,
+          );
+          if (Array.isArray(parsed)) {
+            selectedNames = parsed
+              .filter((x) => typeof x === "string")
+              .slice(0, MAX_SELECTED_TOOLS) as string[];
+          } else if (
+            parsed &&
+            typeof parsed === "object" &&
+            "tools" in parsed
+          ) {
+            const t = (parsed as { tools?: unknown }).tools;
+            if (Array.isArray(t)) {
+              selectedNames = t
+                .filter((x) => typeof x === "string")
+                .slice(0, MAX_SELECTED_TOOLS) as string[];
+            }
+          }
+
+          if (!selectedNames.length) {
+            selectedNames = DEFAULT_AGENT_TOOL_NAMES.filter((n) =>
+              availableToolNames.includes(n),
+            );
+          }
+          const selectedTools = pickToolsByNamesMemo(selectedNames);
+          const selectedToolNames = Object.keys(selectedTools);
+
+          const prepareStepForSelected = async ({
             steps,
             stepNumber,
-            model,
-            messages,
           }: {
-            steps: any[]; // Use broad type to match PrepareStepFunction
+            steps: StepResult<RuntimeToolMap>[];
             stepNumber: number;
-            model: unknown;
-            messages: any[];
           }): Promise<{ toolChoice?: ToolChoice<ToolSet> }> => {
-            console.log(
-              `prepareStep ${stepNumber}: Checking previous step results (mode: ${mode})...`,
-            );
-
             const previousStep = steps[stepNumber - 1] || null;
-            const previousToolCallName =
-              previousStep?.toolResults?.at(-1)?.toolName;
-            console.log(
-              `prepareStep ${stepNumber}: Previous step results:`,
-              previousStep,
-              previousToolCallName,
-            );
-
+            const previousToolCallName = previousStep?.toolResults?.at(-1)
+              ?.toolName as string | undefined;
+            const prevInput = previousStep?.toolResults?.at(-1)?.input as
+              | Record<string, unknown>
+              | undefined;
+            const prevWasClarify =
+              !!prevInput &&
+              typeof prevInput === "object" &&
+              "operation" in prevInput &&
+              (prevInput as Record<string, unknown>).operation === "clarify";
             if (
               (previousToolCallName &&
                 ["summarizeExecution", "sendReply"].includes(
                   previousToolCallName,
                 )) ||
               (previousToolCallName === "requestClarificationOrPlan" &&
-                (previousStep?.toolResults?.at(-1) as any)?.input?.operation ===
-                  "clarify")
+                prevWasClarify)
             ) {
-              console.log(
-                `Step ${stepNumber}: sendReply or summarizeExecution or requestClarificationOrPlan detected in previous step. Forcing toolChoice: 'none'`,
-              );
               const error = new Error("TERMINAL_TOOL_CALL_DETECTED");
               error.name = "ExitError";
               throw error;
             }
-
-            // Allow up to maxSteps - 1 tool calls, then force summarize or none
-            const maxToolSteps = maxAgentSteps; // Use maxAgentSteps from context
+            const maxToolSteps = maxAgentSteps;
             if (stepNumber >= maxToolSteps) {
-              // On the last allowed step, prefer summarizeExecution if available
               if (
-                runtimeTools.summarizeExecution &&
+                selectedToolNames.includes("summarizeExecution") &&
                 stepNumber === maxToolSteps
               ) {
-                console.log(
-                  `Step ${stepNumber}: Reached max tool steps (${maxToolSteps}), forcing toolChoice: 'summarizeExecution'`,
-                );
                 return {
-                  toolChoice: { type: "tool", toolName: "summarizeExecution" },
+                  toolChoice: {
+                    type: "tool",
+                    toolName: "summarizeExecution",
+                  },
                 };
-              } else {
-                console.log(
-                  `Step ${stepNumber}: Reached max steps (${maxToolSteps}) or summarizeExecution unavailable. Forcing toolChoice: 'none'`,
-                );
-                return { toolChoice: "none" };
               }
+              return { toolChoice: "none" };
             }
-
-            console.log(
-              `Step ${stepNumber}: Allowing LLM to choose tools (toolChoice: 'auto')`,
-            );
             return { toolChoice: "auto" };
           };
 
-          // Call generateChatResponse for agent mode
-          // TODO: Update generateChatResponse to handle file uploads
-          const responseResult: GenerateChatResponseResult =
-            await generateChatResponse({
+          let responseResult: GenerateChatResponseResult;
+          try {
+            responseResult = await generateChatResponse({
               prompt: fullPrompt,
               system: systemPrompt,
               temperature: llmConfig.chat.temperature,
               maxOutputTokens: llmConfig.chat.maxOutputTokens,
-              tools: runtimeTools,
-              maxSteps: maxAgentSteps, // Use maxAgentSteps from context here
-              prepareStep: prepareStepForMode,
+              tools: selectedTools,
+              maxSteps: maxAgentSteps,
+              prepareStep: prepareStepForSelected,
               files: files,
               repairToolCall: async ({
                 toolCall,
@@ -285,77 +407,62 @@ export const useSendQuery = () => {
                   error instanceof Error ? error.message : String(error);
                 sdkMessages.push({
                   role: "assistant",
-                  content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify((toolCall as any).input)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
+                  content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify((toolCall as unknown as { input?: unknown }).input)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
                 });
                 return toolCall;
               },
             });
+          } catch {
+            // Retry once with a small expanded default subset
+            const fallbackNames = Array.from(
+              new Set([
+                ...DEFAULT_AGENT_TOOL_NAMES,
+                ...selectedToolNames,
+                "insertMarkdown",
+                "insertLinkNode",
+              ]),
+            ).slice(0, MAX_SELECTED_TOOLS);
+            const fallbackTools = pickToolsByNamesMemo(fallbackNames);
+            responseResult = await generateChatResponse({
+              prompt: fullPrompt,
+              system: systemPrompt,
+              temperature: llmConfig.chat.temperature,
+              maxOutputTokens: llmConfig.chat.maxOutputTokens,
+              tools: fallbackTools,
+              maxSteps: maxAgentSteps,
+              prepareStep: prepareStepForSelected,
+              files: files,
+            });
+          }
 
           const lastToolCall = responseResult.toolCalls?.at(-1);
           const lastToolResult = responseResult.toolResults?.find(
             (r) => r.toolCallId === lastToolCall?.toolCallId,
           );
-
-          // Define a type for args known to have replyText for type safety
-          type ReplyArgs = { replyText?: unknown };
-
-          // --- Debugging Logs --- Start
-          console.log(
-            "[Agent Dispatch Logic] Last Tool Call:",
-            JSON.stringify(lastToolCall, null, 2),
-          );
-          console.log(
-            "[Agent Dispatch Logic] Last Tool Result:",
-            JSON.stringify(lastToolResult, null, 2),
-          );
-          console.log(
-            "[Agent Dispatch Logic] Reply Text Type:",
-            typeof ((lastToolResult as any)?.args as ReplyArgs | undefined)
-              ?.replyText,
-          );
-          console.log(
-            "[Agent Dispatch Logic] Raw Response Text:",
-            responseResult.text,
-          );
-          // --- Debugging Logs --- End
-
-          let dispatchedMessage = false; // Flag to prevent double dispatch
-
+          let dispatchedMessage = false;
+          const replyTextB = extractReplyTextFromToolResult(lastToolResult);
           if (
             lastToolCall?.toolName === "sendReply" &&
-            typeof ((lastToolResult as any)?.args as ReplyArgs | undefined)
-              ?.replyText === "string"
+            typeof replyTextB === "string"
           ) {
-            // Handle sendReply: Dispatch the replyText from the tool result
-            console.log("Dispatching message from sendReply tool result.");
             dispatch({
               type: "push",
               msg: {
                 id: crypto.randomUUID(),
                 role: "assistant",
-                content: ((lastToolResult as any)?.args as ReplyArgs)
-                  .replyText as string,
-                toolCalls: responseResult.toolCalls, // Include tool info for context if needed
+                content: replyTextB,
+                toolCalls: responseResult.toolCalls,
                 toolResults: responseResult.toolResults,
               },
             });
-            dispatchedMessage = true; // Mark that we dispatched
+            dispatchedMessage = true;
           }
-
-          // Only dispatch the raw text response if no message was dispatched yet
-          // AND no other terminal tool was the last one called.
           if (
             !dispatchedMessage &&
-            // Only push a new assistant message if sendReply/other terminal tools didn't run
-            // AND there is a final text response from the LLM
             lastToolCall?.toolName !== "summarizeExecution" &&
             lastToolCall?.toolName !== "requestClarificationOrPlan" &&
             responseResult.text.trim() !== ""
           ) {
-            console.log("Dispatching standard text response.");
-            console.log(
-              "[Agent Dispatch Logic] Dispatching raw text because sendReply check failed or was skipped.",
-            );
             dispatch({
               type: "push",
               msg: {
@@ -399,6 +506,9 @@ export const useSendQuery = () => {
       runtimeTools,
       editor,
       maxAgentSteps, // Add maxAgentSteps to dependency array
+      tryParseJson,
+      pickToolsByNamesMemo,
+      extractReplyTextFromToolResult,
     ],
   );
 };
