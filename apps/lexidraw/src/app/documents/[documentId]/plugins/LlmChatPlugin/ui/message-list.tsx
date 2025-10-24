@@ -234,8 +234,10 @@ export const MessageList: React.FC<{ className?: string }> = ({
             key={m.id}
             className={cn(
               "rounded-b-lg px-3 py-1 text-sm whitespace-pre-wrap max-w-[85%] break-words",
+              // Force Lexical descendants to inherit the bubble's text color only
+              "[&_[data-lexical-editor]]:text-inherit [&_[data-lexical-editor]_*]:text-inherit",
               {
-                "bg-primary/70 !text-primary ml-auto rounded-tl-lg":
+                "bg-primary text-primary-foreground ml-auto rounded-tl-lg":
                   m.role === "user",
                 "bg-muted text-foreground mr-auto rounded-tr-lg":
                   m.role !== "user",
@@ -267,11 +269,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
       {streaming && mode === "agent" && (
         <div
           key="agent-working-indicator"
-          className={cn(
-            "rounded-b-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] break-words",
-            "bg-muted text-muted-foreground mr-auto rounded-tr-lg opacity-75",
-            "flex items-center",
-          )}
+          className="rounded-b-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] break-words bg-muted text-muted-foreground mr-auto rounded-tr-lg opacity-75 flex items-center"
         >
           <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" />
           <span>Agent is working...</span>
