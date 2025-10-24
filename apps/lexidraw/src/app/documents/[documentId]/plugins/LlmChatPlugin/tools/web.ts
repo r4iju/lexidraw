@@ -2,6 +2,35 @@ import { z } from "zod";
 import { tool } from "ai";
 import { api } from "~/trpc/react";
 
+export const WEB_TOOL_LABELS: Record<string, string | undefined> = {
+  googleSearch: "Google search",
+  extractWebpageContent: "Extract web page",
+} as const;
+
+export const WEB_TOOL_FORMATTERS: Record<
+  string,
+  (args: Record<string, unknown>) => string | undefined
+> = {
+  googleSearch: (args) => {
+    const query = typeof args.query === "string" ? args.query : undefined;
+    const site = typeof args.site === "string" ? args.site : undefined;
+    if (!query) return undefined;
+    return site
+      ? `Agent searched "${query}" on ${site}`
+      : `Agent searched "${query}"`;
+  },
+  extractWebpageContent: (args) => {
+    const url = typeof args.url === "string" ? args.url : undefined;
+    if (!url) return undefined;
+    try {
+      const host = new URL(url).host;
+      return `Agent extracted ${host}`;
+    } catch {
+      return `Agent extracted web page`;
+    }
+  },
+};
+
 export function useWebTools() {
   const utils = api.useUtils();
   const extractWebpageContentMutation =

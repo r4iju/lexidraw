@@ -9,7 +9,7 @@ import {
   type GenerateChatResponseResult,
   type RuntimeToolMap,
 } from "../../context/llm-context";
-import { useRuntimeTools } from "./runtime-tools-provider";
+import { useRuntimeTools, useToolMeta } from "./runtime-tools-provider";
 import { useSystemPrompt } from "./use-system-prompt";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useMarkdownTools } from "../../utils/markdown";
@@ -80,6 +80,7 @@ export const useSendQuery = () => {
 
   const systemPrompt = useSystemPrompt(mode);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
+  const { getDisplay } = useToolMeta();
 
   // Inline helpers as memoized closures
   const stripCodeFences = useCallback((text: string): string => {
@@ -369,6 +370,26 @@ export const useSendQuery = () => {
               error.name = "ExitError";
               throw error;
             }
+            // Surface last tool call, if any
+            const lastTool = previousStep?.toolCalls?.at(-1);
+            if (lastTool?.toolName) {
+              const display = getDisplay(
+                lastTool.toolName,
+                (lastTool as unknown as { input?: Record<string, unknown> })
+                  .input,
+              );
+              if (display) {
+                dispatch({
+                  type: "push",
+                  msg: {
+                    id: crypto.randomUUID(),
+                    role: "system",
+                    content: display,
+                  },
+                });
+              }
+            }
+
             const maxToolSteps = maxAgentSteps;
             if (stepNumber >= maxToolSteps) {
               if (
@@ -440,6 +461,23 @@ export const useSendQuery = () => {
             (r) => r.toolCallId === lastToolCall?.toolCallId,
           );
           let dispatchedMessage = false;
+          if (lastToolCall?.toolName) {
+            const display = getDisplay(
+              lastToolCall.toolName,
+              (lastToolCall as unknown as { input?: Record<string, unknown> })
+                .input,
+            );
+            if (display) {
+              dispatch({
+                type: "push",
+                msg: {
+                  id: crypto.randomUUID(),
+                  role: "system",
+                  content: display,
+                },
+              });
+            }
+          }
           const replyTextB = extractReplyTextFromToolResult(lastToolResult);
           if (
             lastToolCall?.toolName === "sendReply" &&
@@ -505,10 +543,11 @@ export const useSendQuery = () => {
       llmConfig,
       runtimeTools,
       editor,
-      maxAgentSteps, // Add maxAgentSteps to dependency array
+      maxAgentSteps,
       tryParseJson,
       pickToolsByNamesMemo,
       extractReplyTextFromToolResult,
+      getDisplay,
     ],
   );
 };
