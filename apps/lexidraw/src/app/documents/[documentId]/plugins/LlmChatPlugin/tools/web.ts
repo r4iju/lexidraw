@@ -4,6 +4,8 @@ import { api } from "~/trpc/react";
 
 export function useWebTools() {
   const utils = api.useUtils();
+  const extractWebpageContentMutation =
+    api.web.extractWebpageContent.useMutation();
 
   const googleSearch = tool({
     description:
@@ -49,7 +51,7 @@ export function useWebTools() {
       maxChars: z.number().int().min(200).max(20000).optional(),
     }),
     execute: async ({ url, maxChars }) => {
-      const res = await utils.web.extractWebpageContent.fetch({
+      const res = await extractWebpageContentMutation.mutateAsync({
         url,
         maxChars,
       });
