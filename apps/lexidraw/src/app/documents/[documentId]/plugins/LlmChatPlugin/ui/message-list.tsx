@@ -54,12 +54,12 @@ const ToolCallDisplay: React.FC<{
 
   if (toolResult) {
     if (toolResult.ok) {
-      statusIcon = <CheckCircle className="h-4 w-4 text-green-500" />;
-      statusColor = "text-green-500";
+      statusIcon = <CheckCircle className="h-4 w-4 text-primary  " />;
+      statusColor = "text-primary";
       statusText = "Success";
     } else {
-      statusIcon = <AlertCircle className="h-4 w-4 text-red-500" />;
-      statusColor = "text-red-500";
+      statusIcon = <AlertCircle className="h-4 w-4 text-destructive" />;
+      statusColor = "text-destructive";
       statusText = "Error";
     }
   }
@@ -233,12 +233,14 @@ export const MessageList: React.FC<{ className?: string }> = ({
           <div
             key={m.id}
             className={cn(
-              "rounded-b-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] break-words",
-              m.role === "user"
-                ? "bg-primary text-primary-foreground ml-auto rounded-tl-lg"
-                : "bg-muted text-foreground mr-auto rounded-tr-lg",
-              m.role === "system" &&
-                "border border-dashed border-muted-foreground",
+              "rounded-b-lg px-3 py-1 text-sm whitespace-pre-wrap max-w-[85%] break-words",
+              {
+                "bg-primary/70 !text-primary ml-auto rounded-tl-lg":
+                  m.role === "user",
+                "bg-muted text-foreground mr-auto rounded-tr-lg":
+                  m.role !== "user",
+                "border border-border": m.role === "system",
+              },
             )}
           >
             {contentElement}

@@ -25,8 +25,26 @@ import { useTweetTools } from "./tools/tweet";
 import { useImageTools } from "./tools/image";
 import { useCombinedTools } from "./tools/combined-tools";
 import { useWebTools } from "./tools/web";
+import { WEB_TOOL_LABELS, WEB_TOOL_FORMATTERS } from "./tools/web";
+import {
+  GLOBAL_TOOL_LABELS,
+  GLOBAL_TOOL_FORMATTERS,
+  PREFIX_RULES,
+} from "./tools-meta";
 
 const RuntimeToolsCtx = createContext<RuntimeToolMap | null>(null);
+type ToolMeta = {
+  labels: Record<string, string | undefined>;
+  formatters: Record<
+    string,
+    (args: Record<string, unknown>) => string | undefined
+  >;
+  getDisplay: (
+    toolName: string,
+    args: Record<string, unknown> | undefined,
+  ) => string | null;
+};
+const ToolMetaCtx = createContext<ToolMeta | null>(null);
 
 export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const dispatch = useChatDispatch();
@@ -149,9 +167,51 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     webResearch,
   } as unknown as RuntimeToolMap;
 
+  // Aggregate global + per-module tool labels/formatters.
+  const labels: Record<string, string | undefined> = {
+    ...GLOBAL_TOOL_LABELS,
+    ...WEB_TOOL_LABELS,
+  };
+  const formatters: Record<
+    string,
+    (args: Record<string, unknown>) => string | undefined
+  > = {
+    ...GLOBAL_TOOL_FORMATTERS,
+    ...WEB_TOOL_FORMATTERS,
+  };
+
+  const getDisplay = (
+    toolName: string,
+    args: Record<string, unknown> | undefined,
+  ): string | null => {
+    // If explicitly undefined label, suppress chat surfacing for this tool
+    if (toolName in labels && labels[toolName] === undefined) {
+      return null;
+    }
+    const fmt = formatters[toolName];
+    if (typeof fmt === "function") {
+      const out = fmt(args ?? {});
+      if (out === undefined) return null;
+      return out;
+    }
+    const label = labels[toolName];
+    if (typeof label === "string") return label;
+    // Prefix rules to render generic names
+    const rule = PREFIX_RULES.find((r) => r.test(toolName));
+    if (rule) return rule.render(toolName);
+    // Fallback: convert camelCase/PascalCase to Title Case
+    const title = toolName
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/^\w/, (m) => m.toUpperCase());
+    return title;
+  };
+
   return (
     <RuntimeToolsCtx.Provider value={tools}>
-      {children}
+      <ToolMetaCtx.Provider value={{ labels, formatters, getDisplay }}>
+        {children}
+      </ToolMetaCtx.Provider>
     </RuntimeToolsCtx.Provider>
   );
 }
@@ -162,4 +222,10 @@ export function useRuntimeTools() {
     throw new Error("RuntimeToolsProvider not found");
   }
   return tools;
+}
+
+export function useToolMeta() {
+  const meta = useContext(ToolMetaCtx);
+  if (!meta) throw new Error("ToolMeta context not found");
+  return meta;
 }
