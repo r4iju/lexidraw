@@ -41,11 +41,36 @@ export type TtsOptionsResult = {
 };
 
 // --- Kokoro helpers ---
-const kokoroResultFromIds = (ids: string[]): TtsOptionsResult => ({
-  voices: ids.map((id) => ({ id, label: id, languageCodes: ["en-US"] })),
+const KOKORO_FALLBACK: TtsOptionsResult = {
+  voices: [
+    {
+      id: "af_heart",
+      label: "Heart (Female)",
+      languageCodes: ["en-US"],
+    },
+  ],
   languages: ["en-US"],
-});
-const KOKORO_FALLBACK: TtsOptionsResult = kokoroResultFromIds(["af_heart"]);
+};
+
+const KOKORO_LANG_FROM_PREFIX: Record<string, string> = {
+  a: "en-US", // American English
+  b: "en-GB", // British English
+  // Other languages exist (j, z, e, f, h, i, p), but we currently scope to English
+};
+const KOKORO_GENDER_FROM_PREFIX: Record<string, "Female" | "Male"> = {
+  f: "Female",
+  m: "Male",
+};
+
+function formatKokoroLabel(id: string): string {
+  // id like "af_heart" → "Heart (Female)"
+  const parts = id.split("_");
+  const suffix = parts.slice(1).join("_") || id; // voice name
+  const name = suffix.charAt(0).toUpperCase() + suffix.slice(1);
+  const genderKey = id.length > 1 ? id[1] : "";
+  const gender = KOKORO_GENDER_FROM_PREFIX[genderKey || ""];
+  return gender ? `${name} (${gender})` : name;
+}
 
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
@@ -206,9 +231,15 @@ export const configRouter = createTRPCRouter({
       if (input.provider === "kokoro") {
         const baseUrl = env.KOKORO_URL?.replace(/\/$/, "");
         const bearer = env.KOKORO_BEARER;
+        const dev = process.env.NODE_ENV !== "production";
+        const successTtlMs = dev ? 5_000 : 10 * 60_000;
+        const errorTtlMs = dev ? 5_000 : 60_000;
         // Fallback static voice if sidecar not configured
         if (!baseUrl) {
-          bag.set(cacheKey, { expires: now + 60_000, data: KOKORO_FALLBACK });
+          bag.set(cacheKey, {
+            expires: now + errorTtlMs,
+            data: KOKORO_FALLBACK,
+          });
           return KOKORO_FALLBACK;
         }
         try {
@@ -226,22 +257,39 @@ export const configRouter = createTRPCRouter({
                 message: text,
               },
             };
-            bag.set(cacheKey, { expires: now + 60_000, data });
+            bag.set(cacheKey, { expires: now + errorTtlMs, data });
             return data;
           }
           const json = (await resp.json()) as { voices?: string[] };
-          const ids = Array.isArray(json.voices) ? json.voices : [];
-          const data: Result = ids.length
-            ? kokoroResultFromIds(ids)
+          const ids = (Array.isArray(json.voices) ? json.voices : []).filter(
+            (id) => {
+              // Filter to English only (en-US/en-GB) via first-letter prefix
+              const langKey = id?.[0];
+              return langKey === "a" || langKey === "b";
+            },
+          );
+          const voices: Voice[] = ids.map((id) => {
+            const langKey = id.length > 0 ? id[0] : "a";
+            const lang =
+              KOKORO_LANG_FROM_PREFIX[
+                langKey as keyof typeof KOKORO_LANG_FROM_PREFIX
+              ] || "en-US";
+            return { id, label: formatKokoroLabel(id), languageCodes: [lang] };
+          });
+          const languages = Array.from(
+            new Set(voices.flatMap((v) => v.languageCodes)),
+          ).sort();
+          const data: Result = voices.length
+            ? { voices, languages }
             : KOKORO_FALLBACK;
-          bag.set(cacheKey, { expires: now + 10 * 60_000, data });
+          bag.set(cacheKey, { expires: now + successTtlMs, data });
           return data;
         } catch (e) {
           const data: Result = {
             ...KOKORO_FALLBACK,
             diagnostics: { code: "http_error", message: (e as Error)?.message },
           };
-          bag.set(cacheKey, { expires: now + 60_000, data });
+          bag.set(cacheKey, { expires: now + errorTtlMs, data });
           return data;
         }
       }
