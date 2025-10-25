@@ -40,6 +40,13 @@ export type TtsOptionsResult = {
   diagnostics?: TtsOptionsDiagnostics;
 };
 
+// --- Kokoro helpers ---
+const kokoroResultFromIds = (ids: string[]): TtsOptionsResult => ({
+  voices: ids.map((id) => ({ id, label: id, languageCodes: ["en-US"] })),
+  languages: ["en-US"],
+});
+const KOKORO_FALLBACK: TtsOptionsResult = kokoroResultFromIds(["af_heart"]);
+
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   modelId: "gemini-2.5-flash",
@@ -197,14 +204,46 @@ export const configRouter = createTRPCRouter({
       }
 
       if (input.provider === "kokoro") {
-        const data: Result = {
-          voices: [
-            { id: "af_heart", label: "af_heart", languageCodes: ["en-US"] },
-          ],
-          languages: ["en-US"],
-        };
-        bag.set(cacheKey, { expires: now + 10 * 60_000, data });
-        return data;
+        const baseUrl = env.KOKORO_URL?.replace(/\/$/, "");
+        const bearer = env.KOKORO_BEARER;
+        // Fallback static voice if sidecar not configured
+        if (!baseUrl) {
+          bag.set(cacheKey, { expires: now + 60_000, data: KOKORO_FALLBACK });
+          return KOKORO_FALLBACK;
+        }
+        try {
+          const resp = await fetch(`${baseUrl}/v1/voices`, {
+            method: "GET",
+            headers: bearer ? { Authorization: `Bearer ${bearer}` } : undefined,
+          });
+          if (!resp.ok) {
+            const text = await resp.text().catch(() => "");
+            const data: Result = {
+              ...KOKORO_FALLBACK,
+              diagnostics: {
+                code: "http_error",
+                status: resp.status,
+                message: text,
+              },
+            };
+            bag.set(cacheKey, { expires: now + 60_000, data });
+            return data;
+          }
+          const json = (await resp.json()) as { voices?: string[] };
+          const ids = Array.isArray(json.voices) ? json.voices : [];
+          const data: Result = ids.length
+            ? kokoroResultFromIds(ids)
+            : KOKORO_FALLBACK;
+          bag.set(cacheKey, { expires: now + 10 * 60_000, data });
+          return data;
+        } catch (e) {
+          const data: Result = {
+            ...KOKORO_FALLBACK,
+            diagnostics: { code: "http_error", message: (e as Error)?.message },
+          };
+          bag.set(cacheKey, { expires: now + 60_000, data });
+          return data;
+        }
       }
 
       // Google

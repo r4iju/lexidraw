@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import os
 from typing import Optional, Tuple
+from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -83,10 +84,24 @@ def healthz():
     return {"ok": True, "lang": LANG_CODE, "mp3": bool(MP3_CAPABLE)}
 
 
+# Dynamic voice discovery from local checkpoints (default to app folder voices/)
+VOICES_DIR = Path(
+    os.environ.get("KOKORO_VOICES_DIR", str(Path(__file__).parent / "voices"))
+)
+
+
 @app.get("/v1/voices")
 def list_voices():
-    # Minimal static list; extend by reading Kokoro's catalog if available
-    # Example voices: https://huggingface.co/hexgrad/Kokoro-82M
+    try:
+        if VOICES_DIR.is_dir():
+            names = {p.stem for p in VOICES_DIR.glob("*.pt")}
+            names.update({p.stem for p in VOICES_DIR.glob("*.pth")})
+            if names:
+                return {"voices": sorted(names)}
+    except Exception as ex:
+        app_logger.warning("voices scan failed: %s", repr(ex))
+    # Fallback
+    app_logger.warning("voices scan failed, falling back to default voice")
     return {"voices": ["af_heart"]}
 
 
