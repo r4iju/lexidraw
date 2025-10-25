@@ -226,9 +226,17 @@ export default function ArticlePreview({
     if (ttsCfg.provider === "openai") return label;
     const genderMatch = label.match(/\(([^)]+)\)\s*$/);
     const gender: string = genderMatch?.[1] ?? "";
-    const parts = id.split("-");
-    const last = parts.length >= 1 ? parts[parts.length - 1] : undefined;
-    const variant = typeof last === "string" && last ? last : id;
+    let variant = id;
+    if (ttsCfg.provider === "kokoro") {
+      const u = id.indexOf("_");
+      variant = u >= 0 ? id.slice(u + 1) : id; // drop language/gender prefix like bf_
+    } else {
+      const parts = id.split("-");
+      const last = parts.length >= 1 ? parts[parts.length - 1] : undefined;
+      variant = typeof last === "string" && last ? last : id;
+    }
+    variant = variant.replace(/_/g, " ");
+    variant = variant.charAt(0).toUpperCase() + variant.slice(1);
     const prettyGender = gender
       ? gender.charAt(0) + gender.slice(1).toLowerCase()
       : "";
