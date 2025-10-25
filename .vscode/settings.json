@@ -1,4 +1,10 @@
 {
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "biomejs.biome"
+  "editor.defaultFormatter": "biomejs.biome",
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.semanticHighlighting.enabled": true
+  },
+  "python.defaultInterpreterPath": "/opt/homebrew/Caskroom/miniconda/base/envs/kokoro312/bin/python"
 }

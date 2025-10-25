@@ -89,7 +89,7 @@ export default function ArticlePreview({
 
   // Local config state
   const [ttsCfg, setTtsCfg] = useState({
-    provider: "openai" as "openai" | "google",
+    provider: "openai" as "openai" | "google" | "kokoro",
     voiceId: "alloy",
     speed: 1,
     format: "mp3" as "mp3" | "ogg" | "wav",
@@ -139,8 +139,9 @@ export default function ArticlePreview({
   const parseVoiceFamily = useCallback(
     (id: string): string => {
       if (ttsCfg.provider === "openai") return "OpenAI";
+      if (ttsCfg.provider === "kokoro") return "Kokoro";
       const parts = id.split("-");
-      if (parts.length < 3) return "";
+      if (parts.length < 3) return "Other";
       const family = parts.slice(2, parts.length - 1).join("-") || "";
       if (/^Chirp3-HD$/i.test(family)) return "Chirp3-HD";
       if (/^Chirp3$/i.test(family)) return "Chirp3";
@@ -177,7 +178,10 @@ export default function ArticlePreview({
       ? all.filter((v) => (v.languageCodes ?? []).includes(lang))
       : all;
     const fams = new Set<string>();
-    for (const v of byLang) fams.add(parseVoiceFamily(v.id));
+    for (const v of byLang) {
+      const fam = parseVoiceFamily(v.id);
+      if (fam) fams.add(fam);
+    }
     return Array.from(fams);
   }, [ttsOptionsQuery.data?.voices, ttsCfg.languageCode, parseVoiceFamily]);
 
@@ -462,6 +466,7 @@ export default function ArticlePreview({
                         <SelectContent>
                           <SelectItem value="openai">OpenAI</SelectItem>
                           <SelectItem value="google">Google</SelectItem>
+                          <SelectItem value="kokoro">Kokoro</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -703,7 +708,11 @@ export default function ArticlePreview({
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={updateTts.isPending || updateArticle.isPending}
+                      disabled={
+                        updateTts.isPending ||
+                        updateArticle.isPending ||
+                        isGenerating
+                      }
                       onClick={async () => {
                         try {
                           await Promise.all([

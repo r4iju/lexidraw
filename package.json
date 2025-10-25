@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "./build.sh; bun dotenv -e .env.production -- turbo run build",
-    "dev": "bun dotenv -e .env.development -- turbo run dev --parallel --filter=@apps/lexidraw --filter=@apps/render-html-worker --filter=@apps/cron-runner",
+    "dev": "bash -lc 'set -a; [ -f apps/lexidraw/.env.local ] && source apps/lexidraw/.env.local; set +a; conda run -n kokoro312 uvicorn app:app --host 127.0.0.1 --port 8010 --reload --app-dir apps/kokoro-service >> apps/kokoro-service/uvicorn.log 2>&1 &' && bun dotenv -e .env.development -- turbo run dev --parallel --filter=@apps/lexidraw --filter=@apps/render-html-worker --filter=@apps/cron-runner",
     "start": "bun dotenv -e .env.production -- turbo run start",
     "clean": "turbo run clean && rm -rf node_modules && rm -f bun.lockb && rm -rf .turbo",
     "db:studio": "bun dotenv -e .env.development -- turbo run db:studio",

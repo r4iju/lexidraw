@@ -1,6 +1,6 @@
 import "server-only";
 
-export type TtsProviderName = "openai" | "google";
+export type TtsProviderName = "openai" | "google" | "kokoro";
 export type TtsAudioFormat = "mp3" | "ogg" | "wav";
 
 export type TtsSynthesizeInput = {
