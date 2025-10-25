@@ -1,0 +1,6 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+kokoro==0.7.16
+numpy==1.26.4
+soundfile==0.12.1
+pydub==0.25.1

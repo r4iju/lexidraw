@@ -57,7 +57,7 @@ const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
 
 // --- TTS and Article Config Schemas & Defaults ---
 const TtsConfigSchema = z.object({
-  provider: z.enum(["openai", "google"]),
+  provider: z.enum(["openai", "google", "kokoro"]),
   voiceId: z.string(),
   speed: z.number().min(0.25).max(4),
   format: z.enum(["mp3", "ogg", "wav"]),
@@ -160,7 +160,7 @@ export const configRouter = createTRPCRouter({
 
   // --- Read-only TTS options (voices/languages) ---
   getTtsOptions: protectedProcedure
-    .input(z.object({ provider: z.enum(["openai", "google"]) }))
+    .input(z.object({ provider: z.enum(["openai", "google", "kokoro"]) }))
     .query(async ({ ctx, input }) => {
       type Voice = TtsVoice;
       type Result = TtsOptionsResult;
@@ -189,6 +189,17 @@ export const configRouter = createTRPCRouter({
             { id: "verse", label: "verse", languageCodes: ["en-US"] },
             { id: "sage", label: "sage", languageCodes: ["en-US"] },
             { id: "luna", label: "luna", languageCodes: ["en-US"] },
+          ],
+          languages: ["en-US"],
+        };
+        bag.set(cacheKey, { expires: now + 10 * 60_000, data });
+        return data;
+      }
+
+      if (input.provider === "kokoro") {
+        const data: Result = {
+          voices: [
+            { id: "af_heart", label: "af_heart", languageCodes: ["en-US"] },
           ],
           languages: ["en-US"],
         };

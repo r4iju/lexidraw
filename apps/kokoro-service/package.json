@@ -1,0 +1,9 @@
+{
+  "name": "@apps/kokoro-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bash -lc 'set -a; [ -f ../lexidraw/.env.local ] && source ../lexidraw/.env.local; set +a; conda run -n kokoro312 uvicorn app:app --host 127.0.0.1 --port 8010 --reload'"
+  }
+}

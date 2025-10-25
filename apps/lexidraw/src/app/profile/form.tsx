@@ -114,6 +114,7 @@ export default function ProfileForm({ user }: Props) {
               <RHFSelect name="tts.provider" label="Provider">
                 <option value="openai">OpenAI</option>
                 <option value="google">Google</option>
+                <option value="kokoro">Kokoro (local)</option>
               </RHFSelect>
               <RHFTextField label="Voice ID" name="tts.voiceId" />
               <RHFSlider

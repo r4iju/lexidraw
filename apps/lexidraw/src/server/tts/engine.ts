@@ -1,5 +1,9 @@
 import "server-only";
 import crypto from "node:crypto";
+import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
 import { put } from "@vercel/blob";
 import env from "@packages/env";
 import { extractArticleFromUrl } from "~/lib/extract-article";
@@ -13,6 +17,7 @@ import type {
 } from "./types";
 import { createOpenAiTtsProvider } from "./providers/openai";
 import { createGoogleTtsProvider } from "./providers/google";
+import { createKokoroTtsProvider } from "./providers/kokoro";
 
 type ChooseProviderArgs = {
   requested?: TtsProviderName;
@@ -24,6 +29,9 @@ function chooseProvider({
   languageCode,
 }: ChooseProviderArgs): TtsProviderName {
   if (requested) return requested;
+  // Prefer local Kokoro in development when configured
+  if (process.env.NODE_ENV !== "production" && process.env.KOKORO_URL)
+    return "kokoro";
   if (languageCode && !languageCode.startsWith("en")) return "google";
   return "openai";
 }
@@ -46,7 +54,12 @@ export function precomputeTtsKey(req: TtsRequest) {
   });
   const format = req.format ?? "mp3";
   const voiceId =
-    req.voiceId ?? (providerName === "google" ? "en-US-Standard-C" : "alloy");
+    req.voiceId ??
+    (providerName === "google"
+      ? "en-US-Standard-C"
+      : providerName === "kokoro"
+        ? "af_heart"
+        : "alloy");
   const speed = req.speed ?? 1.0;
 
   const discriminator = req.url || (req.text ? req.text.slice(0, 8192) : "");
@@ -70,6 +83,10 @@ export async function synthesizeArticleOrText(
     languageCode: req.languageCode,
   });
   const format = req.format ?? "mp3";
+  const stitchWithFfmpeg = process.env.TTS_STITCH_WITH_FFMPEG === "true";
+  const segmentFormat: "mp3" | "ogg" | "wav" = stitchWithFfmpeg
+    ? "wav"
+    : format;
   const voiceId =
     req.voiceId ?? (providerName === "google" ? "en-US-Standard-C" : "alloy");
   const speed = req.speed ?? 1.0;
@@ -112,23 +129,26 @@ export async function synthesizeArticleOrText(
     req.languageCode ?? "",
   ]);
 
-  // Cache reuse: return existing manifest if already synthesized
-  try {
-    const existingManifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/${key}/manifest.json`;
-    const existing = await fetch(existingManifestUrl, { method: "GET" });
-    if (existing.ok) {
-      const manifest = (await existing.json()) as TtsResult;
-      return { ...manifest, manifestUrl: existingManifestUrl };
+  // Cache reuse: disabled for Kokoro to force regeneration during local dev
+  if (providerName !== "kokoro") {
+    try {
+      const existingManifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/${key}/manifest.json`;
+      const existing = await fetch(existingManifestUrl, { method: "GET" });
+      if (existing.ok) {
+        const manifest = (await existing.json()) as TtsResult;
+        return { ...manifest, manifestUrl: existingManifestUrl };
+      }
+    } catch {
+      // ignore cache miss or fetch error; proceed to synthesize
     }
-  } catch {
-    // ignore cache miss or fetch error; proceed to synthesize
   }
 
-  // Build provider instance
   const provider =
     providerName === "google"
       ? createGoogleTtsProvider(req.userKeys.googleApiKey)
-      : createOpenAiTtsProvider(req.userKeys.openaiApiKey);
+      : providerName === "kokoro"
+        ? createKokoroTtsProvider(env.KOKORO_URL ?? "", env.KOKORO_BEARER)
+        : createOpenAiTtsProvider(req.userKeys.openaiApiKey);
 
   const chunks = chunkTextByParagraphs(sourceText, {
     targetSize: 1400,
@@ -145,23 +165,25 @@ export async function synthesizeArticleOrText(
           languageCode: req.languageCode,
         })
       : undefined;
-    // Reuse existing segment if blob already exists
-    const path = `tts/${key}/${chunk.index}.${format}`;
+    // Reuse existing segment if blob already exists (disabled for Kokoro)
+    const path = `tts/${key}/${chunk.index}.${segmentFormat}`;
     const existingUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${path}`;
-    try {
-      const head = await fetch(existingUrl, { method: "HEAD" });
-      if (head.ok) {
-        segments.push({
-          index: chunk.index,
-          text: chunk.text,
-          ssml,
-          audioUrl: existingUrl,
-        });
-        // Do not synthesize or upload again; also skip adding to rawBuffers
-        continue;
+    if (providerName !== "kokoro") {
+      try {
+        const head = await fetch(existingUrl, { method: "HEAD" });
+        if (head.ok) {
+          segments.push({
+            index: chunk.index,
+            text: chunk.text,
+            ssml,
+            audioUrl: existingUrl,
+          });
+          // Do not synthesize or upload again; also skip adding to rawBuffers
+          continue;
+        }
+      } catch {
+        // ignore and proceed to synthesize
       }
-    } catch {
-      // ignore and proceed to synthesize
     }
     let audioBuf: Buffer | null = null;
     try {
@@ -169,23 +191,41 @@ export async function synthesizeArticleOrText(
         textOrSsml: ssml ?? chunk.text,
         voiceId,
         speed,
-        format,
+        format: format,
         languageCode: req.languageCode,
         sampleRate: req.sampleRate,
       });
       audioBuf = audio;
     } catch (primaryError) {
-      // provider fallback (single retry) if alternate provider available
+      // No fallback when user selected Kokoro; surface error
+      if (providerName === "kokoro") {
+        throw primaryError;
+      }
       try {
         const altProvider =
           providerName === "google"
             ? createOpenAiTtsProvider(req.userKeys.openaiApiKey)
-            : createGoogleTtsProvider(req.userKeys.googleApiKey);
+            : env.KOKORO_URL
+              ? createKokoroTtsProvider(env.KOKORO_URL, env.KOKORO_BEARER)
+              : createGoogleTtsProvider(req.userKeys.googleApiKey);
+        const targetProviderName: TtsProviderName =
+          providerName === "google"
+            ? "openai"
+            : env.KOKORO_URL
+              ? "kokoro"
+              : "google";
+        const fallbackVoiceId =
+          targetProviderName === "openai"
+            ? "alloy"
+            : targetProviderName === "kokoro"
+              ? "af_heart"
+              : "en-US-Standard-C";
+
         const { audio } = await altProvider.synthesize({
           textOrSsml: ssml ?? chunk.text,
-          voiceId: providerName === "google" ? "alloy" : voiceId,
+          voiceId: fallbackVoiceId,
           speed,
-          format,
+          format: format,
           languageCode: req.languageCode,
           sampleRate: req.sampleRate,
         });
@@ -233,7 +273,7 @@ export async function synthesizeArticleOrText(
   }
 
   // Write a manifest for easy GET retrieval
-  // Naive server-side stitch for mp3: buffered concatenation works for many encoders
+  // Naive server-side stitch for mp3 or robust WAV concat via ffmpeg when enabled
   let stitchedUrl: string | undefined;
   // Prefer existing stitched file if present
   try {
@@ -241,35 +281,103 @@ export async function synthesizeArticleOrText(
     const headFull = await fetch(fullUrl, { method: "HEAD" });
     if (headFull.ok) {
       stitchedUrl = fullUrl;
-    } else if (format === "mp3" && segments.length > 1) {
+    } else if (segments.length > 1) {
       // Build complete ordered buffers: use in-memory when available, otherwise fetch from blob URLs
       try {
-        const orderedBuffers: Buffer[] = [];
         // Ensure segments are ordered by index
         const ordered = [...segments].sort((a, b) => a.index - b.index);
-        for (const seg of ordered) {
-          const inMem = bufferByIndex.get(seg.index);
-          if (inMem) {
-            orderedBuffers.push(inMem);
-            continue;
+
+        if (process.env.TTS_STITCH_WITH_FFMPEG === "true") {
+          // Robust approach: concat WAV files via ffmpeg and transcode to requested format
+          // Download or use in-memory buffers to temp WAV files
+          const tmpDir = await fs.mkdtemp(
+            path.join(os.tmpdir(), `tts-${key}-`),
+          );
+          const wavPaths: string[] = [];
+          for (const seg of ordered) {
+            const inMem = bufferByIndex.get(seg.index);
+            let buf: Buffer;
+            if (inMem) {
+              buf = inMem;
+            } else {
+              const url = seg.audioUrl;
+              if (!url) throw new Error("Missing segment URL for stitching");
+              const r = await fetch(url, { method: "GET", cache: "no-store" });
+              if (!r.ok)
+                throw new Error(`Failed to fetch segment ${seg.index}`);
+              const arr = new Uint8Array(await r.arrayBuffer());
+              buf = Buffer.from(arr);
+            }
+            const fp = path.join(tmpDir, `${seg.index}.wav`);
+            await fs.writeFile(fp, buf);
+            wavPaths.push(fp);
           }
-          const url = seg.audioUrl;
-          if (!url) {
-            // Missing URL; abort stitching
-            throw new Error("Missing segment URL for stitching");
+          // Create concat list file
+          const listFile = path.join(tmpDir, "list.txt");
+          await fs.writeFile(
+            listFile,
+            wavPaths
+              .map((p) => `file '${p.replace(/'/g, "'\\''")}'`)
+              .join("\n"),
+            { encoding: "utf-8" },
+          );
+          // Output temp file
+          const outExt =
+            format === "ogg" ? "ogg" : format === "wav" ? "wav" : "mp3";
+          const outPath = path.join(tmpDir, `out.${outExt}`);
+          const args = [
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            listFile,
+            outPath,
+          ];
+          await new Promise<void>((resolve, reject) => {
+            const ps = spawn("ffmpeg", args);
+            ps.on("error", reject);
+            ps.on("exit", (code) =>
+              code === 0
+                ? resolve()
+                : reject(new Error(`ffmpeg exited ${code}`)),
+            );
+          });
+          const finalBuf = await fs.readFile(outPath);
+          const { url } = await put(`tts/${key}/full.${format}`, finalBuf, {
+            access: "public",
+            contentType:
+              format === "mp3"
+                ? "audio/mpeg"
+                : format === "ogg"
+                  ? "audio/ogg"
+                  : "audio/wav",
+          });
+          stitchedUrl = url;
+        } else if (format === "mp3") {
+          // Legacy best-effort buffered mp3 concat
+          const orderedBuffers: Buffer[] = [];
+          for (const seg of ordered) {
+            const inMem = bufferByIndex.get(seg.index);
+            if (inMem) {
+              orderedBuffers.push(inMem);
+              continue;
+            }
+            const url = seg.audioUrl;
+            if (!url) throw new Error("Missing segment URL for stitching");
+            const r = await fetch(url, { method: "GET", cache: "no-store" });
+            if (!r.ok) throw new Error(`Failed to fetch segment ${seg.index}`);
+            const arr = new Uint8Array(await r.arrayBuffer());
+            orderedBuffers.push(Buffer.from(arr));
           }
-          const r = await fetch(url, { method: "GET", cache: "no-store" });
-          if (!r.ok) throw new Error(`Failed to fetch segment ${seg.index}`);
-          const arr = new Uint8Array(await r.arrayBuffer());
-          orderedBuffers.push(Buffer.from(arr));
+          const combined = Buffer.concat(orderedBuffers);
+          const { url } = await put(`tts/${key}/full.${format}`, combined, {
+            access: "public",
+            contentType: "audio/mpeg",
+          });
+          stitchedUrl = url;
         }
-        // Concatenate and upload stitched mp3
-        const combined = Buffer.concat(orderedBuffers);
-        const { url } = await put(`tts/${key}/full.${format}`, combined, {
-          access: "public",
-          contentType: "audio/mpeg",
-        });
-        stitchedUrl = url;
       } catch (e) {
         const msg = (e as Error)?.message ?? "";
         if (typeof msg === "string" && msg.includes("already exists")) {

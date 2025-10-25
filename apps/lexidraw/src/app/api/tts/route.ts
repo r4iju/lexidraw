@@ -131,6 +131,68 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...manifest, manifestUrl });
     }
 
+    // Kokoro: run synchronously so client can surface errors immediately
+    if (resolved.provider === "kokoro") {
+      try {
+        const result = await synthesizeArticleOrText({
+          url: body.url,
+          text: resolvedText,
+          provider: resolved.provider,
+          voiceId: resolved.voiceId,
+          speed: resolved.speed,
+          format: resolved.format,
+          languageCode: resolved.languageCode,
+          titleHint: body.title,
+          userKeys,
+        });
+        if (body.entityId) {
+          try {
+            const existing = await drizzle.query.entities.findFirst({
+              where: (e) =>
+                and(
+                  eq(e.id, body.entityId as string),
+                  eq(e.userId, session.user.id),
+                ),
+            });
+            if (existing?.elements) {
+              const parsed = JSON.parse(existing.elements) as Record<
+                string,
+                unknown
+              >;
+              const next = {
+                ...parsed,
+                tts: {
+                  id: result.id,
+                  provider: result.provider,
+                  voiceId: result.voiceId,
+                  format: result.format,
+                  stitchedUrl: result.stitchedUrl ?? "",
+                  segments: result.segments,
+                  manifestUrl: result.manifestUrl ?? "",
+                  updatedAt: new Date().toISOString(),
+                },
+              } satisfies Record<string, unknown>;
+              await drizzle
+                .update(schema.entities)
+                .set({ elements: JSON.stringify(next), updatedAt: new Date() })
+                .where(eq(schema.entities.id, body.entityId))
+                .execute();
+            }
+          } catch (e) {
+            console.warn("[tts][route] kokoro persist error", e);
+          }
+        }
+        return NextResponse.json({
+          ...result,
+          manifestUrl: result.manifestUrl ?? manifestUrl,
+        });
+      } catch (e) {
+        const message = (e as Error)?.message || "Kokoro error";
+        console.warn("[tts][route] kokoro immediate error", message);
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+    }
+
     // Otherwise, schedule background synthesis and return 202
     after(async () => {
       try {

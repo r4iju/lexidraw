@@ -50,3 +50,8 @@ yarn-error.log*
 # AI
 .windsurfrules
 .cursor/rules
+apps/kokoro-service/uvicorn.log
+**/__pycache__
+apps/kokoro-service/mp3
+apps/kokoro-service/wav
+apps/kokoro-service/ogg
