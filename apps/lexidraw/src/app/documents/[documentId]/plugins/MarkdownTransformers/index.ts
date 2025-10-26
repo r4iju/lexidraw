@@ -37,6 +37,8 @@ import {
 import { EquationNode } from "../../nodes/EquationNode";
 import { ImageNode } from "../../nodes/ImageNode/ImageNode";
 import { TweetNode } from "../../nodes/TweetNode";
+import { ArticleNode } from "../../nodes/ArticleNode/ArticleNode";
+import { htmlToPlainText } from "~/lib/html-to-text";
 import emojiList from "../../utils/emoji-list";
 
 export const HR: ElementTransformer = {
@@ -119,6 +121,35 @@ export const EQUATION: TextMatchTransformer = {
   },
   trigger: "$",
   type: "text-match",
+};
+
+export const ARTICLE: ElementTransformer = {
+  dependencies: [ArticleNode],
+  export: (node: LexicalNode) => {
+    if (!ArticleNode.$isArticleNode(node)) return null;
+    const data = node.getData();
+    if (data.mode === "url") {
+      const title = data.distilled.title || "Article";
+      const body = htmlToPlainText(data.distilled.contentHtml || "");
+      const source = data.url ? `\n\n[Source](${data.url})` : "";
+      return `### ${title}${source}\n\n${body}`;
+    }
+    // entity mode
+    const snap = data.snapshot;
+    if (snap?.contentHtml) {
+      const title = snap.title || "Article";
+      const body = htmlToPlainText(snap.contentHtml || "");
+      const source = data.entityId ? `\n\n[Saved](/urls/${data.entityId})` : "";
+      return `### ${title}${source}\n\n${body}`;
+    }
+    return `Article: ${data.entityId}`;
+  },
+  // Minimal, no-op import behavior (we don't import articles from markdown)
+  regExp: /^<article\s+.*?>$/,
+  replace: (textNode) => {
+    textNode.replace($createTextNode("Article"));
+  },
+  type: "element",
 };
 
 export const TWEET: ElementTransformer = {
@@ -302,6 +333,7 @@ const mapToTableCells = (textContent: string): TableCellNode[] | null => {
 };
 
 export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
+  ARTICLE,
   TABLE,
   HR,
   IMAGE,
