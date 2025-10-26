@@ -7,15 +7,31 @@ import type { ArticleNodeData, ArticleDistilled } from "@packages/types";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-import { ExternalLink, RefreshCw, StickyNote } from "lucide-react";
+import {
+  ExternalLink,
+  RefreshCw,
+  StickyNote,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import {
   $createParagraphNode,
   $createTextNode,
   $getNodeByKey,
   $insertNodes,
+  $isElementNode,
 } from "lexical";
 import { htmlToPlainText } from "~/lib/html-to-text";
 import { ArticleNode } from "./ArticleNode";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "~/components/ui/dialog";
 
 export function ArticleBlock({
   className,
@@ -28,6 +44,8 @@ export function ArticleBlock({
 }) {
   const [editor] = useLexicalComposerContext();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const distilled = useMemo(() => {
     if (data.mode === "url") return data.distilled;
@@ -106,6 +124,7 @@ export function ArticleBlock({
     const html = latestDistilled?.contentHtml;
     if (!html) return;
     void (async () => {
+      setIsConverting(true);
       try {
         const { $generateNodesFromDOM } = await import("@lexical/html");
         editor.update(() => {
@@ -116,6 +135,10 @@ export function ArticleBlock({
           if (!ArticleNode.$isArticleNode(node)) return;
           node.selectNext();
           $insertNodes(nodes);
+          const last = nodes[nodes.length - 1];
+          if (last && $isElementNode(last)) {
+            last.selectEnd();
+          }
           node.remove();
         });
       } catch {
@@ -136,11 +159,27 @@ export function ArticleBlock({
           });
           node.selectNext();
           $insertNodes(toInsert);
+          const last = toInsert[toInsert.length - 1];
+          if (last) {
+            last.selectEnd();
+          }
           node.remove();
         });
+      } finally {
+        setIsConverting(false);
       }
     })();
   }, [editor, latestDistilled, nodeKey]);
+
+  const handleRemoveNode = useCallback(() => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+      if (ArticleNode.$isArticleNode(node)) {
+        node.remove();
+      }
+    });
+    setIsDeleteOpen(false);
+  }, [editor, nodeKey]);
 
   if (data.mode === "entity" && entityQuery.isError) {
     return (
@@ -190,9 +229,27 @@ export function ArticleBlock({
           >
             <RefreshCw className="size-4" />
           </Button>
-          <Button type="button" size="sm" onClick={convertToText}>
-            <StickyNote className="size-4" />
+          <Button
+            type="button"
+            size="sm"
+            onClick={convertToText}
+            disabled={isConverting}
+          >
+            {isConverting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <StickyNote className="size-4" />
+            )}
             <span className="ml-1">Convert</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsDeleteOpen(true)}
+            aria-label="Remove article block"
+          >
+            <Trash2 className="size-4" />
           </Button>
         </div>
       </div>
@@ -207,6 +264,31 @@ export function ArticleBlock({
           }}
         />
       </div>
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Article block?</DialogTitle>
+            <DialogDescription>
+              This only removes the block from the document. Saved articles are
+              not deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" type="button">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              type="button"
+              onClick={handleRemoveNode}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
