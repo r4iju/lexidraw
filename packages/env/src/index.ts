@@ -71,6 +71,9 @@ const env = createEnv({
     HEADLESS_RENDER_URL: z.string().url().optional(),
     NORDVPN_SERVICE_USER: z.string(),
     NORDVPN_SERVICE_PASS: z.string(),
+    // Cloudflare Access (used on Vercel only; optional locally)
+    CF_ACCESS_CLIENT_ID: z.string().optional(),
+    CF_ACCESS_CLIENT_SECRET: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_UNSPLASH_APP_NAME: z.string().min(1),
@@ -136,6 +139,8 @@ const env = createEnv({
     HEADLESS_RENDER_URL: process.env.HEADLESS_RENDER_URL,
     NORDVPN_SERVICE_USER: process.env.NORDVPN_SERVICE_USER,
     NORDVPN_SERVICE_PASS: process.env.NORDVPN_SERVICE_PASS,
+    CF_ACCESS_CLIENT_ID: process.env.CF_ACCESS_CLIENT_ID,
+    CF_ACCESS_CLIENT_SECRET: process.env.CF_ACCESS_CLIENT_SECRET,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

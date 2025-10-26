@@ -57,6 +57,7 @@ apps/kokoro-service/uvicorn.log
 apps/kokoro-service/mp3
 apps/kokoro-service/wav
 apps/kokoro-service/ogg
-apps/kokoro-service/voices
+apps/kokoro-service/kokoro-voices
 jsut_ver1.1
-apps/kokoro-service/assets/speakers/*.wav
+apps/kokoro-service/assets/xtts-speakers/*.wav
+apps/kokoro-service/assets/kokoro-voices/*.pt

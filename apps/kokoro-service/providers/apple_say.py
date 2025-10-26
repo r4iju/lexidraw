@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import re
 from typing import List, Dict, Optional, Tuple
 
 import numpy as np
@@ -41,17 +42,66 @@ class AppleSayProvider:
         except Exception:
             return []
         res: List[Dict[str, str]] = []
+
+        locale_re = re.compile(r"^[a-z]{2}_[A-Z]{2}$")
         for line in out.splitlines():
-            # Format typically: "Kyoko               Japanese      # ..."
+            # keep only the segment before '#'
             parts = line.split("#", 1)[0].strip()
             if not parts:
                 continue
             cols = parts.split()
+            if not cols:
+                continue
             vid = cols[0]
-            lang = cols[1] if len(cols) > 1 else ""
+            # search for a token that looks like en_US, ja_JP, sv_SE, etc.
+            lang = ""
+            for tok in cols[1:]:
+                if locale_re.match(tok):
+                    lang = tok
+                    break
+            # If we didn't find a valid locale token, skip (novelty or sfx voices)
+            if not lang:
+                continue
             res.append({"id": vid, "lang": lang})
-        self._cached_voices = res
-        return res
+        # Dedupe by (id, lang) while preserving order
+        seen: set[Tuple[str, str]] = set()
+        uniq: List[Dict[str, str]] = []
+        for v in res:
+            key = (v.get("id", ""), v.get("lang", ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append(v)
+        self._cached_voices = uniq
+        return uniq
+
+    def _pick_voice(self, voiceId: Optional[str], languageCode: Optional[str]) -> str:
+        # If the caller passed a locale string as voiceId by mistake, treat it as languageCode
+        if voiceId and re.match(r"^[a-z]{2}([-_][A-Z]{2})?$", voiceId):
+            languageCode = voiceId
+            voiceId = None
+
+        if voiceId:
+            return voiceId  # explicit voice wins
+
+        # No explicit voice: try to choose by language
+        if languageCode:
+            code = languageCode.replace("-", "_")
+            voices = self.voices()
+
+            # exact locale match (e.g., sv_SE)
+            for v in voices:
+                if v["lang"] == code:
+                    return v["id"]
+
+            # fallback: language-only match (e.g., sv_*)
+            lang = code.split("_", 1)[0]
+            for v in voices:
+                if v["lang"].startswith(lang + "_"):
+                    return v["id"]
+
+        # final fallback
+        return "Alex"
 
     def synthesize(
         self,
@@ -63,7 +113,7 @@ class AppleSayProvider:
     ) -> Tuple[np.ndarray, int]:
         if not self.is_available():
             raise RuntimeError("apple_say is not available on this system")
-        voice = voiceId or "Alex"
+        voice = self._pick_voice(voiceId, languageCode)
         # Map speed multiplier (1.0 ~ 190 wpm baseline)
         base_wpm = 190
         mul = 1.0 if speed is None else float(speed)

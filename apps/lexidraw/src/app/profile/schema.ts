@@ -19,7 +19,9 @@ export const ProfileSchema = z.object({
   // Optional TTS and Article sections to allow unified profile update later
   tts: z
     .object({
-      provider: z.enum(["openai", "google", "kokoro"]).optional(),
+      provider: z
+        .enum(["openai", "google", "kokoro", "apple_say", "xtts"])
+        .optional(),
       voiceId: z.string().optional(),
       speed: z.number().min(0.25).max(4).optional(),
       format: z.enum(["mp3", "ogg", "wav"]).optional(),

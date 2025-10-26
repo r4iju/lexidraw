@@ -77,7 +77,7 @@ Now `bun run dev` will prefer Kokoro for TTS locally.
 ### Apple “say” and Coqui XTTS-v2 (optional providers)
 
 - Apple “say” (macOS only) is auto-detected if the `say` CLI is available and voices are installed (System Settings → Accessibility → Spoken Content → Manage Voices…).
-- Coqui XTTS-v2 loads on-demand and uses MPS if available. Place 3–10s mono reference WAVs under `apps/kokoro-service/assets/speakers/` to enable speaker cloning.
+- Coqui XTTS-v2 loads on-demand and uses MPS if available. Place 3–10s mono reference WAVs under `apps/kokoro-service/assets/xtts-speakers/` to enable speaker cloning.
 
 Health check now reports provider availability:
 

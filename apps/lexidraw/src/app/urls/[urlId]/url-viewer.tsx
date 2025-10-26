@@ -11,9 +11,14 @@ import { cn } from "~/lib/utils";
 type Props = {
   entity: RouterOutputs["entities"]["load"];
   preferredPlaybackRate?: number;
+  ttsConfig?: import("~/server/api/routers/config").TtsConfigResult;
 };
 
-export default function UrlViewer({ entity, preferredPlaybackRate }: Props) {
+export default function UrlViewer({
+  entity,
+  preferredPlaybackRate,
+  ttsConfig,
+}: Props) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [width, setWidth] = useState<"narrow" | "medium" | "wide">("medium");
   const url = useMemo(() => {
@@ -56,6 +61,7 @@ export default function UrlViewer({ entity, preferredPlaybackRate }: Props) {
           <ArticlePreview
             entity={entity}
             preferredPlaybackRate={preferredPlaybackRate}
+            ttsConfig={ttsConfig}
           />
         </div>
       )}

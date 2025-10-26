@@ -96,7 +96,7 @@ export const users = sqliteTable(
         preferredPlaybackRate?: number;
       };
       tts?: {
-        provider?: "openai" | "google" | "kokoro";
+        provider?: "openai" | "google" | "kokoro" | "apple_say" | "xtts";
         voiceId?: string;
         speed?: number;
         format?: "mp3" | "ogg" | "wav";
