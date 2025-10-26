@@ -6,7 +6,6 @@ import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode"
 import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";
 import {
   $getSelectionStyleValueForProperty,
-  $isParentElementRTL,
   $patchStyleText,
 } from "@lexical/selection";
 import { $isTableNode, $isTableSelection } from "@lexical/table";
@@ -154,7 +153,14 @@ export default function ToolbarPlugin({
       setIsSubscript(selection.hasFormat("subscript"));
       setIsSuperscript(selection.hasFormat("superscript"));
       setIsCode(selection.hasFormat("code"));
-      setIsRTL($isParentElementRTL(selection));
+      // Lexical >=0.35 requires an active editor when reading computed styles
+      // Determine RTL from the root element direction to avoid relying on editor state
+      const rootEl = activeEditor.getRootElement();
+      if (rootEl) {
+        const dirAttr = rootEl.getAttribute("dir");
+        const dir = dirAttr || window.getComputedStyle(rootEl).direction;
+        setIsRTL(dir === "rtl");
+      }
 
       // Update links
       const node = getSelectedNode(selection);
