@@ -20,7 +20,9 @@ import { createGoogleTtsProvider } from "./providers/google";
 import { createKokoroTtsProvider } from "./providers/kokoro";
 
 type ChooseProviderArgs = {
-  requested?: TtsProviderName;
+  // Allow arbitrary strings here so the UI can request local adapters
+  // like "apple_say" or "xtts" which are routed via the kokoro sidecar.
+  requested?: string | TtsProviderName;
   languageCode?: string;
 };
 
@@ -28,11 +30,24 @@ function chooseProvider({
   requested,
   languageCode,
 }: ChooseProviderArgs): TtsProviderName {
-  if (requested) return requested;
+  // Route explicit local adapters (apple_say, xtts) via kokoro sidecar
+  if (requested === "apple_say" || requested === "xtts") return "kokoro";
+  if (
+    requested === "openai" ||
+    requested === "google" ||
+    requested === "kokoro"
+  )
+    return requested;
+  const hasSidecar = !!process.env.KOKORO_URL;
+  const lang = (languageCode || "").toLowerCase();
+  // Route JA/SV via sidecar when available
+  if (hasSidecar) {
+    if (lang.startsWith("ja")) return "kokoro"; // XTTS under the hood
+    if (lang.startsWith("sv")) return "kokoro"; // Apple say under the hood
+  }
   // Prefer local Kokoro in development when configured
-  if (process.env.NODE_ENV !== "production" && process.env.KOKORO_URL)
-    return "kokoro";
-  if (languageCode && !languageCode.startsWith("en")) return "google";
+  if (process.env.NODE_ENV !== "production" && hasSidecar) return "kokoro";
+  if (languageCode && !lang.startsWith("en")) return "google";
   return "openai";
 }
 
@@ -55,11 +70,16 @@ export function precomputeTtsKey(req: TtsRequest) {
   const format = req.format ?? "mp3";
   const voiceId =
     req.voiceId ??
-    (providerName === "google"
-      ? "en-US-Standard-C"
-      : providerName === "kokoro"
-        ? "af_heart"
-        : "alloy");
+    (() => {
+      if (providerName === "google") return "en-US-Standard-C";
+      if (providerName === "kokoro") {
+        const lang = (req.languageCode || "").toLowerCase();
+        if (lang.startsWith("sv")) return "Erik"; // Apple say default
+        if (lang.startsWith("ja")) return "ja_female"; // expects speaker wav
+        return "af_heart";
+      }
+      return "alloy";
+    })();
   const speed = req.speed ?? 1.0;
 
   const discriminator = req.url || (req.text ? req.text.slice(0, 8192) : "");
@@ -194,6 +214,7 @@ export async function synthesizeArticleOrText(
         format: format,
         languageCode: req.languageCode,
         sampleRate: req.sampleRate,
+        metadata: { requestedProvider: req.provider ?? "" },
       });
       audioBuf = audio;
     } catch (primaryError) {
@@ -228,6 +249,7 @@ export async function synthesizeArticleOrText(
           format: format,
           languageCode: req.languageCode,
           sampleRate: req.sampleRate,
+          metadata: { requestedProvider: req.provider ?? "" },
         });
         audioBuf = audio;
       } catch (fallbackError) {

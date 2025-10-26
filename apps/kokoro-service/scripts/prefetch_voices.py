@@ -17,7 +17,7 @@ def prefetch(selected=None):
         hf_hub_download(
             REPO,
             filename=f"voices/{v}.pt",
-            local_dir=".",  # downloads into ./voices
+            local_dir=".",  # downloads into ./assets/kokoro-voices
             local_dir_use_symlinks=False,
         )
     return want

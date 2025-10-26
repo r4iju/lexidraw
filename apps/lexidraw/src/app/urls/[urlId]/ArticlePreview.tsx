@@ -24,10 +24,12 @@ import { Switch } from "~/components/ui/switch";
 import { Slider } from "~/components/ui/slider";
 import { api } from "~/trpc/react";
 import { htmlToPlainText } from "~/lib/html-to-text";
+import { labelForLanguage, titleize } from "~/lib/i18n";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
   preferredPlaybackRate?: number;
+  ttsConfig?: import("~/server/api/routers/config").TtsConfigResult;
 };
 
 type TtsSegment = {
@@ -40,6 +42,7 @@ type TtsSegment = {
 export default function ArticlePreview({
   entity,
   preferredPlaybackRate,
+  ttsConfig,
 }: Props) {
   const distilled = useMemo(() => {
     try {
@@ -89,7 +92,7 @@ export default function ArticlePreview({
 
   // Local config state
   const [ttsCfg, setTtsCfg] = useState({
-    provider: "openai" as "openai" | "google" | "kokoro",
+    provider: "openai" as "openai" | "google" | "kokoro" | "apple_say" | "xtts",
     voiceId: "alloy",
     speed: 1,
     format: "mp3" as "mp3" | "ogg" | "wav",
@@ -97,12 +100,8 @@ export default function ArticlePreview({
     sampleRate: undefined as number | undefined,
   });
 
-  // Additional UI filter: voice family (e.g., Chirp3-HD, Neural2, WaveNet)
+  // Additional UI filter: optional family provided by catalog
   const [voiceFamily, setVoiceFamily] = useState<string>("all");
-  const ttsOptionsQuery = api.config.getTtsOptions.useQuery(
-    { provider: ttsCfg.provider },
-    { enabled: true, refetchOnMount: true, refetchOnWindowFocus: false },
-  );
   const [articleCfg, setArticleCfg] = useState({
     languageCode: "en-US",
     maxChars: 120000,
@@ -116,74 +115,113 @@ export default function ArticlePreview({
     }
   }, [ttsQuery.data]);
 
-  // Auto-select defaults when provider changes or new options load
+  // Live TTS catalog: poll until local providers appear or 30s passes
+  const [polling, setPolling] = useState(true);
   useEffect(() => {
-    const voices = ttsOptionsQuery.data?.voices ?? [];
-    const languages = ttsOptionsQuery.data?.languages ?? [];
+    const t = setTimeout(() => setPolling(false), 30_000);
+    return () => clearTimeout(t);
+  }, []);
+  const ttsCatalogQuery = api.config.getTtsCatalog.useQuery(undefined, {
+    initialData: ttsConfig,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    refetchInterval: polling ? 3000 : false,
+  });
+  useEffect(() => {
+    const c = ttsCatalogQuery.data;
+    const hasLocal = !!c?.providers?.some((p) =>
+      ["kokoro", "apple_say", "xtts"].includes(p.id),
+    );
+    if (hasLocal) setPolling(false);
+  }, [ttsCatalogQuery.data]);
+  const effectiveCatalog = ttsCatalogQuery.data ?? ttsConfig;
+
+  // Auto-select defaults when provider changes or catalog updates
+  useEffect(() => {
+    const allVoices = (effectiveCatalog?.voices ?? []) as Array<
+      import("~/server/api/routers/config").TtsConfigVoice
+    >;
+    const prov = ttsCfg.provider;
+    const filtered = allVoices.filter((v) => v.provider === prov);
+    const langs = new Set<string>();
+    for (const v of filtered)
+      for (const lc of v.languageCodes || []) langs.add(lc);
     setTtsCfg((prev) => {
       let next = prev;
-      if (voices.length > 0 && !voices.some((v) => v.id === prev.voiceId)) {
-        next = { ...next, voiceId: voices[0]?.id ?? prev.voiceId };
+      const langList = Array.from(langs);
+      if (langList.length > 0 && !langList.includes(prev.languageCode)) {
+        next = { ...next, languageCode: langList[0] as string };
       }
-      if (
-        languages.length > 0 &&
-        !languages.some((lc) => lc === prev.languageCode)
-      ) {
-        next = { ...next, languageCode: languages[0] ?? prev.languageCode };
+      const voicesForLang = filtered.filter((v) =>
+        (v.languageCodes || []).includes(next.languageCode || ""),
+      );
+      if (voicesForLang.length > 0) {
+        const firstId = voicesForLang[0]?.id as string | undefined;
+        if (
+          firstId &&
+          !voicesForLang.some((v) => v.id === (next.voiceId || ""))
+        ) {
+          next = { ...next, voiceId: firstId };
+        }
       }
       return next;
     });
-  }, [ttsOptionsQuery.data]);
+  }, [effectiveCatalog, ttsCfg.provider]);
 
-  // Helpers: parse family and render concise label
-  const parseVoiceFamily = useCallback(
-    (id: string): string => {
-      if (ttsCfg.provider === "openai") return "OpenAI";
-      if (ttsCfg.provider === "kokoro") return "Kokoro";
-      const parts = id.split("-");
-      if (parts.length < 3) return "Other";
-      const family = parts.slice(2, parts.length - 1).join("-") || "";
-      if (/^Chirp3-HD$/i.test(family)) return "Chirp3-HD";
-      if (/^Chirp3$/i.test(family)) return "Chirp3";
-      if (/^Chirp2$/i.test(family)) return "Chirp2";
-      if (/^Chirp$/i.test(family)) return "Chirp";
-      if (/^Neural2$/i.test(family)) return "Neural2";
-      if (/^WaveNet$/i.test(family)) return "WaveNet";
-      if (/^Standard$/i.test(family)) return "Standard";
-      return family || "Other";
-    },
-    [ttsCfg.provider],
-  );
+  // Families are taken directly from catalog when present
 
   // Filter voices by selected language for the voice dropdown
   const filteredVoices = useMemo(() => {
-    const all = ttsOptionsQuery.data?.voices ?? [];
+    const all = (
+      (effectiveCatalog?.voices ?? []) as Array<
+        import("~/server/api/routers/config").TtsConfigVoice
+      >
+    ).filter((v) => v.provider === ttsCfg.provider);
     const lang = ttsCfg.languageCode;
-    if (!lang) return all;
-    const byLang = all.filter((v) => (v.languageCodes ?? []).includes(lang));
+    const byLang = lang
+      ? all.filter((v) => (v.languageCodes ?? []).includes(lang))
+      : all;
     if (voiceFamily === "all") return byLang;
-    return byLang.filter((v) => parseVoiceFamily(v.id) === voiceFamily);
-  }, [
-    ttsOptionsQuery.data?.voices,
-    ttsCfg.languageCode,
-    voiceFamily,
-    parseVoiceFamily,
-  ]);
+    return byLang.filter(
+      (v) => (v as { family?: string }).family === voiceFamily,
+    );
+  }, [effectiveCatalog, ttsCfg.provider, ttsCfg.languageCode, voiceFamily]);
 
   // Derive available families from language-filtered voices
   const availableFamilies = useMemo(() => {
-    const all = ttsOptionsQuery.data?.voices ?? [];
+    const all = (
+      (effectiveCatalog?.voices ?? []) as Array<
+        import("~/server/api/routers/config").TtsConfigVoice
+      >
+    ).filter((v) => v.provider === ttsCfg.provider);
     const lang = ttsCfg.languageCode;
     const byLang = lang
       ? all.filter((v) => (v.languageCodes ?? []).includes(lang))
       : all;
     const fams = new Set<string>();
     for (const v of byLang) {
-      const fam = parseVoiceFamily(v.id);
+      const fam = (v as { family?: string }).family;
       if (fam) fams.add(fam);
     }
     return Array.from(fams);
-  }, [ttsOptionsQuery.data?.voices, ttsCfg.languageCode, parseVoiceFamily]);
+  }, [effectiveCatalog, ttsCfg.provider, ttsCfg.languageCode]);
+
+  const catalogLanguages = useMemo((): string[] => {
+    const list = (
+      (effectiveCatalog?.voices ?? []) as Array<
+        import("~/server/api/routers/config").TtsConfigVoice
+      >
+    )
+      .filter((v) => v.provider === ttsCfg.provider)
+      .flatMap((v) => v.languageCodes || []);
+    const fromVoices = Array.from(new Set(list));
+    if (fromVoices.length > 0) return fromVoices;
+    const prov = (effectiveCatalog?.providers ?? []).find(
+      (p) => p.id === ttsCfg.provider,
+    );
+    return Array.from(new Set((prov?.languages ?? []).map((c) => c)));
+  }, [effectiveCatalog, ttsCfg.provider]);
 
   // Ensure selected voice remains valid for the selected language
   useEffect(() => {
@@ -472,9 +510,11 @@ export default function ArticlePreview({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="openai">OpenAI</SelectItem>
-                          <SelectItem value="google">Google</SelectItem>
-                          <SelectItem value="kokoro">Kokoro</SelectItem>
+                          {(ttsConfig?.providers ?? []).map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.label || p.id}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -491,20 +531,15 @@ export default function ArticlePreview({
                         onValueChange={(v) =>
                           setTtsCfg((s) => ({ ...s, languageCode: v }))
                         }
-                        disabled={
-                          ttsOptionsQuery.isLoading ||
-                          (ttsCfg.provider === "google" &&
-                            (ttsOptionsQuery.data?.languages?.length ?? 0) ===
-                              0)
-                        }
+                        disabled={false}
                       >
                         <SelectTrigger id={`${uid}-tts-lang`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {(ttsOptionsQuery.data?.languages ?? []).map((lc) => (
+                          {catalogLanguages.map((lc) => (
                             <SelectItem key={lc} value={lc}>
-                              {lc}
+                              {labelForLanguage(lc)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -521,7 +556,7 @@ export default function ArticlePreview({
                         name={`${uid}-tts-family`}
                         value={voiceFamily}
                         onValueChange={(v) => setVoiceFamily(v)}
-                        disabled={ttsOptionsQuery.isLoading}
+                        disabled={false}
                       >
                         <SelectTrigger id={`${uid}-tts-family`}>
                           <SelectValue />
@@ -530,7 +565,7 @@ export default function ArticlePreview({
                           <SelectItem value="all">All</SelectItem>
                           {availableFamilies.map((fam) => (
                             <SelectItem key={fam} value={fam}>
-                              {fam}
+                              {titleize(fam)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -549,10 +584,7 @@ export default function ArticlePreview({
                         onValueChange={(v) =>
                           setTtsCfg((s) => ({ ...s, voiceId: v }))
                         }
-                        disabled={
-                          ttsOptionsQuery.isLoading ||
-                          filteredVoices.length === 0
-                        }
+                        disabled={filteredVoices.length === 0}
                       >
                         <SelectTrigger id={`${uid}-tts-voice`}>
                           <SelectValue />
@@ -611,33 +643,7 @@ export default function ArticlePreview({
                         </SelectContent>
                       </Select>
                     </div>
-                    {ttsCfg.provider === "google" &&
-                    (ttsOptionsQuery.data?.voices?.length ?? 0) === 0 ? (
-                      <div className="col-span-2 text-xs rounded-md p-2 bg-destructive/10 text-destructive">
-                        {ttsOptionsQuery.data?.diagnostics?.code ===
-                        "missing_api_key" ? (
-                          <>
-                            Google TTS requires an API key. Add it in
-                            <a
-                              className="underline ml-1"
-                              href="/profile"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Profile
-                            </a>
-                            .
-                          </>
-                        ) : (
-                          <>
-                            Unable to load Google voices.
-                            {ttsOptionsQuery.data?.diagnostics?.message
-                              ? ` ${ttsOptionsQuery.data?.diagnostics?.message}`
-                              : ""}
-                          </>
-                        )}
-                      </div>
-                    ) : null}
+                    {/* notice removed: catalog is authoritative */}
                     <div>
                       <label
                         htmlFor={`${uid}-tts-sample`}

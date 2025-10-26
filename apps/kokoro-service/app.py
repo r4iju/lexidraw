@@ -100,7 +100,7 @@ except Exception:
     pass
 try:
     _xtts = XTTSProvider(
-        speakers_dir=str(Path(__file__).parent / "assets" / "speakers")
+        speakers_dir=str(Path(__file__).parent / "assets" / "xtts-speakers")
     )
     _providers["xtts"] = _xtts
     # Warm up XTTS briefly (lazy-loads torch/TTS internally)
@@ -108,6 +108,14 @@ try:
         _xtts.warmup()
     except Exception:
         pass
+    try:
+        spk_path = Path(_xtts.speakers_dir)
+        spk_count = len(list(spk_path.glob("*.wav"))) if spk_path.exists() else 0
+        app_logger.info(
+            "xtts init: speakers_dir=%s wav_files=%s", str(spk_path), spk_count
+        )
+    except Exception as _ex:
+        app_logger.warning("xtts init: failed to inspect speakers dir: %s", repr(_ex))
 except Exception:
     pass
 
@@ -147,9 +155,11 @@ def healthz():
     }
 
 
-# Dynamic voice discovery from local checkpoints (default to app folder voices/)
+# Dynamic voice discovery from local checkpoints (default to app folder assets/kokoro-voices/)
 VOICES_DIR = Path(
-    os.environ.get("KOKORO_VOICES_DIR", str(Path(__file__).parent / "voices"))
+    os.environ.get(
+        "KOKORO_VOICES_DIR", str(Path(__file__).parent / "assets" / "kokoro-voices")
+    )
 )
 
 
@@ -208,6 +218,150 @@ def list_voices(rich: bool = False):
     if not voices:
         return {"voices": ["af_heart"]}
     return {"voices": voices}
+
+
+@app.get("/v1/tts-config")
+def tts_config():
+    """Aggregate providers, languages, families and voices for UI config.
+
+    Providers included only when available on this instance.
+    """
+    providers: list[dict] = []
+    languages_set: set[str] = set()
+    families_set: set[str] = set()
+    voices: list[dict] = []
+
+    # Kokoro (always present)
+    providers.append(
+        {
+            "id": "kokoro",
+            "label": "Kokoro",
+            "formats": ["wav", "mp3" if MP3_CAPABLE else "wav"],
+            "languages": [LANG_CODE],
+            "capabilities": {"ssml": False, "needsSpeakerWav": False},
+        }
+    )
+    try:
+        if VOICES_DIR.is_dir():
+            names = {p.stem for p in VOICES_DIR.glob("*.pt")} | {
+                p.stem for p in VOICES_DIR.glob("*.pth")
+            }
+            for n in sorted(names):
+                # Heuristic gender from second char like existing TS mapping
+                fam = (
+                    "female"
+                    if len(n) > 1 and n[1] == "f"
+                    else ("male" if len(n) > 1 and n[1] == "m" else "unknown")
+                )
+                voices.append(
+                    {
+                        "id": n,
+                        "provider": "kokoro",
+                        "label": n,
+                        "languageCodes": [LANG_CODE],
+                        "family": fam,
+                    }
+                )
+                families_set.add(fam)
+            languages_set.add(LANG_CODE)
+    except Exception as ex:
+        app_logger.warning("tts-config kokoro voices failed: %s", repr(ex))
+
+    # Apple say (optional)
+    if "apple_say" in _providers:
+        providers.append(
+            {
+                "id": "apple_say",
+                "label": "Apple say",
+                "formats": ["wav", "mp3" if MP3_CAPABLE else "wav"],
+                "languages": [],  # filled below
+                "capabilities": {"ssml": False, "needsSpeakerWav": False},
+            }
+        )
+        try:
+            apple = _providers["apple_say"]
+            langs: set[str] = set()
+            for v in apple.voices():  # type: ignore[attr-defined]
+                lang = v.get("lang", "")
+                if lang:
+                    langs.add(lang)
+                voices.append(
+                    {
+                        "id": v.get("id", ""),
+                        "provider": "apple_say",
+                        "label": v.get("id", ""),
+                        "languageCodes": [lang] if lang else [],
+                        "family": "unknown",
+                    }
+                )
+            for l in langs:
+                languages_set.add(l)
+            providers[-1]["languages"] = sorted(langs)
+        except Exception as ex:
+            app_logger.warning("apple voices error: %s", repr(ex))
+
+    # XTTS (optional)
+    if "xtts" in _providers:
+        try:
+            xtts = _providers["xtts"]
+            langs = []
+            try:
+                langs = xtts.languages()  # type: ignore[attr-defined]
+            except Exception:
+                langs = ["en-US", "ja-JP"]
+            providers.append(
+                {
+                    "id": "xtts",
+                    "label": "Coqui XTTS-v2",
+                    "formats": ["wav", "mp3" if MP3_CAPABLE else "wav"],
+                    "languages": langs,
+                    "capabilities": {"ssml": False, "needsSpeakerWav": True},
+                }
+            )
+            for l in langs:
+                languages_set.add(l)
+
+            def _lang_from_id(s: str) -> str:
+                s = (s or "").lower()
+                if s.startswith("ja_"):
+                    return "ja-JP"
+                if s.startswith("sv_"):
+                    return "sv-SE"
+                if s.startswith("en_"):
+                    return "en-US"
+                return ""
+
+            for spk in xtts.list_speakers():  # type: ignore[attr-defined]
+                sid = spk.get("id", "")
+                lang_guess = _lang_from_id(sid)
+                voices.append(
+                    {
+                        "id": sid,
+                        "provider": "xtts",
+                        "label": sid,
+                        "languageCodes": [lang_guess] if lang_guess else [],
+                        "family": "cloned",
+                        "requires": {
+                            "speakerWav": str(
+                                Path(__file__).parent
+                                / "assets"
+                                / "xtts-speakers"
+                                / f"{sid}.wav"
+                            )
+                        },
+                    }
+                )
+            families_set.add("cloned")
+        except Exception as ex:
+            app_logger.warning("xtts config error: %s", repr(ex))
+
+    data = {
+        "providers": providers,
+        "languages": sorted(languages_set) if languages_set else [LANG_CODE],
+        "families": sorted(families_set) if families_set else ["unknown"],
+        "voices": voices,
+    }
+    return data
 
 
 def synth_kokoro(text: str, voice: str) -> tuple[np.ndarray, int]:

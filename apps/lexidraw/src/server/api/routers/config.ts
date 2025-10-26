@@ -40,6 +40,27 @@ export type TtsOptionsResult = {
   diagnostics?: TtsOptionsDiagnostics;
 };
 
+// --- New unified TTS config shape for richer UI ---
+export type TtsConfigProvider = {
+  id: string;
+  label: string;
+  formats: string[];
+  languages: string[];
+  capabilities?: { ssml?: boolean; needsSpeakerWav?: boolean };
+};
+export type TtsConfigVoice = TtsVoice & {
+  provider: string;
+  family?: string;
+  requires?: { speakerWav?: string };
+};
+export type TtsConfigResult = {
+  providers: TtsConfigProvider[];
+  languages: string[];
+  families: string[];
+  voices: TtsConfigVoice[];
+  diagnostics?: TtsOptionsDiagnostics;
+};
+
 // --- Kokoro helpers ---
 const KOKORO_FALLBACK: TtsOptionsResult = {
   voices: [
@@ -89,7 +110,7 @@ const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
 
 // --- TTS and Article Config Schemas & Defaults ---
 const TtsConfigSchema = z.object({
-  provider: z.enum(["openai", "google", "kokoro"]),
+  provider: z.enum(["openai", "google", "kokoro", "apple_say", "xtts"]),
   voiceId: z.string(),
   speed: z.number().min(0.25).max(4),
   format: z.enum(["mp3", "ogg", "wav"]),
@@ -192,7 +213,11 @@ export const configRouter = createTRPCRouter({
 
   // --- Read-only TTS options (voices/languages) ---
   getTtsOptions: protectedProcedure
-    .input(z.object({ provider: z.enum(["openai", "google", "kokoro"]) }))
+    .input(
+      z.object({
+        provider: z.enum(["openai", "google", "kokoro", "apple_say", "xtts"]),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       type Voice = TtsVoice;
       type Result = TtsOptionsResult;
@@ -243,9 +268,23 @@ export const configRouter = createTRPCRouter({
           return KOKORO_FALLBACK;
         }
         try {
+          const cfHeaders =
+            process.env.NODE_ENV === "production" &&
+            !!env.CF_ACCESS_CLIENT_ID &&
+            !!env.CF_ACCESS_CLIENT_SECRET
+              ? {
+                  "CF-Access-Client-Id": process.env
+                    .CF_ACCESS_CLIENT_ID as string,
+                  "CF-Access-Client-Secret": process.env
+                    .CF_ACCESS_CLIENT_SECRET as string,
+                }
+              : undefined;
           const resp = await fetch(`${baseUrl}/v1/voices`, {
             method: "GET",
-            headers: bearer ? { Authorization: `Bearer ${bearer}` } : undefined,
+            headers: {
+              ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+              ...(cfHeaders ?? {}),
+            },
           });
           if (!resp.ok) {
             const text = await resp.text().catch(() => "");
@@ -376,7 +415,184 @@ export const configRouter = createTRPCRouter({
       }
     }),
 
-  // --- TTS config ---
+  // --- Rich TTS catalog merged with OpenAI/Google ---
+  getTtsCatalog: protectedProcedure.query(async ({ ctx }) => {
+    const providers: TtsConfigProvider[] = [];
+    const languages = new Set<string>();
+    const families = new Set<string>();
+    const voices: TtsConfigVoice[] = [];
+
+    // Always-available cloud providers (minimal metadata)
+    providers.push({
+      id: "openai",
+      label: "OpenAI",
+      formats: ["mp3"],
+      languages: ["en-US"],
+      capabilities: { ssml: false },
+    });
+    providers.push({
+      id: "google",
+      label: "Google Cloud TTS",
+      formats: ["mp3", "ogg", "wav"],
+      languages: [],
+      capabilities: { ssml: true },
+    });
+
+    // Common OpenAI voices
+    const oaVoices: TtsConfigVoice[] = [
+      {
+        id: "alloy",
+        label: "alloy",
+        languageCodes: ["en-US"],
+        provider: "openai",
+      },
+      {
+        id: "aria",
+        label: "aria",
+        languageCodes: ["en-US"],
+        provider: "openai",
+      },
+      {
+        id: "verse",
+        label: "verse",
+        languageCodes: ["en-US"],
+        provider: "openai",
+      },
+      {
+        id: "sage",
+        label: "sage",
+        languageCodes: ["en-US"],
+        provider: "openai",
+      },
+      {
+        id: "luna",
+        label: "luna",
+        languageCodes: ["en-US"],
+        provider: "openai",
+      },
+    ];
+    voices.push(...oaVoices);
+    for (const v of oaVoices) {
+      for (const lc of v.languageCodes) languages.add(lc);
+    }
+
+    // Google voices
+    try {
+      const apiKey =
+        ctx.session.user.config?.llm?.googleApiKey ||
+        process.env.GOOGLE_API_KEY;
+      if (apiKey) {
+        const resp = await fetch(
+          `https://texttospeech.googleapis.com/v1/voices?key=${encodeURIComponent(apiKey)}`,
+          { method: "GET", cache: "no-store" },
+        );
+        if (resp.ok) {
+          const json = (await resp.json()) as {
+            voices?: {
+              name?: string;
+              languageCodes?: string[];
+              ssmlGender?: string;
+            }[];
+          };
+          const gvoices: TtsConfigVoice[] = (json.voices || [])
+            .filter((v) => typeof v.name === "string" && v.name)
+            .map((v) => ({
+              id: v.name as string,
+              label: v.ssmlGender
+                ? `${v.name} (${v.ssmlGender})`
+                : (v.name as string),
+              languageCodes: Array.isArray(v.languageCodes)
+                ? v.languageCodes
+                : [],
+              provider: "google",
+            }));
+          voices.push(...gvoices);
+          const gLangs = new Set<string>();
+          for (const gv of gvoices)
+            for (const lc of gv.languageCodes) {
+              languages.add(lc);
+              gLangs.add(lc);
+            }
+          const gprov = providers.find((p) => p.id === "google");
+          if (gprov) gprov.languages = Array.from(gLangs).sort();
+        }
+      }
+    } catch {
+      // ignore google errors
+    }
+
+    // Sidecar (kokoro-service) enrichment
+    const baseUrl = (process.env.KOKORO_URL || "").replace(/\/$/, "");
+    const bearer = process.env.KOKORO_BEARER || process.env.APP_TOKEN;
+    if (baseUrl) {
+      try {
+        const cfHeaders =
+          process.env.NODE_ENV === "production" &&
+          !!process.env.CF_ACCESS_CLIENT_ID &&
+          !!process.env.CF_ACCESS_CLIENT_SECRET
+            ? {
+                "CF-Access-Client-Id": process.env
+                  .CF_ACCESS_CLIENT_ID as string,
+                "CF-Access-Client-Secret": process.env
+                  .CF_ACCESS_CLIENT_SECRET as string,
+              }
+            : undefined;
+        const resp = await fetch(`${baseUrl}/v1/tts-config`, {
+          method: "GET",
+          headers: {
+            ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+            ...(cfHeaders ?? {}),
+          },
+          cache: "no-store",
+        });
+        if (resp.ok) {
+          const json = (await resp.json()) as Partial<TtsConfigResult>;
+          if (Array.isArray(json.providers)) providers.push(...json.providers);
+          if (Array.isArray(json.voices)) {
+            for (const v of json.voices) {
+              // minimal validation
+              if (
+                v &&
+                typeof v.id === "string" &&
+                typeof v.provider === "string"
+              ) {
+                voices.push({
+                  id: v.id,
+                  provider: v.provider,
+                  label: v.label || v.id,
+                  languageCodes: Array.isArray(v.languageCodes)
+                    ? v.languageCodes
+                    : [],
+                  family: v.family,
+                  requires: v.requires,
+                });
+                for (const lc of v.languageCodes || []) languages.add(lc);
+                if (v.family) families.add(v.family);
+              }
+            }
+          }
+          for (const lc of json.languages || []) languages.add(lc);
+          for (const f of json.families || []) families.add(f);
+        }
+      } catch {
+        // ignore sidecar errors; return clouds only
+      }
+    }
+
+    // Dedupe voices by provider:id to avoid duplicate entries (e.g., Apple say)
+    const uniqueVoices = Array.from(
+      new Map(voices.map((v) => [`${v.provider}:${v.id}`, v])).values(),
+    );
+    const catalog: TtsConfigResult = {
+      providers,
+      languages: Array.from(languages).sort(),
+      families: Array.from(families).sort(),
+      voices: uniqueVoices,
+    };
+    return catalog;
+  }),
+
+  // --- User TTS config ---
   getTtsConfig: protectedProcedure.query(async ({ ctx }) => {
     const user = await ctx.drizzle.query.users.findFirst({
       where: eq(schema.users.id, ctx.session.user.id),

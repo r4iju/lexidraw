@@ -12,7 +12,7 @@ class XTTSProvider:
     maxCharsPerRequest: int = 1200
     supportsSsml: bool = False
 
-    def __init__(self, speakers_dir: str = "assets/speakers") -> None:
+    def __init__(self, speakers_dir: str = "assets/xtts-speakers") -> None:
         self.speakers_dir = speakers_dir
         self._tts = None  # lazy load to avoid import cost when unused
         self._device = None
@@ -81,6 +81,43 @@ class XTTSProvider:
             out.append({"id": vid})
         return out
 
+    def languages(self) -> List[str]:
+        # Return model-declared languages (normalized to BCP-47 where obvious)
+        def _norm(x: str) -> str:
+            x = (x or "").lower()
+            # simple mapping to common region defaults
+            m = {
+                "en": "en-US",
+                "ja": "ja-JP",
+                "de": "de-DE",
+                "fr": "fr-FR",
+                "it": "it-IT",
+                "pt": "pt-PT",
+                "ru": "ru-RU",
+                "nl": "nl-NL",
+                "cs": "cs-CZ",
+                "ar": "ar-SA",
+                "zh-cn": "zh-CN",
+                "hu": "hu-HU",
+                "ko": "ko-KR",
+                "hi": "hi-IN",
+                "tr": "tr-TR",
+                "pl": "pl-PL",
+            }
+            return m.get(x, x)
+
+        try:
+            self._ensure_loaded()
+            cfg = getattr(
+                getattr(getattr(self._tts, "synthesizer", None), "tts_model", None),
+                "config",
+                None,
+            )
+            langs = list(getattr(cfg, "languages", [])) if cfg else []
+            return sorted({_norm(l) for l in langs if isinstance(l, str) and l})
+        except Exception:
+            return ["en-US", "ja-JP"]
+
     def _speaker_path(self, voiceId: Optional[str]) -> Optional[str]:
         if not voiceId:
             return None
@@ -137,7 +174,7 @@ class XTTSProvider:
             else:
                 raise ValueError(
                     "XTTS requires a speaker. Provide voiceId that maps to "
-                    "assets/speakers/<voiceId>.wav (speaker_wav) or pick a valid builtin speaker."
+                    "assets/xtts-speakers/<voiceId>.wav (speaker_wav) or pick a valid builtin speaker."
                 )
         wav = self._tts.tts(**kwargs)
         audio = np.asarray(wav, dtype=np.float32).ravel()
