@@ -39,6 +39,9 @@ import { ImageNode } from "../../nodes/ImageNode/ImageNode";
 import { TweetNode } from "../../nodes/TweetNode";
 import { ArticleNode } from "../../nodes/ArticleNode/ArticleNode";
 import { htmlToPlainText } from "~/lib/html-to-text";
+import { CollapsibleContainerNode } from "../CollapsiblePlugin/CollapsibleContainerNode";
+import { CollapsibleContentNode } from "../CollapsiblePlugin/CollapsibleContentNode";
+import { CollapsibleTitleNode } from "../CollapsiblePlugin/CollapsibleTitleNode";
 import emojiList from "../../utils/emoji-list";
 
 export const HR: ElementTransformer = {
@@ -149,6 +152,43 @@ export const ARTICLE: ElementTransformer = {
   replace: (textNode) => {
     textNode.replace($createTextNode("Article"));
   },
+  type: "element",
+};
+
+// Passthrough transformers for collapsible nodes so children serialize normally
+export const COLLAPSIBLE_CONTAINER: ElementTransformer = {
+  dependencies: [CollapsibleContainerNode],
+  export: (node) => {
+    return CollapsibleContainerNode.$isCollapsibleContainerNode(node)
+      ? $convertToMarkdownString(PLAYGROUND_TRANSFORMERS, node)
+      : null;
+  },
+  regExp: /^<collapsible-container>$/,
+  replace: () => {},
+  type: "element",
+};
+
+export const COLLAPSIBLE_CONTENT: ElementTransformer = {
+  dependencies: [CollapsibleContentNode],
+  export: (node) => {
+    return CollapsibleContentNode.$isCollapsibleContentNode(node)
+      ? $convertToMarkdownString(PLAYGROUND_TRANSFORMERS, node)
+      : null;
+  },
+  regExp: /^<collapsible-content>$/,
+  replace: () => {},
+  type: "element",
+};
+
+export const COLLAPSIBLE_TITLE: ElementTransformer = {
+  dependencies: [CollapsibleTitleNode],
+  export: (node) => {
+    return CollapsibleTitleNode.$isCollapsibleTitleNode(node)
+      ? $convertToMarkdownString(PLAYGROUND_TRANSFORMERS, node)
+      : null;
+  },
+  regExp: /^<collapsible-title>$/,
+  replace: () => {},
   type: "element",
 };
 
@@ -333,6 +373,9 @@ const mapToTableCells = (textContent: string): TableCellNode[] | null => {
 };
 
 export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
+  COLLAPSIBLE_TITLE,
+  COLLAPSIBLE_CONTENT,
+  COLLAPSIBLE_CONTAINER,
   ARTICLE,
   TABLE,
   HR,
