@@ -232,10 +232,13 @@ export default function ToolbarPlugin({
             : parent?.getFormatType() || "left",
       );
     }
-    if ($isRangeSelection(selection) || $isTableSelection(selection)) {
+    if ($isRangeSelection(selection)) {
       setFontSize(
         $getSelectionStyleValueForProperty(selection, "font-size", "15px"),
       );
+    } else if ($isTableSelection(selection)) {
+      // Table selections don't carry inline font-size; keep/default
+      setFontSize("15px");
     }
   }, [activeEditor, getSelectedNode]);
 
