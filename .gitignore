@@ -58,3 +58,5 @@ apps/kokoro-service/mp3
 apps/kokoro-service/wav
 apps/kokoro-service/ogg
 apps/kokoro-service/voices
+jsut_ver1.1
+apps/kokoro-service/assets/speakers/*.wav

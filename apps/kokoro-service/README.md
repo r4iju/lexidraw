@@ -73,3 +73,49 @@ KOKORO_BEARER=dev-token
 ```
 
 Now `bun run dev` will prefer Kokoro for TTS locally.
+
+### Apple “say” and Coqui XTTS-v2 (optional providers)
+
+- Apple “say” (macOS only) is auto-detected if the `say` CLI is available and voices are installed (System Settings → Accessibility → Spoken Content → Manage Voices…).
+- Coqui XTTS-v2 loads on-demand and uses MPS if available. Place 3–10s mono reference WAVs under `apps/kokoro-service/assets/speakers/` to enable speaker cloning.
+
+Health check now reports provider availability:
+
+```bash
+curl http://127.0.0.1:8010/healthz
+# {"ok":true,"lang":"en-us","mp3":true,"apple_say":true|false,"mps":true|false}
+```
+
+List voices (back-compat):
+
+```bash
+curl http://127.0.0.1:8010/v1/voices
+# {"voices":["af_heart", ...]}
+```
+
+List voices (rich):
+
+```bash
+curl "http://127.0.0.1:8010/v1/voices?rich=true"
+# {"voices":[{"id":"Kyoko","provider":"apple_say","lang":"Japanese"}, ...]}
+```
+
+Synthesize with Apple (Japanese):
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/audio/speech \
+  -H "Authorization: Bearer $KOKORO_BEARER" \
+  -H "Content-Type: application/json" \
+  --output out.wav \
+  -d '{"input":"これはテストです。","provider":"apple_say","voice":"Kyoko","format":"wav","languageCode":"ja-JP"}'
+```
+
+Synthesize with XTTS (Swedish):
+
+```bash
+curl -X POST http://127.0.0.1:8010/v1/audio/speech \
+  -H "Authorization: Bearer $KOKORO_BEARER" \
+  -H "Content-Type: application/json" \
+  --output out.mp3 \
+  -d '{"input":"Detta är ett test.","provider":"xtts","voice":"sv_male","format":"mp3","languageCode":"sv-SE"}'
+```
