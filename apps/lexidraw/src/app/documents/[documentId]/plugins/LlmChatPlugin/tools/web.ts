@@ -76,7 +76,7 @@ export function useWebTools() {
     description:
       "Fetches a web page and extracts a readable text summary (server-side).",
     inputSchema: z.object({
-      url: z.string().url().describe("URL to extract."),
+      url: z.url().describe("URL to extract."),
       maxChars: z.number().int().min(200).max(20000).optional(),
     }),
     execute: async ({ url, maxChars }) => {

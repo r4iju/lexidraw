@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export * from "./enums.js";
 export * from "./helpers.js";
+export * from "./article.js";
 
 type DocumentPayload = {
   elements: string;
