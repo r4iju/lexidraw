@@ -4,3 +4,9 @@ kokoro==0.7.16
 numpy==1.26.4
 soundfile==0.12.1
 pydub==0.25.1
+TTS==0.22.0; python_version < "3.12"
+torch>=2.1.0,<2.6; python_version < "3.12"
+transformers==4.40.2; python_version < "3.12"
+cutlet>=0.3.0; python_version < "3.12"
+fugashi>=1.2.1; python_version < "3.12"
+unidic-lite>=1.0.8; python_version < "3.12"

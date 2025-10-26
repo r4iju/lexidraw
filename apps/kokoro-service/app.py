@@ -11,6 +11,9 @@ import numpy as np
 import soundfile as sf
 from fastapi import FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel, Field
+from providers.kokoro_adapter import KokoroProvider
+from providers.apple_say import AppleSayProvider
+from providers.xtts import XTTSProvider
 
 try:
     # Kokoro pipeline loads models/voices and keeps them in memory
@@ -31,6 +34,13 @@ class SpeechIn(BaseModel):
     # Keep these fields for API compatibility, but they are ignored in the minimal path
     speed: float = Field(default=1.0, description="Playback speed multiplier (ignored)")
     sample_rate: int = Field(default=24000, description="Output sample rate (ignored)")
+    # New optional routing hints
+    provider: Optional[str] = Field(
+        default=None, description="kokoro | apple_say | xtts"
+    )
+    languageCode: Optional[str] = Field(
+        default=None, description="ja-JP, sv-SE, en-US, …"
+    )
 
 
 LOG_FILE = os.environ.get("KOKORO_LOG_FILE") or os.path.join(
@@ -76,12 +86,65 @@ except Exception:  # pragma: no cover
 # Preload on startup to avoid cold starts and repeated downloads
 pipe = KPipeline(lang_code=LANG_CODE)
 
+# Provider registry
+_providers: dict[str, object] = {
+    "kokoro": KokoroProvider(pipe),
+}
+
+# Instantiate optional providers defensively
+try:
+    _apple = AppleSayProvider()
+    if _apple.is_available():
+        _providers["apple_say"] = _apple
+except Exception:
+    pass
+try:
+    _xtts = XTTSProvider(
+        speakers_dir=str(Path(__file__).parent / "assets" / "speakers")
+    )
+    _providers["xtts"] = _xtts
+    # Warm up XTTS briefly (lazy-loads torch/TTS internally)
+    try:
+        _xtts.warmup()
+    except Exception:
+        pass
+except Exception:
+    pass
+
+
+def _choose_provider(requested: Optional[str], language_code: Optional[str]) -> str:
+    """Select provider by explicit request or language hint (non-EN -> xtts/apple)."""
+    if requested and requested in _providers:
+        return requested
+    if language_code and not language_code.lower().startswith("en"):
+        if "apple_say" in _providers and language_code.lower().startswith(("ja", "sv")):
+            return "apple_say"
+        if "xtts" in _providers:
+            return "xtts"
+    return "kokoro"
+
+
 app = FastAPI(title="Kokoro TTS Sidecar", version="0.1.0")
 
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "lang": LANG_CODE, "mp3": bool(MP3_CAPABLE)}
+    try:
+        import torch  # type: ignore
+
+        mps_ok = bool(
+            getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
+        )
+    except Exception:
+        mps_ok = False
+    apple_ok = "apple_say" in _providers
+    return {
+        "ok": True,
+        "lang": LANG_CODE,
+        "mp3": bool(MP3_CAPABLE),
+        "apple_say": apple_ok,
+        "mps": mps_ok,
+    }
 
 
 # Dynamic voice discovery from local checkpoints (default to app folder voices/)
@@ -91,18 +154,60 @@ VOICES_DIR = Path(
 
 
 @app.get("/v1/voices")
-def list_voices():
+def list_voices(rich: bool = False):
+    # Back-compat: default returns Kokoro voice ids (string[])
+    if not rich:
+        try:
+            if VOICES_DIR.is_dir():
+                names = {p.stem for p in VOICES_DIR.glob("*.pt")}
+                names.update({p.stem for p in VOICES_DIR.glob("*.pth")})
+                if names:
+                    return {"voices": sorted(names)}
+        except Exception as ex:
+            app_logger.warning("voices scan failed: %s", repr(ex))
+        # Fallback
+        app_logger.warning("voices scan failed, falling back to default voice")
+        return {"voices": ["af_heart"]}
+
+    # rich=true: merge across providers with metadata
+    voices: list[dict[str, str]] = []
+    # Kokoro
     try:
         if VOICES_DIR.is_dir():
-            names = {p.stem for p in VOICES_DIR.glob("*.pt")}
-            names.update({p.stem for p in VOICES_DIR.glob("*.pth")})
-            if names:
-                return {"voices": sorted(names)}
+            names = {p.stem for p in VOICES_DIR.glob("*.pt")} | {
+                p.stem for p in VOICES_DIR.glob("*.pth")
+            }
+            voices += [
+                {"id": n, "provider": "kokoro", "lang": LANG_CODE}
+                for n in sorted(names)
+            ]
     except Exception as ex:
         app_logger.warning("voices scan failed: %s", repr(ex))
-    # Fallback
-    app_logger.warning("voices scan failed, falling back to default voice")
-    return {"voices": ["af_heart"]}
+    # Apple say
+    if "apple_say" in _providers:
+        try:
+            apple = _providers["apple_say"]
+            for v in apple.voices():  # type: ignore[attr-defined]
+                voices.append(
+                    {
+                        "id": v.get("id", ""),
+                        "provider": "apple_say",
+                        "lang": v.get("lang", ""),
+                    }
+                )
+        except Exception:
+            pass
+    # XTTS speakers
+    if "xtts" in _providers:
+        try:
+            xtts = _providers["xtts"]
+            for spk in xtts.list_speakers():  # type: ignore[attr-defined]
+                voices.append({"id": spk.get("id", ""), "provider": "xtts", "lang": ""})
+        except Exception:
+            pass
+    if not voices:
+        return {"voices": ["af_heart"]}
+    return {"voices": voices}
 
 
 def synth_kokoro(text: str, voice: str) -> tuple[np.ndarray, int]:
@@ -122,15 +227,49 @@ def tts(req: SpeechIn, authorization: Optional[str] = Header(default=None)):
     if APP_TOKEN and authorization != f"Bearer {APP_TOKEN}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # Generate audio with Kokoro (expect ndarray + sr or tuple containing them)
+    provider_key = _choose_provider(req.provider, req.languageCode)
     app_logger.info(
-        "incoming tts: voice=%s fmt=%s text_len=%s",
+        "incoming tts: provider=%s voice=%s fmt=%s lang=%s text_len=%s",
+        provider_key,
         req.voice,
         req.format,
+        req.languageCode or "",
         len(req.input or ""),
     )
 
-    audio, sr = synth_kokoro(req.input, req.voice)
+    provider = _providers.get(provider_key)
+    if provider is None:
+        raise HTTPException(
+            status_code=422, detail="No suitable TTS provider available"
+        )
+    # For XTTS, fail fast if no speaker can be resolved
+    if provider_key == "xtts":
+        try:
+            # type: ignore[attr-defined]
+            audio, sr = provider.synthesize(
+                text=req.input,
+                voiceId=req.voice,
+                speed=req.speed,
+                languageCode=req.languageCode,
+            )
+        except ValueError as e:
+            from pathlib import Path as _P
+
+            sp = _P(__file__).parent / "assets" / "speakers" / f"{req.voice}.wav"
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{e}. Ensure speaker_wav at {sp} exists or choose a builtin speaker."
+                ),
+            )
+    else:
+        # type: ignore[attr-defined]
+        audio, sr = provider.synthesize(
+            text=req.input,
+            voiceId=req.voice,
+            speed=req.speed,
+            languageCode=req.languageCode,
+        )
 
     # Validate audio content
     if not isinstance(audio, np.ndarray) or audio.size == 0:
@@ -138,6 +277,11 @@ def tts(req: SpeechIn, authorization: Optional[str] = Header(default=None)):
     peak = float(np.max(np.abs(audio))) if audio.size else 0.0
     if audio.size < 1000 or peak < 1e-7:
         raise HTTPException(status_code=422, detail="Kokoro returned silent audio")
+
+    # Peak normalization to ~-1 dBFS (avoid clipping)
+    norm_target = 10 ** (-1.0 / 20.0)
+    if peak > 0 and peak > norm_target:
+        audio = (audio / peak) * norm_target
 
     # Encode canonical WAV
     wav_buf = io.BytesIO()
@@ -161,7 +305,7 @@ def tts(req: SpeechIn, authorization: Optional[str] = Header(default=None)):
             "".join(c for c in (req.voice or "voice") if c.isalnum() or c in ("-", "_"))
             or "voice"
         )
-        dump_path = os.path.join(dump_dir, f"kokoro-{safe_voice}-{ts}.wav")
+        dump_path = os.path.join(dump_dir, f"tts-{provider_key}-{safe_voice}-{ts}.wav")
         with open(dump_path, "wb") as _f:
             _f.write(wav_buf.getvalue())
         app_logger.info("dumped wav to %s", dump_path)
@@ -202,7 +346,7 @@ def tts(req: SpeechIn, authorization: Optional[str] = Header(default=None)):
                     or "voice"
                 )
                 dump_mp3_path = os.path.join(
-                    dump_dir_mp3, f"kokoro-{safe_voice_mp3}-{ts_mp3}.mp3"
+                    dump_dir_mp3, f"tts-{provider_key}-{safe_voice_mp3}-{ts_mp3}.mp3"
                 )
                 with open(dump_mp3_path, "wb") as _fmp3:
                     _fmp3.write(data)
