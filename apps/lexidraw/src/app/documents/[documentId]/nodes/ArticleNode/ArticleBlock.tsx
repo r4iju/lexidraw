@@ -8,7 +8,12 @@ import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import { ExternalLink, RefreshCw, StickyNote } from "lucide-react";
-import { $createParagraphNode, $createTextNode, $getNodeByKey } from "lexical";
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getNodeByKey,
+  $insertNodes,
+} from "lexical";
 import { htmlToPlainText } from "~/lib/html-to-text";
 import { ArticleNode } from "./ArticleNode";
 
@@ -100,24 +105,41 @@ export function ArticleBlock({
   const convertToText = useCallback(() => {
     const html = latestDistilled?.contentHtml;
     if (!html) return;
-    const text = htmlToPlainText(html);
-    const paragraphs = text
-      .split(/\n{2,}/)
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-    if (paragraphs.length === 0) return;
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey);
-      if (!ArticleNode.$isArticleNode(node)) return;
-      let prev = node as import("lexical").LexicalNode;
-      for (let i = 0; i < paragraphs.length; i++) {
-        const pNode = $createParagraphNode();
-        pNode.append($createTextNode(paragraphs[i] as string));
-        prev.insertAfter(pNode);
-        prev = pNode;
+    void (async () => {
+      try {
+        const { $generateNodesFromDOM } = await import("@lexical/html");
+        editor.update(() => {
+          const parser = new DOMParser();
+          const dom = parser.parseFromString(html, "text/html");
+          const nodes = $generateNodesFromDOM(editor, dom);
+          const node = $getNodeByKey(nodeKey);
+          if (!ArticleNode.$isArticleNode(node)) return;
+          node.selectNext();
+          $insertNodes(nodes);
+          node.remove();
+        });
+      } catch {
+        // Fallback: plain-text paragraphs
+        const text = htmlToPlainText(html);
+        const paragraphs = text
+          .split(/\n{2,}/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+        if (paragraphs.length === 0) return;
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey);
+          if (!ArticleNode.$isArticleNode(node)) return;
+          const toInsert = paragraphs.map((p) => {
+            const pNode = $createParagraphNode();
+            pNode.append($createTextNode(p));
+            return pNode;
+          });
+          node.selectNext();
+          $insertNodes(toInsert);
+          node.remove();
+        });
       }
-      node.remove();
-    });
+    })();
   }, [editor, latestDistilled, nodeKey]);
 
   if (data.mode === "entity" && entityQuery.isError) {

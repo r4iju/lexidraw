@@ -1,5 +1,4 @@
 import type { LexicalEditor } from "lexical";
-import { $insertNodes } from "lexical";
 import {
   AutoEmbedOption,
   type EmbedConfig,
@@ -27,7 +26,7 @@ import { useCallback, useEffect, useRef } from "react";
 import YoutubeIcon from "~/components/icons/youtube";
 import { TwitterIcon } from "~/components/icons/twitter";
 import { FigmaIcon } from "~/components/icons/figma";
-import { ArticleNode } from "../../nodes/ArticleNode/ArticleNode";
+import { INSERT_ARTICLE_URL_COMMAND } from "../ArticlePlugin";
 
 interface PlaygroundEmbedConfig extends EmbedConfig {
   contentName: string;
@@ -69,42 +68,7 @@ export const useEmbedConfigs = () => {
     exampleUrl: "https://example.com/news/article",
     icon: undefined,
     insertNode: async (editor: LexicalEditor, result: EmbedMatchResult) => {
-      // Use tRPC directly here for a fast path
-      try {
-        const res = await fetch("/api/trpc/articles.extractFromUrl", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ input: { url: result.url } }),
-        });
-        const payload = (await res.json()) as {
-          result?: {
-            data?: {
-              title: string;
-              byline?: string | null;
-              siteName?: string | null;
-              wordCount?: number | null;
-              excerpt?: string | null;
-              contentHtml: string;
-              bestImageUrl?: string | null;
-              datePublished?: string | null;
-              updatedAt?: string;
-            };
-          };
-        };
-        const distilled = payload?.result?.data;
-        if (distilled?.contentHtml) {
-          editor.update(() => {
-            const node = ArticleNode.$createArticleNode({
-              mode: "url",
-              url: result.url,
-              distilled,
-            });
-            $insertNodes([node]);
-          });
-        }
-      } catch {
-        // ignore on error
-      }
+      editor.dispatchCommand(INSERT_ARTICLE_URL_COMMAND, result.url);
     },
     keywords: ["http", "https", "article", "news", "blog"],
     parseUrl: async (url: string) => {

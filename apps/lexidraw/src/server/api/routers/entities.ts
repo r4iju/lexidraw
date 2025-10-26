@@ -364,6 +364,7 @@ export const entityRouter = createTRPCRouter({
         sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
         includeArchived: z.coerce.boolean().optional().default(false),
         onlyFavorites: z.coerce.boolean().optional().default(false),
+        entityTypes: z.array(z.enum(["document", "drawing", "url"])).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -448,6 +449,10 @@ export const entityRouter = createTRPCRouter({
             // Include the tag filter if tag names were provided
             tagFilteredEntityIds
               ? inArray(schema.entities.id, tagFilteredEntityIds)
+              : undefined,
+            // entityTypes filter
+            input.entityTypes && input.entityTypes.length > 0
+              ? inArray(schema.entities.entityType, input.entityTypes)
               : undefined,
           ),
         )
