@@ -321,7 +321,7 @@ export const snapshotRouter = createTRPCRouter({
       z.object({
         entityId: z.string(),
         theme: z.enum([THEME.DARK, THEME.LIGHT]),
-        url: z.string().url(),
+        url: z.url(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

@@ -14,7 +14,7 @@ const env = createEnv({
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.preprocess(
       (str) => str ?? process.env.VERCEL_URL,
-      process.env.VERCEL ? z.string() : z.string().url(),
+      process.env.VERCEL ? z.string() : z.url(),
     ),
     VERCEL_URL: z.string(),
     UNSPLASH_APP_ID: z.string(),
@@ -22,11 +22,11 @@ const env = createEnv({
     UNSPLASH_SECRET_KEY: z.string(),
     SUPABASE_S3_ACCESS_KEY_ID: z.string().min(1),
     SUPABASE_S3_SECRET_ACCESS_KEY: z.string().min(1),
-    SUPABASE_S3_ENDPOINT: z.string().url(),
+    SUPABASE_S3_ENDPOINT: z.url(),
     SUPABASE_S3_REGION: z.string().min(1),
     SUPABASE_S3_BUCKET: z.string().min(1),
     BLOB_READ_WRITE_TOKEN: z.string().min(1),
-    VERCEL_BLOB_STORAGE_HOST: z.string().url(),
+    VERCEL_BLOB_STORAGE_HOST: z.url(),
     GITHUB_CLIENT_ID: z.string().min(1),
     GITHUB_CLIENT_SECRET: z.string().min(1),
     ICE_SERVER_CONFIG: z.preprocess(
@@ -40,26 +40,26 @@ const env = createEnv({
       z.array(
         z.union([
           z.object({
-            urls: z.string().url(),
+            urls: z.url(),
             username: z.string(),
             credential: z.string(),
           }),
           z.object({
-            urls: z.string().url(),
+            urls: z.url(),
           }),
         ]),
       ),
     ),
     ANALYZE: z.preprocess((val) => val === "true", z.boolean()),
     MEDIA_DOWNLOADER_PORT: z.coerce.number().optional(),
-    MEDIA_DOWNLOADER_URL: z.string().url(),
+    MEDIA_DOWNLOADER_URL: z.url(),
     // Optional org/global LLM keys used as fallbacks when user-level keys are absent
     OPENAI_API_KEY: z.string().optional(),
     GOOGLE_API_KEY: z.string().optional(),
     // Google Custom Search (required org-level for server-side proxy)
     GOOGLE_SEARCH_ENGINE_ID: z.string().min(1),
     // Kokoro sidecar (optional; used in local/dev or when configured)
-    KOKORO_URL: z.string().url().optional(),
+    KOKORO_URL: z.url().optional(),
     KOKORO_BEARER: z.string().optional(),
     // Optional pricing/budget controls (USD values as strings)
     TTS_PRICE_OPENAI_PER_MILLION_CHARS: z.string().optional(),
@@ -68,7 +68,7 @@ const env = createEnv({
     HEADLESS_RENDER_ENABLED: z
       .preprocess((val) => val === "true", z.boolean())
       .optional(),
-    HEADLESS_RENDER_URL: z.string().url().optional(),
+    HEADLESS_RENDER_URL: z.url().optional(),
     NORDVPN_SERVICE_USER: z.string(),
     NORDVPN_SERVICE_PASS: z.string(),
     // Cloudflare Access (used on Vercel only; optional locally)

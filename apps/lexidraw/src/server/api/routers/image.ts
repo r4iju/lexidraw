@@ -5,7 +5,7 @@ import { TRPCError } from "@trpc/server";
 import env from "@packages/env";
 
 const TrackDownloadInput = z.object({
-  downloadLocation: z.string().url(),
+  downloadLocation: z.url(),
 });
 
 // Updated input schema for search to include pagination

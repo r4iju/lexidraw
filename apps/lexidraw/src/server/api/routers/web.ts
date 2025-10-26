@@ -101,7 +101,7 @@ export const webRouter = createTRPCRouter({
   extractWebpageContent: protectedProcedure
     .input(
       z.object({
-        url: z.string().url(),
+        url: z.url(),
         maxChars: z.number().int().min(200).max(20000).optional(),
       }),
     )

@@ -7,6 +7,7 @@ import { cronRouter } from "./routers/crons";
 import { configRouter } from "./routers/config";
 import { imageRouter } from "./routers/image";
 import { webRouter } from "./routers/web";
+import { articlesRouter } from "./routers/articles";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -17,6 +18,7 @@ export const appRouter = createTRPCRouter({
   config: configRouter,
   image: imageRouter,
   web: webRouter,
+  articles: articlesRouter,
 });
 
 // export type definition of API

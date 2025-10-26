@@ -147,6 +147,8 @@ import { EditorRegistryProvider } from "./context/editors-context";
 import ChartPlugin from "./plugins/ChartPlugin";
 import { ChartNode } from "./nodes/ChartNode";
 import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
+import ArticlePlugin from "./plugins/ArticlePlugin";
+import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -523,6 +525,7 @@ function EditorHandler({
                               <ChartPlugin />
                               <FigmaPlugin />
                               <EquationsPlugin />
+                              <ArticlePlugin />
                               <RichTextPlugin
                                 contentEditable={
                                   <article ref={onRef} className="relative">
@@ -719,6 +722,7 @@ export default function DocumentEditor({
     CollapsibleTitleNode,
     LayoutContainerNode,
     LayoutItemNode,
+    ArticleNode,
   ];
 
   return (
