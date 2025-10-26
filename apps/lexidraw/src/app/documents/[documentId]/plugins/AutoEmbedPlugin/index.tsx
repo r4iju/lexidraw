@@ -27,6 +27,7 @@ import YoutubeIcon from "~/components/icons/youtube";
 import { TwitterIcon } from "~/components/icons/twitter";
 import { FigmaIcon } from "~/components/icons/figma";
 import { INSERT_ARTICLE_URL_COMMAND } from "../ArticlePlugin";
+import { FileText } from "lucide-react";
 
 interface PlaygroundEmbedConfig extends EmbedConfig {
   contentName: string;
@@ -66,7 +67,7 @@ export const useEmbedConfigs = () => {
   const ArticleEmbedConfig: PlaygroundEmbedConfig = {
     contentName: "Article",
     exampleUrl: "https://example.com/news/article",
-    icon: undefined,
+    icon: <FileText className="size-4" />,
     insertNode: async (editor: LexicalEditor, result: EmbedMatchResult) => {
       editor.dispatchCommand(INSERT_ARTICLE_URL_COMMAND, result.url);
     },
@@ -180,7 +181,7 @@ function AutoEmbedMenu({
 }) {
   return (
     <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50 w-[200px]">
-      <ul className="list-none p-0 m-0">
+      <ul className="list-none p-0 m-0 max-h-[80vh] overflow-y-auto">
         {options.map((option: AutoEmbedOption, i: number) => (
           <AutoEmbedMenuItem
             index={i}
@@ -340,7 +341,6 @@ export default function AutoEmbedPlugin(): React.JSX.Element {
           anchorElementRef.current
             ? ReactDOM.createPortal(
                 <div
-                  className="bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50"
                   style={{
                     marginLeft: `${Math.max(
                       parseFloat(anchorElementRef.current.style.width) - 200,

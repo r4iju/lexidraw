@@ -50,10 +50,7 @@ import {
 } from "../VideoPlugin";
 import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
 import { INSERT_CHART_COMMAND } from "../ChartPlugin";
-import {
-  INSERT_ARTICLE_URL_COMMAND,
-  OPEN_ARTICLE_SAVED_DIALOG_COMMAND,
-} from "../ArticlePlugin";
+import { OPEN_ARTICLE_SAVED_DIALOG_COMMAND } from "../ArticlePlugin";
 
 // -------------------------------------------------------------------------------------------------
 // TODO: fix style
@@ -210,18 +207,6 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           >
             <Gift className="size-4" />
             <span className="text">GIF</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(
-                INSERT_ARTICLE_URL_COMMAND,
-                undefined,
-              );
-            }}
-            className="flex gap-2"
-          >
-            <FileText className="size-4" />
-            <span className="text">Article</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {

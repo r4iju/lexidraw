@@ -23,6 +23,9 @@ import {
 } from "lexical";
 import { htmlToPlainText } from "~/lib/html-to-text";
 import { ArticleNode } from "./ArticleNode";
+import { CollapsibleContainerNode } from "../../plugins/CollapsiblePlugin/CollapsibleContainerNode";
+import { CollapsibleContentNode } from "../../plugins/CollapsiblePlugin/CollapsibleContentNode";
+import { CollapsibleTitleNode } from "../../plugins/CollapsiblePlugin/CollapsibleTitleNode";
 import {
   Dialog,
   DialogContent,
@@ -130,10 +133,48 @@ export function ArticleBlock({
         editor.update(() => {
           const parser = new DOMParser();
           const dom = parser.parseFromString(html, "text/html");
-          const nodes = $generateNodesFromDOM(editor, dom);
+          let nodes = $generateNodesFromDOM(editor, dom);
+          // Sanitize: unwrap disallowed shadow nodes (collapsible elements) before insertion
+          const unwrapUnsupported = (arr: typeof nodes): typeof nodes => {
+            const out: typeof nodes = [];
+            for (const n of arr) {
+              if (
+                CollapsibleContainerNode.$isCollapsibleContainerNode(n) ||
+                CollapsibleContentNode.$isCollapsibleContentNode(n) ||
+                CollapsibleTitleNode.$isCollapsibleTitleNode(n)
+              ) {
+                if ($isElementNode(n)) {
+                  out.push(...n.getChildren());
+                }
+              } else {
+                out.push(n);
+              }
+            }
+            return out;
+          };
+          nodes = unwrapUnsupported(nodes);
+          if (nodes.length === 0) {
+            const p = $createParagraphNode();
+            p.append($createTextNode(htmlToPlainText(html)));
+            nodes = [p];
+          }
           const node = $getNodeByKey(nodeKey);
           if (!ArticleNode.$isArticleNode(node)) return;
-          node.selectNext();
+          let containerAncestor: typeof node | CollapsibleContainerNode | null =
+            null;
+          let parent = node.getParent();
+          while (parent) {
+            if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
+              containerAncestor = parent;
+              break;
+            }
+            parent = parent.getParent();
+          }
+          if (containerAncestor) {
+            containerAncestor.selectNext();
+          } else {
+            node.selectNext();
+          }
           $insertNodes(nodes);
           const last = nodes[nodes.length - 1];
           if (last && $isElementNode(last)) {
@@ -157,7 +198,21 @@ export function ArticleBlock({
             pNode.append($createTextNode(p));
             return pNode;
           });
-          node.selectNext();
+          let containerAncestor: typeof node | CollapsibleContainerNode | null =
+            null;
+          let parent = node.getParent();
+          while (parent) {
+            if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
+              containerAncestor = parent;
+              break;
+            }
+            parent = parent.getParent();
+          }
+          if (containerAncestor) {
+            containerAncestor.selectNext();
+          } else {
+            node.selectNext();
+          }
           $insertNodes(toInsert);
           const last = toInsert[toInsert.length - 1];
           if (last) {
