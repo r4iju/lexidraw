@@ -58,12 +58,9 @@ export class ArticleNode extends DecoratorBlockNode {
 
   exportDOM(): DOMExportOutput {
     const element = document.createElement("div");
-    element.setAttribute("data-lexical-article", "true");
-    try {
-      element.setAttribute("data-article", JSON.stringify(this.__data));
-    } catch {
-      // ignore
-    }
+    element.setAttribute("data-lexical-article", "1");
+    const mode = this.__data.mode;
+    element.setAttribute("data-article-mode", mode);
     return { element };
   }
 
