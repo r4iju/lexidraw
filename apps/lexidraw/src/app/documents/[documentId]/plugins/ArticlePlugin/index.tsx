@@ -20,8 +20,6 @@ export const INSERT_ARTICLE_URL_COMMAND: LexicalCommand<string> =
   createCommand();
 export const INSERT_ARTICLE_ENTITY_COMMAND: LexicalCommand<string> =
   createCommand();
-export const OPEN_ARTICLE_SAVED_DIALOG_COMMAND: LexicalCommand<void> =
-  createCommand();
 
 export default function ArticlePlugin(): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
@@ -85,18 +83,6 @@ export default function ArticlePlugin(): React.JSX.Element | null {
       0,
     );
   }, [editor, extract]);
-
-  useEffect(() => {
-    return editor.registerCommand(
-      OPEN_ARTICLE_SAVED_DIALOG_COMMAND,
-      () => {
-        setTab("saved");
-        setOpen(true);
-        return true;
-      },
-      0,
-    );
-  }, [editor]);
 
   useEffect(() => {
     return editor.registerCommand(
