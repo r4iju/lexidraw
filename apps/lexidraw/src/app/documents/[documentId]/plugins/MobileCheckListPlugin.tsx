@@ -1,12 +1,14 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { $getNearestNodeFromDOMNode } from "lexical";
 import { $isListItemNode } from "@lexical/list";
 
-// A small helper – the same one used inside Lexical (but not exported)
-function isHTMLElement(node: unknown): node is HTMLElement {
-  return node instanceof HTMLElement;
-}
+export const useIsHTMLElement = () => {
+  const isHTMLElement = useCallback((node: unknown): node is HTMLElement => {
+    return node instanceof HTMLElement;
+  }, []);
+  return isHTMLElement;
+};
 
 /**
  * Mobile Safari / Chrome do not emit the subsequent `click` event when
@@ -19,6 +21,7 @@ function isHTMLElement(node: unknown): node is HTMLElement {
  */
 export default function MobileCheckListPlugin() {
   const [editor] = useLexicalComposerContext();
+  const isHTMLElement = useIsHTMLElement();
 
   useEffect(() => {
     const root = editor.getRootElement();
@@ -59,7 +62,7 @@ export default function MobileCheckListPlugin() {
 
     root.addEventListener("pointerup", toggleOnTouch, true);
     return () => root.removeEventListener("pointerup", toggleOnTouch, true);
-  }, [editor]);
+  }, [editor, isHTMLElement]);
 
   return null;
 }
