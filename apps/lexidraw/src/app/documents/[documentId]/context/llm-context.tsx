@@ -432,72 +432,14 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
   const { settings } = useSettings();
 
   const generateAutocomplete = useCallback(
-    async ({
-      prompt,
-      system = "",
-      temperature,
-      maxOutputTokens,
-      signal,
-    }: LLMOptions): Promise<string> => {
-      if (!settings.autocomplete || !autocompleteProvider.current) {
-        console.warn("[LLMContext] Autocomplete provider not loaded.");
-        return "";
-      }
-      if (signal?.aborted) {
-        console.log("[LLMContext generateAutocomplete] signal aborted");
-        return "";
-      }
-      setAutocompleteState((prev) => {
-        return {
-          ...prev,
-          isLoading: true,
-          isError: false,
-          error: null,
-        };
-      });
-      try {
-        const result = await generateText({
-          model: autocompleteProvider.current(
-            llmConfig.autocomplete.modelId,
-          ) as unknown as LanguageModel,
-          prompt,
-          system,
-          temperature: temperature ?? llmConfig.autocomplete.temperature,
-          maxOutputTokens:
-            maxOutputTokens ?? llmConfig.autocomplete.maxOutputTokens,
-          abortSignal: signal,
-        });
-
-        setAutocompleteState((prev) => ({
-          ...prev,
-          isError: false,
-          text: result.text,
-          error: null,
-          isLoading: false,
-        }));
-        return result.text;
-      } catch (err: unknown) {
-        // To exit autocomplete
-        if (err instanceof Error && err.name === "AbortError") {
-          return "";
-        }
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        setAutocompleteState((prev) => ({
-          ...prev,
-          isError: true,
-          text: "",
-          error: errorMsg,
-          isLoading: false,
-        }));
-        return "";
-      }
+    async ({ signal }: LLMOptions): Promise<string> => {
+      console.warn(
+        "[LLMContext] generateAutocomplete is deprecated. Use useAutocompleteEngine().",
+      );
+      if (signal?.aborted) return "";
+      return "";
     },
-    [
-      settings.autocomplete,
-      llmConfig.autocomplete.maxOutputTokens,
-      llmConfig.autocomplete.modelId,
-      llmConfig.autocomplete.temperature,
-    ],
+    [],
   );
 
   const toFileParts = useCallback(

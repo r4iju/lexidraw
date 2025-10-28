@@ -30,8 +30,7 @@ export default function SignInForm() {
       setIsLoading(true);
       await signIn("credentials", {
         ...data,
-        callbackUrl: "/dashboard",
-        redirect: true,
+        redirect: false,
       });
     } catch (err) {
       if (err instanceof Error) {
@@ -46,8 +45,7 @@ export default function SignInForm() {
   const handleGitHubSignin = async () => {
     try {
       await signIn("github", {
-        callbackUrl: "/dashboard",
-        redirect: true,
+        redirect: false,
       });
     } catch (err) {
       if (err instanceof Error) {

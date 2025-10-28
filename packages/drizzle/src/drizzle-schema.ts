@@ -92,6 +92,16 @@ export const users = sqliteTable(
           maxOutputTokens: number;
         };
       };
+      autocomplete?: {
+        enabled?: boolean;
+        delayMs?: number;
+        provider?: "openai";
+        modelId?: string;
+        temperature?: number;
+        maxOutputTokens?: number;
+        reasoningEffort?: "minimal" | "standard" | "heavy";
+        verbosity?: "low" | "medium" | "high";
+      };
       audio?: {
         preferredPlaybackRate?: number;
       };

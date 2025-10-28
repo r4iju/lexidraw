@@ -1,7 +1,7 @@
 "use client";
 
 import { throttle } from "@packages/lib";
-import { useLLM } from "../../context/llm-context";
+import { useAutocompleteEngine } from "~/hooks/use-autocomplete-engine";
 import { useCallback, useMemo } from "react";
 
 export type AutocompleteEditorContext = {
@@ -21,7 +21,7 @@ const CACHE_SIZE_LIMIT = 10;
 
 // memoize the autocomplete function
 export function useAutocompleteLLM() {
-  const { generateAutocomplete } = useLLM();
+  const { complete, config: acfg } = useAutocompleteEngine();
 
   const createSuggestionCache = useCallback((): SuggestionCache => {
     const suggestions = new Set<string>();
@@ -60,6 +60,72 @@ export function useAutocompleteLLM() {
       return result;
     },
     [suggestionCache],
+  );
+
+  const streamFirstToken = useCallback(
+    async (system: string, prompt: string, signal?: AbortSignal): Promise<string> => {
+      try {
+        const resp = await fetch("/api/autocomplete/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ system, prompt }),
+          signal,
+        });
+        if (!resp.ok || !resp.body) return "";
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (!value) continue;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const raw of lines) {
+            const line = raw.trim();
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trim();
+            if (!data || data === "[DONE]") continue;
+            try {
+              const obj = JSON.parse(data) as Record<string, unknown>;
+              const tryFields = [
+                (obj as { delta?: string }).delta,
+                (obj as { text?: string }).text,
+                (obj as { output_text?: string }).output_text,
+                (obj as { content?: Array<{ text?: string }> }).content?.[0]?.text,
+              ];
+              for (const f of tryFields) {
+                if (typeof f === "string" && f.trim()) {
+                  // Stop reading further; return first non-empty token
+                  try {
+                    await reader.cancel();
+                  } catch {}
+                  return f;
+                }
+              }
+              const t = (obj as { type?: string }).type;
+              if (typeof t === "string" && t.includes("output_text")) {
+                const d = (obj as { delta?: string }).delta || (obj as { text?: string }).text;
+                if (typeof d === "string" && d.trim()) {
+                  try {
+                    await reader.cancel();
+                  } catch {}
+                  return d;
+                }
+              }
+            } catch {
+              // ignore malformed lines
+            }
+          }
+        }
+        return "";
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return "";
+        return "";
+      }
+    },
+    [],
   );
 
   const autocomplete = useMemo(
@@ -101,17 +167,15 @@ export function useAutocompleteLLM() {
             `If you cannot provide a suitable completion, return an empty string "".`,
           ].join("\n");
 
-          const result = await generateAutocomplete({
-            prompt,
-            system,
-            signal,
-          });
+          // Prefer streaming for first-token latency; fallback to server action
+          const first = await streamFirstToken(system, prompt, signal);
+          const result = first || (await complete({ system, prompt, signal }));
 
           return validateAndProcessResult(result);
         },
-        3000,
+        acfg?.delayMs ?? 200,
       ),
-    [generateAutocomplete, validateAndProcessResult],
+    [complete, validateAndProcessResult, acfg?.delayMs, streamFirstToken],
   );
 
   return autocomplete;
