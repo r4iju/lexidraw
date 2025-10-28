@@ -68,43 +68,45 @@ declare module "next-auth" {
   // }
 }
 
+const isDev = process.env.NODE_ENV !== "production";
+const shouldTrustHost = isDev || Boolean(process.env.TRUST_HOST);
+const cookies = isDev
+  ? {
+      sessionToken: {
+        name: "authjs.session-token",
+        options: {
+          httpOnly: true,
+          sameSite: "lax" as const,
+          path: "/",
+          secure: false,
+        },
+      },
+      callbackUrl: {
+        name: "authjs.callback-url",
+        options: {
+          sameSite: "lax" as const,
+          path: "/",
+          secure: false,
+        },
+      },
+      csrfToken: {
+        name: "authjs.csrf-token",
+        options: {
+          httpOnly: true,
+          sameSite: "lax" as const,
+          path: "/",
+          secure: false,
+        },
+      },
+    }
+  : undefined;
+
 export const {
   handlers: { GET, POST },
   auth,
 } = NextAuth({
-  ...(process.env.NODE_ENV !== "production"
-    ? {
-        cookies: {
-          sessionToken: {
-            name: "authjs.session-token",
-            options: {
-              httpOnly: true,
-              sameSite: "lax",
-              path: "/",
-              secure: false,
-            },
-          },
-          callbackUrl: {
-            name: "authjs.callback-url",
-            options: {
-              sameSite: "lax",
-              path: "/",
-              secure: false,
-            },
-          },
-          csrfToken: {
-            name: "authjs.csrf-token",
-            options: {
-              httpOnly: true,
-              sameSite: "lax",
-              path: "/",
-              secure: false,
-            },
-          },
-        },
-      }
-    : {}),
-  ...(process.env.TRUST_HOST ? { trustHost: true } : {}),
+  trustHost: shouldTrustHost,
+  cookies,
   // types dont match in current versions..
   adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
   pages: {
@@ -114,17 +116,13 @@ export const {
     error: "/error",
   },
   callbacks: {
-    session: (params) => {
-      if (!("token" in params)) {
-        throw new Error("token should not be passed to session callback");
-      }
-      const { session, token } = params;
+    session: ({ session, token }) => {
       return {
         ...session,
         user: {
           ...session.user,
           id: token.sub,
-          config: token.config, // Pass the potentially complex config object
+          config: (token as unknown as { config?: unknown }).config,
         },
       };
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
@@ -14,6 +15,7 @@ import { cn } from "~/lib/utils";
 
 export default function SignInForm() {
   const schema = getSignInSchema();
+  const router = useRouter();
 
   const methods = useForm({
     resolver: standardSchemaResolver(schema),
@@ -28,10 +30,15 @@ export default function SignInForm() {
   const onSubmit: SubmitHandler<SignInSchema> = async (data) => {
     try {
       setIsLoading(true);
-      await signIn("credentials", {
+      const res = await signIn("credentials", {
         ...data,
         redirect: false,
       });
+      if (res?.ok) {
+        router.refresh();
+      } else if (res?.error) {
+        setSubmitError(res.error);
+      }
     } catch (err) {
       if (err instanceof Error) {
         setSubmitError(err.message);
@@ -44,9 +51,13 @@ export default function SignInForm() {
 
   const handleGitHubSignin = async () => {
     try {
-      await signIn("github", {
+      const res = await signIn("github", {
         redirect: false,
+        callbackUrl: typeof window !== "undefined" ? window.location.href : "/",
       });
+      if (res?.url) {
+        window.location.href = res.url;
+      }
     } catch (err) {
       if (err instanceof Error) {
         setSubmitError(err.message);
