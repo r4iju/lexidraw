@@ -31,7 +31,11 @@ export async function POST(req: NextRequest) {
   }
 
   const ac = session.user.config?.autocomplete ?? {};
-  const resolvedModelId = (body?.modelId || ac.modelId || "gpt-5-nano").toString();
+  const resolvedModelId = (
+    body?.modelId ||
+    ac.modelId ||
+    "gpt-5-nano"
+  ).toString();
   const resolvedTemperature =
     typeof body?.temperature === "number"
       ? body?.temperature
@@ -64,7 +68,7 @@ export async function POST(req: NextRequest) {
     });
   } catch {}
 
-  const payload = {
+  const base = {
     model: resolvedModelId,
     input: [
       { role: "developer", content: system },
@@ -74,49 +78,68 @@ export async function POST(req: NextRequest) {
     text: { verbosity },
     tool_choice: "none" as const,
     parallel_tool_calls: false,
-    temperature: resolvedTemperature,
     max_output_tokens: resolvedMaxTokens,
     stream: true,
   } as const;
+  const withTemp = { ...base, temperature: resolvedTemperature } as const;
+  const withoutTemp = { ...base } as const;
 
   if (process.env.NEXT_PUBLIC_LLM_DEBUG === "1") {
     // Avoid logging prompt/system content in full
     console.log("[autocomplete][sse]", {
-      model: payload.model,
-      temperature: payload.temperature,
-      max_output_tokens: payload.max_output_tokens,
-      reasoning: payload.reasoning,
-      text: payload.text,
-      tool_choice: payload.tool_choice,
-      parallel_tool_calls: payload.parallel_tool_calls,
+      model: withTemp.model,
+      temperature: (withTemp as { temperature?: number }).temperature,
+      max_output_tokens: withTemp.max_output_tokens,
+      reasoning: withTemp.reasoning,
+      text: withTemp.text,
+      tool_choice: withTemp.tool_choice,
+      parallel_tool_calls: withTemp.parallel_tool_calls,
       sysLen: system.length,
       promptLen: prompt.length,
     });
   }
 
   try {
-    const upstream = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify(payload),
-      signal: upstreamController.signal,
-    });
+    async function call(payload: unknown) {
+      return fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiApiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: upstreamController.signal,
+      });
+    }
+    let upstream = await call(withTemp);
+    if (!upstream.ok) {
+      try {
+        const err = await upstream.text();
+        if (err.includes("Unsupported parameter: 'temperature'")) {
+          upstream = await call(withoutTemp);
+        }
+      } catch {}
+    }
 
     if (!upstream.ok || !upstream.body) {
       let err = "OpenAI error";
       try {
         err = await upstream.text();
       } catch {}
-      return new Response(err || "OpenAI error", { status: upstream.status || 500 });
+      return new Response(err || "OpenAI error", {
+        status: upstream.status || 500,
+      });
     }
 
     // Pass-through SSE from upstream to client
     const stream = new ReadableStream<Uint8Array>({
       start: async (controller) => {
-        const reader = upstream.body!.getReader();
+        const body = upstream.body;
+        if (!body) {
+          controller.close();
+          return;
+        }
+        const reader = body.getReader();
         const forward = async () => {
           try {
             while (true) {
@@ -124,7 +147,7 @@ export async function POST(req: NextRequest) {
               if (done) break;
               if (value) controller.enqueue(value);
             }
-          } catch (e) {
+          } catch {
             // Ignore abort errors
           } finally {
             try {
@@ -157,5 +180,3 @@ export async function POST(req: NextRequest) {
     return new Response("Upstream error", { status: 502 });
   }
 }
-
-

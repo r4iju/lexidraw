@@ -48,7 +48,7 @@ export async function runAutocomplete({
     throw new Error("Missing OpenAI API key");
   }
 
-  const payload = {
+  const base = {
     model: resolvedModelId,
     input: [
       { role: "developer", content: system },
@@ -58,33 +58,50 @@ export async function runAutocomplete({
     text: { verbosity },
     tool_choice: "none" as const,
     parallel_tool_calls: false,
-    temperature: resolvedTemperature,
     max_output_tokens: resolvedMaxTokens,
   };
+  const withTemp = { ...base, temperature: resolvedTemperature } as const;
+  const withoutTemp = { ...base } as const;
 
   if (process.env.NEXT_PUBLIC_LLM_DEBUG === "1") {
     console.log("[autocomplete][sa]", {
-      model: payload.model,
-      temperature: payload.temperature,
-      max_output_tokens: payload.max_output_tokens,
-      reasoning: payload.reasoning,
-      text: payload.text,
-      tool_choice: payload.tool_choice,
-      parallel_tool_calls: payload.parallel_tool_calls,
+      model: withTemp.model,
+      temperature: withTemp.temperature,
+      max_output_tokens: withTemp.max_output_tokens,
+      reasoning: withTemp.reasoning,
+      text: withTemp.text,
+      tool_choice: withTemp.tool_choice,
+      parallel_tool_calls: withTemp.parallel_tool_calls,
       sysLen: system.length,
       promptLen: prompt.length,
     });
   }
 
-  const resp = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${openaiApiKey}`,
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
+  async function call(payload: unknown) {
+    return fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+  }
+
+  let resp = await call(withTemp);
+  if (!resp.ok) {
+    try {
+      const errText = await resp.text();
+      if (errText.includes("Unsupported parameter: 'temperature'")) {
+        resp = await call(withoutTemp);
+      } else {
+        throw new Error(errText || "OpenAI error");
+      }
+    } catch {
+      // fall through to generic handling below
+    }
+  }
 
   if (!resp.ok) {
     const errText = await resp.text().catch(() => "");
