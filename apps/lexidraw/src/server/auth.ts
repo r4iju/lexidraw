@@ -118,7 +118,18 @@ export const {
     signIn: () => {
       return true;
     },
-    redirect: ({ baseUrl }) => {
+    redirect: ({ url, baseUrl }) => {
+      try {
+        // Allow relative callback URLs
+        if (url.startsWith("/")) return `${baseUrl}${url}`;
+        // Allow same-origin absolute URLs
+        const dest = new URL(url);
+        const base = new URL(baseUrl);
+        if (dest.origin === base.origin) return url;
+      } catch {
+        // fall through to default
+      }
+      // Fallback: send to dashboard
       return `${baseUrl}/dashboard`;
     },
   },

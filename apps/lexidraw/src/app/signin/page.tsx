@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { auth } from "~/server/auth";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import FormSkeleton from "./skeleton";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -12,6 +13,15 @@ export const runtime: ServerRuntime = "edge";
 export default async function SignInPage() {
   const session = await auth();
   if (session) {
+    const h = await headers();
+    const referer = h.get("referer");
+    try {
+      const url = new URL(referer ?? "", process.env.NEXTAUTH_URL);
+      const sameOrigin = url.origin === new URL(process.env.NEXTAUTH_URL!).origin;
+      const disallowed = ["/signin", "/signup", "/signout", "/error"];
+      const dest = sameOrigin ? `${url.pathname}${url.search}${url.hash}` : null;
+      if (dest && !disallowed.some((p) => dest.startsWith(p))) return redirect(dest);
+    } catch {}
     return redirect("/dashboard");
   }
 

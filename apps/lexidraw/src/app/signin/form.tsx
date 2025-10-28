@@ -1,7 +1,8 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { getSignInSchema, type SignInSchema } from "./schema";
@@ -22,6 +23,39 @@ export default function SignInForm() {
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState<string>("/dashboard");
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    try {
+      const disallowed = ["/signin", "/signup", "/signout", "/error"]; // avoid loops
+      const isSameOrigin = (u: string): boolean => {
+        const parsed = new URL(u, window.location.origin);
+        return parsed.origin === window.location.origin;
+      };
+      const toPath = (u: string): string => {
+        const parsed = new URL(u, window.location.origin);
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      };
+
+      let dest: string | null = null;
+      const fromParam = searchParams.get("callbackUrl");
+      if (fromParam && isSameOrigin(fromParam)) dest = toPath(fromParam);
+      else if (document.referrer && isSameOrigin(document.referrer))
+        dest = toPath(document.referrer);
+      else if (
+        window.location.pathname &&
+        !disallowed.some((p) => window.location.pathname.startsWith(p))
+      )
+        dest = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+      if (!dest || disallowed.some((p) => dest!.startsWith(p))) dest = "/dashboard";
+      setCallbackUrl(dest);
+    } catch {
+      setCallbackUrl("/dashboard");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { handleSubmit } = methods;
 
@@ -30,7 +64,7 @@ export default function SignInForm() {
       setIsLoading(true);
       await signIn("credentials", {
         ...data,
-        callbackUrl: "/dashboard",
+        callbackUrl,
         redirect: true,
       });
     } catch (err) {
@@ -46,7 +80,7 @@ export default function SignInForm() {
   const handleGitHubSignin = async () => {
     try {
       await signIn("github", {
-        callbackUrl: "/dashboard",
+        callbackUrl,
         redirect: true,
       });
     } catch (err) {

@@ -58,8 +58,11 @@ export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
   const needsAuth = ["/dashboard", "/settings", "/profile", "/signout"];
   if (!session && needsAuth.includes(url.pathname)) {
-    url.pathname = "/signin";
-    return NextResponse.rewrite(url);
+    const signinUrl = new URL(request.url);
+    const original = `${url.pathname}${url.search}${url.hash}`;
+    signinUrl.pathname = "/signin";
+    signinUrl.searchParams.set("callbackUrl", original);
+    return NextResponse.redirect(signinUrl);
   }
 
   analytics(request).catch(logger.error);
