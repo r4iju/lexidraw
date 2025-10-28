@@ -1,7 +1,7 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { getSignUpSchema, type SignUpSchema } from "./schema";
 import { api } from "~/trpc/react";
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { getDefaults } from "@packages/lib";
 import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
 import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { cn } from "~/lib/utils";
 
 export default function SignUpForm() {
@@ -27,6 +28,33 @@ export default function SignUpForm() {
   const { mutate, isPending } = api.auth.signUp.useMutation();
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [callbackUrl, setCallbackUrl] = useState<string>("/dashboard");
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    try {
+      const disallowed = ["/signin", "/signup", "/signout", "/error"]; // avoid loops
+      const isSameOrigin = (u: string): boolean => {
+        const parsed = new URL(u, window.location.origin);
+        return parsed.origin === window.location.origin;
+      };
+      const toPath = (u: string): string => {
+        const parsed = new URL(u, window.location.origin);
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      };
+
+      let dest: string | null = null;
+      const fromParam = searchParams.get("callbackUrl");
+      if (fromParam && isSameOrigin(fromParam)) dest = toPath(fromParam);
+      else if (document.referrer && isSameOrigin(document.referrer))
+        dest = toPath(document.referrer);
+      if (!dest || disallowed.some((p) => dest!.startsWith(p))) dest = "/dashboard";
+      setCallbackUrl(dest);
+    } catch {
+      setCallbackUrl("/dashboard");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit: SubmitHandler<SignUpSchema> = (data) => {
     setSubmitError(null);
@@ -46,7 +74,7 @@ export default function SignUpForm() {
   const handleGitHubSignup = async () => {
     setSubmitError(null);
     await signIn("github", {
-      callbackUrl: "/dashboard",
+      callbackUrl,
       redirect: true,
     });
   };
