@@ -106,15 +106,14 @@ export function LlmModelSelector({ className }: { className?: string }) {
         <Tabs
           value={selectedMode}
           onValueChange={(value) => {
-            if (value === "chat" || value === "autocomplete") {
+            if (value === "chat") {
               setSelectedMode(value);
             }
           }}
           className="mb-3"
         >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-1">
             <TabsTrigger value="chat">Chat</TabsTrigger>
-            <TabsTrigger value="autocomplete">Autocomplete</TabsTrigger>
           </TabsList>
         </Tabs>
 

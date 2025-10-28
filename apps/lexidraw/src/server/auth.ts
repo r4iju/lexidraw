@@ -47,6 +47,16 @@ declare module "next-auth" {
         audio?: { preferredPlaybackRate?: number };
         tts?: Partial<TtsConfig>;
         articles?: Partial<ArticleConfig>;
+        autocomplete?: {
+          enabled?: boolean;
+          delayMs?: number;
+          provider?: "openai";
+          modelId?: string;
+          temperature?: number;
+          maxOutputTokens?: number;
+          reasoningEffort?: "minimal" | "standard" | "heavy";
+          verbosity?: "low" | "medium" | "high";
+        };
       };
     } & DefaultSession["user"];
   }
@@ -62,6 +72,38 @@ export const {
   handlers: { GET, POST },
   auth,
 } = NextAuth({
+  ...(process.env.NODE_ENV !== "production"
+    ? {
+        cookies: {
+          sessionToken: {
+            name: "authjs.session-token",
+            options: {
+              httpOnly: true,
+              sameSite: "lax",
+              path: "/",
+              secure: false,
+            },
+          },
+          callbackUrl: {
+            name: "authjs.callback-url",
+            options: {
+              sameSite: "lax",
+              path: "/",
+              secure: false,
+            },
+          },
+          csrfToken: {
+            name: "authjs.csrf-token",
+            options: {
+              httpOnly: true,
+              sameSite: "lax",
+              path: "/",
+              secure: false,
+            },
+          },
+        },
+      }
+    : {}),
   ...(process.env.TRUST_HOST ? { trustHost: true } : {}),
   // types dont match in current versions..
   adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
@@ -118,7 +160,18 @@ export const {
     signIn: () => {
       return true;
     },
-    redirect: ({ baseUrl }) => {
+    redirect: ({ url, baseUrl }) => {
+      try {
+        // Allow relative callback URLs
+        if (url.startsWith("/")) return `${baseUrl}${url}`;
+        // Allow same-origin absolute URLs
+        const dest = new URL(url);
+        const base = new URL(baseUrl);
+        if (dest.origin === base.origin) return url;
+      } catch {
+        // fall through to default
+      }
+      // Fallback: send to dashboard
       return `${baseUrl}/dashboard`;
     },
   },

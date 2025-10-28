@@ -143,6 +143,80 @@ const defaultArticles: z.infer<typeof ArticleConfigSchema> = {
 };
 
 export const configRouter = createTRPCRouter({
+  // --- Autocomplete (separate, minimal engine) ---
+  getAutocompleteConfig: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.drizzle.query.users.findFirst({
+      where: eq(schema.users.id, ctx.session.user.id),
+      columns: { config: true },
+    });
+    const defaults = {
+      enabled: true,
+      delayMs: 200,
+      provider: "openai",
+      modelId: "gpt-5-nano",
+      temperature: 0.3,
+      maxOutputTokens: 400,
+      reasoningEffort: "minimal" as const,
+      verbosity: "low" as const,
+    };
+    let cfg = (user?.config?.autocomplete ?? null) as
+      | (typeof defaults & Record<string, unknown>)
+      | null;
+
+    // Migration: seed from old llm.autocomplete if missing
+    if (!cfg) {
+      const seed = user?.config?.llm?.autocomplete as
+        | Partial<typeof defaults>
+        | undefined;
+      if (seed) {
+        cfg = { ...defaults, ...seed } as typeof defaults & Record<string, unknown>;
+        await ctx.drizzle
+          .update(schema.users)
+          .set({ config: { ...(user?.config ?? {}), autocomplete: cfg } })
+          .where(eq(schema.users.id, ctx.session.user.id));
+      }
+    }
+
+    return { ...defaults, ...(cfg ?? {}) } as typeof defaults & Record<string, unknown>;
+  }),
+  updateAutocompleteConfig: protectedProcedure
+    .input(
+      z
+        .object({
+          enabled: z.boolean().optional(),
+          delayMs: z.number().int().min(0).max(5000).optional(),
+          provider: z.literal("openai").optional(),
+          modelId: z.string().optional(),
+          temperature: z.number().min(0).max(1).optional(),
+          maxOutputTokens: z.number().int().positive().max(2000).optional(),
+          reasoningEffort: z.enum(["minimal", "standard", "heavy"]).optional(),
+          verbosity: z.enum(["low", "medium", "high"]).optional(),
+        })
+        .partial(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const current = await ctx.drizzle.query.users.findFirst({
+        where: eq(schema.users.id, ctx.session.user.id),
+        columns: { config: true },
+      });
+      const next = {
+        enabled: true,
+        delayMs: 200,
+        provider: "openai",
+        modelId: "gpt-5-nano",
+        temperature: 0.3,
+        maxOutputTokens: 400,
+        reasoningEffort: "minimal",
+        verbosity: "low",
+        ...(current?.config?.autocomplete ?? {}),
+        ...input,
+      } as Record<string, unknown>;
+      await ctx.drizzle
+        .update(schema.users)
+        .set({ config: { ...(current?.config ?? {}), autocomplete: next } })
+        .where(eq(schema.users.id, ctx.session.user.id));
+      return next;
+    }),
   getConfig: protectedProcedure.query(
     async ({ ctx }): Promise<StoredLlmConfig> => {
       const user = await ctx.drizzle.query.users.findFirst({
