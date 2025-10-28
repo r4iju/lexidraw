@@ -159,8 +159,9 @@
 
 - **Toolbar scope**
 
-  - Keep only on/off toggles for Chat and Autocomplete in the Toolbar (via `useSettings`).
-  - Limit Chat controls to temperature and max tokens. Autocomplete config remains owned by the separate engine and not editable here.
+  - Toolbar contains only an Autocomplete on/off toggle (via `useSettings`).
+  - Remove all Chat controls (no enable toggle, no temperature/max tokens) and remove the model picker.
+  - Chat is always available; remove any gating via `settings.chat` in generation paths and consumers.
 
 - **Keys and call path migration (client → server)**
 
@@ -181,7 +182,7 @@
 
 ### Phased implementation plan
 
-- **Phase 0 — Prep and alignment (1–2 days)**
+- **Phase 0 — Prep and alignment**
 
   - Inventory call sites using `useLLM`: `use-send-query.ts`, `use-slide-creation-workflow.ts`, Toolbar `llm-config.tsx`, provider mount in `document-editor.tsx`.
   - Confirm desired defaults for `chat`, `agent`, and `autocomplete` (tokens/temperature/models) with product.
@@ -190,20 +191,24 @@
     - A short ADR in the repo summarizing decisions above.
     - Test-doc outlining which flows should use chat vs agent.
 
-- **Phase 1 — Unify client config; remove drifting setters (1–2 days)**
+- **Phase 1 — Unify client config; remove drifting setters; simplify Toolbar**
 
   - Changes:
     - In `llm-context.tsx`, make `llmConfig` the single config state; stop spreading config into `chatState`/`autocompleteState` on save success.
     - Remove `setChatLlmOptions` and `setAutocompleteLlmOptions`; replace with `updateLlmConfig(partial, { mode })` that updates `llmConfig` and schedules persistence.
     - On mutation success, refresh `llmConfig` from the returned server config to avoid drift.
+    - Simplify Toolbar: remove all Chat controls and the model picker; keep only an Autocomplete on/off toggle via `useSettings`.
+    - Remove `settings.chat` gating from `generateChatResponse`/`generateChatStream` and any consumers; Chat is always available.
+    - Ensure Toolbar no longer calls `setLlmConfiguration`; it only toggles `useSettings.autocomplete`.
   - Affected files:
     - `context/llm-context.tsx` (state shape, setters, save flow)
     - Call sites referencing removed setters
   - Acceptance criteria:
     - Only `llmConfig` holds config; runtime states only track errors/streaming.
     - All existing UI updates still reflect latest config after save.
+    - Toolbar contains only the Autocomplete toggle; Chat has no controls and no model picker.
 
-- **Phase 2 — Add Agent config to server and client types (1–2 days)**
+- **Phase 2 — Add Agent config to server and client types**
 
   - Changes:
     - Server: Extend zod schemas and router: add `agent` to `LlmConfigSchema` and `PatchSchema`; update `getConfig` defaults and `updateLlmConfig` merge logic.
@@ -216,7 +221,7 @@
     - Agent flows read from `llmConfig.agent`; chat flows remain on `llmConfig.chat`.
     - `getConfig()` returns validated `agent` section with defaults.
 
-- **Phase 3 — Server-enforced caps; remove client caps (1 day)**
+- **Phase 3 — Server-enforced caps; remove client caps**
 
   - Changes:
     - Move provider caps to server: normalize values in `getConfig`; validate/coerce in `updateLlmConfig`.
@@ -227,17 +232,7 @@
   - Acceptance criteria:
     - UI shows server-normalized values; client contains no ad-hoc caps.
 
-- **Phase 4 — Toolbar scope and model picker removal (0.5–1 day)**
-
-  - Changes:
-    - Remove the Model dropdown; keep only Chat temperature/tokens and the on/off toggles (Chat and Autocomplete via `useSettings`).
-    - Ensure the Autocomplete tab is hidden; Toolbar remains Chat-focused.
-  - Affected files:
-    - `plugins/ToolbarPlugin/llm-config.tsx`
-  - Acceptance criteria:
-    - No model selection UI; only Chat controls and the enable toggles remain.
-
-- **Phase 5 — Server proxy endpoints and immediate switch (2–3 days)**
+- **Phase 4 — Server proxy endpoints and immediate switch**
 
   - Changes:
     - Implement server-side generation:
@@ -252,7 +247,7 @@
     - All chat/agent calls route through the server; no API keys in the browser.
     - Streaming chat works end-to-end with SSE.
 
-- **Phase 6 — Cleanup, deprecations, and docs (0.5–1 day)**
+- **Phase 5 — Cleanup, deprecations, and docs (0.5–1 day)**
 
   - Changes:
     - Remove deprecated `generateAutocomplete` from context.
@@ -261,7 +256,7 @@
   - Acceptance criteria:
     - No references to deprecated APIs remain; docs reflect final behavior.
 
-- **Phase 7 — QA and observability (optional but recommended, 1–2 days)**
+- **Phase 6 — QA and observability (optional but recommended,)**
   - Add basic logging for generation errors and timings on the server; capture token usage where available.
   - Smoke tests for:
     - Chat streaming and error surfaces
@@ -313,6 +308,6 @@
 - Add `config.llm.agent` and route agent flows to it; keep chat separate.
 - Enforce provider caps on the server; UI displays normalized values only.
 - Remove model picker from Toolbar; app/server selects models per feature.
-- Keep Toolbar only for Chat controls (temp/tokens) and on/off toggles; Autocomplete config remains separate.
+- Toolbar only contains an Autocomplete on/off toggle; Chat has no controls.
 - Immediately route LLM calls via server proxy and remove client-held keys.
 - Keep debounce; optionally add pagehide/unmount flush.
