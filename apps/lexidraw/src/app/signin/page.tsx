@@ -10,13 +10,27 @@ import type { ServerRuntime } from "next";
 
 export const runtime: ServerRuntime = "edge";
 
-export default async function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams?: { callbackUrl?: string };
+}) {
   const session = await auth();
   if (session) {
     const h = await headers();
     const referer = h.get("referer");
     try {
-      const url = new URL(referer ?? "", process.env.NEXTAUTH_URL);
+      const baseOrigin = (() => {
+        try {
+          return new URL(process.env.NEXTAUTH_URL || "http://localhost").origin;
+        } catch {
+          return "";
+        }
+      })();
+
+      // Prefer explicit callbackUrl param if provided and same-origin
+      const candidate = searchParams?.callbackUrl || referer || "";
+      const url = new URL(candidate, baseOrigin || undefined);
       const sameOrigin = url.origin === new URL(process.env.NEXTAUTH_URL!).origin;
       const disallowed = ["/signin", "/signup", "/signout", "/error"];
       const dest = sameOrigin ? `${url.pathname}${url.search}${url.hash}` : null;
