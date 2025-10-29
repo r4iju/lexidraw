@@ -32,51 +32,45 @@ import {
 } from "~/components/ui/table";
 import { ChevronDown } from "lucide-react";
 import { usageColumns, type UsageRow } from "./columns";
-import { api } from "~/trpc/react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export function UsageDataTable() {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+export function UsageDataTable(props: {
+  rows: UsageRow[];
+  page: number;
+  size: number;
+  routeFilter: string;
+  modelFilter: string;
+  sort: string | undefined;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [sorting, setSorting] = React.useState<SortingState>(() => {
+    const s = props.sort;
+    if (!s) return [];
+    const [id, dir] = s.split(".");
+    if (!id) return [];
+    return [{ id, desc: dir === "desc" }];
+  });
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
-  const [routeFilter, setRouteFilter] = React.useState<string>("");
-  const [modelFilter, setModelFilter] = React.useState<string>("");
-  const [pageIndex, setPageIndex] = React.useState(0);
-  const pageSize = 50;
-
-  const { data } = api.adminLlm.usage.list.useQuery({
-    page: pageIndex + 1,
-    size: pageSize,
-    route: routeFilter ? routeFilter : undefined,
-    // Model filtering can be approximated by matching modelId client-side for now
-  });
+  const [routeFilter, setRouteFilter] = React.useState<string>(
+    props.routeFilter ?? "",
+  );
+  const [modelFilter, setModelFilter] = React.useState<string>(
+    props.modelFilter ?? "",
+  );
+  const [pageIndex, setPageIndex] = React.useState(props.page - 1);
+  const pageSize = props.size;
 
   const serverRows: UsageRow[] = React.useMemo(() => {
-    const raw = data ?? [];
-    const rows: UsageRow[] = raw.map((d) => ({
-      id: d.id,
-      createdAt:
-        d.createdAt instanceof Date ? d.createdAt : new Date(d.createdAt),
-      requestId: d.requestId,
-      userId: d.userId,
-      userEmail: d.userEmail ?? null,
-      entityId: d.entityId ?? null,
-      mode: d.mode,
-      route: d.route,
-      provider: d.provider,
-      modelId: d.modelId,
-      totalTokens: d.totalTokens ?? null,
-      latencyMs: d.latencyMs,
-      errorCode: d.errorCode ?? null,
-      httpStatus: d.httpStatus ?? null,
-    }));
-    if (!modelFilter) return rows;
-    return rows.filter((r) =>
+    if (!modelFilter) return props.rows;
+    return props.rows.filter((r) =>
       r.modelId.toLowerCase().includes(modelFilter.toLowerCase()),
     );
-  }, [data, modelFilter]);
+  }, [props.rows, modelFilter]);
 
   const table = useReactTable({
     data: serverRows,
@@ -96,6 +90,48 @@ export function UsageDataTable() {
     manualPagination: true,
     pageCount: undefined,
   });
+
+  const updateUrl = React.useCallback(
+    (next: {
+      page?: number;
+      size?: number;
+      route?: string;
+      model?: string;
+      sort?: string;
+    }) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      if (next.page !== undefined) params.set("page", String(next.page));
+      if (next.size !== undefined) params.set("size", String(next.size));
+      if (next.route !== undefined) {
+        if (next.route) params.set("route", next.route);
+        else params.delete("route");
+      }
+      if (next.model !== undefined) {
+        if (next.model) params.set("model", next.model);
+        else params.delete("model");
+      }
+      if (next.sort !== undefined) {
+        if (next.sort) params.set("sort", next.sort);
+        else params.delete("sort");
+      }
+      router.replace(`?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  React.useEffect(() => {
+    updateUrl({
+      page: pageIndex + 1,
+      size: pageSize,
+      route: routeFilter,
+      model: modelFilter,
+      sort: sorting[0]
+        ? `${sorting[0].id}.${sorting[0].desc ? "desc" : "asc"}`
+        : undefined,
+    });
+    // Only trigger when user changes these locally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageIndex, pageSize, routeFilter, modelFilter, sorting, updateUrl]);
 
   return (
     <div className="w-full">

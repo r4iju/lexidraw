@@ -22,14 +22,15 @@ export type UsageRow = {
 
 export const usageColumns: ColumnDef<UsageRow>[] = [
   {
-    accessorKey: "createdAt",
+    id: "createdAt",
+    accessorFn: (row) => row.createdAt.getTime(),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Time" />
     ),
     cell: ({ row }) => (
       <div>{new Date(row.original.createdAt).toLocaleString()}</div>
     ),
-    sortingFn: "alphanumeric",
+    sortingFn: "basic",
   },
   {
     accessorKey: "requestId",
@@ -42,12 +43,14 @@ export const usageColumns: ColumnDef<UsageRow>[] = [
   },
   {
     id: "user",
+    accessorFn: (row) => row.userEmail ?? row.userId,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="User" />
     ),
     cell: ({ row }) => (
       <div>{row.original.userEmail ?? row.original.userId}</div>
     ),
+    sortingFn: "alphanumeric",
   },
   {
     accessorKey: "entityId",
@@ -72,6 +75,7 @@ export const usageColumns: ColumnDef<UsageRow>[] = [
         {row.original.provider}/{row.original.modelId}
       </div>
     ),
+    enableSorting: false,
   },
   {
     accessorKey: "totalTokens",
