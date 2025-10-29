@@ -63,7 +63,11 @@ export function useAutocompleteLLM() {
   );
 
   const streamFirstToken = useCallback(
-    async (system: string, prompt: string, signal?: AbortSignal): Promise<string> => {
+    async (
+      system: string,
+      prompt: string,
+      signal?: AbortSignal,
+    ): Promise<string> => {
       try {
         const resp = await fetch("/api/autocomplete/stream", {
           method: "POST",
@@ -93,7 +97,8 @@ export function useAutocompleteLLM() {
                 (obj as { delta?: string }).delta,
                 (obj as { text?: string }).text,
                 (obj as { output_text?: string }).output_text,
-                (obj as { content?: Array<{ text?: string }> }).content?.[0]?.text,
+                (obj as { content?: Array<{ text?: string }> }).content?.[0]
+                  ?.text,
               ];
               for (const f of tryFields) {
                 if (typeof f === "string" && f.trim()) {
@@ -106,7 +111,9 @@ export function useAutocompleteLLM() {
               }
               const t = (obj as { type?: string }).type;
               if (typeof t === "string" && t.includes("output_text")) {
-                const d = (obj as { delta?: string }).delta || (obj as { text?: string }).text;
+                const d =
+                  (obj as { delta?: string }).delta ||
+                  (obj as { text?: string }).text;
                 if (typeof d === "string" && d.trim()) {
                   try {
                     await reader.cancel();
@@ -168,6 +175,9 @@ export function useAutocompleteLLM() {
           ].join("\n");
 
           // Prefer streaming for first-token latency; fallback to server action
+          if (acfg && (acfg as { enabled?: boolean }).enabled === false) {
+            return "";
+          }
           const first = await streamFirstToken(system, prompt, signal);
           const result = first || (await complete({ system, prompt, signal }));
 
@@ -175,7 +185,7 @@ export function useAutocompleteLLM() {
         },
         acfg?.delayMs ?? 200,
       ),
-    [complete, validateAndProcessResult, acfg?.delayMs, streamFirstToken],
+    [complete, validateAndProcessResult, acfg, streamFirstToken],
   );
 
   return autocomplete;

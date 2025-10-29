@@ -577,3 +577,50 @@ export const userEntityPrefs = sqliteTable(
     index("UserEntityPrefs_entityId_idx").on(table.entityId),
   ],
 );
+
+// LLM Audit events
+export const llmAuditEvents = sqliteTable(
+  "LLMAuditEvents",
+  {
+    id: text("id")
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    requestId: text("requestId").notNull(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    entityId: text("entityId").references(() => entities.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+    mode: text("mode").notNull(), // 'chat' | 'agent' | 'autocomplete'
+    route: text("route").notNull(),
+    provider: text("provider").notNull(),
+    modelId: text("modelId").notNull(),
+    temperature: real("temperature").notNull(),
+    maxOutputTokens: integer("maxOutputTokens").notNull(),
+    promptTokens: integer("promptTokens"),
+    completionTokens: integer("completionTokens"),
+    totalTokens: integer("totalTokens"),
+    latencyMs: integer("latencyMs").notNull(),
+    stream: integer("stream").notNull(), // 0/1
+    toolCalls: text("toolCalls", { mode: "json" }).$type<
+      { name: string; count: number }[] | null
+    >(),
+    promptLen: integer("promptLen"),
+    messagesCount: integer("messagesCount"),
+    errorCode: text("errorCode"),
+    errorMessage: text("errorMessage"),
+    httpStatus: integer("httpStatus"),
+  },
+  (table) => [
+    index("LLMAudit_user_createdAt_idx").on(table.userId, table.createdAt),
+    index("LLMAudit_entity_createdAt_idx").on(table.entityId, table.createdAt),
+    index("LLMAudit_mode_createdAt_idx").on(table.mode, table.createdAt),
+    index("LLMAudit_route_createdAt_idx").on(table.route, table.createdAt),
+  ],
+);
