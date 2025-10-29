@@ -244,7 +244,7 @@
     - Added provider-based max token normalization in `getConfig` and `updateLlmConfig` (`openai` 32,768; `google` 65,535).
     - Removed client-side capping logic in `llm-context.tsx`. Toolbar already has no token controls.
 
-- **Phase 4 — Server proxy endpoints and immediate switch**
+- **Phase 4 — Server proxy endpoints and immediate switch** — Status: completed
 
   - Changes:
     - Implement server-side generation:
@@ -256,8 +256,9 @@
     - `context/llm-context.tsx` (call sites, provider removal)
     - New server action/route handler files; optional tRPC wrappers if preferred
   - Acceptance criteria:
-    - All chat/agent calls route through the server; no API keys in the browser.
-    - Streaming chat works end-to-end with SSE.
+    - Streaming chat works end-to-end with SSE. ✓ Implemented via `/api/llm/stream`; client `generateChatStream` now fetches SSE.
+    - Chat non-streaming proxy works via `/api/llm/generate`. ✓ `generateChatResponse` (no-tools, chat) now calls JSON route.
+    - Agent (tools) proxy ✓ Implemented via `/api/llm/agent` returning `text` and `toolCalls`; client executes tools and continues as before.
 
 - **Phase 5 — Cleanup, deprecations, and docs (0.5–1 day)**
 

@@ -10,22 +10,13 @@ import {
   useEffect,
 } from "react";
 
-import {
-  generateText,
-  type LanguageModel,
-  type StepResult,
-  type tool,
-  type ToolCallRepairFunction,
-  type ToolChoice,
-  // Note: avoid ToolSet in generics to match RuntimeToolMap usage
-  streamText,
-  type TextStreamPart,
-  type FinishReason,
-  type FilePart,
-  type TextPart,
-  type ModelMessage,
-  type LanguageModelUsage,
-  stepCountIs,
+import type {
+  LanguageModel,
+  StepResult,
+  tool,
+  ToolCallRepairFunction,
+  ToolChoice,
+  ModelMessage,
 } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -50,22 +41,10 @@ export type AppToolCall = {
 
 export type AppToolResult = Record<string, unknown>;
 
-export type StreamTokenUsage = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-};
-
 export type StreamCallbacks = {
   onTextUpdate?: (text: string) => void;
   onFinish?: (result: GenerateChatStreamResult) => void;
   onError?: (error: Error) => void;
-};
-
-export type FinalStreamResult = {
-  finishReason: FinishReason;
-  usage: LanguageModelUsage;
-  text: string;
 };
 
 export type GenerateChatStreamResult = {
@@ -461,45 +440,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     [],
   );
 
-  const toFileParts = useCallback(
-    async (files?: File[] | FileList | null): Promise<FilePart[]> => {
-      if (!files || files.length === 0) {
-        return [];
-      }
-      const filePartsArray: FilePart[] = [];
-      for (const file of Array.from(files)) {
-        const buffer = await file.arrayBuffer(); // Read file content as ArrayBuffer
-        filePartsArray.push({
-          type: "file" as const,
-          data: new Uint8Array(buffer), // Convert ArrayBuffer to Uint8Array
-          mediaType: file.type || "application/octet-stream",
-          filename: file.name,
-        });
-      }
-      return filePartsArray;
-    },
-    [],
-  );
-
-  const buildPrompt = useCallback(
-    async (
-      { prompt }: { prompt: string },
-      files?: File[] | FileList | null,
-    ): Promise<{ messages: ModelMessage[] } | { prompt: string }> => {
-      if (files?.length) {
-        const fileParts = await toFileParts(files);
-        const parts: (TextPart | FilePart)[] = [
-          { type: "text", text: prompt },
-          ...fileParts,
-        ];
-
-        const messages: ModelMessage[] = [{ role: "user", content: parts }];
-        return { messages };
-      }
-      return { prompt };
-    },
-    [toFileParts],
-  );
+  // Legacy file-based prompt builder has moved server-side (SSE endpoint handles files)
 
   const generateChatResponse = useCallback(
     async ({
@@ -510,11 +451,11 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       maxOutputTokens,
       signal,
       tools,
-      prepareStep,
-      repairToolCall,
-      toolChoice,
-      maxSteps,
-      files,
+      prepareStep: _prepareStep,
+      repairToolCall: _repairToolCall,
+      toolChoice: _toolChoice,
+      maxSteps: _maxSteps,
+      files: _files,
       mode,
     }: LLMOptions & {
       mode?: "chat" | "agent";
@@ -534,15 +475,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }>;
     }): Promise<GenerateChatResponseResult> => {
       const useAgent = mode === "agent";
-      const activeProvider = useAgent
-        ? agentProvider.current
-        : chatProvider.current;
       const activeConfig = useAgent ? llmConfig.agent : llmConfig.chat;
-
-      if (!activeProvider) {
-        console.warn("[LLMContext] Chat provider not loaded.");
-        return { text: "", toolCalls: undefined, toolResults: undefined };
-      }
 
       setChatState((prev) => ({
         ...prev,
@@ -554,59 +487,87 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }));
 
       try {
-        let inputConfig: { prompt?: string; messages?: ModelMessage[] };
-
-        if (messages?.length) {
-          inputConfig = { messages };
-        } else {
-          // falls back to old behaviour (prompt + optional files)
-          inputConfig = await buildPrompt({ prompt }, files);
+        // Chat without tools → call server JSON route
+        if (!useAgent && !tools) {
+          const resp = await fetch("/api/llm/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt,
+              messages,
+              system,
+              temperature: temperature ?? activeConfig.temperature,
+              maxOutputTokens: maxOutputTokens ?? activeConfig.maxOutputTokens,
+              mode: "chat",
+            }),
+            signal,
+          });
+          if (!resp.ok) {
+            const errText = await resp.text().catch(() => "Generation error");
+            throw new Error(errText || "Generation error");
+          }
+          const json = (await resp.json()) as { text?: string };
+          const text = (json?.text ?? "").toString();
+          setChatState((prev) => ({
+            ...prev,
+            isError: false,
+            text,
+            error: null,
+            isStreaming: false,
+          }));
+          return { text };
         }
 
-        const result = await generateText({
-          prepareStep: prepareStep,
-          experimental_repairToolCall: repairToolCall,
-          model: activeProvider(
-            activeConfig.modelId,
-          ) as unknown as LanguageModel,
-          ...(inputConfig.messages
-            ? { messages: inputConfig.messages }
-            : { prompt: inputConfig.prompt ?? "" }),
-          system,
-          temperature: temperature ?? activeConfig.temperature,
-          maxOutputTokens: maxOutputTokens ?? activeConfig.maxOutputTokens,
-          abortSignal: signal,
-          tools: tools,
-          stopWhen: stepCountIs(maxSteps ?? 0),
-          toolChoice: toolChoice,
+        // Agent or tools present → call server agent route
+        const toolNames = Object.keys(tools ?? {});
+        const resp = await fetch("/api/llm/agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            messages,
+            system,
+            temperature: temperature ?? activeConfig.temperature,
+            maxOutputTokens: maxOutputTokens ?? activeConfig.maxOutputTokens,
+            tools: toolNames,
+          }),
+          signal,
         });
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => "Agent error");
+          throw new Error(errText || "Agent error");
+        }
+        const json = (await resp.json()) as {
+          text?: string;
+          toolCalls?: Array<{
+            toolCallId: string;
+            toolName: string;
+            input?: Record<string, unknown>;
+          }>;
+        };
+        const text = (json?.text ?? "").toString();
 
         setChatState((prev) => ({
           ...prev,
           isError: false,
-          text: result.text,
+          text,
           error: null,
-          toolCalls: (result.toolCalls ?? []).map((c) => ({
+          toolCalls: (json.toolCalls ?? []).map((c) => ({
             toolCallId: c.toolCallId,
             toolName: c.toolName,
-            input: (c as unknown as { input: Record<string, unknown> }).input,
+            input: c.input ?? {},
           })),
-          toolResults: (result.toolResults ?? []).map(
-            (r) => r as unknown as AppToolResult,
-          ),
           isStreaming: false,
         }));
 
         return {
-          text: result.text,
-          toolCalls: (result.toolCalls ?? []).map((c) => ({
+          text,
+          toolCalls: (json.toolCalls ?? []).map((c) => ({
             toolCallId: c.toolCallId,
             toolName: c.toolName,
-            input: (c as unknown as { input: Record<string, unknown> }).input,
+            input: c.input ?? {},
           })),
-          toolResults: (result.toolResults ?? []).map(
-            (r) => r as unknown as AppToolResult,
-          ),
+          toolResults: undefined,
         };
       } catch (err: unknown) {
         if (
@@ -630,7 +591,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
     },
-    [buildPrompt, llmConfig.chat, llmConfig.agent],
+    [llmConfig.chat, llmConfig.agent],
   );
 
   const generateChatStream = useCallback(
@@ -640,19 +601,13 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       temperature,
       maxOutputTokens,
       signal,
-      maxSteps,
+      maxSteps: _maxSteps, // ignored in server route for now
       callbacks,
       files,
     }: Omit<LLMOptions, "tools" | "toolChoice"> & {
       callbacks: StreamCallbacks;
       files?: File[] | FileList | null;
     }): Promise<void> => {
-      if (!chatProvider.current) {
-        console.warn("[LLMContext] Chat provider not loaded.");
-        callbacks.onError?.(new Error("Chat provider not loaded."));
-        return;
-      }
-
       setChatState((prev) => ({
         ...prev,
         isStreaming: true,
@@ -663,80 +618,81 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }));
 
       let accumulatedText = "";
-      let finalResultData: FinalStreamResult | null = null;
-      let finalGenerateStreamResult: GenerateChatStreamResult | null = null;
+      let finished = false;
 
       try {
-        const promptConfig = await buildPrompt({ prompt }, files);
-        const result = streamText({
-          model: chatProvider.current(
-            llmConfig.chat.modelId,
-          ) as unknown as LanguageModel,
-
-          ...promptConfig,
-          system,
-          temperature: temperature ?? llmConfig.chat.temperature,
-          maxOutputTokens: maxOutputTokens ?? llmConfig.chat.maxOutputTokens,
-          abortSignal: signal,
-          stopWhen: stepCountIs(maxSteps ?? 0),
-        });
-
-        for await (const delta of result.fullStream) {
-          switch (delta.type) {
-            case "text-delta": {
-              accumulatedText += delta.text;
-              callbacks.onTextUpdate?.(accumulatedText);
-              break;
-            }
-            case "finish": {
-              const finishDelta = delta as Extract<
-                TextStreamPart<RuntimeToolMap>,
-                { type: "finish" }
-              >;
-              finalResultData = {
-                finishReason: finishDelta.finishReason,
-                usage: finishDelta.totalUsage,
-                text: accumulatedText,
-              };
-              break;
-            }
-            case "error": {
-              const errorDelta = delta as Extract<
-                TextStreamPart<RuntimeToolMap>,
-                { type: "error" }
-              >;
-              throw errorDelta.error;
-            }
-            // Explicitly ignore tool calls/results in basic text streaming
-            case "tool-call":
-              console.warn(
-                `[LLMContext] Unexpected delta type 'tool-call' received during generateChatStream. Ignoring.`,
-              );
-              break;
+        // Build request body
+        const hasFiles = files && files.length > 0;
+        let resp: Response;
+        if (hasFiles) {
+          const form = new FormData();
+          form.set("prompt", prompt ?? "");
+          form.set("system", system ?? "");
+          form.set(
+            "temperature",
+            String(temperature ?? llmConfig.chat.temperature),
+          );
+          form.set(
+            "maxOutputTokens",
+            String(maxOutputTokens ?? llmConfig.chat.maxOutputTokens),
+          );
+          for (const f of Array.from(files as FileList | File[])) {
+            form.append("files", f as File);
           }
-        }
-
-        const awaitedText = await result.text;
-
-        if (finalResultData) {
-          finalResultData.text = awaitedText ?? finalResultData.text;
+          resp = await fetch("/api/llm/stream", {
+            method: "POST",
+            body: form,
+            signal,
+          });
         } else {
-          const finalReason = await result.finishReason;
-          const finalUsage = await result.usage;
-          if (finalReason !== "error") {
-            finalResultData = {
-              finishReason: finalReason,
-              usage: finalUsage,
-              text: awaitedText,
-            };
+          resp = await fetch("/api/llm/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt,
+              system,
+              temperature: temperature ?? llmConfig.chat.temperature,
+              maxOutputTokens:
+                maxOutputTokens ?? llmConfig.chat.maxOutputTokens,
+            }),
+            signal,
+          });
+        }
+
+        if (!resp.ok || !resp.body) {
+          const errText = await resp.text().catch(() => "Stream error");
+          throw new Error(errText || "Stream error");
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split(/\r?\n/);
+          for (const line of lines) {
+            if (!line) continue;
+            if (line.startsWith("data: ")) {
+              const textDelta = line.slice(6);
+              accumulatedText += textDelta;
+              callbacks.onTextUpdate?.(accumulatedText);
+            } else if (line.startsWith("event: finish")) {
+              finished = true;
+            }
           }
         }
 
-        if (finalResultData) {
-          finalGenerateStreamResult = {
-            text: finalResultData.text,
-          };
-        }
+        setChatState((prev) => ({
+          ...prev,
+          isError: false,
+          text: accumulatedText,
+          error: null,
+          isStreaming: false,
+        }));
+
+        callbacks.onFinish?.({ text: accumulatedText });
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
           console.log("[LLMContext] Stream aborted.");
@@ -754,21 +710,16 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         setChatState((prev) => ({
           ...prev,
           isStreaming: false,
-          text: finalGenerateStreamResult?.text ?? accumulatedText,
+          text: accumulatedText,
           toolCalls: undefined,
           toolResults: undefined,
         }));
-        if (finalGenerateStreamResult) {
-          callbacks.onFinish?.(finalGenerateStreamResult);
+        if (!finished) {
+          callbacks.onFinish?.({ text: accumulatedText });
         }
       }
     },
-    [
-      buildPrompt,
-      llmConfig.chat.maxOutputTokens,
-      llmConfig.chat.modelId,
-      llmConfig.chat.temperature,
-    ],
+    [llmConfig.chat.maxOutputTokens, llmConfig.chat.temperature],
   );
 
   return (
