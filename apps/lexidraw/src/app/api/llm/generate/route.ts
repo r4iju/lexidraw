@@ -4,6 +4,7 @@ import env from "@packages/env";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, type ModelMessage, type LanguageModel } from "ai";
+import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ type Body = {
   temperature?: number;
   maxOutputTokens?: number;
   mode?: "chat" | "agent";
+  entityId?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -100,18 +102,73 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await generateText({
-      model: model as unknown as LanguageModel,
-      ...(hasMessages && inputMessages
-        ? { messages: inputMessages }
-        : { prompt }),
-      system,
+    const { result, elapsedMs } = await withTiming(() =>
+      generateText({
+        model: model as unknown as LanguageModel,
+        ...(hasMessages && inputMessages
+          ? { messages: inputMessages }
+          : { prompt }),
+        system,
+        temperature: effectiveTemperature,
+        maxOutputTokens: effectiveMaxTokens,
+      }),
+    );
+
+    const usage = result.usage as
+      | {
+          promptTokens?: number;
+          completionTokens?: number;
+          totalTokens?: number;
+          inputTokens?: number;
+          outputTokens?: number;
+        }
+      | undefined;
+    await recordLlmAudit({
+      requestId: crypto.randomUUID(),
+      timestampMs: Date.now(),
+      route: "/api/llm/generate",
+      mode,
+      userId: session.user.id,
+      entityId: body.entityId ?? null,
+      provider,
+      modelId,
       temperature: effectiveTemperature,
       maxOutputTokens: effectiveMaxTokens,
+      usage: usage
+        ? {
+            promptTokens: usage.promptTokens ?? usage.inputTokens ?? 0,
+            completionTokens: usage.completionTokens ?? usage.outputTokens ?? 0,
+            totalTokens:
+              usage.totalTokens ??
+              (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+          }
+        : null,
+      latencyMs: Math.round(elapsedMs),
+      stream: false,
+      promptLen: hasMessages ? undefined : prompt.length,
+      messagesCount: hasMessages ? inputMessages?.length : undefined,
     });
 
     return Response.json({ text: result.text });
   } catch (e) {
+    await recordLlmAudit({
+      requestId: crypto.randomUUID(),
+      timestampMs: Date.now(),
+      route: "/api/llm/generate",
+      mode,
+      userId: session.user.id,
+      entityId: body.entityId ?? null,
+      provider,
+      modelId,
+      temperature: effectiveTemperature,
+      maxOutputTokens: effectiveMaxTokens,
+      usage: null,
+      latencyMs: 0,
+      stream: false,
+      errorCode: "GenerationError",
+      errorMessage: e instanceof Error ? e.message : String(e),
+      httpStatus: 500,
+    }).catch(() => {});
     const msg = e instanceof Error ? e.message : String(e);
     return new Response(msg || "Generation error", { status: 500 });
   }

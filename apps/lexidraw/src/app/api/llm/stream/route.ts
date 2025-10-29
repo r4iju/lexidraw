@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { recordLlmAudit } from "~/server/audit/llm-audit";
 import env from "@packages/env";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -20,17 +21,21 @@ export async function POST(req: NextRequest) {
   }
 
   const contentType = req.headers.get("content-type") || "";
+  const requestId = crypto.randomUUID();
 
   let system = "";
   let prompt = "";
   let temperature: number | undefined;
   const files: File[] = [];
+  let entityId: string | undefined;
 
   try {
     if (contentType.includes("multipart/form-data")) {
       const form = await req.formData();
       system = (form.get("system") ?? "").toString();
       prompt = (form.get("prompt") ?? "").toString();
+      const e = form.get("entityId");
+      if (typeof e === "string" && e) entityId = e;
       const t = form.get("temperature");
       if (typeof t === "string" && t) temperature = Number(t);
       const maybeFiles = form.getAll("files");
@@ -42,10 +47,12 @@ export async function POST(req: NextRequest) {
         system?: string;
         prompt?: string;
         temperature?: number;
+        entityId?: string;
       };
       system = (body?.system ?? "").toString();
       prompt = (body?.prompt ?? "").toString();
       if (typeof body?.temperature === "number") temperature = body.temperature;
+      if (typeof body?.entityId === "string") entityId = body.entityId;
     }
   } catch {
     return new Response("Invalid request body", { status: 400 });
@@ -125,6 +132,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const startedAt = Date.now();
     const result = streamText({
       model: model as unknown as LanguageModel,
       ...(input.messages
@@ -164,22 +172,98 @@ export async function POST(req: NextRequest) {
           try {
             controller.close();
           } catch {}
+          // Persist audit at end of stream
+          try {
+            const usage = (await result.usage) as
+              | {
+                  promptTokens?: number;
+                  completionTokens?: number;
+                  totalTokens?: number;
+                  inputTokens?: number;
+                  outputTokens?: number;
+                }
+              | undefined;
+            await recordLlmAudit({
+              requestId,
+              timestampMs: Date.now(),
+              route: "/api/llm/stream",
+              mode: "chat",
+              userId: session.user.id,
+              entityId: entityId ?? null,
+              provider,
+              modelId,
+              temperature: effectiveTemperature,
+              maxOutputTokens: effectiveMaxTokens,
+              usage: usage
+                ? {
+                    promptTokens: usage.promptTokens ?? usage.inputTokens ?? 0,
+                    completionTokens:
+                      usage.completionTokens ?? usage.outputTokens ?? 0,
+                    totalTokens:
+                      usage.totalTokens ??
+                      (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+                  }
+                : null,
+              latencyMs: Math.max(0, Date.now() - startedAt),
+              stream: true,
+              promptLen: input.prompt ? input.prompt.length : undefined,
+              messagesCount: input.messages ? input.messages.length : undefined,
+            });
+          } catch {}
         }
       },
     });
 
-    return new Response(stream, {
+    const response = new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        "X-Request-Id": requestId,
       },
     });
+    return response;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
+      await recordLlmAudit({
+        requestId,
+        timestampMs: Date.now(),
+        route: "/api/llm/stream",
+        mode: "chat",
+        userId: session.user.id,
+        entityId: entityId ?? null,
+        provider,
+        modelId,
+        temperature: effectiveTemperature,
+        maxOutputTokens: effectiveMaxTokens,
+        usage: null,
+        latencyMs: 0,
+        stream: true,
+        errorCode: "AbortError",
+        errorMessage: "client aborted",
+        httpStatus: 499,
+      }).catch(() => {});
       return new Response(null, { status: 499 });
     }
+    await recordLlmAudit({
+      requestId,
+      timestampMs: Date.now(),
+      route: "/api/llm/stream",
+      mode: "chat",
+      userId: session.user.id,
+      entityId: entityId ?? null,
+      provider,
+      modelId,
+      temperature: effectiveTemperature,
+      maxOutputTokens: effectiveMaxTokens,
+      usage: null,
+      latencyMs: 0,
+      stream: true,
+      errorCode: "UpstreamError",
+      errorMessage: e instanceof Error ? e.message : String(e),
+      httpStatus: 502,
+    }).catch(() => {});
     return new Response("Upstream error", { status: 502 });
   }
 }

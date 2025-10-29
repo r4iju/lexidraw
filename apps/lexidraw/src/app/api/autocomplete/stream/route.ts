@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
   }
 
   const ac = session.user.config?.autocomplete ?? {};
+  if ((ac as { enabled?: boolean }).enabled === false) {
+    return new Response(null, { status: 204 });
+  }
   const resolvedModelId = (
     body?.modelId ||
     ac.modelId ||

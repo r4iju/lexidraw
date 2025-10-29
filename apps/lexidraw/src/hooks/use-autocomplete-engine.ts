@@ -25,6 +25,9 @@ export function useAutocompleteEngine() {
       modelId,
       signal,
     }: AutocompleteRequest): Promise<string> => {
+      if (cfg && (cfg as { enabled?: boolean }).enabled === false) {
+        return "";
+      }
       // Server Action cannot be aborted; emulate by ignoring late results
       const p = runAutocomplete({
         system,
@@ -38,7 +41,7 @@ export function useAutocompleteEngine() {
       if (signal?.aborted) return "";
       return typeof res === "string" ? res : "";
     },
-    [cfg?.maxOutputTokens, cfg?.modelId, cfg?.temperature],
+    [cfg],
   );
 
   return { complete, config: cfg } as const;

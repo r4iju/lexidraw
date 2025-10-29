@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "~/server/auth";
+import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 
 type Params = {
   system: string;
@@ -23,6 +24,9 @@ export async function runAutocomplete({
   }
 
   const ac = session.user.config?.autocomplete ?? {};
+  if ((ac as { enabled?: boolean }).enabled === false) {
+    return "";
+  }
   const resolvedModelId = (modelId || ac.modelId || "gpt-5-nano").toString();
   const resolvedTemperature =
     typeof temperature === "number"
@@ -89,12 +93,16 @@ export async function runAutocomplete({
     });
   }
 
-  let resp = await call(withTemp);
+  let measured = await withTiming(() => call(withTemp));
+  let resp = measured.result;
+  let elapsedMs = measured.elapsedMs;
   if (!resp.ok) {
     try {
       const errText = await resp.text();
       if (errText.includes("Unsupported parameter: 'temperature'")) {
-        resp = await call(withoutTemp);
+        measured = await withTiming(() => call(withoutTemp));
+        resp = measured.result;
+        elapsedMs = measured.elapsedMs;
       } else {
         throw new Error(errText || "OpenAI error");
       }
@@ -105,6 +113,24 @@ export async function runAutocomplete({
 
   if (!resp.ok) {
     const errText = await resp.text().catch(() => "");
+    await recordLlmAudit({
+      requestId: crypto.randomUUID(),
+      timestampMs: Date.now(),
+      route: "server/actions/autocomplete",
+      mode: "autocomplete",
+      userId: session.user.id,
+      entityId: null,
+      provider: "openai",
+      modelId: resolvedModelId,
+      temperature: resolvedTemperature,
+      maxOutputTokens: resolvedMaxTokens,
+      usage: null,
+      latencyMs: Math.round(elapsedMs),
+      stream: false,
+      errorCode: "UpstreamError",
+      errorMessage: errText,
+      httpStatus: resp.status,
+    }).catch(() => {});
     throw new Error(errText || "OpenAI error");
   }
 
@@ -116,20 +142,41 @@ export async function runAutocomplete({
     output_text?: string;
   };
 
-  if (typeof json.output_text === "string" && json.output_text) {
-    return json.output_text;
-  }
+  const text =
+    typeof json.output_text === "string" && json.output_text
+      ? json.output_text
+      : (() => {
+          let t = "";
+          const out = Array.isArray(json.output) ? json.output : [];
+          for (const part of out) {
+            if (part?.type === "message" && Array.isArray(part.content)) {
+              for (const c of part.content) {
+                if (c?.type === "output_text" && typeof c.text === "string") {
+                  t += c.text;
+                }
+              }
+            }
+          }
+          return t;
+        })();
 
-  let text = "";
-  const out = Array.isArray(json.output) ? json.output : [];
-  for (const part of out) {
-    if (part?.type === "message" && Array.isArray(part.content)) {
-      for (const c of part.content) {
-        if (c?.type === "output_text" && typeof c.text === "string") {
-          text += c.text;
-        }
-      }
-    }
-  }
+  await recordLlmAudit({
+    requestId: crypto.randomUUID(),
+    timestampMs: Date.now(),
+    route: "server/actions/autocomplete",
+    mode: "autocomplete",
+    userId: session.user.id,
+    entityId: null,
+    provider: "openai",
+    modelId: resolvedModelId,
+    temperature: resolvedTemperature,
+    maxOutputTokens: resolvedMaxTokens,
+    usage: null, // Responses API doesn't include classic token usage here reliably
+    latencyMs: Math.round(elapsedMs),
+    stream: false,
+    promptLen: system.length + prompt.length,
+    messagesCount: undefined,
+  }).catch(() => {});
+
   return text;
 }

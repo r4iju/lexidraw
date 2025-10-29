@@ -5,6 +5,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, tool, type LanguageModel, type ModelMessage } from "ai";
 import { z } from "zod";
+import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ const BodySchema = z.object({
   temperature: z.number().optional(),
   maxOutputTokens: z.number().int().positive().optional(),
   tools: z.array(z.string()).default([]),
+  entityId: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -118,16 +120,18 @@ export async function POST(req: NextRequest) {
     const input = hasMessages
       ? { messages: messages as ModelMessage[] }
       : { prompt };
-    const result = await generateText({
-      model: model as unknown as LanguageModel,
-      ...input,
-      system,
-      temperature: effectiveTemperature,
-      maxOutputTokens: effectiveMaxTokens,
-      // Enable tool calls; client will execute them and call again if needed
-      tools: toolMap,
-      toolChoice: "auto",
-    });
+    const { result, elapsedMs } = await withTiming(() =>
+      generateText({
+        model: model as unknown as LanguageModel,
+        ...input,
+        system,
+        temperature: effectiveTemperature,
+        maxOutputTokens: effectiveMaxTokens,
+        // Enable tool calls; client will execute them and call again if needed
+        tools: toolMap,
+        toolChoice: "auto",
+      }),
+    );
 
     const toolCalls = (result.toolCalls ?? []).map((c) => {
       const rawInput = (c as unknown as { input?: Record<string, unknown> })
@@ -143,8 +147,69 @@ export async function POST(req: NextRequest) {
       };
     });
 
+    const usage = result.usage as
+      | {
+          promptTokens?: number;
+          completionTokens?: number;
+          totalTokens?: number;
+          inputTokens?: number;
+          outputTokens?: number;
+        }
+      | undefined;
+    await recordLlmAudit({
+      requestId: crypto.randomUUID(),
+      timestampMs: Date.now(),
+      route: "/api/llm/agent",
+      mode: "agent",
+      userId: session.user.id,
+      entityId: parsed.entityId ?? null,
+      provider,
+      modelId,
+      temperature: effectiveTemperature,
+      maxOutputTokens: effectiveMaxTokens,
+      usage: usage
+        ? {
+            promptTokens: usage.promptTokens ?? usage.inputTokens ?? 0,
+            completionTokens: usage.completionTokens ?? usage.outputTokens ?? 0,
+            totalTokens:
+              usage.totalTokens ??
+              (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+          }
+        : null,
+      latencyMs: Math.round(elapsedMs),
+      stream: false,
+      toolCalls: toolCalls.length
+        ? Object.entries(
+            toolCalls.reduce<Record<string, number>>((acc, c) => {
+              acc[c.toolName] = (acc[c.toolName] || 0) + 1;
+              return acc;
+            }, {}),
+          ).map(([name, count]) => ({ name, count }))
+        : undefined,
+      promptLen: hasMessages ? undefined : prompt.length,
+      messagesCount: hasMessages ? messages?.length : undefined,
+    });
+
     return Response.json({ text: result.text, toolCalls });
   } catch (e) {
+    await recordLlmAudit({
+      requestId: crypto.randomUUID(),
+      timestampMs: Date.now(),
+      route: "/api/llm/agent",
+      mode: "agent",
+      userId: session.user.id,
+      entityId: parsed.entityId ?? null,
+      provider,
+      modelId,
+      temperature: effectiveTemperature,
+      maxOutputTokens: effectiveMaxTokens,
+      usage: null,
+      latencyMs: 0,
+      stream: false,
+      errorCode: "AgentError",
+      errorMessage: e instanceof Error ? e.message : String(e),
+      httpStatus: 500,
+    }).catch(() => {});
     const msg = e instanceof Error ? e.message : String(e);
     return new Response(msg || "Agent generation error", { status: 500 });
   }
