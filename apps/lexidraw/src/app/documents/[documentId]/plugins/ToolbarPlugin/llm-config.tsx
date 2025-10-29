@@ -2,7 +2,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Button } from "~/components/ui/button";
@@ -11,9 +10,11 @@ import { cn } from "~/lib/utils";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { useSettings } from "../../context/settings-context";
+import { useId } from "react";
 
 export function LlmModelSelector({ className }: { className?: string }) {
   const { settings, setOption } = useSettings();
+  const id = useId();
 
   return (
     <DropdownMenu>
@@ -31,11 +32,14 @@ export function LlmModelSelector({ className }: { className?: string }) {
           className="flex items-center justify-between mb-1 pr-2"
           onSelect={(e) => e.preventDefault()}
         >
-          <Label htmlFor="enable-autocomplete" className="font-normal cursor-pointer">
+          <Label
+            htmlFor="enable-autocomplete"
+            className="font-normal cursor-pointer"
+          >
             Enable Autocomplete
           </Label>
           <Switch
-            id="enable-autocomplete"
+            id={`enable-autocomplete-${id}`}
             checked={settings.autocomplete}
             onCheckedChange={(checked: boolean | string) => {
               const isEnabled = checked === true;
