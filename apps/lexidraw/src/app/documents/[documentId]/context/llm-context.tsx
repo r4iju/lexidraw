@@ -76,7 +76,6 @@ export type LLMOptions = {
   messages?: ModelMessage[];
   system?: string;
   temperature?: number;
-  maxOutputTokens?: number;
   signal?: AbortSignal;
   tools?: RuntimeToolMap;
   maxSteps?: number;
@@ -172,7 +171,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           modelId: llmConfig.chat.modelId,
           provider: llmConfig.chat.provider,
           temperature: llmConfig.chat.temperature,
-          maxOutputTokens: llmConfig.chat.maxOutputTokens,
         };
       }
 
@@ -181,7 +179,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           modelId: llmConfig.autocomplete.modelId,
           provider: llmConfig.autocomplete.provider,
           temperature: llmConfig.autocomplete.temperature,
-          maxOutputTokens: llmConfig.autocomplete.maxOutputTokens,
         };
       }
 
@@ -190,7 +187,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           modelId: llmConfig.agent.modelId,
           provider: llmConfig.agent.provider,
           temperature: llmConfig.agent.temperature,
-          maxOutputTokens: llmConfig.agent.maxOutputTokens,
         } as Partial<LLMBaseState>;
       }
 
@@ -282,7 +278,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       messages,
       system = "",
       temperature,
-      maxOutputTokens,
       signal,
       tools,
       prepareStep: _prepareStep,
@@ -331,7 +326,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
               messages,
               system,
               temperature: temperature ?? activeConfig.temperature,
-              maxOutputTokens: maxOutputTokens ?? activeConfig.maxOutputTokens,
               mode: "chat",
             }),
             signal,
@@ -362,7 +356,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
             messages,
             system,
             temperature: temperature ?? activeConfig.temperature,
-            maxOutputTokens: maxOutputTokens ?? activeConfig.maxOutputTokens,
             tools: toolNames,
           }),
           signal,
@@ -433,7 +426,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       prompt,
       system = "",
       temperature,
-      maxOutputTokens,
       signal,
       maxSteps: _maxSteps, // ignored in server route for now
       callbacks,
@@ -466,10 +458,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
             "temperature",
             String(temperature ?? llmConfig.chat.temperature),
           );
-          form.set(
-            "maxOutputTokens",
-            String(maxOutputTokens ?? llmConfig.chat.maxOutputTokens),
-          );
           for (const f of Array.from(files as FileList | File[])) {
             form.append("files", f as File);
           }
@@ -486,8 +474,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
               prompt,
               system,
               temperature: temperature ?? llmConfig.chat.temperature,
-              maxOutputTokens:
-                maxOutputTokens ?? llmConfig.chat.maxOutputTokens,
             }),
             signal,
           });
@@ -553,7 +539,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         }
       }
     },
-    [llmConfig.chat.maxOutputTokens, llmConfig.chat.temperature],
+    [llmConfig.chat.temperature],
   );
 
   return (
