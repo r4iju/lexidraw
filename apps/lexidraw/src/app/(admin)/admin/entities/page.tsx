@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { api } from "~/trpc/server";
+import { EntitiesDataTable } from "./data-table";
 
 export default async function AdminEntitiesPage({
   searchParams,
@@ -9,50 +10,49 @@ export default async function AdminEntitiesPage({
   const page = Number(searchParams.page ?? 1) || 1;
   const size = Number(searchParams.size ?? 50) || 50;
   const query =
-    typeof searchParams.query === "string" ? searchParams.query : undefined;
+    typeof searchParams.query === "string" ? searchParams.query : "";
+  const status =
+    typeof searchParams.status === "string" ? searchParams.status : "";
+  const ownerId =
+    typeof searchParams.ownerId === "string" ? searchParams.ownerId : "";
 
-  const rows = await api.adminEntities.list.query({ page, size, query });
+  const rowsRaw = await api.adminEntities.list.query({
+    page,
+    size,
+    query,
+    status: (status || undefined) as "active" | "inactive" | undefined,
+    ownerId: ownerId || undefined,
+  });
+  const ownersRaw = await api.adminUsers.list.query({ page: 1, size: 50 });
+
+  const rows = rowsRaw.map((r) => ({
+    id: r.id as string,
+    title: r.title as string,
+    ownerLabel:
+      ((r as { ownerName?: string | null }).ownerName ?? null) ??
+      ((r as { ownerEmail?: string | null }).ownerEmail ?? null) ??
+      ((r as { ownerId?: string }).ownerId ?? ""),
+    membersCount: (r as { membersCount?: number }).membersCount ?? 0,
+    isActive: (r as { isActive?: number }).isActive ?? 1,
+    createdAt: new Date(
+      (r as { createdAt?: number | Date }).createdAt ?? Date.now(),
+    ),
+  }));
+  const owners = ownersRaw.map((u) => ({
+    id: u.id as string,
+    name: (u as { name?: string | null }).name ?? null,
+    email: (u as { email?: string | null }).email ?? null,
+  }));
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Entities</h2>
-      <div className="overflow-hidden rounded-md border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th className="text-left p-2">Title</th>
-              <th className="text-left p-2">Owner</th>
-              <th className="text-left p-2">Members</th>
-              <th className="text-left p-2">Status</th>
-              <th className="text-left p-2">Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border">
-                <td className="p-2">{r.title}</td>
-                <td className="p-2">
-                  {(r as { ownerId?: string }).ownerId ?? "—"}
-                </td>
-                <td className="p-2">
-                  {(r as { membersCount?: number }).membersCount ?? 0}
-                </td>
-                <td className="p-2">
-                  {(r as { isActive?: number }).isActive
-                    ? "Active"
-                    : "Inactive"}
-                </td>
-                <td className="p-2">
-                  {new Date(
-                    (r as { createdAt?: number | Date }).createdAt ??
-                      Date.now(),
-                  ).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <EntitiesDataTable
+      rows={rows}
+      page={page}
+      size={size}
+      query={query}
+      status={status}
+      owners={owners}
+      ownerId={ownerId}
+    />
   );
 }

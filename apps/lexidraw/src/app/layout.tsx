@@ -13,6 +13,7 @@ import Script from "next/script";
 import env from "@packages/env";
 import type { Metadata, Viewport } from "next";
 import LayoutListener from "./layout-listener";
+import ImpersonationBanner from "~/components/admin/impersonation-banner";
 
 const fredoka = Fredoka({
   subsets: ["latin"],
@@ -66,6 +67,7 @@ export default async function RootLayout({ children }: Props) {
             >
               <TooltipProvider>
                 {children}
+                <ImpersonationBanner />
                 <Toaster />
                 <LayoutListener />
                 <Analytics />

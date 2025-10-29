@@ -4,6 +4,23 @@ import { and, desc, eq, like, sql, type SQL } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 
 export const adminEntitiesRouter = createTRPCRouter({
+  members: adminProcedure
+    .input(z.object({ entityId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.drizzle
+        .select({
+          userId: ctx.schema.sharedEntities.userId,
+          name: ctx.schema.users.name,
+          email: ctx.schema.users.email,
+        })
+        .from(ctx.schema.sharedEntities)
+        .leftJoin(
+          ctx.schema.users,
+          eq(ctx.schema.sharedEntities.userId, ctx.schema.users.id),
+        )
+        .where(eq(ctx.schema.sharedEntities.entityId, input.entityId));
+      return rows;
+    }),
   list: adminProcedure
     .input(
       z.object({
@@ -41,12 +58,18 @@ export const adminEntitiesRouter = createTRPCRouter({
           title: ctx.schema.entities.title,
           entityType: ctx.schema.entities.entityType,
           ownerId: ctx.schema.entities.userId,
+          ownerName: ctx.schema.users.name,
+          ownerEmail: ctx.schema.users.email,
           isActive: ctx.schema.entities.isActive,
           createdAt: ctx.schema.entities.createdAt,
           lastActivity: sql<number>`coalesce((select max(e.createdAt) from ${ctx.schema.llmAuditEvents} e where e.entityId = ${ctx.schema.entities.id}), 0)`,
           membersCount: sql<number>`coalesce((select count(*) from ${ctx.schema.sharedEntities} se where se.entityId = ${ctx.schema.entities.id}), 0)`,
         })
-        .from(ctx.schema.entities);
+        .from(ctx.schema.entities)
+        .leftJoin(
+          ctx.schema.users,
+          eq(ctx.schema.entities.userId, ctx.schema.users.id),
+        );
 
       const rows = await (where ? base.where(where) : base)
         .orderBy(desc(ctx.schema.entities.createdAt))
@@ -170,19 +193,36 @@ export const adminEntitiesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const rows = await adminEntitiesRouter._def.procedures.list.resolve({
-        ctx,
-        input: {
-          query: input?.query,
-          ownerId: input?.ownerId,
-          status: input?.status,
-          page: 1,
-          size: 1000,
-        },
-        type: "query",
-        path: "list",
-        getRawInput: () => input,
-      } as never);
+      const conds: SQL<unknown>[] = [];
+      const q = input?.query?.trim();
+      if (q && q.length > 0)
+        conds.push(like(ctx.schema.entities.title, `%${q}%`));
+      if (input?.ownerId)
+        conds.push(eq(ctx.schema.entities.userId, input.ownerId));
+      if (input?.status === "active")
+        conds.push(eq(ctx.schema.entities.isActive, 1));
+      if (input?.status === "inactive")
+        conds.push(eq(ctx.schema.entities.isActive, 0));
+
+      let where: SQL<unknown> | undefined;
+      if (conds.length === 1) where = conds[0];
+      if (conds.length > 1) {
+        const [first, ...rest] = conds;
+        where = and(first, ...rest);
+      }
+
+      const base = ctx.drizzle
+        .select({
+          id: ctx.schema.entities.id,
+          title: ctx.schema.entities.title,
+          ownerId: ctx.schema.entities.userId,
+          isActive: ctx.schema.entities.isActive,
+          createdAt: ctx.schema.entities.createdAt,
+        })
+        .from(ctx.schema.entities);
+      const rows = await (where ? base.where(where) : base)
+        .orderBy(desc(ctx.schema.entities.createdAt))
+        .limit(1000);
       const head = ["id", "title", "ownerId", "isActive", "createdAt"].join(
         ",",
       );
