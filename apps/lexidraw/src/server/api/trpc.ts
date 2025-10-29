@@ -5,6 +5,7 @@ import { ZodError } from "zod";
 import { auth } from "~/server/auth";
 import { drizzle, schema } from "@packages/drizzle";
 import { checkPermission } from "./check-permission";
+import { assertAdmin } from "./assert-admin";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const session = await auth();
@@ -44,6 +45,11 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
       session: { ...ctx.session, user: ctx.session.user },
     },
   });
+});
+
+export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  await assertAdmin(ctx);
+  return next();
 });
 
 export const protectedProcedureWithPermission = (requiredPermission: string) =>
