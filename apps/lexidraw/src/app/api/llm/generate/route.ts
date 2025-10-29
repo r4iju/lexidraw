@@ -40,8 +40,22 @@ export async function POST(req: NextRequest) {
   }
 
   const mode = (body?.mode === "agent" ? "agent" : "chat") as "chat" | "agent";
+  const llmCfg = (session.user.config?.llm ?? {}) as unknown as {
+    chat?: {
+      modelId: string;
+      provider: string;
+      temperature: number;
+      maxOutputTokens: number;
+    };
+    agent?: {
+      modelId: string;
+      provider: string;
+      temperature: number;
+      maxOutputTokens: number;
+    };
+  };
   const section =
-    session.user.config?.llm?.[mode] ?? session.user.config?.llm?.chat;
+    (mode === "agent" ? llmCfg.agent : llmCfg.chat) ?? llmCfg.chat;
   const cfg = (section ?? {
     modelId: "gemini-2.5-flash",
     provider: "google",

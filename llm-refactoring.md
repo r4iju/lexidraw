@@ -260,12 +260,13 @@
     - Chat non-streaming proxy works via `/api/llm/generate`. ✓ `generateChatResponse` (no-tools, chat) now calls JSON route.
     - Agent (tools) proxy ✓ Implemented via `/api/llm/agent` returning `text` and `toolCalls`; client executes tools and continues as before.
 
-- **Phase 5 — Cleanup, deprecations, and docs (0.5–1 day)**
+- **Phase 5 — Cleanup, deprecations, and docs (0.5–1 day)** — Status: completed
 
   - Changes:
-    - Remove deprecated `generateAutocomplete` from context.
-    - Rename `setLlmConfiguration` → `updateLlmConfig` in code and docs.
-    - Document that tool streaming is not supported in `generateChatStream`; tool flows use `generateChatResponse`.
+    - Removed deprecated `generateAutocomplete` from LLM context; Toolbar and Autocomplete remain separate via server action.
+    - Confirmed `setLlmConfiguration` renamed to `updateLlmConfig` across code and docs.
+    - Documented: `generateChatStream` is text-only; tool flows use `generateChatResponse` (now proxied via `/api/llm/agent`).
+    - Removed client-side model list and provider instance getters; model selection is server-controlled.
   - Acceptance criteria:
     - No references to deprecated APIs remain; docs reflect final behavior.
 

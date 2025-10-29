@@ -40,8 +40,21 @@ export async function POST(req: NextRequest) {
   }
 
   // Use agent config if present, fall back to chat
-  const section =
-    session.user.config?.llm?.agent ?? session.user.config?.llm?.chat;
+  const llmCfg = (session.user.config?.llm ?? {}) as unknown as {
+    agent?: {
+      modelId: string;
+      provider: string;
+      temperature: number;
+      maxOutputTokens: number;
+    };
+    chat?: {
+      modelId: string;
+      provider: string;
+      temperature: number;
+      maxOutputTokens: number;
+    };
+  };
+  const section = llmCfg.agent ?? llmCfg.chat;
   const cfg = (section ?? {
     modelId: "gemini-2.5-flash",
     provider: "google",
@@ -101,9 +114,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const input = hasMessages
+      ? { messages: messages as ModelMessage[] }
+      : { prompt };
     const result = await generateText({
       model: model as unknown as LanguageModel,
-      ...(hasMessages ? { messages } : { prompt }),
+      ...input,
       system,
       temperature: effectiveTemperature,
       maxOutputTokens: effectiveMaxTokens,
@@ -115,7 +131,6 @@ export async function POST(req: NextRequest) {
     const toolCalls = (result.toolCalls ?? []).map((c) => ({
       toolCallId: c.toolCallId,
       toolName: c.toolName,
-      // @ts-expect-error structured input provided by model
       input: (c as unknown as { input?: Record<string, unknown> }).input ?? {},
     }));
 

@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useState,
-  useContext,
-  type PropsWithChildren,
-  useRef,
-  useEffect,
-} from "react";
+import { createContext, useCallback, useState, useContext } from "react";
+import type { PropsWithChildren } from "react";
 
 import type {
   LanguageModel,
@@ -18,8 +11,6 @@ import type {
   ToolChoice,
   ModelMessage,
 } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { api } from "~/trpc/react";
 import type {
   LlmBaseConfigSchema,
@@ -93,53 +84,7 @@ export type LLMOptions = {
   files?: File[] | FileList | null;
 };
 
-const LlmModelList = [
-  // OpenAI - GA
-  {
-    modelId: "gpt-5",
-    provider: "openai",
-    name: "GPT-5",
-    description: "OpenAI flagship multimodal model (GA)",
-  },
-  {
-    modelId: "gpt-5-mini",
-    provider: "openai",
-    name: "GPT-5 Mini",
-    description: "Smaller, faster GPT-5 tier (GA)",
-  },
-  {
-    modelId: "gpt-5-nano",
-    provider: "openai",
-    name: "GPT-5 Nano",
-    description: "Lowest-latency GPT-5 tier (GA)",
-  },
-
-  // Google Gemini - GA
-  {
-    modelId: "gemini-2.5-pro",
-    provider: "google",
-    name: "Gemini 2.5 Pro",
-    description: "Most capable Gemini 2.5 model (GA)",
-  },
-  {
-    modelId: "gemini-2.5-flash",
-    provider: "google",
-    name: "Gemini 2.5 Flash",
-    description: "Fast, cost-efficient Gemini 2.5 (GA)",
-  },
-  {
-    modelId: "gemini-2.5-flash-lite",
-    provider: "google",
-    name: "Gemini 2.5 Flash Lite",
-    description: "Lowest-cost Gemini 2.5 (GA)",
-  },
-  {
-    modelId: "gemini-2.0-flash",
-    provider: "google",
-    name: "Gemini 2.0 Flash",
-    description: "Gemini 2.0 Flash (GA)",
-  },
-] as const;
+// Model list removed; model selection is server-controlled
 
 type LLMContextValue = {
   llmConfig: LLMConfig;
@@ -151,7 +96,6 @@ type LLMContextValue = {
     }>,
     options?: { mode?: "chat" | "autocomplete" | "agent" },
   ) => void;
-  generateAutocomplete: (options: LLMOptions) => Promise<string>;
   autocompleteState: AutocompleteLLMState;
   generateChatResponse: (
     options: LLMOptions & {
@@ -180,13 +124,6 @@ type LLMContextValue = {
     },
   ) => Promise<void>;
   chatState: ChatLLMState;
-  availableModels: typeof LlmModelList;
-  getProviderInstance: (
-    providerName: string,
-  ) =>
-    | ReturnType<typeof createGoogleGenerativeAI>
-    | ReturnType<typeof createOpenAI>
-    | null;
 };
 
 const LLMContext = createContext<LLMContextValue | null>(null);
@@ -337,110 +274,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
     toolResults: [],
   } satisfies ChatLLMState);
 
-  const providerInstances = useRef<
-    Record<
-      string,
-      ReturnType<typeof createGoogleGenerativeAI | typeof createOpenAI>
-    >
-  >({});
-
-  const createProviderInstanceInternal = useCallback(
-    (providerName: string) => {
-      console.log("[LLMContext] Creating provider instance for:", providerName);
-      if (!initialConfig) {
-        console.error("[LLMContext] Config not loaded for API key access.");
-        return null;
-      }
-      const googleApiKey = initialConfig.googleApiKey;
-      const openaiApiKey = initialConfig.openaiApiKey;
-
-      if (providerInstances.current[providerName]) {
-        return providerInstances.current[providerName];
-      }
-
-      let instance: ReturnType<
-        typeof createGoogleGenerativeAI | typeof createOpenAI
-      > | null = null;
-      switch (providerName) {
-        case "google":
-          if (!googleApiKey) {
-            console.warn("[LLMContext] Google API key not configured.");
-            return null;
-          }
-          instance = createGoogleGenerativeAI({ apiKey: googleApiKey });
-          break;
-        case "openai":
-          if (!openaiApiKey) {
-            console.warn("[LLMContext] OpenAI API key not configured.");
-            return null;
-          }
-          instance = createOpenAI({ apiKey: openaiApiKey });
-          break;
-        default:
-          console.warn("Unsupported LLM provider:", providerName);
-          return null;
-      }
-
-      if (instance) {
-        providerInstances.current[providerName] = instance;
-      }
-      return instance;
-    },
-    [initialConfig],
-  );
-
-  const getProviderInstance = useCallback(
-    (providerName: string) => {
-      return createProviderInstanceInternal(providerName);
-    },
-    [createProviderInstanceInternal],
-  );
-
-  const autocompleteProvider =
-    useRef<ReturnType<typeof createProviderInstanceInternal>>(null);
-  const chatProvider =
-    useRef<ReturnType<typeof createProviderInstanceInternal>>(null);
-  const agentProvider =
-    useRef<ReturnType<typeof createProviderInstanceInternal>>(null);
-
-  useEffect(() => {
-    const createdAutocompleteProvider = createProviderInstanceInternal(
-      llmConfig.autocomplete.provider,
-    );
-    if (createdAutocompleteProvider) {
-      autocompleteProvider.current = createdAutocompleteProvider;
-    }
-    const createdChatProvider = createProviderInstanceInternal(
-      llmConfig.chat.provider,
-    );
-    if (createdChatProvider) {
-      chatProvider.current = createdChatProvider;
-    }
-    const createdAgentProvider = createProviderInstanceInternal(
-      llmConfig.agent.provider,
-    );
-    if (createdAgentProvider) {
-      agentProvider.current = createdAgentProvider;
-    }
-  }, [
-    createProviderInstanceInternal,
-    llmConfig.autocomplete.provider,
-    llmConfig.chat.provider,
-    llmConfig.agent.provider,
-  ]);
-
-  const generateAutocomplete = useCallback(
-    async ({ signal }: LLMOptions): Promise<string> => {
-      console.warn(
-        "[LLMContext] generateAutocomplete is deprecated. Use useAutocompleteEngine().",
-      );
-      if (signal?.aborted) return "";
-      return "";
-    },
-    [],
-  );
-
-  // Legacy file-based prompt builder has moved server-side (SSE endpoint handles files)
+  // Removed client provider instances; server proxies are authoritative
 
   const generateChatResponse = useCallback(
     async ({
@@ -727,13 +561,10 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       value={{
         llmConfig,
         updateLlmConfig,
-        generateAutocomplete,
         autocompleteState,
         generateChatResponse,
         generateChatStream,
         chatState,
-        availableModels: LlmModelList,
-        getProviderInstance,
       }}
     >
       {children}

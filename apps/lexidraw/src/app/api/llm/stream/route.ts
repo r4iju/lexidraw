@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   let prompt = "";
   let temperature: number | undefined;
   let maxOutputTokens: number | undefined;
-  let files: File[] = [];
+  const files: File[] = [];
 
   try {
     if (contentType.includes("multipart/form-data")) {
