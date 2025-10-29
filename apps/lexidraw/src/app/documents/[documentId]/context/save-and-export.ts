@@ -5,6 +5,7 @@ import type { RouterOutputs } from "~/trpc/shared";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import type { AppRouter } from "~/server/api/root";
 import type { RefObject } from "react";
+import { useState } from "react";
 import type { EditorState } from "lexical";
 import { useDocumentSettings } from "./document-settings-context";
 
@@ -18,6 +19,7 @@ export function useSaveAndExportDocument({
   const router = useRouter();
   const { mutate: save } = api.entities.save.useMutation();
   const { defaultFontFamily } = useDocumentSettings();
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleSaveAndLeave = () => {
     if (!editorStateRef.current) {
@@ -27,6 +29,7 @@ export function useSaveAndExportDocument({
 
     const TOAST_ID = `save-${entity.id}`;
     toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
+    setIsSaving(true);
     save(
       {
         id: entity.id,
@@ -37,6 +40,7 @@ export function useSaveAndExportDocument({
       {
         onSuccess: async () => {
           toast.success("Saved", { id: TOAST_ID });
+          setIsSaving(false);
           router.push("/dashboard");
         },
         onError: (error: TRPCClientErrorLike<AppRouter>) => {
@@ -44,6 +48,7 @@ export function useSaveAndExportDocument({
             id: TOAST_ID,
             description: error.message,
           });
+          setIsSaving(false);
         },
       },
     );
@@ -56,6 +61,7 @@ export function useSaveAndExportDocument({
     }
     const TOAST_ID = `save-${entity.id}`;
     toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
+    setIsSaving(true);
     save(
       {
         id: entity.id,
@@ -66,6 +72,7 @@ export function useSaveAndExportDocument({
       {
         onSuccess: async () => {
           toast.success("Saved", { id: TOAST_ID });
+          setIsSaving(false);
           onSaveSuccessCallback?.();
         },
         onError: (error) => {
@@ -73,10 +80,11 @@ export function useSaveAndExportDocument({
             id: TOAST_ID,
             description: error.message,
           });
+          setIsSaving(false);
         },
       },
     );
   };
 
-  return { handleSaveAndLeave, handleSave };
+  return { handleSaveAndLeave, handleSave, isUploading: isSaving };
 }

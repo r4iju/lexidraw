@@ -66,6 +66,12 @@ export default async function ScreenshotDocumentPage(props: Props) {
       temperature: 0.3,
       maxOutputTokens: 500,
     },
+    agent: {
+      modelId: "gpt-5",
+      provider: "openai",
+      temperature: 0.7,
+      maxOutputTokens: 100000,
+    },
   };
 
   return (

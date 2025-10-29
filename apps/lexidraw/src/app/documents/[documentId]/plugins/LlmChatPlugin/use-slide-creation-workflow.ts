@@ -243,6 +243,7 @@ export function useSlideCreationWorkflow() {
         prompt: "",
         toolChoice,
         signal,
+        mode: "agent",
       });
 
       console.log(

@@ -413,8 +413,8 @@ export const useSendQuery = () => {
             responseResult = await generateChatResponse({
               prompt: fullPrompt,
               system: systemPrompt,
-              temperature: llmConfig.chat.temperature,
-              maxOutputTokens: llmConfig.chat.maxOutputTokens,
+              temperature: llmConfig.agent.temperature,
+              maxOutputTokens: llmConfig.agent.maxOutputTokens,
               tools: selectedTools,
               maxSteps: maxAgentSteps,
               prepareStep: prepareStepForSelected,
@@ -432,6 +432,7 @@ export const useSendQuery = () => {
                 });
                 return toolCall;
               },
+              mode: "agent",
             });
           } catch {
             // Retry once with a small expanded default subset
@@ -447,12 +448,13 @@ export const useSendQuery = () => {
             responseResult = await generateChatResponse({
               prompt: fullPrompt,
               system: systemPrompt,
-              temperature: llmConfig.chat.temperature,
-              maxOutputTokens: llmConfig.chat.maxOutputTokens,
+              temperature: llmConfig.agent.temperature,
+              maxOutputTokens: llmConfig.agent.maxOutputTokens,
               tools: fallbackTools,
               maxSteps: maxAgentSteps,
               prepareStep: prepareStepForSelected,
               files: files,
+              mode: "agent",
             });
           }
 
