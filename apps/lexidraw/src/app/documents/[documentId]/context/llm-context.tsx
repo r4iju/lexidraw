@@ -328,29 +328,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           };
         }
 
-        // Apply OpenAI max token cap for chat
-        if (nextState.chat.provider === "openai") {
-          nextState.chat.maxOutputTokens = Math.min(
-            nextState.chat.maxOutputTokens,
-            32768,
-          );
-        }
-
-        // Apply OpenAI max token cap for autocomplete
-        if (nextState.autocomplete.provider === "openai") {
-          nextState.autocomplete.maxOutputTokens = Math.min(
-            nextState.autocomplete.maxOutputTokens,
-            32768,
-          );
-        }
-
-        // Apply OpenAI max token cap for agent
-        if (nextState.agent.provider === "openai") {
-          nextState.agent.maxOutputTokens = Math.min(
-            nextState.agent.maxOutputTokens,
-            32768,
-          );
-        }
+        // Token caps now enforced on the server; no client-side capping
 
         return nextState;
       });

@@ -230,7 +230,7 @@
     - Client: extended `LLMConfig` with `agent`, added `agentProvider`, and added `mode?: 'chat' | 'agent'` to `generateChatResponse`.
     - Call sites: agent flows now pass `mode: 'agent'` and use `llmConfig.agent` for temperature/tokens.
 
-- **Phase 3 — Server-enforced caps; remove client caps**
+- **Phase 3 — Server-enforced caps; remove client caps** — Status: completed
 
   - Changes:
     - Move provider caps to server: normalize values in `getConfig`; validate/coerce in `updateLlmConfig`.
@@ -240,6 +240,9 @@
     - `context/llm-context.tsx`, `plugins/ToolbarPlugin/llm-config.tsx`
   - Acceptance criteria:
     - UI shows server-normalized values; client contains no ad-hoc caps.
+  - Implementation notes:
+    - Added provider-based max token normalization in `getConfig` and `updateLlmConfig` (`openai` 32,768; `google` 65,535).
+    - Removed client-side capping logic in `llm-context.tsx`. Toolbar already has no token controls.
 
 - **Phase 4 — Server proxy endpoints and immediate switch**
 

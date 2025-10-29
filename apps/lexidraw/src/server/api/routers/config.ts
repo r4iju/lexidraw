@@ -118,6 +118,21 @@ const defaultAgentBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   maxOutputTokens: 100000,
 };
 
+// --- Provider normalization helpers ---
+const MAX_TOKENS_BY_PROVIDER: Record<string, number> = {
+  openai: 32768,
+  google: 65535,
+};
+
+function normalizeBaseConfig(
+  base: z.infer<typeof LlmBaseConfigSchema>,
+): z.infer<typeof LlmBaseConfigSchema> {
+  const cap = MAX_TOKENS_BY_PROVIDER[base.provider] ?? base.maxOutputTokens;
+  const maxOutputTokens = Math.min(base.maxOutputTokens, cap);
+  // temperature already validated by zod min/max
+  return { ...base, maxOutputTokens };
+}
+
 // --- TTS and Article Config Schemas & Defaults ---
 const TtsConfigSchema = z.object({
   provider: z.enum(["openai", "google", "kokoro", "apple_say", "xtts"]),
@@ -242,7 +257,7 @@ export const configRouter = createTRPCRouter({
       });
 
       const existingLlm = (user?.config?.llm ?? {}) as Partial<z.infer<typeof LlmConfigSchema>>;
-      const llmConfig = {
+      const llmConfigUnnormalized = {
         ...defaultChatBaseConfig,
         ...existingLlm,
         chat: {
@@ -258,6 +273,13 @@ export const configRouter = createTRPCRouter({
           ...existingLlm?.agent,
         },
       } satisfies StoredLlmConfig;
+
+      const llmConfig: StoredLlmConfig = {
+        ...llmConfigUnnormalized,
+        chat: normalizeBaseConfig(llmConfigUnnormalized.chat),
+        autocomplete: normalizeBaseConfig(llmConfigUnnormalized.autocomplete),
+        agent: normalizeBaseConfig(llmConfigUnnormalized.agent),
+      };
 
       return LlmConfigSchema.parse(llmConfig ?? {});
     },
@@ -747,7 +769,7 @@ export const configRouter = createTRPCRouter({
       });
 
       const currentLlm = (currentUser?.config?.llm ?? {}) as Partial<z.infer<typeof LlmConfigSchema>>;
-      const newLlmConfigToSave = LlmConfigSchema.parse({
+      const newLlmConfigUnnormalized = {
         ...currentLlm,
         chat: {
           ...defaultChatBaseConfig,
@@ -764,6 +786,13 @@ export const configRouter = createTRPCRouter({
           ...currentLlm?.agent,
           ...input.agent,
         },
+      } as StoredLlmConfig;
+
+      const newLlmConfigToSave = LlmConfigSchema.parse({
+        ...newLlmConfigUnnormalized,
+        chat: normalizeBaseConfig(newLlmConfigUnnormalized.chat),
+        autocomplete: normalizeBaseConfig(newLlmConfigUnnormalized.autocomplete),
+        agent: normalizeBaseConfig(newLlmConfigUnnormalized.agent),
       });
 
       // Merge LLM into existing config to avoid clobbering audio/tts/articles
