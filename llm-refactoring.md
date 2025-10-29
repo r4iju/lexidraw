@@ -270,7 +270,8 @@
   - Acceptance criteria:
     - No references to deprecated APIs remain; docs reflect final behavior.
 
-- **Phase 6 — QA and observability (optional but recommended,)**
+- **Phase 6 — QA and observability (optional but recommended,)** — Status: completed
+
   - Add basic logging for generation errors and timings on the server; capture token usage where available.
   - Smoke tests for:
     - Chat streaming and error surfaces
@@ -279,6 +280,95 @@
     - Autocomplete unaffected (still via its server action)
   - Acceptance criteria:
     - No regressions in the editor chat or slides workflow; telemetry visible in logs.
+
+- **Phase 7 — Admin Dashboard for LLM Configuration and Audit**
+
+- Goals
+
+  - Persist and surface an auditable trail of all LLM usage (chat, agent, autocomplete).
+  - Admin UX to edit global defaults/policies and per-user overrides.
+  - Explore usage by user/document/mode/provider with drilldowns and export.
+
+- Scope
+
+  - **App**: `apps/lexidraw` (Next 15, React 19, Tailwind v4, shadcn).
+  - **Access**: role-gated (admin only) via `Roles/UserRoles`.
+  - **Data**: `Users.config.llm`, `LLMAuditEvents`, `Entities` (+ optional `LLMPolicies`).
+
+- IA and routes
+
+  - **Route group**: `app/(admin)/admin/llm`
+  - **Overview**: KPIs + charts (tokens by mode/provider; requests over time).
+  - **Policies**: edit defaults per mode; allowed models/providers; caps (server-enforced).
+  - **Users**: list + search; view per-user overrides, usage summary; edit overrides.
+  - **Usage**: explorer table with filters (date, user, entity, mode, provider, route, error) + CSV export; event drawer.
+  - **Settings**: feature flags (e.g., autocomplete default), policy notes.
+
+- Data model
+
+  - **Mandatory**: `LLMAuditEvents` (already added).
+  - **Optional policy table** (if not using single JSON row):
+    - `LLMPolicies`:
+      - `id`, `createdAt`, `updatedAt`
+      - `mode`: 'chat' | 'agent' | 'autocomplete'
+      - `defaults`: { provider, modelId, temperature, maxOutputTokens }
+      - `allowedModels`: [ { provider, modelId } ]
+      - `enforcedCaps`: { maxOutputTokensByProvider: { openai, google } }
+      - Unique index on (`mode`)
+    - Alternative: `AppConfig.llmPolicies` JSON in a single-row table.
+
+- APIs (admin-only). Must be implemented with TRPC not rest.
+
+  - **Policies**
+    - GET `/admin/llm/policies`
+    - PUT `/admin/llm/policies`
+  - **Users**
+    - GET `/admin/llm/users?query=&page=&size=`
+    - GET `/admin/llm/users/:id`
+    - PATCH `/admin/llm/users/:id/llm`
+  - **Usage**
+    - GET `/admin/llm/usage?from=&to=&mode=&provider=&userId=&entityId=&route=&error=`
+    - GET `/admin/llm/usage/:requestId`
+    - GET `/admin/llm/usage/export.csv?filters...`
+
+- UI/UX
+
+  - **Overview**
+    - **KPIs**: total tokens, total events, p95 latency (range).
+    - **Charts**: tokens by mode/provider (stacked bar); requests over time (line).
+  - **Policies**
+    - Tabs per mode; form with provider, modelId, temperature, maxOutputTokens; allowed models multi-select; save with server normalization.
+  - **Users**
+    - **Table**: Name, Email, Tokens (30d), Requests (30d), Last active, Overrides?
+    - **Drawer**: per-user overrides (tabs), small charts, save/cancel.
+  - **Usage explorer**
+    - Filters + paginated table (time, user, entity, mode, provider/model, tokens, latency, route, error).
+    - **Event drawer**: toolCalls summary (agent), caps used, requestId.
+
+- Security and privacy
+
+  - Admin-only access; never expose API keys.
+  - No raw prompts/messages/files; lengths/counts only.
+  - Strict role checks on all admin endpoints.
+
+- Performance
+
+  - Use existing audit indexes; server-side pagination.
+  - SQL aggregations with proper indices; optional caching later.
+
+- Rollout
+
+  - A: Usage explorer (read-only) + Users page (read-only) + Overview KPIs.
+  - B: Policies edit + per-user overrides edit.
+  - C: CSV export, saved views, polished charts.
+
+- To-dos
+  - Add admin guard and shared admin layout.
+  - Implement Policies endpoints and UI (or `AppConfig` JSON).
+  - Implement Users list/detail/override endpoints + UI.
+  - Implement Usage list/detail/export endpoints + UI.
+  - Wire `entityId` to client requests if not already present in context.
+  - Docs: redaction policy; example SQL and dashboards.
 
 ### Notable implementation details and constraints
 
