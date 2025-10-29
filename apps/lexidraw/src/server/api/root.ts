@@ -9,6 +9,8 @@ import { imageRouter } from "./routers/image";
 import { webRouter } from "./routers/web";
 import { articlesRouter } from "./routers/articles";
 import { adminLlmRouter } from "./routers/admin/llm";
+import { adminUsersRouter } from "./routers/admin/users";
+import { adminEntitiesRouter } from "./routers/admin/entities";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -21,6 +23,8 @@ export const appRouter = createTRPCRouter({
   web: webRouter,
   articles: articlesRouter,
   adminLlm: adminLlmRouter,
+  adminUsers: adminUsersRouter,
+  adminEntities: adminEntitiesRouter,
 });
 
 // export type definition of API

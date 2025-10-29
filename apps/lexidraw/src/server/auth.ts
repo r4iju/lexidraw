@@ -2,9 +2,10 @@ import NextAuth, { type Session, type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { drizzle } from "@packages/drizzle";
+import { drizzle, schema, eq } from "@packages/drizzle";
 import { getSignInSchema } from "~/app/signin/schema";
 import env from "@packages/env";
+import { cookies as nextCookies } from "next/headers";
 
 // Define the structure for LLM config based on schema
 type LlmBaseConfig = {
@@ -41,6 +42,9 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
+      effectiveUserId?: string;
+      isImpersonating?: boolean;
+      impersonatorAdminId?: string;
       // Update the config type here
       config?: {
         llm?: Partial<LlmConfig>; // Use the defined LlmConfig type, make it partial
@@ -101,10 +105,7 @@ const cookies = isDev
     }
   : undefined;
 
-export const {
-  handlers: { GET, POST },
-  auth,
-} = NextAuth({
+const nextAuth = NextAuth({
   ...(shouldTrustHost ? { trustHost: true } : {}),
   cookies,
   adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
@@ -227,5 +228,39 @@ export const {
       ).join("");
     },
   },
-  // debug: true,
 });
+
+export const {
+  handlers: { GET, POST },
+  auth,
+} = nextAuth;
+
+export const IMPERSONATE_COOKIE_NAME = "impersonate_user_id";
+
+export async function authEffective(): Promise<Session | null> {
+  const session = await auth();
+  if (!session?.user?.id) return session;
+
+  // Only allow impersonation if the real user is an admin
+  const rows = await drizzle
+    .select({ roleName: schema.roles.name })
+    .from(schema.userRoles)
+    .innerJoin(schema.roles, eq(schema.userRoles.roleId, schema.roles.id))
+    .where(eq(schema.userRoles.userId, session.user.id));
+  const isAdmin = rows.some((r) => r.roleName === "admin");
+  if (!isAdmin) return session;
+
+  const cookies = await nextCookies();
+  const targetUserId = cookies.get(IMPERSONATE_COOKIE_NAME)?.value;
+  if (!targetUserId || targetUserId === session.user.id) return session;
+
+  return {
+    ...session,
+    user: {
+      ...session.user,
+      effectiveUserId: targetUserId,
+      isImpersonating: true,
+      impersonatorAdminId: session.user.id,
+    },
+  } as Session;
+}

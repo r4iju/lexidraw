@@ -128,6 +128,7 @@ export const users = sqliteTable(
     password: text("password"),
     emailVerified: numeric("emailVerified"),
     image: text("image"),
+    isActive: integer("isActive").notNull().default(1),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`1735950685000`)
@@ -138,7 +139,10 @@ export const users = sqliteTable(
       .$defaultFn(() => new Date()),
     deletedAt: integer("deletedAt", { mode: "timestamp_ms" }),
   },
-  (table) => [uniqueIndex("User_email_key").on(table.email)],
+  (table) => [
+    uniqueIndex("User_email_key").on(table.email),
+    index("User_name_idx").on(table.name),
+  ],
 );
 
 export const roles = sqliteTable(
@@ -296,6 +300,7 @@ export const entities = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     publicAccess: text("publicAccess").$type<PublicAccess>().notNull(),
+    isActive: integer("isActive").notNull().default(1),
     // thumbnail generation state
     thumbnailStatus: text("thumbnailStatus")
       .$type<"pending" | "ready" | "error">()
@@ -306,6 +311,8 @@ export const entities = sqliteTable(
   (table) => [
     index("Entity_userId_idx").on(table.userId),
     index("Entity_parentId_idx").on(table.parentId),
+    index("Entity_title_idx").on(table.title),
+    index("Entity_createdAt_idx").on(table.createdAt),
     uniqueIndex("Entity_unique_directory_name")
       .on(table.title, table.parentId)
       .where(sql`entityType = 'directory'`),
@@ -622,6 +629,28 @@ export const llmAuditEvents = sqliteTable(
     index("LLMAudit_entity_createdAt_idx").on(table.entityId, table.createdAt),
     index("LLMAudit_mode_createdAt_idx").on(table.mode, table.createdAt),
     index("LLMAudit_route_createdAt_idx").on(table.route, table.createdAt),
+  ],
+);
+
+// Admin audit events for sensitive admin actions
+export const adminAuditEvents = sqliteTable(
+  "AdminAuditEvents",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    adminUserId: text("adminUserId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    action: text("action").notNull(),
+    targetType: text("targetType").notNull(),
+    targetId: text("targetId").notNull(),
+    data: text("data", { mode: "json" }).$type<unknown | null>(),
+  },
+  (table) => [
+    index("AdminAuditEvents_createdAt_idx").on(table.createdAt),
+    index("AdminAuditEvents_target_idx").on(table.targetType, table.targetId),
   ],
 );
 
