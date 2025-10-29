@@ -8,6 +8,7 @@ import { configRouter } from "./routers/config";
 import { imageRouter } from "./routers/image";
 import { webRouter } from "./routers/web";
 import { articlesRouter } from "./routers/articles";
+import { adminLlmRouter } from "./routers/admin/llm";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -19,6 +20,7 @@ export const appRouter = createTRPCRouter({
   image: imageRouter,
   web: webRouter,
   articles: articlesRouter,
+  adminLlm: adminLlmRouter,
 });
 
 // export type definition of API
