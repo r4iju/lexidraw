@@ -191,7 +191,7 @@
     - A short ADR in the repo summarizing decisions above.
     - Test-doc outlining which flows should use chat vs agent.
 
-- **Phase 1 — Unify client config; remove drifting setters; simplify Toolbar**
+- **Phase 1 — Unify client config; remove drifting setters; simplify Toolbar** — Status: completed
 
   - Changes:
     - In `llm-context.tsx`, make `llmConfig` the single config state; stop spreading config into `chatState`/`autocompleteState` on save success.
@@ -207,8 +207,13 @@
     - Only `llmConfig` holds config; runtime states only track errors/streaming.
     - All existing UI updates still reflect latest config after save.
     - Toolbar contains only the Autocomplete toggle; Chat has no controls and no model picker.
+  - Implementation notes:
+    - Replaced `setLlmConfiguration` with `updateLlmConfig` in context; removed `setChatLlmOptions`/`setAutocompleteLlmOptions`.
+    - `updateLlmConfig` updates local `llmConfig` and schedules a debounced persist; on mutation success, `llmConfig` is refreshed from the server response.
+    - Removed `settings.chat` gating in `generateChatResponse`/`generateChatStream`.
+    - Simplified Toolbar `LlmModelSelector` to only an Autocomplete toggle (no temperature/tokens/model UI).
 
-- **Phase 2 — Add Agent config to server and client types**
+- **Phase 2 — Add Agent config to server and client types** — Status: completed
 
   - Changes:
     - Server: Extend zod schemas and router: add `agent` to `LlmConfigSchema` and `PatchSchema`; update `getConfig` defaults and `updateLlmConfig` merge logic.
@@ -220,6 +225,10 @@
   - Acceptance criteria:
     - Agent flows read from `llmConfig.agent`; chat flows remain on `llmConfig.chat`.
     - `getConfig()` returns validated `agent` section with defaults.
+  - Implementation notes:
+    - Server: added `agent` to `LlmConfigSchema` and `PatchSchema`, added `defaultAgentBaseConfig`, merged in `getConfig` and `updateLlmConfig`.
+    - Client: extended `LLMConfig` with `agent`, added `agentProvider`, and added `mode?: 'chat' | 'agent'` to `generateChatResponse`.
+    - Call sites: agent flows now pass `mode: 'agent'` and use `llmConfig.agent` for temperature/tokens.
 
 - **Phase 3 — Server-enforced caps; remove client caps**
 

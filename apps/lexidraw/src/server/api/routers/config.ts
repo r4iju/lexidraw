@@ -16,6 +16,7 @@ export const LlmConfigSchema = z.object({
   openaiApiKey: z.string().optional(),
   chat: LlmBaseConfigSchema,
   autocomplete: LlmBaseConfigSchema,
+  agent: LlmBaseConfigSchema,
 });
 
 export const PatchSchema = z.object({
@@ -23,6 +24,7 @@ export const PatchSchema = z.object({
   openaiApiKey: z.string().optional(),
   chat: LlmBaseConfigSchema.partial().optional(),
   autocomplete: LlmBaseConfigSchema.partial().optional(),
+  agent: LlmBaseConfigSchema.partial().optional(),
 });
 
 export type StoredLlmConfig = z.infer<typeof LlmConfigSchema>;
@@ -108,6 +110,14 @@ const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   maxOutputTokens: 500,
 };
 
+const defaultAgentBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
+  // For now mirror chat defaults; can be tuned separately later
+  modelId: "gemini-2.5-flash",
+  provider: "google",
+  temperature: 0.7,
+  maxOutputTokens: 100000,
+};
+
 // --- TTS and Article Config Schemas & Defaults ---
 const TtsConfigSchema = z.object({
   provider: z.enum(["openai", "google", "kokoro", "apple_say", "xtts"]),
@@ -172,7 +182,12 @@ export const configRouter = createTRPCRouter({
         cfg = { ...defaults, ...seed } as typeof defaults & Record<string, unknown>;
         await ctx.drizzle
           .update(schema.users)
-          .set({ config: { ...(user?.config ?? {}), autocomplete: cfg } })
+          .set({
+            config: {
+              ...(user?.config ?? {}),
+              autocomplete: cfg,
+            } as (typeof schema.users.$inferInsert)["config"],
+          })
           .where(eq(schema.users.id, ctx.session.user.id));
       }
     }
@@ -226,16 +241,21 @@ export const configRouter = createTRPCRouter({
         },
       });
 
+      const existingLlm = (user?.config?.llm ?? {}) as Partial<z.infer<typeof LlmConfigSchema>>;
       const llmConfig = {
         ...defaultChatBaseConfig,
-        ...user?.config?.llm,
+        ...existingLlm,
         chat: {
           ...defaultChatBaseConfig,
-          ...user?.config?.llm?.chat,
+          ...existingLlm?.chat,
         },
         autocomplete: {
           ...defaultAutocompleteBaseConfig,
-          ...user?.config?.llm?.autocomplete,
+          ...existingLlm?.autocomplete,
+        },
+        agent: {
+          ...defaultAgentBaseConfig,
+          ...existingLlm?.agent,
         },
       } satisfies StoredLlmConfig;
 
@@ -726,17 +746,23 @@ export const configRouter = createTRPCRouter({
         columns: { config: true },
       });
 
+      const currentLlm = (currentUser?.config?.llm ?? {}) as Partial<z.infer<typeof LlmConfigSchema>>;
       const newLlmConfigToSave = LlmConfigSchema.parse({
-        ...currentUser?.config?.llm,
+        ...currentLlm,
         chat: {
           ...defaultChatBaseConfig,
-          ...currentUser?.config?.llm?.chat,
+          ...currentLlm?.chat,
           ...input.chat,
         },
         autocomplete: {
           ...defaultAutocompleteBaseConfig,
-          ...currentUser?.config?.llm?.autocomplete,
+          ...currentLlm?.autocomplete,
           ...input.autocomplete,
+        },
+        agent: {
+          ...defaultAgentBaseConfig,
+          ...currentLlm?.agent,
+          ...input.agent,
         },
       });
 
