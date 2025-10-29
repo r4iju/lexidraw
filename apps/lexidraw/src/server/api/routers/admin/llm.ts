@@ -1,5 +1,4 @@
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { assertAdmin } from "~/server/api/assert-admin";
+import { createTRPCRouter, adminProcedure } from "~/server/api/trpc";
 import { z } from "zod";
 import { and, desc, eq, like, sql, type SQL } from "@packages/drizzle";
 import {
@@ -10,8 +9,7 @@ import {
 
 export const adminLlmRouter = createTRPCRouter({
   policies: createTRPCRouter({
-    getAll: protectedProcedure.input(z.void()).query(async ({ ctx }) => {
-      await assertAdmin(ctx);
+    getAll: adminProcedure.input(z.void()).query(async ({ ctx }) => {
       const rows = await ctx.drizzle
         .select({
           id: ctx.schema.llmPolicies.id,
@@ -29,10 +27,9 @@ export const adminLlmRouter = createTRPCRouter({
       return PoliciesGetAllOutputSchema.parse(rows);
     }),
 
-    upsert: protectedProcedure
+    upsert: adminProcedure
       .input(UpsertPolicyInputSchema)
       .mutation(async ({ ctx, input }) => {
-        await assertAdmin(ctx);
         // Normalize (example: ensure temperature bounds and positive tokens)
         const normalized = LLMPolicySchema.parse(input);
 
@@ -89,7 +86,7 @@ export const adminLlmRouter = createTRPCRouter({
   }),
 
   users: createTRPCRouter({
-    list: protectedProcedure
+    list: adminProcedure
       .input(
         z.object({
           query: z.string().optional(),
@@ -98,7 +95,6 @@ export const adminLlmRouter = createTRPCRouter({
         }),
       )
       .query(async ({ ctx, input }) => {
-        await assertAdmin(ctx);
         const page = input?.page ?? 1;
         const size = input?.size ?? 20;
         const q = input?.query?.trim();
@@ -132,10 +128,9 @@ export const adminLlmRouter = createTRPCRouter({
         return rows;
       }),
 
-    get: protectedProcedure
+    get: adminProcedure
       .input(z.object({ id: z.string().min(1) }))
       .query(async ({ ctx, input }) => {
-        await assertAdmin(ctx);
         const [user] = await ctx.drizzle
           .select({
             id: ctx.schema.users.id,
@@ -151,7 +146,7 @@ export const adminLlmRouter = createTRPCRouter({
   }),
 
   usage: createTRPCRouter({
-    list: protectedProcedure
+    list: adminProcedure
       .input(
         z.object({
           from: z.number().optional(),
@@ -167,7 +162,6 @@ export const adminLlmRouter = createTRPCRouter({
         }),
       )
       .query(async ({ ctx, input }) => {
-        await assertAdmin(ctx);
         const page = input?.page ?? 1;
         const size = input?.size ?? 50;
 
@@ -235,10 +229,9 @@ export const adminLlmRouter = createTRPCRouter({
         return rows;
       }),
 
-    getByRequestId: protectedProcedure
+    getByRequestId: adminProcedure
       .input(z.object({ requestId: z.string().min(1) }))
       .query(async ({ ctx, input }) => {
-        await assertAdmin(ctx);
         const [row] = await ctx.drizzle
           .select()
           .from(ctx.schema.llmAuditEvents)
