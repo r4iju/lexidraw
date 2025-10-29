@@ -624,3 +624,31 @@ export const llmAuditEvents = sqliteTable(
     index("LLMAudit_route_createdAt_idx").on(table.route, table.createdAt),
   ],
 );
+
+// LLM Policies (one row per mode)
+export const llmPolicies = sqliteTable(
+  "LLMPolicies",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+    mode: text("mode").notNull(), // 'chat' | 'agent' | 'autocomplete'
+    provider: text("provider").notNull(),
+    modelId: text("modelId").notNull(),
+    temperature: real("temperature").notNull(),
+    maxOutputTokens: integer("maxOutputTokens").notNull(),
+    allowedModels: text("allowedModels", { mode: "json" })
+      .$type<{ provider: string; modelId: string }[]>()
+      .notNull(),
+    enforcedCaps: text("enforcedCaps", { mode: "json" })
+      .$type<{
+        maxOutputTokensByProvider: { openai: number; google: number };
+      }>()
+      .notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [uniqueIndex("LLMPolicies_mode_unique").on(table.mode)],
+);
