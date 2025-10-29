@@ -2,13 +2,13 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
-import { auth } from "~/server/auth";
+import { authEffective } from "~/server/auth";
 import { drizzle, schema } from "@packages/drizzle";
 import { checkPermission } from "./check-permission";
 import { assertAdmin } from "./assert-admin";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const session = await auth();
+  const session = await authEffective();
   return {
     drizzle,
     schema,

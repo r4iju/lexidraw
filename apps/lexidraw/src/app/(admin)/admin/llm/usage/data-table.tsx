@@ -129,8 +129,6 @@ export function UsageDataTable(props: {
         ? `${sorting[0].id}.${sorting[0].desc ? "desc" : "asc"}`
         : undefined,
     });
-    // Only trigger when user changes these locally
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageIndex, pageSize, routeFilter, modelFilter, sorting, updateUrl]);
 
   return (
