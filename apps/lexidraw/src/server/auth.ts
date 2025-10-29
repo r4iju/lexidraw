@@ -105,15 +105,16 @@ export const {
   handlers: { GET, POST },
   auth,
 } = NextAuth({
-  trustHost: shouldTrustHost,
+  ...(shouldTrustHost ? { trustHost: true } : {}),
   cookies,
-  // types dont match in current versions..
   adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
   pages: {
-    signIn: "/signin",
-    newUser: "/signup",
-    signOut: "/signout",
-    error: "/error",
+    ...(shouldTrustHost ? {
+      signIn: "/signin",
+      newUser: "/signup",
+      signOut: "/signout",
+      error: "/error",
+    } : {}),
   },
   callbacks: {
     session: ({ session, token }) => {
