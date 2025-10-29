@@ -70,10 +70,7 @@ export async function POST(req: NextRequest) {
 
   const effectiveTemperature =
     typeof body?.temperature === "number" ? body.temperature : cfg.temperature;
-  const effectiveMaxTokens =
-    typeof body?.maxOutputTokens === "number"
-      ? body.maxOutputTokens
-      : cfg.maxOutputTokens;
+  const effectiveMaxTokens = cfg.maxOutputTokens;
 
   const provider = cfg.provider;
   const modelId = cfg.modelId;

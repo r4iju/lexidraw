@@ -24,7 +24,6 @@ export async function POST(req: NextRequest) {
   let system = "";
   let prompt = "";
   let temperature: number | undefined;
-  let maxOutputTokens: number | undefined;
   const files: File[] = [];
 
   try {
@@ -33,9 +32,7 @@ export async function POST(req: NextRequest) {
       system = (form.get("system") ?? "").toString();
       prompt = (form.get("prompt") ?? "").toString();
       const t = form.get("temperature");
-      const m = form.get("maxOutputTokens");
       if (typeof t === "string" && t) temperature = Number(t);
-      if (typeof m === "string" && m) maxOutputTokens = Number(m);
       const maybeFiles = form.getAll("files");
       for (const f of maybeFiles) {
         if (f instanceof File) files.push(f);
@@ -45,13 +42,10 @@ export async function POST(req: NextRequest) {
         system?: string;
         prompt?: string;
         temperature?: number;
-        maxOutputTokens?: number;
       };
       system = (body?.system ?? "").toString();
       prompt = (body?.prompt ?? "").toString();
       if (typeof body?.temperature === "number") temperature = body.temperature;
-      if (typeof body?.maxOutputTokens === "number")
-        maxOutputTokens = body.maxOutputTokens;
     }
   } catch {
     return new Response("Invalid request body", { status: 400 });
@@ -75,10 +69,7 @@ export async function POST(req: NextRequest) {
 
   const effectiveTemperature =
     typeof temperature === "number" ? temperature : chatCfg.temperature;
-  const effectiveMaxTokens =
-    typeof maxOutputTokens === "number"
-      ? maxOutputTokens
-      : chatCfg.maxOutputTokens;
+  const effectiveMaxTokens = chatCfg.maxOutputTokens;
 
   const provider = chatCfg.provider;
   const modelId = chatCfg.modelId;

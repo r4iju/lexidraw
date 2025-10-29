@@ -71,18 +71,19 @@ export async function POST(req: NextRequest) {
     typeof parsed.temperature === "number"
       ? parsed.temperature
       : cfg.temperature;
-  const effectiveMaxTokens =
-    typeof parsed.maxOutputTokens === "number"
-      ? parsed.maxOutputTokens
-      : cfg.maxOutputTokens;
+  const effectiveMaxTokens = cfg.maxOutputTokens;
 
   // Build permissive tool schemas on the server (args validated client-side)
+  // NOTE: OpenAI function schema requires at least one defined property.
+  // We expose a single optional property "args" to carry arbitrary input.
   const toolMap = Object.fromEntries(
     parsed.tools.map((name) => [
       name,
       tool({
         description: `Remote-executed tool: ${name}`,
-        inputSchema: z.record(z.string(), z.any()).default({}),
+        inputSchema: z.object({
+          args: z.record(z.string(), z.any()).optional(),
+        }),
       }),
     ]),
   );
@@ -128,11 +129,19 @@ export async function POST(req: NextRequest) {
       toolChoice: "auto",
     });
 
-    const toolCalls = (result.toolCalls ?? []).map((c) => ({
-      toolCallId: c.toolCallId,
-      toolName: c.toolName,
-      input: (c as unknown as { input?: Record<string, unknown> }).input ?? {},
-    }));
+    const toolCalls = (result.toolCalls ?? []).map((c) => {
+      const rawInput = (c as unknown as { input?: Record<string, unknown> })
+        .input;
+      const input =
+        rawInput && typeof rawInput === "object" && "args" in rawInput
+          ? ((rawInput as { args?: Record<string, unknown> }).args ?? {})
+          : (rawInput ?? {});
+      return {
+        toolCallId: c.toolCallId,
+        toolName: c.toolName,
+        input,
+      };
+    });
 
     return Response.json({ text: result.text, toolCalls });
   } catch (e) {
