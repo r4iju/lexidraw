@@ -11,9 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { auth } from "~/server/auth";
+import { isAdmin } from "~/server/admin";
 
 export default async function Header() {
   const session = await auth();
+  const userIsAdmin = await isAdmin();
   return (
     <header className="sticky top-0 left-0 w-full min-w-[100dw] min-h-[var(--header-height)] z-50 flex border-b border-muted items-center justify-between bg-background shadow-md pt-[var(--header-padding-top)] pb-[var(--header-py)] px-4 lg:px-6 overflow-hidden">
       <Button asChild variant="outline" size="icon">
@@ -48,6 +50,16 @@ export default async function Header() {
                         Profile
                       </Link>
                     </DropdownMenuItem>
+                    {userIsAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                          <Link className="cursor-default" href="/admin">
+                            Administration
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    )}
                     <DropdownMenuItem asChild>
                       <Link
                         className="cursor-default"
