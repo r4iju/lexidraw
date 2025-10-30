@@ -12,6 +12,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { auth } from "~/server/auth";
 import { isAdmin } from "~/server/admin";
+import { HeaderAdminIconButton } from "./header-admin-icon-button";
 
 export default async function Header() {
   const session = await auth();
@@ -29,6 +30,7 @@ export default async function Header() {
 
       <nav>
         <ul className="flex items-center gap-4 sm:gap-6">
+          {userIsAdmin && <HeaderAdminIconButton />}
           <li>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -44,22 +46,12 @@ export default async function Header() {
                         My Drawings
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link className="cursor-default" href="/profile">
                         Profile
                       </Link>
                     </DropdownMenuItem>
-                    {userIsAdmin && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                          <Link className="cursor-default" href="/admin">
-                            Administration
-                          </Link>
-                        </DropdownMenuItem>
-                      </>
-                    )}
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link
                         className="cursor-default"

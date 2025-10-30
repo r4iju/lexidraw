@@ -63,10 +63,11 @@ const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 type DropdownMenuSubTriggerProps = React.ComponentPropsWithRef<
   typeof DropdownMenuPrimitive.SubTrigger
-> & { inset?: boolean };
+> & { inset?: boolean; chevronClassName?: string };
 
 const DropdownMenuSubTrigger = ({
   className,
+  chevronClassName,
   inset,
   children,
   ...props
@@ -80,7 +81,7 @@ const DropdownMenuSubTrigger = ({
     {...props}
   >
     {children}
-    <ChevronRight className="ml-auto h-4 w-4" />
+    <ChevronRight className={cn("ml-auto h-4 w-4", chevronClassName)} />
   </DropdownMenuPrimitive.SubTrigger>
 );
 
