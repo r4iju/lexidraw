@@ -189,10 +189,14 @@ export const adminEntitiesRouter = createTRPCRouter({
       z.object({
         query: z.string().optional(),
         ownerId: z.string().optional(),
-        status: z.enum(["active", "inactive"]).optional(),
+        status: z.enum(["active", "inactive", "all"]).optional(),
+        sortField: z
+          .enum(["createdAt", "title", "ownerId", "isActive", "membersCount"])
+          .optional(),
+        sortOrder: z.enum(["asc", "desc"]).optional(),
       }),
     )
-    .query(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
       const conds: SQL<unknown>[] = [];
       const q = input?.query?.trim();
       if (q && q.length > 0)

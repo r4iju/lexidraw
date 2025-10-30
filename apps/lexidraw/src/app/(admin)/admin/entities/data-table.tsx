@@ -1,4 +1,5 @@
 "use client";
+
 import * as React from "react";
 import {
   flexRender,
@@ -22,22 +23,31 @@ import {
 import { entityColumns, type EntityRow } from "./columns";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "~/trpc/react";
+import {
+  Select,
+  SelectItem,
+  SelectContent,
+  SelectValue,
+  SelectTrigger,
+} from "~/components/ui/select";
 
 export function EntitiesDataTable(props: {
   rows: EntityRow[];
   page: number;
   size: number;
   query: string;
-  status: string;
+  status: "active" | "inactive" | "all";
   owners: { id: string; name: string | null; email: string | null }[];
-  ownerId: string;
+  ownerId: "all" | string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [query, setQuery] = React.useState<string>(props.query ?? "");
-  const [status, setStatus] = React.useState<string>(props.status ?? "");
-  const [ownerId, setOwnerId] = React.useState<string>(props.ownerId ?? "");
+  const [status, setStatus] = React.useState<"active" | "inactive" | "all">(
+    props.status ?? "all",
+  );
+  const [ownerId, setOwnerId] = React.useState<string>(props.ownerId ?? "all");
   const [pageIndex, setPageIndex] = React.useState(props.page - 1);
   const pageSize = props.size;
 
@@ -58,8 +68,8 @@ export function EntitiesDataTable(props: {
       page?: number;
       size?: number;
       query?: string;
-      status?: string;
-      ownerId?: string;
+      status?: "active" | "inactive" | "all";
+      ownerId?: "all" | string;
     }) => {
       const params = new URLSearchParams(searchParams?.toString() ?? "");
       if (next.page !== undefined) params.set("page", String(next.page));
@@ -71,7 +81,7 @@ export function EntitiesDataTable(props: {
           ? params.set("status", next.status)
           : params.delete("status");
       if (next.ownerId !== undefined)
-        next.ownerId
+        next.ownerId !== "all"
           ? params.set("ownerId", next.ownerId)
           : params.delete("ownerId");
       router.replace(`?${params.toString()}`);
@@ -80,7 +90,13 @@ export function EntitiesDataTable(props: {
   );
 
   React.useEffect(() => {
-    updateUrl({ page: pageIndex + 1, size: pageSize, query, status, ownerId });
+    updateUrl({
+      page: pageIndex + 1,
+      size: pageSize,
+      query,
+      status: status,
+      ownerId,
+    });
   }, [pageIndex, pageSize, query, status, ownerId, updateUrl]);
 
   const exportCsv = api.adminEntities.exportCsv.useMutation();
@@ -94,27 +110,34 @@ export function EntitiesDataTable(props: {
           onChange={(e) => setQuery(e.target.value)}
           className="max-w-xs"
         />
-        <select
-          className="border bg-background px-2 py-1 text-sm"
+        <Select
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          onValueChange={(value) =>
+            setStatus(value as "active" | "inactive" | "all")
+          }
         >
-          <option value="">All statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <select
-          className="border bg-background px-2 py-1 text-sm"
-          value={ownerId}
-          onChange={(e) => setOwnerId(e.target.value)}
-        >
-          <option value="">All owners</option>
-          {props.owners.map((o) => (
-            <option key={o.id} value={o.id}>
-              {(o.name ?? o.email ?? o.id) as string}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger>
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={ownerId} onValueChange={(value) => setOwnerId(value)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select owner" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All owners</SelectItem>
+            {props.owners.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {(o.name ?? o.email ?? o.id) as string}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           variant="outline"
           className="ml-auto"
