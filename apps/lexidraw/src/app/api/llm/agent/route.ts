@@ -6,6 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, tool, type LanguageModel, type ModelMessage } from "ai";
 import { z } from "zod";
 import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
+import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 
 export const dynamic = "force-dynamic";
 
@@ -41,33 +42,24 @@ export async function POST(req: NextRequest) {
     return new Response("Missing prompt or messages", { status: 400 });
   }
 
-  // Use agent config if present, fall back to chat
-  const llmCfg = (session.user.config?.llm ?? {}) as unknown as {
-    agent?: {
-      modelId: string;
-      provider: string;
-      temperature: number;
-      maxOutputTokens: number;
-    };
-    chat?: {
-      modelId: string;
-      provider: string;
-      temperature: number;
-      maxOutputTokens: number;
-    };
-  };
-  const section = llmCfg.agent ?? llmCfg.chat;
-  const cfg = (section ?? {
-    modelId: "gemini-2.5-flash",
-    provider: "google",
-    temperature: 0.7,
-    maxOutputTokens: 100000,
-  }) as {
-    modelId: string;
-    provider: string;
-    temperature: number;
-    maxOutputTokens: number;
-  };
+  // Get effective config from policies (with user overrides)
+  const cfg = await getEffectiveLlmConfig({
+    mode: "agent",
+    userConfig: session.user.config?.llm as {
+      chat?: {
+        provider: string;
+        modelId: string;
+        temperature: number;
+        maxOutputTokens: number;
+      };
+      agent?: {
+        provider: string;
+        modelId: string;
+        temperature: number;
+        maxOutputTokens: number;
+      };
+    },
+  });
 
   const effectiveTemperature =
     typeof parsed.temperature === "number"

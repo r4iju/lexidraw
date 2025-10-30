@@ -20,6 +20,7 @@ export const adminLlmRouter = createTRPCRouter({
           maxOutputTokens: ctx.schema.llmPolicies.maxOutputTokens,
           allowedModels: ctx.schema.llmPolicies.allowedModels,
           enforcedCaps: ctx.schema.llmPolicies.enforcedCaps,
+          extraConfig: ctx.schema.llmPolicies.extraConfig,
         })
         .from(ctx.schema.llmPolicies)
         .orderBy(ctx.schema.llmPolicies.mode);
@@ -49,6 +50,7 @@ export const adminLlmRouter = createTRPCRouter({
               maxOutputTokens: normalized.maxOutputTokens,
               allowedModels: normalized.allowedModels,
               enforcedCaps: normalized.enforcedCaps,
+              extraConfig: normalized.extraConfig ?? null,
               updatedAt: new Date(),
             })
             .where(eq(ctx.schema.llmPolicies.id, existing[0]?.id ?? 0));
@@ -61,6 +63,7 @@ export const adminLlmRouter = createTRPCRouter({
             maxOutputTokens: normalized.maxOutputTokens,
             allowedModels: normalized.allowedModels,
             enforcedCaps: normalized.enforcedCaps,
+            extraConfig: normalized.extraConfig ?? null,
             createdAt: new Date(),
             updatedAt: new Date(),
           });
@@ -76,6 +79,7 @@ export const adminLlmRouter = createTRPCRouter({
             maxOutputTokens: ctx.schema.llmPolicies.maxOutputTokens,
             allowedModels: ctx.schema.llmPolicies.allowedModels,
             enforcedCaps: ctx.schema.llmPolicies.enforcedCaps,
+            extraConfig: ctx.schema.llmPolicies.extraConfig,
           })
           .from(ctx.schema.llmPolicies)
           .where(eq(ctx.schema.llmPolicies.mode, normalized.mode))

@@ -672,6 +672,9 @@ export const llmPolicies = sqliteTable(
         maxOutputTokensByProvider: { openai: number; google: number };
       }>()
       .notNull(),
+    extraConfig: text("extraConfig", { mode: "json" }).$type<
+      Record<string, unknown>
+    >(),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),

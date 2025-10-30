@@ -1,6 +1,7 @@
 import "~/styles/globals.css";
 
 import { Fredoka } from "next/font/google";
+import { Ubuntu_Mono } from "next/font/google";
 import { headers as nextHeaders } from "next/headers";
 import { Analytics } from "@vercel/analytics/react";
 import { TRPCReactProvider } from "~/trpc/react";
@@ -18,6 +19,13 @@ import ImpersonationBanner from "~/components/admin/impersonation-banner";
 const fredoka = Fredoka({
   subsets: ["latin"],
   variable: "--font-fredoka",
+});
+
+const mono = Ubuntu_Mono({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata = {
@@ -54,6 +62,7 @@ export default async function RootLayout({ children }: Props) {
         className={cn(
           "h-[var(--dynamic-viewport-height)] max-w-[100dvw] flex flex-col font-fredoka bg-background text-foreground antialiased overflow-y-hidden",
           fredoka.variable,
+          mono.variable,
         )}
         style={{ scrollbarGutter: "stable", scrollbarWidth: "thin" }}
       >

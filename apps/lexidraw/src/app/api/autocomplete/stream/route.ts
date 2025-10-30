@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 
 export const dynamic = "force-dynamic";
 
@@ -34,28 +35,46 @@ export async function POST(req: NextRequest) {
   if ((ac as { enabled?: boolean }).enabled === false) {
     return new Response(null, { status: 204 });
   }
-  const resolvedModelId = (
-    body?.modelId ||
-    ac.modelId ||
-    "gpt-5-nano"
-  ).toString();
+
+  // Get effective config from policies (with user overrides)
+  const cfg = await getEffectiveLlmConfig({
+    mode: "autocomplete",
+    userConfig: {
+      autocomplete: {
+        provider: ac.provider,
+        modelId: ac.modelId,
+        temperature: ac.temperature,
+        maxOutputTokens: ac.maxOutputTokens,
+        extraConfig:
+          ac.reasoningEffort || ac.verbosity
+            ? {
+                reasoningEffort: ac.reasoningEffort,
+                verbosity: ac.verbosity,
+              }
+            : undefined,
+      },
+    },
+  });
+
+  const resolvedModelId = (body?.modelId || cfg.modelId).toString();
   const resolvedTemperature =
-    typeof body?.temperature === "number"
-      ? body?.temperature
-      : typeof ac.temperature === "number"
-        ? ac.temperature
-        : 0.3;
+    typeof body?.temperature === "number" ? body?.temperature : cfg.temperature;
   const resolvedMaxTokens =
     typeof body?.maxOutputTokens === "number"
       ? body?.maxOutputTokens
-      : typeof ac.maxOutputTokens === "number"
-        ? ac.maxOutputTokens
-        : 400;
+      : cfg.maxOutputTokens;
   const reasoningEffort =
     (ac.reasoningEffort as "minimal" | "standard" | "heavy" | undefined) ||
+    (cfg.extraConfig?.reasoningEffort as
+      | "minimal"
+      | "standard"
+      | "heavy"
+      | undefined) ||
     "minimal";
   const verbosity =
-    (ac.verbosity as "low" | "medium" | "high" | undefined) || "low";
+    (ac.verbosity as "low" | "medium" | "high" | undefined) ||
+    (cfg.extraConfig?.verbosity as "low" | "medium" | "high" | undefined) ||
+    "low";
 
   const openaiApiKey =
     session.user.config?.llm?.openaiApiKey || process.env.OPENAI_API_KEY;

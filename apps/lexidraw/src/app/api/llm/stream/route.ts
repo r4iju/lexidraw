@@ -11,6 +11,7 @@ import {
   type ModelMessage,
   type LanguageModel,
 } from "ai";
+import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 
 export const dynamic = "force-dynamic";
 
@@ -62,17 +63,18 @@ export async function POST(req: NextRequest) {
     return new Response("Missing prompt", { status: 400 });
   }
 
-  const chatCfg = (session.user.config?.llm?.chat ?? {
-    modelId: "gemini-2.5-flash",
-    provider: "google",
-    temperature: 0.7,
-    maxOutputTokens: 100000,
-  }) as {
-    modelId: string;
-    provider: string;
-    temperature: number;
-    maxOutputTokens: number;
-  };
+  // Get effective config from policies (with user overrides)
+  const chatCfg = await getEffectiveLlmConfig({
+    mode: "chat",
+    userConfig: session.user.config?.llm as {
+      chat?: {
+        provider: string;
+        modelId: string;
+        temperature: number;
+        maxOutputTokens: number;
+      };
+    },
+  });
 
   const effectiveTemperature =
     typeof temperature === "number" ? temperature : chatCfg.temperature;
