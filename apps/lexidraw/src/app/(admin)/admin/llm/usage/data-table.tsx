@@ -6,8 +6,6 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   type SortingState,
   useReactTable,
   type VisibilityState,
@@ -32,117 +30,183 @@ import {
 } from "~/components/ui/table";
 import { ChevronDown } from "lucide-react";
 import { usageColumns, type UsageRow } from "./columns";
-import { useRouter, useSearchParams } from "next/navigation";
+
+import { api } from "~/trpc/react";
+import { keepPreviousData } from "@tanstack/react-query";
+import type { AllowedSortFields } from "./page";
+
+type UsageApiRow = {
+  id: string;
+  createdAt: number | Date;
+  requestId: string;
+  userId: string;
+  userEmail: string | null;
+  entityId: string | null;
+  mode: string;
+  route: string;
+  provider: string;
+  modelId: string;
+  totalTokens: number | null;
+  latencyMs: number;
+  errorCode: string | null;
+  httpStatus: number | null;
+};
 
 export function UsageDataTable(props: {
-  rows: UsageRow[];
-  page: number;
-  size: number;
-  routeFilter: string;
-  modelFilter: string;
-  sort: string | undefined;
+  initialRawRows: UsageApiRow[];
+  initialPage: number;
+  initialSize: number;
+  initialRoute: string;
+  initialModel: string;
+  initialSortField: (typeof AllowedSortFields)[number];
+  initialSortOrder: "asc" | "desc";
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [sorting, setSorting] = React.useState<SortingState>(() => {
-    const s = props.sort;
-    if (!s) return [];
-    const [id, dir] = s.split(".");
-    if (!id) return [];
-    return [{ id, desc: dir === "desc" }];
-  });
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
+  // URL sync removed for simplicity
+  type ViewState = {
+    sorting: SortingState;
+    columnFilters: ColumnFiltersState;
+    columnVisibility: VisibilityState;
+    routeFilter: string;
+    modelFilter: string;
+    pageIndex: number;
+  };
+
+  const [viewState, setViewState] = React.useState<ViewState>(() => ({
+    sorting: [
+      { id: props.initialSortField, desc: props.initialSortOrder === "desc" },
+    ],
+    columnFilters: [],
+    columnVisibility: {},
+    routeFilter: props.initialRoute ?? "",
+    modelFilter: props.initialModel ?? "",
+    pageIndex: props.initialPage - 1,
+  }));
+
+  const setPageIndex = (updater: number | ((prev: number) => number)) => {
+    setViewState((prev) => ({
+      ...prev,
+      pageIndex:
+        typeof updater === "function"
+          ? (updater as (p: number) => number)(prev.pageIndex)
+          : updater,
+    }));
+  };
+
+  const setRouteFilter = (value: string) => {
+    setViewState((prev) => ({ ...prev, routeFilter: value }));
+  };
+
+  const setModelFilter = (value: string) => {
+    setViewState((prev) => ({ ...prev, modelFilter: value }));
+  };
+  const pageSize = props.initialSize;
+
+  const sortParam = viewState.sorting[0]
+    ? `${viewState.sorting[0].id}.${viewState.sorting[0].desc ? "desc" : "asc"}`
+    : undefined;
+
+  const { data: apiRows, isFetching } = api.adminLlm.usage.list.useQuery(
+    {
+      page: viewState.pageIndex + 1,
+      size: pageSize,
+      route: viewState.routeFilter || undefined,
+      sort: sortParam,
+    },
+    {
+      placeholderData: keepPreviousData,
+      staleTime: 5_000,
+    },
   );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
-  const [routeFilter, setRouteFilter] = React.useState<string>(
-    props.routeFilter ?? "",
-  );
-  const [modelFilter, setModelFilter] = React.useState<string>(
-    props.modelFilter ?? "",
-  );
-  const [pageIndex, setPageIndex] = React.useState(props.page - 1);
-  const pageSize = props.size;
 
   const serverRows: UsageRow[] = React.useMemo(() => {
-    if (!modelFilter) return props.rows;
-    return props.rows.filter((r) =>
-      r.modelId.toLowerCase().includes(modelFilter.toLowerCase()),
+    const raw = apiRows ?? props.initialRawRows;
+    const base = (raw ?? []).map((d) => {
+      const createdAtMs =
+        d.createdAt instanceof Date
+          ? d.createdAt.getTime()
+          : (d.createdAt as number);
+      return {
+        id: d.id,
+        createdAt: new Date(createdAtMs),
+        requestId: d.requestId,
+        userId: d.userId,
+        userEmail: d.userEmail ?? null,
+        entityId: d.entityId ?? null,
+        mode: d.mode,
+        route: d.route,
+        provider: d.provider,
+        modelId: d.modelId,
+        totalTokens: d.totalTokens ?? null,
+        latencyMs: d.latencyMs,
+        errorCode: d.errorCode ?? null,
+        httpStatus: d.httpStatus ?? null,
+      };
+    });
+    if (!viewState.modelFilter) return base;
+    return base.filter((r) =>
+      r.modelId.toLowerCase().includes(viewState.modelFilter.toLowerCase()),
     );
-  }, [props.rows, modelFilter]);
+  }, [apiRows, props.initialRawRows, viewState.modelFilter]);
 
   const table = useReactTable({
     data: serverRows,
     columns: usageColumns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onSortingChange: (updater) =>
+      setViewState((prev) => {
+        const nextSorting =
+          typeof updater === "function"
+            ? (updater as (s: SortingState) => SortingState)(prev.sorting)
+            : updater;
+        return { ...prev, sorting: nextSorting, pageIndex: 0 };
+      }),
+    onColumnFiltersChange: (updater) =>
+      setViewState((prev) => ({
+        ...prev,
+        columnFilters:
+          typeof updater === "function"
+            ? (updater as (s: ColumnFiltersState) => ColumnFiltersState)(
+                prev.columnFilters,
+              )
+            : updater,
+      })),
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: (updater) =>
+      setViewState((prev) => ({
+        ...prev,
+        columnVisibility:
+          typeof updater === "function"
+            ? (updater as (s: VisibilityState) => VisibilityState)(
+                prev.columnVisibility,
+              )
+            : updater,
+      })),
+    getRowId: (row) => row.id,
     state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
+      sorting: viewState.sorting,
+      columnFilters: viewState.columnFilters,
+      columnVisibility: viewState.columnVisibility,
     },
     manualPagination: true,
-    pageCount: undefined,
+    manualSorting: true,
   });
 
-  const updateUrl = React.useCallback(
-    (next: {
-      page?: number;
-      size?: number;
-      route?: string;
-      model?: string;
-      sort?: string;
-    }) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (next.page !== undefined) params.set("page", String(next.page));
-      if (next.size !== undefined) params.set("size", String(next.size));
-      if (next.route !== undefined) {
-        if (next.route) params.set("route", next.route);
-        else params.delete("route");
-      }
-      if (next.model !== undefined) {
-        if (next.model) params.set("model", next.model);
-        else params.delete("model");
-      }
-      if (next.sort !== undefined) {
-        if (next.sort) params.set("sort", next.sort);
-        else params.delete("sort");
-      }
-      router.replace(`?${params.toString()}`);
-    },
-    [router, searchParams],
-  );
+  // URL sync removed for simplicity
 
-  React.useEffect(() => {
-    updateUrl({
-      page: pageIndex + 1,
-      size: pageSize,
-      route: routeFilter,
-      model: modelFilter,
-      sort: sorting[0]
-        ? `${sorting[0].id}.${sorting[0].desc ? "desc" : "asc"}`
-        : undefined,
-    });
-  }, [pageIndex, pageSize, routeFilter, modelFilter, sorting, updateUrl]);
+  // Props are only initial seeds; subsequent navigation stays client-side via useQuery
 
   return (
     <div className="w-full">
       <div className="flex items-center gap-2 py-4">
         <Input
           placeholder="Filter by route..."
-          value={routeFilter}
+          value={viewState.routeFilter}
           onChange={(e) => setRouteFilter(e.target.value)}
           className="max-w-xs"
         />
         <Input
           placeholder="Filter by modelId..."
-          value={modelFilter}
+          value={viewState.modelFilter}
           onChange={(e) => setModelFilter(e.target.value)}
           className="max-w-xs"
         />
@@ -225,20 +289,25 @@ export function UsageDataTable(props: {
         </Table>
       </div>
       <div className="text-muted-foreground mt-2 flex justify-between text-sm">
-        <div>Showing page {pageIndex + 1}</div>
+        <div>
+          Showing page {viewState.pageIndex + 1}
+          {isFetching ? (
+            <span className="ml-2 opacity-70">refreshing…</span>
+          ) : null}
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPageIndex(Math.max(0, pageIndex - 1))}
-            disabled={pageIndex === 0}
+            onClick={() => setPageIndex((prev) => Math.max(0, prev - 1))}
+            disabled={viewState.pageIndex === 0}
           >
             Prev
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPageIndex(pageIndex + 1)}
+            onClick={() => setPageIndex((prev) => prev + 1)}
           >
             Next
           </Button>

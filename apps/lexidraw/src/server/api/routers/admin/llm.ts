@@ -1,6 +1,6 @@
 import { createTRPCRouter, adminProcedure } from "~/server/api/trpc";
 import { z } from "zod";
-import { and, desc, eq, like, sql, type SQL } from "@packages/drizzle";
+import { and, asc, desc, eq, like, sql, type SQL } from "@packages/drizzle";
 import {
   LLMPolicySchema,
   PoliciesGetAllOutputSchema,
@@ -159,12 +159,13 @@ export const adminLlmRouter = createTRPCRouter({
           error: z.boolean().optional(),
           page: z.number().int().min(1).optional(),
           size: z.number().int().min(1).max(200).optional(),
+          sort: z.string().optional(),
         }),
       )
       .query(async ({ ctx, input }) => {
         const page = input?.page ?? 1;
         const size = input?.size ?? 50;
-
+        const sort = input?.sort ?? "createdAt.desc";
         const conds: SQL<unknown>[] = [];
         if (input?.from)
           conds.push(
@@ -218,11 +219,69 @@ export const adminLlmRouter = createTRPCRouter({
             ctx.schema.users,
             eq(ctx.schema.llmAuditEvents.userId, ctx.schema.users.id),
           );
+        const [fieldRaw = "createdAt", dirRaw = "desc"] = sort.split(".");
+        const isAsc = dirRaw === "asc";
+
+        // Map supported sort fields to columns/expressions
+        const orderExpr = (() => {
+          switch (fieldRaw) {
+            case "createdAt":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.createdAt)
+                : desc(ctx.schema.llmAuditEvents.createdAt);
+            case "requestId":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.requestId)
+                : desc(ctx.schema.llmAuditEvents.requestId);
+            case "user":
+              // Sort by coalesce(email, userId)
+              return isAsc
+                ? asc(
+                    sql`coalesce(${ctx.schema.users.email}, ${ctx.schema.llmAuditEvents.userId})`,
+                  )
+                : desc(
+                    sql`coalesce(${ctx.schema.users.email}, ${ctx.schema.llmAuditEvents.userId})`,
+                  );
+            case "entityId":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.entityId)
+                : desc(ctx.schema.llmAuditEvents.entityId);
+            case "mode":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.mode)
+                : desc(ctx.schema.llmAuditEvents.mode);
+            case "totalTokens":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.totalTokens)
+                : desc(ctx.schema.llmAuditEvents.totalTokens);
+            case "latencyMs":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.latencyMs)
+                : desc(ctx.schema.llmAuditEvents.latencyMs);
+            case "modelId":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.modelId)
+                : desc(ctx.schema.llmAuditEvents.modelId);
+            case "route":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.route)
+                : desc(ctx.schema.llmAuditEvents.route);
+            case "errorCode":
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.errorCode)
+                : desc(ctx.schema.llmAuditEvents.errorCode);
+            default:
+              return isAsc
+                ? asc(ctx.schema.llmAuditEvents.createdAt)
+                : desc(ctx.schema.llmAuditEvents.createdAt);
+          }
+        })();
+
         const rows = await (whereUsage
           ? baseUsageQuery.where(whereUsage)
           : baseUsageQuery
         )
-          .orderBy(desc(ctx.schema.llmAuditEvents.createdAt))
+          .orderBy(orderExpr)
           .limit(size)
           .offset((page - 1) * size);
 
