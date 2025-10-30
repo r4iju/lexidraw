@@ -2,6 +2,13 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "~/components/ui/select";
 
 export default function TransferOwnershipDialog(props: {
   entityId: string;
@@ -24,19 +31,23 @@ export default function TransferOwnershipDialog(props: {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-md border border-border bg-background p-4 shadow-xl">
             <div className="mb-3 text-sm font-medium">Transfer Ownership</div>
-            <select
-              className="mb-4 w-full border bg-background px-2 py-1 text-sm"
+            <Select
               value={ownerId}
-              onChange={(e) => setOwnerId(e.target.value)}
+              onValueChange={(value) => setOwnerId(value)}
             >
-              <option value="">Select owner...</option>
-              {(listUsers.data ?? []).map((u) => (
-                <option key={u.id} value={u.id}>
-                  {(u.name ?? u.email ?? u.id) as string}
-                </option>
-              ))}
-            </select>
-            <div className="flex justify-end gap-2">
+              <SelectTrigger>
+                <SelectValue placeholder="Select owner" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All owners</SelectItem>
+                {(listUsers.data ?? []).map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {(u.name ?? u.email ?? u.id) as string}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="mt-4 flex justify-between gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -44,6 +55,7 @@ export default function TransferOwnershipDialog(props: {
               >
                 Cancel
               </Button>
+
               <Button
                 size="sm"
                 disabled={!ownerId || transfer.isPending}

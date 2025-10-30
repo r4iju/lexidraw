@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 
 export default function MembersDialog(props: {
   entityId: string;
@@ -27,9 +28,9 @@ export default function MembersDialog(props: {
       </Button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-md border border-border bg-background p-4 shadow-xl">
+          <div className="w-full max-w-md rounded-md border border-border bg-background p-4 shadow-lg">
             <div className="mb-3 text-sm font-medium">Members</div>
-            <div className="max-h-64 overflow-y-auto rounded border">
+            <div className="max-h-64 overflow-y-auto rounded border border-border">
               <table className="w-full text-sm">
                 <thead>
                   <tr>
@@ -65,8 +66,7 @@ export default function MembersDialog(props: {
               </table>
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <input
-                className="flex-1 rounded border bg-background px-2 py-1 text-sm"
+              <Input
                 placeholder="Add member by user ID"
                 value={addUserId}
                 onChange={(e) => setAddUserId(e.target.value)}
