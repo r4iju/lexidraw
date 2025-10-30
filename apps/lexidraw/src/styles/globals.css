@@ -67,7 +67,7 @@
   --font-mplus: var(--font-mplus);
   --font-noto: var(--font-noto);
   --font-sans: var(--font-inter);
-  --font-mono: var(--font-mono);
+  --font-mono: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace);
 
   @keyframes accordion-down {
     from {

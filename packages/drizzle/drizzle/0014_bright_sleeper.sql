@@ -1,0 +1,1 @@
+ALTER TABLE `LLMPolicies` ADD `extraConfig` text;

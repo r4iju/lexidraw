@@ -2,6 +2,7 @@
 
 import { auth } from "~/server/auth";
 import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
+import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 
 type Params = {
   system: string;
@@ -27,24 +28,44 @@ export async function runAutocomplete({
   if ((ac as { enabled?: boolean }).enabled === false) {
     return "";
   }
-  const resolvedModelId = (modelId || ac.modelId || "gpt-5-nano").toString();
+
+  // Get effective config from policies (with user overrides)
+  const cfg = await getEffectiveLlmConfig({
+    mode: "autocomplete",
+    userConfig: {
+      autocomplete: {
+        provider: ac.provider,
+        modelId: ac.modelId,
+        temperature: ac.temperature,
+        maxOutputTokens: ac.maxOutputTokens,
+        extraConfig:
+          ac.reasoningEffort || ac.verbosity
+            ? {
+                reasoningEffort: ac.reasoningEffort,
+                verbosity: ac.verbosity,
+              }
+            : undefined,
+      },
+    },
+  });
+
+  const resolvedModelId = (modelId || cfg.modelId).toString();
   const resolvedTemperature =
-    typeof temperature === "number"
-      ? temperature
-      : typeof ac.temperature === "number"
-        ? ac.temperature
-        : 0.3;
+    typeof temperature === "number" ? temperature : cfg.temperature;
   const resolvedMaxTokens =
-    typeof maxOutputTokens === "number"
-      ? maxOutputTokens
-      : typeof ac.maxOutputTokens === "number"
-        ? ac.maxOutputTokens
-        : 400;
+    typeof maxOutputTokens === "number" ? maxOutputTokens : cfg.maxOutputTokens;
   const reasoningEffort =
     (ac.reasoningEffort as "minimal" | "standard" | "heavy" | undefined) ||
+    (cfg.extraConfig?.reasoningEffort as
+      | "minimal"
+      | "standard"
+      | "heavy"
+      | undefined) ||
     "minimal";
   const verbosity =
-    (ac.verbosity as "low" | "medium" | "high" | undefined) || "low";
+    (ac.verbosity as "low" | "medium" | "high" | undefined) ||
+    (cfg.extraConfig?.verbosity as "low" | "medium" | "high" | undefined) ||
+    "low";
 
   const openaiApiKey =
     session.user.config?.llm?.openaiApiKey || process.env.OPENAI_API_KEY;
@@ -120,7 +141,7 @@ export async function runAutocomplete({
       mode: "autocomplete",
       userId: session.user.id,
       entityId: null,
-      provider: "openai",
+      provider: cfg.provider,
       modelId: resolvedModelId,
       temperature: resolvedTemperature,
       maxOutputTokens: resolvedMaxTokens,
@@ -167,7 +188,7 @@ export async function runAutocomplete({
     mode: "autocomplete",
     userId: session.user.id,
     entityId: null,
-    provider: "openai",
+    provider: cfg.provider,
     modelId: resolvedModelId,
     temperature: resolvedTemperature,
     maxOutputTokens: resolvedMaxTokens,

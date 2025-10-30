@@ -22,6 +22,7 @@ export const LLMPolicySchema = z.object({
   maxOutputTokens: z.number().int().positive(),
   allowedModels: z.array(AllowedModelSchema),
   enforcedCaps: EnforcedCapsSchema,
+  extraConfig: z.record(z.string(), z.unknown()).nullish(),
 });
 
 export const UpsertPolicyInputSchema = LLMPolicySchema;
