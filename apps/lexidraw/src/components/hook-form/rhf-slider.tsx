@@ -44,7 +44,8 @@ const RHFSlider: React.FC<RHFSliderProps> = ({
               min={min}
               max={max}
               step={step}
-              onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+              onChange={(e) => field.onChange(parseFloat(e.target.value))}
+              value={field.value ?? min}
               className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-gray-200 focus:accent-gray-100 focus:outline-hidden focus:ring-gray-500 dark:bg-gray-500"
             />
             {error && (

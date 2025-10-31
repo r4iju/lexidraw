@@ -2,12 +2,19 @@
 
 import type React from "react";
 import { useFormContext, Controller } from "react-hook-form";
-import { Select } from "~/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import { Label } from "~/components/ui/label";
 
 // RHFSelect
 interface RHFSelectProps {
   name: string;
-  label?: string; // New label prop
+  label?: string;
   helperText?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -22,24 +29,23 @@ export function RHFSelect({
 
   return (
     <div className="mx-1">
-      {label && (
-        <label
-          htmlFor={name}
-          className="mb-1 block text-sm font-medium text-gray-200"
-        >
-          {label}
-        </label>
-      )}
+      {label && <Label htmlFor={name}>{label}</Label>}
       <Controller
         name={name}
         control={control}
         render={({ field, fieldState: { error } }) => (
           <div>
-            <Select {...field}>{children}</Select>
-            {error ? (
-              <p className="mt-1 text-sm text-red-600">{error.message}</p>
-            ) : (
-              <p className="mt-1 text-sm text-gray-600">{helperText}</p>
+            <Select value={field.value ?? ""} onValueChange={field.onChange}>
+              <SelectTrigger id={name}>
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent>{children}</SelectContent>
+            </Select>
+            {error && (
+              <p className="mt-1 text-sm text-destructive">{error.message}</p>
+            )}
+            {helperText && !error && (
+              <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
             )}
           </div>
         )}

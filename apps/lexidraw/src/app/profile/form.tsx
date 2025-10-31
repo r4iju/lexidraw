@@ -8,6 +8,7 @@ import FormProvider, {
   RHFSlider,
   RHFSelect,
   RHFCheckbox,
+  RHFModelSelect,
 } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
@@ -15,21 +16,42 @@ import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useSession } from "next-auth/react";
 import { ReloadIcon } from "@radix-ui/react-icons";
+import { SelectItem } from "~/components/ui/select";
+import { useMemo } from "react";
 
 type Props = { user: RouterOutputs["auth"]["getProfile"] };
 
 export default function ProfileForm({ user }: Props) {
   const { data: session, update } = useSession();
 
+  // Fetch policy defaults
+  const { data: policies } = api.adminLlm.policies.getDefaults.useQuery();
+
   const { mutate: saveProfile, isPending } =
     api.auth.updateProfile.useMutation();
+
+  // Create policy map for easy lookup
+  const policyMap = useMemo(() => {
+    if (!policies) return new Map();
+    return new Map(policies.map((p) => [p.mode, p] as const));
+  }, [policies]);
+
+  const chatPolicy = policyMap.get("chat");
+  const agentPolicy = policyMap.get("agent");
+  const autocompletePolicy = policyMap.get("autocomplete");
+
   const methods = useForm({
     resolver: standardSchemaResolver(ProfileSchema),
     defaultValues: {
       email: user?.email ?? "",
       name: user?.name ?? "",
-      googleApiKey: user?.config?.llm?.googleApiKey ?? "",
-      openaiApiKey: user?.config?.llm?.openaiApiKey ?? "",
+      chat: user?.config?.llm?.chat ?? undefined,
+      agent: user?.config?.llm?.agent ?? undefined,
+      autocomplete: {
+        ...user?.config?.llm?.autocomplete,
+        reasoningEffort: user?.config?.autocomplete?.reasoningEffort,
+        verbosity: user?.config?.autocomplete?.verbosity,
+      },
       tts: {
         provider: user?.config?.tts?.provider,
         voiceId: user?.config?.tts?.voiceId,
@@ -56,7 +78,6 @@ export default function ProfileForm({ user }: Props) {
   } = methods;
 
   const onSubmit: SubmitHandler<ProfileSchema> = async (data) => {
-    console.log("data", data);
     saveProfile(data, {
       onSuccess: async () => {
         toast.success("Profile saved");
@@ -70,8 +91,10 @@ export default function ProfileForm({ user }: Props) {
             config: {
               ...session?.user.config,
               llm: {
-                googleApiKey: data.googleApiKey ?? "",
-                openaiApiKey: data.openaiApiKey ?? "",
+                ...session?.user.config?.llm,
+                chat: data.chat,
+                agent: data.agent,
+                autocomplete: data.autocomplete,
               },
               tts: data.tts
                 ? { ...session?.user.config?.tts, ...data.tts }
@@ -82,7 +105,6 @@ export default function ProfileForm({ user }: Props) {
             },
           },
         });
-        console.log("updated", updated);
       },
       onError: (error) => {
         toast.error("Error saving profile", {
@@ -92,29 +114,102 @@ export default function ProfileForm({ user }: Props) {
     });
   };
 
+  function LLMSection({
+    mode,
+    policy,
+    prefix,
+  }: {
+    mode: "chat" | "agent" | "autocomplete";
+    policy: typeof chatPolicy;
+    prefix: string;
+  }) {
+    if (!policy) return null;
+
+    return (
+      <div className="pt-2 border-t border-border">
+        <div className="text-sm font-medium mb-3">{mode.toUpperCase()}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <RHFSelect name={`${prefix}.provider`} label="Provider">
+            <SelectItem value="openai">OpenAI</SelectItem>
+            <SelectItem value="google">Google</SelectItem>
+          </RHFSelect>
+          <RHFModelSelect
+            name={`${prefix}.modelId`}
+            label="Model"
+            providerName={`${prefix}.provider`}
+            allowedModels={policy.allowedModels}
+            helperText={
+              policy.modelId
+                ? `Policy default: ${policy.provider}:${policy.modelId}`
+                : undefined
+            }
+          />
+          <RHFSlider
+            name={`${prefix}.temperature`}
+            label="Temperature (0-1)"
+            min={0}
+            max={1}
+            step={0.01}
+            helperText={
+              policy.temperature !== undefined
+                ? `Policy default: ${policy.temperature}`
+                : undefined
+            }
+          />
+          <RHFTextField
+            label="Max output tokens"
+            name={`${prefix}.maxOutputTokens`}
+            type="number"
+            helperText={
+              policy.maxOutputTokens
+                ? `Policy default: ${policy.maxOutputTokens}`
+                : undefined
+            }
+          />
+          {mode === "autocomplete" && (
+            <>
+              <RHFSelect
+                name={`${prefix}.reasoningEffort`}
+                label="Reasoning Effort"
+              >
+                <SelectItem value="minimal">Minimal</SelectItem>
+                <SelectItem value="standard">Standard</SelectItem>
+                <SelectItem value="heavy">Heavy</SelectItem>
+              </RHFSelect>
+              <RHFSelect name={`${prefix}.verbosity`} label="Verbosity">
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </RHFSelect>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
         <div className="space-y-4 py-4">
           <RHFTextField label="Email" name="email" type="email" />
           <RHFTextField label="Name" name="name" type="name" />
-          <RHFTextField
-            label="Google API Key"
-            name="googleApiKey"
-            type="googleApiKey"
+
+          <LLMSection mode="chat" policy={chatPolicy} prefix="chat" />
+          <LLMSection mode="agent" policy={agentPolicy} prefix="agent" />
+          <LLMSection
+            mode="autocomplete"
+            policy={autocompletePolicy}
+            prefix="autocomplete"
           />
-          <RHFTextField
-            label="OpenAI API Key"
-            name="openaiApiKey"
-            type="openaiApiKey"
-          />
-          <div className="pt-2 border-t">
+
+          <div className="pt-2 border-t border-border">
             <div className="text-sm font-medium">Audio generation (TTS)</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
               <RHFSelect name="tts.provider" label="Provider">
-                <option value="openai">OpenAI</option>
-                <option value="google">Google</option>
-                <option value="kokoro">Kokoro (local)</option>
+                <SelectItem value="openai">OpenAI</SelectItem>
+                <SelectItem value="google">Google</SelectItem>
+                <SelectItem value="kokoro">Kokoro (local)</SelectItem>
               </RHFSelect>
               <RHFTextField label="Voice ID" name="tts.voiceId" />
               <RHFSlider
@@ -125,9 +220,9 @@ export default function ProfileForm({ user }: Props) {
                 step={0.05}
               />
               <RHFSelect name="tts.format" label="Format">
-                <option value="mp3">MP3</option>
-                <option value="ogg">OGG</option>
-                <option value="wav">WAV</option>
+                <SelectItem value="mp3">MP3</SelectItem>
+                <SelectItem value="ogg">OGG</SelectItem>
+                <SelectItem value="wav">WAV</SelectItem>
               </RHFSelect>
               <RHFTextField label="Language code" name="tts.languageCode" />
               <RHFTextField
@@ -137,7 +232,7 @@ export default function ProfileForm({ user }: Props) {
               />
             </div>
           </div>
-          <div className="pt-2 border-t">
+          <div className="pt-2 border-t border-border">
             <div className="text-sm font-medium">Articles</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
               <RHFTextField

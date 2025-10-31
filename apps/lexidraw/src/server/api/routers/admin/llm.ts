@@ -1,4 +1,8 @@
-import { createTRPCRouter, adminProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  adminProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { z } from "zod";
 import { and, asc, desc, eq, like, sql, type SQL } from "@packages/drizzle";
 import {
@@ -26,6 +30,47 @@ export const adminLlmRouter = createTRPCRouter({
         .orderBy(ctx.schema.llmPolicies.mode);
 
       return PoliciesGetAllOutputSchema.parse(rows);
+    }),
+
+    getDefaults: protectedProcedure.input(z.void()).query(async ({ ctx }) => {
+      const rows = await ctx.drizzle
+        .select({
+          mode: ctx.schema.llmPolicies.mode,
+          provider: ctx.schema.llmPolicies.provider,
+          modelId: ctx.schema.llmPolicies.modelId,
+          temperature: ctx.schema.llmPolicies.temperature,
+          maxOutputTokens: ctx.schema.llmPolicies.maxOutputTokens,
+          allowedModels: ctx.schema.llmPolicies.allowedModels,
+          enforcedCaps: ctx.schema.llmPolicies.enforcedCaps,
+          extraConfig: ctx.schema.llmPolicies.extraConfig,
+        })
+        .from(ctx.schema.llmPolicies)
+        .orderBy(ctx.schema.llmPolicies.mode);
+
+      return z
+        .array(
+          z.object({
+            mode: z.enum(["chat", "agent", "autocomplete"]),
+            provider: z.string(),
+            modelId: z.string(),
+            temperature: z.number(),
+            maxOutputTokens: z.number(),
+            allowedModels: z.array(
+              z.object({
+                provider: z.string(),
+                modelId: z.string(),
+              }),
+            ),
+            enforcedCaps: z.object({
+              maxOutputTokensByProvider: z.object({
+                openai: z.number(),
+                google: z.number(),
+              }),
+            }),
+            extraConfig: z.record(z.string(), z.unknown()).nullish(),
+          }),
+        )
+        .parse(rows);
     }),
 
     upsert: adminProcedure

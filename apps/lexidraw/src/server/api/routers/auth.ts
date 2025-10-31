@@ -8,7 +8,7 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { eq } from "@packages/drizzle";
+import { eq, inArray } from "@packages/drizzle";
 
 export const authRouter = createTRPCRouter({
   signUp: publicProcedure
@@ -75,8 +75,70 @@ export const authRouter = createTRPCRouter({
         .limit(1);
 
       const currentConfig = currentUser[0]?.config ?? {};
-      // Explicitly type currentLlmConfig or provide a default object structure
-      const currentLlmConfig: Partial<ProfileSchema> = currentConfig.llm ?? {};
+
+      // Validate LLM configs against policies
+      const modes = ["chat", "agent", "autocomplete"] as const;
+      const policies = await ctx.drizzle
+        .select({
+          mode: schema.llmPolicies.mode,
+          allowedModels: schema.llmPolicies.allowedModels,
+          enforcedCaps: schema.llmPolicies.enforcedCaps,
+        })
+        .from(schema.llmPolicies)
+        .where(inArray(schema.llmPolicies.mode, modes));
+
+      const policyMap = new Map(policies.map((p) => [p.mode, p] as const));
+
+      // Validate each mode's config if provided
+      for (const mode of modes) {
+        const userConfig = input[mode];
+        if (!userConfig) continue;
+
+        const policy = policyMap.get(mode);
+        if (!policy) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `No policy found for mode: ${mode}`,
+          });
+        }
+
+        // Validate model if both provider and modelId are provided
+        if (userConfig.provider && userConfig.modelId) {
+          const isAllowed = policy.allowedModels.some(
+            (allowed) =>
+              allowed.provider === userConfig.provider &&
+              allowed.modelId === userConfig.modelId,
+          );
+
+          if (!isAllowed) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Model ${userConfig.provider}:${userConfig.modelId} is not allowed for ${mode} mode. Allowed models: ${policy.allowedModels.map((m) => `${m.provider}:${m.modelId}`).join(", ")}`,
+            });
+          }
+        }
+
+        // Validate maxOutputTokens against enforced caps if provided
+        if (
+          userConfig.maxOutputTokens &&
+          userConfig.provider &&
+          policy.enforcedCaps?.maxOutputTokensByProvider
+        ) {
+          const providerCap =
+            policy.enforcedCaps.maxOutputTokensByProvider[
+              userConfig.provider as keyof typeof policy.enforcedCaps.maxOutputTokensByProvider
+            ];
+          if (
+            providerCap !== undefined &&
+            userConfig.maxOutputTokens > providerCap
+          ) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Max output tokens (${userConfig.maxOutputTokens}) exceeds the cap for ${userConfig.provider} (${providerCap}) in ${mode} mode`,
+            });
+          }
+        }
+      }
 
       await ctx.drizzle
         .update(schema.users)
@@ -86,11 +148,13 @@ export const authRouter = createTRPCRouter({
           config: {
             ...currentConfig,
             llm: {
-              // Merge new LLM settings, using defaults from currentLlmConfig if properties are missing
-              googleApiKey: input.googleApiKey ?? currentLlmConfig.googleApiKey,
-              openaiApiKey: input.openaiApiKey ?? currentLlmConfig.openaiApiKey,
-              chat: input.chat ?? currentLlmConfig.chat,
-              autocomplete: input.autocomplete ?? currentLlmConfig.autocomplete,
+              // Preserve existing API keys if they exist
+              googleApiKey: currentConfig.llm?.googleApiKey,
+              openaiApiKey: currentConfig.llm?.openaiApiKey,
+              chat: input.chat ?? currentConfig.llm?.chat,
+              agent: input.agent ?? currentConfig.llm?.agent,
+              autocomplete:
+                input.autocomplete ?? currentConfig.llm?.autocomplete,
             },
             // Merge optional TTS and Article config if provided
             tts: {
