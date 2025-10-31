@@ -20,8 +20,6 @@ export async function POST(req: NextRequest) {
     entityId?: string;
   };
 
-  };
-
   // Merge user TTS defaults
   const ttsDefaults = session.user.config?.tts ?? {};
   const resolved = {
