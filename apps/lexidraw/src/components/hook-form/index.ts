@@ -1,5 +1,6 @@
 // export * from './RHFUpload';
 export * from "./rhf-select";
+export * from "./rhf-model-select";
 export * from "./rhf-checkbox";
 export { default } from "./form-provider";
 export { default as RHFCodes } from "./rhf-codes";
