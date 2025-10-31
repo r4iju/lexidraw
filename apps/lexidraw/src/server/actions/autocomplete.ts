@@ -70,7 +70,9 @@ export async function runAutocomplete({
 
   const openaiApiKey = env.OPENAI_API_KEY;
   if (!openaiApiKey) {
-    throw new Error("Missing OpenAI API key");
+    throw new Error(
+      "Missing OpenAI API key. Please set OPENAI_API_KEY environment variable.",
+    );
   }
 
   const base = {
