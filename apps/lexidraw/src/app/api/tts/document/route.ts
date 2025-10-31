@@ -28,11 +28,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Provide url or text" }, { status: 400 });
   }
 
-  const userKeys = {
-    openaiApiKey: session.user.config?.llm?.openaiApiKey ?? null,
-    googleApiKey: session.user.config?.llm?.googleApiKey ?? null,
-  } as const;
-
   // Merge user TTS defaults
   const ttsDefaults = session.user.config?.tts ?? {};
   const articleDefaults = session.user.config?.articles ?? {};
@@ -100,7 +95,6 @@ export async function POST(req: NextRequest) {
           format: resolved.format,
           languageCode: resolved.languageCode,
           titleHint: body.title,
-          userKeys,
         });
       } catch (e) {
         console.warn("[tts][route:document] background error", e);

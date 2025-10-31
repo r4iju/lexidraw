@@ -16,9 +16,8 @@ type LlmBaseConfig = {
 };
 
 type LlmConfig = {
-  googleApiKey?: string;
-  openaiApiKey?: string;
   chat?: LlmBaseConfig;
+  agent?: LlmBaseConfig;
   autocomplete?: LlmBaseConfig;
 };
 
@@ -110,12 +109,14 @@ const nextAuth = NextAuth({
   cookies,
   adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
   pages: {
-    ...(shouldTrustHost ? {
-      signIn: "/signin",
-      newUser: "/signup",
-      signOut: "/signout",
-      error: "/error",
-    } : {}),
+    ...(shouldTrustHost
+      ? {
+          signIn: "/signin",
+          newUser: "/signup",
+          signOut: "/signout",
+          error: "/error",
+        }
+      : {}),
   },
   callbacks: {
     session: ({ session, token }) => {

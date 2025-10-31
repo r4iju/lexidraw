@@ -52,8 +52,6 @@ export default async function ScreenshotDocumentPage(props: Props) {
   const iceServers = await api.auth.iceServers.query();
 
   const initialLlmConfig: StoredLlmConfig = {
-    googleApiKey: undefined,
-    openaiApiKey: undefined,
     chat: {
       modelId: "gpt-5",
       provider: "openai",

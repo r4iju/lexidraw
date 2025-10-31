@@ -9,12 +9,7 @@ import env from "@packages/env";
 import { extractArticleFromUrl } from "~/lib/extract-article";
 import { chunkTextByParagraphs } from "~/lib/chunk-text";
 import { buildSsmlFromParagraphs } from "~/lib/ssml";
-import type {
-  TtsRequest,
-  TtsResult,
-  TtsProviderName,
-  UserProviderKeys,
-} from "./types";
+import type { TtsRequest, TtsResult, TtsProviderName } from "./types";
 import { createOpenAiTtsProvider } from "./providers/openai";
 import { createGoogleTtsProvider } from "./providers/google";
 import { createKokoroTtsProvider } from "./providers/kokoro";
@@ -96,7 +91,7 @@ export function precomputeTtsKey(req: TtsRequest) {
 }
 
 export async function synthesizeArticleOrText(
-  req: TtsRequest & { userKeys: UserProviderKeys; titleHint?: string },
+  req: TtsRequest & { titleHint?: string },
 ): Promise<TtsResult> {
   const providerName = chooseProvider({
     requested: req.provider,
@@ -165,10 +160,10 @@ export async function synthesizeArticleOrText(
 
   const provider =
     providerName === "google"
-      ? createGoogleTtsProvider(req.userKeys.googleApiKey)
+      ? createGoogleTtsProvider(env.GOOGLE_API_KEY)
       : providerName === "kokoro"
         ? createKokoroTtsProvider(env.KOKORO_URL ?? "", env.KOKORO_BEARER)
-        : createOpenAiTtsProvider(req.userKeys.openaiApiKey);
+        : createOpenAiTtsProvider(env.OPENAI_API_KEY);
 
   const chunks = chunkTextByParagraphs(sourceText, {
     targetSize: 1400,
@@ -225,10 +220,10 @@ export async function synthesizeArticleOrText(
       try {
         const altProvider =
           providerName === "google"
-            ? createOpenAiTtsProvider(req.userKeys.openaiApiKey)
+            ? createOpenAiTtsProvider(env.OPENAI_API_KEY)
             : env.KOKORO_URL
               ? createKokoroTtsProvider(env.KOKORO_URL, env.KOKORO_BEARER)
-              : createGoogleTtsProvider(req.userKeys.googleApiKey);
+              : createGoogleTtsProvider(env.GOOGLE_API_KEY);
         const targetProviderName: TtsProviderName =
           providerName === "google"
             ? "openai"

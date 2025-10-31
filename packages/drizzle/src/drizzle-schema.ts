@@ -77,8 +77,6 @@ export const users = sqliteTable(
     name: text("name").notNull(),
     config: text("config", { mode: "json" }).$type<{
       llm?: {
-        googleApiKey?: string;
-        openaiApiKey?: string;
         chat?: {
           modelId: string;
           provider: string;

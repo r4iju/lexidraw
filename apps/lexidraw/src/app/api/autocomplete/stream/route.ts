@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import env from "@packages/env";
 
 export const dynamic = "force-dynamic";
 
@@ -76,8 +77,7 @@ export async function POST(req: NextRequest) {
     (cfg.extraConfig?.verbosity as "low" | "medium" | "high" | undefined) ||
     "low";
 
-  const openaiApiKey =
-    session.user.config?.llm?.openaiApiKey || process.env.OPENAI_API_KEY;
+  const openaiApiKey = env.OPENAI_API_KEY;
   if (!openaiApiKey) {
     return new Response("Missing OpenAI API key", { status: 400 });
   }

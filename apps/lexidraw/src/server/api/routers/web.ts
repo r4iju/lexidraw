@@ -14,10 +14,7 @@ export const webRouter = createTRPCRouter({
   googleSearch: protectedProcedure
     .input(GoogleSearchInput)
     .query(async ({ ctx, input }) => {
-      const userGoogleKey = ctx.session.user.config?.llm?.googleApiKey as
-        | string
-        | undefined;
-      const apiKey = userGoogleKey || env.GOOGLE_API_KEY;
+      const apiKey = env.GOOGLE_API_KEY;
       const cx = env.GOOGLE_SEARCH_ENGINE_ID;
 
       if (!apiKey) {

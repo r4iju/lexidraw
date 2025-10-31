@@ -3,6 +3,7 @@
 import { auth } from "~/server/auth";
 import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import env from "@packages/env";
 
 type Params = {
   system: string;
@@ -67,8 +68,7 @@ export async function runAutocomplete({
     (cfg.extraConfig?.verbosity as "low" | "medium" | "high" | undefined) ||
     "low";
 
-  const openaiApiKey =
-    session.user.config?.llm?.openaiApiKey || process.env.OPENAI_API_KEY;
+  const openaiApiKey = env.OPENAI_API_KEY;
   if (!openaiApiKey) {
     throw new Error("Missing OpenAI API key");
   }

@@ -53,8 +53,3 @@ export type TtsResult = {
   totalChars: number;
   title?: string;
 };
-
-export type UserProviderKeys = {
-  openaiApiKey?: string | null;
-  googleApiKey?: string | null;
-};
