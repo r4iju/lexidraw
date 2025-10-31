@@ -94,13 +94,21 @@ export async function POST(req: NextRequest) {
     | ReturnType<typeof createGoogleGenerativeAI>
   > | null = null;
   if (provider === "openai") {
-    if (!openaiApiKey)
-      return new Response("Missing OpenAI API key", { status: 400 });
+    if (!openaiApiKey) {
+      return new Response(
+        "Missing OpenAI API key. Please set OPENAI_API_KEY environment variable.",
+        { status: 400 },
+      );
+    }
     const openai = createOpenAI({ apiKey: openaiApiKey });
     model = openai(modelId);
   } else if (provider === "google") {
-    if (!googleApiKey)
-      return new Response("Missing Google API key", { status: 400 });
+    if (!googleApiKey) {
+      return new Response(
+        "Missing Google API key. Please set GOOGLE_API_KEY environment variable.",
+        { status: 400 },
+      );
+    }
     const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
     model = google(modelId);
   } else {

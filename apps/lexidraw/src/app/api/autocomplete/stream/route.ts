@@ -79,7 +79,10 @@ export async function POST(req: NextRequest) {
 
   const openaiApiKey = env.OPENAI_API_KEY;
   if (!openaiApiKey) {
-    return new Response("Missing OpenAI API key", { status: 400 });
+    return new Response(
+      "Missing OpenAI API key. Please set OPENAI_API_KEY environment variable.",
+      { status: 400 },
+    );
   }
 
   const upstreamController = new AbortController();
