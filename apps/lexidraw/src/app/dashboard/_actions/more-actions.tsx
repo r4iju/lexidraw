@@ -36,10 +36,9 @@ import { revalidateDashboard } from "../server-actions";
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   currentAccess: PublicAccess;
-  llmConfig?: { openaiApiKey?: string } | null;
 };
 
-export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
+export const MoreActions = ({ entity, currentAccess }: Props) => {
   const [openDialog, setOpenDialog] = useState<
     null | "delete" | "share" | "rename" | "tag" | "thumbnail"
   >(null);
@@ -192,10 +191,7 @@ export const MoreActions = ({ entity, currentAccess, llmConfig }: Props) => {
         />
       )}
       {openDialog === "thumbnail" && (
-        <ImageGenerationProvider
-          initialConfig={llmConfig ?? null}
-          entityId={entity.id}
-        >
+        <ImageGenerationProvider entityId={entity.id}>
           <ImageProvider>
             <ThumbnailModal
               entity={entity}

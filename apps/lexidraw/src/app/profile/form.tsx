@@ -11,6 +11,7 @@ import FormProvider, {
   RHFModelSelect,
 } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -20,6 +21,92 @@ import { SelectItem } from "~/components/ui/select";
 import { useMemo } from "react";
 
 type Props = { user: RouterOutputs["auth"]["getProfile"] };
+
+type PolicyType = {
+  mode: "chat" | "agent" | "autocomplete";
+  provider: string;
+  modelId: string;
+  temperature: number;
+  maxOutputTokens: number;
+  allowedModels: Array<{ provider: string; modelId: string }>;
+  enforcedCaps: {
+    maxOutputTokensByProvider: { openai: number; google: number };
+  };
+  extraConfig: Record<string, unknown> | null | undefined;
+};
+
+function LLMSection({
+  mode,
+  policy,
+  prefix,
+}: {
+  mode: "chat" | "agent" | "autocomplete";
+  policy: PolicyType | undefined;
+  prefix: string;
+}) {
+  if (!policy) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <RHFSelect name={`${prefix}.provider`} label="Provider">
+          <SelectItem value="openai">OpenAI</SelectItem>
+          <SelectItem value="google">Google</SelectItem>
+        </RHFSelect>
+        <RHFModelSelect
+          name={`${prefix}.modelId`}
+          label="Model"
+          providerName={`${prefix}.provider`}
+          allowedModels={policy.allowedModels}
+          helperText={
+            policy.modelId
+              ? `Policy default: ${policy.provider}:${policy.modelId}`
+              : undefined
+          }
+        />
+        <RHFSlider
+          name={`${prefix}.temperature`}
+          label="Temperature (0-1)"
+          min={0}
+          max={1}
+          step={0.01}
+          helperText={
+            policy.temperature !== undefined
+              ? `Policy default: ${policy.temperature}`
+              : undefined
+          }
+        />
+        <RHFTextField
+          label="Max output tokens"
+          name={`${prefix}.maxOutputTokens`}
+          type="number"
+          helperText={
+            policy.maxOutputTokens
+              ? `Policy default: ${policy.maxOutputTokens}`
+              : undefined
+          }
+        />
+        {mode === "autocomplete" && (
+          <>
+            <RHFSelect
+              name={`${prefix}.reasoningEffort`}
+              label="Reasoning Effort"
+            >
+              <SelectItem value="minimal">Minimal</SelectItem>
+              <SelectItem value="standard">Standard</SelectItem>
+              <SelectItem value="heavy">Heavy</SelectItem>
+            </RHFSelect>
+            <RHFSelect name={`${prefix}.verbosity`} label="Verbosity">
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+            </RHFSelect>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ProfileForm({ user }: Props) {
   const { data: session, update } = useSession();
@@ -46,7 +133,9 @@ export default function ProfileForm({ user }: Props) {
       email: user?.email ?? "",
       name: user?.name ?? "",
       chat: user?.config?.llm?.chat ?? undefined,
-      agent: user?.config?.llm?.agent ?? undefined,
+      agent:
+        (user?.config?.llm as { agent?: unknown } | undefined)?.agent ??
+        undefined,
       autocomplete: {
         ...user?.config?.llm?.autocomplete,
         reasoningEffort: user?.config?.autocomplete?.reasoningEffort,
@@ -82,7 +171,7 @@ export default function ProfileForm({ user }: Props) {
       onSuccess: async () => {
         toast.success("Profile saved");
         reset(data);
-        const updated = await update({
+        await update({
           ...session,
           user: {
             ...session?.user,
@@ -114,98 +203,42 @@ export default function ProfileForm({ user }: Props) {
     });
   };
 
-  function LLMSection({
-    mode,
-    policy,
-    prefix,
-  }: {
-    mode: "chat" | "agent" | "autocomplete";
-    policy: typeof chatPolicy;
-    prefix: string;
-  }) {
-    if (!policy) return null;
-
-    return (
-      <div className="pt-2 border-t border-border">
-        <div className="text-sm font-medium mb-3">{mode.toUpperCase()}</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <RHFSelect name={`${prefix}.provider`} label="Provider">
-            <SelectItem value="openai">OpenAI</SelectItem>
-            <SelectItem value="google">Google</SelectItem>
-          </RHFSelect>
-          <RHFModelSelect
-            name={`${prefix}.modelId`}
-            label="Model"
-            providerName={`${prefix}.provider`}
-            allowedModels={policy.allowedModels}
-            helperText={
-              policy.modelId
-                ? `Policy default: ${policy.provider}:${policy.modelId}`
-                : undefined
-            }
-          />
-          <RHFSlider
-            name={`${prefix}.temperature`}
-            label="Temperature (0-1)"
-            min={0}
-            max={1}
-            step={0.01}
-            helperText={
-              policy.temperature !== undefined
-                ? `Policy default: ${policy.temperature}`
-                : undefined
-            }
-          />
-          <RHFTextField
-            label="Max output tokens"
-            name={`${prefix}.maxOutputTokens`}
-            type="number"
-            helperText={
-              policy.maxOutputTokens
-                ? `Policy default: ${policy.maxOutputTokens}`
-                : undefined
-            }
-          />
-          {mode === "autocomplete" && (
-            <>
-              <RHFSelect
-                name={`${prefix}.reasoningEffort`}
-                label="Reasoning Effort"
-              >
-                <SelectItem value="minimal">Minimal</SelectItem>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="heavy">Heavy</SelectItem>
-              </RHFSelect>
-              <RHFSelect name={`${prefix}.verbosity`} label="Verbosity">
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-              </RHFSelect>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
-        <div className="space-y-4 py-4">
-          <RHFTextField label="Email" name="email" type="email" />
-          <RHFTextField label="Name" name="name" type="name" />
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="agent">Agent</TabsTrigger>
+            <TabsTrigger value="autocomplete">Autocomplete</TabsTrigger>
+            <TabsTrigger value="audio">Audio</TabsTrigger>
+            <TabsTrigger value="articles">Articles</TabsTrigger>
+          </TabsList>
 
-          <LLMSection mode="chat" policy={chatPolicy} prefix="chat" />
-          <LLMSection mode="agent" policy={agentPolicy} prefix="agent" />
-          <LLMSection
-            mode="autocomplete"
-            policy={autocompletePolicy}
-            prefix="autocomplete"
-          />
+          <TabsContent value="general" className="space-y-4 py-4">
+            <RHFTextField label="Email" name="email" type="email" />
+            <RHFTextField label="Name" name="name" type="name" />
+          </TabsContent>
 
-          <div className="pt-2 border-t border-border">
-            <div className="text-sm font-medium">Audio generation (TTS)</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+          <TabsContent value="chat" className="space-y-4 py-4">
+            <LLMSection mode="chat" policy={chatPolicy} prefix="chat" />
+          </TabsContent>
+
+          <TabsContent value="agent" className="space-y-4 py-4">
+            <LLMSection mode="agent" policy={agentPolicy} prefix="agent" />
+          </TabsContent>
+
+          <TabsContent value="autocomplete" className="space-y-4 py-4">
+            <LLMSection
+              mode="autocomplete"
+              policy={autocompletePolicy}
+              prefix="autocomplete"
+            />
+          </TabsContent>
+
+          <TabsContent value="audio" className="space-y-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <RHFSelect name="tts.provider" label="Provider">
                 <SelectItem value="openai">OpenAI</SelectItem>
                 <SelectItem value="google">Google</SelectItem>
@@ -231,10 +264,10 @@ export default function ProfileForm({ user }: Props) {
                 type="number"
               />
             </div>
-          </div>
-          <div className="pt-2 border-t border-border">
-            <div className="text-sm font-medium">Articles</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+          </TabsContent>
+
+          <TabsContent value="articles" className="space-y-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <RHFTextField
                 label="Language code"
                 name="articles.languageCode"
@@ -250,19 +283,22 @@ export default function ProfileForm({ user }: Props) {
                 name="articles.autoGenerateAudioOnImport"
               />
             </div>
-          </div>
+          </TabsContent>
+        </Tabs>
+
+        <div className="pt-4 border-t border-border mt-4">
+          <Button
+            className="w-full"
+            type="submit"
+            disabled={!isDirty || isPending}
+          >
+            <ReloadIcon
+              className={`animate-spin w-4 mr-2 ${!isPending && "opacity-0"}`}
+            />
+            Save
+            <div className="w-4 ml-2 opacity-0" />
+          </Button>
         </div>
-        <Button
-          className="w-full"
-          type="submit"
-          disabled={!isDirty || isPending}
-        >
-          <ReloadIcon
-            className={`animate-spin w-4 mr-2 ${!isPending && "opacity-0"}`}
-          />
-          Save
-          <div className="w-4 ml-2 opacity-0" />
-        </Button>
       </FormProvider>
     </div>
   );

@@ -85,10 +85,9 @@ export async function POST(req: NextRequest) {
   // Resolve provider and model
   const provider = cfg.provider;
   const modelId = cfg.modelId;
-  const openaiApiKey =
-    session.user.config?.llm?.openaiApiKey || env.OPENAI_API_KEY;
-  const googleApiKey =
-    session.user.config?.llm?.googleApiKey || env.GOOGLE_API_KEY;
+  // Use app-level API keys
+  const openaiApiKey = env.OPENAI_API_KEY;
+  const googleApiKey = env.GOOGLE_API_KEY;
 
   let model: ReturnType<
     | ReturnType<typeof createOpenAI>

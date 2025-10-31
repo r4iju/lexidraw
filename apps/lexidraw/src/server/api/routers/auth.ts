@@ -148,9 +148,6 @@ export const authRouter = createTRPCRouter({
           config: {
             ...currentConfig,
             llm: {
-              // Preserve existing API keys if they exist
-              googleApiKey: currentConfig.llm?.googleApiKey,
-              openaiApiKey: currentConfig.llm?.openaiApiKey,
               chat: input.chat ?? currentConfig.llm?.chat,
               agent: input.agent ?? currentConfig.llm?.agent,
               autocomplete:

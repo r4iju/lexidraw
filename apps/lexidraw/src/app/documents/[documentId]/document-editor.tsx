@@ -430,10 +430,7 @@ function EditorHandler({
         <TableContext>
           <ToolbarContext>
             <LLMProvider initialConfig={initialLlmConfig}>
-              <ImageGenerationProvider
-                initialConfig={initialLlmConfig}
-                entityId={entity.id}
-              >
+              <ImageGenerationProvider entityId={entity.id}>
                 <LexicalImageGenerationProvider>
                   <ImageProvider>
                     <LexicalImageProvider>

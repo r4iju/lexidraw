@@ -12,16 +12,12 @@ export const LlmBaseConfigSchema = z.object({
 });
 
 export const LlmConfigSchema = z.object({
-  googleApiKey: z.string().optional(),
-  openaiApiKey: z.string().optional(),
   chat: LlmBaseConfigSchema,
   autocomplete: LlmBaseConfigSchema,
   agent: LlmBaseConfigSchema,
 });
 
 export const PatchSchema = z.object({
-  googleApiKey: z.string().optional(),
-  openaiApiKey: z.string().optional(),
   chat: LlmBaseConfigSchema.partial().optional(),
   autocomplete: LlmBaseConfigSchema.partial().optional(),
   agent: LlmBaseConfigSchema.partial().optional(),
@@ -194,7 +190,8 @@ export const configRouter = createTRPCRouter({
         | Partial<typeof defaults>
         | undefined;
       if (seed) {
-        cfg = { ...defaults, ...seed } as typeof defaults & Record<string, unknown>;
+        cfg = { ...defaults, ...seed } as typeof defaults &
+          Record<string, unknown>;
         await ctx.drizzle
           .update(schema.users)
           .set({
@@ -207,7 +204,8 @@ export const configRouter = createTRPCRouter({
       }
     }
 
-    return { ...defaults, ...(cfg ?? {}) } as typeof defaults & Record<string, unknown>;
+    return { ...defaults, ...(cfg ?? {}) } as typeof defaults &
+      Record<string, unknown>;
   }),
   updateAutocompleteConfig: protectedProcedure
     .input(
@@ -256,7 +254,9 @@ export const configRouter = createTRPCRouter({
         },
       });
 
-      const existingLlm = (user?.config?.llm ?? {}) as Partial<z.infer<typeof LlmConfigSchema>>;
+      const existingLlm = (user?.config?.llm ?? {}) as Partial<
+        z.infer<typeof LlmConfigSchema>
+      >;
       const llmConfigUnnormalized = {
         ...defaultChatBaseConfig,
         ...existingLlm,
@@ -450,8 +450,7 @@ export const configRouter = createTRPCRouter({
       }
 
       // Google
-      const userKey = ctx.session.user.config?.llm?.googleApiKey;
-      const apiKey = userKey || env.GOOGLE_API_KEY;
+      const apiKey = env.GOOGLE_API_KEY;
       if (!apiKey) {
         const empty: Result = {
           voices: [],
@@ -459,7 +458,7 @@ export const configRouter = createTRPCRouter({
           diagnostics: {
             code: "missing_api_key",
             message:
-              "Google TTS requires an API key. Add it in Profile → Google API Key.",
+              "Google TTS requires an API key configured at the app level.",
           },
         };
         bag.set(cacheKey, { expires: now + 60_000, data: empty });
@@ -532,7 +531,7 @@ export const configRouter = createTRPCRouter({
     }),
 
   // --- Rich TTS catalog merged with OpenAI/Google ---
-  getTtsCatalog: protectedProcedure.query(async ({ ctx }) => {
+  getTtsCatalog: protectedProcedure.query(async () => {
     const providers: TtsConfigProvider[] = [];
     const languages = new Set<string>();
     const families = new Set<string>();
@@ -594,9 +593,7 @@ export const configRouter = createTRPCRouter({
 
     // Google voices
     try {
-      const apiKey =
-        ctx.session.user.config?.llm?.googleApiKey ||
-        process.env.GOOGLE_API_KEY;
+      const apiKey = env.GOOGLE_API_KEY;
       if (apiKey) {
         const resp = await fetch(
           `https://texttospeech.googleapis.com/v1/voices?key=${encodeURIComponent(apiKey)}`,
@@ -768,7 +765,9 @@ export const configRouter = createTRPCRouter({
         columns: { config: true },
       });
 
-      const currentLlm = (currentUser?.config?.llm ?? {}) as Partial<z.infer<typeof LlmConfigSchema>>;
+      const currentLlm = (currentUser?.config?.llm ?? {}) as Partial<
+        z.infer<typeof LlmConfigSchema>
+      >;
       const newLlmConfigUnnormalized = {
         ...currentLlm,
         chat: {
@@ -791,7 +790,9 @@ export const configRouter = createTRPCRouter({
       const newLlmConfigToSave = LlmConfigSchema.parse({
         ...newLlmConfigUnnormalized,
         chat: normalizeBaseConfig(newLlmConfigUnnormalized.chat),
-        autocomplete: normalizeBaseConfig(newLlmConfigUnnormalized.autocomplete),
+        autocomplete: normalizeBaseConfig(
+          newLlmConfigUnnormalized.autocomplete,
+        ),
         agent: normalizeBaseConfig(newLlmConfigUnnormalized.agent),
       });
 

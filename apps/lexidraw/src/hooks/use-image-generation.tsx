@@ -2,12 +2,9 @@ import {
   createContext,
   useCallback,
   useContext,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { experimental_generateImage as generateImage } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
@@ -43,23 +40,16 @@ const ImageGenerationContext =
   createContext<ImageGenerationContextValue | null>(null);
 
 export const ImageGenerationProvider = ({
-  initialConfig,
   entityId,
   children,
 }: {
-  initialConfig: { openaiApiKey?: string | undefined } | null;
   entityId: string;
   children: ReactNode;
 }) => {
   const { mutateAsync: generateUploadUrlAsync } =
     api.entities.generateUploadUrl.useMutation();
-  const [isLoading, setIsLoading] = useState(false);
-  const provider = useRef(
-    initialConfig?.openaiApiKey
-      ? createOpenAI({ apiKey: initialConfig.openaiApiKey })
-      : null,
-  );
-  const isConfigured = Boolean(provider.current);
+  const [isLoading] = useState(false);
+  const isConfigured = false;
 
   const sanitizeFilename = useCallback(
     (name: string) => name.replace(/[^a-z0-9_\-.]/gi, "_").substring(0, 50),
@@ -78,54 +68,12 @@ export const ImageGenerationProvider = ({
     [],
   );
 
-  const generateImageData = useCallback(
-    async (
-      prompt: string,
-      options?: { size?: "256x256" | "512x512" | "1024x1024" },
-    ) => {
-      if (!provider.current) {
-        toast.error("API key not configured.");
-        return null;
-      }
-      try {
-        setIsLoading(true);
-        const { images, warnings } = await generateImage({
-          model: provider.current.image("gpt-image-1"),
-          prompt,
-          n: 1,
-          size: options?.size ?? "1024x1024",
-        });
-        for (const w of warnings ?? []) {
-          const msg =
-            typeof w === "object" && "message" in w
-              ? String(w.message)
-              : JSON.stringify(w);
-          toast.error("Generation Warning", {
-            description: msg,
-          });
-        }
-        const result = images[0];
-        if (!result?.uint8Array) throw new Error("No image data returned.");
-        return {
-          imageData: result.uint8Array,
-          mimeType: result.mediaType ?? "image/png",
-        };
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Unknown error during generation.";
-        toast.error("Image Generation Failed", {
-          description: message,
-        });
-        console.error(err);
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [],
-  );
+  const generateImageData = useCallback(() => {
+    toast.error(
+      "Image generation is not available. Please configure API keys at the app level.",
+    );
+    return Promise.resolve(null);
+  }, []);
 
   const uploadImageData = useCallback(
     async (imageData: Uint8Array, mimeType: string, prompt: string) => {

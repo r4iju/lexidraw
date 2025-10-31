@@ -20,10 +20,7 @@ export async function POST(req: NextRequest) {
     entityId?: string;
   };
 
-  const userKeys = {
-    openaiApiKey: session.user.config?.llm?.openaiApiKey ?? null,
-    googleApiKey: session.user.config?.llm?.googleApiKey ?? null,
-  } as const;
+  };
 
   // Merge user TTS defaults
   const ttsDefaults = session.user.config?.tts ?? {};
@@ -70,8 +67,6 @@ export async function POST(req: NextRequest) {
       speed: resolved.speed,
       format: resolved.format,
       languageCode: resolved.languageCode,
-      hasUserGoogleKey: !!userKeys.googleApiKey,
-      hasUserOpenaiKey: !!userKeys.openaiApiKey,
     });
     const { id, manifestUrl } = precomputeTtsKey({
       ...body,
@@ -143,7 +138,6 @@ export async function POST(req: NextRequest) {
           format: resolved.format,
           languageCode: resolved.languageCode,
           titleHint: body.title,
-          userKeys,
         });
         if (body.entityId) {
           try {
@@ -205,7 +199,6 @@ export async function POST(req: NextRequest) {
           format: resolved.format,
           languageCode: resolved.languageCode,
           titleHint: body.title,
-          userKeys,
         });
         if (body.entityId) {
           const existing = await drizzle.query.entities.findFirst({
