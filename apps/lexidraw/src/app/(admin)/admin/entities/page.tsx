@@ -11,8 +11,10 @@ export default async function AdminEntitiesPage({
   const size = Number(searchParams.size ?? 50) || 50;
   const query =
     typeof searchParams.query === "string" ? searchParams.query : "";
-  const status =
+  const statusRaw =
     typeof searchParams.status === "string" ? searchParams.status : "";
+  const status: "active" | "inactive" | "all" =
+    statusRaw === "active" || statusRaw === "inactive" ? statusRaw : "all";
   const ownerId =
     typeof searchParams.ownerId === "string" ? searchParams.ownerId : "";
 
@@ -20,7 +22,7 @@ export default async function AdminEntitiesPage({
     page,
     size,
     query,
-    status: (status || undefined) as "active" | "inactive" | undefined,
+    status: status === "all" ? undefined : status,
     ownerId: ownerId || undefined,
   });
   const ownersRaw = await api.adminUsers.list.query({ page: 1, size: 50 });
@@ -29,9 +31,12 @@ export default async function AdminEntitiesPage({
     id: r.id as string,
     title: r.title as string,
     ownerLabel:
-      ((r as { ownerName?: string | null }).ownerName ?? null) ??
-      ((r as { ownerEmail?: string | null }).ownerEmail ?? null) ??
-      ((r as { ownerId?: string }).ownerId ?? ""),
+      (r as { ownerName?: string | null }).ownerName ??
+      null ??
+      (r as { ownerEmail?: string | null }).ownerEmail ??
+      null ??
+      (r as { ownerId?: string }).ownerId ??
+      "",
     membersCount: (r as { membersCount?: number }).membersCount ?? 0,
     isActive: (r as { isActive?: number }).isActive ?? 1,
     createdAt: new Date(

@@ -77,7 +77,11 @@ export const authRouter = createTRPCRouter({
       const currentConfig = currentUser[0]?.config ?? {};
 
       // Validate LLM configs against policies
-      const modes = ["chat", "agent", "autocomplete"] as const;
+      const modes: ("chat" | "agent" | "autocomplete")[] = [
+        "chat",
+        "agent",
+        "autocomplete",
+      ];
       const policies = await ctx.drizzle
         .select({
           mode: schema.llmPolicies.mode,
@@ -140,6 +144,45 @@ export const authRouter = createTRPCRouter({
         }
       }
 
+      const updatedLlm: {
+        chat?: {
+          modelId: string;
+          provider: string;
+          temperature: number;
+          maxOutputTokens: number;
+        };
+        autocomplete?: {
+          modelId: string;
+          provider: string;
+          temperature: number;
+          maxOutputTokens: number;
+        };
+      } = { ...(currentConfig.llm ?? {}) };
+
+      if (input.chat) {
+        updatedLlm.chat = {
+          ...(currentConfig.llm?.chat ?? {}),
+          ...input.chat,
+        } as {
+          modelId: string;
+          provider: string;
+          temperature: number;
+          maxOutputTokens: number;
+        };
+      }
+
+      if (input.autocomplete) {
+        updatedLlm.autocomplete = {
+          ...(currentConfig.llm?.autocomplete ?? {}),
+          ...input.autocomplete,
+        } as {
+          modelId: string;
+          provider: string;
+          temperature: number;
+          maxOutputTokens: number;
+        };
+      }
+
       await ctx.drizzle
         .update(schema.users)
         .set({
@@ -147,12 +190,7 @@ export const authRouter = createTRPCRouter({
           email: input.email,
           config: {
             ...currentConfig,
-            llm: {
-              chat: input.chat ?? currentConfig.llm?.chat,
-              agent: input.agent ?? currentConfig.llm?.agent,
-              autocomplete:
-                input.autocomplete ?? currentConfig.llm?.autocomplete,
-            },
+            llm: updatedLlm,
             // Merge optional TTS and Article config if provided
             tts: {
               ...currentConfig.tts,

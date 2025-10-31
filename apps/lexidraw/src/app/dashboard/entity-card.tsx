@@ -147,11 +147,7 @@ export function EntityCard({
           <TagTooltip entity={entity} className="hidden md:flex" />
 
           {!isOverlay ? (
-            <MoreActions
-              entity={entity}
-              currentAccess={entity.publicAccess}
-              llmConfig={llmConfig}
-            />
+            <MoreActions entity={entity} currentAccess={entity.publicAccess} />
           ) : (
             <Button size="icon" variant="ghost" disabled>
               <DotsHorizontalIcon className="size-5" />
