@@ -12,6 +12,7 @@ import {
   type LanguageModel,
 } from "ai";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import { generateUUID } from "~/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   const contentType = req.headers.get("content-type") || "";
-  const requestId = crypto.randomUUID();
+  const requestId = generateUUID();
 
   let system = "";
   let prompt = "";

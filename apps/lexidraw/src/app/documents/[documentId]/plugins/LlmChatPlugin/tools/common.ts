@@ -372,13 +372,36 @@ export const useCommonUtilities = () => {
       };
     }
 
-    // Normalize anchor type: convert "nodeKey" to "key" (handles LLM schema mismatches)
+    // Normalize anchor shape:
+    // - convert legacy type "nodeKey" → "key"
+    // - if type is missing but { key } or { text } is present, infer the type
     let normalizedAnchor: InsertionAnchor = anchor;
-    if (
-      (anchor as unknown as { type?: string }).type === "nodeKey" &&
-      "key" in anchor
-    ) {
-      normalizedAnchor = { type: "key", key: (anchor as { key: string }).key };
+    const anchorAny = anchor as unknown as {
+      type?: string;
+      key?: string;
+      text?: string;
+    };
+    if (anchorAny.type === "nodeKey" && typeof anchorAny.key === "string") {
+      normalizedAnchor = { type: "key", key: anchorAny.key };
+    } else if (!anchorAny.type) {
+      // or if it's a parsable integer
+      if (typeof anchorAny.key === "string") {
+        normalizedAnchor = {
+          type: "key",
+          key: anchorAny.key,
+        } as InsertionAnchor;
+      } else if (typeof anchorAny.text === "string") {
+        normalizedAnchor = {
+          type: "text",
+          text: anchorAny.text,
+        } as InsertionAnchor;
+      } else {
+        return {
+          status: "error",
+          message:
+            `Anchor type is missing and could not be inferred ${JSON.stringify(anchor)}. Provide { type: 'key'|'text', key?|text? }`,
+        };
+      }
     }
 
     let liveTargetNode: LexicalNode | null = null;
@@ -399,7 +422,6 @@ export const useCommonUtilities = () => {
         message: `Target node for anchor ${JSON.stringify(normalizedAnchor)} not resolved.`,
       };
     }
-    console.log("liveTargetNode is never? ", liveTargetNode);
     return {
       status: "success",
       type: relation,

@@ -162,6 +162,71 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(saveAudienceDataTool && { saveAudienceDataTool }),
   } as unknown as RuntimeToolMap;
 
+  // Attach standardized logging to each tool's execute to trace duplicates
+  const instrumentTools = (map: RuntimeToolMap): RuntimeToolMap => {
+    const entries = Object.entries(map) as Array<
+      [
+        string,
+        Record<string, unknown> & {
+          execute?: (args: Record<string, unknown>) => Promise<unknown>;
+        },
+      ]
+    >;
+    for (const [name, t] of entries) {
+      const anyTool = t as unknown as {
+        execute?: (args: Record<string, unknown>) => Promise<unknown>;
+        __instrumented?: boolean;
+      };
+      if (
+        anyTool &&
+        typeof anyTool.execute === "function" &&
+        !anyTool.__instrumented
+      ) {
+        const original = anyTool.execute.bind(t);
+        anyTool.execute = async (args: Record<string, unknown>) => {
+          const execUid =
+            globalThis.crypto && "randomUUID" in globalThis.crypto
+              ? (
+                  globalThis.crypto as unknown as { randomUUID: () => string }
+                ).randomUUID()
+              : Math.random().toString(36).slice(2);
+          const argsPreview = (() => {
+            try {
+              const s = JSON.stringify(args ?? {});
+              return s.length > 500 ? `${s.slice(0, 500)}…` : s;
+            } catch {
+              return "[unserializable]";
+            }
+          })();
+          console.log(`[tool:${name}] EXECUTE → start`, {
+            execUid,
+            argsPreview,
+          });
+          try {
+            const res = await original(args ?? {});
+            const success =
+              res &&
+              typeof res === "object" &&
+              "success" in (res as Record<string, unknown>)
+                ? Boolean((res as Record<string, unknown>).success)
+                : undefined;
+            console.log(`[tool:${name}] EXECUTE ← end`, { execUid, success });
+            return res;
+          } catch (e) {
+            console.error(`[tool:${name}] EXECUTE ! error`, {
+              execUid,
+              error: e instanceof Error ? e.message : String(e),
+            });
+            throw e;
+          }
+        };
+        (anyTool as { __instrumented?: boolean }).__instrumented = true;
+      }
+    }
+    return map;
+  };
+  instrumentTools(individualTools);
+
   const { combinedTools, webResearch } = useCombinedTools(individualTools);
 
   const tools = {
@@ -169,6 +234,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     combinedTools,
     webResearch,
   } as unknown as RuntimeToolMap;
+  instrumentTools(tools);
 
   // Aggregate global + per-module tool labels/formatters.
   const labels: Record<string, string | undefined> = {

@@ -8,8 +8,10 @@ export const InsertionRelationSchema = z.enum([
   "appendRoot",
 ]);
 export const InsertionAnchorSchema = z
-  .union([
+  .discriminatedUnion("type", [
     z.object({ type: z.literal("key"), key: z.string() }),
     z.object({ type: z.literal("text"), text: z.string() }),
   ])
-  .describe("Anchor for insertion point, either by node key or nearby text");
+  .describe(
+    "Anchor for insertion point. Must be an object with 'type' field: { type: 'key', key: string } to target by node key, or { type: 'text', text: string } to target by text content. Do not pass a string directly.",
+  );

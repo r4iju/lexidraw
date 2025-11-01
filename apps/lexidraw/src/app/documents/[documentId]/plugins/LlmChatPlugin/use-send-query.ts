@@ -1,5 +1,5 @@
 "use client";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useChatDispatch, useChatState } from "./llm-chat-context";
 import {
   useLLM,
@@ -12,6 +12,7 @@ import { useSystemPrompt } from "./use-system-prompt";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useMarkdownTools } from "../../utils/markdown";
 import type { ModelMessage } from "ai";
+import { generateUUID } from "~/lib/utils";
 
 // Define a more specific type for messages used in history building
 // (Matches the structure in llm-chat-context.tsx)
@@ -63,6 +64,9 @@ export const useSendQuery = () => {
   const systemPrompt = useSystemPrompt(mode);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
+  // Prevent duplicate agent turns from concurrent triggers
+  const agentInFlightRef = useRef(false);
+
   // Inline helpers as memoized closures
   // planner helpers removed; planning handled on server
 
@@ -88,7 +92,7 @@ export const useSendQuery = () => {
         return;
       }
 
-      const userMessageId = crypto.randomUUID();
+      const userMessageId = generateUUID();
       // If a file is present, add its name to the user's message content for display
       const userMessageContent = files
         ? `${prompt} (Files: ${Array.from(files)
@@ -102,7 +106,7 @@ export const useSendQuery = () => {
       });
 
       // For agent mode, set streaming state for the whole operation
-      const agentOperationId = mode === "agent" ? crypto.randomUUID() : null;
+      const agentOperationId = mode === "agent" ? generateUUID() : null;
       if (mode === "agent" && agentOperationId) {
         dispatch({ type: "startStreaming", id: agentOperationId });
       }
@@ -157,7 +161,7 @@ export const useSendQuery = () => {
         if (mode === "chat") {
           console.log("Using generateChatStream for chat mode");
 
-          const assistantMessageId = crypto.randomUUID();
+          const assistantMessageId = generateUUID();
           // Add placeholder assistant message for streaming
           dispatch({
             type: "push",
@@ -214,7 +218,10 @@ export const useSendQuery = () => {
           });
         } else {
           // Staged provisioning: planner call -> main call with selected subset
-          const availableToolNames = Object.keys(runtimeTools);
+          const chatOnly = new Set(["sendReply", "requestClarificationOrPlan"]);
+          const availableToolNames = Object.keys(runtimeTools).filter(
+            (n) => !chatOnly.has(n),
+          );
           // planner instruction enforced server-side
 
           // --- Planner step via server endpoint ---
@@ -252,7 +259,7 @@ export const useSendQuery = () => {
             dispatch({
               type: "push",
               msg: {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 role: "system",
                 content:
                   "Planner failed to select tools. Please refine the request.",
@@ -266,6 +273,13 @@ export const useSendQuery = () => {
           // Client-orchestrated agent flow (feature-flagged) — call through llm-context
           const clientOrch = true;
           if (clientOrch) {
+            if (agentInFlightRef.current) {
+              console.warn(
+                "[agent] Turn already in-flight. Ignoring duplicate trigger.",
+              );
+              return;
+            }
+            agentInFlightRef.current = true;
             const messagesForAgent: ModelMessage[] = [
               { role: "user", content: fullPrompt },
             ];
@@ -286,13 +300,14 @@ export const useSendQuery = () => {
               dispatch({
                 type: "push",
                 msg: {
-                  id: crypto.randomUUID(),
+                  id: generateUUID(),
                   role: "assistant",
                   content: result1.text,
                 },
               });
             }
             if (toolCalls1.length > 0) {
+              const executedIds = new Set<string>();
               const executed: Array<{
                 toolCallId: string;
                 toolName: string;
@@ -301,7 +316,20 @@ export const useSendQuery = () => {
                 summary?: string;
               }> = [];
 
+              console.log(
+                `[agent] Executing ${toolCalls1.length} tool call(s): ${toolCalls1
+                  .map((c) => c.toolName)
+                  .join(", ")}`,
+              );
+
               for (const c of toolCalls1) {
+                if (executedIds.has(c.toolCallId)) {
+                  console.warn(
+                    `[agent] Skipping duplicate toolCallId ${c.toolCallId} (${c.toolName})`,
+                  );
+                  continue;
+                }
+                executedIds.add(c.toolCallId);
                 const toolImpl = (
                   selectedTools as unknown as Record<string, unknown>
                 )[c.toolName] as unknown as {
@@ -331,19 +359,53 @@ export const useSendQuery = () => {
                     ? { replyText: raw.message }
                     : raw;
                 try {
-                  const res = await toolImpl.execute(mappedArgs);
-                  executed.push({
+                  const argsPreview = (() => {
+                    try {
+                      const s = JSON.stringify(mappedArgs);
+                      return s.length > 500 ? `${s.slice(0, 500)}…` : s;
+                    } catch {
+                      return "[unserializable]";
+                    }
+                  })();
+                  console.log(`[tool:${c.toolName}] START`, {
                     toolCallId: c.toolCallId,
-                    toolName: c.toolName,
-                    ok: !!res?.success,
-                    error: (res as any)?.error,
-                    summary: (res as any)?.content?.summary,
+                    argsPreview,
                   });
+                  const res = (await toolImpl.execute(mappedArgs)) as
+                    | { success: true; content?: { summary?: string } }
+                    | { success: false; error?: string };
+                  if (res.success) {
+                    executed.push({
+                      toolCallId: c.toolCallId,
+                      toolName: c.toolName,
+                      ok: true,
+                      summary: res.content?.summary,
+                    });
+                    console.log(`[tool:${c.toolName}] OK`, {
+                      toolCallId: c.toolCallId,
+                      summary: res.content?.summary,
+                    });
+                  } else {
+                    executed.push({
+                      toolCallId: c.toolCallId,
+                      toolName: c.toolName,
+                      ok: false,
+                      error: res.error,
+                    });
+                    console.warn(`[tool:${c.toolName}] ERROR`, {
+                      toolCallId: c.toolCallId,
+                      error: res.error,
+                    });
+                  }
                 } catch (e) {
                   executed.push({
                     toolCallId: c.toolCallId,
                     toolName: c.toolName,
                     ok: false,
+                    error: e instanceof Error ? e.message : String(e),
+                  });
+                  console.error(`[tool:${c.toolName}] EXCEPTION`, {
+                    toolCallId: c.toolCallId,
                     error: e instanceof Error ? e.message : String(e),
                   });
                 }
@@ -380,11 +442,15 @@ export const useSendQuery = () => {
                 tools: selectedTools,
                 prompt: "",
               });
+              console.log(
+                "[agent] Sent follow-up with TOOL_EXECUTION_RESULTS_PASS_1",
+                { executedCount: executed.length },
+              );
               if ((result2.text ?? "").trim() !== "") {
                 dispatch({
                   type: "push",
                   msg: {
-                    id: crypto.randomUUID(),
+                    id: generateUUID(),
                     role: "assistant",
                     content: result2.text,
                   },
@@ -414,7 +480,7 @@ export const useSendQuery = () => {
             dispatch({
               type: "push",
               msg: {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 role: "assistant",
                 content: agentText,
               },
@@ -429,12 +495,15 @@ export const useSendQuery = () => {
         dispatch({
           type: "push",
           msg: {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             role: "system",
             content: "An error occurred while processing your request.",
           },
         });
       } finally {
+        if (mode === "agent") {
+          agentInFlightRef.current = false;
+        }
         if (mode === "agent" && agentOperationId) {
           dispatch({ type: "stopStreaming" });
         }
