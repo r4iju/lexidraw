@@ -49,11 +49,14 @@ const ToolMetaCtx = createContext<ToolMeta | null>(null);
 export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const dispatch = useChatDispatch();
 
+  // Create chat tools - we'll update runtimeTools ref after tools are created
+  const chatToolsResult = useChatTools({ dispatch });
   const {
     requestClarificationOrPlan,
     summarizeAfterToolCallExecution,
     sendReply,
-  } = useChatTools({ dispatch });
+    planNextToolSelection,
+  } = chatToolsResult;
 
   const { patchNodeByJSON, removeNode, moveNode } = useDocumentEditorTools();
 
@@ -138,6 +141,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(moveNode && { moveNode }),
     ...(requestClarificationOrPlan && { requestClarificationOrPlan }),
     ...(summarizeAfterToolCallExecution && { summarizeAfterToolCallExecution }),
+    ...(planNextToolSelection && { planNextToolSelection }),
     ...(searchAndInsertImage && { searchAndInsertImage }),
     ...(generateAndInsertImage && { generateAndInsertImage }),
     ...(googleSearch && { googleSearch }),

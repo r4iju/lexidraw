@@ -2,6 +2,7 @@ import { createTRPCRouter, adminProcedure } from "~/server/api/trpc";
 import { z } from "zod";
 import { and, desc, eq, like, sql, type SQL } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
+import { generateUUID } from "~/lib/utils";
 
 export const adminEntitiesRouter = createTRPCRouter({
   members: adminProcedure
@@ -140,7 +141,7 @@ export const adminEntitiesRouter = createTRPCRouter({
     .input(z.object({ entityId: z.string().min(1), userId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       await ctx.drizzle.insert(ctx.schema.sharedEntities).values({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         entityId: input.entityId,
         userId: input.userId,
         accessLevel: "editor",

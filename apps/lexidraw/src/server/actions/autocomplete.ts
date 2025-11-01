@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import env from "@packages/env";
+import { generateUUID } from "~/lib/utils";
 
 type Params = {
   system: string;
@@ -137,7 +138,7 @@ export async function runAutocomplete({
   if (!resp.ok) {
     const errText = await resp.text().catch(() => "");
     await recordLlmAudit({
-      requestId: crypto.randomUUID(),
+      requestId: generateUUID(),
       timestampMs: Date.now(),
       route: "server/actions/autocomplete",
       mode: "autocomplete",
@@ -184,7 +185,7 @@ export async function runAutocomplete({
         })();
 
   await recordLlmAudit({
-    requestId: crypto.randomUUID(),
+    requestId: generateUUID(),
     timestampMs: Date.now(),
     route: "server/actions/autocomplete",
     mode: "autocomplete",

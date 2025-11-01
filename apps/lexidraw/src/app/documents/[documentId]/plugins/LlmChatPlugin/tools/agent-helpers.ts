@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ChatDispatch } from "../llm-chat-context";
 import { generateUUID } from "~/lib/utils";
+// No runtime tool context required here; planner receives explicit availableTools
 
 /* --------------------------------------------------------------
  * Plan or Clarify Tool
@@ -59,7 +60,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
           dispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "assistant",
               content: args.clarification as string,
             },
@@ -89,7 +90,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
         dispatch({
           type: "push",
           msg: {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             role: "assistant",
             content: summaryText,
           },
@@ -121,7 +122,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
         dispatch({
           type: "push",
           msg: {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             role: "assistant",
             content: replyText,
           },
@@ -139,9 +140,118 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
     },
   });
 
+  const planNextToolSelection = tool({
+    description:
+      "Plans the next step by selecting appropriate tools for the next agent pass. Calls the planner API to determine which tools should be used for the next execution.",
+    inputSchema: z.object({
+      objective: z
+        .string()
+        .optional()
+        .describe(
+          "Optional objective describing what should be done next (e.g., 'add a second recipe beneath Chocolate ice cream').",
+        ),
+      availableTools: z
+        .array(z.string())
+        .min(1)
+        .describe(
+          "List of available tool names to consider for planning (provided by the orchestrator).",
+        ),
+      max: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("Maximum number of tools to select (default: 6)."),
+    }),
+    execute: async ({ objective, availableTools, max }) => {
+      try {
+        // Get available tool names (excluding chat-only and decision tools)
+        const chatOnly = new Set([
+          "sendReply",
+          "requestClarificationOrPlan",
+          "summarizeAfterToolCallExecution",
+          "planNextToolSelection",
+        ]);
+        const availableToolNames = Array.isArray(availableTools)
+          ? availableTools.filter(
+              (n: unknown) =>
+                typeof n === "string" && !chatOnly.has(n as string),
+            )
+          : [];
+
+        if (availableToolNames.length === 0) {
+          return {
+            success: false,
+            error: "No available tools for planning",
+          };
+        }
+
+        const plannerRes = await fetch("/api/llm/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: objective || "Continue with the next step",
+            availableTools: availableToolNames,
+            max: max ?? 6,
+          }),
+        });
+
+        if (!plannerRes.ok) {
+          const errorText = await plannerRes
+            .text()
+            .catch(() => "Planner error");
+          return {
+            success: false,
+            error: `Planner API error: ${errorText}`,
+          };
+        }
+
+        const data = (await plannerRes.json()) as {
+          tools?: unknown;
+          correlationId?: string;
+        };
+
+        const tools: string[] = Array.isArray(data.tools)
+          ? (data.tools as unknown[])
+              .filter((x) => typeof x === "string")
+              .slice(0, max ?? 6)
+          : [];
+
+        if (tools.length === 0) {
+          return {
+            success: false,
+            error: "Planner returned no tools",
+          };
+        }
+
+        console.log("[planNextToolSelection] Selected tools:", {
+          tools,
+          correlationId: data.correlationId,
+        });
+
+        return {
+          success: true,
+          content: {
+            tools,
+            correlationId: data.correlationId,
+          },
+        };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("Error calling planner API:", message);
+        return {
+          success: false,
+          error: `Failed to plan next step: ${message}`,
+        };
+      }
+    },
+  });
+
   return {
     requestClarificationOrPlan,
     summarizeAfterToolCallExecution,
     sendReply,
+    planNextToolSelection,
   };
 };
