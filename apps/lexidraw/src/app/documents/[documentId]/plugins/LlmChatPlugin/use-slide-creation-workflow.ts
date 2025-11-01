@@ -24,6 +24,7 @@ import { useSlideTools, type AudienceDataSchema } from "./tools/slides";
 import { useTextTools } from "./tools/text";
 import { useListTools } from "./tools/list";
 import type { ModelMessage, ToolChoice, ToolSet } from "ai";
+import { generateUUID } from "~/lib/utils";
 
 interface AudienceData {
   bigIdea: string;
@@ -212,7 +213,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: "Cancellation request sent.",
         },
@@ -302,7 +303,7 @@ export function useSlideCreationWorkflow() {
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `Executing step: ${stepName}${currentErrorContext ? " (with error context from previous attempt)" : ""}. Retries remaining: ${workflowRetryBudgetRef.current}`,
             },
@@ -315,7 +316,7 @@ export function useSlideCreationWorkflow() {
             chatDispatch({
               type: "push",
               msg: {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 role: "system",
                 content: `Step ${stepName} cancelled.`,
               },
@@ -343,7 +344,7 @@ export function useSlideCreationWorkflow() {
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `Attempt ${attemptNumber}/${MAX_WORKFLOW_RETRIES} for step ${stepName} failed. Error: ${lastError.message}. Retries left: ${workflowRetryBudgetRef.current}.`,
             },
@@ -359,7 +360,7 @@ export function useSlideCreationWorkflow() {
             chatDispatch({
               type: "push",
               msg: {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 role: "system",
                 content: `Step ${stepName} failed after ${MAX_WORKFLOW_RETRIES} attempts. No retries left. Workflow will halt. Final error: ${lastError.message}`,
               },
@@ -400,7 +401,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 1: ${stepName}...${errorContext ? " (Retrying with error context)" : ""}`,
         },
@@ -446,7 +447,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 1 Complete – Audience Plan
             Big Idea: ${finalAudienceData.bigIdea}
@@ -474,7 +475,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 2: Brand & Style Stylist...${errorContext ? " (Retrying with error context)" : ""}`,
         },
@@ -533,7 +534,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 2 Complete – Theme selected: ${suggestedTheme.templateName || "Custom Theme"}`,
         },
@@ -563,7 +564,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 3: ${stepName}...${errorContext ? " (Retrying with error context)" : ""}`,
         },
@@ -625,7 +626,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 3 Complete: Research Findings\n${findings}`,
         },
@@ -656,7 +657,7 @@ export function useSlideCreationWorkflow() {
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 4: ${stepName} (≈${slideCount} slides)…${
             errorContext ? " (retrying with extra context)" : ""
@@ -772,7 +773,7 @@ Respond **only** with one call to **saveStoryboardOutput** whose args include
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `⚠️ Slide page creation for ${outline.slideNumber} failed: ${msg}`,
             },
@@ -786,7 +787,7 @@ Respond **only** with one call to **saveStoryboardOutput** whose args include
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 4 ✓ — storyboard ready (${created.length}/${
             slides.length
@@ -819,7 +820,7 @@ Respond **only** with one call to **saveStoryboardOutput** whose args include
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 5: ${stepName}…${
             errorContext ? " (retrying)" : ""
@@ -922,7 +923,7 @@ Return nothing else.
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "assistant",
               content: `✔️ Slide ${outline.slideNumber} content saved`,
             },
@@ -935,7 +936,7 @@ Return nothing else.
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `⚠️ Slide ${outline.slideNumber} failed: ${msg}`,
             },
@@ -955,7 +956,7 @@ Return nothing else.
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 5 ✓ — content ready for ${generated.length} slide(s)${
             failures ? ` (${failures} failed)` : ""
@@ -992,7 +993,7 @@ Return nothing else.
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 6: ${stepName}…${
             errorContext ? " (retrying)" : ""
@@ -1164,7 +1165,7 @@ Return nothing else.
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `⚠️ Slide ${outline.slideNumber} media failed: ${msg}`,
             },
@@ -1188,7 +1189,7 @@ Return nothing else.
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 6 ✓ — media ready for ${
             generated.filter((g) => g.assetType !== "none").length
@@ -1219,7 +1220,7 @@ Return nothing else.
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 7: ${stepName} (Programmatic)...`,
         },
@@ -1272,7 +1273,7 @@ Return nothing else.
               chatDispatch({
                 type: "push",
                 msg: {
-                  id: crypto.randomUUID(),
+                  id: generateUUID(),
                   role: "system",
                   content: `⚠️ Box creation for slide ${slideContent.pageId} failed: ${msg}`,
                 },
@@ -1290,7 +1291,7 @@ Return nothing else.
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 7 ✓ — empty boxes created (${createdBoxes.length})${
             failures > 0 ? ` (${failures} failed)` : ""
@@ -1314,7 +1315,7 @@ Return nothing else.
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 8: ${stepName}…`,
         },
@@ -1327,7 +1328,7 @@ Return nothing else.
         chatDispatch({
           type: "push",
           msg: {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             role: "system",
             content: "Skipping PopulateBoxes step, no box data available.",
           },
@@ -1432,7 +1433,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `⚠️ Box population for slide ${slideId} failed: ${msg}`,
             },
@@ -1446,7 +1447,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 8 ✓ — text boxes populated${
             failures > 0 ? ` (${failures} failed)` : ""
@@ -1486,7 +1487,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 9: ${stepName}…${
             errorContext ? " (retrying)" : ""
@@ -1599,7 +1600,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `⚠️ Layout for slide ${outline.slideNumber} failed: ${msg}`,
             },
@@ -1610,7 +1611,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 9 ✓ — layout pass complete${
             failures ? ` (${failures} slide(s) failed)` : ""
@@ -1653,7 +1654,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: `Starting Step 10: ${stepName}…${
             errorContext ? " (retrying)" : ""
@@ -1682,7 +1683,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "assistant",
           content: `Step 10 ✓ — workflow complete!\n\n${summary}`,
         },
@@ -1702,7 +1703,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
       chatDispatch({
         type: "push",
         msg: {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: "system",
           content: "Slide generation workflow initiated...",
         },
@@ -1733,7 +1734,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: "Creating new slide deck...",
             },
@@ -1756,7 +1757,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
             chatDispatch({
               type: "push",
               msg: {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 role: "assistant",
                 content: `New slide deck created with key: ${resolvedDeckNodeKey}`,
               },
@@ -1900,7 +1901,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `Skipping MediaGenerator: ${missingDepsError}`,
             },
@@ -1958,7 +1959,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
         chatDispatch({
           type: "push",
           msg: {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             role: "system",
             content: `Slide generation workflow steps concluded. Final summary from Review & Refine: ${step10Result.finalSummary}`,
           },
@@ -1975,7 +1976,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content: `Workflow cancelled by user.`,
             },
@@ -1984,7 +1985,7 @@ You are expected to make multiple parallel tool calls in a single response, one 
           chatDispatch({
             type: "push",
             msg: {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               role: "system",
               content:
                 error instanceof StepError

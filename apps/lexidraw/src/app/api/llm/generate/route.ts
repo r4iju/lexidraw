@@ -6,6 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, type ModelMessage, type LanguageModel } from "ai";
 import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import { generateUUID } from "~/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
         }
       | undefined;
     await recordLlmAudit({
-      requestId: crypto.randomUUID(),
+      requestId: generateUUID(),
       timestampMs: Date.now(),
       route: "/api/llm/generate",
       mode,
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ text: result.text });
   } catch (e) {
     await recordLlmAudit({
-      requestId: crypto.randomUUID(),
+      requestId: generateUUID(),
       timestampMs: Date.now(),
       route: "/api/llm/generate",
       mode,

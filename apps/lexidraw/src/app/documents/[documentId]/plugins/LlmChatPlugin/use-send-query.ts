@@ -411,48 +411,422 @@ export const useSendQuery = () => {
                 }
               }
 
-              // Feed results back once
-              const summaryLines = executed
-                .map(
-                  (r) =>
-                    `- ${r.toolName} (${r.toolCallId}): ${r.ok ? "ok" : `error: ${r.error ?? ""}`}${
-                      r.summary ? ` summary: ${r.summary}` : ""
-                    }`,
-                )
-                .join("\n");
+              // Check if execution was successful
+              const allSucceeded = executed.every((r) => r.ok);
+              const hasErrors = executed.some((r) => !r.ok);
 
-              const followupMessages: ModelMessage[] = [
-                ...messagesForAgent,
-                ...(result1.text?.trim()
-                  ? ([
-                      { role: "assistant", content: result1.text },
-                    ] as ModelMessage[])
-                  : ([] as ModelMessage[])),
-                {
-                  role: "assistant",
-                  content: `TOOL_EXECUTION_RESULTS_PASS_1:\n${summaryLines}`,
-                },
-              ];
+              // Decision step: After successful execution, offer summarize or plan next step
+              if (allSucceeded && executed.length > 0) {
+                // Create decision tools (only summarize and plan)
+                const decisionTools = pickToolsByNamesMemo([
+                  "summarizeAfterToolCallExecution",
+                  "planNextToolSelection",
+                ]);
 
-              const result2 = await generateChatResponse({
-                mode: "agent",
-                messages: followupMessages,
-                system: systemPrompt,
-                temperature: llmConfig.agent.temperature,
-                tools: selectedTools,
-                prompt: "",
-              });
-              console.log(
-                "[agent] Sent follow-up with TOOL_EXECUTION_RESULTS_PASS_1",
-                { executedCount: executed.length },
-              );
-              if ((result2.text ?? "").trim() !== "") {
+                // Build execution summary
+                const executionSummary = executed
+                  .map(
+                    (r) =>
+                      `${r.toolName}${r.summary ? `: ${r.summary}` : " (completed)"}`,
+                  )
+                  .join("\n");
+
+                // Decision turn prompt
+                const decisionPrompt = `Execution completed successfully. ${executed.length} tool(s) executed.
+
+EXECUTION_SUMMARY:
+${executionSummary}
+
+IMPORTANT: Do NOT re-execute the tools that were just run. The execution is complete.
+
+Choose exactly one action:
+1. Call summarizeAfterToolCallExecution to provide a summary to the user
+2. Call planNextToolSelection to plan and execute the next step
+
+Do not repeat the prior execution or call content-editing tools.`;
+
+                const decisionMessages: ModelMessage[] = [
+                  ...messagesForAgent,
+                  ...(result1.text?.trim()
+                    ? ([
+                        { role: "assistant", content: result1.text },
+                      ] as ModelMessage[])
+                    : ([] as ModelMessage[])),
+                  {
+                    role: "user",
+                    content: decisionPrompt,
+                  },
+                ];
+
+                // Decision turn - max 2 cycles
+                let decisionCycleCount = 0;
+                const MAX_DECISION_CYCLES = 2;
+                let currentMessages = decisionMessages;
+                let continueLoop = true;
+
+                while (
+                  continueLoop &&
+                  decisionCycleCount < MAX_DECISION_CYCLES
+                ) {
+                  decisionCycleCount++;
+                  console.log(
+                    `[agent] Decision step cycle ${decisionCycleCount}/${MAX_DECISION_CYCLES}`,
+                  );
+
+                  const decisionResult = await generateChatResponse({
+                    mode: "agent",
+                    messages: currentMessages,
+                    system:
+                      systemPrompt +
+                      "\n\nYou are in a decision step. Choose exactly one: summarizeAfterToolCallExecution OR planNextToolSelection.",
+                    temperature: llmConfig.agent.temperature,
+                    tools: decisionTools,
+                    prompt: "",
+                  });
+
+                  const decisionToolCalls = decisionResult.toolCalls ?? [];
+
+                  if (decisionToolCalls.length === 0) {
+                    // No tool call - assume summarize intent
+                    if ((decisionResult.text ?? "").trim() !== "") {
+                      dispatch({
+                        type: "push",
+                        msg: {
+                          id: generateUUID(),
+                          role: "assistant",
+                          content: decisionResult.text,
+                        },
+                      });
+                    }
+                    continueLoop = false;
+                    break;
+                  }
+
+                  // Execute decision tool
+                  for (const decisionCall of decisionToolCalls) {
+                    const decisionToolImpl = (
+                      decisionTools as unknown as Record<string, unknown>
+                    )[decisionCall.toolName] as unknown as {
+                      execute?: (
+                        args: Record<string, unknown>,
+                      ) => Promise<
+                        | { success: true; content?: Record<string, unknown> }
+                        | { success: false; error?: string }
+                      >;
+                    };
+
+                    if (
+                      !decisionToolImpl ||
+                      typeof decisionToolImpl.execute !== "function"
+                    ) {
+                      console.warn(
+                        `[decision] Tool '${decisionCall.toolName}' not available`,
+                      );
+                      continue;
+                    }
+
+                    const raw =
+                      (
+                        decisionCall as unknown as {
+                          input?: Record<string, unknown>;
+                        }
+                      ).input || {};
+                    let mappedArgs =
+                      decisionCall.toolName === "sendReply" &&
+                      typeof raw.message === "string"
+                        ? { replyText: raw.message }
+                        : (raw as Record<string, unknown>);
+
+                    // If planner was chosen, provide available tool names explicitly
+                    if (decisionCall.toolName === "planNextToolSelection") {
+                      const chatOnly = new Set([
+                        "sendReply",
+                        "requestClarificationOrPlan",
+                        "summarizeAfterToolCallExecution",
+                        "planNextToolSelection",
+                      ]);
+                      const availableToolNames = Object.keys(runtimeTools).filter(
+                        (n) => !chatOnly.has(n),
+                      );
+                      mappedArgs = {
+                        ...mappedArgs,
+                        availableTools: availableToolNames,
+                        max:
+                          typeof (mappedArgs as { max?: unknown }).max ===
+                          "number"
+                            ? (mappedArgs as { max?: number }).max
+                            : MAX_SELECTED_TOOLS,
+                      } as Record<string, unknown>;
+                    }
+
+                    try {
+                      const decisionRes = (await decisionToolImpl.execute(
+                        mappedArgs,
+                      )) as
+                        | {
+                            success: true;
+                            content?: {
+                              summary?: string;
+                              tools?: string[];
+                              correlationId?: string;
+                            };
+                          }
+                        | { success: false; error?: string };
+
+                      if (
+                        decisionCall.toolName ===
+                        "summarizeAfterToolCallExecution"
+                      ) {
+                        // Summarize chosen - done
+                        console.log("[decision] Summarize chosen");
+                        continueLoop = false;
+                        break;
+                      } else if (
+                        decisionCall.toolName === "planNextToolSelection"
+                      ) {
+                        // Plan chosen - run next agent pass
+                        if (decisionRes.success && decisionRes.content?.tools) {
+                          const nextTools = decisionRes.content.tools;
+                          const correlationId =
+                            decisionRes.content.correlationId;
+                          console.log("[decision] Plan chosen", {
+                            tools: nextTools,
+                            correlationId,
+                            decisionCycle: decisionCycleCount,
+                          });
+
+                          // Pick next tools
+                          const nextSelectedTools =
+                            pickToolsByNamesMemo(nextTools);
+                          const nextSelectedToolNames =
+                            Object.keys(nextSelectedTools);
+
+                          if (nextSelectedToolNames.length === 0) {
+                            // Empty tools - end with summarize
+                            dispatch({
+                              type: "push",
+                              msg: {
+                                id: generateUUID(),
+                                role: "system",
+                                content:
+                                  "Planner returned no tools. Refining objective or ending.",
+                              },
+                            });
+                            continueLoop = false;
+                            break;
+                          }
+
+                          // Build next step prompt
+                          const nextStepPrompt = decisionRes.content.summary
+                            ? decisionRes.content.summary
+                            : "Continue with the next step";
+
+                          // Run next agent pass
+                          const nextMessages: ModelMessage[] = [
+                            ...currentMessages,
+                            {
+                              role: "assistant",
+                              content: `Planning next step: ${nextStepPrompt}`,
+                            },
+                            {
+                              role: "user",
+                              content: nextStepPrompt,
+                            },
+                          ];
+
+                          const nextResult = await generateChatResponse({
+                            mode: "agent",
+                            messages: nextMessages,
+                            system: systemPrompt,
+                            temperature: llmConfig.agent.temperature,
+                            tools: nextSelectedTools,
+                            prompt: "",
+                          });
+
+                          const nextToolCalls = nextResult.toolCalls ?? [];
+
+                          if (nextToolCalls.length === 0) {
+                            // No tools - done
+                            if ((nextResult.text ?? "").trim() !== "") {
+                              dispatch({
+                                type: "push",
+                                msg: {
+                                  id: generateUUID(),
+                                  role: "assistant",
+                                  content: nextResult.text,
+                                },
+                              });
+                            }
+                            continueLoop = false;
+                            break;
+                          }
+
+                          // Execute next tools
+                          const nextExecuted: Array<{
+                            toolCallId: string;
+                            toolName: string;
+                            ok: boolean;
+                            error?: string;
+                            summary?: string;
+                          }> = [];
+
+                          for (const nextCall of nextToolCalls) {
+                            const nextToolImpl = (
+                              nextSelectedTools as unknown as Record<
+                                string,
+                                unknown
+                              >
+                            )[nextCall.toolName] as unknown as {
+                              execute?: (
+                                args: Record<string, unknown>,
+                              ) => Promise<
+                                | {
+                                    success: true;
+                                    content?: { summary?: string };
+                                  }
+                                | { success: false; error?: string }
+                              >;
+                            };
+
+                            if (
+                              !nextToolImpl ||
+                              typeof nextToolImpl.execute !== "function"
+                            ) {
+                              nextExecuted.push({
+                                toolCallId: nextCall.toolCallId,
+                                toolName: nextCall.toolName,
+                                ok: false,
+                                error: `Tool '${nextCall.toolName}' not available`,
+                              });
+                              continue;
+                            }
+
+                            const nextRaw =
+                              (
+                                nextCall as unknown as {
+                                  input?: Record<string, unknown>;
+                                }
+                              ).input || {};
+                            const nextMappedArgs =
+                              nextCall.toolName === "sendReply" &&
+                              typeof nextRaw.message === "string"
+                                ? { replyText: nextRaw.message }
+                                : nextRaw;
+
+                            try {
+                              const nextRes = (await nextToolImpl.execute(
+                                nextMappedArgs,
+                              )) as
+                                | {
+                                    success: true;
+                                    content?: { summary?: string };
+                                  }
+                                | { success: false; error?: string };
+
+                              nextExecuted.push({
+                                toolCallId: nextCall.toolCallId,
+                                toolName: nextCall.toolName,
+                                ok: nextRes.success,
+                                error: nextRes.success
+                                  ? undefined
+                                  : nextRes.error,
+                                summary: nextRes.success
+                                  ? nextRes.content?.summary
+                                  : undefined,
+                              });
+                            } catch (e) {
+                              nextExecuted.push({
+                                toolCallId: nextCall.toolCallId,
+                                toolName: nextCall.toolName,
+                                ok: false,
+                                error:
+                                  e instanceof Error ? e.message : String(e),
+                              });
+                            }
+                          }
+
+                          // Update messages for next decision cycle
+                          const nextSummary = nextExecuted
+                            .map(
+                              (r) =>
+                                `${r.toolName}: ${r.ok ? "ok" : `error: ${r.error ?? ""}`}${
+                                  r.summary ? ` summary: ${r.summary}` : ""
+                                }`,
+                            )
+                            .join("\n");
+
+                          currentMessages = [
+                            ...nextMessages,
+                            {
+                              role: "assistant",
+                              content: `Next step executed:\n${nextSummary}`,
+                            },
+                            {
+                              role: "user",
+                              content: decisionPrompt,
+                            },
+                          ];
+
+                          // Continue loop for next decision
+                        } else {
+                          // Plan failed
+                          const errorMessage = decisionRes.success
+                            ? "Planner failed. Ending execution."
+                            :
+                              decisionRes.error || "Planner failed. Ending execution.";
+                          dispatch({
+                            type: "push",
+                            msg: {
+                              id: generateUUID(),
+                              role: "system",
+                              content: errorMessage,
+                            },
+                          });
+                          continueLoop = false;
+                          break;
+                        }
+                      }
+                    } catch (e) {
+                      console.error(
+                        `[decision] Error executing ${decisionCall.toolName}:`,
+                        e,
+                      );
+                      continueLoop = false;
+                      break;
+                    }
+                  }
+                }
+
+                if (decisionCycleCount >= MAX_DECISION_CYCLES) {
+                  console.log(
+                    "[decision] Reached max decision cycles, stopping",
+                  );
+                }
+              } else if (hasErrors) {
+                // On error, skip summarize and go straight to planning (include error details)
+                const errorSummary = executed
+                  .filter((r) => !r.ok)
+                  .map((r) => `${r.toolName}: ${r.error ?? "unknown error"}`)
+                  .join("\n");
+
+                dispatch({
+                  type: "push",
+                  msg: {
+                    id: generateUUID(),
+                    role: "system",
+                    content: `Execution had errors:\n${errorSummary}\n\nPlease refine your request.`,
+                  },
+                });
+              }
+
+              // If no tools executed or all failed, show result text if any
+              if (executed.length === 0 && (result1.text ?? "").trim() !== "") {
                 dispatch({
                   type: "push",
                   msg: {
                     id: generateUUID(),
                     role: "assistant",
-                    content: result2.text,
+                    content: result1.text,
                   },
                 });
               }
