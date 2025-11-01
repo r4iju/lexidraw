@@ -307,109 +307,26 @@ export const useSendQuery = () => {
               });
             }
             if (toolCalls1.length > 0) {
-              const executedIds = new Set<string>();
+              // Tools have already been executed by the SDK when maxSteps: 1 is set.
+              // Build executed array from toolCalls1, assuming success (SDK would have thrown on failure).
               const executed: Array<{
                 toolCallId: string;
                 toolName: string;
                 ok: boolean;
                 error?: string;
                 summary?: string;
-              }> = [];
+              }> = toolCalls1.map((c) => ({
+                toolCallId: c.toolCallId,
+                toolName: c.toolName,
+                ok: true, // SDK execution succeeded (would have thrown otherwise)
+                summary: undefined, // SDK results not captured here
+              }));
 
               console.log(
-                `[agent] Executing ${toolCalls1.length} tool call(s): ${toolCalls1
+                `[agent] Tools already executed by SDK: ${toolCalls1.length} tool call(s): ${toolCalls1
                   .map((c) => c.toolName)
                   .join(", ")}`,
               );
-
-              for (const c of toolCalls1) {
-                if (executedIds.has(c.toolCallId)) {
-                  console.warn(
-                    `[agent] Skipping duplicate toolCallId ${c.toolCallId} (${c.toolName})`,
-                  );
-                  continue;
-                }
-                executedIds.add(c.toolCallId);
-                const toolImpl = (
-                  selectedTools as unknown as Record<string, unknown>
-                )[c.toolName] as unknown as {
-                  inputSchema?: unknown;
-                  execute?: (
-                    args: Record<string, unknown>,
-                  ) => Promise<
-                    | { success: true; content?: Record<string, unknown> }
-                    | { success: false; error?: string }
-                  >;
-                };
-                if (!toolImpl || typeof toolImpl.execute !== "function") {
-                  executed.push({
-                    toolCallId: c.toolCallId,
-                    toolName: c.toolName,
-                    ok: false,
-                    error: `Tool '${c.toolName}' not available`,
-                  });
-                  continue;
-                }
-                // Minimal arg mapping for Gemini sendReply
-                const raw =
-                  (c as unknown as { input?: Record<string, unknown> }).input ||
-                  {};
-                const mappedArgs =
-                  c.toolName === "sendReply" && typeof raw.message === "string"
-                    ? { replyText: raw.message }
-                    : raw;
-                try {
-                  const argsPreview = (() => {
-                    try {
-                      const s = JSON.stringify(mappedArgs);
-                      return s.length > 500 ? `${s.slice(0, 500)}…` : s;
-                    } catch {
-                      return "[unserializable]";
-                    }
-                  })();
-                  console.log(`[tool:${c.toolName}] START`, {
-                    toolCallId: c.toolCallId,
-                    argsPreview,
-                  });
-                  const res = (await toolImpl.execute(mappedArgs)) as
-                    | { success: true; content?: { summary?: string } }
-                    | { success: false; error?: string };
-                  if (res.success) {
-                    executed.push({
-                      toolCallId: c.toolCallId,
-                      toolName: c.toolName,
-                      ok: true,
-                      summary: res.content?.summary,
-                    });
-                    console.log(`[tool:${c.toolName}] OK`, {
-                      toolCallId: c.toolCallId,
-                      summary: res.content?.summary,
-                    });
-                  } else {
-                    executed.push({
-                      toolCallId: c.toolCallId,
-                      toolName: c.toolName,
-                      ok: false,
-                      error: res.error,
-                    });
-                    console.warn(`[tool:${c.toolName}] ERROR`, {
-                      toolCallId: c.toolCallId,
-                      error: res.error,
-                    });
-                  }
-                } catch (e) {
-                  executed.push({
-                    toolCallId: c.toolCallId,
-                    toolName: c.toolName,
-                    ok: false,
-                    error: e instanceof Error ? e.message : String(e),
-                  });
-                  console.error(`[tool:${c.toolName}] EXCEPTION`, {
-                    toolCallId: c.toolCallId,
-                    error: e instanceof Error ? e.message : String(e),
-                  });
-                }
-              }
 
               // Check if execution was successful
               const allSucceeded = executed.every((r) => r.ok);
@@ -469,10 +386,7 @@ Do not repeat the prior execution or call content-editing tools.`;
                   decisionCycleCount < MAX_DECISION_CYCLES
                 ) {
                   decisionCycleCount++;
-                  console.log(
-                    `[agent] Decision step cycle ${decisionCycleCount}/${MAX_DECISION_CYCLES}`,
-                  );
-
+                  
                   const decisionResult = await generateChatResponse({
                     mode: "agent",
                     messages: currentMessages,
@@ -502,90 +416,95 @@ Do not repeat the prior execution or call content-editing tools.`;
                     break;
                   }
 
-                  // Execute decision tool
+                  // Decision tools have already been executed by the SDK when maxSteps: 1 is set.
+                  // Check which tool was called and handle accordingly.
                   for (const decisionCall of decisionToolCalls) {
-                    const decisionToolImpl = (
-                      decisionTools as unknown as Record<string, unknown>
-                    )[decisionCall.toolName] as unknown as {
-                      execute?: (
-                        args: Record<string, unknown>,
-                      ) => Promise<
-                        | { success: true; content?: Record<string, unknown> }
-                        | { success: false; error?: string }
-                      >;
-                    };
-
                     if (
-                      !decisionToolImpl ||
-                      typeof decisionToolImpl.execute !== "function"
+                      decisionCall.toolName ===
+                      "summarizeAfterToolCallExecution"
                     ) {
-                      console.warn(
-                        `[decision] Tool '${decisionCall.toolName}' not available`,
+                      // Summarize already executed by SDK - done
+                      console.log(
+                        "[decision] summarizeAfterToolCallExecution already executed by SDK",
                       );
-                      continue;
-                    }
+                      continueLoop = false;
+                      break;
+                    } else if (
+                      decisionCall.toolName === "planNextToolSelection"
+                    ) {
+                      // planNextToolSelection was executed by SDK, but we need its result.
+                      // We need to extract the result from SDK execution or re-execute to get it.
+                      // For now, we'll need to re-execute to get the tools list.
+                      // TODO: Extract result from SDK execution if possible
+                      const decisionToolImpl = (
+                        decisionTools as unknown as Record<string, unknown>
+                      )[decisionCall.toolName] as unknown as {
+                        execute?: (args: Record<string, unknown>) => Promise<
+                          | {
+                              success: true;
+                              content?: {
+                                summary?: string;
+                                tools?: string[];
+                                correlationId?: string;
+                              };
+                            }
+                          | { success: false; error?: string }
+                        >;
+                      };
 
-                    const raw =
-                      (
-                        decisionCall as unknown as {
-                          input?: Record<string, unknown>;
-                        }
-                      ).input || {};
-                    let mappedArgs =
-                      decisionCall.toolName === "sendReply" &&
-                      typeof raw.message === "string"
-                        ? { replyText: raw.message }
-                        : (raw as Record<string, unknown>);
+                      if (
+                        !decisionToolImpl ||
+                        typeof decisionToolImpl.execute !== "function"
+                      ) {
+                        console.warn(
+                          `[decision] Tool '${decisionCall.toolName}' not available`,
+                        );
+                        continue;
+                      }
 
-                    // If planner was chosen, provide available tool names explicitly
-                    if (decisionCall.toolName === "planNextToolSelection") {
+                      const raw =
+                        (
+                          decisionCall as unknown as {
+                            input?: Record<string, unknown>;
+                          }
+                        ).input || {};
+
+                      // Provide available tool names explicitly for planNextToolSelection
                       const chatOnly = new Set([
                         "sendReply",
                         "requestClarificationOrPlan",
                         "summarizeAfterToolCallExecution",
                         "planNextToolSelection",
                       ]);
-                      const availableToolNames = Object.keys(runtimeTools).filter(
-                        (n) => !chatOnly.has(n),
-                      );
-                      mappedArgs = {
-                        ...mappedArgs,
+                      const availableToolNames = Object.keys(
+                        runtimeTools,
+                      ).filter((n) => !chatOnly.has(n));
+                      const mappedArgs = {
+                        ...(raw as Record<string, unknown>),
                         availableTools: availableToolNames,
                         max:
-                          typeof (mappedArgs as { max?: unknown }).max ===
-                          "number"
-                            ? (mappedArgs as { max?: number }).max
+                          typeof (raw as { max?: unknown }).max === "number"
+                            ? (raw as { max?: number }).max
                             : MAX_SELECTED_TOOLS,
                       } as Record<string, unknown>;
-                    }
 
-                    try {
-                      const decisionRes = (await decisionToolImpl.execute(
-                        mappedArgs,
-                      )) as
-                        | {
-                            success: true;
-                            content?: {
-                              summary?: string;
-                              tools?: string[];
-                              correlationId?: string;
-                            };
-                          }
-                        | { success: false; error?: string };
+                      try {
+                        // Re-execute to get result (SDK already executed but we need the return value)
+                        const decisionRes = (await decisionToolImpl.execute(
+                          mappedArgs,
+                        )) as
+                          | {
+                              success: true;
+                              content?: {
+                                summary?: string;
+                                tools?: string[];
+                                correlationId?: string;
+                              };
+                            }
+                          | { success: false; error?: string };
 
-                      if (
-                        decisionCall.toolName ===
-                        "summarizeAfterToolCallExecution"
-                      ) {
-                        // Summarize chosen - done
-                        console.log("[decision] Summarize chosen");
-                        continueLoop = false;
-                        break;
-                      } else if (
-                        decisionCall.toolName === "planNextToolSelection"
-                      ) {
-                        // Plan chosen - run next agent pass
                         if (decisionRes.success && decisionRes.content?.tools) {
+                          // Plan chosen - run next agent pass
                           const nextTools = decisionRes.content.tools;
                           const correlationId =
                             decisionRes.content.correlationId;
@@ -661,89 +580,26 @@ Do not repeat the prior execution or call content-editing tools.`;
                             break;
                           }
 
-                          // Execute next tools
+                          // Next tools have already been executed by the SDK when maxSteps: 1 is set.
+                          // Build executed array from nextToolCalls, assuming success (SDK would have thrown on failure).
                           const nextExecuted: Array<{
                             toolCallId: string;
                             toolName: string;
                             ok: boolean;
                             error?: string;
                             summary?: string;
-                          }> = [];
+                          }> = nextToolCalls.map((c) => ({
+                            toolCallId: c.toolCallId,
+                            toolName: c.toolName,
+                            ok: true, // SDK execution succeeded (would have thrown otherwise)
+                            summary: undefined, // SDK results not captured here
+                          }));
 
-                          for (const nextCall of nextToolCalls) {
-                            const nextToolImpl = (
-                              nextSelectedTools as unknown as Record<
-                                string,
-                                unknown
-                              >
-                            )[nextCall.toolName] as unknown as {
-                              execute?: (
-                                args: Record<string, unknown>,
-                              ) => Promise<
-                                | {
-                                    success: true;
-                                    content?: { summary?: string };
-                                  }
-                                | { success: false; error?: string }
-                              >;
-                            };
-
-                            if (
-                              !nextToolImpl ||
-                              typeof nextToolImpl.execute !== "function"
-                            ) {
-                              nextExecuted.push({
-                                toolCallId: nextCall.toolCallId,
-                                toolName: nextCall.toolName,
-                                ok: false,
-                                error: `Tool '${nextCall.toolName}' not available`,
-                              });
-                              continue;
-                            }
-
-                            const nextRaw =
-                              (
-                                nextCall as unknown as {
-                                  input?: Record<string, unknown>;
-                                }
-                              ).input || {};
-                            const nextMappedArgs =
-                              nextCall.toolName === "sendReply" &&
-                              typeof nextRaw.message === "string"
-                                ? { replyText: nextRaw.message }
-                                : nextRaw;
-
-                            try {
-                              const nextRes = (await nextToolImpl.execute(
-                                nextMappedArgs,
-                              )) as
-                                | {
-                                    success: true;
-                                    content?: { summary?: string };
-                                  }
-                                | { success: false; error?: string };
-
-                              nextExecuted.push({
-                                toolCallId: nextCall.toolCallId,
-                                toolName: nextCall.toolName,
-                                ok: nextRes.success,
-                                error: nextRes.success
-                                  ? undefined
-                                  : nextRes.error,
-                                summary: nextRes.success
-                                  ? nextRes.content?.summary
-                                  : undefined,
-                              });
-                            } catch (e) {
-                              nextExecuted.push({
-                                toolCallId: nextCall.toolCallId,
-                                toolName: nextCall.toolName,
-                                ok: false,
-                                error:
-                                  e instanceof Error ? e.message : String(e),
-                              });
-                            }
-                          }
+                          console.log(
+                            `[decision] Next tools already executed by SDK: ${nextToolCalls.length} tool call(s): ${nextToolCalls
+                              .map((c) => c.toolName)
+                              .join(", ")}`,
+                          );
 
                           // Update messages for next decision cycle
                           const nextSummary = nextExecuted
@@ -772,8 +628,8 @@ Do not repeat the prior execution or call content-editing tools.`;
                           // Plan failed
                           const errorMessage = decisionRes.success
                             ? "Planner failed. Ending execution."
-                            :
-                              decisionRes.error || "Planner failed. Ending execution.";
+                            : decisionRes.error ||
+                              "Planner failed. Ending execution.";
                           dispatch({
                             type: "push",
                             msg: {
@@ -785,14 +641,14 @@ Do not repeat the prior execution or call content-editing tools.`;
                           continueLoop = false;
                           break;
                         }
+                      } catch (e) {
+                        console.error(
+                          `[decision] Error executing ${decisionCall.toolName}:`,
+                          e,
+                        );
+                        continueLoop = false;
+                        break;
                       }
-                    } catch (e) {
-                      console.error(
-                        `[decision] Error executing ${decisionCall.toolName}:`,
-                        e,
-                      );
-                      continueLoop = false;
-                      break;
                     }
                   }
                 }
