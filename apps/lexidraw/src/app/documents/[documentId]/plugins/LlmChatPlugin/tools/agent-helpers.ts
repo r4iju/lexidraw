@@ -73,7 +73,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
     },
   });
 
-  const summarizeExecution = tool({
+  const summarizeAfterToolCallExecution = tool({
     description:
       "Reports the final summary of actions taken to the user. This MUST be called as the final step after all other actions are complete.",
     inputSchema: z.object({
@@ -140,7 +140,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
 
   return {
     requestClarificationOrPlan,
-    summarizeExecution,
+    summarizeAfterToolCallExecution,
     sendReply,
   };
 };

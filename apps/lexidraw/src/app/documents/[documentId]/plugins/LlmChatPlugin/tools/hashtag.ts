@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -14,6 +8,7 @@ import {
   type LexicalNode,
 } from "lexical";
 import { $createHashtagNode, $isHashtagNode } from "@lexical/hashtag";
+import { InsertHashtagSchema } from "@packages/types";
 
 export const useHashtagTools = () => {
   const {
@@ -25,16 +20,7 @@ export const useHashtagTools = () => {
   const insertHashtag = tool({
     description:
       "Inserts a new HashtagNode with the provided text. If relation is 'appendRoot' or the anchor is block-level, it's wrapped in a ParagraphNode.",
-    inputSchema: z.object({
-      text: z
-        .string()
-        .describe(
-          "The text content of the hashtag (e.g., 'lexical', 'important').",
-        ),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertHashtagSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertHashtag",

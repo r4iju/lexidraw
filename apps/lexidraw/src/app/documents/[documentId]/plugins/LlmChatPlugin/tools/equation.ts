@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { EquationNode } from "../../../nodes/EquationNode";
@@ -15,6 +9,8 @@ import {
   $getNodeByKey,
   type LexicalNode,
 } from "lexical";
+import { InsertEquationNodeSchema } from "@packages/types";
+
 export const useEquationTools = () => {
   const {
     insertionExecutor,
@@ -26,21 +22,7 @@ export const useEquationTools = () => {
   const insertEquationNode = tool({
     description:
       "Inserts a new EquationNode with the provided LaTeX equation string. Can be inline or block-level. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    inputSchema: z.object({
-      equation: z
-        .string()
-        .describe("The LaTeX equation string (e.g., 'E=mc^2')."),
-      inline: z
-        .boolean()
-        .optional()
-        .default(false)
-        .describe(
-          "Whether the equation should be inline (renders as span) or block (renders as div). Defaults to false (block).",
-        ),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertEquationNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertEquationNode",

@@ -53,7 +53,7 @@ import { $getRoot } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
-import FloatingLinkEditorPlugin from "./plugins/FloatingLinkEditorPlugin";
+import FloatingLinkEditorPlugin from "./plugins/FloatingTextFormatToolbarPlugin/FloatingLinkEditorPlugin";
 import AutoEmbedPlugin from "./plugins/AutoEmbedPlugin";
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";

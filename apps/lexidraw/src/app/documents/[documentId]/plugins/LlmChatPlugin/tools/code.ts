@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -19,6 +13,10 @@ import {
   type LexicalNode,
   $getNodeByKey,
 } from "lexical";
+import {
+  InsertCodeBlockSchema,
+  InsertCodeHighlightNodeSchema,
+} from "@packages/types";
 
 export const useCodeTools = () => {
   const {
@@ -31,21 +29,7 @@ export const useCodeTools = () => {
   const insertCodeBlock = tool({
     description:
       "Inserts a new CodeNode (code block). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Can optionally set the language and initial text content.",
-    inputSchema: z.object({
-      language: z
-        .string()
-        .optional()
-        .describe(
-          "Optional language identifier (e.g., 'javascript', 'python').",
-        ),
-      initialText: z
-        .string()
-        .optional()
-        .describe("Optional initial text content for the code block."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertCodeBlockSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertCodeBlock",
@@ -90,12 +74,7 @@ export const useCodeTools = () => {
   const insertCodeHighlightNode = tool({
     description:
       "Inserts a new CodeHighlightNode containing the provided text. This node is a special TextNode that will be highlighted if it is within a CodeNode. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    inputSchema: z.object({
-      text: z.string().describe("The text content for the CodeHighlightNode."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertCodeHighlightNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertCodeHighlightNode",

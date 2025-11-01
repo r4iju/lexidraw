@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $createTableNode } from "@lexical/table";
@@ -12,6 +6,7 @@ import { $createTableRowNode } from "@lexical/table";
 import { $createTableCellNode } from "@lexical/table";
 import { $createParagraphNode } from "lexical";
 import { $createTextNode } from "lexical";
+import { InsertTableSchema } from "@packages/types";
 
 export const useTableTools = () => {
   const {
@@ -23,16 +18,7 @@ export const useTableTools = () => {
   const insertTable = tool({
     description:
       "Inserts a new TableNode with the specified number of rows and columns, populating it with empty cells. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    inputSchema: z.object({
-      rows: z.number().min(1).describe("The number of rows for the table."),
-      columns: z
-        .number()
-        .min(1)
-        .describe("The number of columns for the table."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertTableSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertTable",

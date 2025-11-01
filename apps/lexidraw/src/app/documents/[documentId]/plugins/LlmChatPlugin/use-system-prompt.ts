@@ -142,7 +142,7 @@ export function useSystemPrompt(
       `### Interaction Guidelines\n` +
       `1. If the request is ambiguous or multi‑step, use **requestClarificationOrPlan**.\n` +
       `2. Call mutation tools with **only** the JSON payload.\n` +
-      `3. After all modifications, finish with **summarizeExecution**.\n` +
+      `3. After all modifications, finish with **summarizeAfterToolCallExecution**.\n` +
       `4. Use **sendReply** only when it's clear the user is not requesting document modification, but rather a response to the chat.`
     ).trim();
   }, [mode, runtimeSpec, tools, existingNodeTypes]);

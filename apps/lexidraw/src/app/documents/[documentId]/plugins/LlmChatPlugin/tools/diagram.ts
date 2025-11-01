@@ -1,12 +1,5 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-  type InsertionRelation,
-  type InsertionAnchor,
-} from "./common-schemas";
+import type { InsertionRelation, InsertionAnchor } from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { MermaidNode } from "../../../nodes/MermaidNode";
@@ -18,6 +11,10 @@ import {
 } from "@excalidraw/mermaid-to-excalidraw";
 import type { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import {
+  InsertExcalidrawDiagramSchema,
+  InsertMermaidDiagramSchema,
+} from "@packages/types";
 
 export const useDiagramTools = () => {
   const {
@@ -40,46 +37,7 @@ export const useDiagramTools = () => {
     description: `Parses a Mermaid DSL string into an Excalidraw canvas and inserts it at the desired location.  
           – Fully supports \`MermaidConfig\` (theme variables, edge limits, etc.).  
           – Supports \`ExcalidrawConfig\` (font sizing).`,
-    inputSchema: z.object({
-      mermaidLines: z
-        .array(z.string())
-        .describe(
-          `A list of Mermaid DSL strings. 
-              For ER diagrams, use the \`insertMermaidSvg\` tool instead.
-              Example: [
-              "graph TD",
-              "  User([User]) -->|HTTPS| BrowserUI[Browser UI (Frontend)]",
-              "  BrowserUI -->|API Calls| APIServer[API Server (Backend)]",
-              "  …"
-            ]`,
-        )
-        .nonempty("Mermaid definition must not be empty."),
-      mermaidConfig: z
-        .object({}) // allow any shape – full validation happens at runtime merge
-        .passthrough()
-        .optional(),
-      excalidrawConfig: z
-        .object({ fontSize: z.number().optional() })
-        .passthrough()
-        .optional(),
-      width: z
-        .union([z.number().min(100), z.literal("inherit")])
-        .describe(
-          "Optional. The width of the Excalidraw canvas. If 'inherit', the width will be determined by the parent container. Minimum width is 100px.",
-        )
-        .optional()
-        .default(DEFAULT_CANVAS_WIDTH),
-      height: z
-        .union([z.number().min(100), z.literal("inherit")])
-        .describe(
-          "Optional. The height of the Excalidraw canvas. If 'inherit', the height will be determined by the parent container. Minimum height is 100px.",
-        )
-        .optional()
-        .default(DEFAULT_CANVAS_HEIGHT),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertExcalidrawDiagramSchema,
     execute: async (options) => {
       type ExcalidrawInput = {
         mermaidLines: string[];
@@ -199,20 +157,7 @@ export const useDiagramTools = () => {
   const insertMermaidDiagram = tool({
     description:
       "Insert a Mermaid diagram using the custom MermaidNode (schema only, no SVG in state).",
-    inputSchema: z.object({
-      mermaidLines: z.array(z.string()).nonempty(),
-      width: z
-        .union([z.number().min(100), z.literal("inherit")])
-        .optional()
-        .default("inherit"),
-      height: z
-        .union([z.number().min(100), z.literal("inherit")])
-        .optional()
-        .default("inherit"),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertMermaidDiagramSchema,
     execute: async (options) => {
       type BaseOptions = typeof options & { mermaidLines: string[] };
       const base = options as BaseOptions;

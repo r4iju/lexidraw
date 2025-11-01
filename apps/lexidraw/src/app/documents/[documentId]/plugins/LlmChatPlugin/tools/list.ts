@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $createListItemNode } from "@lexical/list";
@@ -14,6 +8,11 @@ import { $getNodeByKey } from "lexical";
 import { $isListItemNode, $isListNode } from "@lexical/list";
 import { $isRootNode } from "lexical";
 import type { LexicalNode } from "lexical";
+import {
+  InsertListNodeSchema,
+  InsertListItemNodeSchema,
+} from "@packages/types";
+import type { InsertionAnchor } from "./common-schemas";
 
 export const useListTools = () => {
   const {
@@ -21,7 +20,8 @@ export const useListTools = () => {
     $insertNodeAtResolvedPoint,
     resolveInsertionPoint,
     getTargetEditorInstance,
-    findFirstNodeByText,
+    getResolvedEditorAndKeyMap,
+    resolveAnchorToLiveNode,
   } = useCommonUtilities();
 
   const [editor] = useLexicalComposerContext();
@@ -33,13 +33,7 @@ export const useListTools = () => {
         Uses relation and anchor to determine position.
         Rather than invoking this tool directly, multiple list nodes should be inserted with a batch.
         `,
-    inputSchema: z.object({
-      listType: z.enum(["bullet", "number", "check"]),
-      text: z.string().describe("Text for the initial list item."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertListNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertListNode",
@@ -105,35 +99,7 @@ export const useListTools = () => {
   const insertListItemNode = tool({
     description:
       "Inserts a new ListItemNode with the provided text. For 'before' or 'after' relations, the anchor MUST resolve to an existing ListItemNode. For 'appendToList' relation, the anchor MUST resolve to an existing ListNode.",
-    inputSchema: z.object({
-      text: z.string(),
-      relation: z
-        .enum(["before", "after", "appendToList"])
-        .describe(
-          "'before'/'after' relative to an existing ListItemNode; 'appendToList' adds to the end of the specified ListNode.",
-        ),
-      anchor: z.discriminatedUnion("type", [
-        z.object({
-          type: z
-            .literal("key")
-            .describe('type can be "key" or "text", never "heading'),
-          key: z
-            .string()
-            .describe("Use the key of the target ListItemNode or ListNode."),
-        }),
-        z.object({
-          type: z
-            .literal("text")
-            .describe('type can be "key" or "text", never heading'),
-          text: z
-            .string()
-            .describe(
-              "Use text content to identify the target ListItemNode or ListNode.",
-            ),
-        }),
-      ]),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertListItemNodeSchema,
     execute: async ({ text, relation, anchor, editorKey }) => {
       try {
         console.log("[insertListItemNode] Starting", {
@@ -143,19 +109,28 @@ export const useListTools = () => {
         });
 
         const targetEditor = getTargetEditorInstance(editorKey);
+        const editorContext = getResolvedEditorAndKeyMap(editorKey);
         let validatedTargetKey: string | null = null;
         let checkValue: boolean | undefined;
         let validationError: string | null = null;
 
-        // --- Resolve anchor and perform validation INSIDE editor.read ---
-        targetEditor.read(() => {
-          let resolvedTargetNode: LexicalNode | null = null;
-          if (anchor.type === "key") {
-            resolvedTargetNode = $getNodeByKey(anchor.key);
-          } else {
-            resolvedTargetNode = findFirstNodeByText(targetEditor, anchor.text);
-            // Attempt to find parent list/item if initial find is not suitable
+        try {
+          const liveNode = resolveAnchorToLiveNode(
+            editorContext,
+            anchor as InsertionAnchor,
+          );
+          const initialKey = liveNode.getKey();
+          // Perform validation and potential ancestor adjustment inside a read
+          targetEditor.read(() => {
+            let resolvedTargetNode: LexicalNode | null =
+              $getNodeByKey(initialKey);
+            if (!resolvedTargetNode) {
+              validationError = `Anchor node (live key: ${initialKey}) not found.`;
+              return;
+            }
+            // If anchor was text-based, climb to nearest list/list-item
             if (
+              (anchor as { type?: string }).type === "text" &&
               resolvedTargetNode &&
               !$isListItemNode(resolvedTargetNode) &&
               !$isListNode(resolvedTargetNode)
@@ -169,39 +144,51 @@ export const useListTools = () => {
                 searchNode = searchNode.getParent();
               }
             }
-          }
 
-          if (!resolvedTargetNode) {
-            const anchorDesc =
-              anchor.type === "key"
-                ? `key "${anchor.key}"`
-                : `text "${anchor.text}"`;
-            validationError = `Anchor node ${anchorDesc} not found.`;
-            return;
-          }
-
-          validatedTargetKey = resolvedTargetNode.getKey();
-          const targetType = resolvedTargetNode.getType();
-
-          if (relation === "appendToList") {
-            if (!$isListNode(resolvedTargetNode)) {
-              validationError = `Anchor must resolve to a ListNode for relation 'appendToList', but found ${targetType}.`;
+            if (!resolvedTargetNode) {
+              const anchorDesc =
+                (anchor as { type?: string }).type === "key"
+                  ? `key "${(anchor as { key?: string }).key}"`
+                  : `text "${(anchor as { text?: string }).text}"`;
+              validationError = `Anchor node ${anchorDesc} not found.`;
               return;
             }
-            checkValue =
-              resolvedTargetNode.getListType() === "check" ? false : undefined;
-          } else {
-            // 'before' or 'after'
-            if (!$isListItemNode(resolvedTargetNode)) {
-              validationError = `Anchor must resolve to a ListItemNode for relation '${relation}', but found ${targetType}.`;
-              return;
+
+            validatedTargetKey = resolvedTargetNode.getKey();
+            const targetType = resolvedTargetNode.getType();
+
+            if (relation === "appendToList") {
+              if (!$isListNode(resolvedTargetNode)) {
+                validationError = `Anchor must resolve to a ListNode for relation 'appendToList', but found ${targetType}.`;
+                return;
+              }
+              checkValue =
+                resolvedTargetNode.getListType() === "check"
+                  ? false
+                  : undefined;
+            } else {
+              // 'before' or 'after'
+              if (!$isListItemNode(resolvedTargetNode)) {
+                validationError = `Anchor must resolve to a ListItemNode for relation '${relation}', but found ${targetType}.`;
+                return;
+              }
+              checkValue =
+                typeof (
+                  resolvedTargetNode as unknown as {
+                    getChecked?: () => unknown;
+                  }
+                ).getChecked?.() === "boolean"
+                  ? false
+                  : undefined;
             }
-            checkValue =
-              typeof resolvedTargetNode.getChecked() === "boolean"
-                ? false
-                : undefined;
-          }
-        });
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(
+            `❌ [insertListItemNode] Anchor resolution failed: ${msg}`,
+          );
+          return { success: false, error: msg };
+        }
 
         if (validationError) {
           console.error(

@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { CollapsibleContainerNode } from "../../CollapsiblePlugin/CollapsibleContainerNode";
@@ -13,6 +7,7 @@ import { $createParagraphNode, $createTextNode } from "lexical";
 import { CollapsibleContentNode } from "../../CollapsiblePlugin/CollapsibleContentNode";
 import { $convertFromMarkdownString } from "@lexical/markdown";
 import { PLAYGROUND_TRANSFORMERS } from "../../MarkdownTransformers";
+import { InsertCollapsibleSectionSchema } from "@packages/types";
 
 export const useCollapsibleTools = () => {
   const {
@@ -28,23 +23,7 @@ export const useCollapsibleTools = () => {
   const insertCollapsibleSection = tool({
     description:
       "Inserts a new collapsible section (container, title, and content). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    inputSchema: z.object({
-      titleText: z.string().describe("The text for the collapsible title."),
-      initialContentMarkdown: z
-        .string()
-        .optional()
-        .describe(
-          "Optional Markdown content for the collapsible body. If empty, an empty paragraph is created.",
-        ),
-      initiallyOpen: z
-        .boolean()
-        .optional()
-        .default(false)
-        .describe("Whether the section is open by default. Defaults to false."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertCollapsibleSectionSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertCollapsibleSection",

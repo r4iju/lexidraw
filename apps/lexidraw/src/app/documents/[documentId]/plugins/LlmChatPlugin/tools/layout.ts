@@ -1,15 +1,10 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $createParagraphNode } from "lexical";
 import { LayoutContainerNode } from "../../../nodes/LayoutContainerNode";
 import { LayoutItemNode } from "../../../nodes/LayoutItemNode";
+import { InsertLayoutSchema } from "@packages/types";
 
 export const useLayoutTools = () => {
   const {
@@ -22,16 +17,7 @@ export const useLayoutTools = () => {
   const insertLayout = tool({
     description:
       "Inserts a new layout container with a specified column structure. Each column (LayoutItemNode) will be initialized with an empty paragraph. The number of columns is determined by the space-separated values in templateColumns (e.g., '1fr 1fr' creates two columns). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    inputSchema: z.object({
-      templateColumns: z
-        .string()
-        .describe(
-          "A CSS grid-template-columns string (e.g., '1fr 1fr', '30% 70%'). Space-separated values determine the number of columns.",
-        ),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertLayoutSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertLayout",

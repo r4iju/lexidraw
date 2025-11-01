@@ -1,25 +1,30 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getRoot, type RangeSelection, type TextNode } from "lexical";
-import type { LexicalNode } from "lexical";
-import { $isTextNode } from "lexical";
-import { $isElementNode } from "lexical";
-import { $createRangeSelection } from "lexical";
-import { $setSelection } from "lexical";
-import { $getSelection } from "lexical";
-import { $isRangeSelection } from "lexical";
+import {
+  $getRoot,
+  type RangeSelection,
+  type TextNode,
+  $createRangeSelection,
+  $isTextNode,
+  $isElementNode,
+  type LexicalNode,
+  $setSelection,
+  $getSelection,
+  $isRangeSelection,
+  $getNodeByKey,
+} from "lexical";
 import { $wrapSelectionInMarkNode } from "@lexical/mark";
-import { $getNodeByKey } from "lexical";
 import { useCommentPlugin } from "../../CommentPlugin";
 import { CommentStore, type Thread } from "../../../commenting";
 import { ThreadNode } from "../../../nodes/ThreadNode";
+import {
+  FindAndSelectTextForCommentSchema,
+  AddCommentThreadSchema,
+  AddReplyToThreadSchema,
+  RemoveCommentFromThreadSchema,
+  RemoveCommentThreadSchema,
+} from "@packages/types";
 
 export const useCommentTools = () => {
   const {
@@ -37,13 +42,7 @@ export const useCommentTools = () => {
   const findAndSelectTextForComment = tool({
     description:
       "Finds the first occurrence of the specified text in the document and selects it. Subsequent tool calls for 'addCommentThread' will use this selection.",
-    inputSchema: z.object({
-      textToFind: z
-        .string()
-        .min(1)
-        .describe("The exact text to find and select in the document."),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: FindAndSelectTextForCommentSchema,
     execute: async ({ textToFind, editorKey }) => {
       let success = false;
       let foundText: string | undefined;
@@ -112,24 +111,7 @@ export const useCommentTools = () => {
   const addCommentThread = tool({
     description:
       "Creates a new comment thread on the currently selected text in the editor. The selection provides the quote and the area to highlight. Returns the new thread ID and initial comment ID.",
-    inputSchema: z.object({
-      initialCommentText: z
-        .string()
-        .describe("The text for the first comment in this new thread."),
-      authorName: z
-        .string()
-        .optional()
-        .describe("Author name for the comment. Defaults to 'AI Assistant'."),
-      threadNodePlacementRelation: InsertionRelationSchema.optional()
-        .default("appendRoot")
-        .describe(
-          "Relation for placing the ThreadNode (decorator) in the document structure.",
-        ),
-      threadNodePlacementAnchor: InsertionAnchorSchema.optional().describe(
-        "Anchor for placing the ThreadNode (decorator) in the document structure.",
-      ),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: AddCommentThreadSchema,
     execute: async ({
       initialCommentText,
       authorName,
@@ -262,15 +244,7 @@ export const useCommentTools = () => {
   const addReplyToThread = tool({
     description:
       "Adds a reply to an existing comment thread. Returns the new comment ID.",
-    inputSchema: z.object({
-      threadId: z.string().describe("The ID of the thread to reply to."),
-      replyText: z.string().describe("The text content of the reply."),
-      authorName: z
-        .string()
-        .optional()
-        .describe("Author name for the reply. Defaults to 'AI Assistant'."),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: AddReplyToThreadSchema,
     execute: async ({ threadId, replyText, authorName, editorKey }) => {
       try {
         const targetEditor = getTargetEditorInstance(editorKey);
@@ -325,11 +299,7 @@ export const useCommentTools = () => {
   const removeCommentFromThread = tool({
     description:
       "Removes a specific comment from a thread using the thread ID and comment ID.",
-    inputSchema: z.object({
-      threadId: z.string().describe("The ID of the parent thread."),
-      commentId: z.string().describe("The ID of the comment to remove."),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: RemoveCommentFromThreadSchema,
     execute: async ({ threadId, commentId, editorKey }) => {
       try {
         const targetEditor = getTargetEditorInstance(editorKey);
@@ -384,9 +354,7 @@ export const useCommentTools = () => {
   const removeCommentThread = tool({
     description:
       "Removes an entire comment thread (including all its comments and associated highlights) using the thread ID.",
-    inputSchema: z.object({
-      threadId: z.string().describe("The ID of the comment thread to remove."),
-    }),
+    inputSchema: RemoveCommentThreadSchema,
     execute: async ({ threadId }) => {
       try {
         const targetThread = commentStore

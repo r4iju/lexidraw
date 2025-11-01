@@ -1,18 +1,17 @@
 "use client";
 import { useCallback } from "react";
 import { useChatDispatch, useChatState } from "./llm-chat-context";
-import type { ToolChoice, ToolSet, StepResult } from "ai";
 import {
   useLLM,
   type AppToolCall,
   type StreamCallbacks,
-  type GenerateChatResponseResult,
   type RuntimeToolMap,
 } from "../../context/llm-context";
-import { useRuntimeTools, useToolMeta } from "./runtime-tools-provider";
+import { useRuntimeTools } from "./runtime-tools-provider";
 import { useSystemPrompt } from "./use-system-prompt";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useMarkdownTools } from "../../utils/markdown";
+import type { ModelMessage } from "ai";
 
 // Define a more specific type for messages used in history building
 // (Matches the structure in llm-chat-context.tsx)
@@ -48,23 +47,6 @@ function unwrapSendReply(jsonish: string): string | null {
 }
 
 const MAX_SELECTED_TOOLS = 6;
-const DEFAULT_AGENT_TOOL_NAMES: string[] = [
-  "requestClarificationOrPlan",
-  "sendReply",
-  "insertTextNode",
-  "insertHeadingNode",
-];
-
-// stripCodeFences now defined as a closure inside the hook
-
-// tryParseJson now defined as a closure inside the hook
-
-// Legacy top-level helpers kept for backward compatibility (not used now)
-// pickToolsByNames is replaced by pickToolsByNamesMemo inside the hook
-
-// extractReplyTextFromToolResult now defined inside the hook
-
-// Define the expected parameters for the sendQuery callback
 interface SendQueryParams {
   prompt: string;
   editorStateJson?: string;
@@ -73,56 +55,16 @@ interface SendQueryParams {
 
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
-  const { mode, messages, maxAgentSteps } = useChatState();
+  const { mode, messages } = useChatState();
   const { generateChatStream, generateChatResponse, llmConfig } = useLLM();
   const runtimeTools = useRuntimeTools();
   const [editor] = useLexicalComposerContext();
 
   const systemPrompt = useSystemPrompt(mode);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
-  const { getDisplay } = useToolMeta();
 
   // Inline helpers as memoized closures
-  const stripCodeFences = useCallback((text: string): string => {
-    return text
-      .replace(/^\s*```json/i, "")
-      .replace(/^\s*```javascript/i, "")
-      .replace(/^\s*```ts/i, "")
-      .replace(/^\s*```/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-  }, []);
-
-  const tryParseJson = useCallback(
-    <T>(text: string): T | null => {
-      try {
-        return JSON.parse(stripCodeFences(text)) as T;
-      } catch {
-        const start = text.indexOf("{");
-        const end = text.lastIndexOf("}");
-        if (start !== -1 && end !== -1 && end > start) {
-          const slice = text.slice(start, end + 1);
-          try {
-            return JSON.parse(slice) as T;
-          } catch {
-            return null;
-          }
-        }
-        const aStart = text.indexOf("[");
-        const aEnd = text.lastIndexOf("]");
-        if (aStart !== -1 && aEnd !== -1 && aEnd > aStart) {
-          const slice = text.slice(aStart, aEnd + 1);
-          try {
-            return JSON.parse(slice) as T;
-          } catch {
-            return null;
-          }
-        }
-        return null;
-      }
-    },
-    [stripCodeFences],
-  );
+  // planner helpers removed; planning handled on server
 
   const pickToolsByNamesMemo = useCallback(
     (names: string[]): RuntimeToolMap => {
@@ -135,20 +77,6 @@ export const useSendQuery = () => {
       return Object.fromEntries(entries) as unknown as RuntimeToolMap;
     },
     [runtimeTools],
-  );
-
-  const extractReplyTextFromToolResult = useCallback(
-    (result: unknown): string | null => {
-      if (!result || typeof result !== "object") return null;
-      const maybeArgs = (result as { args?: unknown }).args;
-      if (maybeArgs && typeof maybeArgs === "object") {
-        const rec = maybeArgs as Record<string, unknown>;
-        const val = rec.replyText;
-        if (typeof val === "string") return val;
-      }
-      return null;
-    },
-    [],
   );
 
   return useCallback(
@@ -287,226 +215,208 @@ export const useSendQuery = () => {
         } else {
           // Staged provisioning: planner call -> main call with selected subset
           const availableToolNames = Object.keys(runtimeTools);
-          const plannerInstruction =
-            "You are a tool selection planner. From the provided list of available tool names, choose at most " +
-            String(MAX_SELECTED_TOOLS) +
-            ' that best solve the user\'s request. Return ONLY this exact format and nothing else: {"tools": ["name1", "name2"]}. Use names exactly from the list, max ' +
-            String(MAX_SELECTED_TOOLS) +
-            " items.";
+          // planner instruction enforced server-side
 
-          const plannerPrompt = [
-            "AVAILABLE_TOOLS:",
-            availableToolNames.join(", "),
-            "USER_PROMPT:",
-            prompt,
-          ].join("\n\n");
-
-          const plannerResult = await generateChatResponse({
-            prompt: plannerPrompt,
-            system: plannerInstruction,
-            temperature: 0,
-            toolChoice: "none",
-            maxSteps: 0,
-          });
-
+          // --- Planner step via server endpoint ---
           let selectedNames: string[] = [];
-          const parsed = tryParseJson<{ tools?: unknown } | string[]>(
-            plannerResult.text,
-          );
-          if (Array.isArray(parsed)) {
-            selectedNames = parsed
-              .filter((x) => typeof x === "string")
-              .slice(0, MAX_SELECTED_TOOLS) as string[];
-          } else if (
-            parsed &&
-            typeof parsed === "object" &&
-            "tools" in parsed
-          ) {
-            const t = (parsed as { tools?: unknown }).tools;
-            if (Array.isArray(t)) {
-              selectedNames = t
-                .filter((x) => typeof x === "string")
-                .slice(0, MAX_SELECTED_TOOLS) as string[];
+          let plannerCorrelationId: string | undefined;
+          try {
+            const plannerRes = await fetch("/api/llm/plan", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt,
+                availableTools: availableToolNames,
+                max: MAX_SELECTED_TOOLS,
+              }),
+            });
+            if (plannerRes.ok) {
+              const data = (await plannerRes.json()) as {
+                tools?: unknown;
+                correlationId?: string;
+              };
+              if (Array.isArray(data.tools)) {
+                selectedNames = (data.tools as unknown[])
+                  .filter((x) => typeof x === "string")
+                  .slice(0, MAX_SELECTED_TOOLS) as string[];
+              }
+              if (typeof data.correlationId === "string") {
+                plannerCorrelationId = data.correlationId;
+              }
             }
+          } catch {
+            // fall back below
           }
 
           if (!selectedNames.length) {
-            selectedNames = DEFAULT_AGENT_TOOL_NAMES.filter((n) =>
-              availableToolNames.includes(n),
-            );
+            dispatch({
+              type: "push",
+              msg: {
+                id: crypto.randomUUID(),
+                role: "system",
+                content:
+                  "Planner failed to select tools. Please refine the request.",
+              },
+            });
+            return;
           }
           const selectedTools = pickToolsByNamesMemo(selectedNames);
           const selectedToolNames = Object.keys(selectedTools);
 
-          const prepareStepForSelected = async ({
-            steps,
-            stepNumber,
-          }: {
-            steps: StepResult<RuntimeToolMap>[];
-            stepNumber: number;
-          }): Promise<{ toolChoice?: ToolChoice<ToolSet> }> => {
-            const previousStep = steps[stepNumber - 1] || null;
-            const previousToolCallName = previousStep?.toolResults?.at(-1)
-              ?.toolName as string | undefined;
-            const prevInput = previousStep?.toolResults?.at(-1)?.input as
-              | Record<string, unknown>
-              | undefined;
-            const prevWasClarify =
-              !!prevInput &&
-              typeof prevInput === "object" &&
-              "operation" in prevInput &&
-              (prevInput as Record<string, unknown>).operation === "clarify";
-            if (
-              (previousToolCallName &&
-                ["summarizeExecution", "sendReply"].includes(
-                  previousToolCallName,
-                )) ||
-              (previousToolCallName === "requestClarificationOrPlan" &&
-                prevWasClarify)
-            ) {
-              const error = new Error("TERMINAL_TOOL_CALL_DETECTED");
-              error.name = "ExitError";
-              throw error;
-            }
-            // Surface last tool call, if any
-            const lastTool = previousStep?.toolCalls?.at(-1);
-            if (lastTool?.toolName) {
-              const display = getDisplay(
-                lastTool.toolName,
-                (lastTool as unknown as { input?: Record<string, unknown> })
-                  .input,
-              );
-              if (display) {
-                dispatch({
-                  type: "push",
-                  msg: {
-                    id: crypto.randomUUID(),
-                    role: "system",
-                    content: display,
-                  },
-                });
-              }
-            }
+          // Client-orchestrated agent flow (feature-flagged) — call through llm-context
+          const clientOrch = true;
+          if (clientOrch) {
+            const messagesForAgent: ModelMessage[] = [
+              { role: "user", content: fullPrompt },
+            ];
 
-            const maxToolSteps = maxAgentSteps;
-            if (stepNumber >= maxToolSteps) {
-              if (
-                selectedToolNames.includes("summarizeExecution") &&
-                stepNumber === maxToolSteps
-              ) {
-                return {
-                  toolChoice: {
-                    type: "tool",
-                    toolName: "summarizeExecution",
-                  },
-                };
-              }
-              return { toolChoice: "none" };
-            }
-            return { toolChoice: "auto" };
-          };
-
-          let responseResult: GenerateChatResponseResult;
-          try {
-            responseResult = await generateChatResponse({
-              prompt: fullPrompt,
+            // First pass
+            const result1 = await generateChatResponse({
+              mode: "agent",
+              messages: messagesForAgent,
               system: systemPrompt,
               temperature: llmConfig.agent.temperature,
               tools: selectedTools,
-              maxSteps: maxAgentSteps,
-              prepareStep: prepareStepForSelected,
-              files: files,
-              repairToolCall: async ({
-                toolCall,
-                error,
-                messages: sdkMessages,
-              }) => {
-                const errMsg =
-                  error instanceof Error ? error.message : String(error);
-                sdkMessages.push({
-                  role: "assistant",
-                  content: `I tried calling \`${toolCall.toolName}\` with ${JSON.stringify((toolCall as unknown as { input?: unknown }).input)} but got an error: "${errMsg}". I'll adjust my arguments and try again.`,
-                });
-                return toolCall;
-              },
-              mode: "agent",
+              prompt: "",
             });
-          } catch {
-            // Retry once with a small expanded default subset
-            const fallbackNames = Array.from(
-              new Set([
-                ...DEFAULT_AGENT_TOOL_NAMES,
-                ...selectedToolNames,
-                "insertMarkdown",
-                "insertLinkNode",
-              ]),
-            ).slice(0, MAX_SELECTED_TOOLS);
-            const fallbackTools = pickToolsByNamesMemo(fallbackNames);
-            responseResult = await generateChatResponse({
-              prompt: fullPrompt,
-              system: systemPrompt,
-              temperature: llmConfig.agent.temperature,
-              tools: fallbackTools,
-              maxSteps: maxAgentSteps,
-              prepareStep: prepareStepForSelected,
-              files: files,
-              mode: "agent",
-            });
-          }
-
-          const lastToolCall = responseResult.toolCalls?.at(-1);
-          const lastToolResult = responseResult.toolResults?.find(
-            (r) => r.toolCallId === lastToolCall?.toolCallId,
-          );
-          let dispatchedMessage = false;
-          if (lastToolCall?.toolName) {
-            const display = getDisplay(
-              lastToolCall.toolName,
-              (lastToolCall as unknown as { input?: Record<string, unknown> })
-                .input,
-            );
-            if (display) {
+            // Execute at most one round of tool calls, then feed back
+            const toolCalls1 = result1.toolCalls ?? [];
+            // Only surface assistant text if there were no tool calls
+            if (toolCalls1.length === 0 && (result1.text ?? "").trim() !== "") {
               dispatch({
                 type: "push",
                 msg: {
                   id: crypto.randomUUID(),
-                  role: "system",
-                  content: display,
+                  role: "assistant",
+                  content: result1.text,
                 },
               });
             }
+            if (toolCalls1.length > 0) {
+              const executed: Array<{
+                toolCallId: string;
+                toolName: string;
+                ok: boolean;
+                error?: string;
+                summary?: string;
+              }> = [];
+
+              for (const c of toolCalls1) {
+                const toolImpl = (
+                  selectedTools as unknown as Record<string, unknown>
+                )[c.toolName] as unknown as {
+                  inputSchema?: unknown;
+                  execute?: (
+                    args: Record<string, unknown>,
+                  ) => Promise<
+                    | { success: true; content?: Record<string, unknown> }
+                    | { success: false; error?: string }
+                  >;
+                };
+                if (!toolImpl || typeof toolImpl.execute !== "function") {
+                  executed.push({
+                    toolCallId: c.toolCallId,
+                    toolName: c.toolName,
+                    ok: false,
+                    error: `Tool '${c.toolName}' not available`,
+                  });
+                  continue;
+                }
+                // Minimal arg mapping for Gemini sendReply
+                const raw =
+                  (c as unknown as { input?: Record<string, unknown> }).input ||
+                  {};
+                const mappedArgs =
+                  c.toolName === "sendReply" && typeof raw.message === "string"
+                    ? { replyText: raw.message }
+                    : raw;
+                try {
+                  const res = await toolImpl.execute(mappedArgs);
+                  executed.push({
+                    toolCallId: c.toolCallId,
+                    toolName: c.toolName,
+                    ok: !!res?.success,
+                    error: (res as any)?.error,
+                    summary: (res as any)?.content?.summary,
+                  });
+                } catch (e) {
+                  executed.push({
+                    toolCallId: c.toolCallId,
+                    toolName: c.toolName,
+                    ok: false,
+                    error: e instanceof Error ? e.message : String(e),
+                  });
+                }
+              }
+
+              // Feed results back once
+              const summaryLines = executed
+                .map(
+                  (r) =>
+                    `- ${r.toolName} (${r.toolCallId}): ${r.ok ? "ok" : `error: ${r.error ?? ""}`}${
+                      r.summary ? ` summary: ${r.summary}` : ""
+                    }`,
+                )
+                .join("\n");
+
+              const followupMessages: ModelMessage[] = [
+                ...messagesForAgent,
+                ...(result1.text?.trim()
+                  ? ([
+                      { role: "assistant", content: result1.text },
+                    ] as ModelMessage[])
+                  : ([] as ModelMessage[])),
+                {
+                  role: "assistant",
+                  content: `TOOL_EXECUTION_RESULTS_PASS_1:\n${summaryLines}`,
+                },
+              ];
+
+              const result2 = await generateChatResponse({
+                mode: "agent",
+                messages: followupMessages,
+                system: systemPrompt,
+                temperature: llmConfig.agent.temperature,
+                tools: selectedTools,
+                prompt: "",
+              });
+              if ((result2.text ?? "").trim() !== "") {
+                dispatch({
+                  type: "push",
+                  msg: {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    content: result2.text,
+                  },
+                });
+              }
+            }
+
+            return;
           }
-          const replyTextB = extractReplyTextFromToolResult(lastToolResult);
-          if (
-            lastToolCall?.toolName === "sendReply" &&
-            typeof replyTextB === "string"
-          ) {
+
+          // Fallback to server-agent single pass
+          const agentRes = await fetch("/api/llm/agent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              system: systemPrompt,
+              prompt: fullPrompt,
+              temperature: llmConfig.agent.temperature,
+              allowedToolNames: selectedToolNames,
+              correlationId: plannerCorrelationId,
+            }),
+          });
+          if (!agentRes.ok) throw new Error(`Agent HTTP ${agentRes.status}`);
+          const data = (await agentRes.json()) as { text?: string };
+          const agentText = data.text ?? "";
+          if (agentText.trim() !== "") {
             dispatch({
               type: "push",
               msg: {
                 id: crypto.randomUUID(),
                 role: "assistant",
-                content: replyTextB,
-                toolCalls: responseResult.toolCalls,
-                toolResults: responseResult.toolResults,
-              },
-            });
-            dispatchedMessage = true;
-          }
-          if (
-            !dispatchedMessage &&
-            lastToolCall?.toolName !== "summarizeExecution" &&
-            lastToolCall?.toolName !== "requestClarificationOrPlan" &&
-            responseResult.text.trim() !== ""
-          ) {
-            dispatch({
-              type: "push",
-              msg: {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                content: responseResult.text,
-                toolCalls: responseResult.toolCalls,
-                toolResults: responseResult.toolResults,
+                content: agentText,
               },
             });
           }
@@ -541,11 +451,7 @@ export const useSendQuery = () => {
       llmConfig,
       runtimeTools,
       editor,
-      maxAgentSteps,
-      tryParseJson,
       pickToolsByNamesMemo,
-      extractReplyTextFromToolResult,
-      getDisplay,
     ],
   );
 };

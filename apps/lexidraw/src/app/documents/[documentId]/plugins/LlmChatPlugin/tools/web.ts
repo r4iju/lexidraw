@@ -1,6 +1,7 @@
-import { z } from "zod";
 import { tool } from "ai";
+import { z } from "zod";
 import { api } from "~/trpc/react";
+import { ExtractWebpageContentSchema } from "@packages/types";
 
 export const WEB_TOOL_LABELS: Record<string, string | undefined> = {
   googleSearch: "Google search",
@@ -75,10 +76,7 @@ export function useWebTools() {
   const extractWebpageContent = tool({
     description:
       "Fetches a web page and extracts a readable text summary (server-side).",
-    inputSchema: z.object({
-      url: z.url().describe("URL to extract."),
-      maxChars: z.number().int().min(200).max(20000).optional(),
-    }),
+    inputSchema: ExtractWebpageContentSchema,
     execute: async ({ url, maxChars }) => {
       const res = await extractWebpageContentMutation.mutateAsync({
         url,

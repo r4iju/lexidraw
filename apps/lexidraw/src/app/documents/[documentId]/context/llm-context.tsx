@@ -3,21 +3,25 @@
 import { createContext, useCallback, useState, useContext } from "react";
 import type { PropsWithChildren } from "react";
 
-import type {
-  LanguageModel,
-  StepResult,
-  tool,
-  ToolCallRepairFunction,
-  ToolChoice,
-  ModelMessage,
+import {
+  generateText,
+  type LanguageModel,
+  type StepResult,
+  type tool,
+  type ToolCallRepairFunction,
+  type ToolChoice,
+  type ModelMessage,
 } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { api } from "~/trpc/react";
 import type {
   LlmBaseConfigSchema,
   StoredLlmConfig,
   PartialLlmConfig,
 } from "~/server/api/routers/config";
-import type { z } from "zod";
+import type { z, ZodTypeAny } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { useDebounce } from "~/lib/client-utils";
 
 export type RuntimeToolMap = Record<string, ReturnType<typeof tool>>;
@@ -316,6 +320,64 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       }));
 
       try {
+        // Client-orchestrated agent path (feature-flagged)
+        const clientOrch = true;
+        if (useAgent && clientOrch && tools && Object.keys(tools).length > 0) {
+          // Instantiate provider client-side with proxy baseURL
+          let model: ReturnType<
+            | ReturnType<typeof createOpenAI>
+            | ReturnType<typeof createGoogleGenerativeAI>
+          > | null = null;
+          const provider = llmConfig.agent.provider;
+          const modelId = llmConfig.agent.modelId;
+          if (provider === "openai") {
+            const openai = createOpenAI({
+              baseURL: "/api/llm/proxy/openai",
+              apiKey: "proxy",
+            });
+            model = openai(modelId);
+          } else if (provider === "google") {
+            const google = createGoogleGenerativeAI({
+              baseURL: "/api/llm/proxy/google",
+              apiKey: "proxy",
+            });
+            model = google(modelId);
+          } else {
+            throw new Error("Unsupported provider for client orchestration");
+          }
+
+          const baseMessages: ModelMessage[] = (messages ?? []).length
+            ? (messages as ModelMessage[])
+            : ([{ role: "user", content: prompt }] as ModelMessage[]);
+
+          const result = await generateText({
+            model: model as unknown as LanguageModel,
+            messages: baseMessages,
+            system,
+            temperature: temperature ?? activeConfig.temperature,
+            tools: tools,
+            toolChoice: "auto",
+          });
+
+          const text = (result?.text ?? "").toString();
+          const toolCalls = (result.toolCalls ?? []).map((c) => {
+            const rawInput = c.input;
+            return {
+              toolCallId: c.toolCallId,
+              toolName: c.toolName,
+              input: rawInput ?? {},
+            } as AppToolCall;
+          });
+          setChatState((prev) => ({
+            ...prev,
+            isError: false,
+            text,
+            error: null,
+            isStreaming: false,
+          }));
+          return { text, toolCalls, toolResults: undefined };
+        }
+
         // Chat without tools → call server JSON route
         if (!useAgent && !tools) {
           const resp = await fetch("/api/llm/generate", {
@@ -346,8 +408,93 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           return { text };
         }
 
-        // Agent or tools present → call server agent route
+        // Agent or tools present → call server agent route (fallback)
         const toolNames = Object.keys(tools ?? {});
+        // Build JSON Schemas for selected tools; prefer prebuilt parameters if present.
+        const toolDefs = toolNames
+          .map((name) => {
+            // Skip sending toolDefs for tools covered by the server-side contract
+            // The server will build these schemas from the shared registry.
+            if (
+              [
+                "sendReply",
+                "requestClarificationOrPlan",
+                "summarizeAfterToolCallExecution",
+                "insertSlideDeckNode",
+                "addSlidePage",
+                "removeSlidePage",
+                "reorderSlidePage",
+                "setSlidePageBackground",
+                "addImageToSlidePage",
+                "addChartToSlidePage",
+              ].includes(name)
+            )
+              return null;
+            const t = tools?.[name] as unknown as {
+              inputSchema?: ZodTypeAny;
+              parameters?: Record<string, unknown>;
+              description?: string;
+            };
+            const description =
+              typeof t?.description === "string" ? t.description : undefined;
+            // Prefer parameters if present (already JSON Schema from AI SDK)
+            const prebuilt = t?.parameters as
+              | (Record<string, unknown> & { type?: unknown })
+              | undefined;
+            if (prebuilt && typeof prebuilt === "object") {
+              // If provider requires type: object at root, ensure it's present when discernible
+              const rootType = (prebuilt as { type?: unknown }).type;
+              if (rootType === undefined || rootType === "object") {
+                return { name, parameters: prebuilt, description } as {
+                  name: string;
+                  parameters: Record<string, unknown>;
+                  description?: string;
+                };
+              }
+            }
+            // Fallback to Zod conversion
+            const schema = t?.inputSchema as ZodTypeAny | undefined;
+            if (!schema) return null;
+            try {
+              const parameters = zodToJsonSchema(schema, {
+                name: `${name}Input`,
+                $refStrategy: "none",
+                target: "jsonSchema7",
+              }) as Record<string, unknown>;
+              if (
+                !parameters ||
+                typeof parameters !== "object" ||
+                (parameters as { type?: unknown }).type !== "object"
+              ) {
+                throw new Error(
+                  `Tool '${name}' parameters must be a JSON Schema with type: "object"`,
+                );
+              }
+              return { name, parameters, description } as {
+                name: string;
+                parameters: Record<string, unknown>;
+                description?: string;
+              };
+            } catch (e) {
+              console.warn(
+                `[LLMContext] Skipping toolDef for '${name}':`,
+                e instanceof Error ? e.message : String(e),
+              );
+              return null;
+            }
+          })
+          .filter(Boolean) as Array<{
+          name: string;
+          parameters: Record<string, unknown>;
+          description?: string;
+        }>;
+        if (toolDefs.length > 0) {
+          console.log(
+            `[agent] Prepared ${toolDefs.length} toolDef(s): ${toolDefs
+              .map((d) => d.name)
+              .join(", ")}`,
+          );
+        }
         const resp = await fetch("/api/llm/agent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -357,6 +504,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
             system,
             temperature: temperature ?? activeConfig.temperature,
             tools: toolNames,
+            toolDefs,
           }),
           signal,
         });

@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -17,6 +11,7 @@ import {
   $getRoot,
 } from "lexical";
 import { useLexicalStyleUtils } from "../../../utils/lexical-style-utils";
+import { InsertTextNodeSchema, ApplyTextStyleSchema } from "@packages/types";
 
 export const useTextTools = () => {
   const {
@@ -24,6 +19,7 @@ export const useTextTools = () => {
     $insertNodeAtResolvedPoint,
     resolveInsertionPoint,
     getResolvedEditorAndKeyMap,
+    resolveStableKeyToLiveKey,
   } = useCommonUtilities();
   const [editor] = useLexicalComposerContext();
   const { parseStyleString, reconstructStyleString } = useLexicalStyleUtils();
@@ -31,12 +27,7 @@ export const useTextTools = () => {
   const insertTextNode = tool({
     description:
       "Inserts a new TextNode containing the provided text. If relation is 'before' or 'after', an existing TextNode must be identified by anchorKey or anchorText. If relation is 'appendRoot', the TextNode will be wrapped in a Paragraph and appended to the document root.",
-    inputSchema: z.object({
-      text: z.string(),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertTextNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertTextNode",
@@ -116,50 +107,7 @@ export const useTextTools = () => {
   const applyTextStyle = tool({
     description:
       "Applies specific CSS styles (like font family, size, color) to an existing TextNode identified by its key. Provide style values as strings (e.g., 'Arial, sans-serif', '14px', '#FF0000'). To remove a specific style, provide an empty string ('') for its value.",
-    inputSchema: z.object({
-      anchorKey: z
-        .string()
-        .optional()
-        .describe(
-          "The key of the target TextNode. If omitted, the first TextNode in the editor will be styled.",
-        ),
-      editorKey: EditorKeySchema.optional(),
-      fontFamily: z
-        .string()
-        .optional()
-        .describe(
-          "CSS font-family value (e.g., 'Arial, sans-serif'). Empty string ('') removes.",
-        ),
-      fontSize: z
-        .string()
-        .optional()
-        .describe(
-          "CSS font-size value (e.g., '14px', '1.2em'). Empty string ('') removes.",
-        ),
-      fontWeight: z // ADDED
-        .string()
-        .optional()
-        .describe(
-          "CSS font-weight value (e.g., 'bold', 'normal', '700'). Empty string ('') removes.",
-        ),
-      fontStyle: z // ADDED
-        .string()
-        .optional()
-        .describe(
-          "CSS font-style value (e.g., 'italic', 'normal'). Empty string ('') removes.",
-        ),
-      color: z
-        .string()
-        .optional()
-        .describe(
-          "CSS color value (e.g., '#FF0000', 'blue'). Empty string ('') removes.",
-        ),
-      backgroundColor: z
-        .string()
-        .optional()
-        .describe("CSS background-color value. Empty string ('') removes."),
-      // Add other common style properties as needed (textDecoration)
-    }),
+    inputSchema: ApplyTextStyleSchema,
     execute: async ({
       anchorKey,
       editorKey,
@@ -184,39 +132,24 @@ export const useTextTools = () => {
         let finalSummary = "";
         let errorMsg: string | null = null;
 
-        const { targetEditor, keyMap } = getResolvedEditorAndKeyMap(editorKey); // editorKey is the full path
+        const { targetEditor, keyMap, originalRoot } =
+          getResolvedEditorAndKeyMap(editorKey); // editorKey is the full path
 
         let liveAnchorKey = anchorKey ?? null;
 
-        if (liveAnchorKey && keyMap) {
-          const resolvedKey = keyMap.get(liveAnchorKey);
-          if (resolvedKey) {
-            liveAnchorKey = resolvedKey;
-          } else {
-            // anchorKey might already be a live key created after initial editor serialization
-            const nodeExists = targetEditor
-              .getEditorState()
-              // checked above
-              .read(() => !!$getNodeByKey(liveAnchorKey as string));
-
-            if (nodeExists) {
-              // Treat the provided anchorKey as live
-              console.warn(
-                `[applyTextStyle] anchorKey "${liveAnchorKey}" not found in keyMap but exists live in the editor – treating it as live key.`,
-              );
-            } else {
-              errorMsg = `anchorKey "${liveAnchorKey}" not found in keyMap and does not exist live in editor "${editorKey}".`;
-              console.error(`❌ [applyTextStyle] Error: ${errorMsg}`);
-              return { success: false, error: errorMsg };
-            }
+        if (liveAnchorKey) {
+          try {
+            liveAnchorKey = resolveStableKeyToLiveKey(
+              { targetEditor, keyMap, originalRoot },
+              liveAnchorKey,
+            );
+          } catch (e) {
+            errorMsg = e instanceof Error ? e.message : String(e);
+            console.error(`❌ [applyTextStyle] Error: ${errorMsg}`);
+            return { success: false, error: errorMsg };
           }
         } else if (liveAnchorKey === null) {
           // No anchorKey specified – we will resolve first text node later.
-        } else {
-          // No keyMap for this editor (e.g., root editor). Assume anchorKey is live.
-          console.warn(
-            `[applyTextStyle] No keyMap for editor "${editorKey}". Assuming anchorKey "${liveAnchorKey}" is already a live key.`,
-          );
         }
 
         targetEditor.update(() => {

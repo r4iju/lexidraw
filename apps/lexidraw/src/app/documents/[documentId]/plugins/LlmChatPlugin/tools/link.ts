@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $createLinkNode } from "@lexical/link";
@@ -16,6 +10,7 @@ import {
   $isTextNode,
   type LexicalNode,
 } from "lexical";
+import { InsertLinkNodeSchema } from "@packages/types";
 
 export const useLinkTools = () => {
   const {
@@ -28,39 +23,7 @@ export const useLinkTools = () => {
   const insertLinkNode = tool({
     description:
       "Inserts a new LinkNode with the provided URL and optional text. If linkText is not provided, the URL itself will be used as the visible text. The LinkNode is inline; if inserted at the root or relative to a block-level node, it will be wrapped in a ParagraphNode.",
-    inputSchema: z.object({
-      url: z
-        .string()
-        .describe("The URL for the link (e.g., 'https://example.com')."),
-      linkText: z
-        .string()
-        .optional()
-        .describe(
-          "The visible text for the link. Defaults to the URL if not provided.",
-        ),
-      attributes: z
-        .object({
-          rel: z
-            .string()
-            .optional()
-            .describe(
-              "The 'rel' attribute for the link (e.g., 'noopener noreferrer').",
-            ),
-          target: z
-            .string()
-            .optional()
-            .describe("The 'target' attribute for the link (e.g., '_blank')."),
-          title: z
-            .string()
-            .optional()
-            .describe("The 'title' attribute for the link."),
-        })
-        .optional()
-        .describe("Optional HTML attributes for the link."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertLinkNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertLinkNode",

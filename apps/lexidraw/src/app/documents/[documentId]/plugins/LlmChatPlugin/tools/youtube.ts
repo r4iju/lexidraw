@@ -1,13 +1,8 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { YouTubeNode } from "../../../nodes/YouTubeNode";
+import { InsertYouTubeNodeSchema } from "@packages/types";
 
 export const useYoutubeTools = () => {
   const {
@@ -20,20 +15,7 @@ export const useYoutubeTools = () => {
   const insertYouTubeNode = tool({
     description:
       "Inserts a YouTube video embed using the provided video ID. YouTubeNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, an alignment format can be applied.",
-    inputSchema: z.object({
-      videoID: z
-        .string()
-        .describe(
-          "The ID of the YouTube video (from its URL, e.g., dQw4w9WgXcQ).",
-        ),
-      format: z
-        .enum(["left", "center", "right", "justify"])
-        .optional()
-        .describe("Optional alignment format for the YouTube video embed."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertYouTubeNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertYouTubeNode",
