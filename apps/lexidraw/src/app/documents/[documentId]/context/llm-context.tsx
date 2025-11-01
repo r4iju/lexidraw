@@ -23,6 +23,38 @@ import type {
 import type { z, ZodTypeAny } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { useDebounce } from "~/lib/client-utils";
+// Canonical tool input schemas (no React deps) from shared types package
+import {
+  InsertMarkdownSchema,
+  InsertHeadingNodeSchema,
+  InsertTextNodeSchema,
+  InsertListNodeSchema,
+  InsertListItemNodeSchema,
+  InsertTableSchema,
+  InsertLinkNodeSchema,
+  InsertEquationNodeSchema,
+  InsertFigmaNodeSchema,
+  InsertCollapsibleSectionSchema,
+  InsertLayoutSchema,
+  InsertPageBreakNodeSchema,
+  InsertPollNodeSchema,
+  InsertTweetNodeSchema,
+  InsertYouTubeNodeSchema,
+  InsertExcalidrawDiagramSchema,
+  InsertMermaidDiagramSchema,
+  InsertCodeBlockSchema,
+  InsertCodeHighlightNodeSchema,
+  InsertHashtagSchema,
+  ApplyTextStyleSchema,
+  InsertSlideDeckNodeSchema,
+  AddSlidePageSchema,
+  RemoveSlidePageSchema,
+  ReorderSlidePageSchema,
+  SetSlidePageBackgroundSchema,
+  AddImageToSlidePageSchema,
+  AddChartToSlidePageSchema,
+  AddBoxToSlidePageSchema,
+} from "@packages/types";
 
 export type RuntimeToolMap = Record<string, ReturnType<typeof tool>>;
 
@@ -350,13 +382,30 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
             ? (messages as ModelMessage[])
             : ([{ role: "user", content: prompt }] as ModelMessage[]);
 
-          const result = await generateText({
+          // Pass the real runtime tools directly to generateText().
+          // The AI SDK will extract their Zod schemas (from tool() helper) and convert them correctly for the provider.
+          const genOptions = {
             model: model as unknown as LanguageModel,
             messages: baseMessages,
             system,
             temperature: temperature ?? activeConfig.temperature,
-            tools: tools,
+            tools: tools as unknown as RuntimeToolMap,
             toolChoice: "auto",
+            maxSteps: 1,
+          } as unknown as Parameters<typeof generateText>[0];
+          console.log("[agent] generateText (client) → sending", {
+            toolCount: Object.keys(tools ?? {}).length,
+            toolNames: Object.keys(tools ?? {}),
+            maxSteps: 1,
+          });
+          const result = await generateText(genOptions);
+          console.log("[agent] generateText (client) ← result", {
+            toolCallsCount: (result.toolCalls ?? []).length,
+            toolCalls: (result.toolCalls ?? []).map((c) => ({
+              id: c.toolCallId,
+              name: c.toolName,
+            })),
+            textLength: (result?.text ?? "").length,
           });
 
           const text = (result?.text ?? "").toString();
@@ -452,36 +501,102 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
                 };
               }
             }
-            // Fallback to Zod conversion
+            // Fallback to Zod conversion (local inputSchema → JSON Schema)
             const schema = t?.inputSchema as ZodTypeAny | undefined;
-            if (!schema) return null;
-            try {
-              const parameters = zodToJsonSchema(schema, {
-                name: `${name}Input`,
-                $refStrategy: "none",
-                target: "jsonSchema7",
-              }) as Record<string, unknown>;
-              if (
-                !parameters ||
-                typeof parameters !== "object" ||
-                (parameters as { type?: unknown }).type !== "object"
-              ) {
-                throw new Error(
-                  `Tool '${name}' parameters must be a JSON Schema with type: "object"`,
+            if (schema) {
+              try {
+                const parameters = zodToJsonSchema(schema, {
+                  name: `${name}Input`,
+                  $refStrategy: "none",
+                  target: "jsonSchema7",
+                }) as Record<string, unknown>;
+                if (
+                  !parameters ||
+                  typeof parameters !== "object" ||
+                  (parameters as { type?: unknown }).type !== "object"
+                ) {
+                  throw new Error(
+                    `Tool '${name}' parameters must be a JSON Schema with type: "object"`,
+                  );
+                }
+                return { name, parameters, description } as {
+                  name: string;
+                  parameters: Record<string, unknown>;
+                  description?: string;
+                };
+              } catch (e) {
+                console.warn(
+                  `[LLMContext] Local schema conversion failed for '${name}':`,
+                  e instanceof Error ? e.message : String(e),
                 );
               }
-              return { name, parameters, description } as {
-                name: string;
-                parameters: Record<string, unknown>;
-                description?: string;
-              };
-            } catch (e) {
-              console.warn(
-                `[LLMContext] Skipping toolDef for '${name}':`,
-                e instanceof Error ? e.message : String(e),
-              );
-              return null;
             }
+
+            // Try canonical schemas from shared package before skipping
+            const canonical = (
+              {
+                insertMarkdown: InsertMarkdownSchema,
+                insertHeadingNode: InsertHeadingNodeSchema,
+                insertTextNode: InsertTextNodeSchema,
+                insertListNode: InsertListNodeSchema,
+                insertListItemNode: InsertListItemNodeSchema,
+                insertTable: InsertTableSchema,
+                insertLinkNode: InsertLinkNodeSchema,
+                insertEquationNode: InsertEquationNodeSchema,
+                insertFigmaNode: InsertFigmaNodeSchema,
+                insertCollapsibleSection: InsertCollapsibleSectionSchema,
+                insertLayout: InsertLayoutSchema,
+                insertPageBreakNode: InsertPageBreakNodeSchema,
+                insertPollNode: InsertPollNodeSchema,
+                insertTweetNode: InsertTweetNodeSchema,
+                insertYouTubeNode: InsertYouTubeNodeSchema,
+                insertExcalidrawDiagram: InsertExcalidrawDiagramSchema,
+                insertMermaidDiagram: InsertMermaidDiagramSchema,
+                insertCodeBlock: InsertCodeBlockSchema,
+                insertCodeHighlightNode: InsertCodeHighlightNodeSchema,
+                insertHashtag: InsertHashtagSchema,
+                applyTextStyle: ApplyTextStyleSchema,
+                insertSlideDeckNode: InsertSlideDeckNodeSchema,
+                addSlidePage: AddSlidePageSchema,
+                removeSlidePage: RemoveSlidePageSchema,
+                reorderSlidePage: ReorderSlidePageSchema,
+                setSlidePageBackground: SetSlidePageBackgroundSchema,
+                addImageToSlidePage: AddImageToSlidePageSchema,
+                addChartToSlidePage: AddChartToSlidePageSchema,
+                addBoxToSlidePage: AddBoxToSlidePageSchema,
+              } as Record<string, ZodTypeAny>
+            )[name];
+
+            if (canonical) {
+              try {
+                const parameters = zodToJsonSchema(canonical, {
+                  name: `${name}Input`,
+                  $refStrategy: "none",
+                  target: "jsonSchema7",
+                }) as Record<string, unknown>;
+                if (
+                  parameters &&
+                  typeof parameters === "object" &&
+                  (parameters as { type?: unknown }).type === "object"
+                ) {
+                  return { name, parameters, description } as {
+                    name: string;
+                    parameters: Record<string, unknown>;
+                    description?: string;
+                  };
+                }
+              } catch (e) {
+                console.warn(
+                  `[LLMContext] Canonical schema conversion failed for '${name}':`,
+                  e instanceof Error ? e.message : String(e),
+                );
+              }
+            }
+
+            console.warn(
+              `[LLMContext] Skipping toolDef for '${name}' (no valid parameters schema)`,
+            );
+            return null;
           })
           .filter(Boolean) as Array<{
           name: string;
@@ -521,6 +636,15 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           }>;
         };
         const text = (json?.text ?? "").toString();
+        if ((json.toolCalls ?? []).length > 0) {
+          console.log("[agent] server-agent ← result toolCalls", {
+            count: (json.toolCalls ?? []).length,
+            calls: (json.toolCalls ?? []).map((c) => ({
+              id: c.toolCallId,
+              name: c.toolName,
+            })),
+          });
+        }
 
         setChatState((prev) => ({
           ...prev,

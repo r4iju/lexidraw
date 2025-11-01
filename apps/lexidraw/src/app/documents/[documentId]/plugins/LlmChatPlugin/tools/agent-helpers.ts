@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ChatDispatch } from "../llm-chat-context";
+import { generateUUID } from "~/lib/utils";
 
 /* --------------------------------------------------------------
  * Plan or Clarify Tool
@@ -39,7 +40,7 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
     execute: async (args) => {
       switch (args.operation) {
         case "plan": {
-          const planMsgId = crypto.randomUUID();
+          const planMsgId = generateUUID();
           dispatch({
             type: "push",
             msg: {

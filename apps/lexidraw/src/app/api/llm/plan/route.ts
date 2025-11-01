@@ -6,6 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateObject, type LanguageModel } from "ai";
 import { z } from "zod";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import { generateUUID } from "~/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -69,13 +70,14 @@ export async function POST(req: NextRequest) {
     if (!openaiApiKey)
       return new Response("Missing OpenAI API key", { status: 400 });
     const openai = createOpenAI({ apiKey: openaiApiKey });
-    model = openai("gpt-4o-mini");
+    // Align planner with effective model when possible; fallback to a small chat model
+    model = openai(modelId || "gpt-4o-mini");
     fallbackModel = openai("gpt-4o");
   } else if (provider === "google") {
     if (!googleApiKey)
       return new Response("Missing Google API key", { status: 400 });
     const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
-    model = google("gemini-1.5-flash");
+    model = google(modelId || "gemini-1.5-flash");
     fallbackModel = google("gemini-1.5-pro");
   } else {
     return new Response("Unsupported provider", { status: 400 });
@@ -99,13 +101,17 @@ export async function POST(req: NextRequest) {
 
   const plannerSystem = [
     "You are a tool selection planner.",
-    `From the provided list of available tool names, choose at most ${String(max)} that best solve the user\'s request.`,
+    `From the provided list of available tool names, choose at most ${String(max)} that best solve the user's request.`,
     `Return ONLY an object {"tools": ["name1", ...]} with 1..${String(max)} tools. No prose.`,
     "Use names exactly from the list.",
+    "Rules:",
+    "- If the intent is editorial (summarize/compose/edit/write/add/insert), you MUST include at least one writing tool: insertMarkdown OR insertHeadingNode OR insertTextNode.",
+    "- Avoid chat-only tools (sendReply, requestClarificationOrPlan) when the user intent is clearly editorial.",
+    "- If the user mentions an article or a URL and extractWebpageContent is available, prefer including it together with a writing tool.",
     "Examples:",
-    // Few-shot examples
     'AVAILABLE_TOOLS: insertMarkdown, insertHeadingNode, insertTextNode\nUSER_PROMPT: add a title and a paragraph\nOUTPUT: {"tools": ["insertHeadingNode", "insertTextNode"]}',
     'AVAILABLE_TOOLS: requestClarificationOrPlan, sendReply\nUSER_PROMPT: not sure what I want\nOUTPUT: {"tools": ["requestClarificationOrPlan"]}',
+    'AVAILABLE_TOOLS: extractWebpageContent, insertMarkdown, sendReply\nUSER_PROMPT: summarize this article\nOUTPUT: {"tools": ["extractWebpageContent", "insertMarkdown"]}',
   ].join("\n\n");
 
   const plannerPrompt = [
@@ -115,7 +121,7 @@ export async function POST(req: NextRequest) {
     prompt,
   ].join("\n\n");
 
-  const correlationId = crypto.randomUUID();
+  const correlationId = generateUUID();
   const runOnce = async (which: "primary" | "fallback") => {
     const activeModel = which === "primary" ? model : fallbackModel;
     if (!activeModel) throw new Error("No planner model available");
@@ -148,6 +154,51 @@ export async function POST(req: NextRequest) {
       log("retry_planner", { userId: session.user.id });
       selected = await runOnce("fallback");
     }
+    // Guardrails: ensure editorial coverage
+    const writingSet = new Set([
+      "insertMarkdown",
+      "insertHeadingNode",
+      "insertTextNode",
+    ]);
+    const chatOnlySet = new Set(["sendReply", "requestClarificationOrPlan"]);
+    const isEditorial =
+      /\b(summarize|summary|compose|write|edit|draft|add|insert)\b/i.test(
+        prompt,
+      );
+    const mentionsArticle = /\b(article|url|https?:\/\/)\b/i.test(prompt);
+
+    if (isEditorial) {
+      // Remove chat-only tools unless they are the only options
+      const nonChat = selected.filter((n) => !chatOnlySet.has(n));
+      if (nonChat.length > 0) selected = nonChat;
+
+      // Ensure at least one writing tool present
+      if (!selected.some((n) => writingSet.has(n))) {
+        if (availableTools.includes("insertMarkdown")) {
+          selected.unshift("insertMarkdown");
+        } else if (availableTools.includes("insertHeadingNode")) {
+          selected.unshift("insertHeadingNode");
+          if (
+            availableTools.includes("insertTextNode") &&
+            selected.length < max
+          )
+            selected.push("insertTextNode");
+        } else if (availableTools.includes("insertTextNode")) {
+          selected.unshift("insertTextNode");
+        }
+      }
+
+      // Prefer extraction when article/URL is present
+      if (
+        mentionsArticle &&
+        availableTools.includes("extractWebpageContent") &&
+        !selected.includes("extractWebpageContent") &&
+        selected.length < max
+      ) {
+        selected.unshift("extractWebpageContent");
+      }
+    }
+
     const elapsedMs = Date.now() - startMs;
     log("selection_summary", {
       userId: session.user.id,
