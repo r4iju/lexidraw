@@ -4,7 +4,13 @@
  * Instead add list nodes, heading nodes, paragraph nodes, etc.
  */
 
-import { $getNodeByKey, type LexicalEditor } from "lexical";
+import {
+  $getNodeByKey,
+  $getRoot,
+  $isElementNode,
+  type LexicalEditor,
+  type LexicalNode,
+} from "lexical";
 import {
   type SlideElementSpec,
   type SlideData,
@@ -15,15 +21,26 @@ import {
   SlideStrategicMetadataSchema,
 } from "../../../nodes/SlideNode/SlideNode";
 import { useCommonUtilities } from "./common";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
+import { EditorKeySchema } from "./common-schemas";
 import { tool } from "ai";
 import { z } from "zod";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { ChartConfigSchema, ChartDataSchema } from "~/lib/schemas";
+// import { ChartConfigSchema, ChartDataSchema } from "~/lib/schemas";
+import {
+  InsertSlideDeckNodeSchema,
+  AddSlidePageSchema as SharedAddSlidePageSchema,
+  RemoveSlidePageSchema,
+  ReorderSlidePageSchema,
+  SetSlidePageBackgroundSchema,
+  AddImageToSlidePageSchema as SharedAddImageToSlidePageSchema,
+  AddChartToSlidePageSchema as SharedAddChartToSlidePageSchema,
+  GenerateAndAddImageToSlidePageSchema,
+  SearchAndAddImageToSlidePageSchema,
+  UpdateElementPropertiesSchema as SharedUpdateElementPropertiesSchema,
+  SaveStoryboardOutputSchema as SharedSaveStoryboardOutputSchema,
+  SaveSlideContentAndMetadataSchema as SharedSaveSlideContentAndMetadataSchema,
+  AddBoxToSlidePageSchema as SharedAddBoxToSlidePageSchema,
+} from "@packages/types";
 import { useImageGeneration } from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
 import { useEffect, useMemo } from "react";
@@ -221,17 +238,36 @@ export const useSlideTools = () => {
     const insertSlideDeckNode = tool({
       description:
         "Inserts a new SlideDeckNode without any slides. SlideDeckNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-      inputSchema: z.object({
-        relation: InsertionRelationSchema,
-        anchor: InsertionAnchorSchema.optional(),
-        editorKey: EditorKeySchema.optional(),
-      }),
+      inputSchema: InsertSlideDeckNodeSchema,
       execute: async (options) => {
         return insertionExecutor(
           "insertSlideDeckNode",
           editor,
           options,
           (resolution, _specificOptions, _currentTargetEditor) => {
+            // Idempotency: if a SlideDeckNode already exists, return it instead of inserting a new one
+            const root = $getRoot();
+            let existingDeckKey: string | null = null;
+            const queue: LexicalNode[] = [root as unknown as LexicalNode];
+            while (queue.length) {
+              const n = queue.shift();
+              if (!n) break;
+              if (SlideNode.$isSlideDeckNode(n as unknown as SlideNode)) {
+                existingDeckKey = (n as unknown as SlideNode).getKey();
+                break;
+              }
+              if ($isElementNode(n)) {
+                queue.push(...n.getChildren());
+              }
+            }
+
+            if (existingDeckKey) {
+              return {
+                primaryNodeKey: existingDeckKey,
+                summaryContext: "Slide Deck (existing)",
+              };
+            }
+
             const newSlideDeckNode = SlideNode.$createSlideNode({
               slides: [],
               currentSlideId: null,
@@ -449,22 +485,14 @@ export const useSlideTools = () => {
     const addSlidePage = tool({
       description:
         "Adds a new, empty slide page to an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide.",
-      inputSchema: addSlidePageSchema,
+      inputSchema: SharedAddSlidePageSchema,
       execute: addSlidePageExec,
     });
 
     const removeSlidePage = tool({
       description:
         "Removes a specific slide page from an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide. Cannot remove the last slide.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideIdToRemove: z
-          .string()
-          .describe("The ID of the slide page to remove."),
-        editorKey: EditorKeySchema.optional(), // Ensure editorKey is part of params
-      }),
+      inputSchema: RemoveSlidePageSchema,
       execute: async (options) => {
         type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
         return updateSlideDeckExecutor<MutatorOptions, typeof options>(
@@ -539,22 +567,7 @@ export const useSlideTools = () => {
     const reorderSlidePage = tool({
       description:
         "Reorders a slide page within an existing SlideDeckNode. This tool only modifies the slide structure, not the content of any slide.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideIdToMove: z
-          .string()
-          .describe("The ID of the slide page to reorder."),
-        newIndex: z
-          .number()
-          .int()
-          .min(0)
-          .describe(
-            "The new 0-based index for the slide. The slide will be moved to this position.",
-          ),
-        editorKey: EditorKeySchema.optional(),
-      }),
+      inputSchema: ReorderSlidePageSchema,
       execute: async (options) => {
         type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
         return updateSlideDeckExecutor<MutatorOptions, typeof options>(
@@ -601,26 +614,7 @@ export const useSlideTools = () => {
     const setSlidePageBackground = tool({
       description:
         "Sets the background color of a specific slide page within a SlideDeckNode.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideTarget: z
-          .union([
-            z.object({ type: z.literal("id"), slideId: z.string() }),
-            z.object({
-              type: z.literal("index"),
-              slideIndex: z.number().int().min(0),
-            }),
-          ])
-          .describe("Identifier for the target slide (by ID or index)."),
-        backgroundColor: z
-          .string()
-          .describe(
-            "The new background color for the slide (e.g., '#FF0000', 'blue').",
-          ),
-        editorKey: EditorKeySchema.optional(),
-      }),
+      inputSchema: SetSlidePageBackgroundSchema,
       execute: async (options) => {
         type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
         return updateSlideDeckExecutor<MutatorOptions, typeof options>(
@@ -684,39 +678,7 @@ export const useSlideTools = () => {
     const updateElementProperties = tool({
       description:
         "Updates properties of an existing box, image, or chart element on a specific slide page.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z
-          .string()
-          .describe("The ID of the slide page containing the element."),
-        elementId: z.string().describe("The ID of the element to update."),
-        kind: z
-          .enum(["box", "image", "chart"])
-          .describe("The kind of element to update."),
-        properties: z
-          .object({
-            // Common properties
-            x: z.number().optional(),
-            y: z.number().optional(),
-            width: z.union([z.number(), z.literal("inherit")]).optional(),
-            height: z.union([z.number(), z.literal("inherit")]).optional(),
-            zIndex: z.number().optional(),
-            // Box specific
-            backgroundColor: z.string().optional(),
-            // Image specific
-            url: z.string().optional(),
-            // Chart specific
-            chartType: z.enum(["bar", "line", "pie"]).optional(),
-            chartData: ChartDataSchema.optional(),
-            chartConfig: ChartConfigSchema.optional(),
-          })
-          .describe(
-            "An object containing the properties to update. Only provided properties will be changed.",
-          ),
-        editorKey: EditorKeySchema.optional(),
-      }),
+      inputSchema: SharedUpdateElementPropertiesSchema,
       execute: async (options) => {
         type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
         return updateSlideDeckExecutor<MutatorOptions, typeof options>(
@@ -925,46 +887,7 @@ export const useSlideTools = () => {
     const addImageToSlidePage = tool({
       description:
         "Adds a new image element to a specific slide page within an existing SlideDeckNode.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z
-          .string()
-          .describe("The ID of the slide page to add the image to."),
-        imageUrl: z.string().describe("The URL of the image."),
-        imageId: z
-          .string()
-          .optional()
-          .describe(
-            "Optional ID for the new image. If not provided, a unique ID (e.g., 'image-<timestamp>') will be generated.",
-          ),
-        x: z
-          .number()
-          .optional()
-          .default(50)
-          .describe(
-            "Optional X coordinate for the top-left corner. Defaults to 50.",
-          ),
-        y: z
-          .number()
-          .optional()
-          .default(50)
-          .describe(
-            "Optional Y coordinate for the top-left corner. Defaults to 50.",
-          ),
-        width: z
-          .number()
-          .optional()
-          .default(250)
-          .describe("Optional width. Defaults to 250."),
-        height: z
-          .number()
-          .optional()
-          .default(150)
-          .describe("Optional height. Defaults to 150."),
-        editorKey: EditorKeySchema.optional(),
-      }),
+      inputSchema: SharedAddImageToSlidePageSchema,
       execute: async (options) => {
         return _addImageToSlidePage("addImageToSlidePage", options);
       },
@@ -977,47 +900,7 @@ export const useSlideTools = () => {
     const addChartToSlidePage = tool({
       description:
         "Adds a new chart element to a specific slide page within an existing SlideDeckNode.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z
-          .string()
-          .describe("The ID of the slide page to add the chart to."),
-        chartType: z
-          .enum(["bar", "line", "pie"])
-          .default("bar")
-          .describe("Type of chart (bar, line, pie). Defaults to bar."),
-        chartData: ChartDataSchema,
-        chartConfig: ChartConfigSchema,
-        chartId: z
-          .string()
-          .optional()
-          .describe(
-            "Optional ID for the new chart. If not provided, a unique ID (e.g., 'chart-<timestamp>') will be generated.",
-          ),
-        x: z
-          .number()
-          .optional()
-          .default(50)
-          .describe("X coordinate. Defaults to 50."),
-        y: z
-          .number()
-          .optional()
-          .default(50)
-          .describe("Y coordinate. Defaults to 50."),
-        width: z
-          .number()
-          .optional()
-          .default(400)
-          .describe("Width. Defaults to 400."),
-        height: z
-          .number()
-          .optional()
-          .default(300)
-          .describe("Height. Defaults to 300."),
-        editorKey: EditorKeySchema.optional(),
-      }),
+      inputSchema: SharedAddChartToSlidePageSchema,
       execute: async (options) => {
         type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
 
@@ -1127,15 +1010,7 @@ export const useSlideTools = () => {
     const generateAndAddImageToSlidePage = tool({
       description:
         "Generates an image from a prompt and adds it to a specific slide page.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z.string().describe("The ID of the slide page."),
-        prompt: z
-          .string()
-          .describe("A detailed text description of the image."),
-      }),
+      inputSchema: GenerateAndAddImageToSlidePageSchema,
       execute: async ({ deckNodeKey, slideId, prompt }) => {
         const imageDataResult = await generateImageData(prompt);
         if (!imageDataResult) {
@@ -1165,13 +1040,7 @@ export const useSlideTools = () => {
     const searchAndAddImageToSlidePage = tool({
       description:
         "Searches for an image on Unsplash and adds it to a specific slide page.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z.string().describe("The ID of the slide page."),
-        query: z.string().describe("The search query for Unsplash."),
-      }),
+      inputSchema: SearchAndAddImageToSlidePageSchema,
       execute: async ({ deckNodeKey, slideId, query }) => {
         const imageData = await searchImage(query);
         if (!imageData) {
@@ -1193,35 +1062,7 @@ export const useSlideTools = () => {
     const saveStoryboardOutput = tool({
       description:
         "Saves the generated storyboard outline. Use this tool to provide the array of slide objects you have created. Each object must conform to the SlideOutlineSchema.",
-      inputSchema: z.object({
-        slides: z
-          .array(
-            z.object({
-              slideNumber: z
-                .number()
-                .int()
-                .positive()
-                .describe("Sequential slide number, starting from 1."),
-              title: z
-                .string()
-                .describe("Concise and engaging title for the slide."),
-              keyMessage: z
-                .string()
-                .describe(
-                  "Bullet points summarizing the core message, can use Markdown.",
-                ),
-              visualIdea: z
-                .string()
-                .describe(
-                  "Brief textual description of a potential visual or chart.",
-                ),
-              speakerNotes: z
-                .string()
-                .describe("Brief notes for the presenter."),
-            }),
-          )
-          .describe("An array of slide outline objects."),
-      }),
+      inputSchema: SharedSaveStoryboardOutputSchema,
       execute: async ({ slides }) => {
         // This tool's primary job is to validate the input via its schema.
         // The actual saving/processing of this data happens in the calling function (runStep3_StoryboardArchitect)
@@ -1247,36 +1088,7 @@ export const useSlideTools = () => {
     const saveSlideContentAndMetadata = tool({
       description:
         "Saves the generated body content and refined speaker notes for a specific slide page, and updates the slide's metadata.",
-      inputSchema: z.object({
-        deckNodeKey: z
-          .string()
-          .describe("The key of the target SlideDeckNode."),
-        slideId: z
-          .string()
-          .describe("The ID of the slide page this content belongs to."),
-        bodyContent: z
-          .array(
-            z.object({
-              type: z
-                .string()
-                .describe(
-                  "Type of content block, e.g., 'heading1', 'paragraph', 'bulletList'.",
-                ),
-              text: z
-                .string()
-                .describe(
-                  "Text content for the block. For bulletList, items are separated by newline characters.",
-                ),
-            }),
-          )
-          .describe(
-            "The main structured content for the slide body, as an array of content blocks.",
-          ),
-        refinedSpeakerNotes: z
-          .string()
-          .describe("The revised and improved speaker notes for the slide."),
-        editorKey: EditorKeySchema.optional(),
-      }),
+      inputSchema: SharedSaveSlideContentAndMetadataSchema,
       execute: async (options) => {
         type MutatorOptions = Omit<
           typeof options,
@@ -1534,7 +1346,7 @@ export const useSlideTools = () => {
     const addBoxToSlidePage = tool({
       description:
         "Adds a new box element to a specific slide page within an existing SlideDeckNode.",
-      inputSchema: addBoxToSlidePageSchema,
+      inputSchema: SharedAddBoxToSlidePageSchema,
       execute: addBoxToSlidePageExec,
     });
 

@@ -1,10 +1,4 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { $createParagraphNode, $getRoot } from "lexical";
 import { $convertFromMarkdownString } from "@lexical/markdown";
@@ -12,6 +6,7 @@ import { $getNodeByKey } from "lexical";
 import type { InsertionPointResolution } from "./common-schemas";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { PLAYGROUND_TRANSFORMERS } from "../../MarkdownTransformers";
+import { InsertMarkdownSchema } from "@packages/types";
 
 export const useMarkdownTools = () => {
   const { getResolvedEditorAndKeyMap, resolveInsertionPoint } =
@@ -21,14 +16,7 @@ export const useMarkdownTools = () => {
   const insertMarkdown = tool({
     description:
       "Inserts content parsed from a Markdown string. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. This is efficient for inserting complex structures like multiple paragraphs, lists, headings, code blocks, etc., defined in Markdown format.",
-    inputSchema: z.object({
-      markdownText: z
-        .string()
-        .describe("The Markdown content to parse and insert."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertMarkdownSchema,
     execute: async ({ markdownText, relation, anchor, editorKey }) => {
       try {
         console.log("[insertMarkdown] Starting", {

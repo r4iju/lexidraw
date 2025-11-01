@@ -8,8 +8,11 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 
 export const useDocumentEditorTools = () => {
   const { serializeEditorStateWithKeys } = useKeyedSerialization();
-  const { getResolvedEditorAndKeyMap, getTargetEditorInstance } =
-    useCommonUtilities();
+  const {
+    getResolvedEditorAndKeyMap,
+    getTargetEditorInstance,
+    resolveStableKeyToLiveKey,
+  } = useCommonUtilities();
   const [editor] = useLexicalComposerContext();
 
   const patchNodeByJSON = tool({
@@ -43,20 +46,24 @@ export const useDocumentEditorTools = () => {
       patchProperties,
       editorKey,
     }) => {
-      const { targetEditor, keyMap } = getResolvedEditorAndKeyMap(editorKey);
-
-      // Resolve to live node key if a keyMap is available; otherwise assume the original key is already live (main editor case).
-      const liveNodeKey = keyMap?.get(originalNodeKey) ?? null;
-
-      // If keyMap is missing or doesn't contain the mapping, fall back to originalNodeKey.
-      const finalNodeKey = liveNodeKey || originalNodeKey;
+      const editorContext = getResolvedEditorAndKeyMap(editorKey);
+      let finalNodeKey: string;
+      try {
+        finalNodeKey = resolveStableKeyToLiveKey(
+          editorContext,
+          originalNodeKey,
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { success: false, error: msg };
+      }
 
       try {
-        targetEditor.update(() => {
+        editorContext.targetEditor.update(() => {
           // log the current state of the target editor
           // serialize with keys
           const currentState = serializeEditorStateWithKeys(
-            targetEditor.getEditorState(),
+            editorContext.targetEditor.getEditorState(),
           );
           console.log(
             "🛠️ [ToolFactory: patchNodeByJSON] current state:",

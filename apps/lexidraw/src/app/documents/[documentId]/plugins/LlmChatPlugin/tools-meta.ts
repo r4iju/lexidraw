@@ -4,7 +4,7 @@
 export const GLOBAL_TOOL_LABELS: Record<string, string | undefined> = {
   // Chat-producing or terminal tools — suppress surfacing
   sendReply: undefined,
-  summarizeExecution: undefined,
+  summarizeAfterToolCallExecution: undefined,
 
   // General tools
   requestClarificationOrPlan: "Request clarification",

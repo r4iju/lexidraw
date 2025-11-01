@@ -5,6 +5,9 @@ import { z } from "zod";
 export * from "./enums.js";
 export * from "./helpers.js";
 export * from "./article.js";
+export * from "./agent-tools-contract.js";
+export * from "./tool-schemas.js";
+export * from "./base-schemas.js";
 
 type DocumentPayload = {
   elements: string;

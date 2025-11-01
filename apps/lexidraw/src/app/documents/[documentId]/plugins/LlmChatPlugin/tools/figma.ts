@@ -1,13 +1,8 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { FigmaNode } from "../../../nodes/FigmaNode";
+import { InsertFigmaNodeSchema } from "@packages/types";
 
 export const useFigmaTools = () => {
   const {
@@ -20,20 +15,7 @@ export const useFigmaTools = () => {
   const insertFigmaNode = tool({
     description:
       "Inserts a Figma embed using the provided Figma document ID. FigmaNode is a block-level element. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position. Optionally, a format (e.g., 'center') can be applied.",
-    inputSchema: z.object({
-      documentID: z
-        .string()
-        .describe(
-          "The document ID of the Figma file (extracted from its URL).",
-        ),
-      format: z
-        .enum(["left", "center", "right", "justify"])
-        .optional()
-        .describe("Optional alignment format for the Figma embed."),
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertFigmaNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertFigmaNode",

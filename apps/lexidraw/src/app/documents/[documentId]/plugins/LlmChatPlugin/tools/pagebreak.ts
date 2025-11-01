@@ -1,13 +1,8 @@
 import { tool } from "ai";
-import { z } from "zod";
-import {
-  EditorKeySchema,
-  InsertionAnchorSchema,
-  InsertionRelationSchema,
-} from "./common-schemas";
 import { useCommonUtilities } from "./common";
 import { PageBreakNode } from "../../../nodes/PageBreakNode";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { InsertPageBreakNodeSchema } from "@packages/types";
 
 export const usePageBreakTools = () => {
   const {
@@ -19,11 +14,7 @@ export const usePageBreakTools = () => {
   const insertPageBreakNode = tool({
     description:
       "Inserts a new PageBreakNode. This is a block-level element that typically forces a page break when printing or exporting to PDF. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
-    inputSchema: z.object({
-      relation: InsertionRelationSchema,
-      anchor: InsertionAnchorSchema.optional(),
-      editorKey: EditorKeySchema.optional(),
-    }),
+    inputSchema: InsertPageBreakNodeSchema,
     execute: async (options) => {
       return insertionExecutor(
         "insertPageBreakNode",

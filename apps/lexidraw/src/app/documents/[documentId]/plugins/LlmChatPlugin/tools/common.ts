@@ -13,6 +13,7 @@ import type {
   InsertionRelation,
 } from "./common-schemas";
 import type { SerializedNodeWithKey } from "../../../types";
+import { useKeyedSerialization } from "../use-serialized-editor-state";
 import { useEditorRegistry } from "../../../context/editors-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
@@ -32,6 +33,7 @@ export const useCommonUtilities = () => {
   /** The generic executor function. */
   const { getEditorEntry } = useEditorRegistry();
   const [editor] = useLexicalComposerContext();
+  const { serializeEditorStateWithKeys } = useKeyedSerialization();
 
   function getResolvedEditorAndKeyMap(editorKey?: string): {
     targetEditor: LexicalEditor;
@@ -175,6 +177,156 @@ export const useCommonUtilities = () => {
     }
   }
 
+  /**
+   * Builds a one-off mapping from original (stable) keys to the current live keys
+   * for a given editor by walking the original keyed tree in lockstep with the
+   * current editor state's node tree (child-index pairing).
+   */
+  function buildOneOffKeyMap(
+    originalRoot: SerializedNodeWithKey,
+    targetEditor: LexicalEditor,
+  ): Map<string, string> {
+    const map = new Map<string, string>();
+    targetEditor.getEditorState().read(() => {
+      const liveRoot = $getRoot();
+      // Map root → root (useful for completeness)
+      map.set(originalRoot.key as string, liveRoot.getKey());
+
+      const stack: Array<{
+        original: SerializedNodeWithKey;
+        live: LexicalNode | null;
+      }> = [{ original: originalRoot, live: liveRoot }];
+
+      while (stack.length) {
+        const { original, live } = stack.pop() as {
+          original: SerializedNodeWithKey;
+          live: LexicalNode | null;
+        };
+        if (!live) continue;
+
+        // Record this pair
+        map.set(original.key as string, live.getKey());
+
+        // If both sides are elements, walk children by index
+        if (
+          Array.isArray(original.children) &&
+          original.children.length > 0 &&
+          $isElementNode(live)
+        ) {
+          const liveChildren = live.getChildren();
+          const len = Math.min(original.children.length, liveChildren.length);
+          for (let i = 0; i < len; i++) {
+            const origChild = original.children[i];
+            const liveChild = liveChildren[i] as LexicalNode | undefined;
+            if (origChild && liveChild) {
+              stack.push({ original: origChild, live: liveChild });
+            }
+          }
+        }
+      }
+    });
+    return map;
+  }
+
+  /**
+   * Resolves an original (stable) node key to the current live key using the
+   * editor registry map when available, otherwise rebuilding a one-off map from
+   * the provided originalRoot and current editor state. No fallback to treating
+   * the provided key as live.
+   */
+  function resolveStableKeyToLiveKey(
+    editorContext: {
+      targetEditor: LexicalEditor;
+      keyMap: Map<string, string> | null;
+      originalRoot: SerializedNodeWithKey | null;
+    },
+    originalKey: string,
+  ): string {
+    const { targetEditor, keyMap } = editorContext;
+    let { originalRoot } = editorContext;
+
+    if (keyMap?.has(originalKey)) {
+      return keyMap.get(originalKey) as string;
+    }
+
+    if (!originalRoot) {
+      // Derive a keyed original snapshot from the current editor state
+      const keyed = serializeEditorStateWithKeys(targetEditor.getEditorState());
+      if (!keyed) {
+        throw new Error(
+          `Unable to serialize current editor state to derive a stable key map for key "${originalKey}".`,
+        );
+      }
+      originalRoot = keyed.root;
+    }
+
+    const rebuilt = buildOneOffKeyMap(originalRoot, targetEditor);
+    console.log(
+      "[anchor-resolver] Built one-off keyMap",
+      JSON.stringify({ originalKey, rebuiltSize: rebuilt.size }),
+    );
+    const live = rebuilt.get(originalKey);
+    if (!live) {
+      throw new Error(
+        `Original key "${originalKey}" not found after one-off keyMap rebuild.`,
+      );
+    }
+    return live;
+  }
+
+  /**
+   * Centralized anchor → live node resolver. Handles type normalization and
+   * stable-key mapping.
+   */
+  function resolveAnchorToLiveNode(
+    editorContext: {
+      targetEditor: LexicalEditor;
+      keyMap: Map<string, string> | null;
+      originalRoot: SerializedNodeWithKey | null;
+    },
+    anchor: InsertionAnchor,
+  ): LexicalNode {
+    // Normalize anchor type (accept legacy "nodeKey")
+    let normalizedAnchor: InsertionAnchor = anchor;
+    if ((anchor as unknown as { type?: string }).type === "nodeKey") {
+      normalizedAnchor = { type: "key", key: (anchor as { key: string }).key };
+    }
+
+    let liveNode: LexicalNode | null = null;
+    const { targetEditor } = editorContext;
+    targetEditor.getEditorState().read(() => {
+      if (normalizedAnchor.type === "key") {
+        const liveKey = resolveStableKeyToLiveKey(
+          editorContext,
+          normalizedAnchor.key,
+        );
+        liveNode = $getNodeByKey(liveKey);
+        if (!liveNode) {
+          throw new Error(
+            `Node with live key "${liveKey}" (original: "${normalizedAnchor.key}") not found.`,
+          );
+        }
+      } else if (normalizedAnchor.type === "text") {
+        liveNode = findFirstNodeByText(targetEditor, normalizedAnchor.text);
+        if (!liveNode) {
+          throw new Error(
+            `Node with text "${normalizedAnchor.text}" not found.`,
+          );
+        }
+      } else {
+        const t = (normalizedAnchor as unknown as { type?: string }).type;
+        throw new Error(
+          `Unknown anchor type: "${t}". Expected "key" or "text". Received anchor: ${JSON.stringify(
+            anchor,
+          )}`,
+        );
+      }
+    });
+    // At this point liveNode must be set or an error thrown
+    // @ts-expect-error - we just validated
+    return liveNode as LexicalNode;
+  }
+
   function findFirstNodeByText(
     _currentEditor: LexicalEditor,
     text?: string,
@@ -209,8 +361,6 @@ export const useCommonUtilities = () => {
     relation: InsertionRelation,
     anchor?: InsertionAnchor,
   ): Promise<InsertionPointResolution> {
-    const { targetEditor, keyMap } = editorContext;
-
     if (relation === "appendRoot") {
       return { status: "success", type: "appendRoot" };
     }
@@ -222,31 +372,19 @@ export const useCommonUtilities = () => {
       };
     }
 
+    // Normalize anchor type: convert "nodeKey" to "key" (handles LLM schema mismatches)
+    let normalizedAnchor: InsertionAnchor = anchor;
+    if (
+      (anchor as unknown as { type?: string }).type === "nodeKey" &&
+      "key" in anchor
+    ) {
+      normalizedAnchor = { type: "key", key: (anchor as { key: string }).key };
+    }
+
     let liveTargetNode: LexicalNode | null = null;
 
     try {
-      targetEditor.getEditorState().read(() => {
-        if (anchor.type === "key") {
-          const liveKey = keyMap?.get(anchor.key);
-          if (!liveKey) {
-            throw new Error(
-              `Original key "${anchor.key}" not found in keyMap.`,
-            );
-          }
-          liveTargetNode = $getNodeByKey(liveKey);
-          if (!liveTargetNode) {
-            throw new Error(
-              `Node with live key "${liveKey}" (original: "${anchor.key}") not found.`,
-            );
-          }
-        } else {
-          // anchor.type === "text"
-          liveTargetNode = findFirstNodeByText(targetEditor, anchor.text); // findFirstNodeByText uses $ Fns
-          if (!liveTargetNode) {
-            throw new Error(`Node with text "${anchor.text}" not found.`);
-          }
-        }
-      });
+      liveTargetNode = resolveAnchorToLiveNode(editorContext, normalizedAnchor);
     } catch (e) {
       return {
         status: "error",
@@ -258,14 +396,13 @@ export const useCommonUtilities = () => {
       // Should be caught by throws above, but as a fallback
       return {
         status: "error",
-        message: `Target node for anchor ${JSON.stringify(anchor)} not resolved.`,
+        message: `Target node for anchor ${JSON.stringify(normalizedAnchor)} not resolved.`,
       };
     }
     console.log("liveTargetNode is never? ", liveTargetNode);
     return {
       status: "success",
       type: relation,
-      // @ts-expect-error - liveTargetNode is probably okey
       targetKey: liveTargetNode.getKey(),
     };
   }
@@ -286,6 +423,8 @@ export const useCommonUtilities = () => {
     getResolvedEditorAndKeyMap,
     $insertNodeAtResolvedPoint,
     resolveInsertionPoint,
+    resolveStableKeyToLiveKey,
+    resolveAnchorToLiveNode,
     findFirstNodeByText,
     getTargetEditorInstance,
   };

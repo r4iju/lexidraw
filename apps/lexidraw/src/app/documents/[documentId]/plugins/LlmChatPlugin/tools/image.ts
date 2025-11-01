@@ -1,7 +1,10 @@
 import { tool } from "ai";
-import { z } from "zod";
 import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
+import {
+  SearchAndInsertImageSchema,
+  GenerateAndInsertImageSchema,
+} from "@packages/types";
 
 export const useImageTools = () => {
   const { searchAndInsertImage: searchAndInsertImageFunc } =
@@ -12,11 +15,7 @@ export const useImageTools = () => {
     ? tool({
         description:
           "Searches for an image using the provided query on Unsplash and inserts the first result into the document (defaults to block).",
-        inputSchema: z.object({
-          query: z
-            .string()
-            .describe("The search query to find an image on Unsplash."),
-        }),
+        inputSchema: SearchAndInsertImageSchema,
         execute: async ({ query }) => {
           try {
             await searchAndInsertImageFunc(query, "block");
@@ -49,13 +48,7 @@ export const useImageTools = () => {
     ? tool({
         description:
           "Generates an image based on a user prompt and inserts it into the document.",
-        inputSchema: z.object({
-          prompt: z
-            .string()
-            .describe(
-              "A detailed text description of the image to be generated.",
-            ),
-        }),
+        inputSchema: GenerateAndInsertImageSchema,
         execute: async ({ prompt }) => {
           try {
             await generateAndInsertImageFunc(prompt);

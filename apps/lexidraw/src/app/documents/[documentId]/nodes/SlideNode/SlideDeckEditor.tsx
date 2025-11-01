@@ -103,7 +103,7 @@ import {
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
 import ToolbarPlugin from "../../plugins/ToolbarPlugin";
-import FloatingLinkEditorPlugin from "../../plugins/FloatingLinkEditorPlugin";
+import FloatingLinkEditorPlugin from "../../plugins/FloatingTextFormatToolbarPlugin/FloatingLinkEditorPlugin";
 import CodeActionMenuPlugin from "../../plugins/CodeActionMenuPlugin";
 import FloatingTextFormatToolbarPlugin from "../../plugins/FloatingTextFormatToolbarPlugin";
 import { DisableChecklistSpacebarPlugin } from "../../plugins/list-spacebar-plugin";

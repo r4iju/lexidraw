@@ -25,8 +25,8 @@ import { type Dispatch, useCallback, useEffect, useRef, useState } from "react";
 import type * as React from "react";
 import { createPortal } from "react-dom";
 
-import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { useSanitizeUrl } from "../../utils/url";
+import { useGetSelectedNode } from "../../../utils/getSelectedNode";
+import { useSanitizeUrl } from "../../../utils/url";
 import { Button } from "~/components/ui/button";
 import { CheckIcon, PencilIcon, TrashIcon, XIcon } from "lucide-react";
 import Link from "next/link";
