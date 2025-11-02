@@ -8,7 +8,21 @@ export function useAutoSave() {
   const { data, isLoading } = api.config.getAutoSaveConfig.useQuery();
   const { mutate: updateAutoSaveConfig } =
     api.config.updateAutoSaveConfig.useMutation({
-      onSuccess: () => {
+      // Optimistic update to prevent UI flicker
+      onMutate: async (vars) => {
+        await utils.config.getAutoSaveConfig.cancel();
+        const previous = utils.config.getAutoSaveConfig.getData();
+        utils.config.getAutoSaveConfig.setData(undefined, {
+          enabled: vars.enabled,
+        });
+        return { previous } as { previous?: { enabled: boolean } };
+      },
+      onError: (_err, _vars, ctx) => {
+        if (ctx?.previous) {
+          utils.config.getAutoSaveConfig.setData(undefined, ctx.previous);
+        }
+      },
+      onSettled: () => {
         utils.config.getAutoSaveConfig.invalidate();
       },
     });

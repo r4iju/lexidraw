@@ -46,6 +46,7 @@ declare module "next-auth" {
       impersonatorAdminId?: string;
       // Update the config type here
       config?: {
+        autoSave?: { enabled?: boolean };
         llm?: Partial<LlmConfig>; // Use the defined LlmConfig type, make it partial
         audio?: { preferredPlaybackRate?: number };
         tts?: Partial<TtsConfig>;

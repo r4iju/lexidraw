@@ -183,24 +183,34 @@ export const authRouter = createTRPCRouter({
         };
       }
 
+      // Build next config merging optional fields
+      const nextConfig = {
+        ...currentConfig,
+        llm: updatedLlm,
+        tts: {
+          ...currentConfig.tts,
+          ...input.tts,
+        },
+        articles: {
+          ...currentConfig.articles,
+          ...input.articles,
+        },
+      } as (typeof schema.users.$inferInsert)["config"];
+
+      if (typeof input.autoSave === "boolean") {
+        (nextConfig as Record<string, unknown>).autoSave = {
+          ...(currentConfig.autoSave ?? {}),
+          enabled: input.autoSave,
+        } as unknown;
+      }
+
       await ctx.drizzle
         .update(schema.users)
         .set({
           name: input.name,
           email: input.email,
-          config: {
-            ...currentConfig,
-            llm: updatedLlm,
-            // Merge optional TTS and Article config if provided
-            tts: {
-              ...currentConfig.tts,
-              ...input.tts,
-            },
-            articles: {
-              ...currentConfig.articles,
-              ...input.articles,
-            },
-          },
+          config:
+            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
         })
         .where(eq(schema.users.id, ctx.session.user.id));
       return;
