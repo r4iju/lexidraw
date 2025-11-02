@@ -22,9 +22,13 @@ const handler = async (req: Request) =>
   });
 
 export async function GET(req: Request) {
-  return handler(req);
+  const res = await handler(req);
+  const text = await res.text();
+  return new Response(text, { status: res.status, headers: res.headers });
 }
 
 export async function POST(req: Request) {
-  return handler(req);
+  const res = await handler(req);
+  const text = await res.text();
+  return new Response(text, { status: res.status, headers: res.headers });
 }
