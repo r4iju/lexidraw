@@ -1,7 +1,6 @@
 "use cache: private";
 
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import type { NextRequest } from "next/server";
 import env from "@packages/env";
 import { appRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
@@ -13,7 +12,7 @@ const createContext = async () => {
   });
 };
 
-const handler = async (req: NextRequest) =>
+const handler = async (req: Request) =>
   fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
@@ -29,4 +28,10 @@ const handler = async (req: NextRequest) =>
         : undefined,
   });
 
-export { handler as GET, handler as POST };
+export async function GET(req: Request) {
+  return handler(req);
+}
+
+export async function POST(req: Request) {
+  return handler(req);
+}

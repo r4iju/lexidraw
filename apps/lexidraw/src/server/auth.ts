@@ -73,6 +73,7 @@ declare module "next-auth" {
 }
 
 const isDev = process.env.NODE_ENV !== "production";
+// should only flip to true never force false
 const shouldTrustHost = isDev || Boolean(env.TRUST_HOST);
 const cookies = isDev
   ? {
