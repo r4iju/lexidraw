@@ -64,7 +64,7 @@ export default async function RootLayout({ children }: Props) {
         style={{ scrollbarGutter: "stable", scrollbarWidth: "thin" }}
       >
         <SessionProvider>
-          <Suspense fallback={children}>
+          <Suspense fallback={<div className="min-h-[100vh]" />}>
             <TRPCProviderWrapper>
               <ThemeProvider
                 attribute="class"

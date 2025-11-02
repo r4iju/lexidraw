@@ -1,3 +1,5 @@
+"use cache: private";
+
 import { Suspense } from "react";
 import Link from "next/link";
 import { api } from "~/trpc/server";
@@ -73,7 +75,7 @@ async function AdminLlmUsersContent() {
   );
 }
 
-export default function AdminLlmUsersPage() {
+export default async function AdminLlmUsersPage() {
   return (
     <Suspense
       fallback={

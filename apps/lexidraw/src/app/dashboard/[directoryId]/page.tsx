@@ -1,3 +1,5 @@
+"use cache: private";
+
 import { Suspense } from "react";
 import { api } from "~/trpc/server";
 import { Dashboard } from "../dashboard";
