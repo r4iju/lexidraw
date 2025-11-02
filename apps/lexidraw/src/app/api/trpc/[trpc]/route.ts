@@ -2,7 +2,6 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import env from "@packages/env";
 import { appRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
-// derive headers directly from the incoming Request (avoid next/headers here)
 
 const handler = async (req: Request) =>
   fetchRequestHandler({
@@ -21,14 +20,4 @@ const handler = async (req: Request) =>
         : undefined,
   });
 
-export async function GET(req: Request) {
-  const res = await handler(req);
-  const text = await res.text();
-  return new Response(text, { status: res.status, headers: res.headers });
-}
-
-export async function POST(req: Request) {
-  const res = await handler(req);
-  const text = await res.text();
-  return new Response(text, { status: res.status, headers: res.headers });
-}
+export { handler as GET, handler as POST };
