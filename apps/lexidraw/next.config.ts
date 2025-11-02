@@ -51,6 +51,7 @@ const config = {
   productionBrowserSourceMaps: true,
   cacheComponents: true,
   experimental: {
+    useCache: true,
     turbopackFileSystemCacheForDev: true,
   },
   reactCompiler: {
