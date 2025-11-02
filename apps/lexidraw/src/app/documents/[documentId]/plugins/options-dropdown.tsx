@@ -82,6 +82,7 @@ export default function OptionsDropdown({
           >
             <span>Auto-save</span>
             <Switch
+              size="sm"
               checked={autoSaveEnabled}
               onCheckedChange={setAutoSaveEnabled}
               onClick={(e) => e.stopPropagation()}

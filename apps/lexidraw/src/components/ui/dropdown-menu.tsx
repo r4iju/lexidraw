@@ -5,6 +5,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "~/lib/utils";
+import { usePathname } from "next/navigation";
 
 const DropdownMenuContext = React.createContext<{
   open: boolean;
@@ -16,9 +17,16 @@ const DropdownMenu = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
   const [open, setOpen] = React.useState(false);
+  const pathname = usePathname();
+
+  React.useEffect(() => {
+    // Reference pathname so linter recognizes this effect depends on it
+    void pathname;
+    setOpen(false);
+  }, [pathname]);
 
   return (
-    <DropdownMenuPrimitive.Root onOpenChange={setOpen} {...props}>
+    <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen} {...props}>
       <DropdownMenuContext.Provider value={{ open, setOpen }}>
         {children}
       </DropdownMenuContext.Provider>

@@ -9,6 +9,7 @@ import FormProvider, {
   RHFSelect,
   RHFCheckbox,
   RHFModelSelect,
+  RHFSwitch,
 } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
@@ -19,6 +20,7 @@ import { useSession } from "next-auth/react";
 import { ReloadIcon } from "@radix-ui/react-icons";
 import { SelectItem } from "~/components/ui/select";
 import { useMemo } from "react";
+// Removed useAutoSave to make auto-save part of form submission
 
 type Props = { user: RouterOutputs["auth"]["getProfile"] };
 
@@ -110,6 +112,7 @@ function LLMSection({
 
 export default function ProfileForm({ user }: Props) {
   const { data: session, update } = useSession();
+  const utils = api.useUtils();
 
   // Fetch policy defaults
   const { data: policies } = api.adminLlm.policies.getDefaults.useQuery();
@@ -133,6 +136,7 @@ export default function ProfileForm({ user }: Props) {
       email: user?.email ?? "",
       name: user?.name ?? "",
       chat: user?.config?.llm?.chat ?? undefined,
+      autoSave: user?.config?.autoSave?.enabled ?? false,
       agent:
         (user?.config?.llm as { agent?: unknown } | undefined)?.agent ??
         undefined,
@@ -179,6 +183,9 @@ export default function ProfileForm({ user }: Props) {
             name: data.name,
             config: {
               ...session?.user.config,
+              autoSave: data.autoSave
+                ? { enabled: data.autoSave }
+                : session?.user.config?.autoSave,
               llm: {
                 ...session?.user.config?.llm,
                 chat: data.chat,
@@ -194,6 +201,8 @@ export default function ProfileForm({ user }: Props) {
             },
           },
         });
+        // Keep hooks in sync
+        utils.config.getAutoSaveConfig.invalidate();
       },
       onError: (error) => {
         toast.error("Error saving profile", {
@@ -208,17 +217,30 @@ export default function ProfileForm({ user }: Props) {
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
         <Tabs defaultValue="general" className="w-full">
           <TabsList className="w-full">
-            <TabsTrigger className="flex-1" value="general">General</TabsTrigger>
-            <TabsTrigger className="flex-1" value="chat">Chat</TabsTrigger>
-            <TabsTrigger className="flex-1" value="agent">Agent</TabsTrigger>
-            <TabsTrigger className="flex-1" value="autocomplete">Autocomplete</TabsTrigger>
-            <TabsTrigger className="flex-1" value="audio">Audio</TabsTrigger>
-            <TabsTrigger className="flex-1" value="articles">Articles</TabsTrigger>
+            <TabsTrigger className="flex-1" value="general">
+              General
+            </TabsTrigger>
+            <TabsTrigger className="flex-1" value="chat">
+              Chat
+            </TabsTrigger>
+            <TabsTrigger className="flex-1" value="agent">
+              Agent
+            </TabsTrigger>
+            <TabsTrigger className="flex-1" value="autocomplete">
+              Autocomplete
+            </TabsTrigger>
+            <TabsTrigger className="flex-1" value="audio">
+              Audio
+            </TabsTrigger>
+            <TabsTrigger className="flex-1" value="articles">
+              Articles
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-4 py-4">
             <RHFTextField label="Email" name="email" type="email" />
             <RHFTextField label="Name" name="name" type="name" />
+            <RHFSwitch label="Auto save" name="autoSave" />
           </TabsContent>
 
           <TabsContent value="chat" className="space-y-4 py-4">

@@ -17,6 +17,7 @@ const AutocompleteConfigSchema = LlmBaseConfigSchema.extend({
 export const ProfileSchema = z.object({
   name: z.string().min(1).default(""),
   email: z.string().min(1).email().default(""),
+  autoSave: z.boolean().optional(),
   // Add nested, optional config objects for LLM overrides
   chat: LlmBaseConfigSchema.optional(),
   agent: LlmBaseConfigSchema.optional(),
