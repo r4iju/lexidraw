@@ -10,6 +10,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuSeparator,
 } from "~/components/ui/dropdown-menu";
+import { Switch } from "~/components/ui/switch";
 import { toast } from "sonner";
 import { useState } from "react";
 import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
@@ -20,6 +21,7 @@ import {
   GuardedLink,
   useUnsavedChanges,
 } from "../../../../hooks/use-unsaved-changes";
+import { useAutoSave } from "../../../../hooks/use-auto-save";
 
 type Props = {
   className?: string;
@@ -38,6 +40,8 @@ export default function OptionsDropdown({
   entity,
 }: Props) {
   const { markPristine } = useUnsavedChanges();
+  const { enabled: autoSaveEnabled, setEnabled: setAutoSaveEnabled } =
+    useAutoSave();
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const canEdit = entity.accessLevel === AccessLevel.EDIT;
@@ -71,6 +75,17 @@ export default function OptionsDropdown({
             disabled={isSavingDocument}
           >
             Save
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(e) => e.preventDefault()}
+            className="flex items-center justify-between gap-2"
+          >
+            <span>Auto-save</span>
+            <Switch
+              checked={autoSaveEnabled}
+              onCheckedChange={setAutoSaveEnabled}
+              onClick={(e) => e.stopPropagation()}
+            />
           </DropdownMenuItem>
           {canEdit && (
             <>

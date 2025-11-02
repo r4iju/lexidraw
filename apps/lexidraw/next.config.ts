@@ -102,5 +102,4 @@ const config = {
   },
 } satisfies NextConfig;
 
-// @ts-expect-error seems like bundle analyzer has a minor problem with next 16
 export default withBundleAnalyzer(config);

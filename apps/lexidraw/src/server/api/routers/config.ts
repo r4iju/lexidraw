@@ -327,6 +327,47 @@ export const configRouter = createTRPCRouter({
       return { preferredPlaybackRate: input.preferredPlaybackRate };
     }),
 
+  // --- Auto-save preferences ---
+  getAutoSaveConfig: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.drizzle.query.users.findFirst({
+      where: eq(schema.users.id, ctx.session.user.id),
+      columns: { config: true },
+    });
+    const enabled = user?.config?.autoSave?.enabled ?? false;
+    return { enabled } as { enabled: boolean };
+  }),
+
+  updateAutoSaveConfig: protectedProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const current = await ctx.drizzle.query.users.findFirst({
+        where: eq(schema.users.id, ctx.session.user.id),
+        columns: { config: true },
+      });
+
+      const nextConfig = {
+        ...(current?.config ?? {}),
+        autoSave: {
+          ...(current?.config?.autoSave ?? {}),
+          enabled: input.enabled,
+        },
+      } as (typeof schema.users.$inferInsert)["config"];
+
+      await ctx.drizzle
+        .update(schema.users)
+        .set({
+          config:
+            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
+        })
+        .where(eq(schema.users.id, ctx.session.user.id));
+
+      return { enabled: input.enabled };
+    }),
+
   // --- Read-only TTS options (voices/languages) ---
   getTtsOptions: protectedProcedure
     .input(

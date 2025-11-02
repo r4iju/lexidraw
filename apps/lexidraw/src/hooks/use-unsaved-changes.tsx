@@ -13,6 +13,7 @@ import { Button } from "~/components/ui/button";
 import useModal from "~/hooks/useModal";
 import Link, { type LinkProps } from "next/link";
 import type { MouseEvent, ReactNode } from "react";
+import { useAutoSave } from "./use-auto-save";
 
 type Ctx = {
   markDirty(): void;
@@ -33,49 +34,57 @@ export function UnsavedChangesProvider({
   const dirty = useRef(false);
   const skipNextPopConfirmRef = useRef(false);
   const [modal, showModal] = useModal();
+  const { enabled: autoSaveEnabled } = useAutoSave();
 
-  const confirm = useCallback(
-    () =>
-      new Promise<boolean>((resolve) =>
-        showModal("Unsaved changes", (close) => (
-          <div className="flex flex-col gap-4">
-            <p>You have unsaved changes. Leave anyway?</p>
-            <div className="flex gap-2 self-end">
+  const confirm = useCallback(async () => {
+    // If auto-save is enabled, automatically save and proceed
+    if (autoSaveEnabled) {
+      if (onSaveAndLeave) {
+        onSaveAndLeave();
+      }
+      return true;
+    }
+
+    // Otherwise, show the modal
+    return new Promise<boolean>((resolve) =>
+      showModal("Unsaved changes", (close) => (
+        <div className="flex flex-col gap-4">
+          <p>You have unsaved changes. Leave anyway?</p>
+          <div className="flex gap-2 self-end">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                close();
+                resolve(true);
+              }}
+            >
+              Leave
+            </Button>
+            {onSaveAndLeave && (
               <Button
-                variant="destructive"
+                variant="default"
                 onClick={() => {
                   close();
-                  resolve(true);
+                  onSaveAndLeave();
                 }}
               >
-                Leave
+                Save and leave
               </Button>
-              {onSaveAndLeave && (
-                <Button
-                  variant="default"
-                  onClick={() => {
-                    close();
-                    onSaveAndLeave();
-                  }}
-                >
-                  Save and leave
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  close();
-                  resolve(false);
-                }}
-              >
-                Stay
-              </Button>
-            </div>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => {
+                close();
+                resolve(false);
+              }}
+            >
+              Stay
+            </Button>
           </div>
-        )),
-      ),
-    [showModal, onSaveAndLeave],
-  );
+        </div>
+      )),
+    );
+  }, [showModal, onSaveAndLeave, autoSaveEnabled]);
 
   useBeforeUnloadGuard(dirty);
 
