@@ -9,6 +9,10 @@ const env = createEnv({
       .default("development"),
     TURSO_URL: z.string().min(1),
     TURSO_TOKEN: z.string().min(1),
+    TRUST_HOST: z.preprocess(
+      (val) => ["true", "1", "yes", "y"].includes(val as string),
+      z.boolean(),
+    ),
     SHARED_KEY: z.string(),
     CRON_SECRET: z.string(),
     NEXTAUTH_SECRET: z.string(),
@@ -96,6 +100,7 @@ const env = createEnv({
     SHARED_KEY: process.env.SHARED_KEY,
     CRON_SECRET: process.env.CRON_SECRET,
     TURSO_URL: process.env.TURSO_URL,
+    TRUST_HOST: process.env.TRUST_HOST,
     TURSO_TOKEN: process.env.TURSO_TOKEN,
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
