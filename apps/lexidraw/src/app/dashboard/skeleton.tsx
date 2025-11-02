@@ -17,10 +17,10 @@ export function DashboardSkeleton({ flex = "flex-row" }: Props) {
           </div>
           <Skeleton className="h-10 w-24 rounded-md" />
         </div>
-        <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-2 md:gap-6">
+        <div className="flex flex-col-reverse md:flex-col-reverse items-stretch gap-2">
           {/* Search bar */}
           <Skeleton className="h-12 md:h-10 w-full rounded-md" />
-          <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 w-full md:w-auto">
+          <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 w-full md:w-auto md:self-end">
             {/* Filter buttons */}
             <Skeleton className="h-10 w-20 rounded-md" />
             <div className="flex gap-2">

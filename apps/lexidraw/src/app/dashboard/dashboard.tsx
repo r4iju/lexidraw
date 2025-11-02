@@ -13,6 +13,8 @@ import { EntityCard } from "./entity-card";
 import { replaceSearchParam } from "./utils";
 import { FilterByTags } from "./filter-by-tags";
 import { SearchBar } from "./search";
+import { PersistDashboardPrefsCookie } from "./persist-dashboard-prefs-cookie";
+import { CanonicalizeDashboardURL } from "./canonicalize-dashboard-url";
 
 type Props = {
   directory?: RouterOutputs["entities"]["getMetadata"];
@@ -55,9 +57,20 @@ export async function Dashboard({
 
   return (
     <DraggingContext sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
+      <PersistDashboardPrefsCookie />
+      <CanonicalizeDashboardURL
+        canonical={{
+          sortBy,
+          sortOrder,
+          flex,
+          tags,
+          includeArchived,
+          onlyFavorites,
+        }}
+      />
       <main className="flex size-full min-h-0 flex-col overflow-auto pb-6 px-4">
         {/* Breadcrumb: each ancestor is droppable */}
-        <nav className="flex flex-col space-x-2 md:px-8 py-2 gap-y-4">
+        <nav className="flex flex-col  py-2 gap-y-2 md:container">
           <div className="flex justify-between items-center ">
             <div className="flex items-center space-x-2 truncate">
               {directory && directory.ancestors?.length > 0 ? (
@@ -100,10 +113,10 @@ export async function Dashboard({
             </div>
             <NewEntity parentId={directory ? directory.id : null} />
           </div>
-          <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-2 md:gap-6">
+          <div className="flex flex-col-reverse md:flex-col-reverse items-stretch gap-2">
             {/* but dont cannibalize the search the buttons */}
             <SearchBar className="w-full" />
-            <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 w-full md:w-auto">
+            <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 w-full md:w-auto md:self-end">
               {/* filter by tags */}
 
               <FilterByTags options={allTags} />
@@ -121,7 +134,7 @@ export async function Dashboard({
                       pathname: `/dashboard/${directory?.id ?? ""}`,
                       prevParams: searchParams,
                       key: "onlyFavorites",
-                      value: onlyFavorites ? null : "true",
+                      value: onlyFavorites ? "false" : "true",
                     })}
                   >
                     <Heart className="md:hidden" />
@@ -139,7 +152,7 @@ export async function Dashboard({
                       pathname: `/dashboard/${directory?.id ?? ""}`,
                       prevParams: searchParams,
                       key: "includeArchived",
-                      value: includeArchived ? null : "true",
+                      value: includeArchived ? "false" : "true",
                     })}
                   >
                     <Archive className="md:hidden" />
@@ -148,38 +161,40 @@ export async function Dashboard({
                 </Button>
               </div>
 
-              <Button
-                variant={flex === "flex-row" ? "secondary" : "outline"}
-                size="icon"
-                asChild
-              >
-                <Link
-                  href={replaceSearchParam({
-                    pathname: `/dashboard/${directory?.id ?? ""}`,
-                    prevParams: searchParams,
-                    key: "flex",
-                    value: "flex-row",
-                  })}
+              <div className="flex gap-2">
+                <Button
+                  variant={flex === "flex-row" ? "secondary" : "outline"}
+                  size="icon"
+                  asChild
                 >
-                  <LayoutGrid />
-                </Link>
-              </Button>
-              <Button
-                variant={flex === "flex-col" ? "secondary" : "outline"}
-                size="icon"
-                asChild
-              >
-                <Link
-                  href={replaceSearchParam({
-                    pathname: `/dashboard/${directory?.id ?? ""}`,
-                    prevParams: searchParams,
-                    key: "flex",
-                    value: "flex-col",
-                  })}
+                  <Link
+                    href={replaceSearchParam({
+                      pathname: `/dashboard/${directory?.id ?? ""}`,
+                      prevParams: searchParams,
+                      key: "flex",
+                      value: "flex-row",
+                    })}
+                  >
+                    <LayoutGrid />
+                  </Link>
+                </Button>
+                <Button
+                  variant={flex === "flex-col" ? "secondary" : "outline"}
+                  size="icon"
+                  asChild
                 >
-                  <Rows3 />
-                </Link>
-              </Button>
+                  <Link
+                    href={replaceSearchParam({
+                      pathname: `/dashboard/${directory?.id ?? ""}`,
+                      prevParams: searchParams,
+                      key: "flex",
+                      value: "flex-col",
+                    })}
+                  >
+                    <Rows3 />
+                  </Link>
+                </Button>
+              </div>
               <SortMenu />
             </div>
           </div>
