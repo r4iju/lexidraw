@@ -11,8 +11,8 @@ import {
 import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import useModal from "~/hooks/useModal";
-import Link, { type LinkProps } from "next/link";
-import type { MouseEvent, ReactNode } from "react";
+import Link from "next/link";
+import type { ComponentProps, ReactNode } from "react";
 import { useAutoSave } from "./use-auto-save";
 
 type Ctx = {
@@ -237,19 +237,14 @@ function useRouterGuard(
   );
 }
 
-export function GuardedLink({
-  onClick,
-  ...props
-}: LinkProps & {
-  children: ReactNode;
-  onClick?: (e: MouseEvent) => void;
-  style?: React.CSSProperties;
-}) {
+type GuardedLinkProps = ComponentProps<typeof Link>;
+
+export function GuardedLink({ onClick, ...props }: GuardedLinkProps) {
   const {
     router: { push },
   } = useUnsavedChanges();
 
-  const handle = (e: MouseEvent) => {
+  const handle: NonNullable<GuardedLinkProps["onClick"]> = (e) => {
     e.preventDefault();
     onClick?.(e);
     push(props.href);
