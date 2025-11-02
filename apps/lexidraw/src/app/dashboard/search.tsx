@@ -123,7 +123,7 @@ export function SearchBar({ className }: Props) {
           <Input
             ref={inputRef as RefObject<HTMLInputElement>}
             type="text"
-            placeholder="Search by title, content, or tags..."
+            placeholder="🔎 Search by title, content, or tags..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className={cn(
