@@ -267,6 +267,7 @@ export async function POST(req: NextRequest) {
       try {
         const hideCss = `*{cursor:none !important}
           [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
+          [data-component-name='Toolbar'],
           #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
           [data-nextjs-toast], [data-nextjs-dialog] { display:none !important; }`;
         // Prefer addStyleTag for reliability across pages with CSP disabled for worker
@@ -297,6 +298,7 @@ export async function POST(req: NextRequest) {
             try {
               const hideCss = `*{cursor:none !important}
                 [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
+                [data-component-name='Toolbar'],
                 #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
                 [data-nextjs-toast], [data-nextjs-dialog] { display:none !important; }`;
               await frame.addStyleTag({ content: hideCss });
@@ -493,43 +495,8 @@ export async function POST(req: NextRequest) {
         const maxPossible = rootBottom - clipY;
         clipH = Math.max(1, Math.min(desired, maxPossible));
 
-        // Extra trim: if the editor toolbar is present inside the iframe, trim down to the
-        // top of the lexical content to avoid capturing the toolbar in the thumbnail.
-        try {
-          const iframeRect = await page.evaluate(() => {
-            const iframe = document.getElementById(
-              "doc-frame",
-            ) as HTMLIFrameElement | null;
-            if (!iframe) return null;
-            const r = iframe.getBoundingClientRect();
-            return { y: r.y };
-          });
-          const frame = page
-            .frames()
-            .find((f) => f.url().includes("/screenshot/view/"));
-          if (iframeRect && frame) {
-            const innerTop = await frame.evaluate(() => {
-              const el = document.querySelector(
-                "#lexical-content, [id^='lexical-content-']",
-              ) as HTMLElement | null;
-              if (!el) return null;
-              const rr = el.getBoundingClientRect();
-              return rr.top;
-            });
-            if (typeof innerTop === "number") {
-              const contentTopAbs = iframeRect.y + innerTop;
-              const EXTRA_CAP = 96;
-              const extra = Math.min(
-                EXTRA_CAP,
-                Math.max(0, Math.min(contentTopAbs - clipY, clipH - 1)),
-              );
-              if (extra > 0) {
-                clipY += extra;
-                clipH = Math.max(1, clipH - extra);
-              }
-            }
-          }
-        } catch {}
+        // Toolbar is hidden via CSS injection in the iframe during screenshot,
+        // so we don't need additional trimming logic here.
 
         // Center-crop to enforce 4:3 aspect within bounds
         const TARGET = 4 / 3;
