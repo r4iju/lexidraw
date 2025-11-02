@@ -5,9 +5,10 @@ import type { RouterOutputs } from "~/trpc/shared";
 import type { TRPCClientErrorLike } from "@trpc/client";
 import type { AppRouter } from "~/server/api/root";
 import type { RefObject } from "react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { EditorState } from "lexical";
 import { useDocumentSettings } from "./document-settings-context";
+import { useMarkdownTools } from "../utils/markdown";
 
 export function useSaveAndExportDocument({
   entity,
@@ -20,6 +21,7 @@ export function useSaveAndExportDocument({
   const { mutate: save } = api.entities.save.useMutation();
   const { defaultFontFamily } = useDocumentSettings();
   const [isSaving, setIsSaving] = useState(false);
+  const { convertEditorStateToMarkdown } = useMarkdownTools();
 
   const handleSaveAndLeave = () => {
     if (!editorStateRef.current) {
@@ -108,10 +110,67 @@ export function useSaveAndExportDocument({
     );
   };
 
+  const sanitizeFilename = useCallback((name: string): string => {
+    return name
+      .replace(/[^a-z0-9_\-.\s]/gi, "_")
+      .replace(/\s+/g, "-")
+      .toLowerCase()
+      .substring(0, 60)
+      .replace(/^-+|-+$/g, "");
+  }, []);
+
+  const exportMarkdown = useCallback(() => {
+    const currentState = editorStateRef.current;
+    if (!currentState) {
+      toast.error("No content to export");
+      return;
+    }
+
+    try {
+      const markdown = convertEditorStateToMarkdown(currentState);
+
+      if (!markdown) {
+        toast.error("Document is empty");
+        return;
+      }
+
+      const sanitizedTitle = entity.title
+        ? sanitizeFilename(entity.title)
+        : "document";
+      const filename = `${sanitizedTitle || "document"}.md`;
+
+      const blob = new Blob([markdown], {
+        type: "text/markdown;charset=utf-8",
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Markdown exported successfully");
+    } catch (error) {
+      console.error("[exportMarkdown] export error:", error);
+      toast.error("Failed to export markdown", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }, [
+    convertEditorStateToMarkdown,
+    entity.title,
+    sanitizeFilename,
+    editorStateRef,
+  ]);
+
   return {
     handleSaveAndLeave,
     handleSave,
     handleSilentSave,
+    exportMarkdown,
     isUploading: isSaving,
   };
 }
