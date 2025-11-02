@@ -33,7 +33,7 @@ export async function GET(
       body { background:${theme === "dark" ? "#0a0a0a" : "#ffffff"}; color:${theme === "dark" ? "#e5e7eb" : "#111827"}; }
       *, *::before, *::after { animation: none !important; transition: none !important; }
       #screenshot-root { width:${width}px; height:${height}px; overflow:hidden; }
-      .toolbar, [data-component-name="Toolbar"], [data-sidebar], header, nav, footer { display:none !important; }
+      [data-sidebar], header, nav, footer { display:none !important; }
       /* Hide cursors/presence and Next.js overlays */
       [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
       #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
