@@ -54,7 +54,8 @@ export function FilterByTags({ options }: Props) {
       : [...currentTags, tag];
 
     if (newTags.length === 0) {
-      restParams.delete("tags");
+      // Keep the key present but empty so cookie writer can clear it
+      restParams.set("tags", "");
     } else {
       restParams.set("tags", newTags.join(","));
     }
