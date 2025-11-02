@@ -114,9 +114,9 @@ export function EntityCard({
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
-          className="min-w-0 px-4"
+          className="min-w-0"
         >
-          <span className="font-semibold line-clamp-1 select-none ">
+          <span className="font-semibold line-clamp-2 select-none ">
             {entity.title}
           </span>
         </Link>
@@ -133,7 +133,7 @@ export function EntityCard({
         >
           <span
             className={cn(
-              "text-sm text-muted-foreground",
+              "text-sm text-muted-foreground line-clamp-2 max-w-24",
               flex === "flex-row" ? "block" : "hidden md:block",
             )}
           >
