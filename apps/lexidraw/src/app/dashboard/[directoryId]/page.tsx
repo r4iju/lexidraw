@@ -68,7 +68,7 @@ async function DashboardContent({ params, searchParams }: Props) {
   );
 }
 
-export default function DashboardPage(props: Props) {
+export default async function DashboardPage(props: Props) {
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       <DashboardContent {...props} />
