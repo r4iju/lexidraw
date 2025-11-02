@@ -1,6 +1,6 @@
 "use client";
 
-import { Folder, Link2, File, Brush, Newspaper } from "lucide-react";
+import { Folder, File, Brush, Newspaper } from "lucide-react";
 import type { JSX } from "react";
 import Image from "next/image";
 import {
