@@ -9,6 +9,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuGroup,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Switch } from "~/components/ui/switch";
 import { toast } from "sonner";
@@ -30,6 +33,7 @@ type Props = {
   className?: string;
   onSaveDocument: (onSuccessCallback?: () => void) => void;
   isSavingDocument: boolean;
+  onExportMarkdown?: () => void;
   entity: Pick<
     RouterOutputs["entities"]["load"],
     "id" | "title" | "accessLevel"
@@ -40,6 +44,7 @@ export default function OptionsDropdown({
   className,
   onSaveDocument,
   isSavingDocument,
+  onExportMarkdown,
   entity,
 }: Props) {
   const router = useRouter();
@@ -114,9 +119,17 @@ export default function OptionsDropdown({
           <DropdownMenuItem onClick={() => toast.error("Not implemented yet!")}>
             Import from file
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toast.error("Not implemented yet!")}>
-            Export to file
-          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Export to file</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem
+                onClick={onExportMarkdown}
+                disabled={!onExportMarkdown}
+              >
+                Markdown (.md)
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         </DropdownMenuGroup>
       </DropdownMenuContent>
       {canEdit && (
@@ -128,7 +141,11 @@ export default function OptionsDropdown({
       )}
       {canEdit && (
         <DeleteEntityModal
-          entity={{ id: entity.id, entityType: "document" }}
+          entity={{
+            id: entity.id,
+            entityType: "document",
+            title: entity.title,
+          }}
           isOpen={isDeleteOpen}
           onOpenChange={setIsDeleteOpen}
         />

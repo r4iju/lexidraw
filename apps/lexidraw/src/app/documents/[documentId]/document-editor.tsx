@@ -217,6 +217,7 @@ type ExtendedEditorProps = EditorProps & {
   handleSave: (onSuccessCallback?: () => void) => void;
   handleSilentSave: (onSaveSuccessCallback?: () => void) => void;
   isUploading: boolean;
+  exportMarkdown: () => void;
   editorStateRef: RefObject<EditorState | undefined>;
   setEditorStateRef: (editorState: EditorState) => void;
 };
@@ -267,6 +268,7 @@ function EditorHandler({
   handleSave,
   handleSilentSave,
   isUploading,
+  exportMarkdown,
   editorStateRef,
   setEditorStateRef,
 }: ExtendedEditorProps) {
@@ -481,6 +483,7 @@ function EditorHandler({
                               className="flex h-12 md:h-10 min-w-12 md:min-w-10"
                               onSaveDocument={handleSave}
                               isSavingDocument={isUploading}
+                              onExportMarkdown={exportMarkdown}
                               entity={{
                                 id: entity.id,
                                 title: entity.title,
@@ -654,8 +657,13 @@ function EditorScaffold({
   initialLlmConfig: StoredLlmConfig;
   nodes: Klass<LexicalNode>[];
 }) {
-  const { handleSaveAndLeave, handleSave, handleSilentSave, isUploading } =
-    useSaveAndExportDocument({ entity, editorStateRef });
+  const {
+    handleSaveAndLeave,
+    handleSave,
+    handleSilentSave,
+    isUploading,
+    exportMarkdown,
+  } = useSaveAndExportDocument({ entity, editorStateRef });
 
   return (
     <SettingsProvider>
@@ -679,6 +687,7 @@ function EditorScaffold({
               handleSave={handleSave}
               handleSilentSave={handleSilentSave}
               isUploading={isUploading}
+              exportMarkdown={exportMarkdown}
               editorStateRef={editorStateRef}
               setEditorStateRef={setEditorStateRef}
             />
