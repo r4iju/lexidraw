@@ -15,6 +15,7 @@ import type { Metadata, Viewport } from "next";
 import LayoutListener from "./layout-listener";
 import ImpersonationBanner from "~/components/admin/impersonation-banner";
 import TRPCProviderWrapper from "./trpc-provider-wrapper";
+import { DashboardCacheInvalidator } from "~/components/dashboard-cache-invalidator";
 
 const fredoka = Fredoka({
   subsets: ["latin"],
@@ -77,6 +78,7 @@ export default async function RootLayout({ children }: Props) {
                   <ImpersonationBanner />
                   <Toaster />
                   <LayoutListener />
+                  <DashboardCacheInvalidator />
                   <Analytics />
                 </TooltipProvider>
               </ThemeProvider>
