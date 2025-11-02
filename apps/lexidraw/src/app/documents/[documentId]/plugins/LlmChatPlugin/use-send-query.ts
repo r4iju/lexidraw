@@ -83,6 +83,334 @@ export const useSendQuery = () => {
     [runtimeTools],
   );
 
+  // --- Helper: Build full prompt string ---
+  const buildPromptString = useCallback(
+    (args: {
+      prompt: string;
+      files?: File[] | FileList | null;
+      editorStateJson?: string;
+    }): string => {
+      const { prompt, files, editorStateJson } = args;
+
+      const historyToInclude = messages
+        .filter((msg: HistoryMessage) => msg.role !== "system")
+        .map((msg: HistoryMessage) => {
+          const prefix = msg.role === "user" ? "USER:" : "ASSISTANT:";
+          let content = msg.content ?? "";
+          if (msg.toolCalls) {
+            content += `\n(Tool Calls: ${JSON.stringify(msg.toolCalls)})`;
+          }
+          return `${prefix} ${content}`;
+        })
+        .join("\n\n");
+
+      let fullPrompt = "";
+      if (historyToInclude) {
+        fullPrompt += `CHAT_HISTORY:\n${historyToInclude}\n\n`;
+      }
+      fullPrompt += `USER_PROMPT:\n${prompt}`;
+      if (files) {
+        fullPrompt += `\nATTACHED_FILE_NAMES: ${Array.from(files)
+          .map((f) => f.name)
+          .join(", ")}`;
+      }
+
+      // Strict markdown formatting instruction for final response text
+      fullPrompt +=
+        "\n\nFORMATTING_INSTRUCTION:\nStrictly format your final response text using Markdown. Do **not** output JSON or any other structured format. Keep Markdown nesting minimal (nested lists or quotes) and headings small for readability in a chat interface.";
+
+      // Add context based on mode (Markdown for chat, JSON for agent)
+      const currentEditorState = editor.getEditorState();
+      if (mode === "chat" && currentEditorState) {
+        const markdownContent =
+          convertEditorStateToMarkdown(currentEditorState);
+        fullPrompt += `\n\nMARKDOWN_CONTEXT:\n${markdownContent}`;
+      } else if (mode === "agent" && editorStateJson) {
+        fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
+      }
+
+      return fullPrompt;
+    },
+    [convertEditorStateToMarkdown, editor, messages, mode],
+  );
+
+  // --- Helper: Planner selection via server ---
+  const selectToolsForAgent = useCallback(
+    async (args: {
+      prompt: string;
+    }): Promise<{
+      selectedNames: string[];
+      correlationId?: string;
+    }> => {
+      const chatOnly = new Set(["sendReply", "requestClarificationOrPlan"]);
+      const availableToolNames = Object.keys(runtimeTools).filter(
+        (n) => !chatOnly.has(n),
+      );
+
+      let selectedNames: string[] = [];
+      let correlationId: string | undefined;
+      try {
+        const plannerRes = await fetch("/api/llm/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: args.prompt,
+            availableTools: availableToolNames,
+            max: MAX_SELECTED_TOOLS,
+          }),
+        });
+        if (plannerRes.ok) {
+          const data = (await plannerRes.json()) as {
+            tools?: unknown;
+            correlationId?: string;
+          };
+          if (Array.isArray(data.tools)) {
+            selectedNames = (data.tools as unknown[])
+              .filter((x) => typeof x === "string")
+              .slice(0, MAX_SELECTED_TOOLS) as string[];
+          }
+          if (typeof data.correlationId === "string") {
+            correlationId = data.correlationId;
+          }
+        }
+      } catch {
+        // return empty selection on error
+      }
+
+      return { selectedNames, correlationId };
+    },
+    [runtimeTools],
+  );
+
+  // --- Helper: Decision cycle after an execution pass ---
+  const handleDecisionCycle = useCallback(
+    async (args: {
+      initialMessages: ModelMessage[];
+      priorAssistantText?: string;
+    }): Promise<void> => {
+      const { initialMessages, priorAssistantText } = args;
+
+      // Create decision tools (only summarize and plan)
+      const decisionTools = pickToolsByNamesMemo([
+        "summarizeAfterToolCallExecution",
+        "planNextToolSelection",
+      ]);
+
+      // Build decision messages
+      const baseDecisionMessages: ModelMessage[] = [
+        ...initialMessages,
+        ...(priorAssistantText?.trim()
+          ? ([
+              { role: "assistant", content: priorAssistantText },
+            ] as ModelMessage[])
+          : ([] as ModelMessage[])),
+      ];
+
+      const decisionPrompt = `Choose exactly one action next:\n1) summarizeAfterToolCallExecution\n2) planNextToolSelection`;
+
+      const MAX_DECISION_CYCLES = 2;
+      let decisionCycleCount = 0;
+      let currentMessages: ModelMessage[] = [
+        ...baseDecisionMessages,
+        { role: "user", content: decisionPrompt } as ModelMessage,
+      ];
+      let continueLoop = true;
+
+      while (continueLoop && decisionCycleCount < MAX_DECISION_CYCLES) {
+        decisionCycleCount++;
+
+        const decisionResult = await generateChatResponse({
+          mode: "agent",
+          messages: currentMessages,
+          system:
+            systemPrompt +
+            "\n\nYou are in a decision step. Choose exactly one: summarizeAfterToolCallExecution OR planNextToolSelection.",
+          temperature: llmConfig.agent.temperature,
+          tools: decisionTools,
+          prompt: "",
+        });
+
+        const decisionToolCalls = decisionResult.toolCalls ?? [];
+
+        if (decisionToolCalls.length === 0) {
+          // No tool call - assume summarize intent and surface any text
+          if ((decisionResult.text ?? "").trim() !== "") {
+            dispatch({
+              type: "push",
+              msg: {
+                id: generateUUID(),
+                role: "assistant",
+                content: decisionResult.text,
+              },
+            });
+          }
+          continueLoop = false;
+          break;
+        }
+
+        // If summarize was called, SDK already executed it (tools are live). We're done.
+        const summarizeCall = decisionToolCalls.find(
+          (c) => c.toolName === "summarizeAfterToolCallExecution",
+        );
+        if (summarizeCall) {
+          continueLoop = false;
+          break;
+        }
+
+        // If planNextToolSelection was called, we need the planned tools list.
+        const planCall = decisionToolCalls.find(
+          (c) => c.toolName === "planNextToolSelection",
+        );
+        if (planCall) {
+          // Re-execute the plan tool to obtain its returned tool list (SDK does not expose outputs)
+          const decisionToolImpl = (
+            decisionTools as unknown as Record<string, unknown>
+          ).planNextToolSelection as unknown as {
+            execute?: (args: Record<string, unknown>) => Promise<
+              | {
+                  success: true;
+                  content?: {
+                    summary?: string;
+                    tools?: string[];
+                    correlationId?: string;
+                  };
+                }
+              | { success: false; error?: string }
+            >;
+          };
+
+          if (
+            !decisionToolImpl ||
+            typeof decisionToolImpl.execute !== "function"
+          ) {
+            console.warn("[decision] planNextToolSelection tool not available");
+            continueLoop = false;
+            break;
+          }
+
+          // Provide available tool names explicitly (exclude chat-only & decision tools)
+          const chatOnly = new Set([
+            "sendReply",
+            "requestClarificationOrPlan",
+            "summarizeAfterToolCallExecution",
+            "planNextToolSelection",
+          ]);
+          const availableToolNames = Object.keys(runtimeTools).filter(
+            (n) => !chatOnly.has(n),
+          );
+
+          const raw =
+            (planCall as unknown as { input?: Record<string, unknown> })
+              .input || {};
+          const mappedArgs = {
+            ...(raw as Record<string, unknown>),
+            availableTools: availableToolNames,
+            max:
+              typeof (raw as { max?: unknown }).max === "number"
+                ? (raw as { max?: number }).max
+                : MAX_SELECTED_TOOLS,
+          } as Record<string, unknown>;
+
+          const decisionRes = await decisionToolImpl.execute(mappedArgs);
+          if (!decisionRes.success || !decisionRes.content?.tools?.length) {
+            const errorMessage = decisionRes.success
+              ? "Planner failed. Ending execution."
+              : decisionRes.error || "Planner failed. Ending execution.";
+            dispatch({
+              type: "push",
+              msg: {
+                id: generateUUID(),
+                role: "system",
+                content: errorMessage,
+              },
+            });
+            continueLoop = false;
+            break;
+          }
+
+          const nextTools = decisionRes.content.tools;
+          const nextSelectedTools = pickToolsByNamesMemo(nextTools);
+          const nextSelectedToolNames = Object.keys(nextSelectedTools);
+          if (nextSelectedToolNames.length === 0) {
+            dispatch({
+              type: "push",
+              msg: {
+                id: generateUUID(),
+                role: "system",
+                content:
+                  "Planner returned no tools. Refining objective or ending.",
+              },
+            });
+            continueLoop = false;
+            break;
+          }
+
+          // Build next step prompt
+          const nextStepPrompt = decisionRes.content.summary
+            ? decisionRes.content.summary
+            : "Continue with the next step";
+
+          // Run next agent pass with selected tools
+          const nextMessages: ModelMessage[] = [
+            ...currentMessages,
+            {
+              role: "assistant",
+              content: `Planning next step: ${nextStepPrompt}`,
+            } as ModelMessage,
+            { role: "user", content: nextStepPrompt } as ModelMessage,
+          ];
+
+          const nextResult = await generateChatResponse({
+            mode: "agent",
+            messages: nextMessages,
+            system: systemPrompt,
+            temperature: llmConfig.agent.temperature,
+            tools: nextSelectedTools,
+            prompt: "",
+          });
+
+          const nextToolCalls = nextResult.toolCalls ?? [];
+          if (nextToolCalls.length === 0) {
+            if ((nextResult.text ?? "").trim() !== "") {
+              dispatch({
+                type: "push",
+                msg: {
+                  id: generateUUID(),
+                  role: "assistant",
+                  content: nextResult.text,
+                },
+              });
+            }
+            continueLoop = false;
+            break;
+          }
+
+          // Update messages for next decision cycle with an execution note
+          currentMessages = [
+            ...nextMessages,
+            {
+              role: "assistant",
+              content: `Next step executed (${nextToolCalls.length} tool call(s)).`,
+            } as ModelMessage,
+            { role: "user", content: decisionPrompt } as ModelMessage,
+          ];
+        }
+      }
+
+      if (decisionCycleCount >= MAX_DECISION_CYCLES) {
+        console.log("[decision] Reached max decision cycles, stopping");
+      }
+    },
+    [
+      dispatch,
+      generateChatResponse,
+      llmConfig.agent.temperature,
+      pickToolsByNamesMemo,
+      runtimeTools,
+      systemPrompt,
+    ],
+  );
+
   return useCallback(
     async ({ prompt, editorStateJson, files }: SendQueryParams) => {
       // Use the interface here
@@ -113,49 +441,11 @@ export const useSendQuery = () => {
 
       try {
         // --- Construct the full initial prompt string ---
-        const historyToInclude = messages
-          .filter((msg: HistoryMessage) => msg.role !== "system")
-          .map((msg: HistoryMessage) => {
-            const prefix = msg.role === "user" ? "USER:" : "ASSISTANT:";
-            let content = msg.content ?? "";
-            if (msg.toolCalls) {
-              content += `\n(Tool Calls: ${JSON.stringify(msg.toolCalls)})`;
-            }
-            return `${prefix} ${content}`;
-          })
-          .join("\n\n");
-
-        let fullPrompt = "";
-        if (historyToInclude) {
-          fullPrompt += `CHAT_HISTORY:\n${historyToInclude}\n\n`;
-        }
-        fullPrompt += `USER_PROMPT:\n${prompt}`;
-        if (files) {
-          fullPrompt += `\nATTACHED_FILE_NAMES: ${Array.from(files)
-            .map((f) => f.name)
-            .join(", ")}`;
-          // Note: The actual file content needs to be handled by the API call mechanism (e.g. FormData)
-          // This prompt addition is just to inform the LLM about the file's presence and name.
-        }
-
-        // Add instruction for Markdown formatting
-        fullPrompt += `\n\nFORMATTING_INSTRUCTION:\nStrictly format your final response text using Markdown. Do **not** output JSON or any other structured format. Keep Markdown nesting minimal (nested lists or quotes) and headings small for readability in a chat interface.`;
-
-        // Add context based on mode (Markdown for chat, JSON for agent)
-        const currentEditorState = editor.getEditorState();
-        if (mode === "chat" && currentEditorState) {
-          console.log(" Attaching Markdown context to prompt (Chat Mode).");
-          const markdownContent =
-            convertEditorStateToMarkdown(currentEditorState);
-          fullPrompt += `\n\nMARKDOWN_CONTEXT:\n${markdownContent}`;
-        } else if (mode === "agent" && editorStateJson) {
-          console.log(
-            " Attaching JSON state to prompt (Agent Mode).",
-            editorStateJson,
-          );
-          fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
-        }
-        // --- End Prompt Construction ---
+        const fullPrompt = buildPromptString({
+          prompt,
+          files,
+          editorStateJson,
+        });
 
         // --- Select generation function based on mode ---
         if (mode === "chat") {
@@ -218,42 +508,7 @@ export const useSendQuery = () => {
           });
         } else {
           // Staged provisioning: planner call -> main call with selected subset
-          const chatOnly = new Set(["sendReply", "requestClarificationOrPlan"]);
-          const availableToolNames = Object.keys(runtimeTools).filter(
-            (n) => !chatOnly.has(n),
-          );
-          // planner instruction enforced server-side
-
-          // --- Planner step via server endpoint ---
-          let selectedNames: string[] = [];
-          let plannerCorrelationId: string | undefined;
-          try {
-            const plannerRes = await fetch("/api/llm/plan", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                prompt,
-                availableTools: availableToolNames,
-                max: MAX_SELECTED_TOOLS,
-              }),
-            });
-            if (plannerRes.ok) {
-              const data = (await plannerRes.json()) as {
-                tools?: unknown;
-                correlationId?: string;
-              };
-              if (Array.isArray(data.tools)) {
-                selectedNames = (data.tools as unknown[])
-                  .filter((x) => typeof x === "string")
-                  .slice(0, MAX_SELECTED_TOOLS) as string[];
-              }
-              if (typeof data.correlationId === "string") {
-                plannerCorrelationId = data.correlationId;
-              }
-            }
-          } catch {
-            // fall back below
-          }
+          const { selectedNames } = await selectToolsForAgent({ prompt });
 
           if (!selectedNames.length) {
             dispatch({
@@ -268,7 +523,6 @@ export const useSendQuery = () => {
             return;
           }
           const selectedTools = pickToolsByNamesMemo(selectedNames);
-          const selectedToolNames = Object.keys(selectedTools);
 
           // Client-orchestrated agent flow (feature-flagged) — call through llm-context
           const clientOrch = true;
@@ -308,414 +562,17 @@ export const useSendQuery = () => {
             }
             if (toolCalls1.length > 0) {
               // Tools have already been executed by the SDK when maxSteps: 1 is set.
-              // Build executed array from toolCalls1, assuming success (SDK would have thrown on failure).
-              const executed: Array<{
-                toolCallId: string;
-                toolName: string;
-                ok: boolean;
-                error?: string;
-                summary?: string;
-              }> = toolCalls1.map((c) => ({
-                toolCallId: c.toolCallId,
-                toolName: c.toolName,
-                ok: true, // SDK execution succeeded (would have thrown otherwise)
-                summary: undefined, // SDK results not captured here
-              }));
-
-              console.log(
-                `[agent] Tools already executed by SDK: ${toolCalls1.length} tool call(s): ${toolCalls1
-                  .map((c) => c.toolName)
-                  .join(", ")}`,
-              );
-
-              // Check if execution was successful
-              const allSucceeded = executed.every((r) => r.ok);
-              const hasErrors = executed.some((r) => !r.ok);
-
-              // Decision step: After successful execution, offer summarize or plan next step
-              if (allSucceeded && executed.length > 0) {
-                // Create decision tools (only summarize and plan)
-                const decisionTools = pickToolsByNamesMemo([
-                  "summarizeAfterToolCallExecution",
-                  "planNextToolSelection",
-                ]);
-
-                // Build execution summary
-                const executionSummary = executed
-                  .map(
-                    (r) =>
-                      `${r.toolName}${r.summary ? `: ${r.summary}` : " (completed)"}`,
-                  )
-                  .join("\n");
-
-                // Decision turn prompt
-                const decisionPrompt = `Execution completed successfully. ${executed.length} tool(s) executed.
-
-EXECUTION_SUMMARY:
-${executionSummary}
-
-IMPORTANT: Do NOT re-execute the tools that were just run. The execution is complete.
-
-Choose exactly one action:
-1. Call summarizeAfterToolCallExecution to provide a summary to the user
-2. Call planNextToolSelection to plan and execute the next step
-
-Do not repeat the prior execution or call content-editing tools.`;
-
-                const decisionMessages: ModelMessage[] = [
-                  ...messagesForAgent,
-                  ...(result1.text?.trim()
-                    ? ([
-                        { role: "assistant", content: result1.text },
-                      ] as ModelMessage[])
-                    : ([] as ModelMessage[])),
-                  {
-                    role: "user",
-                    content: decisionPrompt,
-                  },
-                ];
-
-                // Decision turn - max 2 cycles
-                let decisionCycleCount = 0;
-                const MAX_DECISION_CYCLES = 2;
-                let currentMessages = decisionMessages;
-                let continueLoop = true;
-
-                while (
-                  continueLoop &&
-                  decisionCycleCount < MAX_DECISION_CYCLES
-                ) {
-                  decisionCycleCount++;
-                  
-                  const decisionResult = await generateChatResponse({
-                    mode: "agent",
-                    messages: currentMessages,
-                    system:
-                      systemPrompt +
-                      "\n\nYou are in a decision step. Choose exactly one: summarizeAfterToolCallExecution OR planNextToolSelection.",
-                    temperature: llmConfig.agent.temperature,
-                    tools: decisionTools,
-                    prompt: "",
-                  });
-
-                  const decisionToolCalls = decisionResult.toolCalls ?? [];
-
-                  if (decisionToolCalls.length === 0) {
-                    // No tool call - assume summarize intent
-                    if ((decisionResult.text ?? "").trim() !== "") {
-                      dispatch({
-                        type: "push",
-                        msg: {
-                          id: generateUUID(),
-                          role: "assistant",
-                          content: decisionResult.text,
-                        },
-                      });
-                    }
-                    continueLoop = false;
-                    break;
-                  }
-
-                  // Decision tools have already been executed by the SDK when maxSteps: 1 is set.
-                  // Check which tool was called and handle accordingly.
-                  for (const decisionCall of decisionToolCalls) {
-                    if (
-                      decisionCall.toolName ===
-                      "summarizeAfterToolCallExecution"
-                    ) {
-                      // Summarize already executed by SDK - done
-                      console.log(
-                        "[decision] summarizeAfterToolCallExecution already executed by SDK",
-                      );
-                      continueLoop = false;
-                      break;
-                    } else if (
-                      decisionCall.toolName === "planNextToolSelection"
-                    ) {
-                      // planNextToolSelection was executed by SDK, but we need its result.
-                      // We need to extract the result from SDK execution or re-execute to get it.
-                      // For now, we'll need to re-execute to get the tools list.
-                      // TODO: Extract result from SDK execution if possible
-                      const decisionToolImpl = (
-                        decisionTools as unknown as Record<string, unknown>
-                      )[decisionCall.toolName] as unknown as {
-                        execute?: (args: Record<string, unknown>) => Promise<
-                          | {
-                              success: true;
-                              content?: {
-                                summary?: string;
-                                tools?: string[];
-                                correlationId?: string;
-                              };
-                            }
-                          | { success: false; error?: string }
-                        >;
-                      };
-
-                      if (
-                        !decisionToolImpl ||
-                        typeof decisionToolImpl.execute !== "function"
-                      ) {
-                        console.warn(
-                          `[decision] Tool '${decisionCall.toolName}' not available`,
-                        );
-                        continue;
-                      }
-
-                      const raw =
-                        (
-                          decisionCall as unknown as {
-                            input?: Record<string, unknown>;
-                          }
-                        ).input || {};
-
-                      // Provide available tool names explicitly for planNextToolSelection
-                      const chatOnly = new Set([
-                        "sendReply",
-                        "requestClarificationOrPlan",
-                        "summarizeAfterToolCallExecution",
-                        "planNextToolSelection",
-                      ]);
-                      const availableToolNames = Object.keys(
-                        runtimeTools,
-                      ).filter((n) => !chatOnly.has(n));
-                      const mappedArgs = {
-                        ...(raw as Record<string, unknown>),
-                        availableTools: availableToolNames,
-                        max:
-                          typeof (raw as { max?: unknown }).max === "number"
-                            ? (raw as { max?: number }).max
-                            : MAX_SELECTED_TOOLS,
-                      } as Record<string, unknown>;
-
-                      try {
-                        // Re-execute to get result (SDK already executed but we need the return value)
-                        const decisionRes = (await decisionToolImpl.execute(
-                          mappedArgs,
-                        )) as
-                          | {
-                              success: true;
-                              content?: {
-                                summary?: string;
-                                tools?: string[];
-                                correlationId?: string;
-                              };
-                            }
-                          | { success: false; error?: string };
-
-                        if (decisionRes.success && decisionRes.content?.tools) {
-                          // Plan chosen - run next agent pass
-                          const nextTools = decisionRes.content.tools;
-                          const correlationId =
-                            decisionRes.content.correlationId;
-                          console.log("[decision] Plan chosen", {
-                            tools: nextTools,
-                            correlationId,
-                            decisionCycle: decisionCycleCount,
-                          });
-
-                          // Pick next tools
-                          const nextSelectedTools =
-                            pickToolsByNamesMemo(nextTools);
-                          const nextSelectedToolNames =
-                            Object.keys(nextSelectedTools);
-
-                          if (nextSelectedToolNames.length === 0) {
-                            // Empty tools - end with summarize
-                            dispatch({
-                              type: "push",
-                              msg: {
-                                id: generateUUID(),
-                                role: "system",
-                                content:
-                                  "Planner returned no tools. Refining objective or ending.",
-                              },
-                            });
-                            continueLoop = false;
-                            break;
-                          }
-
-                          // Build next step prompt
-                          const nextStepPrompt = decisionRes.content.summary
-                            ? decisionRes.content.summary
-                            : "Continue with the next step";
-
-                          // Run next agent pass
-                          const nextMessages: ModelMessage[] = [
-                            ...currentMessages,
-                            {
-                              role: "assistant",
-                              content: `Planning next step: ${nextStepPrompt}`,
-                            },
-                            {
-                              role: "user",
-                              content: nextStepPrompt,
-                            },
-                          ];
-
-                          const nextResult = await generateChatResponse({
-                            mode: "agent",
-                            messages: nextMessages,
-                            system: systemPrompt,
-                            temperature: llmConfig.agent.temperature,
-                            tools: nextSelectedTools,
-                            prompt: "",
-                          });
-
-                          const nextToolCalls = nextResult.toolCalls ?? [];
-
-                          if (nextToolCalls.length === 0) {
-                            // No tools - done
-                            if ((nextResult.text ?? "").trim() !== "") {
-                              dispatch({
-                                type: "push",
-                                msg: {
-                                  id: generateUUID(),
-                                  role: "assistant",
-                                  content: nextResult.text,
-                                },
-                              });
-                            }
-                            continueLoop = false;
-                            break;
-                          }
-
-                          // Next tools have already been executed by the SDK when maxSteps: 1 is set.
-                          // Build executed array from nextToolCalls, assuming success (SDK would have thrown on failure).
-                          const nextExecuted: Array<{
-                            toolCallId: string;
-                            toolName: string;
-                            ok: boolean;
-                            error?: string;
-                            summary?: string;
-                          }> = nextToolCalls.map((c) => ({
-                            toolCallId: c.toolCallId,
-                            toolName: c.toolName,
-                            ok: true, // SDK execution succeeded (would have thrown otherwise)
-                            summary: undefined, // SDK results not captured here
-                          }));
-
-                          console.log(
-                            `[decision] Next tools already executed by SDK: ${nextToolCalls.length} tool call(s): ${nextToolCalls
-                              .map((c) => c.toolName)
-                              .join(", ")}`,
-                          );
-
-                          // Update messages for next decision cycle
-                          const nextSummary = nextExecuted
-                            .map(
-                              (r) =>
-                                `${r.toolName}: ${r.ok ? "ok" : `error: ${r.error ?? ""}`}${
-                                  r.summary ? ` summary: ${r.summary}` : ""
-                                }`,
-                            )
-                            .join("\n");
-
-                          currentMessages = [
-                            ...nextMessages,
-                            {
-                              role: "assistant",
-                              content: `Next step executed:\n${nextSummary}`,
-                            },
-                            {
-                              role: "user",
-                              content: decisionPrompt,
-                            },
-                          ];
-
-                          // Continue loop for next decision
-                        } else {
-                          // Plan failed
-                          const errorMessage = decisionRes.success
-                            ? "Planner failed. Ending execution."
-                            : decisionRes.error ||
-                              "Planner failed. Ending execution.";
-                          dispatch({
-                            type: "push",
-                            msg: {
-                              id: generateUUID(),
-                              role: "system",
-                              content: errorMessage,
-                            },
-                          });
-                          continueLoop = false;
-                          break;
-                        }
-                      } catch (e) {
-                        console.error(
-                          `[decision] Error executing ${decisionCall.toolName}:`,
-                          e,
-                        );
-                        continueLoop = false;
-                        break;
-                      }
-                    }
-                  }
-                }
-
-                if (decisionCycleCount >= MAX_DECISION_CYCLES) {
-                  console.log(
-                    "[decision] Reached max decision cycles, stopping",
-                  );
-                }
-              } else if (hasErrors) {
-                // On error, skip summarize and go straight to planning (include error details)
-                const errorSummary = executed
-                  .filter((r) => !r.ok)
-                  .map((r) => `${r.toolName}: ${r.error ?? "unknown error"}`)
-                  .join("\n");
-
-                dispatch({
-                  type: "push",
-                  msg: {
-                    id: generateUUID(),
-                    role: "system",
-                    content: `Execution had errors:\n${errorSummary}\n\nPlease refine your request.`,
-                  },
-                });
-              }
-
-              // If no tools executed or all failed, show result text if any
-              if (executed.length === 0 && (result1.text ?? "").trim() !== "") {
-                dispatch({
-                  type: "push",
-                  msg: {
-                    id: generateUUID(),
-                    role: "assistant",
-                    content: result1.text,
-                  },
-                });
-              }
+              // Proceed to decision cycle (summarize vs plan)
+              await handleDecisionCycle({
+                initialMessages: messagesForAgent,
+                priorAssistantText: result1.text,
+              });
             }
 
             return;
           }
 
-          // Fallback to server-agent single pass
-          const agentRes = await fetch("/api/llm/agent", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              system: systemPrompt,
-              prompt: fullPrompt,
-              temperature: llmConfig.agent.temperature,
-              allowedToolNames: selectedToolNames,
-              correlationId: plannerCorrelationId,
-            }),
-          });
-          if (!agentRes.ok) throw new Error(`Agent HTTP ${agentRes.status}`);
-          const data = (await agentRes.json()) as { text?: string };
-          const agentText = data.text ?? "";
-          if (agentText.trim() !== "") {
-            dispatch({
-              type: "push",
-              msg: {
-                id: generateUUID(),
-                role: "assistant",
-                content: agentText,
-              },
-            });
-          }
+          // Server-agent fallback removed per refactor plan
         }
       } catch (error) {
         console.error(
@@ -740,17 +597,16 @@ Do not repeat the prior execution or call content-editing tools.`;
       }
     },
     [
-      convertEditorStateToMarkdown,
       dispatch,
-      messages,
       mode,
       generateChatStream,
       generateChatResponse,
       systemPrompt,
       llmConfig,
-      runtimeTools,
-      editor,
       pickToolsByNamesMemo,
+      buildPromptString,
+      selectToolsForAgent,
+      handleDecisionCycle,
     ],
   );
 };
