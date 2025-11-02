@@ -95,7 +95,7 @@ export function EntityCard({
           flex === "flex-row" && "hidden",
         )}
       >
-        <div className="size-10 min-w-10">
+        <div className="w-full aspect-4/3 min-h-10">
           <Link
             href={itemUrl({
               id: entity.id,
