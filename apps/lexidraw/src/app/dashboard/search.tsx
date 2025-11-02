@@ -16,7 +16,7 @@ import {
   CommandItem,
   CommandList,
 } from "~/components/ui/command";
-import { Brush, File, Folder, Link2, Loader2 } from "lucide-react";
+import { Brush, File, Folder, Link2, Loader2, SearchIcon } from "lucide-react";
 import Image from "next/image";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
@@ -159,42 +159,47 @@ export function SearchBar({ className }: Props) {
 
   return (
     <Popover>
-      <div className={cn("w-full", className)}>
+      <div className={cn("w-full relative", className)}>
         <PopoverTrigger asChild>
-          <Input
-            ref={inputRef as RefObject<HTMLInputElement>}
-            type="text"
-            placeholder="🔎 Search by title, content, or tags..."
-            value={query}
-            onFocus={() => {
-              hasScrolledOnFocusRef.current = false;
-              scrollInputIntoView();
-            }}
-            onChange={(e) => {
-              const next = e.target.value;
-              setQuery(next);
-              // On first keystroke after focus, nudge into view
-              if (!hasScrolledOnFocusRef.current && next.length > 0) {
-                scrollInputIntoView("tight");
-                hasScrolledOnFocusRef.current = true;
-              }
-            }}
-            className={cn(
-              "h-12 md:h-10 w-full",
-              "pr-8", // keep room for the spinner
-              "font-medium text-center",
-              "placeholder-shown:text-center",
-              "placeholder:text-muted-foreground",
-              "focus:outline-hidden",
+          <div className="relative flex items-center">
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+            <Input
+              ref={inputRef as RefObject<HTMLInputElement>}
+              type="text"
+              placeholder="Search by title, content, or tags..."
+              value={query}
+              onFocus={() => {
+                hasScrolledOnFocusRef.current = false;
+                scrollInputIntoView();
+              }}
+              onChange={(e) => {
+                const next = e.target.value;
+                setQuery(next);
+                // On first keystroke after focus, nudge into view
+                if (!hasScrolledOnFocusRef.current && next.length > 0) {
+                  scrollInputIntoView("tight");
+                  hasScrolledOnFocusRef.current = true;
+                }
+              }}
+              className={cn(
+                "h-12 md:h-10 w-full",
+                "pl-11 pr-10", // left padding for icon, right padding for spinner
+                "font-medium",
+                "placeholder:text-muted-foreground",
+                "focus:outline-hidden",
+                "transition-all",
+                "bg-background border-border",
+                query.length > 0 && "border-primary/20",
+              )}
+            />
+            {isLoading && debouncedQuery.length > 0 && (
+              <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground pointer-events-none" />
             )}
-          />
+          </div>
         </PopoverTrigger>
-        {isLoading && debouncedQuery.length > 0 && (
-          <Loader2 className="absolute right-2 top-1/3 h-4 w-4 animate-spin text-muted-foreground" />
-        )}
       </div>
       <PopoverContent
-        className={cn("w-(--radix-popover-trigger-width) p-0 mt-1 ", {
+        className={cn("w-[var(--radix-popover-trigger-width)] p-0 mt-1", {
           hidden: !isLoading && debouncedQuery.length === 0,
         })}
         onOpenAutoFocus={(e) => e.preventDefault()}
