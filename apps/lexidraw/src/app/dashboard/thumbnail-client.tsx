@@ -1,6 +1,6 @@
 "use client";
 
-import { Folder, Link2, File, Brush } from "lucide-react";
+import { Folder, Link2, File, Brush, Newspaper } from "lucide-react";
 import type { JSX } from "react";
 import Image from "next/image";
 import {
@@ -78,24 +78,14 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
 
   if (entity.entityType === "url") {
     return (
-      <div className="relative size-full aspect-4/3 rounded-sm border border-border overflow-hidden grid place-items-center">
-        <span className="sr-only">{`Link: ${entity.title}`}</span>
-        {src ? (
-          <Image
-            src={src}
-            alt={entity.title.substring(0, 14)}
-            fill
-            crossOrigin="anonymous"
-            quality={75}
-            loading="eager"
-            draggable={false}
-            className="object-contain bg-background"
-            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          />
-        ) : (
-          <Link2 className="size-10 text-muted-foreground" />
-        )}
-      </div>
+      <UrlVisual
+        title={entity.title}
+        src={src}
+        isPending={
+          (entity as unknown as WithThumb).thumbnailStatus === "pending"
+        }
+        size={size}
+      />
     );
   }
 
@@ -259,28 +249,38 @@ function TypeRibbon({
   icon,
   size,
 }: {
-  variant: "document" | "drawing";
+  variant: "document" | "drawing" | "url";
   icon: JSX.Element;
   size: "small" | "large";
 }) {
-  const isDoc = variant === "document";
+  const label = useMemo(() => {
+    switch (variant) {
+      case "document":
+        return "Doc";
+      case "drawing":
+        return "Drawing";
+      case "url":
+        return "Article";
+      default:
+        return "";
+    }
+  }, [variant]);
+
   if (size === "large") {
     // Corner tab that bleeds outside the right edge ~30%
     return (
       <div
         className={cn(
           "pointer-events-none absolute right-0 top-0 translate-x-1/8 -translate-y-1/3 z-10",
-          "rounded-md bg-background/90 backdrop-blur-xs shadow-md",
-          "ring-2 ring-muted-foreground ring-offset-2 ring-offset-background text-muted-foreground",
+          "rounded-xs bg-background/90 backdrop-blur-xs shadow-sm",
+          "text-muted-foreground",
           "h-7 px-2 flex items-center gap-1",
         )}
       >
         <span className="grid place-items-center p-[2px]" aria-hidden="true">
           {icon}
         </span>
-        <span className="text-2xs font-medium select-none">
-          {isDoc ? "Doc" : "Drawing"}
-        </span>
+        <span className="text-2xs font-medium select-none">{label}</span>
       </div>
     );
   }
@@ -288,16 +288,16 @@ function TypeRibbon({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute right-[-4px] top-[-4px] h-5 w-5",
+        "pointer-events-none absolute right-[-4px] top-[-4px] size-5",
       )}
     >
       <div
         className={cn(
-          "grid place-items-center rounded-lg bg-background/90 backdrop-blur-xs shadow-sm h-5 w-5",
-          "ring-2 ring-muted-foreground text-muted-foreground",
+          "grid place-items-center bg-background/90 backdrop-blur-xs shadow-sm size-5",
+          "text-muted-foreground rounded-[6px]",
         )}
       >
-        <span className="grid place-items-center p-[1px]" aria-hidden="true">
+        <span className="grid place-items-center size-5" aria-hidden="true">
           {icon}
         </span>
       </div>
@@ -351,7 +351,7 @@ function DocumentVisual({
         variant="document"
         icon={
           <File
-            className={cn(size === "large" ? "size-4" : "size-3")}
+            className={cn(size === "large" ? "size-4" : "size-4")}
             aria-hidden="true"
           />
         }
@@ -411,7 +411,67 @@ function DrawingVisual({
         variant="drawing"
         icon={
           <Brush
-            className={cn(size === "large" ? "size-4" : "size-3")}
+            className={cn(size === "large" ? "size-4" : "size-4")}
+            aria-hidden="true"
+          />
+        }
+        size={size}
+      />
+    </div>
+  );
+}
+
+function UrlVisual({
+  title,
+  src,
+  isPending,
+  size,
+}: {
+  title: string;
+  src?: string | null;
+  isPending?: boolean;
+  size: "small" | "large";
+}) {
+  return (
+    <div className="relative size-full aspect-4/3">
+      <span className="sr-only">{`Drawing: ${title}`}</span>
+      <div className="absolute inset-0 rounded-sm overflow-hidden">
+        {src ? (
+          <Image
+            src={src}
+            alt={title.substring(0, 14)}
+            fill
+            crossOrigin="anonymous"
+            quality={75}
+            loading="eager"
+            draggable={false}
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-muted/30" />
+        )}
+
+        {/* subtle dot grid overlay when missing screenshot; very faint when has screenshot */}
+        <div
+          className={cn(
+            "absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px]",
+            src ? "opacity-20" : "opacity-60",
+          )}
+        />
+
+        {isPending && (
+          <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
+        )}
+
+        <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+      </div>
+
+      <TypeRibbon
+        variant="url"
+        icon={
+          <Newspaper
+            className={cn(size === "large" ? "size-4" : "size-4")}
             aria-hidden="true"
           />
         }
