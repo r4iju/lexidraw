@@ -9,7 +9,8 @@ import { Drop } from "./drop";
 import { SortMenu } from "./sort-menu";
 import { Archive, Heart, LayoutGrid, Rows3 } from "lucide-react";
 import { DraggingContext } from "./dnd-context";
-import { EntityCard } from "./entity-card";
+import { EntityCardRow } from "./entity-card-row";
+import { EntityCardCol } from "./entity-card-col";
 import { replaceSearchParam } from "./utils";
 import { FilterByTags } from "./filter-by-tags";
 import { SearchBar } from "./search";
@@ -52,7 +53,6 @@ export async function Dashboard({
     onlyFavorites,
   });
 
-  const llmConfig = await api.auth.getLlmConfig.query();
   const allTags = await api.entities.getUserTags.query();
 
   return (
@@ -216,12 +216,19 @@ export async function Dashboard({
                     parentId={entity.id}
                     disabled={entity.entityType !== "directory"}
                   >
-                    <EntityCard
-                      entity={entity}
-                      flex={flex}
-                      sortBy={sortBy}
-                      llmConfig={llmConfig}
-                    />
+                    {flex === "flex-row" ? (
+                      <EntityCardRow
+                        entity={entity}
+                        flex={flex}
+                        sortBy={sortBy}
+                      />
+                    ) : (
+                      <EntityCardCol
+                        entity={entity}
+                        flex={flex}
+                        sortBy={sortBy}
+                      />
+                    )}
                   </Drop>
                 </Drag>
               ))}
