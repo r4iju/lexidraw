@@ -849,7 +849,7 @@ export const entityRouter = createTRPCRouter({
           body: JSON.stringify({
             url: pageUrl,
             cookiesHeader: cookieHeader,
-            selector: `[id^="lexical-content-"]`,
+            selector: `#screenshot-root`,
             viewport: { width: targetW, height: targetH, deviceScaleFactor: 2 },
             image: { type: "webp", quality: 92 },
             waitUntil: "networkidle2",

@@ -34,6 +34,11 @@ export async function GET(
       *, *::before, *::after { animation: none !important; transition: none !important; }
       #screenshot-root { width:${width}px; height:${height}px; overflow:hidden; }
       .toolbar, [data-component-name="Toolbar"], [data-sidebar], header, nav, footer { display:none !important; }
+      /* Hide cursors/presence and Next.js overlays */
+      [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
+      #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
+      [data-nextjs-toast], [data-nextjs-dialog] { display:none !important; }
+      * { cursor:none !important; }
       article { padding:8px 12px; }
     </style>
   </head>

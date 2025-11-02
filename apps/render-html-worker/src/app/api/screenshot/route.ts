@@ -263,6 +263,15 @@ export async function POST(req: NextRequest) {
         }
       })();
       await page.goto(gotoUrl, { waitUntil, timeout: timeoutMs });
+      // Hide cursors, presence, and Next.js overlays in the top document
+      try {
+        const hideCss = `*{cursor:none !important}
+          [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
+          #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
+          [data-nextjs-toast], [data-nextjs-dialog] { display:none !important; }`;
+        // Prefer addStyleTag for reliability across pages with CSP disabled for worker
+        await page.addStyleTag({ content: hideCss });
+      } catch {}
       // Enforce theme if provided
       if (body?.theme === "dark" || body?.theme === "light") {
         await page.evaluate((t) => {
@@ -284,6 +293,14 @@ export async function POST(req: NextRequest) {
             .frames()
             .find((f) => f.url().includes("/screenshot/view/"));
           if (frame) {
+            // Inject defensive CSS in iframe as well
+            try {
+              const hideCss = `*{cursor:none !important}
+                [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
+                #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
+                [data-nextjs-toast], [data-nextjs-dialog] { display:none !important; }`;
+              await frame.addStyleTag({ content: hideCss });
+            } catch {}
             await frame.evaluate((t) => {
               const html = document.documentElement as HTMLElement & {
                 style: { colorScheme?: string };
@@ -457,10 +474,9 @@ export async function POST(req: NextRequest) {
 
       let buffer: Buffer;
       if (info && info.width > 0 && info.height > 0) {
-        const clipX = Math.max(info.x, root.x);
+        let clipX = Math.max(info.x, root.x);
         let clipY = Math.max(info.y, root.y);
-        const clipW =
-          Math.min(info.x + info.width, root.x + root.width) - clipX;
+        let clipW = Math.min(info.x + info.width, root.x + root.width) - clipX;
         let clipH =
           Math.min(info.y + info.height, root.y + root.height) - clipY;
         // Adaptive trim: measure spacing from content root to first visible child
@@ -476,6 +492,33 @@ export async function POST(req: NextRequest) {
         const desired = clipH + trim;
         const maxPossible = rootBottom - clipY;
         clipH = Math.max(1, Math.min(desired, maxPossible));
+
+        // Center-crop to enforce 4:3 aspect within bounds
+        const TARGET = 4 / 3;
+        const ratio = clipW / clipH;
+        if (Math.abs(ratio - TARGET) > 0.005) {
+          if (ratio > TARGET) {
+            // too wide -> reduce width
+            const newW = Math.floor(clipH * TARGET);
+            const dx = Math.floor((clipW - newW) / 2);
+            clipX += dx;
+            clipW = newW;
+          } else {
+            // too tall -> reduce height
+            const newH = Math.floor(clipW / TARGET);
+            const dy = Math.floor((clipH - newH) / 2);
+            clipY += dy;
+            clipH = newH;
+          }
+        }
+
+        // Clamp to root bounds again for safety
+        const rootRight = root.x + root.width;
+        const rootBottom2 = root.y + root.height;
+        clipX = Math.max(root.x, Math.min(clipX, rootRight - 1));
+        clipY = Math.max(root.y, Math.min(clipY, rootBottom2 - 1));
+        clipW = Math.max(1, Math.min(clipW, rootRight - clipX));
+        clipH = Math.max(1, Math.min(clipH, rootBottom2 - clipY));
         buffer = (await page.screenshot({
           type: (image.type as "png" | "webp") ?? "webp",
           quality: image.quality,
