@@ -445,20 +445,16 @@ function UrlVisual({
             quality={75}
             loading="eager"
             draggable={false}
-            className="object-cover object-left"
+            className="object-contain bg-background"
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
           <div className="absolute inset-0 bg-muted/30" />
         )}
-
-        {/* subtle dot grid overlay when missing screenshot; very faint when has screenshot */}
-        <div
-          className={cn(
-            "absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px]",
-            src ? "opacity-20" : "opacity-60",
-          )}
-        />
+        {/* subtle dot grid overlay only when missing screenshot */}
+        {!src && (
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px] opacity-60" />
+        )}
 
         {isPending && (
           <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
