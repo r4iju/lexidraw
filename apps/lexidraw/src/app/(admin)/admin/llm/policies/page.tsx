@@ -1,11 +1,9 @@
-export const dynamic = "force-dynamic";
-
+import { Suspense } from "react";
 import { api } from "~/trpc/server";
 import { PoliciesEditor } from "./policy-editor";
 
-export default async function AdminLlmPoliciesPage() {
+async function AdminLlmPoliciesContent() {
   const policies = await api.adminLlm.policies.getAll.query();
-  // Normalize null to undefined for extraConfig to match component type
   const normalizedPolicies = policies.map((p) => ({
     ...p,
     extraConfig: p.extraConfig ?? undefined,
@@ -17,5 +15,19 @@ export default async function AdminLlmPoliciesPage() {
       </div>
       <PoliciesEditor initialPolicies={normalizedPolicies} />
     </div>
+  );
+}
+
+export default function AdminLlmPoliciesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 text-sm text-muted-foreground">
+          Loading policies…
+        </div>
+      }
+    >
+      <AdminLlmPoliciesContent />
+    </Suspense>
   );
 }

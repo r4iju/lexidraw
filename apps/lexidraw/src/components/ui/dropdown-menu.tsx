@@ -18,7 +18,7 @@ const DropdownMenu = ({
   const [open, setOpen] = React.useState(false);
 
   return (
-    <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen} {...props}>
+    <DropdownMenuPrimitive.Root onOpenChange={setOpen} {...props}>
       <DropdownMenuContext.Provider value={{ open, setOpen }}>
         {children}
       </DropdownMenuContext.Provider>
@@ -34,18 +34,10 @@ const DropdownMenuTrigger = ({
   if (context === null) {
     throw new Error("DropdownMenuTrigger must be used within a DropdownMenu");
   }
-  const { open, setOpen } = context;
+  const { open } = context;
 
   return (
-    <DropdownMenuPrimitive.Trigger
-      {...props}
-      onPointerDown={(e) => e.preventDefault()} // Prevents menu from opening on touch scroll
-      onClick={(e) => {
-        setOpen(!open); // Toggle the menu on click
-        props.onClick?.(e);
-      }}
-      aria-expanded={open}
-    >
+    <DropdownMenuPrimitive.Trigger {...props} aria-expanded={open}>
       {children}
     </DropdownMenuPrimitive.Trigger>
   );
@@ -116,18 +108,69 @@ const DropdownMenuContent = ({
   className,
   sideOffset = 4,
   ...props
-}: DropdownMenuContentProps) => (
-  <DropdownMenuPrimitive.Portal>
-    <DropdownMenuPrimitive.Content
-      sideOffset={sideOffset}
-      className={cn(
-        "max-h-[80vh] overflow-y-auto z-50 min-w-[8rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        className,
-      )}
-      {...props}
-    />
-  </DropdownMenuPrimitive.Portal>
-);
+}: DropdownMenuContentProps) => {
+  // Close synchronously on navigation-intent inside the menu
+  const context = React.useContext(DropdownMenuContext);
+  if (context === null) {
+    throw new Error("DropdownMenuContent must be used within a DropdownMenu");
+  }
+
+  const closeNow = React.useEffectEvent(() => {
+    context.setOpen(false);
+  });
+
+  return (
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.Content
+        sideOffset={sideOffset}
+        className={cn(
+          "max-h-[80vh] overflow-y-auto z-50 min-w-[8rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          className,
+        )}
+        onCloseAutoFocus={(e) => {
+          // Avoid focusing trigger after close which can conflict with route change
+          e.preventDefault();
+        }}
+        onClickCapture={(e) => {
+          // Call user handler first
+          props.onClickCapture?.(e);
+          if (e.defaultPrevented) return;
+          const el = e.target as HTMLElement | null;
+          if (
+            el?.closest(
+              "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
+            )
+          ) {
+            closeNow();
+          }
+        }}
+        onKeyDownCapture={(e) => {
+          props.onKeyDownCapture?.(e);
+          if (e.defaultPrevented) return;
+          if (e.key === "Enter" || e.key === " ") {
+            const el = e.target as HTMLElement | null;
+            if (
+              el?.closest(
+                "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
+              )
+            ) {
+              closeNow();
+            }
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          props.onEscapeKeyDown?.(e);
+          if (!e.defaultPrevented) closeNow();
+        }}
+        onInteractOutside={(e) => {
+          props.onInteractOutside?.(e);
+          if (!e.defaultPrevented) closeNow();
+        }}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
+  );
+};
 
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 

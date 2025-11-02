@@ -13,9 +13,6 @@ import {
 } from "~/components/ui/table";
 import { ClientButton } from "./client-button";
 
-export const dynamic = "force-dynamic";
-export const runtime: ServerRuntime = "nodejs";
-
 export default async function SignInPage() {
   const crons = await api.crons.list.query();
 

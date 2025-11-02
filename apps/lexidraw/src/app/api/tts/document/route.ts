@@ -4,7 +4,6 @@ import { auth } from "~/server/auth";
 import { extractArticleFromUrl } from "~/lib/extract-article";
 import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
 
-export const dynamic = "force-dynamic";
 export const maxDuration = 800;
 
 export async function POST(req: NextRequest) {

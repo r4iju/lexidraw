@@ -1,10 +1,9 @@
+import { Suspense } from "react";
 import { api } from "~/trpc/server";
 import { Dashboard } from "../dashboard";
+import { DashboardSkeleton } from "../skeleton";
 import { redirect } from "next/navigation";
-import type { ServerRuntime } from "next/types";
 import { z } from "zod";
-
-export const runtime: ServerRuntime = "nodejs";
 
 const SearchParams = z.object({
   parentId: z.string().optional().nullable().default(null),
@@ -26,7 +25,7 @@ type Props = {
   searchParams: Promise<SearchParams>;
 };
 
-export default async function DashboardPage({ params, searchParams }: Props) {
+async function DashboardContent({ params, searchParams }: Props) {
   const directoryId = (await params).directoryId;
   const queryParams = await searchParams;
   const {
@@ -64,5 +63,13 @@ export default async function DashboardPage({ params, searchParams }: Props) {
       includeArchived={includeArchived}
       onlyFavorites={onlyFavorites}
     />
+  );
+}
+
+export default function DashboardPage(props: Props) {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent {...props} />
+    </Suspense>
   );
 }

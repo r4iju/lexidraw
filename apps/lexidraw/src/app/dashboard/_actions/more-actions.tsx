@@ -16,7 +16,8 @@ import {
   TrashIcon,
 } from "@radix-ui/react-icons";
 import DeleteDrawing from "./delete-entity";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import * as React from "react";
 import ShareEntity from "./share-entity";
 import RenameEntityModal from "./rename-modal";
 import ThumbnailModal from "./icon-modal";
@@ -29,7 +30,7 @@ import { ImageGenerationProvider } from "~/hooks/use-image-generation";
 import { ImageProvider } from "~/hooks/use-image-insertion";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { z } from "zod";
 import { revalidateDashboard } from "../server-actions";
 
@@ -42,6 +43,24 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
   const [openDialog, setOpenDialog] = useState<
     null | "delete" | "share" | "rename" | "tag" | "thumbnail"
   >(null);
+  const pathname = usePathname();
+  const prevPathnameRef = React.useRef<string | null>(null);
+
+  // Close dialogs when route changes
+  const closeDialog = React.useEffectEvent(() => {
+    setOpenDialog(null);
+  });
+
+  useEffect(() => {
+    if (
+      prevPathnameRef.current !== null &&
+      prevPathnameRef.current !== pathname
+    ) {
+      // Only close if pathname actually changed (navigation occurred)
+      closeDialog();
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname, closeDialog]);
 
   const handleOpenDelete = () => setOpenDialog("delete");
   const handleOpenShare = () => setOpenDialog("share");

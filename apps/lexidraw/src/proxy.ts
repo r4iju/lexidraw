@@ -46,7 +46,7 @@ const analytics = async (req: NextRequest): Promise<void> => {
   }
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static files

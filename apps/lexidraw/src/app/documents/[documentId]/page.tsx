@@ -1,4 +1,4 @@
-import type { Metadata, ServerRuntime } from "next";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
@@ -13,10 +13,6 @@ export const metadata: Metadata = {
     title: "Lexidraw",
   },
 };
-
-export const runtime: ServerRuntime = "nodejs";
-export const fetchCache = "force-no-store";
-export const dynamic = "force-dynamic";
 
 const Params = z.object({
   documentId: z.string(),

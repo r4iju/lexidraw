@@ -49,20 +49,26 @@ export function UsersDataTable(props: {
 
   const updateUrl = React.useCallback(
     (next: { page?: number; size?: number; query?: string }) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (next.page !== undefined) params.set("page", String(next.page));
-      if (next.size !== undefined) params.set("size", String(next.size));
+      const current = new URLSearchParams(searchParams?.toString() ?? "");
+      const nextParams = new URLSearchParams(current.toString());
+      if (next.page !== undefined) nextParams.set("page", String(next.page));
+      if (next.size !== undefined) nextParams.set("size", String(next.size));
       if (next.query !== undefined) {
-        if (next.query) params.set("query", next.query);
-        else params.delete("query");
+        if (next.query) nextParams.set("query", next.query);
+        else nextParams.delete("query");
       }
-      router.replace(`?${params.toString()}`);
+      const currentStr = `?${current.toString()}`;
+      const nextStr = `?${nextParams.toString()}`;
+      if (nextStr !== currentStr) {
+        router.replace(nextStr);
+      }
     },
     [router, searchParams],
   );
 
   React.useEffect(() => {
     updateUrl({ page: pageIndex + 1, size: pageSize, query });
+    // Only updates the URL when it would actually change; guarded inside updateUrl
   }, [pageIndex, pageSize, query, updateUrl]);
 
   return (

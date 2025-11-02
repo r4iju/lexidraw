@@ -8,30 +8,32 @@
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "isolatedModules": true,
-
     /* Strictness */
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
-
     /* not transpiling with TypeScript: */
     "noEmit": true,
     "moduleResolution": "Bundler",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "plugins": [
       {
         "name": "next"
       }
     ],
     "incremental": true,
-
     /* runs in the DOM */
-    "lib": ["dom", "dom.iterable", "ES2023"],
-
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "ES2023"
+    ],
     /* Path Aliases */
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./src/*"]
+      "~/*": [
+        "./src/*"
+      ]
     },
     "module": "esnext"
   },
@@ -43,7 +45,11 @@
     "**/*.js",
     ".next/types/**/*.ts",
     "../../packages/lib/src/get-zod-defaults.ts",
-    "src/types/third-party-shims.d.ts"
+    "src/types/third-party-shims.d.ts",
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".next"]
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
 }

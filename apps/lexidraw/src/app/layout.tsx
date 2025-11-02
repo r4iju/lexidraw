@@ -2,9 +2,8 @@ import "~/styles/globals.css";
 
 import { Fredoka } from "next/font/google";
 import { Ubuntu_Mono } from "next/font/google";
-import { headers as nextHeaders } from "next/headers";
+import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/react";
-import { TRPCReactProvider } from "~/trpc/react";
 import { cn } from "~/lib/utils";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SessionProvider } from "next-auth/react";
@@ -15,6 +14,7 @@ import env from "@packages/env";
 import type { Metadata, Viewport } from "next";
 import LayoutListener from "./layout-listener";
 import ImpersonationBanner from "~/components/admin/impersonation-banner";
+import TRPCProviderWrapper from "./trpc-provider-wrapper";
 
 const fredoka = Fredoka({
   subsets: ["latin"],
@@ -45,9 +45,6 @@ type Props = {
 };
 
 export default async function RootLayout({ children }: Props) {
-  const headersList = await nextHeaders();
-  const plainHeaders = new Map(headersList.entries());
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -67,22 +64,24 @@ export default async function RootLayout({ children }: Props) {
         style={{ scrollbarGutter: "stable", scrollbarWidth: "thin" }}
       >
         <SessionProvider>
-          <TRPCReactProvider headers={plainHeaders}>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              <TooltipProvider>
-                {children}
-                <ImpersonationBanner />
-                <Toaster />
-                <LayoutListener />
-                <Analytics />
-              </TooltipProvider>
-            </ThemeProvider>
-          </TRPCReactProvider>
+          <Suspense fallback={children}>
+            <TRPCProviderWrapper>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+              >
+                <TooltipProvider>
+                  {children}
+                  <ImpersonationBanner />
+                  <Toaster />
+                  <LayoutListener />
+                  <Analytics />
+                </TooltipProvider>
+              </ThemeProvider>
+            </TRPCProviderWrapper>
+          </Suspense>
         </SessionProvider>
       </body>
     </html>

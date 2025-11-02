@@ -14,8 +14,6 @@ import {
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import { generateUUID } from "~/lib/utils";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {

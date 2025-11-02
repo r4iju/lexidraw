@@ -6,8 +6,6 @@ import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
 import type { ServerRuntime } from "next";
 
-export const runtime: ServerRuntime = "nodejs";
-
 const createContext = async () => {
   return createTRPCContext({
     headers: await headers(),

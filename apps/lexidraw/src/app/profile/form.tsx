@@ -207,13 +207,13 @@ export default function ProfileForm({ user }: Props) {
     <div>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="chat">Chat</TabsTrigger>
-            <TabsTrigger value="agent">Agent</TabsTrigger>
-            <TabsTrigger value="autocomplete">Autocomplete</TabsTrigger>
-            <TabsTrigger value="audio">Audio</TabsTrigger>
-            <TabsTrigger value="articles">Articles</TabsTrigger>
+          <TabsList className="w-full">
+            <TabsTrigger className="flex-1" value="general">General</TabsTrigger>
+            <TabsTrigger className="flex-1" value="chat">Chat</TabsTrigger>
+            <TabsTrigger className="flex-1" value="agent">Agent</TabsTrigger>
+            <TabsTrigger className="flex-1" value="autocomplete">Autocomplete</TabsTrigger>
+            <TabsTrigger className="flex-1" value="audio">Audio</TabsTrigger>
+            <TabsTrigger className="flex-1" value="articles">Articles</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-4 py-4">

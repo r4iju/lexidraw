@@ -5,8 +5,6 @@ import { Button } from "~/components/ui/button";
 import SignInForm from "./form";
 import type { ServerRuntime } from "next";
 
-export const runtime: ServerRuntime = "edge";
-
 export default async function SignInPage() {
   return (
     <main className="flex min-h-[calc(100vh-56px-65px)] flex-col items-center justify-center ">
