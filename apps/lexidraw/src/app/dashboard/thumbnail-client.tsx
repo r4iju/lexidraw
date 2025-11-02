@@ -117,7 +117,11 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
   }
 
   return (
-    <div className="relative w-full aspect-4/3 rounded-sm overflow-hidden">
+    <div
+      className={cn("relative w-full aspect-4/3 rounded-sm overflow-hidden", {
+        "rounded-none": size === "small",
+      })}
+    >
       <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
       {src && (
         <Image
@@ -137,14 +141,23 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
       {(entity as unknown as WithThumb).thumbnailStatus === "pending" && (
         <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
       )}
-      <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0 rounded-sm border border-border",
+          { "rounded-none": size === "small" },
+        )}
+      />
     </div>
   );
 }
 
 export function ThumbnailFallback() {
   return (
-    <div className="w-full aspect-4/3 bg-muted-foreground animate-pulse rounded-sm" />
+    <div
+      className={cn(
+        "w-full aspect-4/3 bg-muted-foreground animate-pulse rounded-sm",
+      )}
+    />
   );
 }
 
@@ -236,6 +249,7 @@ function FolderVisual({
             "absolute z-10 grid place-items-center rounded-full border border-border bg-background text-foreground leading-none bottom-1 right-0 h-4 min-w-4 text-xs px-1 shadow-sm",
             {
               "top-10 right-5 h-10 min-w-10 text-xl shadow-md border-2": isBig,
+              "rounded-none": !isBig,
             },
           )}
         >
@@ -320,7 +334,11 @@ function DocumentVisual({
   return (
     <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Document: ${title}`}</span>
-      <div className="absolute inset-0 rounded-sm overflow-hidden">
+      <div
+        className={cn("absolute inset-0 rounded-sm overflow-hidden", {
+          "rounded-none": size === "small",
+        })}
+      >
         {src ? (
           <Image
             src={src}
@@ -342,7 +360,13 @@ function DocumentVisual({
           <div className="absolute inset-0 opacity-70 bg-[repeating-linear-gradient(transparent,transparent_12px,theme(colors.border)_12px,theme(colors.border)_13px)]" />
         )}
 
-        <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 rounded-sm",
+            { "border border-border": size === "large" },
+            { "rounded-none": size === "small" },
+          )}
+        />
       </div>
 
       <TypeRibbon
@@ -403,7 +427,13 @@ function DrawingVisual({
           <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
         )}
 
-        <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 rounded-sm",
+            { "border border-border": size === "large" },
+            { "rounded-none": size === "small" },
+          )}
+        />
       </div>
 
       <TypeRibbon
@@ -460,7 +490,13 @@ function UrlVisual({
           <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
         )}
 
-        <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 rounded-sm",
+            { "border border-border": size === "large" },
+            { "rounded-none": size === "small" },
+          )}
+        />
       </div>
 
       <TypeRibbon
