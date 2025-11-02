@@ -4,7 +4,6 @@ import env from "@packages/env";
 import { appRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
-import type { ServerRuntime } from "next";
 
 const createContext = async () => {
   return createTRPCContext({
@@ -12,7 +11,7 @@ const createContext = async () => {
   });
 };
 
-const handler = (req: NextRequest) =>
+const handler = async (req: NextRequest) =>
   fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
