@@ -34,7 +34,7 @@ export class CollapsibleContentNode extends ElementNode {
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    let isOpen = true;
+    let isOpen = false; // Default to closed to avoid visual mismatch
     editor.getEditorState().read(() => {
       const parent = this.getParentOrThrow();
       if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
@@ -49,6 +49,11 @@ export class CollapsibleContentNode extends ElementNode {
       "overflow-hidden text-sm " +
       "data-[state=open]:animate-accordion-down " +
       "data-[state=closed]:animate-accordion-up";
+
+    // If closed, set height to 0 immediately to prevent visual expansion
+    if (!isOpen) {
+      outer.style.height = "0";
+    }
 
     return outer;
   }

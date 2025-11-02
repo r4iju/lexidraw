@@ -87,6 +87,15 @@ export function AdminMenuContent() {
           Entities
         </Link>
       </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <Link
+          className="cursor-default"
+          href="/admin/crons"
+          data-active={pathname === "/admin/crons"}
+        >
+          Crons
+        </Link>
+      </DropdownMenuItem>
     </>
   );
 }
