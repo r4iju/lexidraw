@@ -30,7 +30,6 @@ export function EntityCard({
   sortBy = "updatedAt",
   sortOrder = "desc",
   isOverlay = false,
-  llmConfig,
 }: Props) {
   const searchParams = new URLSearchParams({
     ...(flex ? { flex } : {}),

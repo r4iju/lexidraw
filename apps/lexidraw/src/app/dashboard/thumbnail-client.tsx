@@ -310,7 +310,6 @@ function TypeRibbon({
 function DocumentVisual({
   title,
   src,
-  isPending,
   size,
 }: {
   title: string;
