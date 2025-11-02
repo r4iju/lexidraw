@@ -32,6 +32,8 @@ import { put } from "@vercel/blob/client";
 import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
 import DeleteEntityModal from "~/app/dashboard/_actions/delete-entity";
 import { AccessLevel } from "@packages/types";
+import { Switch } from "~/components/ui/switch";
+import { useAutoSave } from "~/hooks/use-auto-save";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
@@ -47,6 +49,8 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     api.snapshot.saveUploadedUrl.useMutation();
   const [isUploading, setIsUploading] = useState(false);
   const { markPristine } = useUnsavedChanges();
+  const { enabled: autoSaveEnabled, setEnabled: setAutoSaveEnabled } =
+    useAutoSave();
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const canEdit = drawing.accessLevel === AccessLevel.EDIT;
@@ -316,6 +320,20 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           <FileCheck size={14} strokeWidth={2} />
           Save
         </Button>
+      </CustomMenuItem>
+      <CustomMenuItem
+        style={{
+          padding: 0,
+          marginTop: 0,
+        }}
+      >
+        <div className="flex items-center justify-between w-full gap-2 h-8 py-0 px-3">
+          <span className="text-sm">Auto-save</span>
+          <Switch
+            checked={autoSaveEnabled}
+            onCheckedChange={setAutoSaveEnabled}
+          />
+        </div>
       </CustomMenuItem>
       {canEdit && (
         <CustomMenuItem

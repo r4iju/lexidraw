@@ -118,6 +118,7 @@ import {
   LexicalImageGenerationProvider,
   ImageGenerationProvider,
 } from "~/hooks/use-image-generation";
+import { useAutoSave } from "~/hooks/use-auto-save";
 import {
   LexicalImageProvider,
   ImageProvider,
@@ -214,6 +215,7 @@ type EditorProps = {
 
 type ExtendedEditorProps = EditorProps & {
   handleSave: (onSuccessCallback?: () => void) => void;
+  handleSilentSave: (onSaveSuccessCallback?: () => void) => void;
   isUploading: boolean;
   editorStateRef: RefObject<EditorState | undefined>;
   setEditorStateRef: (editorState: EditorState) => void;
@@ -263,6 +265,7 @@ function EditorHandler({
   iceServers,
   initialLlmConfig,
   handleSave,
+  handleSilentSave,
   isUploading,
   editorStateRef,
   setEditorStateRef,
@@ -289,8 +292,9 @@ function EditorHandler({
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(360);
   const sidebarRef = useRef<HTMLElement>(null);
 
-  const { markDirty } = useUnsavedChanges();
+  const { markDirty, markPristine } = useUnsavedChanges();
   const { defaultFontFamily } = useDocumentSettings();
+  const { enabled: autoSaveEnabled } = useAutoSave();
   const [dynamicPageStyle, setDynamicPageStyle] = useState<React.CSSProperties>(
     {},
   );
@@ -317,15 +321,34 @@ function EditorHandler({
     }, 100),
   );
 
+  const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+
+  useEffect(() => {
+    if (autoSaveEnabled) {
+      debouncedAutoSaveRef.current = debounce(() => {
+        handleSilentSave(() => {
+          markPristine();
+        });
+      }, 1000);
+    } else {
+      debouncedAutoSaveRef.current = null;
+    }
+  }, [autoSaveEnabled, handleSilentSave, markPristine]);
+
   const onChange = (editorState: EditorState) => {
     if (isRemoteUpdate) return;
     const parsedState = JSON.stringify(editorState);
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
     }
-    markDirty();
+    if (!autoSaveEnabled) {
+      markDirty();
+    }
     setEditorStateRef(editorState);
     debouncedSendUpdateRef.current(parsedState);
+    if (autoSaveEnabled && debouncedAutoSaveRef.current) {
+      debouncedAutoSaveRef.current();
+    }
   };
 
   const applyUpdate = useCallback(
@@ -631,7 +654,7 @@ function EditorScaffold({
   initialLlmConfig: StoredLlmConfig;
   nodes: Klass<LexicalNode>[];
 }) {
-  const { handleSaveAndLeave, handleSave, isUploading } =
+  const { handleSaveAndLeave, handleSave, handleSilentSave, isUploading } =
     useSaveAndExportDocument({ entity, editorStateRef });
 
   return (
@@ -654,6 +677,7 @@ function EditorScaffold({
               iceServers={iceServers}
               initialLlmConfig={initialLlmConfig}
               handleSave={handleSave}
+              handleSilentSave={handleSilentSave}
               isUploading={isUploading}
               editorStateRef={editorStateRef}
               setEditorStateRef={setEditorStateRef}

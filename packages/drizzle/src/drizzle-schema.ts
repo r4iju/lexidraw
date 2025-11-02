@@ -117,6 +117,9 @@ export const users = sqliteTable(
         keepQuotes?: boolean;
         autoGenerateAudioOnImport?: boolean;
       };
+      autoSave?: {
+        enabled?: boolean;
+      };
       cookies?: {
         name: string;
         value: string;

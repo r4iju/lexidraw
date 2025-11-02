@@ -86,5 +86,32 @@ export function useSaveAndExportDocument({
     );
   };
 
-  return { handleSaveAndLeave, handleSave, isUploading: isSaving };
+  const handleSilentSave = (onSaveSuccessCallback?: () => void) => {
+    if (!editorStateRef.current) {
+      return;
+    }
+    save(
+      {
+        id: entity.id,
+        elements: JSON.stringify(editorStateRef.current),
+        appState: JSON.stringify({ defaultFontFamily }),
+        entityType: "document",
+      },
+      {
+        onSuccess: async () => {
+          onSaveSuccessCallback?.();
+        },
+        onError: (error) => {
+          console.error("Auto-save failed:", error);
+        },
+      },
+    );
+  };
+
+  return {
+    handleSaveAndLeave,
+    handleSave,
+    handleSilentSave,
+    isUploading: isSaving,
+  };
 }

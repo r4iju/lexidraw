@@ -26,6 +26,7 @@ import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { Theme, type MessageStructure } from "@packages/types";
 import { DrawingBoardMenu } from "./dropdown";
 import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
+import { useAutoSave } from "~/hooks/use-auto-save";
 
 type Props = {
   revalidate: () => void;
@@ -33,6 +34,7 @@ type Props = {
   appState?: AppState;
   elements?: NonDeletedExcalidrawElement[];
   iceServers: RTCIceServer[];
+  onExcalidrawApiReady?: (api: ExcalidrawImperativeAPI) => void;
 };
 
 const ExcalidrawWrapper: React.FC<Props> = ({
@@ -40,6 +42,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   appState,
   elements,
   iceServers,
+  onExcalidrawApiReady,
 }) => {
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
@@ -54,6 +57,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
   const { markDirty, markPristine } = useUnsavedChanges();
+  const { enabled: autoSaveEnabled } = useAutoSave();
 
   const updateElementsRef = useCallback(
     (currentElements: Map<string, ExcalidrawElement>) => {
@@ -139,28 +143,38 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     }, 100),
   );
 
-  const debouncedSaveRef = useRef(
-    debounce(({ elements, appState }: SendUpdateProps) => {
-      save(
-        {
-          id: drawing.id,
-          entityType: "drawing",
-          appState: JSON.stringify({
-            ...appState,
-            openDialog: null,
-          } satisfies AppState),
-          elements: JSON.stringify(elements as ExcalidrawElement[]), // readonly... hmm
+  const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+
+  useEffect(() => {
+    if (autoSaveEnabled) {
+      debouncedSaveRef.current = debounce(
+        ({ elements, appState }: SendUpdateProps) => {
+          save(
+            {
+              id: drawing.id,
+              entityType: "drawing",
+              appState: JSON.stringify({
+                ...appState,
+                openDialog: null,
+                theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
+              } satisfies AppState),
+              elements: JSON.stringify(elements as ExcalidrawElement[]),
+            },
+            {
+              onSuccess: () => {
+                markPristine();
+                console.log("auto save success");
+              },
+              onError: (err) => console.error("auto save failed: ", err),
+            },
+          );
         },
-        {
-          onSuccess: () => {
-            markPristine();
-            console.log("auto save success");
-          },
-          onError: (err) => console.error("auto save failed: ", err),
-        },
+        1000,
       );
-    }, 10000),
-  );
+    } else {
+      debouncedSaveRef.current = null;
+    }
+  }, [autoSaveEnabled, drawing.id, isDarkTheme, markPristine, save]);
 
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
@@ -192,8 +206,12 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       state: AppState,
       _: BinaryFiles,
     ) => {
-      markDirty();
-      debouncedSaveRef.current({ elements, appState: state });
+      if (!autoSaveEnabled) {
+        markDirty();
+      }
+      if (autoSaveEnabled && debouncedSaveRef.current) {
+        debouncedSaveRef.current({ elements, appState: state });
+      }
       if (isRemoteUpdate) {
         console.log("remote update detected");
         setIsRemoteUpdate(false);
@@ -207,7 +225,13 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         });
       }
     },
-    [isRemoteUpdate, isCollaborating, sendUpdateIfNeeded, markDirty],
+    [
+      isRemoteUpdate,
+      isCollaborating,
+      sendUpdateIfNeeded,
+      markDirty,
+      autoSaveEnabled,
+    ],
   );
 
   const options = useMemo(
@@ -267,6 +291,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         {...options}
         excalidrawAPI={(api) => {
           excalidrawApi.current = api;
+          onExcalidrawApiReady?.(api);
           console.log("excalidraw api set");
         }}
         renderTopRightUI={() => (

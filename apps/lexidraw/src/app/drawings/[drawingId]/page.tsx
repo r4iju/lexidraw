@@ -9,10 +9,9 @@ import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
-import EditBoard from "./board-edit-client";
+import DrawingBoardWithSave from "./drawing-board-wrapper";
 import ViewBoard from "./board-view-client";
 import { redirect } from "next/navigation";
-import { UnsavedChangesProvider } from "~/hooks/use-unsaved-changes";
 
 export const metadata: Metadata = {
   title: "Lexidraw | drawing",
@@ -89,15 +88,13 @@ export default async function DrawingBoard(props: Props) {
     return (
       <div className="flex w-full items-center justify-center">
         {drawing.accessLevel === AccessLevel.EDIT && (
-          <UnsavedChangesProvider>
-            <EditBoard
-              revalidate={revalidate}
-              drawing={drawing}
-              elements={parsedElements}
-              appState={parsedAppState}
-              iceServers={iceServers}
-            />
-          </UnsavedChangesProvider>
+          <DrawingBoardWithSave
+            revalidate={revalidate}
+            drawing={drawing}
+            elements={parsedElements}
+            appState={parsedAppState}
+            iceServers={iceServers}
+          />
         )}
         {drawing.accessLevel === AccessLevel.READ && (
           <ViewBoard
