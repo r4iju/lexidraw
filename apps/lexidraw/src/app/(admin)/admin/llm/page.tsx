@@ -1,7 +1,10 @@
 import { drizzle, schema, sql } from "@packages/drizzle";
+import { headers } from "next/headers";
 import { RequestsChart } from "./_components/requests-chart";
 
 export default async function AdminLlmOverviewPage() {
+  // Access request data first to allow using current time
+  await headers();
   const now = Date.now();
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
   const from = now - thirtyDaysMs;

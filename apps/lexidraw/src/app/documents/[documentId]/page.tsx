@@ -1,3 +1,5 @@
+"use cache: private";
+
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { z } from "zod";

@@ -1,3 +1,5 @@
+"use cache: private";
+
 import { Suspense } from "react";
 import { api } from "~/trpc/server";
 import { PoliciesEditor } from "./policy-editor";
@@ -18,7 +20,7 @@ async function AdminLlmPoliciesContent() {
   );
 }
 
-export default function AdminLlmPoliciesPage() {
+export default async function AdminLlmPoliciesPage() {
   return (
     <Suspense
       fallback={

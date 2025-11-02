@@ -1,3 +1,5 @@
+"use cache: private";
+
 import Link from "next/link";
 import { z } from "zod";
 import type { AppState } from "@excalidraw/excalidraw/types";

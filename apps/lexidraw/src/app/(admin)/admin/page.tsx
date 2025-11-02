@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 
 export default async function AdminDashboardPage() {
   return (
@@ -8,7 +14,9 @@ export default async function AdminDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>LLM Management</CardTitle>
-          <CardDescription>Manage LLM policies, usage, and users</CardDescription>
+          <CardDescription>
+            Manage LLM policies, usage, and users
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="w-full">
@@ -37,6 +45,18 @@ export default async function AdminDashboardPage() {
         <CardContent>
           <Button asChild variant="outline" className="w-full">
             <Link href="/admin/entities">Go to Entities</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Crons</CardTitle>
+          <CardDescription>Manage crons</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/admin/crons">Go to Crons</Link>
           </Button>
         </CardContent>
       </Card>
