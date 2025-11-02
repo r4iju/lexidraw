@@ -34,7 +34,7 @@ export function EntityCardCol({
     <Card
       id={`entity-${entity.id}`}
       className={cn(
-        "relative flex flex-row gap-4 rounded-lg p-0 justify-between",
+        "relative grid grid-cols-[auto_1fr_auto] gap-4 rounded-lg p-0 items-center",
         isOverlay && "cursor-grabbing bg-card bg-opacity-100",
       )}
       style={{
@@ -49,52 +49,57 @@ export function EntityCardCol({
         </span>
       )}
 
-      {/* left side */}
-      <div className="flex flex-row items-center gap-4 px-0 py-0">
-        <div className="h-18.5 aspect-4/3 shrink-0 overflow-hidden rounded-none">
-          <Link
-            href={getItemUrl({
-              id: entity.id,
-              entityType: entity.entityType as EntityType,
-              searchParams,
-            })}
-            className="block size-full"
-            draggable={false}
-          >
-            <ThumbnailClient entity={entity} size="small" />
-          </Link>
-        </div>
+      {/* thumbnail column */}
+      <div className="h-18.5 aspect-4/3 shrink-0 overflow-hidden rounded-none">
         <Link
           href={getItemUrl({
             id: entity.id,
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
-          className="min-w-0"
+          className="block size-full"
+          draggable={false}
         >
-          <span className="font-semibold line-clamp-2 select-none ">
-            {entity.title}
-          </span>
+          <ThumbnailClient entity={entity} size="small" />
         </Link>
       </div>
 
-      {/* middle: date + actions */}
-      <div className="flex justify-between items-center px-4 py-4">
+      {/* title column - flexible */}
+      <Link
+        href={getItemUrl({
+          id: entity.id,
+          entityType: entity.entityType as EntityType,
+          searchParams,
+        })}
+        className="min-w-0"
+      >
+        <span className="font-semibold line-clamp-2 select-none">
+          {entity.title}
+        </span>
+      </Link>
+
+      {/* date + actions column - fixed width */}
+      <div className="flex justify-between items-center gap-4 px-4 py-4 max-w-[250px]">
         <Link
           href={getItemUrl({
             id: entity.id,
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
+          className="hidden md:block"
         >
-          <span className="text-sm text-muted-foreground line-clamp-2 max-w-24 hidden md:block">
+          <span
+            className={cn("text-sm text-muted-foreground", {
+              "line-clamp-2 max-w-24": flex === "flex-col",
+            })}
+          >
             {/* Avoid text selection during drag */}
             {updatedOrCreated}
             {dateString}
           </span>
         </Link>
 
-        <div className="flex items-center">
+        <div className="flex items-center gap-2 shrink-0">
           <TagTooltip entity={entity} className="hidden md:flex" />
 
           {!isOverlay ? (
