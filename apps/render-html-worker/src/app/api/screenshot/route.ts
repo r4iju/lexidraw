@@ -1,5 +1,3 @@
-export const runtime = "nodejs";
-
 import { type NextRequest, NextResponse } from "next/server";
 import type { Browser, LaunchOptions, Page } from "puppeteer-core";
 

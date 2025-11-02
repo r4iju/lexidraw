@@ -8,8 +8,6 @@ import { z } from "zod";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import { generateUUID } from "~/lib/utils";
 
-export const dynamic = "force-dynamic";
-
 const BodySchema = z.object({
   prompt: z.string().min(1),
   availableTools: z.array(z.string()).default([]),

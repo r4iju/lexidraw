@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { api } from "~/trpc/server";
 import {
@@ -9,7 +10,7 @@ import {
   TableRow,
 } from "~/components/ui/table";
 
-export default async function AdminLlmUsersPage() {
+async function AdminLlmUsersContent() {
   type AdminUserRow = {
     id: string;
     name: string;
@@ -69,5 +70,17 @@ export default async function AdminLlmUsersPage() {
         </Table>
       </div>
     </div>
+  );
+}
+
+export default function AdminLlmUsersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 text-sm text-muted-foreground">Loading users…</div>
+      }
+    >
+      <AdminLlmUsersContent />
+    </Suspense>
   );
 }

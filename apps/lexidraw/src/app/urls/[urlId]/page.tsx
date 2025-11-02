@@ -1,4 +1,4 @@
-import type { Metadata, ServerRuntime } from "next";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
@@ -12,9 +12,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const runtime: ServerRuntime = "nodejs";
-export const fetchCache = "force-no-store";
-export const dynamic = "force-dynamic";
+// export const fetchCache = "force-no-store";
 
 const Params = z.object({
   urlId: z.string(),

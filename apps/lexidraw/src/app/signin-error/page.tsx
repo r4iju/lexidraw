@@ -2,8 +2,6 @@ import type { ServerRuntime } from "next";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 
-export const runtime: ServerRuntime = "edge";
-
 export default function AuthError() {
   return (
     <div className="flex h-full items-center justify-center">

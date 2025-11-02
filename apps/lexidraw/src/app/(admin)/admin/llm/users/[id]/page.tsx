@@ -1,11 +1,18 @@
 import { api } from "~/trpc/server";
+import { z } from "zod";
 
-export default async function AdminLlmUserDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const user = await api.adminLlm.users.get.query({ id: params.id });
+const ParamsSchema = z.object({
+  id: z.string(),
+});
+
+type Props = {
+  params: Promise<z.infer<typeof ParamsSchema>>;
+};
+
+export default async function AdminLlmUserDetailPage({ params }: Props) {
+  const resolvedParams = await params;
+  const { id } = ParamsSchema.parse(resolvedParams);
+  const user = await api.adminLlm.users.get.query({ id });
   if (!user)
     return <div className="text-sm text-foreground/70">User not found</div>;
   return (

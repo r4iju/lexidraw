@@ -1,8 +1,8 @@
-import type { Metadata, ServerRuntime } from "next/types";
+import { Suspense } from "react";
+import type { Metadata } from "next/types";
 import { Dashboard } from "./dashboard";
+import { DashboardSkeleton } from "./skeleton";
 import { z } from "zod";
-
-export const runtime: ServerRuntime = "nodejs";
 
 export const metadata: Metadata = {
   title: "Lexidraw | Dashboard",
@@ -28,8 +28,16 @@ type Props = {
   searchParams: Promise<Sort>;
 };
 
-export default async function DashboardPage({ searchParams }: Props) {
+async function DashboardContent({ searchParams }: Props) {
   const queryParams = await searchParams;
   const query = Sort.parse(queryParams);
   return <Dashboard {...query} />;
+}
+
+export default function DashboardPage(props: Props) {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent {...props} />
+    </Suspense>
+  );
 }

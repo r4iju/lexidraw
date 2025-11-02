@@ -5,8 +5,6 @@ import type { ServerRuntime } from "next";
 import { canRunCron } from "../cron-middleware";
 
 export const maxDuration = 800;
-export const runtime: ServerRuntime = "edge";
-export const dynamic = "force-dynamic";
 
 // Helper function to extract pathname from a full Vercel Blob URL
 function getPathnameFromUrl(url: string | null | undefined): string | null {

@@ -7,7 +7,6 @@ import type { TtsRequest } from "~/server/tts/types";
 import { htmlToPlainText } from "~/lib/html-to-text";
 
 export const maxDuration = 800;
-export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const session = await auth();

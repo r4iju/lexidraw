@@ -1,9 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyScreenshotToken } from "~/server/auth/screenshot-token";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

@@ -71,20 +71,27 @@ export function EntitiesDataTable(props: {
       status?: "active" | "inactive" | "all";
       ownerId?: "all" | string;
     }) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (next.page !== undefined) params.set("page", String(next.page));
-      if (next.size !== undefined) params.set("size", String(next.size));
+      const current = new URLSearchParams(searchParams?.toString() ?? "");
+      const nextParams = new URLSearchParams(current.toString());
+      if (next.page !== undefined) nextParams.set("page", String(next.page));
+      if (next.size !== undefined) nextParams.set("size", String(next.size));
       if (next.query !== undefined)
-        next.query ? params.set("query", next.query) : params.delete("query");
+        next.query
+          ? nextParams.set("query", next.query)
+          : nextParams.delete("query");
       if (next.status !== undefined)
         next.status
-          ? params.set("status", next.status)
-          : params.delete("status");
+          ? nextParams.set("status", next.status)
+          : nextParams.delete("status");
       if (next.ownerId !== undefined)
         next.ownerId !== "all"
-          ? params.set("ownerId", next.ownerId)
-          : params.delete("ownerId");
-      router.replace(`?${params.toString()}`);
+          ? nextParams.set("ownerId", next.ownerId)
+          : nextParams.delete("ownerId");
+      const currentStr = `?${current.toString()}`;
+      const nextStr = `?${nextParams.toString()}`;
+      if (nextStr !== currentStr) {
+        router.replace(nextStr);
+      }
     },
     [router, searchParams],
   );

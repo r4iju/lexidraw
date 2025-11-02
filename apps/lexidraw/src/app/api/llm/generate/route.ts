@@ -8,8 +8,6 @@ import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import { generateUUID } from "~/lib/utils";
 
-export const dynamic = "force-dynamic";
-
 type Body = {
   system?: string;
   prompt?: string;

@@ -1,16 +1,22 @@
-export const dynamic = "force-dynamic";
+import { Suspense } from "react";
 import { api } from "~/trpc/server";
 import { UsersDataTable } from "./data-table";
+import { z } from "zod";
 
-export default async function AdminUsersPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
-}) {
-  const page = Number(searchParams.page ?? 1) || 1;
-  const size = Number(searchParams.size ?? 20) || 20;
-  const query =
-    typeof searchParams.query === "string" ? searchParams.query : undefined;
+const SearchParamsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(200).default(20),
+  query: z.string().optional(),
+});
+
+type Props = {
+  searchParams: Promise<z.infer<typeof SearchParamsSchema>>;
+};
+
+async function AdminUsersContent({ searchParams }: Props) {
+  "use cache: private";
+  const resolvedSearchParams = await searchParams;
+  const { page, size, query } = SearchParamsSchema.parse(resolvedSearchParams);
 
   const rowsRaw = await api.adminUsers.list.query({ page, size, query });
   const rows = rowsRaw.map((r) => ({
@@ -32,5 +38,17 @@ export default async function AdminUsersPage({
 
   return (
     <UsersDataTable rows={rows} page={page} size={size} query={query ?? ""} />
+  );
+}
+
+export default function AdminUsersPage(props: Props) {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 text-sm text-muted-foreground">Loading users…</div>
+      }
+    >
+      <AdminUsersContent {...props} />
+    </Suspense>
   );
 }

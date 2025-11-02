@@ -1,10 +1,7 @@
-export const runtime = "nodejs";
-
 import { type NextRequest, NextResponse } from "next/server";
 import type { Browser, LaunchOptions } from "puppeteer-core";
 import { getNordHttpsProxyUrls } from "@packages/lib";
 
-export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 type WaitUntil = "load" | "domcontentloaded" | "networkidle0" | "networkidle2";

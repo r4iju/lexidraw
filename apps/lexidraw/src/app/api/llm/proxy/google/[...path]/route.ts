@@ -64,9 +64,6 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
   });
 }
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ path?: string[] }> },

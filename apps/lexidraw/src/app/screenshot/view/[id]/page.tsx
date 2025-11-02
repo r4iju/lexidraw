@@ -6,8 +6,6 @@ import { drizzle as db, schema, eq } from "@packages/drizzle";
 import type { StoredLlmConfig } from "~/server/api/routers/config";
 import { AccessLevel, type PublicAccess } from "@packages/types";
 
-export const runtime = "nodejs";
-
 type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ st?: string; theme?: "light" | "dark" }>;

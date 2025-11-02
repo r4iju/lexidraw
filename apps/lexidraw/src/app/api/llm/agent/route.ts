@@ -1,7 +1,5 @@
 import { auth } from "~/server/auth";
 
-export const dynamic = "force-dynamic";
-
 export async function POST() {
   const session = await auth();
   if (!session?.user?.id) {

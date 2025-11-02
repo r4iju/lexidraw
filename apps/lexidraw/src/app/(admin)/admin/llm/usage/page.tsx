@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 import { UsageDataTable } from "./data-table";
 import { api } from "~/trpc/server";
 import { z } from "zod";

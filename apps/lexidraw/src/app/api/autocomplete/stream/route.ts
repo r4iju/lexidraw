@@ -3,8 +3,6 @@ import { auth } from "~/server/auth";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import env from "@packages/env";
 
-export const dynamic = "force-dynamic";
-
 type Body = {
   system?: string;
   prompt?: string;

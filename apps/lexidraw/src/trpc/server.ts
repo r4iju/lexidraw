@@ -112,24 +112,13 @@ const createContext = cache(async () => {
 
 export const api = createTRPCClient<AppRouter>({
   links: [
-    // loggerLink({
-    //   enabled: (opts) => {
-    //     return (
-    //       process.env.NODE_ENV === "development" || opts.direction === "down"
-    //     );
-    //   },
-    // }),
-    /**
-     * Custom RSC link that lets us invoke procedures without using http requests. Since Server
-     * Components always run on the server, we can just call the procedure as a function.
-     */
     () =>
       ({ op }) =>
         observable((observer) => {
-          console.log(`[tRPC] Starting procedure: ${op.path}`, {
-            input: sanitizeForLog(op.input),
-            type: op.type,
-          });
+          // console.log(`[tRPC] Starting procedure: ${op.path}`, {
+          //   input: sanitizeForLog(op.input),
+          //   type: op.type,
+          // });
 
           createContext()
             .then((ctx) => {
@@ -142,9 +131,9 @@ export const api = createTRPCClient<AppRouter>({
               throw new Error(`Invalid procedure path: ${op.path}`);
             })
             .then((data) => {
-              console.log(`[tRPC] Success for procedure: ${op.path}`, {
-                result: sanitizeForLog(data),
-              });
+              // console.log(`[tRPC] Success for procedure: ${op.path}`, {
+              //   result: sanitizeForLog(data),
+              // });
               observer.next({ result: { data } });
               observer.complete();
             })

@@ -49,11 +49,13 @@ const config = {
   },
   allowedDevOrigins: [env.VERCEL_URL],
   productionBrowserSourceMaps: true,
+  cacheComponents: true,
   experimental: {
-    reactCompiler: {
-      compilationMode: "all",
-      panicThreshold: "CRITICAL_ERRORS",
-    },
+    turbopackFileSystemCacheForDev: true,
+  },
+  reactCompiler: {
+    compilationMode: "all",
+    panicThreshold: "critical_errors",
   },
   turbopack: {
     resolveAlias: {
@@ -64,13 +66,9 @@ const config = {
     // sourceMaps: true,
     // unstablePersistentCaching: false,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
-
   images: {
     dangerouslyAllowSVG: false, // true
     remotePatterns: [
@@ -103,4 +101,5 @@ const config = {
   },
 } satisfies NextConfig;
 
+// @ts-expect-error seems like bundle analyzer has a minor problem with next 16
 export default withBundleAnalyzer(config);

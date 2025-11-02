@@ -1,22 +1,25 @@
-export const dynamic = "force-dynamic";
+import { Suspense } from "react";
 import { api } from "~/trpc/server";
 import { EntitiesDataTable } from "./data-table";
+import { z } from "zod";
+import AdminEntitiesSkeleton from "./skeleton";
 
-export default async function AdminEntitiesPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
-}) {
-  const page = Number(searchParams.page ?? 1) || 1;
-  const size = Number(searchParams.size ?? 50) || 50;
-  const query =
-    typeof searchParams.query === "string" ? searchParams.query : "";
-  const statusRaw =
-    typeof searchParams.status === "string" ? searchParams.status : "";
-  const status: "active" | "inactive" | "all" =
-    statusRaw === "active" || statusRaw === "inactive" ? statusRaw : "all";
-  const ownerId =
-    typeof searchParams.ownerId === "string" ? searchParams.ownerId : "";
+const SearchParamsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(200).default(50),
+  query: z.string().default(""),
+  status: z.enum(["active", "inactive", "all"]).default("all"),
+  ownerId: z.string().default(""),
+});
+
+type Props = {
+  searchParams: Promise<z.infer<typeof SearchParamsSchema>>;
+};
+
+async function AdminEntitiesContent({ searchParams }: Props) {
+  const resolvedSearchParams = await searchParams;
+  const { page, size, query, status, ownerId } =
+    SearchParamsSchema.parse(resolvedSearchParams);
 
   const rowsRaw = await api.adminEntities.list.query({
     page,
@@ -32,9 +35,7 @@ export default async function AdminEntitiesPage({
     title: r.title as string,
     ownerLabel:
       (r as { ownerName?: string | null }).ownerName ??
-      null ??
       (r as { ownerEmail?: string | null }).ownerEmail ??
-      null ??
       (r as { ownerId?: string }).ownerId ??
       "",
     membersCount: (r as { membersCount?: number }).membersCount ?? 0,
@@ -59,5 +60,13 @@ export default async function AdminEntitiesPage({
       owners={owners}
       ownerId={ownerId}
     />
+  );
+}
+
+export default function AdminEntitiesPage(props: Props) {
+  return (
+    <Suspense fallback={<AdminEntitiesSkeleton />}>
+      <AdminEntitiesContent {...props} />
+    </Suspense>
   );
 }

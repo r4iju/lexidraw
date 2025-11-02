@@ -6,8 +6,6 @@ import { headers as nextHeaders } from "next/headers";
 import { createScreenshotToken } from "~/server/auth/screenshot-token";
 import { put } from "@vercel/blob";
 
-export const dynamic = "force-dynamic";
-
 type JobRow = {
   id: string;
   entityId: string;
