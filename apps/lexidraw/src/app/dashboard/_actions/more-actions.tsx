@@ -15,7 +15,7 @@ import {
   Share1Icon,
   TrashIcon,
 } from "@radix-ui/react-icons";
-import DeleteDrawing from "./delete-entity";
+import DeleteEntity from "./delete-entity";
 import { useState, useEffect } from "react";
 import * as React from "react";
 import ShareEntity from "./share-entity";
@@ -186,11 +186,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
         </DropdownMenuContent>
       </DropdownMenu>
       {openDialog === "delete" && (
-        <DeleteDrawing
-          entity={entity}
-          isOpen
-          onOpenChange={handleCloseDialog}
-        />
+        <DeleteEntity entity={entity} isOpen onOpenChange={handleCloseDialog} />
       )}
       {openDialog === "share" && (
         <ShareEntity entity={entity} isOpen onOpenChange={handleCloseDialog} />
