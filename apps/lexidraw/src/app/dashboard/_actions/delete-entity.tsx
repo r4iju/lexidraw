@@ -19,12 +19,12 @@ import { toast } from "sonner";
 type Props = {
   entity:
     | RouterOutputs["entities"]["list"][number]
-    | { id: string; entityType: string };
+    | { id: string; entityType: string; title: string };
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };
 
-export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
+export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
   const router = useRouter();
   const { mutate: remove, isPending } = api.entities.delete.useMutation();
   const { data: metadata } = api.entities.getMetadata.useQuery({
@@ -57,7 +57,7 @@ export default function DeleteDrawing({ entity, isOpen, onOpenChange }: Props) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-72 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Confirm Deletion</DialogTitle>
+          <DialogTitle>Delete {entity.title}</DialogTitle>
           <DialogDescription>
             Are you sure you want to delete this {entity.entityType}? This
             action cannot be undone.
