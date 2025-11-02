@@ -117,18 +117,19 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
   }
 
   return (
-    <div className="relative size-full aspect-4/3 rounded-sm overflow-hidden">
+    <div className="relative w-full aspect-4/3 rounded-sm overflow-hidden">
       <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
       {src && (
         <Image
           src={src}
+          data-original-url={src}
           alt={entity.title.substring(0, 14)}
           fill
           crossOrigin="anonymous"
           quality={75}
           loading="eager"
           draggable={false}
-          className="object-cover"
+          className="object-cover object-left"
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
       )}
@@ -143,7 +144,7 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
 
 export function ThumbnailFallback() {
   return (
-    <div className="aspect-4/3 size-full bg-muted-foreground animate-pulse rounded-sm" />
+    <div className="w-full aspect-4/3 bg-muted-foreground animate-pulse rounded-sm" />
   );
 }
 
@@ -180,7 +181,7 @@ function FolderVisual({
   return (
     <div
       ref={containerRef}
-      className="relative size-full aspect-4/3 overflow-hidden"
+      className="relative w-full aspect-4/3 overflow-hidden"
     >
       <span className="sr-only">{`Folder: ${title}`}</span>
       {(() => {
@@ -204,13 +205,14 @@ function FolderVisual({
             {src ? (
               <Image
                 src={src}
+                data-original-url={src}
                 alt={title.substring(0, 14)}
                 fill
                 crossOrigin="anonymous"
                 quality={75}
                 loading="eager"
                 draggable={false}
-                className="object-cover"
+                className="object-cover object-left"
                 sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
             ) : (
@@ -317,19 +319,20 @@ function DocumentVisual({
   size: "small" | "large";
 }) {
   return (
-    <div className="relative size-full aspect-4/3">
+    <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Document: ${title}`}</span>
       <div className="absolute inset-0 rounded-sm overflow-hidden">
         {src ? (
           <Image
             src={src}
+            data-original-url={src}
             alt={title.substring(0, 14)}
             fill
             crossOrigin="anonymous"
             quality={75}
             loading="eager"
             draggable={false}
-            className="object-cover"
+            className="object-cover object-left"
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
@@ -338,10 +341,6 @@ function DocumentVisual({
 
         {!src && (
           <div className="absolute inset-0 opacity-70 bg-[repeating-linear-gradient(transparent,transparent_12px,theme(colors.border)_12px,theme(colors.border)_13px)]" />
-        )}
-
-        {isPending && (
-          <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
         )}
 
         <div className="pointer-events-none absolute inset-0 rounded-sm border border-border" />
@@ -373,19 +372,20 @@ function DrawingVisual({
   size: "small" | "large";
 }) {
   return (
-    <div className="relative size-full aspect-4/3">
+    <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Drawing: ${title}`}</span>
-      <div className="absolute inset-0 rounded-sm overflow-hidden">
+      <div className="absolute inset-0 rounded-sm overflow-hidden bg-card">
         {src ? (
           <Image
             src={src}
+            data-original-url={src}
             alt={title.substring(0, 14)}
             fill
             crossOrigin="anonymous"
             quality={75}
             loading="eager"
             draggable={false}
-            className="object-cover"
+            className="object-cover object-left"
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
@@ -433,19 +433,20 @@ function UrlVisual({
   size: "small" | "large";
 }) {
   return (
-    <div className="relative size-full aspect-4/3">
+    <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Drawing: ${title}`}</span>
       <div className="absolute inset-0 rounded-sm overflow-hidden">
         {src ? (
           <Image
             src={src}
+            data-original-url={src}
             alt={title.substring(0, 14)}
             fill
             crossOrigin="anonymous"
             quality={75}
             loading="eager"
             draggable={false}
-            className="object-cover"
+            className="object-cover object-left"
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
