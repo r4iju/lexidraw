@@ -1,5 +1,3 @@
-"use cache: private";
-
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import env from "@packages/env";
 import { appRouter } from "~/server/api/root";
