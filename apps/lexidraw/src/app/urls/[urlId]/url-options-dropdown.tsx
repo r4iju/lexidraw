@@ -14,10 +14,12 @@ import { toast } from "sonner";
 import { useState } from "react";
 import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
 import DeleteEntityModal from "~/app/dashboard/_actions/delete-entity";
+import TagEntityModal from "~/app/dashboard/_actions/tag-modal";
 import type { RouterOutputs } from "~/trpc/shared";
 import { api } from "~/trpc/react";
 import Link from "next/link";
 import { revalidateUrl } from "./actions";
+import { useRouter } from "next/navigation";
 
 type Props = {
   className?: string;
@@ -33,8 +35,10 @@ export default function UrlOptionsDropdown({
   entity,
   onChangeUrl,
 }: Props) {
+  const router = useRouter();
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isTagOpen, setIsTagOpen] = useState(false);
   const { mutate: refresh, isPending } = api.entities.distillUrl.useMutation({
     onSuccess: async () => {
       toast.success("Refreshed article");
@@ -45,6 +49,11 @@ export default function UrlOptionsDropdown({
 
   const handleRefresh = () => {
     refresh({ id: entity.id });
+  };
+
+  const handleTagSuccess = async () => {
+    await revalidateUrl(entity.id);
+    router.refresh();
   };
 
   return (
@@ -69,6 +78,9 @@ export default function UrlOptionsDropdown({
           <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
             Rename
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setIsTagOpen(true)}>
+            Edit tags
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsDeleteOpen(true)}>
             Delete
           </DropdownMenuItem>
@@ -86,6 +98,12 @@ export default function UrlOptionsDropdown({
         onOpenChange={(open) => {
           if (!open) setIsDeleteOpen(false);
         }}
+      />
+      <TagEntityModal
+        entity={{ id: entity.id }}
+        isOpen={isTagOpen}
+        onOpenChange={setIsTagOpen}
+        onSuccess={handleTagSuccess}
       />
     </DropdownMenu>
   );

@@ -20,6 +20,7 @@ import {
   LayoutDashboardIcon,
   RotateCcwIcon,
   Trash2,
+  TagsIcon,
 } from "lucide-react";
 import {
   exportToBlob,
@@ -31,9 +32,12 @@ import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 import { put } from "@vercel/blob/client";
 import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
 import DeleteEntityModal from "~/app/dashboard/_actions/delete-entity";
+import TagEntityModal from "~/app/dashboard/_actions/tag-modal";
 import { AccessLevel } from "@packages/types";
 import { Switch } from "~/components/ui/switch";
 import { useAutoSave } from "~/hooks/use-auto-save";
+import { revalidate } from "./actions";
+import { useRouter } from "next/navigation";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
@@ -41,6 +45,7 @@ type Props = {
 };
 
 export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
+  const router = useRouter();
   const isDarkTheme = useIsDarkTheme();
   const { mutate: save } = api.entities.save.useMutation();
   const { mutate: generateTokens } =
@@ -53,6 +58,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     useAutoSave();
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isTagOpen, setIsTagOpen] = useState(false);
   const canEdit = drawing.accessLevel === AccessLevel.EDIT;
 
   const CustomMenuItem = MainMenu.ItemCustom;
@@ -351,6 +357,23 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           </Button>
         </CustomMenuItem>
       )}
+      {canEdit && (
+        <CustomMenuItem
+          style={{
+            padding: 0,
+            marginTop: 0,
+          }}
+        >
+          <Button
+            onClick={() => setIsTagOpen(true)}
+            variant="ghost"
+            className="w-full justify-start gap-2 h-8 py-0 px-3 cursor-pointer"
+          >
+            <TagsIcon size={14} strokeWidth={2} />
+            Edit tags
+          </Button>
+        </CustomMenuItem>
+      )}
       <CustomMenuItem
         style={{
           padding: 0,
@@ -442,6 +465,17 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           entity={{ id: drawing.id, entityType: "drawing" }}
           isOpen={isDeleteOpen}
           onOpenChange={setIsDeleteOpen}
+        />
+      )}
+      {canEdit && (
+        <TagEntityModal
+          entity={{ id: drawing.id }}
+          isOpen={isTagOpen}
+          onOpenChange={setIsTagOpen}
+          onSuccess={async () => {
+            await revalidate(drawing.id);
+            router.refresh();
+          }}
         />
       )}
     </>

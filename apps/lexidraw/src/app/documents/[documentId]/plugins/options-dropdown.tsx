@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
 import DeleteEntityModal from "~/app/dashboard/_actions/delete-entity";
+import TagEntityModal from "~/app/dashboard/_actions/tag-modal";
 import type { RouterOutputs } from "~/trpc/shared";
 import { AccessLevel } from "@packages/types";
 import {
@@ -22,6 +23,8 @@ import {
   useUnsavedChanges,
 } from "../../../../hooks/use-unsaved-changes";
 import { useAutoSave } from "../../../../hooks/use-auto-save";
+import { revalidate } from "../actions";
+import { useRouter } from "next/navigation";
 
 type Props = {
   className?: string;
@@ -39,11 +42,13 @@ export default function OptionsDropdown({
   isSavingDocument,
   entity,
 }: Props) {
+  const router = useRouter();
   const { markPristine } = useUnsavedChanges();
   const { enabled: autoSaveEnabled, setEnabled: setAutoSaveEnabled } =
     useAutoSave();
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isTagOpen, setIsTagOpen] = useState(false);
   const canEdit = entity.accessLevel === AccessLevel.EDIT;
 
   const handleDropdownSave = () => {
@@ -52,6 +57,11 @@ export default function OptionsDropdown({
     onSaveDocument(() => {
       markPristine();
     });
+  };
+
+  const handleTagSuccess = async () => {
+    await revalidate(entity.id);
+    router.refresh();
   };
 
   return (
@@ -93,6 +103,9 @@ export default function OptionsDropdown({
               <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
                 Rename
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsTagOpen(true)}>
+                Edit tags
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setIsDeleteOpen(true)}>
                 Delete
               </DropdownMenuItem>
@@ -118,6 +131,14 @@ export default function OptionsDropdown({
           entity={{ id: entity.id, entityType: "document" }}
           isOpen={isDeleteOpen}
           onOpenChange={setIsDeleteOpen}
+        />
+      )}
+      {canEdit && (
+        <TagEntityModal
+          entity={{ id: entity.id }}
+          isOpen={isTagOpen}
+          onOpenChange={setIsTagOpen}
+          onSuccess={handleTagSuccess}
         />
       )}
     </DropdownMenu>

@@ -71,7 +71,7 @@ export function EntityCard({
     <Card
       id={`entity-${entity.id}`}
       className={cn(
-        "relative flex gap-4 rounded-lg p-4 justify-between",
+        "relative flex gap-4 rounded-lg p-0 justify-between",
         // "hover:bg-muted/20 transition-colors duration-150",
         flex === "flex-row" && "flex-col",
         flex === "flex-col" && "flex-row",
@@ -91,11 +91,11 @@ export function EntityCard({
       {/* left side */}
       <div
         className={cn(
-          "flex flex-row items-center gap-4",
+          "flex flex-row items-center gap-4 px-0 py-0",
           flex === "flex-row" && "hidden",
         )}
       >
-        <div className="w-full aspect-4/3 min-h-10">
+        <div className="h-18.5 aspect-4/3 shrink-0 overflow-hidden rounded-none">
           <Link
             href={itemUrl({
               id: entity.id,
@@ -114,15 +114,16 @@ export function EntityCard({
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
+          className="min-w-0 px-4"
         >
-          <span className="font-semibold line-clamp-1 w-full select-none flex items-center gap-2">
-            <span className="truncate">{entity.title}</span>
+          <span className="font-semibold line-clamp-1 select-none ">
+            {entity.title}
           </span>
         </Link>
       </div>
 
       {/* middle: date + actions */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center px-4 py-4">
         <Link
           href={itemUrl({
             id: entity.id,
@@ -158,40 +159,27 @@ export function EntityCard({
       {/* right side (if flex-row) */}
       <div
         className={cn(
-          "items-center gap-4",
+          "items-center gap-4 px-0",
           flex === "flex-row" ? "flex flex-col" : "hidden",
         )}
       >
-        <EntityTitle entity={entity} />
+        <div className="w-full px-4">
+          <EntityTitle entity={entity} />
+        </div>
         <Link
           href={itemUrl({
             id: entity.id,
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
-          className="block w-full aspect-4/3"
+          className={cn("block w-full aspect-4/3 rounded-md overflow-hidden", {
+            "px-4": flex === "flex-row",
+          })}
           draggable={false}
         >
           <ThumbnailClient entity={entity} />
         </Link>
       </div>
-
-      {/* "open" button if flex-row */}
-      {flex === "flex-row" && (
-        <Button className="mt-2 w-full" asChild>
-          <Link
-            href={itemUrl({
-              id: entity.id,
-              entityType: entity.entityType as EntityType,
-              searchParams,
-            })}
-          >
-            {String(entity.entityType).toLowerCase() === "directory"
-              ? "Open folder"
-              : "Open"}
-          </Link>
-        </Button>
-      )}
     </Card>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import {
@@ -20,28 +20,71 @@ import { cn } from "~/lib/utils";
 import { revalidateDashboard } from "../server-actions";
 import { TagsInput } from "~/components/ui/tags-input";
 
-type Props = {
-  entity: RouterOutputs["entities"]["list"][number];
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-};
+type EntityWithTags = RouterOutputs["entities"]["list"][number];
+type EntityWithId = { id: string; tags?: string[] };
 
-const TagEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
+type Props =
+  | {
+      entity: EntityWithTags;
+      isOpen: boolean;
+      onOpenChange: (open: boolean) => void;
+      onSuccess?: () => Promise<void>;
+    }
+  | {
+      entity: EntityWithId;
+      isOpen: boolean;
+      onOpenChange: (open: boolean) => void;
+      onSuccess?: () => Promise<void>;
+    };
+
+const TagEntityModal = (props: Props) => {
+  const { isOpen, onOpenChange, onSuccess } = props;
   const router = useRouter();
-  const [tags, setTags] = useState<string[]>(entity.tags || []);
+  const entityId = props.entity.id;
+  const initialTags =
+    "tags" in props.entity ? props.entity.tags || [] : undefined;
+
+  // Fetch tags if not provided
+  const { data: fetchedTags } = api.entities.getEntityTags.useQuery(
+    { entityId },
+    {
+      enabled: isOpen && initialTags === undefined,
+    },
+  );
+
+  const currentTags = useMemo(() => {
+    return (
+      initialTags ??
+      fetchedTags?.map((tag) => tag.name ?? "").filter(Boolean) ??
+      []
+    );
+  }, [initialTags, fetchedTags]);
+
+  const [tags, setTags] = useState<string[]>(currentTags);
   const { mutate: addTags } = api.entities.updateEntityTags.useMutation();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Update tags when fetched or when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTags(currentTags);
+    }
+  }, [isOpen, currentTags]);
 
   const handleSave = () => {
     setIsLoading(true);
     addTags(
-      { entityId: entity.id, tagNames: tags },
+      { entityId, tagNames: tags },
       {
         onSuccess: async () => {
-          await revalidateDashboard();
-          router.refresh();
+          if (onSuccess) {
+            await onSuccess();
+          } else {
+            await revalidateDashboard();
+            router.refresh();
+          }
           toast.success("Saved!", {
-            description: `Added tags: ${tags.join(", ")}`,
+            description: `Updated tags: ${tags.join(", ") || "No tags"}`,
           });
           setIsLoading(false);
           onOpenChange(false);
@@ -62,12 +105,12 @@ const TagEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor={`tags-input-${entity.id}`} className="text-right">
+            <Label htmlFor={`tags-input-${entityId}`} className="text-right">
               Tags
             </Label>
             <div className="col-span-3">
               <TagsInput
-                id={`tags-input-${entity.id}`}
+                id={`tags-input-${entityId}`}
                 value={tags}
                 onChange={setTags}
                 placeholder="Add tags..."
