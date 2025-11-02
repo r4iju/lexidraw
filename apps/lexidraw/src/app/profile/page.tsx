@@ -1,3 +1,5 @@
+"use cache: private";
+
 import { Suspense } from "react";
 import ProfileForm from "./form";
 import FormSkeleton from "./skeleton";
@@ -20,7 +22,7 @@ async function ProfileContent() {
   );
 }
 
-export default function SignInPage() {
+export default async function SignInPage() {
   return (
     <main className="flex h-full min-h-[calc(100vh-56px-65px)] flex-col w-full">
       <div className="flex-1 overflow-y-auto w-full">

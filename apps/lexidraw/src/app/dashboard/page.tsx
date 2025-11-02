@@ -1,3 +1,5 @@
+"use cache: private";
+
 import { Suspense } from "react";
 import type { Metadata } from "next/types";
 import { Dashboard } from "./dashboard";
@@ -34,7 +36,7 @@ async function DashboardContent({ searchParams }: Props) {
   return <Dashboard {...query} />;
 }
 
-export default function DashboardPage(props: Props) {
+export default async function DashboardPage(props: Props) {
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       <DashboardContent {...props} />
