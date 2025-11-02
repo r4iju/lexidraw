@@ -77,7 +77,7 @@ export class CollapsibleContainerNode extends ElementNode {
     if (trigger) trigger.dataset.state = stateStr;
     if (!content) return;
 
-    // Inline height & CSS var — this is what Radix does internally
+    // Always set the CSS var first for proper animation support
     const fullHeight = content.scrollHeight;
     content.style.setProperty(
       "--radix-accordion-content-height",
@@ -85,16 +85,14 @@ export class CollapsibleContainerNode extends ElementNode {
     );
 
     if (this.__open) {
-      content.style.setProperty(
-        "--radix-accordion-content-height",
-        `${fullHeight}px`,
-      );
       // remove the inline height that was added when we closed last time
       content.style.removeProperty("height");
     } else {
-      content.style.height = "0"; // kept for the close animation
+      // Set height to 0 immediately for closed state (before animation)
+      content.style.height = "0";
     }
 
+    // Set data-state after height is configured to ensure proper animation
     content.dataset.state = stateStr;
   }
 

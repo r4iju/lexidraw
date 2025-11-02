@@ -32,7 +32,7 @@ export class CollapsibleTitleNode extends ElementNode {
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    let isOpen = true;
+    let isOpen = false; // Default to closed to avoid visual mismatch
     editor.getEditorState().read(() => {
       const parent = this.getParentOrThrow();
       if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
