@@ -34,6 +34,7 @@ type Props = {
 export function SearchBar({ className }: Props) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasScrolledOnFocusRef = useRef(false);
   const isDarkTheme = useIsDarkTheme();
   const [displayResults, setDisplayResults] = useState<CombinedSearchResult[]>(
     [],
@@ -116,6 +117,46 @@ export function SearchBar({ className }: Props) {
     return formatDistanceToNow(date, { addSuffix: true });
   };
 
+  // Ensure the input is fully visible on mobile when focusing/typing
+  const scrollInputIntoView = (mode: "normal" | "tight" = "normal") => {
+    if (typeof window === "undefined") return;
+    // Only apply this behavior on small screens
+    const isSmallScreen =
+      "matchMedia" in window && window.matchMedia("(max-width: 768px)").matches;
+    if (!isSmallScreen) return;
+
+    const el = inputRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const viewport = {
+      height: window.innerHeight || document.documentElement.clientHeight,
+    };
+    // Leave a small sliver visible to maximize space for results + keyboard
+    const visibleSliver = 8; // px
+    const targetTop =
+      mode === "tight"
+        ? // push almost entirely off-screen (keep bottom sliver visible)
+          window.scrollY + rect.top + (rect.height - visibleSliver)
+        : // keep the input near the top and fully visible
+          window.scrollY + rect.top - 12;
+    // clamp within scrollable range
+    const docHeight = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+      document.body.offsetHeight,
+      document.documentElement.offsetHeight,
+      document.body.clientHeight,
+      document.documentElement.clientHeight,
+    );
+    const maxScrollTop = Math.max(0, docHeight - viewport.height);
+    const top = Math.max(0, Math.min(targetTop, maxScrollTop));
+    try {
+      window.scrollTo({ top, behavior: "smooth" });
+    } catch {
+      window.scrollTo(0, top);
+    }
+  };
+
   return (
     <Popover>
       <div className={cn("w-full", className)}>
@@ -125,7 +166,19 @@ export function SearchBar({ className }: Props) {
             type="text"
             placeholder="🔎 Search by title, content, or tags..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => {
+              hasScrolledOnFocusRef.current = false;
+              scrollInputIntoView();
+            }}
+            onChange={(e) => {
+              const next = e.target.value;
+              setQuery(next);
+              // On first keystroke after focus, nudge into view
+              if (!hasScrolledOnFocusRef.current && next.length > 0) {
+                scrollInputIntoView("tight");
+                hasScrolledOnFocusRef.current = true;
+              }
+            }}
             className={cn(
               "h-12 md:h-10 w-full",
               "pr-8", // keep room for the spinner
