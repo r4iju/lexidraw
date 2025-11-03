@@ -213,11 +213,7 @@ export const ttsRouter = createTRPCRouter({
         .execute();
       const row = rows[0];
       if (!row) {
-        return {
-          docKey: "",
-          status: "queued",
-          updatedAt: new Date().toISOString(),
-        } as TtsJobSnapshot;
+        return null;
       }
       return {
         docKey: row.id,
@@ -476,11 +472,7 @@ export const ttsRouter = createTRPCRouter({
         .execute();
       const row = rows[0];
       if (!row) {
-        return {
-          docKey: "",
-          status: "queued",
-          updatedAt: new Date().toISOString(),
-        } as TtsJobSnapshot;
+        return null;
       }
       return {
         docKey: row.id,

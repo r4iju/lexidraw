@@ -303,6 +303,9 @@ export function TtsToolbar({ className }: Props) {
         const snap = await utils.tts.getDocumentTtsStatus.fetch({
           documentId,
         });
+        if (!snap) {
+          break;
+        }
 
         const completedSegments = snap.segmentCount ?? 0;
         const totalSegments = snap.plannedCount ?? snap.segmentCount ?? 1;

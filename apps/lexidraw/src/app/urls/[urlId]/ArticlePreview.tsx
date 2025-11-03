@@ -373,6 +373,9 @@ export default function ArticlePreview({
         const snap = await utils.tts.getArticleTtsStatus.fetch({
           articleId: entity.id,
         });
+        if (!snap) {
+          break;
+        }
 
         const completedSegments = snap.segmentCount ?? 0;
         const totalSegments = snap.plannedCount ?? snap.segmentCount ?? 1;
