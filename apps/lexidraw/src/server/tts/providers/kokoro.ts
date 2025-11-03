@@ -46,6 +46,14 @@ export function createKokoroTtsProvider(
       if (!res.ok) {
         const text = await res.text();
         const msg = `Kokoro TTS error: ${res.status} ${res.statusText} ${text}`;
+        if (res.status === 429) {
+          // Rate limited → retry with backoff from Retry-After header
+          const retryAfterHeader = res.headers.get("Retry-After");
+          const retryAfter = retryAfterHeader
+            ? Number.parseInt(retryAfterHeader, 10) || 2
+            : 2;
+          throw new RetryableError(msg, { retryAfter });
+        }
         if (res.status >= 500) {
           // transient → let the step retry with a small backoff
           throw new RetryableError(msg, { retryAfter: 2 });

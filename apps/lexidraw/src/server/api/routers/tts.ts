@@ -112,7 +112,12 @@ export const ttsRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id;
       await assertCanAccessDocumentOrThrow(userId, input.documentId);
-      const userCfg = ctx.session?.user?.config?.tts ?? {};
+      // Query fresh config from database instead of stale session cache
+      const user = await ctx.drizzle.query.users.findFirst({
+        where: (users, { eq }) => eq(users.id, userId),
+        columns: { config: true },
+      });
+      const userCfg = user?.config?.tts ?? {};
       const cfg = {
         provider: input.provider ?? (userCfg.provider as string) ?? "kokoro",
         voiceId: input.voiceId ?? (userCfg.voiceId as string) ?? "Alva",
@@ -327,7 +332,12 @@ export const ttsRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id;
       await assertCanAccessArticleOrThrow(userId, input.articleId);
-      const userCfg = ctx.session?.user?.config?.tts ?? {};
+      // Query fresh config from database instead of stale session cache
+      const user = await ctx.drizzle.query.users.findFirst({
+        where: (users, { eq }) => eq(users.id, userId),
+        columns: { config: true },
+      });
+      const userCfg = user?.config?.tts ?? {};
       const cfg = {
         provider: input.provider ?? (userCfg.provider as string) ?? "kokoro",
         voiceId: input.voiceId ?? (userCfg.voiceId as string) ?? "Alva",
