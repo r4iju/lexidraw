@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { unsplash } from "~/server/unsplash";
+import { getUnsplash } from "~/server/unsplash";
 import { TRPCError } from "@trpc/server";
 import env from "@packages/env";
 
@@ -21,6 +21,7 @@ export const imageRouter = createTRPCRouter({
     .query(async ({ input }) => {
       console.log(`I'm lucky search for: ${input.query}`);
 
+      const unsplash = getUnsplash();
       if (!unsplash) {
         console.error(
           "Unsplash client is not initialized. Check server setup and UNSPLASH_ACCESS_KEY.",
@@ -93,6 +94,7 @@ export const imageRouter = createTRPCRouter({
         `Searching Unsplash for: ${query}, page: ${page}, perPage: ${perPage}`,
       );
 
+      const unsplash = getUnsplash();
       if (!unsplash) {
         console.error(
           "Unsplash client is not initialized. Check server setup and UNSPLASH_ACCESS_KEY.",
@@ -152,6 +154,7 @@ export const imageRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const { downloadLocation } = input;
 
+      const unsplash = getUnsplash();
       if (!unsplash) {
         console.error(
           "Unsplash client is not initialized. Cannot track download.",

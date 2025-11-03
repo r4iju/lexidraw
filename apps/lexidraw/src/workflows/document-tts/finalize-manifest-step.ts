@@ -60,6 +60,7 @@ export async function finalizeManifestStep(
     await put(manifestPath, Buffer.from(JSON.stringify(manifest), "utf-8"), {
       access: "public",
       contentType: "application/json",
+      allowOverwrite: true,
     });
     console.log("[tts][wf] manifest written", { manifestUrl });
   }

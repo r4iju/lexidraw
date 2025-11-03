@@ -25,6 +25,3 @@ export function getUnsplash(): UnsplashClient {
   }
   return globalThis.__unsplashClient;
 }
-
-// Back-compat default export for existing imports
-export const unsplash = getUnsplash();

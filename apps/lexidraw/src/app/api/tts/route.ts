@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
   try {
     // Resolve source text: prefer explicit text, otherwise pull from entity.distilled
     let resolvedText = typeof body.text === "string" ? body.text : undefined;
+    let htmlContent: string | undefined;
     let entityType: "url" | "document" | undefined;
     if ((!resolvedText || resolvedText.trim() === "") && body.entityId) {
       try {
@@ -54,8 +55,8 @@ export async function POST(req: NextRequest) {
             const parsed = JSON.parse(existing.elements) as {
               distilled?: { contentHtml?: string };
             };
-            const html = parsed?.distilled?.contentHtml ?? "";
-            if (html) resolvedText = htmlToPlainText(html);
+            htmlContent = parsed?.distilled?.contentHtml;
+            if (htmlContent) resolvedText = htmlToPlainText(htmlContent);
           }
         }
       } catch {
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
       void start(generateArticleTtsWorkflow, [
         body.entityId,
         resolvedText,
+        htmlContent,
         resolved,
       ]);
 

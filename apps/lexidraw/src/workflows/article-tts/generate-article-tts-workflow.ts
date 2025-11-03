@@ -24,6 +24,7 @@ export type TtsConfig = {
 export async function generateArticleTtsWorkflow(
   articleId: string,
   plainText: string,
+  htmlContent: string | undefined,
   tts: TtsConfig,
 ): Promise<{ manifestUrl: string; stitchedUrl?: string }> {
   "use workflow";
@@ -31,6 +32,7 @@ export async function generateArticleTtsWorkflow(
   console.log("[tts][wf][article] start", {
     articleId,
     textLen: plainText.length,
+    htmlLen: htmlContent?.length ?? 0,
     provider: tts.provider,
     voiceId: tts.voiceId,
     speed: tts.speed,
@@ -38,7 +40,12 @@ export async function generateArticleTtsWorkflow(
     languageCode: tts.languageCode,
   });
 
-  const plannedResult = await planChunksStep(articleId, plainText, tts);
+  const plannedResult = await planChunksStep(
+    articleId,
+    plainText,
+    htmlContent,
+    tts,
+  );
   articleKey = plannedResult.articleKey;
   const planned = plannedResult.planned;
   console.log("[tts][wf][article] planned", {
@@ -59,6 +66,9 @@ export async function generateArticleTtsWorkflow(
     audioUrl: string;
     text: string;
     chunkHash: string;
+    sectionTitle?: string;
+    sectionIndex?: number;
+    headingDepth?: number;
   }> = [];
 
   const BATCH = Number(process.env.TTS_WORKFLOW_BATCH_SIZE ?? "4");
@@ -77,10 +87,9 @@ export async function generateArticleTtsWorkflow(
           speed: tts.speed,
           languageCode: tts.languageCode,
           sampleRate: tts.sampleRate,
-          // Articles don't have sections like documents
-          sectionTitle: undefined,
-          sectionIndex: undefined,
-          headingDepth: undefined,
+          sectionTitle: p.sectionTitle,
+          sectionIndex: p.sectionIndex,
+          headingDepth: p.headingDepth,
           sectionId: undefined,
         }),
       ),
@@ -112,7 +121,9 @@ export async function generateArticleTtsWorkflow(
       index: r.index,
       text: r.text,
       audioUrl: r.audioUrl,
-      // Articles don't have section metadata
+      sectionTitle: r.sectionTitle,
+      sectionIndex: r.sectionIndex,
+      headingDepth: r.headingDepth,
     })),
     totalChars: results.reduce((s, r) => s + r.text.length, 0),
     stitchedUrl,

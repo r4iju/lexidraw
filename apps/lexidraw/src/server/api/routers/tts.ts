@@ -376,10 +376,27 @@ export const ttsRouter = createTRPCRouter({
         })
         .execute();
 
+      // Fetch HTML content from entity for section extraction
+      let htmlContent: string | undefined;
+      const entity = await drizzle.query.entities.findFirst({
+        where: (t) => eq(t.id, input.articleId),
+      });
+      if (entity?.elements) {
+        try {
+          const parsed = JSON.parse(entity.elements) as {
+            distilled?: { contentHtml?: string };
+          };
+          htmlContent = parsed.distilled?.contentHtml;
+        } catch {
+          // ignore parse errors
+        }
+      }
+
       // Fire workflow (do not await full run)
       void start(generateArticleTtsWorkflow, [
         input.articleId,
         input.plainText ?? "",
+        htmlContent,
         cfg,
       ]);
 
