@@ -24,6 +24,8 @@ import {
   type GenerateClientTokenOptions,
 } from "@vercel/blob/client";
 import { headers } from "next/headers";
+import { start } from "workflow/api";
+import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -163,17 +165,20 @@ export const entityRouter = createTRPCRouter({
         )
         .digest("hex");
 
+      const jobId = uuidV4();
+      const createdAt = new Date();
+
       // upsert job
       await ctx.drizzle
         .insert(ctx.schema.thumbnailJobs)
         .values({
-          id: uuidV4(),
+          id: jobId,
           entityId: input.id,
           version,
           status: "pending",
           attempts: 0,
-          nextRunAt: new Date(),
-          createdAt: new Date(),
+          nextRunAt: createdAt,
+          createdAt,
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
@@ -189,6 +194,21 @@ export const entityRouter = createTRPCRouter({
           },
         })
         .execute();
+
+      // Trigger workflow for thumbnail generation (fire-and-forget)
+      // Fetch the job ID after upsert to handle conflict case
+      const job = await ctx.drizzle.query.thumbnailJobs.findFirst({
+        where: (t) => and(eq(t.entityId, input.id), eq(t.version, version)),
+      });
+
+      if (job) {
+        void start(generateThumbnailWorkflow, [
+          job.id,
+          job.entityId,
+          job.version,
+          new Date(job.createdAt),
+        ]);
+      }
     } catch (e) {
       console.error("enqueue_thumbnail_job_failed", e);
       // swallow: saving the document should not fail due to queueing issues
