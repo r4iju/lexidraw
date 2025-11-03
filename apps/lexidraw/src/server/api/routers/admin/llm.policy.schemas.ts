@@ -19,7 +19,7 @@ export const LLMPolicySchema = z.object({
   provider: z.string().min(1),
   modelId: z.string().min(1),
   temperature: z.number().min(0).max(1),
-  maxOutputTokens: z.number().int().positive(),
+  maxOutputTokens: z.coerce.number().int().positive(),
   allowedModels: z.array(AllowedModelSchema),
   enforcedCaps: EnforcedCapsSchema,
   extraConfig: z.record(z.string(), z.unknown()).nullish(),

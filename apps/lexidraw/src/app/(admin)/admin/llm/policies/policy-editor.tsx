@@ -40,7 +40,7 @@ function ModeCard({
   title: string;
   policy: Policy;
   onChange: (p: Policy) => void;
-  onSave: () => void;
+  onSave: (p: Policy) => void;
   saving: boolean;
   error?: string | null;
 }) {
@@ -239,8 +239,11 @@ function ModeCard({
           onClick={() => {
             const parsed = validateAndFormatJson();
             if (parsed) {
-              onChange({ ...policy, allowedModels: parsed });
-              onSave();
+              const nextPolicy = { ...policy, allowedModels: parsed };
+              onChange(nextPolicy);
+              onSave(nextPolicy);
+            } else {
+              onSave(policy);
             }
           }}
           disabled={saving || !!jsonError}
@@ -275,30 +278,8 @@ export function PoliciesEditor({
 
   const buildPolicies = React.useCallback(
     (policiesFromServer: Policy[]): Policy[] => {
-      const byMode: Record<Policy["mode"], Policy | undefined> = {
-        chat: undefined,
-        agent: undefined,
-        autocomplete: undefined,
-      };
-      for (const p of policiesFromServer) byMode[p.mode] = p;
-      const ensure = (mode: Policy["mode"]): Policy =>
-        byMode[mode] ?? {
-          id: 0,
-          mode,
-          provider: "openai",
-          modelId: "gpt-5-mini",
-          temperature: 0.5,
-          maxOutputTokens: 1024,
-          allowedModels: [{ provider: "openai", modelId: "gpt-5-mini" }],
-          enforcedCaps: {
-            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
-          },
-          extraConfig:
-            mode === "autocomplete"
-              ? { reasoningEffort: "minimal", verbosity: "low" }
-              : undefined,
-        };
-      return [ensure("chat"), ensure("agent"), ensure("autocomplete")];
+      // Do not create client-side fallbacks; render only server-provided policies
+      return policiesFromServer;
     },
     [],
   );
@@ -355,7 +336,7 @@ export function PoliciesEditor({
           }
           policy={p}
           onChange={(np) => setOne(p.mode, np)}
-          onSave={() => savePolicy(p)}
+          onSave={(np) => savePolicy(np)}
           saving={upsert.isPending}
           error={upsert.isError ? upsert.error.message : null}
         />
