@@ -402,13 +402,13 @@ export function TtsToolbar({ className }: Props) {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            size="icon"
+            size="sm"
             variant="outline"
-            className="w-14 md:w-12 h-12 md:h-10 rounded-r-none border-r-0"
+            className="h-12 md:h-10 rounded-r-none border-r-0"
             title="Generate audio"
           >
-            TTS
-            <ChevronDown className="h-4 w-4" />
+            <span className="mr-2">TTS</span>
+            <ChevronDown className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
@@ -416,7 +416,7 @@ export function TtsToolbar({ className }: Props) {
             onClick={handleGenerateAudio}
             className="flex items-center gap-2 justify-between"
           >
-            <span className="text-md">
+            <span className="text-md mr-2">
               {ttsStatusQuery.data?.status === "ready"
                 ? "Regenerate audio"
                 : "Generate audio"}
