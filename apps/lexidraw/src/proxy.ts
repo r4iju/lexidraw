@@ -66,6 +66,7 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+//       source: '/((?!_next/static|_next/image|favicon.ico|.well-known/workflow/).*)', 
 export const config = {
   matcher: [
     /*
@@ -75,6 +76,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    "/((?!api|assets|favicon|fonts|logo|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api|assets|favicon|fonts|logo|_next/static|_next/image|favicon.ico|.well-known/workflow/).*)",
   ],
 };

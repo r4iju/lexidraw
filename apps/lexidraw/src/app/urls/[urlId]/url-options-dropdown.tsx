@@ -93,7 +93,7 @@ export default function UrlOptionsDropdown({
         onOpenChange={setIsRenameOpen}
       />
       <DeleteEntityModal
-        entity={{ id: entity.id, entityType: "url" }}
+        entity={{ id: entity.id, entityType: "url", title: entity.title }}
         isOpen={isDeleteOpen}
         onOpenChange={(open) => {
           if (!open) setIsDeleteOpen(false);

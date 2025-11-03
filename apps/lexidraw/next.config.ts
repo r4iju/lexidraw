@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import nextBundleAnalyzer from "@next/bundle-analyzer";
 import env from "@packages/env";
+import { withWorkflow } from "workflow/next";
 
 const withBundleAnalyzer = nextBundleAnalyzer({
   enabled: env.ANALYZE,
@@ -102,4 +103,4 @@ const config = {
   },
 } satisfies NextConfig;
 
-export default withBundleAnalyzer(config);
+export default withBundleAnalyzer(withWorkflow(config));

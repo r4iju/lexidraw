@@ -85,6 +85,7 @@ import { Divider } from "./divider";
 import { CodeSelector } from "./code-selector";
 import { InsertItem } from "./insert-item";
 import { SettingsDropdown } from "./settings-dropdown";
+import { TtsToolbar } from "../TtsToolbar";
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
@@ -691,6 +692,9 @@ export default function ToolbarPlugin({
           Icon={ListTree}
         />
       </fieldset>
+
+      <TtsToolbar />
+
       <Divider />
       <SettingsDropdown className="rounded-md" />
     </div>

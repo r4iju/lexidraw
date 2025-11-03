@@ -10,6 +10,19 @@ import numpy as np
 import soundfile as sf
 
 
+def sanitize_for_say(text: str) -> str:
+    """Sanitize text for safe use with Apple 'say' command.
+
+    Removes null bytes, normalizes newlines, and trims whitespace.
+    """
+    # Remove null bytes
+    text = text.replace("\x00", "")
+    # Normalize newlines (CRLF -> LF)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Trim whitespace
+    return text.strip()
+
+
 class AppleSayProvider:
     name: str = "apple_say"
     maxCharsPerRequest: int = 10000
@@ -118,12 +131,45 @@ class AppleSayProvider:
         base_wpm = 190
         mul = 1.0 if speed is None else float(speed)
         wpm = max(80, min(450, int(base_wpm * mul)))
+
+        sanitized_text = sanitize_for_say(text)
+
         with tempfile.TemporaryDirectory() as td:
             aiff = os.path.join(td, "out.aiff")
-            # Use -o to write AIFF and then load via soundfile
-            subprocess.run(
-                ["say", "-v", voice, "-r", str(wpm), "-o", aiff, text], check=True
-            )
+            # Write text to temp file to avoid CLI parsing issues
+            text_file = os.path.join(td, "input.txt")
+            try:
+                with open(text_file, "w", encoding="utf-8") as tf:
+                    tf.write(sanitized_text)
+
+                # Use -f flag to read text from file
+                args = [
+                    "say",
+                    "-v",
+                    voice,
+                    "-r",
+                    str(wpm),
+                    "-o",
+                    aiff,
+                    "-f",
+                    text_file,
+                ]
+                subprocess.run(args, check=True)
+            except Exception:
+                # Fallback: use -- separator if file-based approach fails
+                args = [
+                    "say",
+                    "-v",
+                    voice,
+                    "-r",
+                    str(wpm),
+                    "-o",
+                    aiff,
+                    "--",
+                    sanitized_text,
+                ]
+                subprocess.run(args, check=True)
+
             audio, sr = sf.read(aiff, dtype="float32", always_2d=False)
             if isinstance(audio, np.ndarray) and audio.ndim > 1:
                 # mixdown to mono

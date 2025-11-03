@@ -516,6 +516,44 @@ export const uploadedVideos = sqliteTable(
   (table) => [index("UploadedVideo_userId_idx").on(table.userId)],
 );
 
+// TTS document generation jobs (durable status for polling)
+export const ttsJobs = sqliteTable(
+  "TtsJobs",
+  {
+    id: text("id").primaryKey().notNull(), // docKey
+    documentId: text("documentId")
+      .notNull()
+      .references(() => entities.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    status: text("status")
+      .$type<"queued" | "processing" | "ready" | "error">()
+      .notNull(),
+    manifestUrl: text("manifestUrl"),
+    stitchedUrl: text("stitchedUrl"),
+    segmentCount: integer("segmentCount"),
+    plannedCount: integer("plannedCount"),
+    error: text("error"),
+    ttsConfig: text("ttsConfig", { mode: "json" }).$type<
+      Record<string, unknown>
+    >(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("TtsJobs_documentId_idx").on(table.documentId),
+    index("TtsJobs_status_idx").on(table.status),
+  ],
+);
+
 // Durable thumbnail generation jobs
 export const thumbnailJobs = sqliteTable(
   "ThumbnailJobs",
