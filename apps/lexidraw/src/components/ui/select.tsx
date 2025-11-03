@@ -147,9 +147,10 @@ const SelectContent = ({
           props.onClickCapture?.(e);
           if (e.defaultPrevented) return;
           const el = e.target as HTMLElement | null;
+          // Don't close on [role='option'] - let Radix UI handle selection
           if (
             el?.closest(
-              "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate], [role='option']",
+              "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
             )
           ) {
             closeNow();
@@ -160,9 +161,10 @@ const SelectContent = ({
           if (e.defaultPrevented) return;
           if (e.key === "Enter" || e.key === " ") {
             const el = e.target as HTMLElement | null;
+            // Don't close on [role='option'] - let Radix UI handle selection
             if (
               el?.closest(
-                "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate], [role='option']",
+                "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
               )
             ) {
               closeNow();
