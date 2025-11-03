@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
+from threading import Lock
 
 import numpy as np
 import soundfile as sf
@@ -67,7 +68,17 @@ if app_logger.level == logging.NOTSET:
 
 APP_TOKEN = os.environ.get("APP_TOKEN") or os.environ.get("KOKORO_BEARER")
 LANG_CODE = os.environ.get("KOKORO_LANG", "en-us")
-app_logger.info("startup: lang=%s has_token=%s", LANG_CODE, bool(APP_TOKEN))
+MAX_CONCURRENT_REQUESTS = int(os.environ.get("KOKORO_MAX_CONCURRENT", "8"))
+app_logger.info(
+    "startup: lang=%s has_token=%s max_concurrent=%s",
+    LANG_CODE,
+    bool(APP_TOKEN),
+    MAX_CONCURRENT_REQUESTS,
+)
+
+# Track concurrent requests for rate limiting
+_tts_concurrent_count = 0
+_tts_lock = Lock()
 
 # Detect MP3 capability (pydub + ffmpeg available)
 try:
@@ -378,27 +389,65 @@ def synth_kokoro(text: str, voice: str) -> tuple[np.ndarray, int]:
 
 @app.post("/v1/audio/speech")
 def tts(req: SpeechIn, authorization: Optional[str] = Header(default=None)):
+    global _tts_concurrent_count
+
     if APP_TOKEN and authorization != f"Bearer {APP_TOKEN}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    provider_key = _choose_provider(req.provider, req.languageCode)
-    app_logger.info(
-        "incoming tts: provider=%s voice=%s fmt=%s lang=%s text_len=%s",
-        provider_key,
-        req.voice,
-        req.format,
-        req.languageCode or "",
-        len(req.input or ""),
-    )
+    # Check if we're at capacity (non-blocking check)
+    with _tts_lock:
+        if _tts_concurrent_count >= MAX_CONCURRENT_REQUESTS:
+            app_logger.warning(
+                "rate limit: max_concurrent=%s current=%s, rejecting request",
+                MAX_CONCURRENT_REQUESTS,
+                _tts_concurrent_count,
+            )
+            raise HTTPException(
+                status_code=429,
+                detail=f"Too many concurrent requests. Maximum: {MAX_CONCURRENT_REQUESTS}",
+                headers={"Retry-After": "2"},
+            )
+        _tts_concurrent_count += 1
+        current_count = _tts_concurrent_count
 
-    provider = _providers.get(provider_key)
-    if provider is None:
-        raise HTTPException(
-            status_code=422, detail="No suitable TTS provider available"
+    try:
+        provider_key = _choose_provider(req.provider, req.languageCode)
+        app_logger.info(
+            "incoming tts: provider=%s voice=%s fmt=%s lang=%s text_len=%s concurrent=%s",
+            provider_key,
+            req.voice,
+            req.format,
+            req.languageCode or "",
+            len(req.input or ""),
+            current_count,
         )
-    # For XTTS, fail fast if no speaker can be resolved
-    if provider_key == "xtts":
-        try:
+
+        provider = _providers.get(provider_key)
+        if provider is None:
+            raise HTTPException(
+                status_code=422, detail="No suitable TTS provider available"
+            )
+        # For XTTS, fail fast if no speaker can be resolved
+        if provider_key == "xtts":
+            try:
+                # type: ignore[attr-defined]
+                audio, sr = provider.synthesize(
+                    text=req.input,
+                    voiceId=req.voice,
+                    speed=req.speed,
+                    languageCode=req.languageCode,
+                )
+            except ValueError as e:
+                from pathlib import Path as _P
+
+                sp = _P(__file__).parent / "assets" / "speakers" / f"{req.voice}.wav"
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"{e}. Ensure speaker_wav at {sp} exists or choose a builtin speaker."
+                    ),
+                )
+        else:
             # type: ignore[attr-defined]
             audio, sr = provider.synthesize(
                 text=req.input,
@@ -406,122 +455,113 @@ def tts(req: SpeechIn, authorization: Optional[str] = Header(default=None)):
                 speed=req.speed,
                 languageCode=req.languageCode,
             )
-        except ValueError as e:
-            from pathlib import Path as _P
 
-            sp = _P(__file__).parent / "assets" / "speakers" / f"{req.voice}.wav"
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"{e}. Ensure speaker_wav at {sp} exists or choose a builtin speaker."
-                ),
-            )
-    else:
-        # type: ignore[attr-defined]
-        audio, sr = provider.synthesize(
-            text=req.input,
-            voiceId=req.voice,
-            speed=req.speed,
-            languageCode=req.languageCode,
+        # Validate audio content
+        if not isinstance(audio, np.ndarray) or audio.size == 0:
+            raise HTTPException(status_code=422, detail="Kokoro returned empty audio")
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        if audio.size < 1000 or peak < 1e-7:
+            raise HTTPException(status_code=422, detail="Kokoro returned silent audio")
+
+        # Peak normalization to ~-1 dBFS (avoid clipping)
+        norm_target = 10 ** (-1.0 / 20.0)
+        if peak > 0 and peak > norm_target:
+            audio = (audio / peak) * norm_target
+
+        # Encode canonical WAV
+        wav_buf = io.BytesIO()
+        sf.write(
+            wav_buf,
+            audio.astype(np.float32, copy=False),
+            int(sr),
+            format="WAV",
+            subtype="PCM_16",
         )
+        wav_buf.seek(0)
 
-    # Validate audio content
-    if not isinstance(audio, np.ndarray) or audio.size == 0:
-        raise HTTPException(status_code=422, detail="Kokoro returned empty audio")
-    peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-    if audio.size < 1000 or peak < 1e-7:
-        raise HTTPException(status_code=422, detail="Kokoro returned silent audio")
-
-    # Peak normalization to ~-1 dBFS (avoid clipping)
-    norm_target = 10 ** (-1.0 / 20.0)
-    if peak > 0 and peak > norm_target:
-        audio = (audio / peak) * norm_target
-
-    # Encode canonical WAV
-    wav_buf = io.BytesIO()
-    sf.write(
-        wav_buf,
-        audio.astype(np.float32, copy=False),
-        int(sr),
-        format="WAV",
-        subtype="PCM_16",
-    )
-    wav_buf.seek(0)
-
-    # Always dump WAV to filesystem for inspection
-    try:
-        import time as _time
-
-        dump_dir = os.path.join(os.path.dirname(__file__), "wav")
-        os.makedirs(dump_dir, exist_ok=True)
-        ts = str(_time.time_ns())
-        safe_voice = (
-            "".join(c for c in (req.voice or "voice") if c.isalnum() or c in ("-", "_"))
-            or "voice"
-        )
-        dump_path = os.path.join(dump_dir, f"tts-{provider_key}-{safe_voice}-{ts}.wav")
-        with open(dump_path, "wb") as _f:
-            _f.write(wav_buf.getvalue())
-        app_logger.info("dumped wav to %s", dump_path)
-    except Exception as _ex:
-        app_logger.warning("failed to dump wav: %s", repr(_ex))
-
-    fmt = (req.format or "wav").lower()
-    if fmt == "wav":
-        data = wav_buf.getvalue()
-        app_logger.info("out wav bytes=%s sr=%s", len(data), sr)
-        return Response(content=data, media_type="audio/wav")
-
-    if fmt == "mp3":
-        if not MP3_CAPABLE or AudioSegment is None:
-            app_logger.warning("mp3 export unavailable: pydub/ffmpeg missing")
-            raise HTTPException(
-                status_code=415,
-                detail="MP3 requires pydub + ffmpeg installed and on PATH",
-            )
+        # Always dump WAV to filesystem for inspection
         try:
-            seg = AudioSegment.from_file(wav_buf, format="wav")
-            out = io.BytesIO()
-            seg.export(out, format="mp3", bitrate="192k")
-            data = out.getvalue()
-            # Always dump MP3 to filesystem
-            try:
-                import time as _time
+            import time as _time
 
-                dump_dir_mp3 = os.path.join(os.path.dirname(__file__), "mp3")
-                os.makedirs(dump_dir_mp3, exist_ok=True)
-                ts_mp3 = str(_time.time_ns())
-                safe_voice_mp3 = (
-                    "".join(
-                        c
-                        for c in (req.voice or "voice")
-                        if c.isalnum() or c in ("-", "_")
-                    )
-                    or "voice"
+            dump_dir = os.path.join(os.path.dirname(__file__), "wav")
+            os.makedirs(dump_dir, exist_ok=True)
+            ts = str(_time.time_ns())
+            safe_voice = (
+                "".join(
+                    c for c in (req.voice or "voice") if c.isalnum() or c in ("-", "_")
                 )
-                dump_mp3_path = os.path.join(
-                    dump_dir_mp3, f"tts-{provider_key}-{safe_voice_mp3}-{ts_mp3}.mp3"
-                )
-                with open(dump_mp3_path, "wb") as _fmp3:
-                    _fmp3.write(data)
-                app_logger.info("dumped mp3 to %s", dump_mp3_path)
-            except Exception as _exm:
-                app_logger.warning("failed to dump mp3: %s", repr(_exm))
-            app_logger.info("out mp3 bytes=%s sr=%s", len(data), sr)
-            return Response(content=data, media_type="audio/mpeg")
-        except HTTPException:
-            raise
-        except Exception as ex:
-            app_logger.warning("mp3 export failed: %s", repr(ex))
-            raise HTTPException(
-                status_code=415,
-                detail="MP3 export failed; ensure ffmpeg is installed and accessible",
+                or "voice"
             )
+            dump_path = os.path.join(
+                dump_dir, f"tts-{provider_key}-{safe_voice}-{ts}.wav"
+            )
+            with open(dump_path, "wb") as _f:
+                _f.write(wav_buf.getvalue())
+            app_logger.info("dumped wav to %s", dump_path)
+        except Exception as _ex:
+            app_logger.warning("failed to dump wav: %s", repr(_ex))
 
-    if fmt == "ogg":
-        raise HTTPException(status_code=415, detail="OGG not supported")
+        fmt = (req.format or "wav").lower()
+        if fmt == "wav":
+            data = wav_buf.getvalue()
+            app_logger.info("out wav bytes=%s sr=%s", len(data), sr)
+            return Response(content=data, media_type="audio/wav")
 
-    # Default to WAV on unknown format
-    data = wav_buf.getvalue()
-    app_logger.info("out wav-default bytes=%s sr=%s", len(data), sr)
-    return Response(content=data, media_type="audio/wav")
+        if fmt == "mp3":
+            if not MP3_CAPABLE or AudioSegment is None:
+                app_logger.warning("mp3 export unavailable: pydub/ffmpeg missing")
+                raise HTTPException(
+                    status_code=415,
+                    detail="MP3 requires pydub + ffmpeg installed and on PATH",
+                )
+            try:
+                seg = AudioSegment.from_file(wav_buf, format="wav")
+                out = io.BytesIO()
+                seg.export(out, format="mp3", bitrate="192k")
+                data = out.getvalue()
+                # Always dump MP3 to filesystem
+                try:
+                    import time as _time
+
+                    dump_dir_mp3 = os.path.join(os.path.dirname(__file__), "mp3")
+                    os.makedirs(dump_dir_mp3, exist_ok=True)
+                    ts_mp3 = str(_time.time_ns())
+                    safe_voice_mp3 = (
+                        "".join(
+                            c
+                            for c in (req.voice or "voice")
+                            if c.isalnum() or c in ("-", "_")
+                        )
+                        or "voice"
+                    )
+                    dump_mp3_path = os.path.join(
+                        dump_dir_mp3,
+                        f"tts-{provider_key}-{safe_voice_mp3}-{ts_mp3}.mp3",
+                    )
+                    with open(dump_mp3_path, "wb") as _fmp3:
+                        _fmp3.write(data)
+                    app_logger.info("dumped mp3 to %s", dump_mp3_path)
+                except Exception as _exm:
+                    app_logger.warning("failed to dump mp3: %s", repr(_exm))
+                app_logger.info("out mp3 bytes=%s sr=%s", len(data), sr)
+                return Response(content=data, media_type="audio/mpeg")
+            except HTTPException:
+                raise
+            except Exception as ex:
+                app_logger.warning("mp3 export failed: %s", repr(ex))
+                raise HTTPException(
+                    status_code=415,
+                    detail="MP3 export failed; ensure ffmpeg is installed and accessible",
+                )
+
+        if fmt == "ogg":
+            raise HTTPException(status_code=415, detail="OGG not supported")
+
+        # Default to WAV on unknown format
+        data = wav_buf.getvalue()
+        app_logger.info("out wav-default bytes=%s sr=%s", len(data), sr)
+        return Response(content=data, media_type="audio/wav")
+    finally:
+        # Always decrement counter when done
+        with _tts_lock:
+            _tts_concurrent_count -= 1
