@@ -520,8 +520,8 @@ export const uploadedVideos = sqliteTable(
 export const ttsJobs = sqliteTable(
   "TtsJobs",
   {
-    id: text("id").primaryKey().notNull(), // docKey
-    documentId: text("documentId")
+    id: text("id").primaryKey().notNull(), // docKey or articleKey
+    entityId: text("entityId")
       .notNull()
       .references(() => entities.id, {
         onDelete: "cascade",
@@ -549,7 +549,7 @@ export const ttsJobs = sqliteTable(
       .$defaultFn(() => new Date()),
   },
   (table) => [
-    index("TtsJobs_documentId_idx").on(table.documentId),
+    index("TtsJobs_entityId_idx").on(table.entityId),
     index("TtsJobs_status_idx").on(table.status),
   ],
 );

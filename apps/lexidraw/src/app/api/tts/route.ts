@@ -2,9 +2,13 @@ import type { NextRequest } from "next/server";
 import { NextResponse, after } from "next/server";
 import { auth } from "~/server/auth";
 import { drizzle, schema, eq, and } from "@packages/drizzle";
-import { synthesizeArticleOrText, precomputeTtsKey } from "~/server/tts/engine";
+import { precomputeTtsKey, synthesizeArticleOrText } from "~/server/tts/engine";
+import { computeArticleKey } from "~/server/tts/id";
+import { generateArticleTtsWorkflow } from "~/workflows/article-tts/generate-article-tts-workflow";
+import { start } from "workflow/api";
 import type { TtsRequest } from "~/server/tts/types";
 import { htmlToPlainText } from "~/lib/html-to-text";
+import env from "@packages/env";
 
 export const maxDuration = 800;
 
@@ -33,6 +37,7 @@ export async function POST(req: NextRequest) {
   try {
     // Resolve source text: prefer explicit text, otherwise pull from entity.distilled
     let resolvedText = typeof body.text === "string" ? body.text : undefined;
+    let entityType: "url" | "document" | undefined;
     if ((!resolvedText || resolvedText.trim() === "") && body.entityId) {
       try {
         const existing = await drizzle.query.entities.findFirst({
@@ -41,19 +46,82 @@ export async function POST(req: NextRequest) {
               eq(e.id, body.entityId as string),
               eq(e.userId, session.user.id),
             ),
+          columns: { entityType: true, elements: true },
         });
-        if (existing?.elements) {
-          const parsed = JSON.parse(existing.elements) as {
-            distilled?: { contentHtml?: string };
-          };
-          const html = parsed?.distilled?.contentHtml ?? "";
-          if (html) resolvedText = htmlToPlainText(html);
+        if (existing) {
+          entityType = existing.entityType as "url" | "document" | undefined;
+          if (existing.elements) {
+            const parsed = JSON.parse(existing.elements) as {
+              distilled?: { contentHtml?: string };
+            };
+            const html = parsed?.distilled?.contentHtml ?? "";
+            if (html) resolvedText = htmlToPlainText(html);
+          }
         }
       } catch {
         // ignore DB errors; fallback to other sources
       }
     }
 
+    // If entityId is provided and it's a URL entity, use workflow pattern
+    if (body.entityId && entityType === "url" && resolvedText) {
+      const articleKey = computeArticleKey(body.entityId, {
+        provider: resolved.provider,
+        voiceId: resolved.voiceId,
+        speed: resolved.speed,
+        format: resolved.format,
+        languageCode: resolved.languageCode,
+        sampleRate: resolved.sampleRate,
+      });
+      const manifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/article/${articleKey}/manifest.json`;
+
+      // Check if job already exists and is ready
+      const existing = await drizzle.query.ttsJobs.findFirst({
+        where: (t) =>
+          and(eq(t.id, articleKey), eq(t.entityId, body.entityId as string)),
+      });
+      if (existing?.status === "ready" && existing.manifestUrl) {
+        const manifest = await fetch(existing.manifestUrl, {
+          cache: "no-store",
+        }).then((r) => r.json());
+        return NextResponse.json({
+          ...manifest,
+          manifestUrl: existing.manifestUrl,
+        });
+      }
+
+      // Upsert queued job
+      await drizzle
+        .insert(schema.ttsJobs)
+        .values({
+          id: articleKey,
+          entityId: body.entityId,
+          userId: session.user.id,
+          status: "queued",
+          ttsConfig: resolved as unknown as Record<string, unknown>,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: schema.ttsJobs.id,
+          set: { status: "queued", updatedAt: new Date() },
+        })
+        .execute();
+
+      // Fire workflow (do not await full run)
+      void start(generateArticleTtsWorkflow, [
+        body.entityId,
+        resolvedText,
+        resolved,
+      ]);
+
+      return NextResponse.json(
+        { id: articleKey, manifestUrl, status: "queued" },
+        { status: 202 },
+      );
+    }
+
+    // Fallback to legacy behavior for non-entity articles or when entityId not provided
     // Precompute job id + manifest url; if already exists, return immediately
     console.log("[tts][route] incoming", {
       hasUrl: !!body.url,
