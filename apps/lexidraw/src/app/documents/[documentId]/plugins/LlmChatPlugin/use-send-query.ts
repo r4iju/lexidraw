@@ -200,7 +200,7 @@ export const useSendQuery = () => {
 
       const decisionPrompt = `Choose exactly one action next:\n1) summarizeAfterToolCallExecution\n2) planNextToolSelection`;
 
-      const MAX_DECISION_CYCLES = 2;
+      const MAX_DECISION_CYCLES = 5;
       let decisionCycleCount = 0;
       let currentMessages: ModelMessage[] = [
         ...baseDecisionMessages,
