@@ -151,8 +151,7 @@ export function chunkSections(
 
       // Prepend heading to first chunk of section if section has a title
       if (isFirstChunk && section.title) {
-        const headingPrefix =
-          "#".repeat(section.depth) + " " + section.title + "\n\n";
+        const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
         chunkText = headingPrefix + chunkText;
         isFirstChunk = false;
       }
@@ -186,8 +185,7 @@ export function chunkSections(
               if (sentenceBuf.length) {
                 let chunkText = sentenceBuf.join(" ");
                 if (isFirstSentenceChunk && section.title) {
-                  const headingPrefix =
-                    "#".repeat(section.depth) + " " + section.title + "\n\n";
+                  const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
                   chunkText = headingPrefix + chunkText;
                   isFirstSentenceChunk = false;
                 }
@@ -203,8 +201,7 @@ export function chunkSections(
               }
               let chunkText = sentence;
               if (isFirstSentenceChunk && section.title) {
-                const headingPrefix =
-                  "#".repeat(section.depth) + " " + section.title + "\n\n";
+                const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
                 chunkText = headingPrefix + chunkText;
                 isFirstSentenceChunk = false;
               }
@@ -224,8 +221,7 @@ export function chunkSections(
           if (sentenceBuf.length) {
             let chunkText = sentenceBuf.join(" ");
             if (isFirstSentenceChunk && section.title) {
-              const headingPrefix =
-                "#".repeat(section.depth) + " " + section.title + "\n\n";
+              const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
               chunkText = headingPrefix + chunkText;
               isFirstSentenceChunk = false;
             }
@@ -253,6 +249,68 @@ export function chunkSections(
   }
 
   return chunks;
+}
+
+/**
+ * Splits HTML into sections based on heading levels (H1-H6).
+ * Returns an array of sections with title, depth, and body content.
+ * Similar to splitMarkdownIntoSections but works with HTML.
+ */
+export function splitHtmlIntoSections(html: string): Section[] {
+  const sections: Section[] = [];
+  let sectionCounter = 0;
+
+  // Extract headings and their positions
+  const headingRegex = /<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi;
+  const headings: Array<{
+    depth: number;
+    title: string;
+    startIndex: number;
+    endIndex: number;
+  }> = [];
+
+  let match: RegExpExecArray | null = null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: needed for regex loop
+  while ((match = headingRegex.exec(html)) !== null) {
+    const depth = Number.parseInt(match[1] ?? "1", 10);
+    const titleText = match[2]?.replace(/<[^>]+>/g, "").trim() ?? "";
+    if (titleText && match.index !== undefined) {
+      headings.push({
+        depth,
+        title: titleText,
+        startIndex: match.index,
+        endIndex: match.index + (match[0]?.length ?? 0),
+      });
+    }
+  }
+
+  if (headings.length === 0) {
+    // No headings found, create a single section with all content
+    sections.push({ title: undefined, depth: 0, body: html, index: 0 });
+    return sections;
+  }
+
+  // Split HTML into sections based on heading positions
+  for (let i = 0; i < headings.length; i++) {
+    const heading = headings[i];
+    if (!heading) continue;
+    const nextHeadingStart =
+      i < headings.length - 1
+        ? (headings[i + 1]?.startIndex ?? html.length)
+        : html.length;
+
+    // Extract section body (everything after this heading tag and before the next heading)
+    const sectionBody = html.slice(heading.endIndex, nextHeadingStart);
+
+    sections.push({
+      title: heading.title,
+      depth: heading.depth,
+      body: sectionBody.trim(),
+      index: sectionCounter++,
+    });
+  }
+
+  return sections;
 }
 
 /**

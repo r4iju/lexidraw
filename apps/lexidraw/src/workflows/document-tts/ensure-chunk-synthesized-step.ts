@@ -104,7 +104,11 @@ export async function ensureChunkSynthesizedStep(args: {
     };
   }
 
-  const { url } = await put(path, audio, { access: "public", contentType });
+  const { url } = await put(path, audio, {
+    access: "public",
+    contentType,
+    allowOverwrite: true,
+  });
   console.log("[tts][wf][chunk] uploaded", {
     index: args.index,
     hash: args.chunkHash,

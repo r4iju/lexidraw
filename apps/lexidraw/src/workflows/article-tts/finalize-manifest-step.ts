@@ -12,6 +12,9 @@ export async function finalizeManifestStep(
     audioUrl: string;
     text: string;
     chunkHash: string;
+    sectionTitle?: string;
+    sectionIndex?: number;
+    headingDepth?: number;
   }>,
 ): Promise<{ manifestUrl: string; stitchedUrl?: string }> {
   "use step";
@@ -37,6 +40,9 @@ export async function finalizeManifestStep(
       text: s.text,
       audioUrl: s.audioUrl,
       chunkHash: s.chunkHash,
+      sectionTitle: s.sectionTitle,
+      sectionIndex: s.sectionIndex,
+      headingDepth: s.headingDepth,
     })),
     totalChars: ordered.reduce((sum, s) => sum + s.text.length, 0),
     title: undefined as string | undefined,
@@ -52,6 +58,7 @@ export async function finalizeManifestStep(
     await put(manifestPath, Buffer.from(JSON.stringify(manifest), "utf-8"), {
       access: "public",
       contentType: "application/json",
+      allowOverwrite: true,
     });
     console.log("[tts][wf][article] manifest written", { manifestUrl });
   }
