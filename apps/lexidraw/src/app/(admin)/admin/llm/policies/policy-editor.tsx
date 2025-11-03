@@ -286,10 +286,10 @@ export function PoliciesEditor({
           id: 0,
           mode,
           provider: "openai",
-          modelId: "gpt-5.1-mini",
+          modelId: "gpt-5-mini",
           temperature: 0.5,
           maxOutputTokens: 1024,
-          allowedModels: [{ provider: "openai", modelId: "gpt-5.1-mini" }],
+          allowedModels: [{ provider: "openai", modelId: "gpt-5-mini" }],
           enforcedCaps: {
             maxOutputTokensByProvider: { openai: 32768, google: 65535 },
           },
