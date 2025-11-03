@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { put } from "@vercel/blob"; // ⬅️ Vercel Blob SDK
+import { put } from "@vercel/blob";
 import { PublicAccess } from "@packages/types";
 import { eq, schema } from "@packages/drizzle";
 import {
