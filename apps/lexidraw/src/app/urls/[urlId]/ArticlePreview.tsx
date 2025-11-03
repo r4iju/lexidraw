@@ -22,6 +22,8 @@ import {
 import { Input } from "~/components/ui/input";
 import { Switch } from "~/components/ui/switch";
 import { Slider } from "~/components/ui/slider";
+import { Progress } from "~/components/ui/progress";
+import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { htmlToPlainText } from "~/lib/html-to-text";
 import { labelForLanguage, titleize } from "~/lib/i18n";
@@ -169,8 +171,6 @@ export default function ArticlePreview({
     });
   }, [effectiveCatalog, ttsCfg.provider]);
 
-  // Families are taken directly from catalog when present
-
   // Filter voices by selected language for the voice dropdown
   const filteredVoices = useMemo(() => {
     const all = (
@@ -314,88 +314,164 @@ export default function ArticlePreview({
     setSegments(Array.isArray(savedTts.segments) ? savedTts.segments : []);
   }, [savedTts, savedTts?.stitchedUrl, savedTts?.segments]);
 
+  const startArticleTts = api.tts.startArticleTts.useMutation();
+  const deleteArticleTts = api.tts.deleteArticleTts.useMutation();
+  const ttsStatusQuery = api.tts.getArticleTtsStatus.useQuery(
+    { articleId: entity.id },
+    { enabled: !!entity.id },
+  );
   const handleGenerateAudio = useCallback(async () => {
     if (!sourceUrl) return;
     setIsGenerating(true);
     setTtsError(null);
+    const toastId = `tts-${entity.id}-${Date.now()}`;
     try {
       // Derive plain text from already distilled HTML to avoid server refetch
       const distilledHtml = distilled?.contentHtml ?? "";
       const derivedText = distilledHtml ? htmlToPlainText(distilledHtml) : "";
-      const resp = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          url: sourceUrl,
-          text: derivedText,
-          provider: ttsCfg.provider,
-          voiceId: ttsCfg.voiceId,
-          speed: ttsCfg.speed,
-          format: ttsCfg.format,
-          languageCode: ttsCfg.languageCode,
-          title: distilled?.title || entity.title,
-          entityId: entity.id,
-        }),
+
+      // Check if regenerating (audio already exists)
+      const isRegenerating = ttsStatusQuery.data?.status === "ready";
+      if (isRegenerating) {
+        // Delete old audio files before regenerating
+        await deleteArticleTts.mutateAsync({ articleId: entity.id });
+        // Invalidate status query to refresh
+        await utils.tts.getArticleTtsStatus.invalidate({
+          articleId: entity.id,
+        });
+      }
+
+      // Start TTS generation via tRPC
+      await startArticleTts.mutateAsync({
+        articleId: entity.id,
+        plainText: derivedText,
+        provider: ttsCfg.provider,
+        voiceId: ttsCfg.voiceId,
+        speed: ttsCfg.speed,
+        format: ttsCfg.format,
+        languageCode: ttsCfg.languageCode,
+        sampleRate: ttsCfg.sampleRate,
       });
-      if (resp.status === 202) {
-        const queued = (await resp.json()) as {
-          id: string;
-          manifestUrl: string;
-          status: string;
-        };
-        // Poll manifest until available
-        const data = await (async function poll(manifestUrl: string) {
-          let delay = 1500;
-          const max = 5 * 60_000;
-          const start = Date.now();
-          for (;;) {
-            const r = await fetch(manifestUrl, { cache: "no-store" });
-            if (r.ok)
-              return (await r.json()) as {
-                stitchedUrl?: string;
-                segments?: TtsSegment[];
-              };
-            if (Date.now() - start > max)
-              throw new Error("Timed out waiting for audio");
-            await new Promise((res) => setTimeout(res, delay));
-            delay = Math.min(Math.floor(delay * 1.5), 5000);
-          }
-        })(queued.manifestUrl);
-        setSegments(Array.isArray(data.segments) ? data.segments : []);
-        setStitchedUrl(
-          typeof data.stitchedUrl === "string" ? data.stitchedUrl : undefined,
+
+      // Show initial loading toast
+      toast.loading(
+        <div className="flex flex-col gap-2 w-full min-w-[300px]">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Generating audio...</span>
+            <span className="text-xs text-muted-foreground">0/? segments</span>
+          </div>
+          <Progress value={0} className="h-2" />
+        </div>,
+        { id: toastId, duration: Infinity },
+      );
+
+      // Poll status until ready
+      let delay = 1000;
+      const max = 60_000;
+      const startTime = Date.now();
+      for (;;) {
+        const snap = await utils.tts.getArticleTtsStatus.fetch({
+          articleId: entity.id,
+        });
+
+        const completedSegments = snap.segmentCount ?? 0;
+        const totalSegments = snap.plannedCount ?? snap.segmentCount ?? 1;
+        const progress =
+          totalSegments > 0 ? (completedSegments / totalSegments) * 100 : 0;
+
+        if (snap.status === "ready") {
+          // Use segmentCount from status response, which is already set when ready
+          const finalCount = snap.segmentCount ?? 0;
+          toast.success(
+            <div className="flex flex-col gap-2 w-full min-w-[300px]">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">
+                  Audio generated successfully
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {finalCount} segments
+                </span>
+              </div>
+              <Progress value={100} className="h-2" />
+            </div>,
+            { id: toastId },
+          );
+          // Fetch manifest when ready
+          const manifest = await utils.tts.getArticleTtsManifest.fetch({
+            articleId: entity.id,
+          });
+          setSegments(
+            Array.isArray(manifest.segments)
+              ? (manifest.segments as TtsSegment[])
+              : [],
+          );
+          setStitchedUrl(
+            typeof manifest.stitchedUrl === "string"
+              ? manifest.stitchedUrl
+              : undefined,
+          );
+          break;
+        }
+
+        if (snap.status === "error") {
+          toast.error(snap.error || "Error generating audio", { id: toastId });
+          break;
+        }
+
+        // Update progress toast
+        const statusLabel =
+          snap.status === "queued"
+            ? "queued"
+            : snap.status === "processing"
+              ? "processing"
+              : "";
+        toast.loading(
+          <div className="flex flex-col gap-2 w-full min-w-[300px]">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">
+                Generating audio...
+                {statusLabel ? ` (${statusLabel})` : ""}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {completedSegments}/{totalSegments} segments
+              </span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>,
+          { id: toastId, duration: Infinity },
         );
-      } else if (resp.ok) {
-        const json = (await resp.json()) as {
-          segments?: TtsSegment[];
-          title?: string;
-          stitchedUrl?: string;
-        };
-        setSegments(Array.isArray(json.segments) ? json.segments : []);
-        setStitchedUrl(
-          typeof json.stitchedUrl === "string" ? json.stitchedUrl : undefined,
-        );
-      } else {
-        const msg = await resp.text();
-        throw new Error(msg || "Failed to generate audio");
+
+        if (Date.now() - startTime > max) {
+          toast.message("Audio generation queued. It will appear shortly.", {
+            id: toastId,
+          });
+          break;
+        }
+        await new Promise((r) => setTimeout(r, delay));
+        delay = Math.min(delay + 500, 2500);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error generating audio";
       setTtsError(msg);
+      toast.error(msg, { id: toastId });
     } finally {
       setIsGenerating(false);
     }
   }, [
     sourceUrl,
-    distilled?.title,
     distilled?.contentHtml,
-    entity.title,
     entity.id,
     ttsCfg.provider,
     ttsCfg.voiceId,
     ttsCfg.speed,
     ttsCfg.format,
     ttsCfg.languageCode,
+    ttsCfg.sampleRate,
+    startArticleTts,
+    deleteArticleTts,
+    ttsStatusQuery.data?.status,
+    utils.tts.getArticleTtsStatus,
+    utils.tts.getArticleTtsManifest,
   ]);
 
   // Auto-generate when enabled in user Article settings and not yet generated

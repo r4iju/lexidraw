@@ -1,27 +1,16 @@
 import "server-only";
 
-// This workflow coordinates durable TTS generation using plan → synthesize chunks → finalize → persist.
+// This workflow coordinates durable TTS generation for articles using plan → synthesize chunks → finalize → persist.
 // Steps are written to be idempotent and safe to retry.
 
 import { planChunksStep } from "./plan-chunks-step";
-import { chooseProvider } from "./common";
-import { ensureChunkSynthesizedStep } from "./ensure-chunk-synthesized-step";
-import { updateJobStatusStep } from "./update-job-status-step";
-import { updateProgressStep } from "./update-progress-step";
+import { chooseProvider } from "../document-tts/common";
+import { ensureChunkSynthesizedStep } from "../document-tts/ensure-chunk-synthesized-step";
+import { updateJobStatusStep } from "../document-tts/update-job-status-step";
+import { updateProgressStep } from "../document-tts/update-progress-step";
 import { finalizeManifestStep } from "./finalize-manifest-step";
-import { markJobReadyStep } from "./mark-job-ready-step";
+import { markJobReadyStep } from "../document-tts/mark-job-ready-step";
 import { persistToEntityStep } from "./persist-to-entity-step";
-
-function slugifySection(title: string | undefined, index: number): string {
-  const base = (title || "untitled").toLowerCase().trim();
-  const slug = base
-    .normalize("NFKD")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-  return `${slug || "section"}-${index}`;
-}
 
 export type TtsConfig = {
   provider: string;
@@ -32,16 +21,16 @@ export type TtsConfig = {
   sampleRate?: number;
 };
 
-export async function generateDocumentTtsWorkflow(
-  documentId: string,
-  markdown: string,
+export async function generateArticleTtsWorkflow(
+  articleId: string,
+  plainText: string,
   tts: TtsConfig,
 ): Promise<{ manifestUrl: string; stitchedUrl?: string }> {
   "use workflow";
-  let docKey = "";
-  console.log("[tts][wf] start", {
-    documentId,
-    markdownLen: markdown.length,
+  let articleKey = "";
+  console.log("[tts][wf][article] start", {
+    articleId,
+    textLen: plainText.length,
     provider: tts.provider,
     voiceId: tts.voiceId,
     speed: tts.speed,
@@ -49,23 +38,24 @@ export async function generateDocumentTtsWorkflow(
     languageCode: tts.languageCode,
   });
 
-  const plannedResult = await planChunksStep(documentId, markdown, tts);
-  docKey = plannedResult.docKey;
+  const plannedResult = await planChunksStep(articleId, plainText, tts);
+  articleKey = plannedResult.articleKey;
   const planned = plannedResult.planned;
-  console.log("[tts][wf] planned", {
-    docKey,
+  console.log("[tts][wf][article] planned", {
+    articleKey,
     plannedCount: planned.length,
     firstHashes: planned.slice(0, 3).map((p) => p.chunkHash),
   });
 
-  await updateJobStatusStep(docKey, documentId, "processing", planned.length); // documentId is entityId for documents
+  await updateJobStatusStep(
+    articleKey,
+    articleId,
+    "processing",
+    planned.length,
+  );
 
   const results: Array<{
     index: number;
-    sectionTitle?: string;
-    sectionIndex?: number;
-    headingDepth?: number;
-    sectionId?: string;
     audioUrl: string;
     text: string;
     chunkHash: string;
@@ -77,37 +67,44 @@ export async function generateDocumentTtsWorkflow(
     const batch = await Promise.all(
       slice.map((p) =>
         ensureChunkSynthesizedStep({
-          ...p,
+          index: p.index,
+          text: p.text,
+          normalizedText: p.normalizedText,
+          chunkHash: p.chunkHash,
           format: tts.format,
           provider: tts.provider,
           voiceId: tts.voiceId,
           speed: tts.speed,
           languageCode: tts.languageCode,
           sampleRate: tts.sampleRate,
-          sectionId: slugifySection(p.sectionTitle, p.sectionIndex ?? 0),
+          // Articles don't have sections like documents
+          sectionTitle: undefined,
+          sectionIndex: undefined,
+          headingDepth: undefined,
+          sectionId: undefined,
         }),
       ),
     );
     results.push(...batch);
     // Update progress after each batch completes
-    await updateProgressStep(docKey, results.length);
+    await updateProgressStep(articleKey, results.length);
   }
 
   const { manifestUrl, stitchedUrl } = await finalizeManifestStep(
-    docKey,
+    articleKey,
     tts,
     results,
   );
 
   // Mark job ready
-  await markJobReadyStep(docKey, {
+  await markJobReadyStep(articleKey, {
     manifestUrl,
     stitchedUrl: stitchedUrl ?? null,
     segmentCount: results.length,
   });
 
-  await persistToEntityStep(documentId, {
-    id: docKey,
+  await persistToEntityStep(articleId, {
+    id: articleKey,
     provider: chooseProvider(tts.provider, tts.languageCode),
     voiceId: tts.voiceId,
     format: tts.format,
@@ -115,11 +112,7 @@ export async function generateDocumentTtsWorkflow(
       index: r.index,
       text: r.text,
       audioUrl: r.audioUrl,
-      sectionTitle: r.sectionTitle,
-      sectionIndex: r.sectionIndex,
-      headingDepth: r.headingDepth,
-      sectionId: r.sectionId,
-      // durationSec not available synchronously; omitted
+      // Articles don't have section metadata
     })),
     totalChars: results.reduce((s, r) => s + r.text.length, 0),
     stitchedUrl,

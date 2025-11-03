@@ -8,6 +8,8 @@ import { cn } from "~/lib/utils";
 type ProgressProps = React.ComponentPropsWithRef<typeof ProgressPrimitive.Root>;
 
 const Progress = ({ className, value, max, ref, ...props }: ProgressProps) => {
+  const effectiveMax = max ?? 100;
+  const percentage = value ? (max ? (value / max) * 100 : value) : 0;
   return (
     <ProgressPrimitive.Root
       ref={ref}
@@ -15,12 +17,13 @@ const Progress = ({ className, value, max, ref, ...props }: ProgressProps) => {
         "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
         className,
       )}
+      max={effectiveMax}
       {...props}
     >
       <ProgressPrimitive.Indicator
         className="h-full w-full flex-1 bg-primary transition-all"
         style={{
-          transform: `translateX(-${max ? 100 - (value ? (value / max) * 100 : 0) : 0}%)`,
+          transform: `translateX(-${100 - percentage}%)`,
         }}
       />
     </ProgressPrimitive.Root>

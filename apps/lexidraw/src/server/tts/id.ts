@@ -36,6 +36,21 @@ export function computeDocKey(
   ]);
 }
 
+export function computeArticleKey(
+  articleId: string,
+  cfg: TtsConfigResolved,
+): string {
+  return stableHash([
+    articleId,
+    cfg.provider, // requested provider string (e.g., "apple_say")
+    cfg.voiceId,
+    cfg.speed,
+    cfg.format,
+    cfg.languageCode ?? "",
+    cfg.sampleRate ?? "",
+  ]);
+}
+
 export function computeChunkHash(
   normalizedText: string,
   cfg: TtsConfigResolved,

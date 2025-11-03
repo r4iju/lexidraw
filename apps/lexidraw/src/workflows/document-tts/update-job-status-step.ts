@@ -2,7 +2,7 @@ import { drizzle, schema } from "@packages/drizzle";
 
 export async function updateJobStatusStep(
   docKey: string,
-  documentId: string,
+  entityId: string,
   status: "processing" | "ready" | "queued",
   plannedCount?: number,
 ): Promise<void> {
@@ -23,7 +23,7 @@ export async function updateJobStatusStep(
     .insert(schema.ttsJobs)
     .values({
       id: docKey,
-      documentId,
+      entityId,
       userId: "system",
       status,
       plannedCount: plannedCount ?? null,
