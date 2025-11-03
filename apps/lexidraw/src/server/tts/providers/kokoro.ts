@@ -1,5 +1,6 @@
 import "server-only";
 import type { TtsProvider, TtsSynthesizeInput } from "../types";
+import { RetryableError, FatalError } from "workflow";
 import env from "@packages/env";
 
 export function createKokoroTtsProvider(
@@ -44,9 +45,21 @@ export function createKokoroTtsProvider(
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(
-          `Kokoro TTS error: ${res.status} ${res.statusText} ${text}`,
-        );
+        const msg = `Kokoro TTS error: ${res.status} ${res.statusText} ${text}`;
+        if (res.status >= 500) {
+          // transient → let the step retry with a small backoff
+          throw new RetryableError(msg, { retryAfter: 2 });
+        }
+        if (
+          res.status === 404 ||
+          res.status === 400 ||
+          res.status === 401 ||
+          res.status === 403
+        ) {
+          // permanent → do not retry
+          throw new FatalError(msg);
+        }
+        throw new Error(msg);
       }
 
       const arrayBuf = await res.arrayBuffer();

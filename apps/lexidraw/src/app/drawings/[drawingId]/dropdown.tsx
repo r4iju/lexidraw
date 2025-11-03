@@ -462,7 +462,11 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
       )}
       {canEdit && (
         <DeleteEntityModal
-          entity={{ id: drawing.id, entityType: "drawing" }}
+          entity={{
+            id: drawing.id,
+            entityType: "drawing",
+            title: drawing.title,
+          }}
           isOpen={isDeleteOpen}
           onOpenChange={setIsDeleteOpen}
         />

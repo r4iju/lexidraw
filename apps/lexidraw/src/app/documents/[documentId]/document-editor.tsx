@@ -150,6 +150,7 @@ import { ChartNode } from "./nodes/ChartNode";
 import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 import ArticlePlugin from "./plugins/ArticlePlugin";
 import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
+import { TtsToolbar } from "./plugins/TtsToolbar";
 
 const inter = Inter({
   subsets: ["latin"],

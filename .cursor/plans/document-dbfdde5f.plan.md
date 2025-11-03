@@ -1,33 +1,29 @@
-<!-- dbfdde5f-146a-4dd5-97c2-29087513880c 6fb0e669-6e62-4da3-a5f3-c79bb1b6381f -->
-# Document TTS (sections + incremental regen)
+<!-- dbfdde5f-146a-4dd5-97c2-29087513880c 001134eb-1a56-4ba4-a874-fa125e060eac -->
+# Document TTS via Markdown intermediary (sections + incremental regen)
 
 ### What we’ll build
 
-- Section-based TTS for documents using Lexical JSON, batching adjacent text blocks to ~1–1.5k chars per segment.
-- Skip code/math/diagram/media nodes by default.
+- Convert the current document editor state to Markdown on the client using existing Lexical transformers.
+- Server consumes Markdown, strips unsupported blocks (code/math/diagrams/media), splits by headings, batches to ~1–1.5k chars, and generates per‑chunk audio.
 - Incremental regeneration via content hashes per chunk; unchanged chunks reuse existing audio; manifest rebuilt per run; optional stitched full audio.
 
-### Server: chunking + synthesis
+### Server: markdown parsing + synthesis
 
-- New `src/lib/chunk-lexical.ts`
-  - Implement `chunkLexicalDocument(json, { targetSize, hardCap, skipNodeTypes })`:
-    - Walk Lexical JSON, collect sections split at headings (H1–H6), flatten textual descendants for include-types (paragraph, quote, list items, etc.), skip configured types (code, codeHighlight, mermaid, chart, figma, excalidraw, tweet, video, youtube, table, image, inlineImage, equation).
-    - Within each section, batch adjacent blocks to target chars (~1400) with hard cap.
-    - Normalize text for hashing and synthesis.
-
-- New `src/lib/normalize-for-tts.ts`
-  - `normalizeForTts(text)` → `text.normalize("NFKC").replace(/\s+/g, " ").trim()`.
+- New `src/lib/markdown-for-tts.ts`
+  - `sanitizeMarkdownForTts(md, opts)` → remove code fences (```/~~~), inline code (`), equations ($...$), images `![]()`, mermaid/diagram/code languages, and optionally tables.
+  - `splitMarkdownIntoSections(md)` → returns ordered sections based on `^#{1,6}\s` headings, capturing `title`, `depth`, and section `body`.
+  - `chunkSections(sections, { targetSize, hardCap })` → within each section, batch adjacent paragraphs to target size; return `DocChunk[] = { index, sectionTitle?, text }`.
+  - `normalizeForTts(text)` → NFKC + whitespace collapse.
 
 - New `src/server/tts/document-engine.ts`
-  - `synthesizeDocument({ documentId, elementsJson, provider, voiceId, speed, format, languageCode, sampleRate })`:
+  - `synthesizeDocumentFromMarkdown({ documentId, markdown, provider, voiceId, speed, format, languageCode, sampleRate, titleHint })`:
     - Build `docKey = sha256(documentId + provider + voiceId + speed + format + languageCode + sampleRate)`.
-    - Chunk with `chunkLexicalDocument` (fallback to paragraph chunking if no headings found).
-    - For each chunk, compute `chunkHash = sha256(normalizedText + provider + voiceId + speed + languageCode + (sampleRate||"") + engineVersion)`.
-    - Per-chunk storage path: `tts/chunks/<chunkHash>.<fmt>`; HEAD check; synthesize and PUT only if missing (reuse current provider selection, SSML, fallback logic from `engine.ts`).
-    - Build ordered `segments: { index, sectionTitle?, text, chunkHash, audioUrl }[]`.
-    - Optional stitch: fetch in-order buffers and reuse existing `ffmpeg`/buffer concat code; write `tts/doc/<docKey>/full.<fmt>`.
+    - Run sanitize → split → chunk → normalize.
+    - For each chunk: `chunkHash = sha256(normalizedText + provider + voiceId + speed + languageCode + (sampleRate||"") + "md-v1")`.
+    - Store per-chunk audio at `tts/chunks/<chunkHash>.<fmt>`; HEAD-check; synthesize only misses (reuse provider selection, SSML, fallback logic from `engine.ts`).
+    - Build `segments: { index, sectionTitle?, text, chunkHash, audioUrl }[]`.
+    - Optional stitch: reuse ffmpeg/buffer concat to write `tts/doc/<docKey>/full.<fmt>`.
     - Write manifest `tts/doc/<docKey>/manifest.json` with `{ id: docKey, provider, voiceId, format, segments, totalChars, title, stitchedUrl }`.
-    - Return `{ ...manifest, manifestUrl }`.
 
 - Types update `src/server/tts/types.ts`
   - Extend `TtsSegment` with optional `sectionTitle?: string` and `chunkHash?: string` (backward compatible).
@@ -35,55 +31,54 @@
 ### API: document endpoint
 
 - New `src/app/api/documents/[documentId]/tts/route.ts`
-  - Auth check; load entity by `documentId` and user; parse `entity.elements`.
-  - Merge per-user TTS defaults (provider/voice/speed/format/languageCode/sampleRate) like existing TTS route.
-  - HEAD-check manifest; if exists, return it with `manifestUrl`.
-  - Else schedule background `after(async () => synthesizeDocument(...))` and return `{ id, manifestUrl, status: "queued" }`.
-  - Kokoro behavior: mirror current (no caching in dev; allow reuse in prod later if desired).
+  - Auth check; read `{ markdown?, provider?, voiceId?, speed?, format?, languageCode?, title? }`.
+  - If an existing manifest for `docKey` exists, return it; otherwise schedule background `after(async () => synthesizeDocumentFromMarkdown(...))` and return `{ id, manifestUrl, status: "queued" }`.
+  - If `markdown` is missing, respond 400 with guidance to trigger from the editor (v1 scope). Optional future: server‑side fallback from `entity.elements`.
 
-- Optional: persist manifest pointer back to entity (like `app/api/tts/route.ts`) under `elements.tts` for quick retrieval.
+- Optional: persist manifest pointer back to entity under `elements.tts` like existing article route.
 
 ### Client: trigger + playback
 
 - Update `src/app/documents/[documentId]/plugins/options-dropdown.tsx`
-  - Add "Generate audio" action with existing TTS control popover (provider, voice, speed, format, languageCode).
-  - POST to `/api/documents/[documentId]/tts` with selected config; if 202, poll `manifestUrl` until present.
+  - Add "Generate audio" action: obtain Markdown via existing `convertEditorStateToMarkdown`, POST to `/api/documents/[documentId]/tts` with the Markdown and TTS config; if 202, poll `manifestUrl` until present.
 
-- Reuse player `src/components/audio/ArticleAudioPlayer.tsx`
-  - Pass `segments`; optionally display section labels if `sectionTitle` present.
+- Reuse `src/components/audio/ArticleAudioPlayer.tsx`
+  - Pass `segments`; display section labels if `sectionTitle` present.
 
 ### Behavior details
 
 - Segmentation: split by headings; batch adjacent text nodes per section; fallback to paragraph batching when no headings.
-- Skips: code/math/diagram/media nodes; option to include later.
-- Caching: per-chunk audio keyed by content+voice config; cross-document reuse.
-- Budget guard: reuse existing cost estimation; compute total chars across included segments.
-- Versioning: include `engineVersion` in `chunkHash` to safely invalidate on algorithm changes.
+- Skips: code/math/diagram/media nodes by default.
+- Caching: per‑chunk audio keyed by content+voice config; cross‑document reuse.
+- Budget guard: reuse cost estimation in `engine.ts` against total included chars.
+- Versioning: include `"md-v1"` in `chunkHash` to safely invalidate on algorithm changes.
 
 ### File changes
 
-- New: `apps/lexidraw/src/lib/chunk-lexical.ts`
-- New: `apps/lexidraw/src/lib/normalize-for-tts.ts`
+- New: `apps/lexidraw/src/lib/markdown-for-tts.ts`
 - New: `apps/lexidraw/src/server/tts/document-engine.ts`
 - New: `apps/lexidraw/src/app/api/documents/[documentId]/tts/route.ts`
-- Edit: `apps/lexidraw/src/server/tts/types.ts` (optional segment fields)
+- Edit: `apps/lexidraw/src/server/tts/types.ts` (optional fields)
 - Edit: `apps/lexidraw/src/app/documents/[documentId]/plugins/options-dropdown.tsx` (UI trigger)
-- Optional: `ArticleAudioPlayer` small tweak to display section labels
+- Optional: display `sectionTitle` in `ArticleAudioPlayer`
 
-### Small, essential signatures
+### Essential signatures
 
 ```ts
-// chunk-lexical.ts
+// markdown-for-tts.ts
 export type DocChunk = { index: number; sectionTitle?: string; text: string };
-export function chunkLexicalDocument(
-  elementsJson: unknown,
-  opts?: { targetSize?: number; hardCap?: number; skipNodeTypes?: string[] }
-): DocChunk[]
+export function sanitizeMarkdownForTts(md: string): string;
+export function splitMarkdownIntoSections(md: string): { title?: string; depth: number; body: string }[];
+export function chunkSections(
+  sections: { title?: string; depth: number; body: string }[],
+  opts?: { targetSize?: number; hardCap?: number }
+): DocChunk[];
+export function normalizeForTts(text: string): string;
 
 // document-engine.ts
-export async function synthesizeDocument(args: {
+export async function synthesizeDocumentFromMarkdown(args: {
   documentId: string;
-  elementsJson: unknown;
+  markdown: string;
   provider?: string;
   voiceId?: string;
   speed?: number;
@@ -96,13 +91,14 @@ export async function synthesizeDocument(args: {
 
 ### To-dos
 
-- [ ] Create chunkLexicalDocument to segment by headings and batch text
-- [ ] Add normalizeForTts for stable hashing and synthesis input
-- [ ] Implement synthesizeDocument with per-chunk hashing and reuse
-- [ ] Create /api/documents/[documentId]/tts route with background job
+- [ ] Create sanitizeMarkdownForTts to drop code/math/media
+- [ ] Implement splitMarkdownIntoSections using heading regex
+- [ ] Batch section bodies into ~1400 char DocChunks
+- [ ] Implement synthesizeDocumentFromMarkdown with per-chunk hashing & reuse
+- [ ] Create /api/documents/[documentId]/tts route (POST markdown)
 - [ ] Add optional sectionTitle and chunkHash to TtsSegment
-- [ ] Add Generate audio action to document options-dropdown
-- [ ] Display section index/title in ArticleAudioPlayer if available
+- [ ] Add Generate audio in options-dropdown using Markdown export
+- [ ] Display section labels in ArticleAudioPlayer if present
 - [ ] Persist manifestUrl and segments in entity.elements.tts (optional)
-- [ ] Apply cost estimation against document text and honor budget
-- [ ] Reuse ffmpeg/buffer concat to write full audio for document
+- [ ] Apply cost estimation across included text and honor budget
+- [ ] Reuse ffmpeg/buffer concat to write full document audio

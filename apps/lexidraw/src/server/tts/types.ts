@@ -40,6 +40,11 @@ export type TtsSegment = {
   ssml?: string;
   audioUrl?: string;
   durationSec?: number;
+  sectionTitle?: string; // Section heading for document TTS
+  chunkHash?: string; // Content hash for incremental regeneration
+  sectionIndex?: number; // Zero-based index of section in document order
+  headingDepth?: number; // 1-6 for headings
+  sectionId?: string; // stable slug/hash id for the section
 };
 
 export type TtsResult = {

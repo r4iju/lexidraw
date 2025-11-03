@@ -1,8 +1,8 @@
 "use client";
-import { useMemo, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { AudioPlayer } from "~/components/ui/audio-player";
-import { cn } from "~/lib/utils";
 import { Label } from "../ui/label";
 
 type Segment = {
@@ -10,18 +10,27 @@ type Segment = {
   audioUrl: string;
   text: string;
   durationSec?: number;
+  sectionTitle?: string;
+  sectionIndex?: number;
 };
 
 type Props = {
   segments: Segment[];
   preferredPlaybackRate?: number;
+  initialIndex?: number;
 };
 
 export default function ArticleAudioPlayer({
   segments,
   preferredPlaybackRate,
+  initialIndex,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  useEffect(() => {
+    if (typeof initialIndex === "number" && initialIndex >= 0) {
+      setCurrentIndex(Math.min(initialIndex, Math.max(0, segments.length - 1)));
+    }
+  }, [initialIndex, segments.length]);
   const current = useMemo(
     () => segments[currentIndex],
     [segments, currentIndex],
@@ -29,8 +38,38 @@ export default function ArticleAudioPlayer({
 
   if (!segments.length) return null;
 
+  // Generate segment display names based on headings
+  const getSegmentName = (segment: Segment, index: number): string => {
+    if (segment.sectionTitle) {
+      // Count how many segments up to and including this one share the same sectionTitle
+      // This handles multiple chunks per section
+      let chunkCount = 0;
+      for (let i = 0; i <= index; i++) {
+        if (
+          segments[i]?.sectionTitle === segment.sectionTitle &&
+          (segment.sectionIndex === undefined ||
+            segments[i]?.sectionIndex === segment.sectionIndex)
+        ) {
+          chunkCount++;
+        }
+      }
+      // If this is the first chunk of the section, show just the title
+      // Otherwise, append the chunk number
+      return chunkCount === 1
+        ? segment.sectionTitle
+        : `${segment.sectionTitle} (${chunkCount})`;
+    }
+    // Fallback for segments without headings
+    return `Block ${index + 1}`;
+  };
+
   return (
     <div className="space-y-2">
+      {current?.sectionTitle && (
+        <div className="text-sm text-muted-foreground font-medium">
+          {current.sectionTitle}
+        </div>
+      )}
       <AudioPlayer
         src={current?.audioUrl ?? ""}
         autoPlay
@@ -41,23 +80,25 @@ export default function ArticleAudioPlayer({
         }}
       />
       <Label htmlFor="Segment">Segments</Label>
-      <div className="flex flex-wrap gap-0 items-center">
-        {segments.map((s, i) => (
-          <Button
-            size="sm"
-            key={s.index}
-            onClick={() => setCurrentIndex(i)}
-            variant={i === currentIndex ? "default" : "outline"}
-            className={cn("", {
-              "rounded-r-none": i === 0,
-              "rounded-l-none": i === segments.length - 1,
-              "rounded-none": i !== 0 && i !== segments.length - 1,
-              "px-4": i === currentIndex,
-            })}
-          >
-            {i + 1}
-          </Button>
-        ))}
+      <div className="flex flex-col gap-1 items-start">
+        {segments.map((s, i) => {
+          const segmentName = getSegmentName(s, i);
+          return (
+            <div key={s.index}>
+              <span className="mr-2 text-muted-foreground font-mono">
+                {i + 1}.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                key={s.index}
+                onClick={() => setCurrentIndex(i)}
+              >
+                {segmentName}
+              </Button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
