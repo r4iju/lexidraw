@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ChatDispatch } from "../llm-chat-context";
 import { generateUUID } from "~/lib/utils";
+import { api } from "~/trpc/react";
 // No runtime tool context required here; planner receives explicit availableTools
 
 /* --------------------------------------------------------------
@@ -9,6 +10,7 @@ import { generateUUID } from "~/lib/utils";
  * --------------------------------------------------------------*/
 
 export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
+  const planMutation = api.llm.plan.useMutation();
   const requestClarificationOrPlan = tool({
     description: `Describe the steps *you* (the assistant) plan to take
         to accomplish the user's objective, phrased in the
@@ -187,30 +189,11 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
           };
         }
 
-        const plannerRes = await fetch("/api/llm/plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: objective || "Continue with the next step",
-            availableTools: availableToolNames,
-            max: max ?? 6,
-          }),
+        const data = await planMutation.mutateAsync({
+          prompt: objective || "Continue with the next step",
+          availableTools: availableToolNames,
+          max: max ?? 6,
         });
-
-        if (!plannerRes.ok) {
-          const errorText = await plannerRes
-            .text()
-            .catch(() => "Planner error");
-          return {
-            success: false,
-            error: `Planner API error: ${errorText}`,
-          };
-        }
-
-        const data = (await plannerRes.json()) as {
-          tools?: unknown;
-          correlationId?: string;
-        };
 
         const tools: string[] = Array.isArray(data.tools)
           ? (data.tools as unknown[])

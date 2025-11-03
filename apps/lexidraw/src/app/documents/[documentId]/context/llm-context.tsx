@@ -186,6 +186,8 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       console.error("Failed to update LLM config:", error);
     },
   });
+  const generateMutation = api.llm.generate.useMutation();
+  const agentMutation = api.llm.agent.useMutation();
 
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({
     chat: initialConfig.chat,
@@ -429,24 +431,14 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
 
         // Chat without tools → call server JSON route
         if (!useAgent && !tools) {
-          const resp = await fetch("/api/llm/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt,
-              messages,
-              system,
-              temperature: temperature ?? activeConfig.temperature,
-              mode: "chat",
-            }),
-            signal,
+          const result = await generateMutation.mutateAsync({
+            prompt,
+            messages,
+            system,
+            temperature: temperature ?? activeConfig.temperature,
+            mode: "chat",
           });
-          if (!resp.ok) {
-            const errText = await resp.text().catch(() => "Generation error");
-            throw new Error(errText || "Generation error");
-          }
-          const json = (await resp.json()) as { text?: string };
-          const text = (json?.text ?? "").toString();
+          const text = (result.text ?? "").toString();
           setChatState((prev) => ({
             ...prev,
             isError: false,
@@ -610,36 +602,19 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
               .join(", ")}`,
           );
         }
-        const resp = await fetch("/api/llm/agent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt,
-            messages,
-            system,
-            temperature: temperature ?? activeConfig.temperature,
-            tools: toolNames,
-            toolDefs,
-          }),
-          signal,
-        });
-        if (!resp.ok) {
-          const errText = await resp.text().catch(() => "Agent error");
-          throw new Error(errText || "Agent error");
-        }
-        const json = (await resp.json()) as {
-          text?: string;
-          toolCalls?: Array<{
-            toolCallId: string;
-            toolName: string;
-            input?: Record<string, unknown>;
-          }>;
-        };
-        const text = (json?.text ?? "").toString();
-        if ((json.toolCalls ?? []).length > 0) {
+        // Note: The agent endpoint currently just returns empty result
+        // This is kept for backward compatibility but doesn't perform actual agent execution
+        const result = await agentMutation.mutateAsync({});
+        const text = (result.text ?? "").toString();
+        const toolCalls = (result.toolCalls ?? []).map((tc) => ({
+          toolCallId: tc.toolCallId ?? "",
+          toolName: tc.toolName ?? "",
+          input: tc.input ?? {},
+        }));
+        if (toolCalls.length > 0) {
           console.log("[agent] server-agent ← result toolCalls", {
-            count: (json.toolCalls ?? []).length,
-            calls: (json.toolCalls ?? []).map((c) => ({
+            count: toolCalls.length,
+            calls: toolCalls.map((c) => ({
               id: c.toolCallId,
               name: c.toolName,
             })),
@@ -651,21 +626,13 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           isError: false,
           text,
           error: null,
-          toolCalls: (json.toolCalls ?? []).map((c) => ({
-            toolCallId: c.toolCallId,
-            toolName: c.toolName,
-            input: c.input ?? {},
-          })),
+          toolCalls,
           isStreaming: false,
         }));
 
         return {
           text,
-          toolCalls: (json.toolCalls ?? []).map((c) => ({
-            toolCallId: c.toolCallId,
-            toolName: c.toolName,
-            input: c.input ?? {},
-          })),
+          toolCalls,
           toolResults: undefined,
         };
       } catch (err: unknown) {
@@ -690,7 +657,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         return { text: "", toolCalls: undefined, toolResults: undefined };
       }
     },
-    [llmConfig.chat, llmConfig.agent],
+    [llmConfig.chat, llmConfig.agent, generateMutation, agentMutation],
   );
 
   const generateChatStream = useCallback(

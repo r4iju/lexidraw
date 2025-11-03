@@ -1,9 +1,15 @@
 import { drizzle as db, schema } from "@packages/drizzle";
 
-export type LlmAuditEvent = {
+type LlmAuditEvent = {
   requestId: string;
   timestampMs: number;
-  route: "/api/llm/stream" | "/api/llm/generate" | "/api/llm/agent" | "server/actions/autocomplete";
+  route:
+    | "/api/llm/stream"
+    | "/api/llm/generate"
+    | "/api/llm/agent"
+    | "server/actions/autocomplete"
+    | "trpc/llm.generate"
+    | "trpc/llm.plan";
   mode: "chat" | "agent" | "autocomplete";
   userId: string;
   entityId?: string | null;
@@ -11,7 +17,11 @@ export type LlmAuditEvent = {
   modelId: string;
   temperature: number;
   maxOutputTokens: number;
-  usage: { promptTokens: number; completionTokens: number; totalTokens: number } | null;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  } | null;
   latencyMs: number;
   stream: boolean;
   toolCalls?: { name: string; count: number }[];
@@ -51,12 +61,11 @@ export async function recordLlmAudit(event: LlmAuditEvent): Promise<void> {
   await db.insert(schema.llmAuditEvents).values(row).run();
 }
 
-export async function withTiming<T>(fn: () => Promise<T>): Promise<{ result: T; elapsedMs: number }>
-{
+export async function withTiming<T>(
+  fn: () => Promise<T>,
+): Promise<{ result: T; elapsedMs: number }> {
   const start = performance.now();
   const result = await fn();
   const end = performance.now();
   return { result, elapsedMs: end - start };
 }
-
-
