@@ -3,6 +3,8 @@ import { CreateDocument } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
 import { and, eq, schema } from "@packages/drizzle";
 import { z } from "zod";
+import { start } from "workflow/api";
+import { generateDocumentPdfWorkflow } from "~/workflows/document-pdf-export/generate-document-pdf-workflow";
 
 export const documentRouter = createTRPCRouter({
   create: protectedProcedure
@@ -65,5 +67,57 @@ export const documentRouter = createTRPCRouter({
           deletedAt: new Date(),
         })
         .where(eq(schema.entities.id, input.id));
+    }),
+  exportPdf: protectedProcedure
+    .input(
+      z.object({
+        documentId: z.string(),
+        format: z.enum(["A4", "Letter"]).optional(),
+        orientation: z.enum(["portrait", "landscape"]).optional(),
+        margin: z
+          .object({
+            top: z.string().optional(),
+            right: z.string().optional(),
+            bottom: z.string().optional(),
+            left: z.string().optional(),
+          })
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session?.user.id;
+      if (!userId) {
+        throw new Error("Unauthorized");
+      }
+
+      // Check document access
+      const document = await ctx.drizzle.query.entities.findFirst({
+        where: (doc, { eq, and }) =>
+          and(eq(doc.id, input.documentId), eq(doc.entityType, "document")),
+      });
+
+      if (!document) {
+        throw new Error("Document not found");
+      }
+
+      // Check if user owns the document
+      if (document.userId !== userId) {
+        throw new Error("Unauthorized");
+      }
+
+      // Start workflow (fire-and-forget) and await result
+      // For now, we await the workflow; can be made async if needed
+      const result = await start(generateDocumentPdfWorkflow, [
+        input.documentId,
+        userId,
+        {
+          format: input.format,
+          orientation: input.orientation,
+          margin: input.margin,
+        },
+      ]);
+      const returnValue = await result.returnValue;
+
+      return { pdfUrl: returnValue.pdfUrl };
     }),
 });

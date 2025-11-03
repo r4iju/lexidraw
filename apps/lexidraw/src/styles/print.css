@@ -1,0 +1,242 @@
+/** biome-ignore-all lint/complexity/noImportantStyles: should be safe */
+
+@page {
+  size: A4;
+  margin: 14mm 14mm 16mm 14mm;
+}
+
+@media print {
+  /* Hide all editor UI elements */
+  .no-print,
+  [data-component-name="Toolbar"],
+  [data-component-name="TtsToolbar"],
+  [data-component-name="Sidebar"],
+  [data-component-name="CommentPlugin"],
+  [data-component-name="OptionsDropdown"],
+  [data-component-name="ModeToggle"],
+  [data-component-name="FloatingLinkEditor"],
+  [data-component-name="FloatingTextFormatToolbar"],
+  [data-component-name="ContextMenu"],
+  [data-component-name="LLMWidget"],
+  [data-component-name="AutocompletePlugin"],
+  [data-presence],
+  [data-presence-root],
+  .presence,
+  .cursor,
+  #nextjs-portal-root,
+  [data-nextjs-overlay],
+  [data-nextjs-error-overlay],
+  [data-nextjs-toast],
+  [data-nextjs-dialog],
+  header,
+  nav,
+  aside,
+  .print-hidden {
+    display: none !important;
+  }
+
+  /* Ensure full-width content */
+  body,
+  html {
+    margin: 0;
+    padding: 0;
+    background: white;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .print-container {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Remove height and overflow constraints that prevent pagination */
+  .print-container > *,
+  .print-container > * > * {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+    overflow-x: visible !important;
+  }
+
+  /* Content editable specific fixes */
+  [id^="lexical-content-"] {
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  article {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Remove overflow constraints on editor containers */
+  [class*="overflow"],
+  [class*="overflow-y-auto"],
+  [class*="overflow-hidden"] {
+    overflow: visible !important;
+  }
+
+  /* Remove borders from editor containers and UI elements */
+  [class*="border"],
+  [class*="border-x"],
+  [class*="border-y"],
+  [class*="border-t"],
+  [class*="border-r"],
+  [class*="border-b"],
+  [class*="border-l"],
+  [class*="border-border"] {
+    border: none !important;
+
+    border-width: 0 !important;
+  }
+
+  /* Page break controls */
+  .page-break {
+    break-before: page;
+  }
+
+  .page-break-after {
+    break-after: page;
+  }
+
+  .no-break {
+    break-inside: avoid;
+  }
+
+  /* Typography */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Figures and images */
+  figure,
+  img,
+  .excalidraw-container {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    max-width: 100%;
+  }
+
+  /* Tables */
+  table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tbody {
+    display: table-row-group;
+  }
+
+  /* Lists - allow breaks but maintain readability */
+  ul,
+  ol {
+    break-inside: auto;
+    page-break-inside: auto;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* List items can break across pages */
+  li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    orphans: 2;
+    widows: 2;
+  }
+
+  /* Collapsible containers - allow breaks across pages */
+  [data-slot="accordion-item"] {
+    break-inside: auto;
+    page-break-inside: auto;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Keep collapsible title with at least some content */
+  [data-slot="accordion-trigger"] {
+    break-after: avoid;
+    page-break-after: avoid;
+    gap: 0 !important;
+  }
+
+  /* Hide chevron icon in collapsible titles */
+  [data-slot="accordion-trigger"] svg,
+  [data-slot="accordion-trigger"] > svg {
+    display: none !important;
+  }
+
+  /* Auto-expand all collapsible content in print mode */
+  [data-slot="accordion-content"] {
+    break-inside: auto;
+    page-break-inside: auto;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  /* Force expansion regardless of data-state (open/closed) */
+  [data-slot="accordion-content"][data-state="closed"],
+  [data-slot="accordion-item"][data-state="closed"]
+    [data-slot="accordion-content"] {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Disable accordion animations in print mode */
+  [data-slot="accordion-content"] {
+    animation: none !important;
+  }
+
+  /* Code blocks */
+  pre,
+  code {
+    break-inside: avoid;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
+  /* Prevent widows/orphans */
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Ensure proper colors */
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Remove focus outlines */
+  *:focus {
+    outline: none !important;
+  }
+}
+
+/* Screen preview styles (non-print media) */
+@media screen {
+  .print-container {
+    max-width: 210mm; /* A4 width */
+    margin: 0 auto;
+    padding: 2rem;
+    background: white;
+  }
+}

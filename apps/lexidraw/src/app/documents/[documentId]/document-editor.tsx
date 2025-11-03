@@ -150,7 +150,6 @@ import { ChartNode } from "./nodes/ChartNode";
 import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 import ArticlePlugin from "./plugins/ArticlePlugin";
 import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
-import { TtsToolbar } from "./plugins/TtsToolbar";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -272,10 +271,12 @@ function EditorHandler({
   exportMarkdown,
   editorStateRef,
   setEditorStateRef,
-}: ExtendedEditorProps) {
+  printMode,
+}: ExtendedEditorProps & { printMode: boolean }) {
   const canCollaborate =
-    entity.sharedWith.length > 0 ||
-    entity.publicAccess !== PublicAccess.PRIVATE;
+    !printMode &&
+    (entity.sharedWith.length > 0 ||
+      entity.publicAccess !== PublicAccess.PRIVATE);
   const userId = useUserIdOrGuestId();
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
@@ -475,33 +476,35 @@ function EditorHandler({
                             sawarabi.variable,
                           )}
                         >
-                          {/* toolbar */}
-                          <div
-                            className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-card shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
-                            data-component-name="Toolbar"
-                          >
-                            <OptionsDropdown
-                              className="flex h-12 md:h-10 min-w-12 md:min-w-10"
-                              onSaveDocument={handleSave}
-                              isSavingDocument={isUploading}
-                              onExportMarkdown={exportMarkdown}
-                              entity={{
-                                id: entity.id,
-                                title: entity.title,
-                                accessLevel: entity.accessLevel,
-                              }}
-                            />
-                            <ShortcutsPlugin
-                              editor={editor}
-                              setIsLinkEditMode={setIsLinkEditMode}
-                            />
-                            <TooltipProvider>
-                              <ToolbarPlugin
+                          {/* toolbar (hidden in print mode) */}
+                          {!printMode && (
+                            <div
+                              className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-card shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
+                              data-component-name="Toolbar"
+                            >
+                              <OptionsDropdown
+                                className="flex h-12 md:h-10 min-w-12 md:min-w-10"
+                                onSaveDocument={handleSave}
+                                isSavingDocument={isUploading}
+                                onExportMarkdown={exportMarkdown}
+                                entity={{
+                                  id: entity.id,
+                                  title: entity.title,
+                                  accessLevel: entity.accessLevel,
+                                }}
+                              />
+                              <ShortcutsPlugin
+                                editor={editor}
                                 setIsLinkEditMode={setIsLinkEditMode}
                               />
-                            </TooltipProvider>
-                            <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
-                          </div>
+                              <TooltipProvider>
+                                <ToolbarPlugin
+                                  setIsLinkEditMode={setIsLinkEditMode}
+                                />
+                              </TooltipProvider>
+                              <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
+                            </div>
+                          )}
 
                           {/* editor + sidebar container */}
                           <div className="flex flex-1 overflow-hidden bg-muted">
@@ -591,7 +594,7 @@ function EditorHandler({
                               )}
                               <ContextMenuPlugin />
                             </div>
-                            {activeSidebar && (
+                            {!printMode && activeSidebar && (
                               <SidebarWrapper
                                 ref={sidebarRef}
                                 className="shadow-lg"
@@ -614,7 +617,7 @@ function EditorHandler({
                             )}
                           </div>
 
-                          <ConditionalCommentInputBoxRenderer />
+                          {!printMode && <ConditionalCommentInputBoxRenderer />}
                         </div>
                       </CommentPluginProvider>
                     </LexicalImageProvider>
@@ -641,6 +644,7 @@ type Props = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
+  printMode?: boolean;
 };
 
 function EditorScaffold({
@@ -650,6 +654,7 @@ function EditorScaffold({
   iceServers,
   initialLlmConfig,
   nodes,
+  printMode,
 }: {
   entity: RouterOutputs["entities"]["load"];
   editorStateRef: RefObject<EditorState | undefined>;
@@ -657,14 +662,18 @@ function EditorScaffold({
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
   nodes: Klass<LexicalNode>[];
+  printMode?: boolean;
 }) {
-  const {
-    handleSaveAndLeave,
-    handleSave,
-    handleSilentSave,
-    isUploading,
-    exportMarkdown,
-  } = useSaveAndExportDocument({ entity, editorStateRef });
+  const saveAndExport = useSaveAndExportDocument({ entity, editorStateRef });
+  const handleSaveAndLeave = printMode
+    ? () => {}
+    : saveAndExport.handleSaveAndLeave;
+  const handleSave = printMode ? () => {} : saveAndExport.handleSave;
+  const handleSilentSave = printMode
+    ? () => {}
+    : saveAndExport.handleSilentSave;
+  const isUploading = printMode ? false : saveAndExport.isUploading;
+  const exportMarkdown = printMode ? () => {} : saveAndExport.exportMarkdown;
 
   return (
     <SettingsProvider>
@@ -691,6 +700,7 @@ function EditorScaffold({
               exportMarkdown={exportMarkdown}
               editorStateRef={editorStateRef}
               setEditorStateRef={setEditorStateRef}
+              printMode={printMode ?? false}
             />
           </SidebarManagerProvider>
         </UnsavedChangesProvider>
@@ -703,6 +713,7 @@ export default function DocumentEditor({
   entity,
   iceServers,
   initialLlmConfig,
+  printMode,
 }: Props) {
   console.log("🔄 DocumentEditor re-rendered");
 
@@ -767,6 +778,7 @@ export default function DocumentEditor({
         iceServers={iceServers}
         initialLlmConfig={initialLlmConfig}
         nodes={lexicalNodes}
+        printMode={printMode}
       />
     </DocumentSettingsProvider>
   );
