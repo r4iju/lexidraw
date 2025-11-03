@@ -418,6 +418,20 @@ export default function ArticlePreview({
           break;
         }
 
+        // Check timeout before updating toast
+        const elapsed = Date.now() - startTime;
+        // If progress is 100% but status q isn't ready yet, give extra grace period for finalization
+        const isCompleteButNotReady =
+          progress >= 100 && snap.status === "processing";
+        const timeoutThreshold = isCompleteButNotReady ? max + 10_000 : max;
+
+        if (elapsed > timeoutThreshold) {
+          toast.message("Audio generation queued. It will appear shortly.", {
+            id: toastId,
+          });
+          break;
+        }
+
         // Update progress toast
         const statusLabel =
           snap.status === "queued"
@@ -441,12 +455,6 @@ export default function ArticlePreview({
           { id: toastId, duration: Infinity },
         );
 
-        if (Date.now() - startTime > max) {
-          toast.message("Audio generation queued. It will appear shortly.", {
-            id: toastId,
-          });
-          break;
-        }
         await new Promise((r) => setTimeout(r, delay));
         delay = Math.min(delay + 500, 2500);
       }
