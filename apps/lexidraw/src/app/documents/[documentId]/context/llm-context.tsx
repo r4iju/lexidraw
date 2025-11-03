@@ -20,41 +20,8 @@ import type {
   StoredLlmConfig,
   PartialLlmConfig,
 } from "~/server/api/routers/config";
-import type { z, ZodTypeAny } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import type { z } from "zod";
 import { useDebounce } from "~/lib/client-utils";
-// Canonical tool input schemas (no React deps) from shared types package
-import {
-  InsertMarkdownSchema,
-  InsertHeadingNodeSchema,
-  InsertTextNodeSchema,
-  InsertListNodeSchema,
-  InsertListItemNodeSchema,
-  InsertTableSchema,
-  InsertLinkNodeSchema,
-  InsertEquationNodeSchema,
-  InsertFigmaNodeSchema,
-  InsertCollapsibleSectionSchema,
-  InsertLayoutSchema,
-  InsertPageBreakNodeSchema,
-  InsertPollNodeSchema,
-  InsertTweetNodeSchema,
-  InsertYouTubeNodeSchema,
-  InsertExcalidrawDiagramSchema,
-  InsertMermaidDiagramSchema,
-  InsertCodeBlockSchema,
-  InsertCodeHighlightNodeSchema,
-  InsertHashtagSchema,
-  ApplyTextStyleSchema,
-  InsertSlideDeckNodeSchema,
-  AddSlidePageSchema,
-  RemoveSlidePageSchema,
-  ReorderSlidePageSchema,
-  SetSlidePageBackgroundSchema,
-  AddImageToSlidePageSchema,
-  AddChartToSlidePageSchema,
-  AddBoxToSlidePageSchema,
-} from "@packages/types";
 
 export type RuntimeToolMap = Record<string, ReturnType<typeof tool>>;
 
@@ -186,8 +153,6 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       console.error("Failed to update LLM config:", error);
     },
   });
-  const generateMutation = api.llm.generate.useMutation();
-  const agentMutation = api.llm.agent.useMutation();
 
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({
     chat: initialConfig.chat,
@@ -316,12 +281,11 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       messages,
       system = "",
       temperature,
-      signal,
       tools,
       prepareStep: _prepareStep,
       repairToolCall: _repairToolCall,
       toolChoice: _toolChoice,
-      maxSteps: _maxSteps,
+      maxSteps,
       files: _files,
       mode,
     }: LLMOptions & {
@@ -353,311 +317,78 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         toolCalls: undefined,
       }));
 
-      try {
-        // Client-orchestrated agent path (feature-flagged)
-        const clientOrch = true;
-        if (useAgent && clientOrch && tools && Object.keys(tools).length > 0) {
-          // Instantiate provider client-side with proxy baseURL
-          let model: ReturnType<
-            | ReturnType<typeof createOpenAI>
-            | ReturnType<typeof createGoogleGenerativeAI>
-          > | null = null;
-          const provider = llmConfig.agent.provider;
-          const modelId = llmConfig.agent.modelId;
-          if (provider === "openai") {
-            const openai = createOpenAI({
-              baseURL: "/api/llm/proxy/openai",
-              apiKey: "proxy",
-            });
-            model = openai(modelId);
-          } else if (provider === "google") {
-            const google = createGoogleGenerativeAI({
-              baseURL: "/api/llm/proxy/google",
-              apiKey: "proxy",
-            });
-            model = google(modelId);
-          } else {
-            throw new Error("Unsupported provider for client orchestration");
-          }
-
-          const baseMessages: ModelMessage[] = (messages ?? []).length
-            ? (messages as ModelMessage[])
-            : ([{ role: "user", content: prompt }] as ModelMessage[]);
-
-          // Pass the real runtime tools directly to generateText().
-          // The AI SDK will extract their Zod schemas (from tool() helper) and convert them correctly for the provider.
-          const genOptions = {
-            model: model as unknown as LanguageModel,
-            messages: baseMessages,
-            system,
-            temperature: temperature ?? activeConfig.temperature,
-            tools: tools as unknown as RuntimeToolMap,
-            toolChoice: "auto",
-            maxSteps: 1,
-          } as unknown as Parameters<typeof generateText>[0];
-          console.log("[agent] generateText (client) → sending", {
-            toolCount: Object.keys(tools ?? {}).length,
-            toolNames: Object.keys(tools ?? {}),
-            maxSteps: 1,
-          });
-          const result = await generateText(genOptions);
-          console.log("[agent] generateText (client) ← result", {
-            toolCallsCount: (result.toolCalls ?? []).length,
-            toolCalls: (result.toolCalls ?? []).map((c) => ({
-              id: c.toolCallId,
-              name: c.toolName,
-            })),
-            textLength: (result?.text ?? "").length,
-          });
-
-          const text = (result?.text ?? "").toString();
-          const toolCalls = (result.toolCalls ?? []).map((c) => {
-            const rawInput = c.input;
-            return {
-              toolCallId: c.toolCallId,
-              toolName: c.toolName,
-              input: rawInput ?? {},
-            } as AppToolCall;
-          });
-          setChatState((prev) => ({
-            ...prev,
-            isError: false,
-            text,
-            error: null,
-            isStreaming: false,
-          }));
-          return { text, toolCalls, toolResults: undefined };
-        }
-
-        // Chat without tools → call server JSON route
-        if (!useAgent && !tools) {
-          const result = await generateMutation.mutateAsync({
-            prompt,
-            messages,
-            system,
-            temperature: temperature ?? activeConfig.temperature,
-            mode: "chat",
-          });
-          const text = (result.text ?? "").toString();
-          setChatState((prev) => ({
-            ...prev,
-            isError: false,
-            text,
-            error: null,
-            isStreaming: false,
-          }));
-          return { text };
-        }
-
-        // Agent or tools present → call server agent route (fallback)
-        const toolNames = Object.keys(tools ?? {});
-        // Build JSON Schemas for selected tools; prefer prebuilt parameters if present.
-        const toolDefs = toolNames
-          .map((name) => {
-            // Skip sending toolDefs for tools covered by the server-side contract
-            // The server will build these schemas from the shared registry.
-            if (
-              [
-                "sendReply",
-                "requestClarificationOrPlan",
-                "summarizeAfterToolCallExecution",
-                "insertSlideDeckNode",
-                "addSlidePage",
-                "removeSlidePage",
-                "reorderSlidePage",
-                "setSlidePageBackground",
-                "addImageToSlidePage",
-                "addChartToSlidePage",
-              ].includes(name)
-            )
-              return null;
-            const t = tools?.[name] as unknown as {
-              inputSchema?: ZodTypeAny;
-              parameters?: Record<string, unknown>;
-              description?: string;
-            };
-            const description =
-              typeof t?.description === "string" ? t.description : undefined;
-            // Prefer parameters if present (already JSON Schema from AI SDK)
-            const prebuilt = t?.parameters as
-              | (Record<string, unknown> & { type?: unknown })
-              | undefined;
-            if (prebuilt && typeof prebuilt === "object") {
-              // If provider requires type: object at root, ensure it's present when discernible
-              const rootType = (prebuilt as { type?: unknown }).type;
-              if (rootType === undefined || rootType === "object") {
-                return { name, parameters: prebuilt, description } as {
-                  name: string;
-                  parameters: Record<string, unknown>;
-                  description?: string;
-                };
-              }
-            }
-            // Fallback to Zod conversion (local inputSchema → JSON Schema)
-            const schema = t?.inputSchema as ZodTypeAny | undefined;
-            if (schema) {
-              try {
-                const parameters = zodToJsonSchema(schema, {
-                  name: `${name}Input`,
-                  $refStrategy: "none",
-                  target: "jsonSchema7",
-                }) as Record<string, unknown>;
-                if (
-                  !parameters ||
-                  typeof parameters !== "object" ||
-                  (parameters as { type?: unknown }).type !== "object"
-                ) {
-                  throw new Error(
-                    `Tool '${name}' parameters must be a JSON Schema with type: "object"`,
-                  );
-                }
-                return { name, parameters, description } as {
-                  name: string;
-                  parameters: Record<string, unknown>;
-                  description?: string;
-                };
-              } catch (e) {
-                console.warn(
-                  `[LLMContext] Local schema conversion failed for '${name}':`,
-                  e instanceof Error ? e.message : String(e),
-                );
-              }
-            }
-
-            // Try canonical schemas from shared package before skipping
-            const canonical = (
-              {
-                insertMarkdown: InsertMarkdownSchema,
-                insertHeadingNode: InsertHeadingNodeSchema,
-                insertTextNode: InsertTextNodeSchema,
-                insertListNode: InsertListNodeSchema,
-                insertListItemNode: InsertListItemNodeSchema,
-                insertTable: InsertTableSchema,
-                insertLinkNode: InsertLinkNodeSchema,
-                insertEquationNode: InsertEquationNodeSchema,
-                insertFigmaNode: InsertFigmaNodeSchema,
-                insertCollapsibleSection: InsertCollapsibleSectionSchema,
-                insertLayout: InsertLayoutSchema,
-                insertPageBreakNode: InsertPageBreakNodeSchema,
-                insertPollNode: InsertPollNodeSchema,
-                insertTweetNode: InsertTweetNodeSchema,
-                insertYouTubeNode: InsertYouTubeNodeSchema,
-                insertExcalidrawDiagram: InsertExcalidrawDiagramSchema,
-                insertMermaidDiagram: InsertMermaidDiagramSchema,
-                insertCodeBlock: InsertCodeBlockSchema,
-                insertCodeHighlightNode: InsertCodeHighlightNodeSchema,
-                insertHashtag: InsertHashtagSchema,
-                applyTextStyle: ApplyTextStyleSchema,
-                insertSlideDeckNode: InsertSlideDeckNodeSchema,
-                addSlidePage: AddSlidePageSchema,
-                removeSlidePage: RemoveSlidePageSchema,
-                reorderSlidePage: ReorderSlidePageSchema,
-                setSlidePageBackground: SetSlidePageBackgroundSchema,
-                addImageToSlidePage: AddImageToSlidePageSchema,
-                addChartToSlidePage: AddChartToSlidePageSchema,
-                addBoxToSlidePage: AddBoxToSlidePageSchema,
-              } as Record<string, ZodTypeAny>
-            )[name];
-
-            if (canonical) {
-              try {
-                const parameters = zodToJsonSchema(canonical, {
-                  name: `${name}Input`,
-                  $refStrategy: "none",
-                  target: "jsonSchema7",
-                }) as Record<string, unknown>;
-                if (
-                  parameters &&
-                  typeof parameters === "object" &&
-                  (parameters as { type?: unknown }).type === "object"
-                ) {
-                  return { name, parameters, description } as {
-                    name: string;
-                    parameters: Record<string, unknown>;
-                    description?: string;
-                  };
-                }
-              } catch (e) {
-                console.warn(
-                  `[LLMContext] Canonical schema conversion failed for '${name}':`,
-                  e instanceof Error ? e.message : String(e),
-                );
-              }
-            }
-
-            console.warn(
-              `[LLMContext] Skipping toolDef for '${name}' (no valid parameters schema)`,
-            );
-            return null;
-          })
-          .filter(Boolean) as Array<{
-          name: string;
-          parameters: Record<string, unknown>;
-          description?: string;
-        }>;
-        if (toolDefs.length > 0) {
-          console.log(
-            `[agent] Prepared ${toolDefs.length} toolDef(s): ${toolDefs
-              .map((d) => d.name)
-              .join(", ")}`,
-          );
-        }
-        // Note: The agent endpoint currently just returns empty result
-        // This is kept for backward compatibility but doesn't perform actual agent execution
-        const result = await agentMutation.mutateAsync({});
-        const text = (result.text ?? "").toString();
-        const toolCalls = (result.toolCalls ?? []).map((tc) => ({
-          toolCallId: tc.toolCallId ?? "",
-          toolName: tc.toolName ?? "",
-          input: tc.input ?? {},
-        }));
-        if (toolCalls.length > 0) {
-          console.log("[agent] server-agent ← result toolCalls", {
-            count: toolCalls.length,
-            calls: toolCalls.map((c) => ({
-              id: c.toolCallId,
-              name: c.toolName,
-            })),
-          });
-        }
-
-        setChatState((prev) => ({
-          ...prev,
-          isError: false,
-          text,
-          error: null,
-          toolCalls,
-          isStreaming: false,
-        }));
-
-        return {
-          text,
-          toolCalls,
-          toolResults: undefined,
-        };
-      } catch (err: unknown) {
-        if (
-          err instanceof Error &&
-          ["AbortError", "ExitError"].includes(err.name)
-        ) {
-          setChatState((prev) => ({
-            ...prev,
-            text: "",
-            isStreaming: false,
-          }));
-          return { text: "", toolCalls: undefined, toolResults: undefined };
-        }
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        setChatState((prev) => ({
-          ...prev,
-          isError: true,
-          error: errorMsg,
-          isStreaming: false,
-        }));
-        return { text: "", toolCalls: undefined, toolResults: undefined };
+      // Instantiate provider client-side with proxy baseURL
+      let model: ReturnType<
+        | ReturnType<typeof createOpenAI>
+        | ReturnType<typeof createGoogleGenerativeAI>
+      > | null = null;
+      const provider = llmConfig.agent.provider;
+      const modelId = llmConfig.agent.modelId;
+      if (provider === "openai") {
+        const openai = createOpenAI({
+          baseURL: "/api/llm/proxy/openai",
+          apiKey: "proxy",
+        });
+        model = openai(modelId);
+      } else if (provider === "google") {
+        const google = createGoogleGenerativeAI({
+          baseURL: "/api/llm/proxy/google",
+          apiKey: "proxy",
+        });
+        model = google(modelId);
+      } else {
+        throw new Error("Unsupported provider for client orchestration");
       }
+
+      const baseMessages: ModelMessage[] = (messages ?? []).length
+        ? (messages as ModelMessage[])
+        : ([{ role: "user", content: prompt }] as ModelMessage[]);
+
+      const genOptions = {
+        model: model as unknown as LanguageModel,
+        messages: baseMessages,
+        system,
+        temperature: temperature ?? activeConfig.temperature,
+        tools: tools as unknown as RuntimeToolMap,
+        toolChoice: "auto",
+        maxSteps,
+      } as unknown as Parameters<typeof generateText>[0];
+      console.log("[agent] generateText (client) → sending", {
+        toolCount: Object.keys(tools ?? {}).length,
+        toolNames: Object.keys(tools ?? {}),
+        maxSteps,
+      });
+      const result = await generateText(genOptions);
+      console.log("[agent] generateText (client) ← result", {
+        toolCallsCount: (result.toolCalls ?? []).length,
+        toolCalls: (result.toolCalls ?? []).map((c) => ({
+          id: c.toolCallId,
+          name: c.toolName,
+        })),
+        textLength: (result?.text ?? "").length,
+      });
+
+      const text = (result?.text ?? "").toString();
+      const toolCalls = (result.toolCalls ?? []).map((c) => {
+        const rawInput = c.input;
+        return {
+          toolCallId: c.toolCallId,
+          toolName: c.toolName,
+          input: rawInput ?? {},
+        } as AppToolCall;
+      });
+      setChatState((prev) => ({
+        ...prev,
+        isError: false,
+        text,
+        error: null,
+        isStreaming: false,
+      }));
+      return { text, toolCalls, toolResults: undefined };
+
+      // Agent or tools present → call server agent route (fallback)
     },
-    [llmConfig.chat, llmConfig.agent, generateMutation, agentMutation],
+    [llmConfig.chat, llmConfig.agent],
   );
 
   const generateChatStream = useCallback(
@@ -666,10 +397,9 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       system = "",
       temperature,
       signal,
-      maxSteps: _maxSteps, // ignored in server route for now
       callbacks,
       files,
-    }: Omit<LLMOptions, "tools" | "toolChoice"> & {
+    }: Omit<LLMOptions, "tools" | "toolChoice" | "maxSteps"> & {
       callbacks: StreamCallbacks;
       files?: File[] | FileList | null;
     }): Promise<void> => {
