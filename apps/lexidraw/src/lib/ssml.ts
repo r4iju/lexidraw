@@ -21,7 +21,17 @@ export function buildSsmlFromParagraphs(
   const prosodyClose = rate ? "</prosody>" : "";
 
   const body = paragraphs
-    .map((p) => `<p>${escapeXml(p)}</p>`)
+    .map((p) => {
+      // Check if paragraph starts with a heading pattern (# 1-6 hashes)
+      const headingMatch = p.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        const headingText = headingMatch[2] ?? "";
+        // Format heading with emphasis, slower rate, and pause
+        return `<p><emphasis level="strong"><prosody rate="90%">${escapeXml(headingText)}</prosody></emphasis><break time="500ms"/></p>`;
+      }
+      // Regular paragraph
+      return `<p>${escapeXml(p)}</p>`;
+    })
     .join(`<break time="${breakMs}ms"/>`);
 
   return `<speak xml:lang="${lang}">${prosodyOpen}${body}${prosodyClose}</speak>`;

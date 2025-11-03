@@ -52,6 +52,11 @@ export async function ensureChunkSynthesizedStep(args: {
       })
     : undefined;
 
+  // Strip markdown heading syntax (## Heading -> Heading) for non-SSML providers
+  const textForTts = ssml
+    ? args.text // SSML already handles headings
+    : args.text.replace(/^(#{1,6})\s+(.+)$/gm, "$2");
+
   const segmentFormat: "mp3" | "ogg" | "wav" =
     process.env.TTS_STITCH_WITH_FFMPEG === "true" ? "wav" : args.format;
 
@@ -61,7 +66,7 @@ export async function ensureChunkSynthesizedStep(args: {
 
   // Synthesize (let Workflow default retries handle errors)
   const { audio } = await provider.synthesize({
-    textOrSsml: ssml ?? args.text,
+    textOrSsml: ssml ?? textForTts,
     voiceId: args.voiceId,
     speed: args.speed,
     format: args.format,

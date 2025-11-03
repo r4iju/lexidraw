@@ -64,7 +64,23 @@ export function TtsToolbar({ className }: Props) {
   // Check if audio already exists
   const ttsStatusQuery = api.tts.getDocumentTtsStatus.useQuery(
     { documentId },
-    { refetchOnMount: true },
+    {
+      refetchOnMount: true,
+      refetchOnWindowFocus: (query) => {
+        const status = query.state.data?.status;
+        // Only refetch on focus when job is actively processing
+        return status === "queued" || status === "processing";
+      },
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        // Only poll when job is actively processing
+        if (status === "queued" || status === "processing") {
+          return 2000; // Poll every 2 seconds
+        }
+        // Stop polling for terminal states or when no job exists
+        return false;
+      },
+    },
   );
 
   const [ttsCfg, setTtsCfg] = useState({

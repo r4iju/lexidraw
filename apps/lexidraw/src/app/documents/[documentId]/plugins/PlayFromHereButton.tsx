@@ -69,7 +69,23 @@ export function PlayFromHereButton({
   const startTts = api.tts.startDocumentTts.useMutation();
   const statusQuery = api.tts.getDocumentTtsStatus.useQuery(
     { documentId },
-    { enabled: open, refetchInterval: open ? 1500 : false },
+    {
+      enabled: open,
+      refetchOnWindowFocus: (query) => {
+        const status = query.state.data?.status;
+        // Only refetch on focus when job is actively processing
+        return status === "queued" || status === "processing";
+      },
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        // Only poll when job is actively processing
+        if (status === "queued" || status === "processing") {
+          return 1500; // Poll every 1.5 seconds
+        }
+        // Stop polling for terminal states or when no job exists
+        return false;
+      },
+    },
   );
   const manifestQuery = api.tts.getDocumentTtsManifest.useQuery(
     { documentId },
