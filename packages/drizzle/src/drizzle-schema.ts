@@ -531,7 +531,7 @@ export const ttsJobs = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     status: text("status")
-      .$type<"queued" | "processing" | "ready" | "error">()
+      .$type<"queued" | "processing" | "ready" | "error" | "cancelled">()
       .notNull(),
     manifestUrl: text("manifestUrl"),
     stitchedUrl: text("stitchedUrl"),

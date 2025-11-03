@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { drizzle, schema } from "@packages/drizzle";
-import { and, eq, or, isNull, ne } from "drizzle-orm";
+import { and, eq, or, isNull, ne, desc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { computeDocKey, computeArticleKey } from "~/server/tts/id";
 import { generateDocumentTtsWorkflow } from "~/workflows/document-tts/generate-document-tts-workflow";
@@ -14,7 +14,7 @@ import env from "@packages/env";
 
 const TtsJobSnapshot = z.object({
   docKey: z.string(),
-  status: z.enum(["queued", "processing", "ready", "error"]),
+  status: z.enum(["queued", "processing", "ready", "error", "cancelled"]),
   manifestUrl: z.string().url().optional(),
   stitchedUrl: z.string().url().optional(),
   segmentCount: z.number().optional(),
@@ -131,6 +131,22 @@ export const ttsRouter = createTRPCRouter({
       };
       const docKey = computeDocKey(input.documentId, cfg);
 
+      // Cancel prior non-terminal jobs for this document and user
+      await drizzle
+        .update(schema.ttsJobs)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.ttsJobs.entityId, input.documentId),
+            eq(schema.ttsJobs.userId, userId),
+            or(
+              eq(schema.ttsJobs.status, "queued"),
+              eq(schema.ttsJobs.status, "processing"),
+            ),
+          ),
+        )
+        .execute();
+
       const existing = await drizzle.query.ttsJobs.findFirst({
         where: (t) => and(eq(t.id, docKey), eq(t.entityId, input.documentId)),
       });
@@ -188,9 +204,14 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.documentId,
       );
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.documentId),
-      });
+      const rows = await drizzle
+        .select()
+        .from(schema.ttsJobs)
+        .where(eq(schema.ttsJobs.entityId, input.documentId))
+        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
+        .limit(1)
+        .execute();
+      const row = rows[0];
       if (!row) {
         return {
           docKey: "",
@@ -218,9 +239,14 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.documentId,
       );
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.documentId),
-      });
+      const rows = await drizzle
+        .select()
+        .from(schema.ttsJobs)
+        .where(eq(schema.ttsJobs.entityId, input.documentId))
+        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
+        .limit(1)
+        .execute();
+      const row = rows[0];
       console.log("[trpc][tts][getDocumentTtsManifest] row", row);
       if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
       const r = await fetch(row.manifestUrl, { cache: "no-store" });
@@ -351,6 +377,22 @@ export const ttsRouter = createTRPCRouter({
       };
       const articleKey = computeArticleKey(input.articleId, cfg);
 
+      // Cancel prior non-terminal jobs for this article and user
+      await drizzle
+        .update(schema.ttsJobs)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.ttsJobs.entityId, input.articleId),
+            eq(schema.ttsJobs.userId, userId),
+            or(
+              eq(schema.ttsJobs.status, "queued"),
+              eq(schema.ttsJobs.status, "processing"),
+            ),
+          ),
+        )
+        .execute();
+
       const existing = await drizzle.query.ttsJobs.findFirst({
         where: (t) =>
           and(eq(t.id, articleKey), eq(t.entityId, input.articleId)),
@@ -425,9 +467,14 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.articleId,
       );
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.articleId),
-      });
+      const rows = await drizzle
+        .select()
+        .from(schema.ttsJobs)
+        .where(eq(schema.ttsJobs.entityId, input.articleId))
+        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
+        .limit(1)
+        .execute();
+      const row = rows[0];
       if (!row) {
         return {
           docKey: "",
@@ -455,9 +502,14 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.articleId,
       );
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.articleId),
-      });
+      const rows = await drizzle
+        .select()
+        .from(schema.ttsJobs)
+        .where(eq(schema.ttsJobs.entityId, input.articleId))
+        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
+        .limit(1)
+        .execute();
+      const row = rows[0];
       console.log("[trpc][tts][getArticleTtsManifest] row", row);
       if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
       const r = await fetch(row.manifestUrl, { cache: "no-store" });

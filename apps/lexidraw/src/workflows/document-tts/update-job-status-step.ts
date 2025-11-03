@@ -3,12 +3,12 @@ import { drizzle, schema } from "@packages/drizzle";
 export async function updateJobStatusStep(
   docKey: string,
   entityId: string,
-  status: "processing" | "ready" | "queued",
+  status: "processing" | "ready" | "queued" | "cancelled" | "error",
   plannedCount?: number,
 ): Promise<void> {
   "use step";
   const updateData: {
-    status: "processing" | "ready" | "queued";
+    status: "processing" | "ready" | "queued" | "cancelled" | "error";
     updatedAt: Date;
     plannedCount?: number | null;
   } = {
