@@ -12,6 +12,7 @@ import { adminLlmRouter } from "./routers/admin/llm";
 import { adminUsersRouter } from "./routers/admin/users";
 import { adminEntitiesRouter } from "./routers/admin/entities";
 import { ttsRouter } from "./routers/tts";
+import { llmRouter } from "./routers/llm";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -27,6 +28,7 @@ export const appRouter = createTRPCRouter({
   adminUsers: adminUsersRouter,
   adminEntities: adminEntitiesRouter,
   tts: ttsRouter,
+  llm: llmRouter,
 });
 
 // export type definition of API

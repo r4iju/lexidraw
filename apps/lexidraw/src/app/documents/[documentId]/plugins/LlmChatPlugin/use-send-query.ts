@@ -13,6 +13,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useMarkdownTools } from "../../utils/markdown";
 import type { ModelMessage } from "ai";
 import { generateUUID } from "~/lib/utils";
+import { api } from "~/trpc/react";
 
 // Define a more specific type for messages used in history building
 // (Matches the structure in llm-chat-context.tsx)
@@ -60,6 +61,7 @@ export const useSendQuery = () => {
   const { generateChatStream, generateChatResponse, llmConfig } = useLLM();
   const runtimeTools = useRuntimeTools();
   const [editor] = useLexicalComposerContext();
+  const planMutation = api.llm.plan.useMutation();
 
   const systemPrompt = useSystemPrompt(mode);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
@@ -150,28 +152,18 @@ export const useSendQuery = () => {
       let selectedNames: string[] = [];
       let correlationId: string | undefined;
       try {
-        const plannerRes = await fetch("/api/llm/plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: args.prompt,
-            availableTools: availableToolNames,
-            max: MAX_SELECTED_TOOLS,
-          }),
+        const data = await planMutation.mutateAsync({
+          prompt: args.prompt,
+          availableTools: availableToolNames,
+          max: MAX_SELECTED_TOOLS,
         });
-        if (plannerRes.ok) {
-          const data = (await plannerRes.json()) as {
-            tools?: unknown;
-            correlationId?: string;
-          };
-          if (Array.isArray(data.tools)) {
-            selectedNames = (data.tools as unknown[])
-              .filter((x) => typeof x === "string")
-              .slice(0, MAX_SELECTED_TOOLS) as string[];
-          }
-          if (typeof data.correlationId === "string") {
-            correlationId = data.correlationId;
-          }
+        if (Array.isArray(data.tools)) {
+          selectedNames = (data.tools as unknown[])
+            .filter((x) => typeof x === "string")
+            .slice(0, MAX_SELECTED_TOOLS) as string[];
+        }
+        if (typeof data.correlationId === "string") {
+          correlationId = data.correlationId;
         }
       } catch {
         // return empty selection on error
@@ -179,7 +171,7 @@ export const useSendQuery = () => {
 
       return { selectedNames, correlationId };
     },
-    [runtimeTools],
+    [runtimeTools, planMutation],
   );
 
   // --- Helper: Decision cycle after an execution pass ---

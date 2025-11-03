@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { PublicAccess } from "@packages/types";
 import { del } from "@vercel/blob";
 import type { TtsSegment } from "~/server/tts/types";
+import env from "@packages/env";
 
 const TtsJobSnapshot = z.object({
   docKey: z.string(),
@@ -540,5 +541,25 @@ export const ttsRouter = createTRPCRouter({
         .execute();
 
       return { deleted: true };
+    }),
+
+  getById: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session?.user?.id;
+      if (!userId) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const manifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/${input.id}/manifest.json`;
+      const res = await fetch(manifestUrl, { cache: "no-store" });
+      if (!res.ok) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "TTS manifest not found",
+        });
+      }
+      const json = await res.json();
+      return { ...json, manifestUrl };
     }),
 });
