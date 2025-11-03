@@ -1,7 +1,7 @@
 "use client";
 
-import type React from "react";
-import { useFormContext, Controller } from "react-hook-form";
+import * as React from "react";
+import { useFormContext, Controller, useWatch } from "react-hook-form";
 import {
   Select,
   SelectContent,
@@ -26,8 +26,22 @@ export function RHFModelSelect({
   providerName,
   allowedModels,
 }: RHFModelSelectProps) {
-  const { control, watch } = useFormContext();
-  const provider = watch(providerName);
+  const { control, setValue } = useFormContext();
+  // Subscribe to provider and model changes so this component reacts correctly
+  const provider = useWatch({ control, name: providerName });
+  const modelValue = useWatch({ control, name });
+
+  // If provider changes and the selected model is no longer valid, clear it
+  React.useEffect(() => {
+    const modelsForProvider = provider
+      ? allowedModels.filter((m) => m.provider === provider)
+      : [];
+    const isValid =
+      !!modelValue && modelsForProvider.some((m) => m.modelId === modelValue);
+    if (!!modelValue && !isValid) {
+      setValue(name, "");
+    }
+  }, [provider, modelValue, allowedModels, name, setValue]);
 
   // Filter models by selected provider
   const filteredModels = provider

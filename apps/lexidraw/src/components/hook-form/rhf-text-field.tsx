@@ -56,11 +56,19 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
                 type={type}
                 placeholder={placeholder}
                 required={required}
-                value={
-                  typeof field.value === "number" && field.value === 0
-                    ? ""
-                    : field.value
-                }
+                inputMode={type === "number" ? "numeric" : undefined}
+                // Ensure RHF stores numbers for type="number" inputs
+                onChange={(e) => {
+                  if (type === "number") {
+                    const raw = e.currentTarget.value;
+                    const next =
+                      raw === "" ? undefined : e.currentTarget.valueAsNumber;
+                    field.onChange(next);
+                  } else {
+                    field.onChange(e);
+                  }
+                }}
+                value={type === "number" ? (field.value ?? "") : field.value}
               />
             )}
             {error && (

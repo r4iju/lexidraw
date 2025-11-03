@@ -80,8 +80,8 @@ function LLMSection({
         />
         <RHFTextField
           label="Max output tokens"
-          name={`${prefix}.maxOutputTokens`}
           type="number"
+          name={`${prefix}.maxOutputTokens`}
           helperText={
             policy.maxOutputTokens
               ? `Policy default: ${policy.maxOutputTokens}`
