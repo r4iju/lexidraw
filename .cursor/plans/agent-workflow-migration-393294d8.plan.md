@@ -5,6 +5,7 @@
 **Overall Progress:** 🟡 **~70% Complete** - Core workflow implemented, MVP functional, but missing multi-tool loop and reliability features
 
 **Completed Phases:**
+
 - ✅ Phase 1: Workflow Skeleton
 - ✅ Phase 2: Streaming Infrastructure (SSE + Callback)
 - ✅ Phase 3: Client Integration & UX
@@ -187,6 +188,7 @@
 ## Key Findings & Next Steps
 
 ### What's Working ✅
+
 - Core workflow infrastructure is functional
 - MVP handles single tool call per run successfully
 - SSE streaming (NDJSON format) works correctly
@@ -194,12 +196,14 @@
 - Client integration complete with proper error handling
 
 ### Critical Gaps ⚠️
+
 1. **Multi-tool loop not implemented**: Workflow only handles one tool call then finishes. Decision step exists but not integrated.
 2. **No timeouts**: Missing client tool execution timeout and workflow overall timeout guards
 3. **Incomplete abort handling**: No `AbortSignal` forwarding to workflow steps
 4. **Limited observability**: Basic logging only, no structured metrics/traces
 
 ### Recommended Next Steps (Priority Order)
+
 1. **Integrate decision step into loop** (Phase 4) - Enable multi-tool scenarios
 2. **Add timeout guards** (Phase 5) - Client tool timeout + workflow timeout
 3. **Implement abort signal forwarding** (Phase 4) - Proper cancellation support
@@ -209,6 +213,7 @@
 7. **Final cleanup** (Phase 7) - Remove dead code, update docs
 
 ### Technical Notes
+
 - Using NDJSON format instead of SSE format (simpler, works well)
 - Hook token validation has TODO about JWT integration (callback route)
 - `generateChatResponse` kept intentionally for slide creation workflow
