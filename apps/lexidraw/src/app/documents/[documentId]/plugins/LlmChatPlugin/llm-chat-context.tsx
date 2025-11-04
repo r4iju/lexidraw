@@ -50,73 +50,131 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   children,
 }) => {
   console.log("🔄 LlmChatProvider re-rendered");
-  const reducer = useCallback((s: ChatState, a: Action): ChatState => {
-    switch (a.type) {
-      case "push": {
-        if (s.messages.some((m) => m.id === a.msg.id)) {
-          console.warn("Attempted to push duplicate message:", a.msg);
-          return s;
-        }
-        const newMessage = {
-          ...a.msg,
-          toolCalls: a.msg.toolCalls ?? [],
-          toolResults: a.msg.toolResults ?? [],
-        };
-        return { ...s, messages: [...s.messages, newMessage] };
+
+  /**
+   * Merges tool calls arrays using Map-based deduplication for O(n) complexity.
+   * Incoming tool calls override existing ones with the same toolCallId.
+   */
+  const mergeToolCalls = useCallback(
+    (existing: AppToolCall[], incoming: AppToolCall[]): AppToolCall[] => {
+      const existingMap = new Map(existing.map((tc) => [tc.toolCallId, tc]));
+      for (const newTc of incoming) {
+        existingMap.set(newTc.toolCallId, newTc);
       }
-      case "toggleSidebar":
-        return { ...s, sidebarOpen: !s.sidebarOpen };
-      case "setMode":
-        if (
-          a.mode !== "chat" &&
-          a.mode !== "agent" &&
-          a.mode !== "debug" &&
-          a.mode !== "slide-agent"
-        ) {
-          console.warn("Invalid mode set:", a.mode);
-          return s;
-        }
-        return { ...s, mode: a.mode };
-      case "setMaxAgentSteps":
-        if (a.steps >= 1 && a.steps <= 25) {
-          return { ...s, maxAgentSteps: a.steps };
-        }
-        return s;
-      case "reset":
-        return {
-          ...initial,
-          maxAgentSteps: s.maxAgentSteps,
-          sidebarOpen: s.sidebarOpen,
-          streamingMessageId: null,
-        };
-      case "startStreaming":
-        return { ...s, streaming: true, streamingMessageId: a.id };
-      case "stopStreaming":
-        return { ...s, streaming: false, streamingMessageId: null };
-      case "removeMessage": {
-        const messages = s.messages.filter((msg) => msg.id !== a.id);
-        return { ...s, messages };
+      return Array.from(existingMap.values());
+    },
+    [],
+  );
+
+  /**
+   * Merges tool results arrays using Map-based deduplication for O(n) complexity.
+   * Incoming tool results override existing ones with the same toolCallId.
+   */
+  const mergeToolResults = useCallback(
+    (existing: AppToolResult[], incoming: AppToolResult[]): AppToolResult[] => {
+      const existingMap = new Map(
+        existing.map((tr) => [(tr as { toolCallId: string }).toolCallId, tr]),
+      );
+      for (const newTr of incoming) {
+        const toolCallId = (newTr as { toolCallId: string }).toolCallId;
+        existingMap.set(toolCallId, newTr);
       }
-      case "update": {
-        if (!a.msg.id) {
-          console.warn("Update action requires message ID:", a.msg);
-          return s;
-        }
-        const updatedMessages = s.messages.map((msg) => {
-          if (msg.id === a.msg.id) {
-            return { ...msg, ...a.msg };
+      return Array.from(existingMap.values());
+    },
+    [],
+  );
+
+  const reducer = useCallback(
+    (s: ChatState, a: Action): ChatState => {
+      switch (a.type) {
+        case "push": {
+          if (s.messages.some((m) => m.id === a.msg.id)) {
+            console.warn("Attempted to push duplicate message:", a.msg);
+            return s;
           }
-          return msg;
-        });
-        return { ...s, messages: updatedMessages };
+          const newMessage = {
+            ...a.msg,
+            toolCalls: a.msg.toolCalls ?? [],
+            toolResults: a.msg.toolResults ?? [],
+          };
+          return { ...s, messages: [...s.messages, newMessage] };
+        }
+        case "toggleSidebar":
+          return { ...s, sidebarOpen: !s.sidebarOpen };
+        case "setMode":
+          if (
+            a.mode !== "chat" &&
+            a.mode !== "agent" &&
+            a.mode !== "debug" &&
+            a.mode !== "slide-agent"
+          ) {
+            console.warn("Invalid mode set:", a.mode);
+            return s;
+          }
+          return { ...s, mode: a.mode };
+        case "setMaxAgentSteps":
+          if (a.steps >= 1 && a.steps <= 25) {
+            return { ...s, maxAgentSteps: a.steps };
+          }
+          return s;
+        case "reset":
+          return {
+            ...initial,
+            maxAgentSteps: s.maxAgentSteps,
+            sidebarOpen: s.sidebarOpen,
+            streamingMessageId: null,
+          };
+        case "startStreaming":
+          return { ...s, streaming: true, streamingMessageId: a.id };
+        case "stopStreaming":
+          return { ...s, streaming: false, streamingMessageId: null };
+        case "removeMessage": {
+          const messages = s.messages.filter((msg) => msg.id !== a.id);
+          return { ...s, messages };
+        }
+        case "update": {
+          if (!a.msg.id) {
+            console.warn("Update action requires message ID:", a.msg);
+            return s;
+          }
+          const updatedMessages = s.messages.map((msg) => {
+            if (msg.id === a.msg.id) {
+              const existingToolCalls = msg.toolCalls ?? [];
+              const newToolCalls = a.msg.toolCalls ?? [];
+              const mergedToolCalls = mergeToolCalls(
+                existingToolCalls,
+                newToolCalls,
+              );
+
+              const existingToolResults = msg.toolResults ?? [];
+              const newToolResults = a.msg.toolResults ?? [];
+              const mergedToolResults = mergeToolResults(
+                existingToolResults,
+                newToolResults,
+              );
+
+              return {
+                ...msg,
+                ...a.msg,
+                toolCalls:
+                  mergedToolCalls.length > 0 ? mergedToolCalls : undefined,
+                toolResults:
+                  mergedToolResults.length > 0 ? mergedToolResults : undefined,
+              };
+            }
+            return msg;
+          });
+          return { ...s, messages: updatedMessages };
+        }
+        default: {
+          const unhandledAction = a as Action;
+          console.warn("Unhandled action type:", unhandledAction?.type);
+          return s;
+        }
       }
-      default: {
-        const unhandledAction = a as Action;
-        console.warn("Unhandled action type:", unhandledAction?.type);
-        return s;
-      }
-    }
-  }, []);
+    },
+    [mergeToolCalls, mergeToolResults],
+  );
 
   const [state, dispatch] = useReducer(reducer, initial);
 

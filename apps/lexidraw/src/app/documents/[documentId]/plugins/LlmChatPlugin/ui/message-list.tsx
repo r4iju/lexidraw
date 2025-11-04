@@ -14,11 +14,41 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import type { AppToolCall, AppToolResult } from "../../../context/llm-context";
 
 type Message = ChatState["messages"][number];
+
+// Styling constants
+const toolCallContainerStyles =
+  "bg-muted/50 border border-border rounded-lg p-2";
+
+/**
+ * Type guard to check if a tool result is a success result.
+ */
+function isSuccessResult(
+  tr: AppToolResult,
+): tr is AppToolResult & { ok: true } {
+  return "ok" in tr && tr.ok === true;
+}
+
+/**
+ * Creates a Map of tool results by toolCallId for O(1) lookup.
+ */
+function createToolResultsMap(
+  toolResults: AppToolResult[] | undefined,
+): Map<string, AppToolResult> {
+  return new Map(
+    toolResults?.map((tr) => [(tr as { toolCallId: string }).toolCallId, tr]) ??
+      [],
+  );
+}
 
 // /********* helper – find the last "safe" line break *********/
 function splitMarkdownSafely(raw: string) {
@@ -46,15 +76,13 @@ const ToolCallDisplay: React.FC<{
   toolCall: AppToolCall;
   toolResult?: AppToolResult;
 }> = ({ toolCall, toolResult }) => {
-  let statusIcon = (
-    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-  );
+  let statusIcon: React.ReactNode;
   let statusColor = "text-muted-foreground";
   let statusText = "Running...";
 
   if (toolResult) {
-    if (toolResult.ok) {
-      statusIcon = <CheckCircle className="h-4 w-4 text-primary  " />;
+    if (isSuccessResult(toolResult)) {
+      statusIcon = <CheckCircle className="h-4 w-4 text-primary" />;
       statusColor = "text-primary";
       statusText = "Success";
     } else {
@@ -62,36 +90,46 @@ const ToolCallDisplay: React.FC<{
       statusColor = "text-destructive";
       statusText = "Error";
     }
+  } else {
+    statusIcon = (
+      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+    );
   }
 
   return (
-    <Card className="mt-2">
-      <CardHeader className="flex flex-row items-center justify-between p-3">
-        <CardTitle className="text-sm font-medium">
-          {toolCall.toolName}
-        </CardTitle>
-        <div className={`flex items-center text-xs ${statusColor}`}>
-          {statusIcon}
-          <span className="ml-1">{statusText}</span>
-        </div>
-      </CardHeader>
-      <CardContent className="p-3 text-xs">
-        <div className="font-mono bg-muted p-2 rounded">
-          <p className="font-semibold">Arguments:</p>
-          <pre className="whitespace-pre-wrap break-all">
-            {JSON.stringify(toolCall.input, null, 2)}
-          </pre>
-        </div>
-        {toolResult && (
-          <div className="mt-2 font-mono bg-muted p-2 rounded">
-            <p className="font-semibold">Result:</p>
-            <pre className="whitespace-pre-wrap break-all">
-              {String(toolResult.result)}
-            </pre>
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem value={toolCall.toolCallId} className="border-none">
+        <AccordionTrigger className="py-2 hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <span className="text-sm font-medium">{toolCall.toolName}</span>
+            <div className={`flex items-center text-xs ${statusColor}`}>
+              {statusIcon}
+              <span className="ml-1">{statusText}</span>
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </AccordionTrigger>
+        <AccordionContent className="pt-0 pb-2">
+          <div className="space-y-2 text-xs">
+            <div className="font-mono bg-muted p-2 rounded">
+              <p className="font-semibold mb-1">Arguments:</p>
+              <pre className="whitespace-pre-wrap break-all text-xs">
+                {JSON.stringify(toolCall.input, null, 2)}
+              </pre>
+            </div>
+            {toolResult && (
+              <div className="font-mono bg-muted p-2 rounded">
+                <p className="font-semibold mb-1">Result:</p>
+                <pre className="whitespace-pre-wrap break-all text-xs">
+                  {typeof toolResult.result === "string"
+                    ? toolResult.result
+                    : JSON.stringify(toolResult.result, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 };
 
@@ -131,26 +169,113 @@ export const MessageList: React.FC<{ className?: string }> = ({
         className,
       )}
     >
-      {messages.map((m: Message) => {
-        const isStreaming = m.id === streamingMessageId;
-        let contentElement: React.ReactNode;
+      {messages
+        .filter((m: Message) => {
+          // Filter messages: include if they have content OR tool calls
+          const hasContent = Boolean(m.content?.trim());
+          const hasToolCalls = Boolean(m.toolCalls?.length);
+          return hasContent || hasToolCalls;
+        })
+        .map((m: Message) => {
+          const isStreaming = m.id === streamingMessageId;
+          const hasContent = Boolean(m.content?.trim());
+          const hasToolCalls = Boolean(m.toolCalls?.length);
+          const toolResultsMap = createToolResultsMap(m.toolResults);
 
-        if (isStreaming) {
-          const { formatted, streaming } = splitMarkdownSafely(m.content ?? "");
+          // If message has only tool calls and no content, render tool calls standalone
+          if (!hasContent && hasToolCalls && m.toolCalls) {
+            return (
+              <div key={m.id} className="space-y-2">
+                {m.toolCalls.map((toolCall) => {
+                  const toolResult = toolResultsMap.get(toolCall.toolCallId);
+                  return (
+                    <div
+                      key={toolCall.toolCallId}
+                      className={toolCallContainerStyles}
+                    >
+                      <ToolCallDisplay
+                        toolCall={toolCall}
+                        toolResult={toolResult}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
 
-          const formattedElement =
-            formatted.trim() !== "" ? (
+          // Otherwise, render message content (if exists) and tool calls below
+          let contentElement: React.ReactNode;
+
+          if (isStreaming) {
+            const { formatted, streaming } = splitMarkdownSafely(
+              m.content ?? "",
+            );
+
+            const formattedElement =
+              formatted.trim() !== "" ? (
+                <LexicalComposer
+                  key={`stream-${m.id}-${formatted.length}`}
+                  initialConfig={{
+                    namespace: `message-${m.id}-formatted`,
+                    theme: theme,
+                    editable: false,
+                    onError: (error) => {
+                      console.error("Lexical error (stream-formatted):", error);
+                    },
+                    editorState: () =>
+                      $convertFromMarkdownString(formatted, TRANSFORMERS),
+                    nodes: [
+                      HeadingNode,
+                      ListNode,
+                      ListItemNode,
+                      QuoteNode,
+                      CodeNode,
+                      CodeHighlightNode,
+                      ParagraphNode,
+                      TextNode,
+                    ],
+                  }}
+                >
+                  <RichTextPlugin
+                    contentEditable={
+                      <ContentEditable className="outline-hidden" />
+                    }
+                    placeholder={null}
+                    ErrorBoundary={LexicalErrorBoundary}
+                  />
+                </LexicalComposer>
+              ) : null;
+
+            const streamingElement = streaming.trim() !== "" ? streaming : null;
+
+            contentElement =
+              formattedElement || streamingElement ? (
+                <>
+                  {formattedElement}
+                  {formattedElement && streamingElement && "\n"}
+                  {streamingElement}
+                </>
+              ) : (
+                <span className="italic text-muted-foreground">Typing…</span>
+              );
+          } else if (m.content) {
+            // Render using Lexical once streaming is finished
+            contentElement = (
               <LexicalComposer
-                key={`stream-${m.id}-${formatted.length}`}
+                key={`final-${m.id}-${m.content.length}`}
                 initialConfig={{
-                  namespace: `message-${m.id}-formatted`,
+                  namespace: `message-${m.id}`,
                   theme: theme,
                   editable: false,
                   onError: (error) => {
-                    console.error("Lexical error (stream-formatted):", error);
+                    console.error(
+                      "Lexical error during message rendering:",
+                      error,
+                    );
                   },
                   editorState: () =>
-                    $convertFromMarkdownString(formatted, TRANSFORMERS),
+                    $convertFromMarkdownString(m.content ?? "", TRANSFORMERS),
                   nodes: [
                     HeadingNode,
                     ListNode,
@@ -170,101 +295,50 @@ export const MessageList: React.FC<{ className?: string }> = ({
                   placeholder={null}
                   ErrorBoundary={LexicalErrorBoundary}
                 />
+                <HistoryPlugin />
               </LexicalComposer>
-            ) : null;
-
-          const streamingElement = streaming.trim() !== "" ? streaming : null;
-
-          contentElement =
-            formattedElement || streamingElement ? (
-              <>
-                {formattedElement}
-                {formattedElement && streamingElement && "\n"}
-                {streamingElement}
-              </>
-            ) : (
-              <span className="italic text-muted-foreground">Typing…</span>
             );
-        } else if (m.content) {
-          // Render using Lexical once streaming is finished
-          contentElement = (
-            <LexicalComposer
-              key={`final-${m.id}-${m.content.length}`}
-              initialConfig={{
-                namespace: `message-${m.id}`,
-                theme: theme,
-                editable: false,
-                onError: (error) => {
-                  console.error(
-                    "Lexical error during message rendering:",
-                    error,
-                  );
-                },
-                editorState: () =>
-                  $convertFromMarkdownString(m.content ?? "", TRANSFORMERS),
-                nodes: [
-                  HeadingNode,
-                  ListNode,
-                  ListItemNode,
-                  QuoteNode,
-                  CodeNode,
-                  CodeHighlightNode,
-                  ParagraphNode,
-                  TextNode,
-                ],
-              }}
-            >
-              <RichTextPlugin
-                contentEditable={<ContentEditable className="outline-hidden" />}
-                placeholder={null}
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              <HistoryPlugin />
-            </LexicalComposer>
-          );
-        } else {
-          // Handle empty message content after streaming (or if initially empty)
-          contentElement = (
-            <span className="italic text-muted-foreground">Empty message</span>
-          );
-        }
+          }
 
-        return (
-          <div
-            key={m.id}
-            className={cn(
-              "rounded-b-lg px-3 py-1 text-sm whitespace-pre-wrap max-w-[85%] break-words",
-              // Force Lexical descendants to inherit the bubble's text color only
-              "[&_[data-lexical-editor]]:text-inherit [&_[data-lexical-editor]_*]:text-inherit",
-              {
-                "bg-primary text-primary-foreground ml-auto rounded-tl-lg":
-                  m.role === "user",
-                "bg-muted text-foreground mr-auto rounded-tr-lg":
-                  m.role !== "user",
-                "border border-border": m.role === "system",
-              },
-            )}
-          >
-            {contentElement}
-            {m.toolCalls && m.toolCalls.length > 0 && (
-              <div className="mt-2 space-y-2">
-                {m.toolCalls.map((toolCall) => {
-                  const toolResult = m.toolResults?.find(
-                    (res) => res.toolCallId === toolCall.toolCallId,
-                  );
-                  return (
-                    <ToolCallDisplay
-                      key={toolCall.toolCallId}
-                      toolCall={toolCall}
-                      toolResult={toolResult}
-                    />
-                  );
-                })}
+          return (
+            <div key={m.id}>
+              <div
+                className={cn(
+                  "rounded-b-lg px-3 py-1 text-sm whitespace-pre-wrap max-w-[85%] break-words",
+                  // Force Lexical descendants to inherit the bubble's text color only
+                  "[&_[data-lexical-editor]]:text-inherit [&_[data-lexical-editor]_*]:text-inherit",
+                  {
+                    "bg-primary text-primary-foreground ml-auto rounded-tl-lg":
+                      m.role === "user",
+                    "bg-muted text-foreground mr-auto rounded-tr-lg":
+                      m.role !== "user",
+                    "border border-border": m.role === "system",
+                  },
+                )}
+              >
+                {contentElement}
               </div>
-            )}
-          </div>
-        );
-      })}
+              {hasToolCalls && m.toolCalls && (
+                <div className="mt-2 space-y-2">
+                  {m.toolCalls.map((toolCall) => {
+                    const toolResult = toolResultsMap.get(toolCall.toolCallId);
+                    return (
+                      <div
+                        key={toolCall.toolCallId}
+                        className={`${toolCallContainerStyles} max-w-[85%]`}
+                      >
+                        <ToolCallDisplay
+                          toolCall={toolCall}
+                          toolResult={toolResult}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       {/* Agent Working Indicator */}
       {streaming && mode === "agent" && (
         <div
