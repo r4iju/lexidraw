@@ -8,6 +8,8 @@ import { generateUUID } from "~/lib/utils";
 import { useParams } from "next/navigation";
 import { useSystemPrompt } from "./use-system-prompt";
 import type { ModelMessage } from "ai";
+import type { AppToolCall, AppToolResult } from "../../context/llm-context";
+import type { ChatDispatch } from "./llm-chat-context";
 
 interface UseAgentWorkflowOptions {
   onError?: (error: Error) => void;
@@ -122,6 +124,84 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
         const errorText = await response.text().catch(() => "Callback failed");
         throw new Error(`Tool callback failed: ${errorText}`);
       }
+    },
+    [],
+  );
+
+  /**
+   * Type guard to check if an object has a success property.
+   */
+  const hasSuccessProperty = useCallback(
+    (obj: unknown): obj is { success: boolean } => {
+      return typeof obj === "object" && obj !== null && "success" in obj;
+    },
+    [],
+  );
+
+  /**
+   * Normalizes tool result to match expected format.
+   */
+  const normalizeToolResult = useCallback(
+    (
+      result: unknown,
+      toolCallId: string,
+    ): AppToolResult & { toolCallId: string; ok: boolean } => {
+      // Check if result already has success flag (from tool return)
+      if (hasSuccessProperty(result)) {
+        return {
+          toolCallId,
+          ok: Boolean(result.success),
+          result,
+        };
+      }
+      // For string results (like sendReply), treat as success
+      return {
+        toolCallId,
+        ok: true,
+        result,
+      };
+    },
+    [hasSuccessProperty],
+  );
+
+  /**
+   * Creates an error tool result with proper typing.
+   */
+  const createErrorToolResult = useCallback(
+    (
+      toolCallId: string,
+      error: string,
+    ): AppToolResult & { toolCallId: string; ok: false } => {
+      return {
+        toolCallId,
+        ok: false,
+        result: {
+          error,
+        },
+      };
+    },
+    [],
+  );
+
+  /**
+   * Updates a message with tool call info and result.
+   */
+  const updateMessageWithToolResult = useCallback(
+    (
+      dispatch: ChatDispatch,
+      messageId: string,
+      toolCall: AppToolCall,
+      result: AppToolResult & { toolCallId: string; ok: boolean },
+    ): void => {
+      dispatch({
+        type: "update",
+        msg: {
+          id: messageId,
+          role: "assistant",
+          toolCalls: [toolCall],
+          toolResults: [result],
+        },
+      });
     },
     [],
   );
@@ -262,21 +342,23 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
                   );
                 }
 
-                // Update UI with tool call info
-                dispatch({
-                  type: "update",
-                  msg: {
-                    id: assistantMessageId,
-                    role: "assistant",
-                    toolCalls: [
-                      {
-                        toolCallId: event.toolCallId,
-                        toolName: event.toolName,
-                        input: event.input,
-                      },
-                    ],
+                // Normalize result to match expected format
+                const normalizedResult = normalizeToolResult(
+                  result,
+                  event.toolCallId,
+                );
+
+                // Update UI with tool call info and result
+                updateMessageWithToolResult(
+                  dispatch,
+                  assistantMessageId,
+                  {
+                    toolCallId: event.toolCallId,
+                    toolName: event.toolName,
+                    input: event.input,
                   },
-                });
+                  normalizedResult,
+                );
               } catch (error) {
                 console.error(
                   `[agent] Tool execution failed: ${event.toolName}`,
@@ -294,6 +376,22 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
                     // Ignore callback errors
                   }
                 }
+
+                // Update UI with error result
+                const errorResult = createErrorToolResult(
+                  event.toolCallId,
+                  error instanceof Error ? error.message : String(error),
+                );
+                updateMessageWithToolResult(
+                  dispatch,
+                  assistantMessageId,
+                  {
+                    toolCallId: event.toolCallId,
+                    toolName: event.toolName,
+                    input: event.input,
+                  },
+                  errorResult,
+                );
               } finally {
                 setState((prev) => ({
                   ...prev,
@@ -388,6 +486,9 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
       executeTool,
       sendToolCallback,
       options,
+      createErrorToolResult,
+      normalizeToolResult,
+      updateMessageWithToolResult,
     ],
   );
 
