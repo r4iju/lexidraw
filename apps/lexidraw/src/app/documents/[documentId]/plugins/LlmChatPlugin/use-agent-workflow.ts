@@ -241,17 +241,6 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
           content: msg.content,
         }));
 
-      // Add user message
-      const userMessageId = generateUUID();
-      dispatch({
-        type: "push",
-        msg: {
-          id: userMessageId,
-          role: "user",
-          content: args.prompt,
-        },
-      });
-
       // Create assistant message for streaming
       const assistantMessageId = generateUUID();
       dispatch({
