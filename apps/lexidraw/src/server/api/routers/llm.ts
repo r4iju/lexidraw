@@ -233,9 +233,9 @@ export const llmRouter = createTRPCRouter({
             message: "Missing OpenAI API key",
           });
         const openai = createOpenAI({ apiKey: openaiApiKey });
-        // Align planner with effective model when possible; fallback to a small chat model
-        model = openai(modelId || "gpt-4o-mini");
-        fallbackModel = openai("gpt-4o");
+        // Use non-reasoning micro model for planner
+        model = openai("gpt-5-nano");
+        fallbackModel = null;
       } else if (provider === "google") {
         if (!googleApiKey)
           throw new TRPCError({
@@ -243,8 +243,9 @@ export const llmRouter = createTRPCRouter({
             message: "Missing Google API key",
           });
         const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
-        model = google(modelId || "gemini-1.5-flash");
-        fallbackModel = google("gemini-1.5-pro");
+        // Use non-reasoning flash model for planner
+        model = google("gemini-2.5-flash");
+        fallbackModel = null;
       } else {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -287,7 +288,7 @@ export const llmRouter = createTRPCRouter({
       const plannerSystem = [
         "You are a tool selection planner.",
         `From the provided list of available tool names, choose at most ${String(max)} that best solve the user's request.`,
-        `Return ONLY an object {"tools": ["name1", ...]} with 1..${String(max)} tools. No prose.`,
+        `Return ONLY an object {"tools": ["name1", ...]} with 0..${String(max)} tools. No prose.`,
         "Use names exactly from the list.",
         "Rules:",
         "- If the intent is editorial (summarize/compose/edit/write/add/insert), you MUST include at least one writing tool: insertMarkdown OR insertHeadingNode OR insertTextNode.",
@@ -307,30 +308,82 @@ export const llmRouter = createTRPCRouter({
       ].join("\n\n");
 
       const correlationId = generateUUID();
+
+      // Early exit when there are no available tools
+      if (availableTools.length === 0) {
+        log("empty_available_tools", {
+          userId,
+          provider,
+          modelId,
+          correlationId,
+        });
+        return { tools: [], correlationId };
+      }
+
       const runOnce = async (which: "primary" | "fallback") => {
         const activeModel = which === "primary" ? model : fallbackModel;
         if (!activeModel) throw new Error("No planner model available");
         const Schema = z.object({
-          tools: z.array(z.string()).min(1).max(Math.min(max, 6)),
+          tools: z.array(z.string()).min(0).max(Math.min(max, 6)),
         });
-        const res = await generateObject({
-          model: activeModel as unknown as LanguageModel,
-          schema: Schema,
-          prompt: plannerPrompt,
-          system: plannerSystem,
-          temperature: 0,
-          // no tools in planner
-        });
-        const names = (res.object?.tools ?? []) as string[];
-        log("model_output_full", {
+
+        log("planner_call_start", {
           userId,
-          raw: JSON.stringify(res.object ?? {}),
+          which,
+          modelId,
+          promptLength: plannerPrompt.length,
+          promptPreview: plannerPrompt.substring(0, 300),
         });
-        const set = new Set(availableTools);
-        const selected = Array.from(
-          new Set(names.filter((n) => set.has(n)).slice(0, max)),
-        );
-        return selected;
+
+        try {
+          const res = await generateObject({
+            model: activeModel as unknown as LanguageModel,
+            schema: Schema,
+            prompt: plannerPrompt,
+            system: plannerSystem,
+          });
+
+          log("planner_call_result", {
+            userId,
+            which,
+            hasObject: !!res.object,
+            objectKeys: res.object ? Object.keys(res.object) : [],
+            objectString: JSON.stringify(res.object ?? {}),
+          });
+
+          const names = (
+            res.object &&
+            typeof res.object === "object" &&
+            "tools" in res.object &&
+            Array.isArray(res.object.tools)
+              ? res.object.tools
+              : []
+          ) as string[];
+          log("model_output_full", {
+            userId,
+            raw: JSON.stringify(res.object ?? {}),
+          });
+          const set = new Set(availableTools);
+          const selected = Array.from(
+            new Set(names.filter((n) => set.has(n)).slice(0, max)),
+          );
+
+          log("planner_selection", {
+            userId,
+            which,
+            selectedCount: selected.length,
+            selectedTools: selected,
+          });
+
+          return selected;
+        } catch (err) {
+          log("planner_call_error", {
+            userId,
+            which,
+            message: err instanceof Error ? err.message : String(err),
+          });
+          return [] as string[];
+        }
       };
 
       try {
