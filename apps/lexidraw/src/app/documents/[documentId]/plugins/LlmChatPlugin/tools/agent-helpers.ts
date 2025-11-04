@@ -115,29 +115,27 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
     description:
       "Sends a text-only reply to the user. Use this when the user's query clearly does not require document modification, such as asking a question or making a comment.",
     inputSchema: z.object({
-      replyText: z
+      message: z
         .string()
+        .min(1)
         .describe("The text content of the reply to send to the user."),
     }),
-    execute: async ({ replyText }) => {
+    execute: async ({ message }) => {
       try {
         dispatch({
           type: "push",
           msg: {
             id: generateUUID(),
             role: "assistant",
-            content: replyText,
+            content: message,
           },
         });
-        // Non-mutating, simple success
-        return { success: true, content: { summary: "Reply sent." } };
+        // Return the message string directly for MVP (server extracts this for finish event)
+        return message;
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error("Error dispatching reply message:", message);
-        return {
-          success: false,
-          error: `Failed to dispatch reply: ${message}`,
-        };
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Error dispatching reply message:", errorMessage);
+        throw new Error(`Failed to dispatch reply: ${errorMessage}`);
       }
     },
   });
