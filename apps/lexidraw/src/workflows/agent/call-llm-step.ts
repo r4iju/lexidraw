@@ -130,8 +130,7 @@ export async function callLlmStep(
   console.log(
     "[callLlmStep] result",
     JSON.stringify({
-      textLen: (result.text || "").length,
-      toolCalls: result.toolCalls ? result.toolCalls.length : 0,
+      ...result,
       messageId,
     }),
   );
@@ -155,3 +154,6 @@ export async function callLlmStep(
     messageId,
   };
 }
+
+// todo: raise to 2 after happy path mostly works
+callLlmStep.maxRetries = 0;

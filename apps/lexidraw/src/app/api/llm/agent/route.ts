@@ -8,8 +8,8 @@ import {
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import { drizzle, schema, and, eq, isNull, or, ne } from "@packages/drizzle";
 import { PublicAccess } from "@packages/types";
-import type { ModelMessage } from "ai";
 import { generateUUID } from "~/lib/utils";
+import z from "zod";
 
 async function assertCanAccessDocumentOrThrow(
   userId: string | undefined,
@@ -49,40 +49,40 @@ async function assertCanAccessDocumentOrThrow(
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
-    return new Response("Unauthorized", { status: 401 });
+    throw new Error("Unauthorized");
+  } else {
+    console.log("[agent] authenticated");
   }
 
   const userId = session.user.id;
 
-  let body: {
-    prompt: string; // Formatted prompt for LLM
-    originalPrompt?: string; // Original user prompt for planner
-    documentMarkdown?: string; // Markdown snapshot for planner
-    messages?: ModelMessage[];
-    system?: string;
-    documentId: string;
-  };
+  const BodySchema = z.object({
+    prompt: z.string(),
+    originalPrompt: z.string().min(1).optional(),
+    documentMarkdown: z.string().min(1).optional(),
+    messages: z.array(z.any()).optional(),
+    system: z.string().optional(),
+    documentId: z.string(),
+  });
 
-  try {
-    body = (await req.json()) as typeof body;
-  } catch {
-    return new Response("Invalid JSON", { status: 400 });
-  }
-
-  if (!body.prompt || !body.documentId) {
-    return new Response("Missing required fields: prompt, documentId", {
-      status: 400,
-    });
-  }
+  const parsed = BodySchema.parse(await req.json());
+  const {
+    prompt,
+    originalPrompt,
+    documentMarkdown,
+    messages,
+    system,
+    documentId,
+  } = parsed;
+  console.log({ parsed });
 
   // Authorize document access
   try {
-    await assertCanAccessDocumentOrThrow(userId, body.documentId);
+    await assertCanAccessDocumentOrThrow(userId, documentId);
+    console.log("[agent] authorized");
   } catch (error) {
-    return new Response(
-      error instanceof Error ? error.message : "Unauthorized",
-      { status: 403 },
-    );
+    console.error("[agent] unauthorized", error);
+    throw new Error("Unauthorized");
   }
 
   // Get effective LLM config
@@ -100,28 +100,21 @@ export async function POST(req: NextRequest) {
 
   // Prepare workflow args
   const workflowArgs: AgentWorkflowArgs = {
-    prompt: body.prompt, // Formatted prompt for LLM
-    originalPrompt: body.originalPrompt ?? body.prompt, // Use originalPrompt if provided, fallback to prompt
-    documentMarkdown: body.documentMarkdown,
-    messages: body.messages ?? [],
-    system: body.system ?? "",
+    prompt, // Formatted prompt for LLM
+    originalPrompt: originalPrompt ?? prompt, // Use originalPrompt if provided, fallback to prompt
+    documentMarkdown,
+    messages: messages ?? [],
+    system: system ?? "",
     config,
     userId,
-    documentId: body.documentId,
+    documentId,
     runId: generateUUID(),
   };
 
-  // Start workflow
   const run = await start(agentWorkflow, [workflowArgs]);
-
-  // Return run.readable directly as NDJSON stream (per docs pattern)
-  const stream = run.getReadable<Uint8Array>();
-
-  return new Response(stream, {
+  return new Response(run.getReadable<Uint8Array>(), {
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store, no-transform",
-      Connection: "keep-alive",
+      "Content-Type": "application/octet-stream",
+      "Cache-Control": "no-store",
     },
   });
-}

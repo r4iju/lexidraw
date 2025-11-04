@@ -118,3 +118,5 @@ export async function decisionStep(
     summary: result.object?.summary,
   };
 }
+
+decisionStep.maxRetries = 0;
