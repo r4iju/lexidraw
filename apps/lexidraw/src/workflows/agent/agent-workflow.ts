@@ -2,7 +2,7 @@ import type { ModelMessage } from "ai";
 import type { EffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import { callPlannerStep } from "./call-planner-step";
 import { callLlmStep } from "./call-llm-step";
-import { createHook, getWritable, sleep } from "workflow";
+import { createHook, getWritable } from "workflow";
 import type { AgentEvent } from "@packages/types";
 import { getAvailableToolNames } from "~/server/llm/tools/registry";
 import { toModelMessages } from "./message-utils";
@@ -21,10 +21,6 @@ export interface AgentWorkflowArgs {
   runId: string;
 }
 
-// SSEWriter is defined in call-llm-step.ts
-// This will be used in Phase 2 for SSE streaming
-
-// Write a single AgentEvent as NDJSON line to the workflow's output stream
 export async function agentWrite(
   writable: WritableStream,
   event: AgentEvent,
@@ -211,23 +207,5 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
     await agentWrite(writable, event);
     await agentEnd(writable);
     throw error;
-  }
-}
-
-export async function ping() {
-  "use workflow";
-  const w = getWritable<Uint8Array>();
-  await writeHello(w);
-  await sleep("200ms");
-  await agentEnd(w);
-}
-
-async function writeHello(w: WritableStream<Uint8Array>) {
-  "use step";
-  const writer = w.getWriter();
-  try {
-    await writer.write(new TextEncoder().encode("hello\n"));
-  } finally {
-    writer.releaseLock();
   }
 }
