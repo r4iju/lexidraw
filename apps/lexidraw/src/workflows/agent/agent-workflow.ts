@@ -7,6 +7,14 @@ import type { AgentEvent } from "@packages/types";
 import { getAvailableToolNames } from "~/server/llm/tools/registry";
 import { toModelMessages } from "./message-utils";
 
+// MVP: Only allow these tools for now
+const MVP_TOOL_NAMES = [
+  "sendReply",
+  "insertTextNode",
+  "insertHeadingNode",
+  "insertMarkdown",
+] as const;
+
 export type AgentConfig = EffectiveLlmConfig;
 
 export interface AgentWorkflowArgs {
@@ -66,11 +74,14 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
       await agentWrite(writable, event);
     }
 
-    // 1) Planner once per run
+    // 1) Planner once per run - limit to MVP tools
     const plannerPrompt = args.originalPrompt;
+    const mvpTools = getAvailableToolNames().filter((name) =>
+      MVP_TOOL_NAMES.includes(name as (typeof MVP_TOOL_NAMES)[number]),
+    );
     const plannerResult = await callPlannerStep({
       prompt: plannerPrompt,
-      availableTools: getAvailableToolNames(),
+      availableTools: mvpTools,
       documentMarkdown: args.documentMarkdown,
       max: 6,
       userId: args.userId,
@@ -176,10 +187,33 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
         ],
       } as ModelMessage);
 
+      // Extract summary for finish event
+      let summary: string | undefined;
+      if (toolCall.toolName === "sendReply") {
+        // sendReply returns the message string directly
+        if (typeof hookResult.result === "string") {
+          summary = hookResult.result;
+        } else if (hookResult.result && typeof hookResult.result === "object") {
+          const obj = hookResult.result as Record<string, unknown>;
+          const textLike =
+            (typeof obj.text === "string" && obj.text) ||
+            (typeof obj.content === "string" && obj.content) ||
+            (typeof obj.message === "string" && obj.message);
+          summary = typeof textLike === "string" ? textLike : undefined;
+        }
+        // Fallback to input message if result extraction failed
+        if (!summary && toolCall.input && typeof toolCall.input === "object") {
+          const input = toolCall.input as Record<string, unknown>;
+          summary =
+            typeof input.message === "string" ? input.message : undefined;
+        }
+      }
+
       const finishEvent: AgentEvent = {
         type: "finish",
         id: String(eventId++),
         runId,
+        summary,
       };
       await agentWrite(writable, finishEvent);
       await agentEnd(writable);
