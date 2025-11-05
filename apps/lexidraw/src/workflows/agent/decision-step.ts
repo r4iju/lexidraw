@@ -25,9 +25,9 @@ export async function decisionStep(
 ): Promise<DecisionStepResult> {
   "use step";
 
+  console.log("[decisionStep] args", JSON.stringify(args, null, 2));
   const { messages, system, config, priorAssistantText } = args;
 
-  // Create model instance
   const openaiApiKey = env.OPENAI_API_KEY;
   const googleApiKey = env.GOOGLE_API_KEY;
 

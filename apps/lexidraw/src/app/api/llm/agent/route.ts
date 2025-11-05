@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import type { ModelMessage } from "ai";
 import { auth } from "~/server/auth";
 import { start } from "workflow/api";
 import {
@@ -60,8 +61,8 @@ export async function POST(req: NextRequest) {
     prompt: z.string(),
     originalPrompt: z.string().min(1).optional(),
     documentMarkdown: z.string().min(1).optional(),
+    documentJson: z.record(z.string(), z.unknown()).optional(),
     messages: z.array(z.any()).optional(),
-    system: z.string().optional(),
     documentId: z.string(),
   });
 
@@ -70,8 +71,8 @@ export async function POST(req: NextRequest) {
     prompt,
     originalPrompt,
     documentMarkdown,
+    documentJson,
     messages,
-    system,
     documentId,
   } = parsed;
   console.log({ parsed });
@@ -99,20 +100,87 @@ export async function POST(req: NextRequest) {
   });
 
   // Prepare workflow args
+  const runId = generateUUID();
+  function coerceToModelMessages(input: unknown): ModelMessage[] {
+    if (!Array.isArray(input)) return [];
+    const out: ModelMessage[] = [];
+    for (const item of input as unknown[]) {
+      const maybe = item as Record<string, unknown>;
+      const roleRaw = maybe?.role;
+      const contentRaw = maybe?.content;
+      const role =
+        roleRaw === "user" ||
+        roleRaw === "assistant" ||
+        roleRaw === "system" ||
+        roleRaw === "tool"
+          ? (roleRaw as "user" | "assistant" | "system" | "tool")
+          : ("user" as const);
+
+      // Prefer string content; otherwise stringify to ensure validity
+      let content: string | { type: string; [k: string]: unknown }[];
+      if (typeof contentRaw === "string") {
+        content = contentRaw;
+      } else if (Array.isArray(contentRaw)) {
+        // Only accept an array if every part has a string 'type'
+        const ok = (contentRaw as unknown[]).every(
+          (p) => typeof (p as Record<string, unknown>)?.type === "string",
+        );
+        content = ok
+          ? (contentRaw as { type: string }[])
+          : JSON.stringify(contentRaw);
+      } else if (contentRaw && typeof contentRaw === "object") {
+        content = JSON.stringify(contentRaw);
+      } else {
+        content = "";
+      }
+
+      if (role === "tool") {
+        const toolCallId = maybe?.toolCallId;
+        if (typeof toolCallId === "string" && typeof content === "string") {
+          out.push({ role: "tool", content, toolCallId });
+          continue;
+        }
+        // If malformed, fall back to a plain assistant message
+        out.push({
+          role: "assistant",
+          content:
+            typeof content === "string" ? content : JSON.stringify(content),
+        });
+        continue;
+      }
+
+      out.push({ role, content });
+    }
+    return out;
+  }
+
+  const safeMessages: ModelMessage[] = coerceToModelMessages(messages);
   const workflowArgs: AgentWorkflowArgs = {
-    prompt, // Formatted prompt for LLM
+    prompt, // Just the user's prompt
     originalPrompt: originalPrompt ?? prompt, // Use originalPrompt if provided, fallback to prompt
     documentMarkdown,
-    messages: messages ?? [],
-    system: system ?? "",
+    documentJson,
+    messages: safeMessages,
     config,
     userId,
     documentId,
-    runId: generateUUID(),
+    runId,
   };
 
   const run = await start(agentWorkflow, [workflowArgs]);
-  return new Response(run.getReadable<Uint8Array>(), {
+  const readable = run.getReadable<Uint8Array>();
+
+  // Handle abort signal: close the stream when request is aborted
+  req.signal.addEventListener("abort", () => {
+    console.log(`[agent] Request aborted for runId: ${runId}`);
+    // Stream will be closed when readable is consumed/closed
+    // The workflow will continue but won't send events to a closed stream
+    readable.cancel?.().catch(() => {
+      // Ignore errors when canceling
+    });
+  });
+
+  return new Response(readable, {
     headers: {
       "Content-Type": "application/octet-stream",
       "Cache-Control": "no-store",

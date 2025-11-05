@@ -6,7 +6,6 @@ import { useRuntimeTools } from "./runtime-tools-provider";
 import type { AgentEvent, ToolCallbackBody } from "@packages/types";
 import { generateUUID } from "~/lib/utils";
 import { useParams } from "next/navigation";
-import { useSystemPrompt } from "./use-system-prompt";
 import type { ModelMessage } from "ai";
 import type { AppToolCall, AppToolResult } from "../../context/llm-context";
 import type { ChatDispatch } from "./llm-chat-context";
@@ -63,11 +62,10 @@ class NDJSONParser {
 
 export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
   const dispatch = useChatDispatch();
-  const { messages, mode } = useChatState();
+  const { messages } = useChatState();
   const runtimeTools = useRuntimeTools();
   const params = useParams();
   const documentId = params?.documentId as string | undefined;
-  const systemPrompt = useSystemPrompt(mode);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const [state, setState] = useState<AgentWorkflowState>({
@@ -208,10 +206,10 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
 
   const runAgentWorkflow = useCallback(
     async (args: {
-      prompt: string; // Formatted prompt for LLM
+      prompt: string; // Just the user's prompt
       originalPrompt?: string; // Original user prompt for planner
       documentMarkdown?: string; // Markdown snapshot for planner
-      editorStateJson?: string;
+      documentJson?: Record<string, unknown>; // JSON state as separate property
       files?: File[] | FileList | null;
     }) => {
       if (!documentId) {
@@ -260,11 +258,11 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
       try {
         // Prepare request body
         const requestBody = {
-          prompt: args.prompt, // Formatted prompt for LLM
+          prompt: args.prompt, // Just the user's prompt
           originalPrompt: args.originalPrompt, // Original prompt for planner
           documentMarkdown: args.documentMarkdown, // Markdown snapshot for planner
+          documentJson: args.documentJson, // JSON state as separate property
           messages: historyMessages,
-          system: systemPrompt,
           documentId,
         };
 
@@ -471,7 +469,6 @@ export function useAgentWorkflow(options?: UseAgentWorkflowOptions) {
       documentId,
       dispatch,
       messages,
-      systemPrompt,
       executeTool,
       sendToolCallback,
       options,

@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ModelMessage } from "ai";
 
-type MinimalMessage = {
+export type MinimalMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: unknown;
 };

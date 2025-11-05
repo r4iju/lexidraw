@@ -23,6 +23,51 @@ function isPrivateHostname(hostname: string): boolean {
   );
 }
 
+function isIpAddress(hostname: string): boolean {
+  // IPv4 pattern: 192.168.0.25, 10.0.0.1, etc.
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (ipv4Pattern.test(hostname)) {
+    return hostname.split(".").every((octet) => {
+      const num = Number.parseInt(octet, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+  // IPv6 pattern (simplified check)
+  return hostname.includes(":") && !hostname.includes(".");
+}
+
+function normalizeUrl(url: string): string {
+  // Extract hostname from URL (may include port)
+  let hostname: string;
+  let urlWithoutProtocol: string;
+
+  // Check if URL already has a protocol
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      hostname = parsed.hostname;
+      urlWithoutProtocol = url.replace(/^https?:\/\//i, "");
+    } catch {
+      // Fallback: extract hostname manually
+      const match = url.match(/^https?:\/\/([^/:]+)/i);
+      hostname = match ? match[1] : "";
+      urlWithoutProtocol = url.replace(/^https?:\/\//i, "");
+    }
+  } else {
+    // Extract hostname from URL without protocol
+    const match = url.match(/^([^/:]+)/);
+    hostname = match ? match[1].split(":")[0] : url.split("/")[0].split(":")[0];
+    urlWithoutProtocol = url;
+  }
+
+  // Always use http:// for localhost or IP addresses, https:// otherwise
+  const protocol =
+    isPrivateHostname(hostname) || isIpAddress(hostname)
+      ? "http://"
+      : "https://";
+  return protocol + urlWithoutProtocol;
+}
+
 async function ensurePageReady(page: Page, timeoutMs: number) {
   try {
     // Wait for fonts
@@ -118,8 +163,9 @@ export async function POST(req: NextRequest) {
       waitUntil?: WaitUntil;
       timeoutMs?: number;
     };
-    const url = body?.url ?? "";
+    let url = body?.url ?? "";
     if (!url) return new NextResponse("Missing url", { status: 400 });
+    url = normalizeUrl(url);
     if (!isHttpUrl(url))
       return new NextResponse("Only http/https URLs are supported", {
         status: 400,

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { canRunCron } from "~/app/api/crons/cron-middleware";
-import { drizzle, eq, and, inArray, sql, schema } from "@packages/drizzle";
+import { drizzle, and, inArray, sql, schema } from "@packages/drizzle";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
 
@@ -53,6 +53,22 @@ export async function GET(_req: NextRequest) {
 
   for (const job of jobs) {
     try {
+      try {
+        const createdAtRaw = job.createdAt as unknown as number | string | Date;
+        const createdAtDate = new Date(job.createdAt);
+        console.log(
+          "[thumbnail][cron] picked_job",
+          JSON.stringify({
+            jobId: job.id,
+            entityId: job.entityId,
+            version: job.version,
+            createdAtType: typeof createdAtRaw,
+            createdAtIsDate: createdAtRaw instanceof Date,
+            createdAtRaw,
+            createdAtISO: createdAtDate.toISOString(),
+          }),
+        );
+      } catch {}
       // Trigger workflow for this job (fire-and-forget)
       void start(generateThumbnailWorkflow, [
         job.id,

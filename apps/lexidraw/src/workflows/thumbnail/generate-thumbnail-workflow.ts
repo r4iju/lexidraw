@@ -38,10 +38,19 @@ export async function generateThumbnailWorkflow(
   await updateJobStatusStep(jobId, "processing", 0);
 
   // Build screenshot URL
-  // Use NEXTAUTH_URL if available, otherwise construct from VERCEL_URL
+  // Prefer explicit origin if available; otherwise derive from VERCEL_URL or strip /api/auth from NEXTAUTH_URL
+  const explicitOrigin =
+    (env as unknown as { APP_ORIGIN?: string }).APP_ORIGIN ||
+    (env as unknown as { NEXT_PUBLIC_APP_URL?: string }).NEXT_PUBLIC_APP_URL;
+  const derivedFromVercel = env.VERCEL_URL ? `https://${env.VERCEL_URL}` : null;
+  const derivedFromNextAuth = env.NEXTAUTH_URL
+    ? env.NEXTAUTH_URL.replace(/\/?api\/auth\/?$/, "")
+    : null;
   const appBase =
-    env.NEXTAUTH_URL ||
-    (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : "http://localhost:3000");
+    explicitOrigin ||
+    derivedFromVercel ||
+    derivedFromNextAuth ||
+    "http://localhost:3000";
   const token = await createScreenshotTokenStep(
     validation.userId,
     validation.entityId,
@@ -49,7 +58,9 @@ export async function generateThumbnailWorkflow(
   );
   const targetW = 640;
   const targetH = 480;
-  const pageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(validation.entityId)}?st=${encodeURIComponent(token)}&width=${targetW}&height=${targetH}`;
+  const pageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(
+    validation.entityId,
+  )}?st=${encodeURIComponent(token)}&width=${targetW}&height=${targetH}`;
 
   console.log("[thumbnail][wf] rendering screenshots", {
     jobId,
