@@ -49,12 +49,45 @@ export async function validateJobStep(
   const jobCreatedAtTime = jobCreatedAt.getTime();
   const entityUpdatedAtTime = entity.updatedAt?.getTime() ?? 0;
 
+  // Diagnostics: capture timing relationships and which condition triggers
+  const outdatedDueToTiming =
+    entityUpdatedAtTime > jobCreatedAtTime + TOLERANCE_MS;
+  const duplicateReady =
+    entity.thumbnailVersion === version && entity.thumbnailStatus === "ready";
+
+  try {
+    console.log(
+      "[thumbnail][validate] inputs",
+      JSON.stringify({
+        jobId,
+        entityId,
+        version,
+        jobCreatedAtISO: new Date(jobCreatedAtTime).toISOString(),
+        jobCreatedAtMs: jobCreatedAtTime,
+        entityUpdatedAtISO: new Date(entityUpdatedAtTime).toISOString(),
+        entityUpdatedAtMs: entityUpdatedAtTime,
+        diffMs: entityUpdatedAtTime - jobCreatedAtTime,
+        toleranceMs: TOLERANCE_MS,
+        checks: {
+          outdatedDueToTiming,
+          duplicateReady,
+        },
+      }),
+    );
+  } catch {}
+
   if (
     // 1) Outdated job: entity changed significantly after job creation (more than tolerance)
-    entityUpdatedAtTime > jobCreatedAtTime + TOLERANCE_MS ||
+    outdatedDueToTiming ||
     // 2) Duplicate job: same version already marked ready
-    (entity.thumbnailVersion === version && entity.thumbnailStatus === "ready")
+    duplicateReady
   ) {
+    try {
+      console.log(
+        "[thumbnail][validate] stale_reason",
+        JSON.stringify({ outdatedDueToTiming, duplicateReady }),
+      );
+    } catch {}
     await drizzle
       .update(schema.thumbnailJobs)
       .set({ status: "stale", updatedAt: new Date() })

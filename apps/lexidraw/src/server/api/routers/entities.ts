@@ -136,6 +136,7 @@ export const entityRouter = createTRPCRouter({
 
     console.log("appState", appState);
 
+    const entityUpdatedAt = new Date();
     await ctx.drizzle
       .update(schema.entities)
       .set({
@@ -144,13 +145,24 @@ export const entityRouter = createTRPCRouter({
         appState: appState,
         elements: input.elements,
         ...(input.parentId ? { parentId: input.parentId } : {}),
-        updatedAt: new Date(),
+        updatedAt: entityUpdatedAt,
         // move thumbnail status bump here to avoid a second UPDATE
         // and ensure the UPDATE has at least one column always
         thumbnailStatus: "pending",
       })
       .where(eq(schema.entities.id, input.id))
       .execute();
+
+    try {
+      console.log(
+        "[thumbnail][entities.save] entity_updated",
+        JSON.stringify({
+          entityId: input.id,
+          entityUpdatedAtISO: entityUpdatedAt.toISOString(),
+          entityUpdatedAtMs: entityUpdatedAt.getTime(),
+        }),
+      );
+    } catch {}
 
     // Enqueue thumbnail job (deduped by entityId+version)
     try {
@@ -167,6 +179,22 @@ export const entityRouter = createTRPCRouter({
 
       const jobId = uuidV4();
       const createdAt = new Date();
+
+      try {
+        console.log(
+          "[thumbnail][entities.save] job_init",
+          JSON.stringify({
+            entityId: input.id,
+            version,
+            attemptedJobId: jobId,
+            jobCreatedAtISO: createdAt.toISOString(),
+            jobCreatedAtMs: createdAt.getTime(),
+            entityUpdatedAtMs: entityUpdatedAt.getTime(),
+            diffMs_entityUpdate_to_jobCreate:
+              createdAt.getTime() - entityUpdatedAt.getTime(),
+          }),
+        );
+      } catch {}
 
       // upsert job
       await ctx.drizzle
@@ -202,6 +230,26 @@ export const entityRouter = createTRPCRouter({
       });
 
       if (job) {
+        try {
+          const persistedCreatedAt = new Date(
+            job.createdAt as unknown as number | string | Date,
+          );
+          const conflict = job.id !== jobId;
+          console.log(
+            "[thumbnail][entities.save] job_persisted",
+            JSON.stringify({
+              entityId: input.id,
+              version,
+              conflict,
+              attemptedJobId: jobId,
+              persistedJobId: job.id,
+              insertedCreatedAtISO: createdAt.toISOString(),
+              persistedCreatedAtISO: persistedCreatedAt.toISOString(),
+              diffMs_entityUpdate_to_persistedCreate:
+                persistedCreatedAt.getTime() - entityUpdatedAt.getTime(),
+            }),
+          );
+        } catch {}
         void start(generateThumbnailWorkflow, [
           job.id,
           job.entityId,

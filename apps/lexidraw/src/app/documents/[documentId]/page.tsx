@@ -1,7 +1,7 @@
 "use cache: private";
 
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
 import { api } from "~/trpc/server";
 import DocumentEditor from "./document-editor-client";
@@ -33,6 +33,16 @@ export default async function DocumentPage(props: Props) {
   const param = await props.params;
   const { documentId } = Params.parse(param);
   const { new: isNew, parentId } = await props.searchParams;
+
+  // Guard against sourcemaps or invalid IDs hitting this route
+  if (
+    documentId.endsWith(".map") ||
+    !/^[0-9a-fA-F-]{8}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{4}-[0-9a-fA-F-]{12}$/.test(
+      documentId,
+    )
+  ) {
+    return notFound();
+  }
 
   if (isNew === "true") {
     await api.entities.create.mutate({

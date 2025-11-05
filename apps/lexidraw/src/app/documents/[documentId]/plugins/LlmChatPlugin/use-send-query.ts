@@ -102,19 +102,17 @@ export const useSendQuery = () => {
           .join(", ")}`;
       }
 
-      // Strict markdown formatting instruction for final response text
-      fullPrompt +=
-        "\n\nFORMATTING_INSTRUCTION:\nStrictly format your final response text using Markdown. Do **not** output JSON or any other structured format. Keep Markdown nesting minimal (nested lists or quotes) and headings small for readability in a chat interface.";
-
       // Add context based on mode (Markdown for chat, JSON for agent)
       const currentEditorState = editor.getEditorState();
       if (mode === "chat" && currentEditorState) {
+        // Strict markdown formatting instruction for final response text (chat mode only)
+        fullPrompt +=
+          "\n\nFORMATTING_INSTRUCTION:\nStrictly format your final response text using Markdown. Do **not** output JSON or any other structured format. Keep Markdown nesting minimal (nested lists or quotes) and headings small for readability in a chat interface.";
         const markdownContent =
           convertEditorStateToMarkdown(currentEditorState);
         fullPrompt += `\n\nMARKDOWN_CONTEXT:\n${markdownContent}`;
-      } else if (mode === "agent" && editorStateJson) {
-        fullPrompt += `\n\nJSON_STATE:\n${editorStateJson}`;
       }
+      // For agent mode, JSON state is passed separately as documentJson
 
       return fullPrompt;
     },
@@ -226,11 +224,15 @@ export const useSendQuery = () => {
             const currentEditorState = editor.getEditorState();
             const documentMarkdown =
               convertEditorStateToMarkdown(currentEditorState);
+            // Parse editorStateJson string to JSON object for documentJson
+            const documentJson = editorStateJson
+              ? (JSON.parse(editorStateJson) as Record<string, unknown>)
+              : undefined;
             await runAgentWorkflow({
-              prompt: fullPrompt, // Formatted prompt for LLM
+              prompt, // Just the user's prompt (not formatted)
               originalPrompt: prompt, // Original user prompt for planner
               documentMarkdown, // Markdown snapshot for planner
-              editorStateJson,
+              documentJson, // JSON state as separate property
               files,
             });
           } finally {
