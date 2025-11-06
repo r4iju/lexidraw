@@ -1,12 +1,13 @@
 import "server-only";
 
-import type { ModelMessage, LanguageModel } from "ai";
+import type { ModelMessage } from "ai";
 import { generateObject } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 import env from "@packages/env";
 import type { EffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 
 export interface DecisionStepArgs {
   messages: ModelMessage[];
@@ -53,7 +54,7 @@ export async function decisionStep(
   }
 
   // Build decision messages
-  const decisionMessages: ModelMessage[] = [
+  const decisionMessages = [
     ...messages,
     ...(priorAssistantText
       ? [{ role: "assistant" as const, content: priorAssistantText }]
@@ -63,7 +64,13 @@ export async function decisionStep(
       content:
         "Choose exactly one action next:\n1) summarizeAfterToolCallExecution\n2) planNextToolSelection",
     },
-  ];
+    // A message that can be used in the messages field of a prompt. It can be a user message, an assistant message, or a tool message.
+  ] satisfies ModelMessage[];
+
+  console.log(
+    "[decisionStep] decisionMessages",
+    JSON.stringify(decisionMessages, null, 2),
+  );
 
   const decisionSystem = `${system}\n\nYou are in a decision step. Choose exactly one: summarizeAfterToolCallExecution OR planNextToolSelection.`;
 
@@ -93,7 +100,7 @@ export async function decisionStep(
   );
 
   const result = await generateObject({
-    model: model as unknown as LanguageModel,
+    model: model as LanguageModelV2,
     messages: decisionMessages,
     system: decisionSystem,
     schema: DecisionSchema,

@@ -11,6 +11,7 @@ import {
   appendToolResult,
   buildDecisionMessages,
 } from "./message-serializer";
+import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 
 export type AgentConfig = EffectiveLlmConfig;
 
@@ -156,6 +157,8 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
       const toolCalls = llmResult.toolCalls ?? [];
       if (toolCalls.length > 0) {
         // Process each tool call sequentially
+        let lastToolCallName: string | undefined;
+        let lastToolResultOutput: LanguageModelV2ToolResultOutput | undefined;
         for (const toolCall of toolCalls) {
           // Append assistant tool-call message (with optional assistant text)
           currentMessages = appendAssistantToolCall(currentMessages, {
@@ -166,7 +169,10 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
           });
 
           // Create hook and emit tool-call event
-          const hook = createHook<{ toolCallId: string; result: unknown }>();
+          const hook = createHook<{
+            toolCallId: string;
+            result: LanguageModelV2ToolResultOutput;
+          }>();
           const hookToken = hook.token;
 
           {
@@ -186,13 +192,22 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
           const hookResult = await hook;
           currentMessages = appendToolResult(currentMessages, {
             toolCallId: hookResult.toolCallId,
+            toolName: toolCall.toolName,
             result: hookResult.result,
           });
+
+          // Track last tool call details for decision surrogate
+          lastToolCallName = toolCall.toolName;
+          lastToolResultOutput = hookResult.result;
         }
 
         // After all tool calls complete, decide: continue or finish?
+        const surrogateText = formatToolDecisionSurrogate(
+          lastToolCallName,
+          lastToolResultOutput,
+        );
         const decision = await decisionStep({
-          messages: buildDecisionMessages(currentMessages, lastAssistantText),
+          messages: buildDecisionMessages(currentMessages, surrogateText),
           system: systemPrompt,
           config: args.config,
           priorAssistantText: undefined,
@@ -286,4 +301,43 @@ function extractSummaryFromLastToolCall(
     }
   }
   return undefined;
+}
+
+/**
+ * Builds a concise surrogate string for the last executed tool call so the
+ * decision step has textual context about what just happened.
+ */
+function formatToolDecisionSurrogate(
+  toolName: string | undefined,
+  output: LanguageModelV2ToolResultOutput | undefined,
+): string | undefined {
+  if (!toolName) return undefined;
+  if (!output) return `Executed tool ${toolName}.`;
+
+  switch (output.type) {
+    case "text": {
+      const len = output.value.length;
+      return `Executed tool ${toolName} → text(${len} chars).`;
+    }
+    case "json": {
+      const val = output.value as unknown;
+      const success =
+        typeof val === "object" &&
+        val !== null &&
+        "success" in (val as Record<string, unknown>)
+          ? Boolean((val as { success: unknown }).success)
+          : undefined;
+      return success !== undefined
+        ? `Executed tool ${toolName} → json(success:${success}).`
+        : `Executed tool ${toolName} → json.`;
+    }
+    case "error-text":
+      return `Executed tool ${toolName} → error-text.`;
+    case "error-json":
+      return `Executed tool ${toolName} → error-json.`;
+    case "content":
+      return `Executed tool ${toolName} → content(${output.value.length} parts).`;
+    default:
+      return `Executed tool ${toolName}.`;
+  }
 }

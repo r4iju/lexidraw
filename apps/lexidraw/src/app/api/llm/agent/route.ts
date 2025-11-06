@@ -116,18 +116,23 @@ export async function POST(req: NextRequest) {
           ? (roleRaw as "user" | "assistant" | "system" | "tool")
           : ("user" as const);
 
-      // Prefer string content; otherwise stringify to ensure validity
-      let content: string | { type: string; [k: string]: unknown }[];
+      // Normalize content to a simple string to ensure valid ModelMessage
+      let content: string;
       if (typeof contentRaw === "string") {
         content = contentRaw;
       } else if (Array.isArray(contentRaw)) {
-        // Only accept an array if every part has a string 'type'
-        const ok = (contentRaw as unknown[]).every(
-          (p) => typeof (p as Record<string, unknown>)?.type === "string",
-        );
-        content = ok
-          ? (contentRaw as { type: string }[])
-          : JSON.stringify(contentRaw);
+        // Extract text parts if present; otherwise stringify the whole array
+        const textParts: string[] = [];
+        for (const part of contentRaw as unknown[]) {
+          const p = part as Record<string, unknown>;
+          if (p && p.type === "text" && typeof p.text === "string") {
+            textParts.push(p.text);
+          }
+        }
+        content =
+          textParts.length > 0
+            ? textParts.join("\n")
+            : JSON.stringify(contentRaw);
       } else if (contentRaw && typeof contentRaw === "object") {
         content = JSON.stringify(contentRaw);
       } else {
@@ -135,17 +140,8 @@ export async function POST(req: NextRequest) {
       }
 
       if (role === "tool") {
-        const toolCallId = maybe?.toolCallId;
-        if (typeof toolCallId === "string" && typeof content === "string") {
-          out.push({ role: "tool", content, toolCallId });
-          continue;
-        }
-        // If malformed, fall back to a plain assistant message
-        out.push({
-          role: "assistant",
-          content:
-            typeof content === "string" ? content : JSON.stringify(content),
-        });
+        // Do not accept tool messages from the client; coerce to assistant text
+        out.push({ role: "assistant", content });
         continue;
       }
 
