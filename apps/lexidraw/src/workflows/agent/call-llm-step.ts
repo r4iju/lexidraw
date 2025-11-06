@@ -118,6 +118,65 @@ export async function callLlmStep(
     }),
   );
 
+  // Debug: log the last 3 messages with sanitized structure for diagnostics
+  (function logMessagesTail() {
+    function isObject(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    const tail = messages.slice(-3).map((m) => {
+      const kind = Array.isArray(m.content)
+        ? "array"
+        : typeof m.content === "string"
+          ? "string"
+          : typeof m.content;
+      const entry: Record<string, unknown> = {
+        role: m.role,
+        contentKind: kind,
+      };
+      if (Array.isArray(m.content)) {
+        const parts = m.content.map((p) => {
+          const base: Record<string, unknown> = {
+            type:
+              isObject(p) && typeof p.type === "string" ? p.type : "unknown",
+          };
+          if (isObject(p) && p.type === "text" && typeof p.text === "string") {
+            base.textLen = p.text.length;
+          }
+          if (isObject(p) && p.type === "tool-call") {
+            base.toolCallId =
+              typeof p.toolCallId === "string" ? p.toolCallId : undefined;
+            base.toolName =
+              typeof p.toolName === "string" ? p.toolName : undefined;
+          }
+          if (isObject(p) && p.type === "tool-result") {
+            base.toolCallId =
+              typeof p.toolCallId === "string" ? p.toolCallId : undefined;
+            base.toolName =
+              typeof p.toolName === "string" ? p.toolName : undefined;
+            const output = (p as { output: unknown }).output;
+            base.outputType = typeof output;
+            if (isObject(output)) {
+              base.outputKeys = Object.keys(output).slice(0, 5);
+              const outType = (output as Record<string, unknown>).type;
+              if (typeof outType === "string") base.outputSubtype = outType;
+            }
+          }
+          return base;
+        });
+        entry.parts = parts;
+      }
+      return entry;
+    });
+    try {
+      console.log(
+        "[callLlmStep] messagesTail",
+        JSON.stringify({ total: messages.length, tail }, null, 2),
+      );
+    } catch {
+      // ignore logging failures
+    }
+  })();
+
   const result = await generateText({
     model: model as unknown as LanguageModel,
     messages,

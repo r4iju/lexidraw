@@ -140,6 +140,7 @@
         "zod": "^4.1.12",
       },
       "devDependencies": {
+        "@ai-sdk/provider": "^2.0.0",
         "@next/bundle-analyzer": "16.0.1",
         "@tailwindcss/postcss": "^4.1.7",
         "@types/bcrypt": "^5.0.2",
