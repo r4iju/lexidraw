@@ -3,6 +3,10 @@ import { z } from "zod";
 import { and, desc, eq, like, sql, type SQL } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { generateUUID } from "~/lib/utils";
+import { v4 as uuidV4 } from "uuid";
+import { start } from "workflow/api";
+import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
+import { computeThumbnailVersion } from "~/lib/thumbnail-version";
 
 export const adminEntitiesRouter = createTRPCRouter({
   members: adminProcedure
@@ -239,5 +243,133 @@ export const adminEntitiesRouter = createTRPCRouter({
         )
         .join("\n");
       return `${head}\n${body}`;
+    }),
+
+  regenerateAllThumbnails: adminProcedure
+    .input(
+      z.object({
+        entityType: z
+          .enum(["drawing", "document", "directory", "url"])
+          .optional(),
+        limit: z.number().int().min(1).max(1000).optional(),
+        offset: z.number().int().min(0).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 100;
+      const offset = input?.offset ?? 0;
+
+      // Build query conditions
+      const conds: SQL<unknown>[] = [];
+      if (input?.entityType) {
+        conds.push(eq(ctx.schema.entities.entityType, input.entityType));
+      }
+
+      let where: SQL<unknown> | undefined;
+      if (conds.length === 1) where = conds[0];
+      if (conds.length > 1) {
+        const [first, ...rest] = conds;
+        where = and(first, ...rest);
+      }
+
+      // Query entities with elements and appState
+      const base = ctx.drizzle
+        .select({
+          id: ctx.schema.entities.id,
+          elements: ctx.schema.entities.elements,
+          appState: ctx.schema.entities.appState,
+        })
+        .from(ctx.schema.entities);
+
+      const entities = await (where ? base.where(where) : base)
+        .limit(limit)
+        .offset(offset);
+
+      let jobsCreated = 0;
+      let workflowsTriggered = 0;
+      let errors = 0;
+      const errorDetails: Array<{ entityId: string; error: string }> = [];
+
+      // Process each entity
+      for (const entity of entities) {
+        try {
+          // Compute version
+          const version = computeThumbnailVersion(
+            entity.elements,
+            entity.appState,
+          );
+
+          // Create thumbnail job
+          const jobId = uuidV4();
+          const createdAt = new Date();
+
+          await ctx.drizzle
+            .insert(ctx.schema.thumbnailJobs)
+            .values({
+              id: jobId,
+              entityId: entity.id,
+              version,
+              status: "pending",
+              attempts: 0,
+              nextRunAt: createdAt,
+              createdAt,
+              updatedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+              target: [
+                ctx.schema.thumbnailJobs.entityId,
+                ctx.schema.thumbnailJobs.version,
+              ],
+              set: {
+                status: "pending",
+                updatedAt: new Date(),
+                nextRunAt: new Date(),
+                lastError: null,
+              },
+            })
+            .execute();
+
+          jobsCreated++;
+
+          // Fetch the job after upsert to handle conflict case
+          const job = await ctx.drizzle.query.thumbnailJobs.findFirst({
+            where: (t) =>
+              and(eq(t.entityId, entity.id), eq(t.version, version)),
+          });
+
+          if (job) {
+            // Trigger workflow (fire-and-forget)
+            try {
+              void start(generateThumbnailWorkflow, [
+                job.id,
+                job.entityId,
+                job.version,
+                new Date(job.createdAt),
+              ]);
+              workflowsTriggered++;
+            } catch (workflowError) {
+              errors++;
+              errorDetails.push({
+                entityId: entity.id,
+                error: `Failed to trigger workflow: ${(workflowError as Error).message}`,
+              });
+            }
+          }
+        } catch (error) {
+          errors++;
+          errorDetails.push({
+            entityId: entity.id,
+            error: (error as Error).message,
+          });
+        }
+      }
+
+      return {
+        entitiesProcessed: entities.length,
+        jobsCreated,
+        workflowsTriggered,
+        errors,
+        errorDetails: errorDetails.length > 0 ? errorDetails : undefined,
+      };
     }),
 });

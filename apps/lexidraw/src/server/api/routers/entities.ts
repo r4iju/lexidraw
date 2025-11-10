@@ -26,6 +26,7 @@ import {
 import { headers } from "next/headers";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
+import { computeThumbnailVersion } from "~/lib/thumbnail-version";
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -166,16 +167,7 @@ export const entityRouter = createTRPCRouter({
 
     // Enqueue thumbnail job (deduped by entityId+version)
     try {
-      const crypto = await import("node:crypto");
-      const version = crypto
-        .createHash("md5")
-        .update(
-          JSON.stringify({
-            elements: input.elements,
-            appState: appState ?? "",
-          }),
-        )
-        .digest("hex");
+      const version = computeThumbnailVersion(input.elements, appState);
 
       const jobId = uuidV4();
       const createdAt = new Date();
