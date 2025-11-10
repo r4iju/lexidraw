@@ -86,6 +86,11 @@ const config = {
       },
       {
         protocol: "https",
+        hostname: new URL(env.VERCEL_BLOB_STORAGE_HOST_DEV).hostname,
+        pathname: `${new URL(env.VERCEL_BLOB_STORAGE_HOST_DEV).pathname}**`,
+      },
+      {
+        protocol: "https",
         hostname: env.VERCEL_URL,
         pathname: "/api/*images/**",
       },
