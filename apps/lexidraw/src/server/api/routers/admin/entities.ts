@@ -5,7 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { generateUUID } from "~/lib/utils";
 import { v4 as uuidV4 } from "uuid";
 import { start } from "workflow/api";
-import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
+import { generateBatchThumbnailWorkflow } from "~/workflows/thumbnail/generate-batch-thumbnail-workflow";
 import { computeThumbnailVersion } from "~/lib/thumbnail-version";
 
 export const adminEntitiesRouter = createTRPCRouter({
@@ -289,8 +289,14 @@ export const adminEntitiesRouter = createTRPCRouter({
       let workflowsTriggered = 0;
       let errors = 0;
       const errorDetails: Array<{ entityId: string; error: string }> = [];
+      const batchJobs: Array<{
+        jobId: string;
+        entityId: string;
+        version: string;
+        jobCreatedAt: Date;
+      }> = [];
 
-      // Process each entity
+      // Create jobs for all entities first
       for (const entity of entities) {
         try {
           // Compute version
@@ -338,22 +344,12 @@ export const adminEntitiesRouter = createTRPCRouter({
           });
 
           if (job) {
-            // Trigger workflow (fire-and-forget)
-            try {
-              void start(generateThumbnailWorkflow, [
-                job.id,
-                job.entityId,
-                job.version,
-                new Date(job.createdAt),
-              ]);
-              workflowsTriggered++;
-            } catch (workflowError) {
-              errors++;
-              errorDetails.push({
-                entityId: entity.id,
-                error: `Failed to trigger workflow: ${(workflowError as Error).message}`,
-              });
-            }
+            batchJobs.push({
+              jobId: job.id,
+              entityId: job.entityId,
+              version: job.version,
+              jobCreatedAt: new Date(job.createdAt),
+            });
           }
         } catch (error) {
           errors++;
@@ -361,6 +357,22 @@ export const adminEntitiesRouter = createTRPCRouter({
             entityId: entity.id,
             error: (error as Error).message,
           });
+        }
+      }
+
+      // Trigger batch workflow if we have jobs
+      if (batchJobs.length > 0) {
+        try {
+          void start(generateBatchThumbnailWorkflow, [batchJobs]);
+          workflowsTriggered = 1; // One batch workflow for all jobs
+        } catch (workflowError) {
+          errors += batchJobs.length;
+          for (const job of batchJobs) {
+            errorDetails.push({
+              entityId: job.entityId,
+              error: `Failed to trigger batch workflow: ${(workflowError as Error).message}`,
+            });
+          }
         }
       }
 
