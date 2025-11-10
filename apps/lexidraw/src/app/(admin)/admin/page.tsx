@@ -60,6 +60,18 @@ export default async function AdminDashboardPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Backups</CardTitle>
+          <CardDescription>Manage database backups</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/admin/backups">Go to Backups</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
