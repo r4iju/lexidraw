@@ -96,6 +96,15 @@ export function AdminMenuContent() {
           Crons
         </Link>
       </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <Link
+          className="cursor-default"
+          href="/admin/backups"
+          data-active={pathname === "/admin/backups"}
+        >
+          Backups
+        </Link>
+      </DropdownMenuItem>
     </>
   );
 }

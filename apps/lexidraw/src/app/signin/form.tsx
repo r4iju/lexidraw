@@ -35,7 +35,7 @@ export default function SignInForm() {
         redirect: false,
       });
       if (res?.ok) {
-        router.refresh();
+        router.push("/dashboard");
       } else if (res?.error) {
         setSubmitError(res.error);
       }

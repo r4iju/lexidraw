@@ -3,6 +3,7 @@
   "globalEnv": [
     "ANALYZE",
     "AWS_LAMBDA_JS_RUNTIME",
+    "BACKUP_ENCRYPTION_KEY",
     "CRON_SECRET",
     "NEXT_PUBLIC_NODE_ENV",
     "NEXT_PUBLIC_WS_SERVER",
