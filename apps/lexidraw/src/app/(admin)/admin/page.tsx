@@ -76,7 +76,9 @@ export default async function AdminDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Thumbnail Jobs</CardTitle>
-          <CardDescription>Monitor and manage thumbnail generation jobs</CardDescription>
+          <CardDescription>
+            Monitor and manage thumbnail generation jobs
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="w-full">

@@ -16,10 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-import {
-  thumbnailJobColumns,
-  type ThumbnailJobRow,
-} from "./columns";
+import { thumbnailJobColumns, type ThumbnailJobRow } from "./columns";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Select,
@@ -199,4 +196,3 @@ export function ThumbnailJobsDataTable(props: {
     </div>
   );
 }
-

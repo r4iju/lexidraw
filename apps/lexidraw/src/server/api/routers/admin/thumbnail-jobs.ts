@@ -13,13 +13,7 @@ export const adminThumbnailJobsRouter = createTRPCRouter({
         page: z.number().int().min(1).optional(),
         size: z.number().int().min(1).max(200).optional(),
         sortBy: z
-          .enum([
-            "createdAt",
-            "updatedAt",
-            "status",
-            "attempts",
-            "nextRunAt",
-          ])
+          .enum(["createdAt", "updatedAt", "status", "attempts", "nextRunAt"])
           .optional(),
         sortOrder: z.enum(["asc", "desc"]).optional(),
       }),
@@ -110,9 +104,7 @@ export const adminThumbnailJobsRouter = createTRPCRouter({
         sql`${ctx.schema.thumbnailJobs.lastError} is not null or ${ctx.schema.thumbnailJobs.status} = 'error'`,
       );
 
-    const statusMap = new Map(
-      byStatus.map((s) => [s.status, Number(s.count)]),
-    );
+    const statusMap = new Map(byStatus.map((s) => [s.status, Number(s.count)]));
 
     return {
       total: Number(total?.count ?? 0),
@@ -148,4 +140,3 @@ export const adminThumbnailJobsRouter = createTRPCRouter({
       return { ok: true } as const;
     }),
 });
-

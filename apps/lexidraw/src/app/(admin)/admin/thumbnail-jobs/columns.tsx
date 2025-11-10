@@ -135,4 +135,3 @@ export const thumbnailJobColumns: ColumnDef<ThumbnailJobRow>[] = [
     cell: ({ row }) => <RowActions job={row.original} />,
   },
 ];
-
