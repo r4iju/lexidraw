@@ -72,6 +72,18 @@ export default async function AdminDashboardPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Thumbnail Jobs</CardTitle>
+          <CardDescription>Monitor and manage thumbnail generation jobs</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/admin/thumbnail-jobs">Go to Thumbnail Jobs</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

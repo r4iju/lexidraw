@@ -105,6 +105,15 @@ export function AdminMenuContent() {
           Backups
         </Link>
       </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <Link
+          className="cursor-default"
+          href="/admin/thumbnail-jobs"
+          data-active={pathname === "/admin/thumbnail-jobs"}
+        >
+          Thumbnail Jobs
+        </Link>
+      </DropdownMenuItem>
     </>
   );
 }

@@ -11,6 +11,7 @@ import { articlesRouter } from "./routers/articles";
 import { adminLlmRouter } from "./routers/admin/llm";
 import { adminUsersRouter } from "./routers/admin/users";
 import { adminEntitiesRouter } from "./routers/admin/entities";
+import { adminThumbnailJobsRouter } from "./routers/admin/thumbnail-jobs";
 import { ttsRouter } from "./routers/tts";
 import { llmRouter } from "./routers/llm";
 import { documentRouter } from "./routers/documents";
@@ -29,6 +30,7 @@ export const appRouter = createTRPCRouter({
   adminLlm: adminLlmRouter,
   adminUsers: adminUsersRouter,
   adminEntities: adminEntitiesRouter,
+  adminThumbnailJobs: adminThumbnailJobsRouter,
   tts: ttsRouter,
   llm: llmRouter,
   documents: documentRouter,
