@@ -48,12 +48,14 @@ async function ThumbnailJobsContent({ searchParams }: Props) {
         : new Date(job.nextRunAt as number)
       : null,
     lastError: job.lastError,
-    createdAt: job.createdAt instanceof Date
-      ? job.createdAt
-      : new Date(job.createdAt as number),
-    updatedAt: job.updatedAt instanceof Date
-      ? job.updatedAt
-      : new Date(job.updatedAt as number),
+    createdAt:
+      job.createdAt instanceof Date
+        ? job.createdAt
+        : new Date(job.createdAt as number),
+    updatedAt:
+      job.updatedAt instanceof Date
+        ? job.updatedAt
+        : new Date(job.updatedAt as number),
   }));
 
   return (
@@ -117,4 +119,3 @@ export default async function ThumbnailJobsPage(props: Props) {
     </Suspense>
   );
 }
-
