@@ -107,6 +107,12 @@ export function EntitiesDataTable(props: {
   }, [pageIndex, pageSize, query, status, ownerId, updateUrl]);
 
   const exportCsv = api.adminEntities.exportCsv.useMutation();
+  const regenerateThumbnails =
+    api.adminEntities.regenerateAllThumbnails.useMutation();
+  const [regenerateStatus, setRegenerateStatus] = React.useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   return (
     <div className="w-full">
@@ -148,6 +154,37 @@ export function EntitiesDataTable(props: {
         <Button
           variant="outline"
           className="ml-auto"
+          disabled={regenerateThumbnails.isPending}
+          onClick={async () => {
+            try {
+              setRegenerateStatus(null);
+              const offset = (props.page - 1) * props.size;
+              const result = await regenerateThumbnails.mutateAsync({
+                limit: props.size,
+                offset,
+              });
+              setRegenerateStatus({
+                type: "success",
+                message: `Regenerated ${result.workflowsTriggered} thumbnails (${result.jobsCreated} jobs created, ${result.errors} errors)`,
+              });
+              setTimeout(() => setRegenerateStatus(null), 5000);
+            } catch (error) {
+              setRegenerateStatus({
+                type: "error",
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to regenerate thumbnails",
+              });
+            }
+          }}
+        >
+          {regenerateThumbnails.isPending
+            ? "Regenerating..."
+            : "Regenerate Thumbnails"}
+        </Button>
+        <Button
+          variant="outline"
           onClick={async () => {
             const csv = await exportCsv.mutateAsync({
               query,
@@ -166,6 +203,17 @@ export function EntitiesDataTable(props: {
           Export CSV
         </Button>
       </div>
+      {regenerateStatus && (
+        <div
+          className={`mb-2 rounded-md border p-2 text-sm ${
+            regenerateStatus.type === "success"
+              ? "border-green-500 bg-green-50 text-green-900"
+              : "border-red-500 bg-red-50 text-red-900"
+          }`}
+        >
+          {regenerateStatus.message}
+        </div>
+      )}
       <div className="overflow-hidden rounded-md border border-border">
         <Table>
           <TableHeader>
