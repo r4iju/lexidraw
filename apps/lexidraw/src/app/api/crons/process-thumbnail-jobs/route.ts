@@ -74,7 +74,6 @@ export async function GET(_req: NextRequest) {
         job.id,
         job.entityId,
         job.version,
-        new Date(job.createdAt),
       ]);
       triggered++;
       logCron("workflow_triggered", {

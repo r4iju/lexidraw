@@ -293,7 +293,6 @@ export const adminEntitiesRouter = createTRPCRouter({
         jobId: string;
         entityId: string;
         version: string;
-        jobCreatedAt: Date;
       }> = [];
 
       // Create jobs for all entities first
@@ -348,7 +347,6 @@ export const adminEntitiesRouter = createTRPCRouter({
               jobId: job.id,
               entityId: job.entityId,
               version: job.version,
-              jobCreatedAt: new Date(job.createdAt),
             });
           }
         } catch (error) {
