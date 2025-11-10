@@ -2,12 +2,12 @@ import "server-only";
 
 import { drizzle, schema, eq } from "@packages/drizzle";
 import { FatalError } from "workflow";
+import { computeThumbnailVersion } from "~/lib/thumbnail-version";
 
 export async function validateJobStep(
   jobId: string,
   entityId: string,
   version: string,
-  jobCreatedAt: Date,
 ): Promise<{ entityId: string; userId: string }> {
   "use step";
 
@@ -16,7 +16,8 @@ export async function validateJobStep(
       .select({
         id: schema.entities.id,
         userId: schema.entities.userId,
-        updatedAt: schema.entities.updatedAt,
+        elements: schema.entities.elements,
+        appState: schema.entities.appState,
         thumbnailVersion: schema.entities.thumbnailVersion,
         thumbnailStatus: schema.entities.thumbnailStatus,
       })
@@ -27,7 +28,8 @@ export async function validateJobStep(
     | {
         id: string;
         userId: string;
-        updatedAt: Date;
+        elements: string;
+        appState: string | null;
         thumbnailVersion?: string | null;
         thumbnailStatus?: string | null;
       }
@@ -43,15 +45,16 @@ export async function validateJobStep(
   }
 
   // Check if job is stale
-  // Use a small tolerance (1 second) to account for timing differences between
-  // entity update and job creation, and database timestamp precision
-  const TOLERANCE_MS = 1000;
-  const jobCreatedAtTime = jobCreatedAt.getTime();
-  const entityUpdatedAtTime = entity.updatedAt?.getTime() ?? 0;
+  // Compute current version from entity content
+  const currentVersion = computeThumbnailVersion(
+    entity.elements,
+    entity.appState,
+  );
 
-  // Diagnostics: capture timing relationships and which condition triggers
-  const outdatedDueToTiming =
-    entityUpdatedAtTime > jobCreatedAtTime + TOLERANCE_MS;
+  // Check if job is stale:
+  // 1) Outdated job: entity content changed (version mismatch)
+  const outdatedDueToVersion = currentVersion !== version;
+  // 2) Duplicate job: same version already marked ready
   const duplicateReady =
     entity.thumbnailVersion === version && entity.thumbnailStatus === "ready";
 
@@ -61,15 +64,12 @@ export async function validateJobStep(
       JSON.stringify({
         jobId,
         entityId,
-        version,
-        jobCreatedAtISO: new Date(jobCreatedAtTime).toISOString(),
-        jobCreatedAtMs: jobCreatedAtTime,
-        entityUpdatedAtISO: new Date(entityUpdatedAtTime).toISOString(),
-        entityUpdatedAtMs: entityUpdatedAtTime,
-        diffMs: entityUpdatedAtTime - jobCreatedAtTime,
-        toleranceMs: TOLERANCE_MS,
+        jobVersion: version,
+        currentVersion,
+        entityThumbnailVersion: entity.thumbnailVersion,
+        entityThumbnailStatus: entity.thumbnailStatus,
         checks: {
-          outdatedDueToTiming,
+          outdatedDueToVersion,
           duplicateReady,
         },
       }),
@@ -77,15 +77,15 @@ export async function validateJobStep(
   } catch {}
 
   if (
-    // 1) Outdated job: entity changed significantly after job creation (more than tolerance)
-    outdatedDueToTiming ||
+    // 1) Outdated job: entity content changed (version mismatch)
+    outdatedDueToVersion ||
     // 2) Duplicate job: same version already marked ready
     duplicateReady
   ) {
     try {
       console.log(
         "[thumbnail][validate] stale_reason",
-        JSON.stringify({ outdatedDueToTiming, duplicateReady }),
+        JSON.stringify({ outdatedDueToVersion, duplicateReady }),
       );
     } catch {}
     await drizzle

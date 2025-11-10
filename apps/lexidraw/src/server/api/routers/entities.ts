@@ -246,7 +246,6 @@ export const entityRouter = createTRPCRouter({
           job.id,
           job.entityId,
           job.version,
-          new Date(job.createdAt),
         ]);
       }
     } catch (e) {

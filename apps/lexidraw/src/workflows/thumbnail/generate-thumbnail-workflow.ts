@@ -16,7 +16,6 @@ export async function generateThumbnailWorkflow(
   jobId: string,
   entityId: string,
   version: string,
-  jobCreatedAt: Date,
 ): Promise<{ lightUrl: string; darkUrl: string }> {
   "use workflow";
 
@@ -31,7 +30,6 @@ export async function generateThumbnailWorkflow(
     jobId,
     entityId,
     version,
-    jobCreatedAt,
   );
 
   // Mark job as processing

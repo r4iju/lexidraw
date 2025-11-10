@@ -16,7 +16,6 @@ export interface BatchThumbnailJob {
   jobId: string;
   entityId: string;
   version: string;
-  jobCreatedAt: Date;
 }
 
 export interface BatchThumbnailResult {
@@ -114,7 +113,6 @@ async function processSingleJob(
     job.jobId,
     job.entityId,
     job.version,
-    job.jobCreatedAt,
   );
 
   // Mark job as processing
