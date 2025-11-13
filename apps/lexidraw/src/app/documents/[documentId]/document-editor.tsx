@@ -140,6 +140,7 @@ import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 import { CommentInputBox } from "./plugins/CommentPlugin";
 import MermaidPlugin from "./plugins/MermaidPlugin";
 import { MermaidNode } from "./nodes/MermaidNode";
+import { useMarkdownTools, type MarkdownInsertMode } from "./utils/markdown";
 import {
   DocumentSettingsProvider,
   useDocumentSettings,
@@ -281,6 +282,7 @@ function EditorHandler({
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [editor] = useLexicalComposerContext();
+  const { insertMarkdown } = useMarkdownTools();
 
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {
@@ -299,6 +301,18 @@ function EditorHandler({
   const { markDirty, markPristine } = useUnsavedChanges();
   const { defaultFontFamily } = useDocumentSettings();
   const { enabled: autoSaveEnabled } = useAutoSave();
+
+  const handleImportMarkdown = useCallback(
+    (markdown: string, mode: MarkdownInsertMode) => {
+      try {
+        insertMarkdown(editor, markdown, mode);
+      } catch (error) {
+        console.error("[handleImportMarkdown] import error:", error);
+        throw error;
+      }
+    },
+    [editor, insertMarkdown],
+  );
   const [dynamicPageStyle, setDynamicPageStyle] = useState<React.CSSProperties>(
     {},
   );
@@ -487,6 +501,7 @@ function EditorHandler({
                                 onSaveDocument={handleSave}
                                 isSavingDocument={isUploading}
                                 onExportMarkdown={exportMarkdown}
+                                onImportMarkdown={handleImportMarkdown}
                                 entity={{
                                   id: entity.id,
                                   title: entity.title,
