@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState, useCallback, useRef, useId } from "react";
+import { useState, useCallback, useEffect, useRef, useId } from "react";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { useSendQuery } from "../use-send-query";
@@ -9,17 +9,137 @@ import { useKeyedSerialization } from "../use-serialized-editor-state";
 import { SendIcon, PaperclipIcon, XIcon, FileIcon } from "lucide-react";
 import { useSidebarSize } from "~/components/ui/sidebar-wrapper";
 import { cn } from "~/lib/utils";
+import { useEntityId } from "~/hooks/use-entity-id";
+import { useDebounce } from "~/lib/client-utils";
+import { loadInput, saveInput } from "../storage/local-chat-storage";
 
 export const MessageInput = () => {
-  const [text, setText] = useState("");
+  const documentId = useEntityId();
+  const { streaming, mode, messages } = useChatState();
+
+  // Initialize text from localStorage if available
+  const initializeText = useCallback((): string => {
+    if (!documentId || typeof window === "undefined") return "";
+    return loadInput(documentId, mode);
+  }, [documentId, mode]);
+
+  const [text, setText] = useState(initializeText);
   const [files, setFiles] = useState<File[] | null>(null);
   const sendQuery = useSendQuery();
-  const { streaming, mode } = useChatState();
   const { width } = useSidebarSize();
   const [editor] = useLexicalComposerContext();
   const { serializeEditorStateWithKeys } = useKeyedSerialization();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileUploadInputId = useId();
+  const prevModeRef = useRef<typeof mode | null>(null);
+  const textRef = useRef(text);
+  const isInitialMountRef = useRef(true);
+
+  // Keep textRef in sync with text state
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
+
+  // Debounced save for input text (2.5s delay)
+  const saveInputFn = useCallback(
+    (docId: string, currentMode: typeof mode, inputText: string) => {
+      saveInput(docId, currentMode, inputText);
+    },
+    [],
+  );
+  const { run: saveInputDebounced, cancel: cancelSaveInput } = useDebounce(
+    saveInputFn as (...args: unknown[]) => void,
+    2500,
+  );
+
+  // Track if we just reset to avoid clearing input on normal typing
+  const wasResetRef = useRef(false);
+  const prevMessagesLengthRef = useRef(messages.length);
+
+  // Detect reset: messages went from non-zero to zero
+  useEffect(() => {
+    if (prevMessagesLengthRef.current > 0 && messages.length === 0) {
+      wasResetRef.current = true;
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length]);
+
+  const prevDocumentIdRef = useRef<string | undefined>(undefined);
+
+  // Load input text when documentId changes (initial load handled by useState initializer)
+  useEffect(() => {
+    if (!documentId) return;
+    const documentIdChanged = prevDocumentIdRef.current !== documentId;
+
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      prevModeRef.current = mode;
+      prevDocumentIdRef.current = documentId;
+      return;
+    }
+
+    // Only reload if documentId changed
+    if (documentIdChanged) {
+      const loaded = loadInput(documentId, mode);
+      setText(loaded);
+      prevModeRef.current = mode;
+      prevDocumentIdRef.current = documentId;
+    }
+  }, [documentId, mode]);
+
+  // Handle mode changes: save previous mode's input, load new mode's input
+  useEffect(() => {
+    if (!documentId) return;
+    const prevMode = prevModeRef.current;
+
+    // Skip on initial mount (handled by documentId effect)
+    if (prevMode === null) {
+      return;
+    }
+
+    // Only handle mode changes, not documentId changes
+    if (prevMode === mode) return;
+
+    // Save previous mode's input immediately if mode changed
+    cancelSaveInput(); // Cancel any pending debounced save
+    saveInput(documentId, prevMode, textRef.current);
+
+    // Load new mode's input
+    const loaded = loadInput(documentId, mode);
+    setText(loaded);
+    prevModeRef.current = mode;
+    wasResetRef.current = false; // Reset flag after mode change
+  }, [documentId, mode, cancelSaveInput]);
+
+  // Clear input text only when reset is detected (not on every messages.length === 0)
+  useEffect(() => {
+    if (wasResetRef.current && messages.length === 0) {
+      // Messages were reset, clear input text
+      setText("");
+      wasResetRef.current = false; // Clear flag after handling reset
+    }
+  }, [messages.length]);
+
+  // Save input text with debounce when it changes (skip if loading)
+  useEffect(() => {
+    if (!documentId) return;
+    // Skip on initial mount
+    if (prevModeRef.current === null) return;
+
+    // Save with debounce
+    saveInputDebounced(documentId, mode, text);
+  }, [documentId, mode, text, saveInputDebounced]);
+
+  // Cleanup: save current input on unmount or mode change
+  useEffect(() => {
+    return () => {
+      if (!documentId) return;
+      cancelSaveInput();
+      if (prevModeRef.current !== null) {
+        saveInput(documentId, prevModeRef.current, textRef.current);
+      }
+    };
+  }, [documentId, cancelSaveInput]);
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files;
     if (selectedFiles) {
@@ -91,7 +211,7 @@ export const MessageInput = () => {
               key={`${file.name}-${index}`}
               className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted"
             >
-              <FileIcon className="size-5 flex-shrink-0" />
+              <FileIcon className="size-5 shrink-0" />
               <span className="text-sm truncate max-w-[150px]">
                 {file.name}
               </span>
@@ -99,7 +219,7 @@ export const MessageInput = () => {
                 size="icon"
                 variant="ghost"
                 onClick={() => handleRemoveFile(index)}
-                className="hover:bg-background size-8 flex-shrink-0"
+                className="hover:bg-background size-8 shrink-0"
               >
                 <XIcon className="size-4" />
               </Button>

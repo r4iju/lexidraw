@@ -19,7 +19,7 @@
     "react-dom": "^19.2.0",
     "puppeteer-core": "^24.25.0",
     "@sparticuz/chromium": "^129.0.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   },
   "devDependencies": {
     "@types/node": "^22.15.19",

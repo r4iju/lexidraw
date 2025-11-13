@@ -37,7 +37,7 @@
     "@types/node": "^22.15.19",
     "dotenv-cli": "latest",
     "drizzle-kit": "^0.30.6",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   },
   "typesVersions": {
     "*": {
