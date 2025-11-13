@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { cn } from "~/lib/utils";
 
 const PopoverContext = React.createContext<{
   onOpenChange: (open: boolean) => void;
+  router: ReturnType<typeof useRouter>;
 } | null>(null);
 
 const Popover = ({
@@ -18,6 +19,7 @@ const Popover = ({
 }: React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Root>) => {
   const [internalOpen, setInternalOpen] = React.useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const isControlled = open !== undefined;
   const currentOpen = isControlled ? open : internalOpen;
@@ -43,7 +45,9 @@ const Popover = ({
       onOpenChange={handleOpenChange}
       {...props}
     >
-      <PopoverContext.Provider value={{ onOpenChange: handleOpenChange }}>
+      <PopoverContext.Provider
+        value={{ onOpenChange: handleOpenChange, router }}
+      >
         {children}
       </PopoverContext.Provider>
     </PopoverPrimitive.Root>
@@ -63,9 +67,21 @@ const PopoverContent = ({
   ...props
 }: PopoverContentProps) => {
   const context = React.useContext(PopoverContext);
-  const closeNow = React.useEffectEvent(() => {
-    context?.onOpenChange(false);
-  });
+
+  const handleNavigation = React.useEffectEvent(
+    (href: string | null | undefined) => {
+      if (!href || !context) return;
+      // Extract pathname from href (handle both absolute URLs and relative paths)
+      const url = new URL(href, window.location.origin);
+      const pathname = url.pathname + url.search + url.hash;
+      // Close popover first
+      context.onOpenChange(false);
+      // Wait for close animation to complete (~200ms) before navigating
+      setTimeout(() => {
+        context.router.push(pathname);
+      }, 200);
+    },
+  );
 
   return (
     <PopoverPrimitive.Portal>
@@ -81,24 +97,46 @@ const PopoverContent = ({
           props.onClickCapture?.(e);
           if (e.defaultPrevented) return;
           const el = e.target as HTMLElement | null;
-          if (
-            el?.closest(
-              "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
-            )
-          ) {
-            closeNow();
+          const linkEl = el?.closest<HTMLAnchorElement>("a[href]");
+          const buttonEl = el?.closest<HTMLButtonElement>(
+            "button[role='menuitem'], a[role='menuitem'], [data-navigate]",
+          );
+          if (linkEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleNavigation(linkEl.href);
+          } else if (buttonEl) {
+            const href =
+              buttonEl.getAttribute("href") || buttonEl.dataset.navigate;
+            if (href) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigation(href);
+            }
           }
         }}
         onKeyDownCapture={(e) => {
           props.onKeyDownCapture?.(e);
           if (e.defaultPrevented) return;
-          if (
-            (e.key === "Enter" || e.key === " ") &&
-            (e.target as HTMLElement | null)?.closest(
-              "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
-            )
-          ) {
-            closeNow();
+          if (e.key === "Enter" || e.key === " ") {
+            const el = e.target as HTMLElement | null;
+            const linkEl = el?.closest<HTMLAnchorElement>("a[href]");
+            const buttonEl = el?.closest<HTMLButtonElement>(
+              "button[role='menuitem'], a[role='menuitem'], [data-navigate]",
+            );
+            if (linkEl) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigation(linkEl.href);
+            } else if (buttonEl) {
+              const href =
+                buttonEl.getAttribute("href") || buttonEl.dataset.navigate;
+              if (href) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleNavigation(href);
+              }
+            }
           }
         }}
         {...props}

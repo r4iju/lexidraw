@@ -5,11 +5,12 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "~/lib/utils";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const DropdownMenuContext = React.createContext<{
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  router: ReturnType<typeof useRouter>;
 } | null>(null);
 
 const DropdownMenu = ({
@@ -18,6 +19,7 @@ const DropdownMenu = ({
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   React.useEffect(() => {
     // Reference pathname so linter recognizes this effect depends on it
@@ -27,7 +29,7 @@ const DropdownMenu = ({
 
   return (
     <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen} {...props}>
-      <DropdownMenuContext.Provider value={{ open, setOpen }}>
+      <DropdownMenuContext.Provider value={{ open, setOpen, router }}>
         {children}
       </DropdownMenuContext.Provider>
     </DropdownMenuPrimitive.Root>
@@ -123,9 +125,20 @@ const DropdownMenuContent = ({
     throw new Error("DropdownMenuContent must be used within a DropdownMenu");
   }
 
-  const closeNow = React.useEffectEvent(() => {
-    context.setOpen(false);
-  });
+  const handleNavigation = React.useEffectEvent(
+    (href: string | null | undefined) => {
+      if (!href) return;
+      // Extract pathname from href (handle both absolute URLs and relative paths)
+      const url = new URL(href, window.location.origin);
+      const pathname = url.pathname + url.search + url.hash;
+      // Close menu first
+      context.setOpen(false);
+      // Wait for close animation to complete (~200ms) before navigating
+      setTimeout(() => {
+        context.router.push(pathname);
+      }, 200);
+    },
+  );
 
   return (
     <DropdownMenuPrimitive.Portal>
@@ -144,12 +157,22 @@ const DropdownMenuContent = ({
           props.onClickCapture?.(e);
           if (e.defaultPrevented) return;
           const el = e.target as HTMLElement | null;
-          if (
-            el?.closest(
-              "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
-            )
-          ) {
-            closeNow();
+          const linkEl = el?.closest<HTMLAnchorElement>("a[href]");
+          const buttonEl = el?.closest<HTMLButtonElement>(
+            "button[role='menuitem'], a[role='menuitem'], [data-navigate]",
+          );
+          if (linkEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleNavigation(linkEl.href);
+          } else if (buttonEl) {
+            const href =
+              buttonEl.getAttribute("href") || buttonEl.dataset.navigate;
+            if (href) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigation(href);
+            }
           }
         }}
         onKeyDownCapture={(e) => {
@@ -157,22 +180,32 @@ const DropdownMenuContent = ({
           if (e.defaultPrevented) return;
           if (e.key === "Enter" || e.key === " ") {
             const el = e.target as HTMLElement | null;
-            if (
-              el?.closest(
-                "a[href], button[role='menuitem'], a[role='menuitem'], [data-navigate]",
-              )
-            ) {
-              closeNow();
+            const linkEl = el?.closest<HTMLAnchorElement>("a[href]");
+            const buttonEl = el?.closest<HTMLButtonElement>(
+              "button[role='menuitem'], a[role='menuitem'], [data-navigate]",
+            );
+            if (linkEl) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigation(linkEl.href);
+            } else if (buttonEl) {
+              const href =
+                buttonEl.getAttribute("href") || buttonEl.dataset.navigate;
+              if (href) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleNavigation(href);
+              }
             }
           }
         }}
         onEscapeKeyDown={(e) => {
           props.onEscapeKeyDown?.(e);
-          if (!e.defaultPrevented) closeNow();
+          if (!e.defaultPrevented) context.setOpen(false);
         }}
         onInteractOutside={(e) => {
           props.onInteractOutside?.(e);
-          if (!e.defaultPrevented) closeNow();
+          if (!e.defaultPrevented) context.setOpen(false);
         }}
         {...props}
       />
