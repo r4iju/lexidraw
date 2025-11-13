@@ -22,6 +22,6 @@
   "devDependencies": {
     "@packages/types": "workspace:*",
     "@types/ws": "^8.18.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   }
 }

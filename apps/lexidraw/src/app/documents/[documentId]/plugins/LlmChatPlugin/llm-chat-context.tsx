@@ -1,5 +1,14 @@
-import React, { createContext, useCallback, useReducer } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useEffect,
+  useRef,
+  useReducer,
+} from "react";
 import type { AppToolCall, AppToolResult } from "../../context/llm-context";
+import { useEntityId } from "~/hooks/use-entity-id";
+import { useDebounce } from "~/lib/client-utils";
+import { loadMessages, saveMessages } from "./storage/local-chat-storage";
 
 export type ChatState = {
   messages: {
@@ -25,6 +34,7 @@ export type Action =
   | { type: "setMaxAgentSteps"; steps: number }
   | { type: "startStreaming"; id: string }
   | { type: "stopStreaming" }
+  | { type: "setMessages"; messages: ChatState["messages"] }
   | {
       type: "update";
       msg: Partial<ChatState["messages"][number]> & { id: string };
@@ -50,6 +60,27 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   children,
 }) => {
   console.log("🔄 LlmChatProvider re-rendered");
+  const documentId = useEntityId();
+  const prevModeRef = useRef<ChatState["mode"] | null>(null);
+  const prevMessagesRef = useRef<ChatState["messages"]>([]);
+  const prevDocumentIdRef = useRef<string | undefined>(undefined);
+
+  // Initialize state with loaded messages if available (lazy initialization)
+  const initializeState = (): ChatState => {
+    if (typeof window === "undefined") {
+      return initial;
+    }
+    // documentId might not be available on first render, so we'll load in effect
+    // But if it is available, load synchronously
+    if (documentId) {
+      const loaded = loadMessages(documentId, initial.mode);
+      return {
+        ...initial,
+        messages: loaded,
+      };
+    }
+    return initial;
+  };
 
   /**
    * Merges tool calls arrays using Map-based deduplication for O(n) complexity.
@@ -119,9 +150,9 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
           return s;
         case "reset":
           return {
-            ...initial,
-            maxAgentSteps: s.maxAgentSteps,
-            sidebarOpen: s.sidebarOpen,
+            ...s,
+            messages: [],
+            streaming: false,
             streamingMessageId: null,
           };
         case "startStreaming":
@@ -132,6 +163,8 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
           const messages = s.messages.filter((msg) => msg.id !== a.id);
           return { ...s, messages };
         }
+        case "setMessages":
+          return { ...s, messages: a.messages };
         case "update": {
           if (!a.msg.id) {
             console.warn("Update action requires message ID:", a.msg);
@@ -176,7 +209,126 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
     [mergeToolCalls, mergeToolResults],
   );
 
-  const [state, dispatch] = useReducer(reducer, initial);
+  const [state, dispatch] = useReducer(reducer, initializeState());
+  const isLoadingRef = useRef(false);
+
+  // Debounced save for messages (500ms delay)
+  const saveMessagesFn = useCallback(
+    (
+      docId: string,
+      mode: ChatState["mode"],
+      messages: ChatState["messages"],
+    ) => {
+      saveMessages(docId, mode, messages);
+    },
+    [],
+  );
+  const { run: saveMessagesDebounced, cancel: cancelSaveMessages } =
+    useDebounce(saveMessagesFn as (...args: unknown[]) => void, 500);
+
+  // Load messages on mount/documentId change (if not already loaded by initializeState)
+  useEffect(() => {
+    if (!documentId) return;
+
+    const documentIdChanged = prevDocumentIdRef.current !== documentId;
+    const currentMessages = state.messages;
+    const currentMode = state.mode;
+
+    if (prevModeRef.current === null) {
+      // First mount - check if initializeState already loaded
+      if (currentMessages.length > 0) {
+        // Already loaded by initializeState, just sync refs
+        prevMessagesRef.current = currentMessages;
+        prevModeRef.current = currentMode;
+      } else {
+        // Not loaded yet, load now
+        isLoadingRef.current = true;
+        const loaded = loadMessages(documentId, currentMode);
+        if (loaded.length > 0) {
+          dispatch({ type: "setMessages", messages: loaded });
+          prevMessagesRef.current = loaded;
+        } else {
+          prevMessagesRef.current = [];
+        }
+        prevModeRef.current = currentMode;
+        isLoadingRef.current = false;
+      }
+      prevDocumentIdRef.current = documentId;
+    } else if (documentIdChanged) {
+      // documentId changed - load new messages
+      isLoadingRef.current = true;
+      const loaded = loadMessages(documentId, currentMode);
+      if (loaded.length > 0) {
+        dispatch({ type: "setMessages", messages: loaded });
+        prevMessagesRef.current = loaded;
+      } else {
+        dispatch({ type: "setMessages", messages: [] });
+        prevMessagesRef.current = [];
+      }
+      prevModeRef.current = currentMode;
+      prevDocumentIdRef.current = documentId;
+      isLoadingRef.current = false;
+    }
+  }, [documentId, state.messages, state.mode]); // state.messages/mode needed for first mount check
+
+  // Handle mode changes: save previous mode, load new mode
+  useEffect(() => {
+    if (!documentId) return;
+    const prevMode = prevModeRef.current;
+
+    // Skip on initial mount (handled by documentId effect)
+    if (prevMode === null) {
+      prevModeRef.current = state.mode;
+      return;
+    }
+
+    // Save previous mode's messages immediately if mode changed
+    if (prevMode !== state.mode && prevMessagesRef.current.length > 0) {
+      cancelSaveMessages(); // Cancel any pending debounced save
+      saveMessages(documentId, prevMode, prevMessagesRef.current);
+    }
+
+    // Load new mode's messages
+    isLoadingRef.current = true;
+    const loaded = loadMessages(documentId, state.mode);
+    if (loaded.length > 0) {
+      dispatch({ type: "setMessages", messages: loaded });
+      prevMessagesRef.current = loaded;
+    } else {
+      dispatch({ type: "setMessages", messages: [] });
+      prevMessagesRef.current = [];
+    }
+    prevModeRef.current = state.mode;
+    isLoadingRef.current = false;
+  }, [documentId, state.mode, cancelSaveMessages]);
+
+  // Save messages with debounce when they change (skip if loading)
+  useEffect(() => {
+    if (!documentId || isLoadingRef.current) return;
+    // Skip on initial mount
+    if (prevModeRef.current === null) return;
+
+    // Update ref for next save
+    prevMessagesRef.current = state.messages;
+
+    // Save with debounce
+    saveMessagesDebounced(documentId, state.mode, state.messages);
+  }, [documentId, state.mode, state.messages, saveMessagesDebounced]);
+
+  // Cleanup: save current state on unmount
+  useEffect(() => {
+    return () => {
+      if (!documentId) return;
+      cancelSaveMessages();
+      if (prevMessagesRef.current.length > 0) {
+        saveMessages(
+          documentId,
+          prevModeRef.current ?? state.mode,
+          prevMessagesRef.current,
+        );
+      }
+    };
+  }, [documentId, cancelSaveMessages, state.mode]);
 
   return (
     <ChatStateCtx.Provider value={state}>
