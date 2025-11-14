@@ -43,11 +43,11 @@ function getThumbnailRoundingClasses(
   }
 }
 
-export function ThumbnailClient({
+export function useThumbnailContent({
   entity,
   size = "large",
   roundedCorners = "all",
-}: Props) {
+}: Props): { thumbnail: JSX.Element; ribbon: JSX.Element | null } {
   const isDarkTheme = useIsDarkTheme();
   const deferredIsDarkTheme = useDeferredValue(isDarkTheme);
   const router = useRouter();
@@ -94,62 +94,49 @@ export function ThumbnailClient({
   if (entity.entityType === "directory") {
     const childCount = (entity as unknown as { childCount?: number })
       .childCount;
-    return (
-      <FolderVisual
-        id={entity.id}
-        title={entity.title}
-        childCount={childCount}
-        src={src}
-        roundedCorners={roundedCorners}
-        size={size}
-      />
-    );
+    const result = FolderVisual({
+      id: entity.id,
+      title: entity.title,
+      childCount,
+      src,
+      roundedCorners,
+      size,
+    });
+    return { thumbnail: result, ribbon: null };
   }
 
   if (entity.entityType === "url") {
-    return (
-      <UrlVisual
-        title={entity.title}
-        src={src}
-        isPending={
-          (entity as unknown as WithThumb).thumbnailStatus === "pending"
-        }
-        size={size}
-        roundedCorners={roundedCorners}
-      />
-    );
+    return UrlVisual({
+      title: entity.title,
+      src,
+      isPending: (entity as unknown as WithThumb).thumbnailStatus === "pending",
+      size,
+      roundedCorners,
+    });
   }
 
   // Differentiated visuals for documents and drawings
   if (entity.entityType === "document") {
-    return (
-      <DocumentVisual
-        title={entity.title}
-        src={src}
-        isPending={
-          (entity as unknown as WithThumb).thumbnailStatus === "pending"
-        }
-        size={size}
-        roundedCorners={roundedCorners}
-      />
-    );
+    return DocumentVisual({
+      title: entity.title,
+      src,
+      isPending: (entity as unknown as WithThumb).thumbnailStatus === "pending",
+      size,
+      roundedCorners,
+    });
   }
 
   if (entity.entityType === "drawing") {
-    return (
-      <DrawingVisual
-        title={entity.title}
-        src={src}
-        isPending={
-          (entity as unknown as WithThumb).thumbnailStatus === "pending"
-        }
-        size={size}
-        roundedCorners={roundedCorners}
-      />
-    );
+    return DrawingVisual({
+      title: entity.title,
+      src,
+      isPending: (entity as unknown as WithThumb).thumbnailStatus === "pending",
+      size,
+      roundedCorners,
+    });
   }
 
-  return (
+  const thumbnail = (
     <div
       className={cn(
         "relative w-full aspect-4/3 overflow-hidden",
@@ -184,6 +171,26 @@ export function ThumbnailClient({
         )}
       />
     </div>
+  );
+
+  return { thumbnail, ribbon: null };
+}
+
+export function ThumbnailClient({
+  entity,
+  size = "large",
+  roundedCorners = "all",
+}: Props) {
+  const { thumbnail, ribbon } = useThumbnailContent({
+    entity,
+    size,
+    roundedCorners,
+  });
+  return (
+    <>
+      {thumbnail}
+      {ribbon}
+    </>
   );
 }
 
@@ -380,9 +387,9 @@ function DocumentVisual({
   isPending?: boolean;
   size: "small" | "large";
   roundedCorners?: RoundedCorners;
-}) {
+}): { thumbnail: JSX.Element; ribbon: JSX.Element | null } {
   const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
-  return (
+  const thumbnail = (
     <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Document: ${title}`}</span>
       <div className={cn("absolute inset-0 overflow-hidden", roundingClasses)}>
@@ -415,19 +422,23 @@ function DocumentVisual({
           )}
         />
       </div>
-
-      <TypeRibbon
-        variant="document"
-        icon={
-          <File
-            className={cn(size === "large" ? "size-4" : "size-4")}
-            aria-hidden="true"
-          />
-        }
-        size={size}
-      />
     </div>
   );
+
+  const ribbon = (
+    <TypeRibbon
+      variant="document"
+      icon={
+        <File
+          className={cn(size === "large" ? "size-4" : "size-4")}
+          aria-hidden="true"
+        />
+      }
+      size={size}
+    />
+  );
+
+  return { thumbnail, ribbon };
 }
 
 function DrawingVisual({
@@ -442,9 +453,9 @@ function DrawingVisual({
   isPending?: boolean;
   size: "small" | "large";
   roundedCorners?: RoundedCorners;
-}) {
+}): { thumbnail: JSX.Element; ribbon: JSX.Element | null } {
   const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
-  return (
+  const thumbnail = (
     <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Drawing: ${title}`}</span>
       <div
@@ -490,19 +501,23 @@ function DrawingVisual({
           )}
         />
       </div>
-
-      <TypeRibbon
-        variant="drawing"
-        icon={
-          <Brush
-            className={cn(size === "large" ? "size-4" : "size-4")}
-            aria-hidden="true"
-          />
-        }
-        size={size}
-      />
     </div>
   );
+
+  const ribbon = (
+    <TypeRibbon
+      variant="drawing"
+      icon={
+        <Brush
+          className={cn(size === "large" ? "size-4" : "size-4")}
+          aria-hidden="true"
+        />
+      }
+      size={size}
+    />
+  );
+
+  return { thumbnail, ribbon };
 }
 
 function UrlVisual({
@@ -517,9 +532,9 @@ function UrlVisual({
   isPending?: boolean;
   size: "small" | "large";
   roundedCorners?: RoundedCorners;
-}) {
+}): { thumbnail: JSX.Element; ribbon: JSX.Element | null } {
   const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
-  return (
+  const thumbnail = (
     <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Drawing: ${title}`}</span>
       <div className={cn("absolute inset-0 overflow-hidden", roundingClasses)}>
@@ -556,17 +571,21 @@ function UrlVisual({
           )}
         />
       </div>
-
-      <TypeRibbon
-        variant="url"
-        icon={
-          <Newspaper
-            className={cn(size === "large" ? "size-4" : "size-4")}
-            aria-hidden="true"
-          />
-        }
-        size={size}
-      />
     </div>
   );
+
+  const ribbon = (
+    <TypeRibbon
+      variant="url"
+      icon={
+        <Newspaper
+          className={cn(size === "large" ? "size-4" : "size-4")}
+          aria-hidden="true"
+        />
+      }
+      size={size}
+    />
+  );
+
+  return { thumbnail, ribbon };
 }

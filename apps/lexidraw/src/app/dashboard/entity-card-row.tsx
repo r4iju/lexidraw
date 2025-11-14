@@ -6,7 +6,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { MoreActions } from "./_actions/more-actions";
-import { ThumbnailClient } from "./thumbnail-client";
+import { useThumbnailContent } from "./thumbnail-client";
 import EntityTitle from "./_actions/rename-inline";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { TagTooltip } from "./entity-card-tag-tooltip";
@@ -30,6 +30,10 @@ export function EntityCardRow({
 }: Props) {
   const searchParams = buildSearchParams({ flex, sortBy, sortOrder });
   const { updatedOrCreated, dateString } = formatEntityDate(entity, sortBy);
+  const { thumbnail, ribbon } = useThumbnailContent({
+    entity,
+    roundedCorners: flex === "flex-col" ? "left-only" : "all",
+  });
 
   return (
     <Card
@@ -84,23 +88,25 @@ export function EntityCardRow({
         <div className="w-full">
           <EntityTitle entity={entity} />
         </div>
-        <Link
-          href={getItemUrl({
-            id: entity.id,
-            entityType: entity.entityType as EntityType,
-            searchParams,
-          })}
-          className={cn(
-            "block w-full aspect-4/3 overflow-hidden",
-            flex === "flex-col" ? "rounded-l-lg rounded-r-none" : "rounded-lg",
-          )}
-          draggable={false}
-        >
-          <ThumbnailClient
-            entity={entity}
-            roundedCorners={flex === "flex-col" ? "left-only" : "all"}
-          />
-        </Link>
+        <div className="relative w-full aspect-4/3">
+          <Link
+            href={getItemUrl({
+              id: entity.id,
+              entityType: entity.entityType as EntityType,
+              searchParams,
+            })}
+            className={cn(
+              "block size-full overflow-hidden",
+              flex === "flex-col"
+                ? "rounded-l-lg rounded-r-none"
+                : "rounded-lg",
+            )}
+            draggable={false}
+          >
+            {thumbnail}
+          </Link>
+          {ribbon}
+        </div>
       </div>
     </Card>
   );
