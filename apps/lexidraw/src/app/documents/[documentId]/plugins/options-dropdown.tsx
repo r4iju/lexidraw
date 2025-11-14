@@ -43,6 +43,7 @@ type Props = {
     RouterOutputs["entities"]["load"],
     "id" | "title" | "accessLevel"
   >;
+  printMode?: boolean;
 };
 
 export default function OptionsDropdown({
@@ -52,11 +53,12 @@ export default function OptionsDropdown({
   onExportMarkdown,
   onImportMarkdown,
   entity,
+  printMode = false,
 }: Props) {
   const router = useRouter();
   const { markPristine } = useUnsavedChanges();
   const { enabled: autoSaveEnabled, setEnabled: setAutoSaveEnabled } =
-    useAutoSave();
+    useAutoSave({ enabled: !printMode });
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isTagOpen, setIsTagOpen] = useState(false);

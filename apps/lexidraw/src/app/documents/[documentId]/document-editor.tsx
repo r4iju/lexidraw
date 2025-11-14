@@ -300,7 +300,7 @@ function EditorHandler({
 
   const { markDirty, markPristine } = useUnsavedChanges();
   const { defaultFontFamily } = useDocumentSettings();
-  const { enabled: autoSaveEnabled } = useAutoSave();
+  const { enabled: autoSaveEnabled } = useAutoSave({ enabled: !printMode });
 
   const handleImportMarkdown = useCallback(
     (markdown: string, mode: MarkdownInsertMode) => {
@@ -507,6 +507,7 @@ function EditorHandler({
                                   title: entity.title,
                                   accessLevel: entity.accessLevel,
                                 }}
+                                printMode={printMode}
                               />
                               <ShortcutsPlugin
                                 editor={editor}
