@@ -6,7 +6,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { MoreActions } from "./_actions/more-actions";
-import { ThumbnailClient } from "./thumbnail-client";
+import { useThumbnailContent } from "./thumbnail-client";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { TagTooltip } from "./entity-card-tag-tooltip";
 import {
@@ -29,6 +29,11 @@ export function EntityCardCol({
 }: Props) {
   const searchParams = buildSearchParams({ flex, sortBy, sortOrder });
   const { updatedOrCreated, dateString } = formatEntityDate(entity, sortBy);
+  const { thumbnail, ribbon } = useThumbnailContent({
+    entity,
+    size: "small",
+    roundedCorners: "left-only",
+  });
 
   return (
     <Card
@@ -50,7 +55,7 @@ export function EntityCardCol({
       )}
 
       {/* thumbnail column */}
-      <div className="h-18.5 aspect-4/3 shrink-0 overflow-hidden rounded-l-lg rounded-r-none">
+      <div className="relative h-18.5 aspect-4/3 shrink-0 rounded-l-lg rounded-r-none">
         <Link
           href={getItemUrl({
             id: entity.id,
@@ -60,12 +65,9 @@ export function EntityCardCol({
           className="block size-full rounded-l-lg rounded-r-none overflow-hidden"
           draggable={false}
         >
-          <ThumbnailClient
-            entity={entity}
-            size="small"
-            roundedCorners="left-only"
-          />
+          {thumbnail}
         </Link>
+        {ribbon}
       </div>
 
       {/* title column - flexible */}
