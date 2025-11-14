@@ -16,12 +16,38 @@ import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
 import type { RouterOutputs } from "~/trpc/shared";
 
+type RoundedCorners = "all" | "left-only" | "none";
+
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   size?: "small" | "large"; // list vs card
+  roundedCorners?: RoundedCorners;
 };
 
-export function ThumbnailClient({ entity, size = "large" }: Props) {
+function getThumbnailRoundingClasses(
+  roundedCorners: RoundedCorners,
+  size: "small" | "large",
+): string {
+  if (size === "small") {
+    return "rounded-none";
+  }
+
+  switch (roundedCorners) {
+    case "left-only":
+      return "rounded-l-lg rounded-r-none";
+    case "none":
+      return "rounded-none";
+    case "all":
+    default:
+      return "rounded-lg";
+  }
+}
+
+export function ThumbnailClient({
+  entity,
+  size = "large",
+  roundedCorners = "all",
+}: Props) {
   const isDarkTheme = useIsDarkTheme();
   const deferredIsDarkTheme = useDeferredValue(isDarkTheme);
   const router = useRouter();
@@ -62,6 +88,8 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
     entity,
   ]);
 
+  const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
+
   // Folder visual using design-system colors; keeps screenshot visible under outline
   if (entity.entityType === "directory") {
     const childCount = (entity as unknown as { childCount?: number })
@@ -72,6 +100,8 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
         title={entity.title}
         childCount={childCount}
         src={src}
+        roundedCorners={roundedCorners}
+        size={size}
       />
     );
   }
@@ -85,6 +115,7 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
           (entity as unknown as WithThumb).thumbnailStatus === "pending"
         }
         size={size}
+        roundedCorners={roundedCorners}
       />
     );
   }
@@ -99,6 +130,7 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
           (entity as unknown as WithThumb).thumbnailStatus === "pending"
         }
         size={size}
+        roundedCorners={roundedCorners}
       />
     );
   }
@@ -112,15 +144,17 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
           (entity as unknown as WithThumb).thumbnailStatus === "pending"
         }
         size={size}
+        roundedCorners={roundedCorners}
       />
     );
   }
 
   return (
     <div
-      className={cn("relative w-full aspect-4/3 rounded-sm overflow-hidden", {
-        "rounded-none": size === "small",
-      })}
+      className={cn(
+        "relative w-full aspect-4/3 overflow-hidden",
+        roundingClasses,
+      )}
     >
       <span className="sr-only">{`Thumbnail for ${entity.title}`}</span>
       {src && (
@@ -137,25 +171,35 @@ export function ThumbnailClient({ entity, size = "large" }: Props) {
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
       )}
-      {!src && <ThumbnailFallback />}
+      {!src && (
+        <ThumbnailFallback roundedCorners={roundedCorners} size={size} />
+      )}
       {(entity as unknown as WithThumb).thumbnailStatus === "pending" && (
         <div className="absolute inset-0 bg-foreground/5 animate-pulse" />
       )}
       <div
         className={cn(
-          "pointer-events-none absolute inset-0 rounded-sm border border-border",
-          { "rounded-none": size === "small" },
+          "pointer-events-none absolute inset-0 border border-border",
+          roundingClasses,
         )}
       />
     </div>
   );
 }
 
-export function ThumbnailFallback() {
+export function ThumbnailFallback({
+  roundedCorners = "all",
+  size = "large",
+}: {
+  roundedCorners?: RoundedCorners;
+  size?: "small" | "large";
+}) {
+  const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
   return (
     <div
       className={cn(
-        "w-full aspect-4/3 bg-muted-foreground animate-pulse rounded-sm",
+        "w-full aspect-4/3 bg-muted-foreground animate-pulse",
+        roundingClasses,
       )}
     />
   );
@@ -166,11 +210,15 @@ function FolderVisual({
   title,
   childCount,
   src,
+  roundedCorners,
+  size,
 }: {
   id: string;
   title: string;
   childCount?: number;
   src?: string | null;
+  roundedCorners?: RoundedCorners;
+  size?: "small" | "large";
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [_strokeWidth, setStrokeWidth] = useState(1.6);
@@ -229,7 +277,7 @@ function FolderVisual({
                 sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
             ) : (
-              <ThumbnailFallback />
+              <ThumbnailFallback roundedCorners={roundedCorners} size={size} />
             )}
           </div>
         );
@@ -325,20 +373,19 @@ function DocumentVisual({
   title,
   src,
   size,
+  roundedCorners = "all",
 }: {
   title: string;
   src?: string | null;
   isPending?: boolean;
   size: "small" | "large";
+  roundedCorners?: RoundedCorners;
 }) {
+  const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
   return (
     <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Document: ${title}`}</span>
-      <div
-        className={cn("absolute inset-0 rounded-sm overflow-hidden", {
-          "rounded-none": size === "small",
-        })}
-      >
+      <div className={cn("absolute inset-0 overflow-hidden", roundingClasses)}>
         {src ? (
           <Image
             src={src}
@@ -362,9 +409,9 @@ function DocumentVisual({
 
         <div
           className={cn(
-            "pointer-events-none absolute inset-0 rounded-sm",
+            "pointer-events-none absolute inset-0",
             { "border border-border": size === "large" },
-            { "rounded-none": size === "small" },
+            roundingClasses,
           )}
         />
       </div>
@@ -388,16 +435,24 @@ function DrawingVisual({
   src,
   isPending,
   size,
+  roundedCorners = "all",
 }: {
   title: string;
   src?: string | null;
   isPending?: boolean;
   size: "small" | "large";
+  roundedCorners?: RoundedCorners;
 }) {
+  const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
   return (
     <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Drawing: ${title}`}</span>
-      <div className="absolute inset-0 rounded-sm overflow-hidden bg-card">
+      <div
+        className={cn(
+          "absolute inset-0 overflow-hidden bg-card",
+          roundingClasses,
+        )}
+      >
         {src ? (
           <Image
             src={src}
@@ -429,9 +484,9 @@ function DrawingVisual({
 
         <div
           className={cn(
-            "pointer-events-none absolute inset-0 rounded-sm",
+            "pointer-events-none absolute inset-0",
             { "border border-border": size === "large" },
-            { "rounded-none": size === "small" },
+            roundingClasses,
           )}
         />
       </div>
@@ -455,16 +510,19 @@ function UrlVisual({
   src,
   isPending,
   size,
+  roundedCorners = "all",
 }: {
   title: string;
   src?: string | null;
   isPending?: boolean;
   size: "small" | "large";
+  roundedCorners?: RoundedCorners;
 }) {
+  const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
   return (
     <div className="relative w-full aspect-4/3">
       <span className="sr-only">{`Drawing: ${title}`}</span>
-      <div className="absolute inset-0 rounded-sm overflow-hidden">
+      <div className={cn("absolute inset-0 overflow-hidden", roundingClasses)}>
         {src ? (
           <Image
             src={src}
@@ -492,9 +550,9 @@ function UrlVisual({
 
         <div
           className={cn(
-            "pointer-events-none absolute inset-0 rounded-sm",
+            "pointer-events-none absolute inset-0",
             { "border border-border": size === "large" },
-            { "rounded-none": size === "small" },
+            roundingClasses,
           )}
         />
       </div>

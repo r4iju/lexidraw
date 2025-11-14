@@ -35,7 +35,7 @@ export function EntityCardRow({
     <Card
       id={`entity-${entity.id}`}
       className={cn(
-        "relative flex flex-col gap-4 rounded-lg p-0 justify-between",
+        "relative flex flex-col gap-4 rounded-lg p-4 justify-between",
         isOverlay && "cursor-grabbing bg-card bg-opacity-100",
       )}
       style={{
@@ -45,13 +45,13 @@ export function EntityCardRow({
       }}
     >
       {entity.archivedAt && (
-        <span className="absolute right-2 top-2 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+        <span className="absolute right-6 top-6 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
           Archived
         </span>
       )}
 
       {/* middle: date + actions */}
-      <div className="flex justify-between items-center px-4 py-4">
+      <div className="flex justify-between items-center">
         <Link
           href={getItemUrl({
             id: entity.id,
@@ -80,8 +80,8 @@ export function EntityCardRow({
       </div>
 
       {/* right side */}
-      <div className="flex flex-col items-center gap-4 px-0">
-        <div className="w-full px-4">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-full">
           <EntityTitle entity={entity} />
         </div>
         <Link
@@ -90,10 +90,16 @@ export function EntityCardRow({
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
-          className="block w-full px-4 aspect-4/3 rounded-md overflow-hidden"
+          className={cn(
+            "block w-full aspect-4/3 overflow-hidden",
+            flex === "flex-col" ? "rounded-l-lg rounded-r-none" : "rounded-lg",
+          )}
           draggable={false}
         >
-          <ThumbnailClient entity={entity} />
+          <ThumbnailClient
+            entity={entity}
+            roundedCorners={flex === "flex-col" ? "left-only" : "all"}
+          />
         </Link>
       </div>
     </Card>

@@ -50,17 +50,21 @@ export function EntityCardCol({
       )}
 
       {/* thumbnail column */}
-      <div className="h-18.5 aspect-4/3 shrink-0 overflow-hidden rounded-none">
+      <div className="h-18.5 aspect-4/3 shrink-0 overflow-hidden rounded-l-lg rounded-r-none">
         <Link
           href={getItemUrl({
             id: entity.id,
             entityType: entity.entityType as EntityType,
             searchParams,
           })}
-          className="block size-full"
+          className="block size-full rounded-l-lg rounded-r-none overflow-hidden"
           draggable={false}
         >
-          <ThumbnailClient entity={entity} size="small" />
+          <ThumbnailClient
+            entity={entity}
+            size="small"
+            roundedCorners="left-only"
+          />
         </Link>
       </div>
 
