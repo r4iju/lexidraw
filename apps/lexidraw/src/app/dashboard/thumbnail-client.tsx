@@ -37,7 +37,6 @@ function getThumbnailRoundingClasses(
       return "rounded-l-lg rounded-r-none";
     case "none":
       return "rounded-none";
-    case "all":
     default:
       return "rounded-lg";
   }
@@ -411,7 +410,7 @@ function DocumentVisual({
         )}
 
         {!src && (
-          <div className="absolute inset-0 opacity-70 bg-[repeating-linear-gradient(transparent,transparent_12px,theme(colors.border)_12px,theme(colors.border)_13px)]" />
+          <div className="absolute inset-0 opacity-70 bg-[repeating-linear-gradient(transparent,transparent_12px,var(--color-border)_12px,var(--color-border)_13px)]" />
         )}
 
         <div
@@ -484,7 +483,7 @@ function DrawingVisual({
         {/* subtle dot grid overlay when missing screenshot; very faint when has screenshot */}
         <div
           className={cn(
-            "absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px]",
+            "absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--color-border)_1px,transparent_1px)] bg-size-[12px_12px]",
             src ? "opacity-20" : "opacity-60",
           )}
         />
@@ -556,7 +555,7 @@ function UrlVisual({
         )}
         {/* subtle dot grid overlay only when missing screenshot */}
         {!src && (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_1px)] bg-[length:12px_12px] opacity-60" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--color-border)_1px,transparent_1px)] bg-size-[12px_12px] opacity-60" />
         )}
 
         {isPending && (
