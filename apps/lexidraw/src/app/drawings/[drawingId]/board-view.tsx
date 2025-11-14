@@ -38,6 +38,7 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
       appState: appState
         ? ({
             ...appState,
+            openMenu: null,
             collaborators:
               appState.collaborators ?? new Map<SocketId, Collaborator>(),
           } satisfies UIAppState)
@@ -47,6 +48,7 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
             exportWithDarkMode: true, // Indicates whether to export with dark mode
             exportBackground: true, // Indicates whether background should be exported
             exportEmbedScene: true, // Indicates whether scene data should be embedded in svg/png. This will increase the image size.
+            openMenu: null,
             // collaborators: new Map(),
           } satisfies Partial<UIAppState>),
       elements: elements ?? [],

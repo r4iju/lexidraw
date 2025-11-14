@@ -118,7 +118,13 @@ async function processSingleJob(
   // Mark job as processing
   await updateJobStatusStep(job.jobId, "processing", 0);
 
+  // Use screenshot approach for both drawings and documents
+  // For drawings: We cannot use @excalidraw/excalidraw's exportToBlob API because it requires browser APIs
+  // (window, DOM) that don't exist in Node.js server environments. Workflow steps run server-side,
+  // so we must use a headless browser service to render the drawing and capture a screenshot.
+  // This approach is consistent with how we handle documents and ensures server-side compatibility.
   // Build screenshot URL
+  // Prefer explicit origin if available; otherwise derive from VERCEL_URL or strip /api/auth from NEXTAUTH_URL
   const explicitOrigin =
     (env as unknown as { APP_ORIGIN?: string }).APP_ORIGIN ||
     (env as unknown as { NEXT_PUBLIC_APP_URL?: string }).NEXT_PUBLIC_APP_URL;
@@ -138,17 +144,19 @@ async function processSingleJob(
   );
   const targetW = 640;
   const targetH = 480;
-  const pageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(
+  const screenshotPath =
+    validation.entityType === "drawing" ? "drawings" : "documents";
+  const basePageUrl = `${appBase}/screenshot/${screenshotPath}/${encodeURIComponent(
     validation.entityId,
   )}?st=${encodeURIComponent(token)}&width=${targetW}&height=${targetH}`;
 
   // Render screenshots for both themes in parallel
   const [light, dark] = await Promise.all([
-    renderScreenshotStep(pageUrl, "light"),
-    renderScreenshotStep(pageUrl, "dark"),
+    renderScreenshotStep(`${basePageUrl}&theme=light`, "light"),
+    renderScreenshotStep(`${basePageUrl}&theme=dark`, "dark"),
   ]);
 
-  // Upload blobs
+  // Use .webp extension for both drawings and documents (screenshots)
   const lightKey = `${validation.entityId}-light.webp`;
   const darkKey = `${validation.entityId}-dark.webp`;
 

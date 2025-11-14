@@ -244,6 +244,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
                 theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
                 exportWithDarkMode: false,
                 exportBackground: false,
+                openMenu: null,
                 collaborators:
                   appState.collaborators ?? new Map<SocketId, Collaborator>(),
               }
@@ -251,6 +252,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
                 theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
                 exportWithDarkMode: false,
                 exportBackground: false,
+                openMenu: null,
               },
           elements: elements ?? [],
         },

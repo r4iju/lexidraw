@@ -59,7 +59,7 @@ export function EntityCardRow({
             searchParams,
           })}
         >
-          <span className="text-sm text-muted-foreground line-clamp-2 max-w-24 block">
+          <span className="text-sm text-muted-foreground line-clamp-2 ">
             {/* Avoid text selection during drag */}
             {updatedOrCreated}
             {dateString}

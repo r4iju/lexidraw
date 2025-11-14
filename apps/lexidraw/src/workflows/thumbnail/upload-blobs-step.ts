@@ -11,9 +11,16 @@ export async function uploadBlobStep(
   "use step";
 
   try {
+    // Determine content type from file extension
+    const contentType = key.endsWith(".png")
+      ? "image/png"
+      : key.endsWith(".webp")
+        ? "image/webp"
+        : "image/webp"; // default fallback
+
     const { url } = await put(key, new Blob([new Uint8Array(data)]), {
       access: "public",
-      contentType: "image/webp",
+      contentType,
       token: env.BLOB_READ_WRITE_TOKEN,
       addRandomSuffix: false,
       allowOverwrite: true,
