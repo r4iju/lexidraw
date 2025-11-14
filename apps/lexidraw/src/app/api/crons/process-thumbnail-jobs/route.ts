@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { canRunCron } from "~/app/api/crons/cron-middleware";
-import { drizzle, and, inArray, sql, schema } from "@packages/drizzle";
+import { drizzle, and, inArray, sql, schema, eq } from "@packages/drizzle";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
 
@@ -69,6 +69,17 @@ export async function GET(_req: NextRequest) {
           }),
         );
       } catch {}
+
+      // Mark job as processing immediately to prevent duplicate picks by concurrent cron runs
+      await drizzle
+        .update(schema.thumbnailJobs)
+        .set({
+          status: "processing",
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.thumbnailJobs.id, job.id))
+        .execute();
+
       // Trigger workflow for this job (fire-and-forget)
       void start(generateThumbnailWorkflow, [
         job.id,

@@ -3,9 +3,12 @@
 import { api } from "~/trpc/react";
 import { useCallback } from "react";
 
-export function useAutoSave() {
+export function useAutoSave(options?: { enabled?: boolean }) {
+  const queryEnabled = options?.enabled ?? true;
   const utils = api.useUtils();
-  const { data, isLoading } = api.config.getAutoSaveConfig.useQuery();
+  const { data, isLoading } = api.config.getAutoSaveConfig.useQuery(undefined, {
+    enabled: queryEnabled,
+  });
   const { mutate: updateAutoSaveConfig } =
     api.config.updateAutoSaveConfig.useMutation({
       // Optimistic update to prevent UI flicker
@@ -31,9 +34,10 @@ export function useAutoSave() {
 
   const setEnabled = useCallback(
     (newEnabled: boolean) => {
+      if (!queryEnabled) return;
       updateAutoSaveConfig({ enabled: newEnabled });
     },
-    [updateAutoSaveConfig],
+    [updateAutoSaveConfig, queryEnabled],
   );
 
   return {
