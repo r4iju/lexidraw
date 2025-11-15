@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { AudioPlayer } from "~/components/ui/audio-player";
-import { Label } from "../ui/label";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
+import { Play } from "lucide-react";
 
 type Segment = {
   index: number;
@@ -79,27 +85,39 @@ export default function ArticleAudioPlayer({
             setCurrentIndex(currentIndex + 1);
         }}
       />
-      <Label htmlFor="Segment">Segments</Label>
-      <div className="flex flex-col gap-1 items-start">
-        {segments.map((s, i) => {
-          const segmentName = getSegmentName(s, i);
-          return (
-            <div key={s.index}>
-              <span className="mr-2 text-muted-foreground font-mono">
-                {i + 1}.
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                key={s.index}
-                onClick={() => setCurrentIndex(i)}
-              >
-                {segmentName}
-              </Button>
+      <Accordion
+        type="single"
+        collapsible
+        className="border border-border rounded-md px-4"
+      >
+        <AccordionItem value="segments">
+          <AccordionTrigger>Segments</AccordionTrigger>
+          <AccordionContent>
+            <div className="flex flex-col gap-2 divide-y divide-border">
+              {segments.map((s, i) => {
+                const segmentName = getSegmentName(s, i);
+                const isCurrent = i === currentIndex;
+                return (
+                  <Button
+                    variant={isCurrent ? "default" : "secondary"}
+                    key={s.index}
+                    onClick={() => setCurrentIndex(i)}
+                    className="w-full flex flex-row items-center justify-start gap-2 rounded-none"
+                  >
+                    <Play
+                      className={`size-4 mr-2 ${
+                        isCurrent ? "text-primary-foreground" : "text-primary"
+                      }`}
+                    />
+                    <span className="font-mono">{i + 1}.</span>
+                    <span>{segmentName}</span>
+                  </Button>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

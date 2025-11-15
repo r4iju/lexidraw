@@ -6,7 +6,7 @@ import { Button } from "~/components/ui/button";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import { cn } from "~/lib/utils";
-import { Loader2 } from "lucide-react";
+import { Loader2, Play, RefreshCcw, Settings } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -520,24 +520,40 @@ export default function ArticlePreview({
     handleGenerateAudio,
   ]);
 
+  const hasAudio = Boolean(stitchedUrl || (segments?.length ?? 0) > 0);
+
+  const buttonLabel = useMemo(() => {
+    if (isGenerating) {
+      return (
+        <span className="flex items-center gap-2">
+          <Loader2 className="size-4 animate-spin" />
+          Generating…
+        </span>
+      );
+    }
+    if (hasAudio) {
+      return (
+        <span className="flex items-center gap-2">
+          <RefreshCcw className="size-4" />
+          Regenerate audio
+        </span>
+      );
+    }
+    return (
+      <span>
+        <Play className="mr-2 h-4 w-4" />
+        Listen
+      </span>
+    );
+  }, [hasAudio, isGenerating]);
+
   if (!distilled || !distilled.contentHtml) {
     return null;
   }
 
-  const hasAudio = Boolean(stitchedUrl || (segments?.length ?? 0) > 0);
-  let buttonLabel = "Listen";
-  if (hasAudio) {
-    buttonLabel = "Regenerate audio";
-  }
-  if (isGenerating && hasAudio) {
-    buttonLabel = "Regenerating…";
-  } else if (isGenerating) {
-    buttonLabel = "Generating…";
-  }
-
   return (
     <div className="w-full space-y-3 md:border-x md:border-border p-4">
-      <div className="flex flex-col space-y-2 items-center justify-between">
+      <div className="flex flex-col items-center justify-between">
         <div className="space-y-1">
           <div className="text-lg font-semibold">
             {distilled.title || entity.title}
@@ -558,18 +574,17 @@ export default function ArticlePreview({
       <div className="flex flex-col gap-2">
         <div className="flex w-full justify-end gap-2">
           <Button
-            variant="secondary"
+            variant="outline"
             onClick={handleGenerateAudio}
             disabled={!sourceUrl || isGenerating}
           >
-            {isGenerating ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
             {buttonLabel}
           </Button>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline">Settings</Button>
+              <Button size="icon" variant="outline">
+                <Settings className="size-4" />
+              </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[380px]">
               <div className="space-y-4">

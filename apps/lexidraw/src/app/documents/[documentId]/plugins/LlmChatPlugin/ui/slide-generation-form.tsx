@@ -193,14 +193,14 @@ export const SlideGenerationForm: React.FC = () => {
                 className="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-muted text-xs"
               >
                 <div className="flex items-center gap-2 truncate">
-                  <FileIcon className="size-4 flex-shrink-0" />
+                  <FileIcon className="size-4 shrink-0" />
                   <span className="truncate">{file.name}</span>
                 </div>
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={() => handleRemoveFile(index)}
-                  className="hover:bg-background size-6 flex-shrink-0"
+                  className="hover:bg-background size-6 shrink-0"
                   disabled={isLoading}
                 >
                   <XIcon className="size-3.5" />
