@@ -93,7 +93,7 @@ export default function ArticleAudioPlayer({
         <AccordionItem value="segments">
           <AccordionTrigger>Segments</AccordionTrigger>
           <AccordionContent>
-            <div className="flex flex-col gap-2 divide-y divide-border">
+            <div className="flex flex-col gap-0 divide-y divide-border">
               {segments.map((s, i) => {
                 const segmentName = getSegmentName(s, i);
                 const isCurrent = i === currentIndex;
