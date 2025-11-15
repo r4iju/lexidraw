@@ -10,6 +10,7 @@ import {
   AccordionTrigger,
 } from "~/components/ui/accordion";
 import { Play } from "lucide-react";
+import { cn } from "~/lib/utils";
 
 type Segment = {
   index: number;
@@ -24,12 +25,14 @@ type Props = {
   segments: Segment[];
   preferredPlaybackRate?: number;
   initialIndex?: number;
+  className?: string;
 };
 
 export default function ArticleAudioPlayer({
   segments,
   preferredPlaybackRate,
   initialIndex,
+  className,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   useEffect(() => {
@@ -69,26 +72,33 @@ export default function ArticleAudioPlayer({
     return `Block ${index + 1}`;
   };
 
+  const stickyClasses = className?.includes("sticky") ? className : undefined;
+  const nonStickyClasses = className?.includes("sticky")
+    ? undefined
+    : className;
+
   return (
-    <div className="space-y-2">
-      {current?.sectionTitle && (
-        <div className="text-sm text-muted-foreground font-medium">
-          {current.sectionTitle}
-        </div>
-      )}
-      <AudioPlayer
-        src={current?.audioUrl ?? ""}
-        autoPlay
-        initialPlaybackRate={preferredPlaybackRate}
-        onEnded={() => {
-          if (currentIndex < segments.length - 1)
-            setCurrentIndex(currentIndex + 1);
-        }}
-      />
+    <div className={cn("space-y-2", nonStickyClasses)}>
+      <div className={stickyClasses}>
+        {current?.sectionTitle && (
+          <div className="text-sm text-muted-foreground font-medium">
+            {current.sectionTitle}
+          </div>
+        )}
+        <AudioPlayer
+          src={current?.audioUrl ?? ""}
+          autoPlay
+          initialPlaybackRate={preferredPlaybackRate}
+          onEnded={() => {
+            if (currentIndex < segments.length - 1)
+              setCurrentIndex(currentIndex + 1);
+          }}
+        />
+      </div>
       <Accordion
         type="single"
         collapsible
-        className="border border-border rounded-md px-4"
+        className="border border-border rounded-md px-4 max-w-sm min-w-sm"
       >
         <AccordionItem value="segments">
           <AccordionTrigger>Segments</AccordionTrigger>
@@ -110,7 +120,7 @@ export default function ArticleAudioPlayer({
                       }`}
                     />
                     <span className="font-mono">{i + 1}.</span>
-                    <span>{segmentName}</span>
+                    <span className="truncate">{segmentName}</span>
                   </Button>
                 );
               })}

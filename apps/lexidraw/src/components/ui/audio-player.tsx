@@ -66,6 +66,7 @@ export function AudioPlayer({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pathname = usePathname();
   const lastPathRef = useRef(pathname);
+  const prevSrcRef = useRef<string | undefined>(undefined);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -76,7 +77,8 @@ export function AudioPlayer({
   const [rate, setRate] = useState(initialPlaybackRate);
   const hasUserAdjustedRateRef = useRef(false);
   // Track latest rate for effects that should not re-run on rate changes
-  const latestRateRef = useRef(rate);
+  // Initialize with initialPlaybackRate, but update immediately to current rate state
+  const latestRateRef = useRef(initialPlaybackRate);
   useEffect(() => {
     latestRateRef.current = rate;
   }, [rate]);
@@ -86,7 +88,17 @@ export function AudioPlayer({
     enabled: persistPreferredRate,
     staleTime: 5 * 60 * 1000,
   });
-  const updateAudioCfg = api.config.updateAudioConfig.useMutation();
+  const utils = api.useUtils();
+  const updateAudioCfg = api.config.updateAudioConfig.useMutation({
+    onSuccess: (data) => {
+      console.log("[AudioPlayer] saved playback rate to server", data);
+      // Update query cache so subsequent reads reflect the saved value
+      utils.config.getAudioConfig.setData(undefined, data);
+    },
+    onError: (error) => {
+      console.error("[AudioPlayer] failed to save playback rate", error);
+    },
+  });
 
   // Apply preferred playback rate once (on data resolve) unless user already adjusted
   useEffect(() => {
@@ -104,10 +116,23 @@ export function AudioPlayer({
     const audio = audioRef.current;
     if (!audio) return;
 
+    const minSpeed: number = 0.75;
+    const maxSpeed: number = 2;
+
     const handleLoaded = () => {
       setDuration(audio.duration || 0);
       // Keep currentTime if set from previous src; reset if different source
       setCurrentTime(audio.currentTime || 0);
+      // Reapply playback rate to ensure it persists across src changes
+      const clampedRate = Math.min(
+        maxSpeed,
+        Math.max(minSpeed, latestRateRef.current),
+      );
+      audio.playbackRate = clampedRate;
+      console.log("[AudioPlayer] reapplied playback rate on loadedmetadata", {
+        rate: clampedRate,
+        latestRateRef: latestRateRef.current,
+      });
       // Autoplay behavior: if previously playing or first load, do not auto; user gesture preferred
     };
     const handleTimeUpdate = () => {
@@ -252,21 +277,133 @@ export function AudioPlayer({
 
   // Reset audio state when src changes (do not depend on rate to avoid restart)
   useEffect(() => {
-    // reference src so dependency matches usage and linter doesn't flag it
-    void src;
+    console.log("[AudioPlayer] src effect triggered", {
+      src,
+      prevSrc: prevSrcRef.current,
+    });
+    // Only process if src actually changed
+    if (prevSrcRef.current === src) {
+      console.log("[AudioPlayer] src unchanged, skipping");
+      return;
+    }
+    prevSrcRef.current = src;
+
     setCurrentTime(0);
     setDisplayTime(null);
     setIsPlaying(false);
+
     const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.load();
-      // ensure playback rate persists across source changes
-      audio.playbackRate = latestRateRef.current;
-      if (autoPlay) {
-        void audio.play().catch(() => undefined);
-      }
+    if (!audio) {
+      console.log("[AudioPlayer] no audio element found");
+      return;
     }
+
+    console.log("[AudioPlayer] audio element state", {
+      src: audio.src,
+      expectedSrc: src,
+      readyState: audio.readyState,
+      paused: audio.paused,
+      currentTime: audio.currentTime,
+    });
+
+    // Pause and reset before loading new source
+    audio.pause();
+    audio.currentTime = 0;
+    // Preserve playback rate across src changes
+    console.log("[AudioPlayer] preserving playback rate", {
+      latestRateRef: latestRateRef.current,
+    });
+    audio.playbackRate = latestRateRef.current;
+
+    // Explicitly set src attribute (React may not have updated DOM yet)
+    audio.src = src;
+    console.log(
+      "[AudioPlayer] set audio.src to",
+      src,
+      "actual src:",
+      audio.src,
+    );
+
+    // Call load() to trigger browser to fetch new source
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      const a = audioRef.current;
+      console.log("[AudioPlayer] requestAnimationFrame callback", {
+        hasAudio: !!a,
+        audioSrc: a?.src,
+        expectedSrc: src,
+        readyState: a?.readyState,
+      });
+      if (a) {
+        // Verify src is still set (might have been cleared by React)
+        if (!a.src || a.src !== src) {
+          console.log("[AudioPlayer] src was cleared, re-setting to", src);
+          a.src = src;
+        }
+        console.log("[AudioPlayer] calling load()");
+        a.load();
+        console.log("[AudioPlayer] load() called, readyState:", a.readyState);
+      } else {
+        console.log("[AudioPlayer] no audio element in requestAnimationFrame");
+      }
+    });
+
+    if (!autoPlay) {
+      console.log("[AudioPlayer] autoplay disabled");
+      return;
+    }
+
+    const tryPlay = () => {
+      const a = audioRef.current;
+      console.log("[AudioPlayer] tryPlay()", {
+        hasAudio: !!a,
+        audioSrc: a?.src,
+        expectedSrc: src,
+        readyState: a?.readyState,
+        paused: a?.paused,
+      });
+      if (a && a.src === src) {
+        console.log("[AudioPlayer] attempting play()");
+        void a.play().catch((err) => {
+          console.error("[AudioPlayer] play() failed", err);
+        });
+      } else {
+        console.log("[AudioPlayer] skipping play() - src mismatch");
+      }
+    };
+
+    // Wait for loadeddata event after load()
+    const onLoaded = () => {
+      console.log("[AudioPlayer] loadeddata event fired", {
+        src: audio.src,
+        duration: audio.duration,
+        readyState: audio.readyState,
+      });
+      tryPlay();
+      audio.removeEventListener("loadeddata", onLoaded);
+    };
+    console.log("[AudioPlayer] adding loadeddata listener");
+    audio.addEventListener("loadeddata", onLoaded);
+
+    // Also log other loading events for debugging
+    const onLoadStart = () => console.log("[AudioPlayer] loadstart event");
+    const onCanPlay = () =>
+      console.log("[AudioPlayer] canplay event", {
+        readyState: audio.readyState,
+      });
+    const onError = (e: Event) => console.error("[AudioPlayer] error event", e);
+
+    audio.addEventListener("loadstart", onLoadStart);
+    audio.addEventListener("canplay", onCanPlay);
+    audio.addEventListener("error", onError);
+
+    return () => {
+      console.log("[AudioPlayer] cleaning up src effect listeners");
+      audio.removeEventListener("loadeddata", onLoaded);
+      audio.removeEventListener("loadstart", onLoadStart);
+      audio.removeEventListener("canplay", onCanPlay);
+      audio.removeEventListener("error", onError);
+    };
   }, [autoPlay, src]);
 
   const togglePlay = () => {
@@ -485,6 +622,10 @@ export function AudioPlayer({
                     );
                     setRate(snapped);
                     if (persistPreferredRate) {
+                      console.log(
+                        "[AudioPlayer] saving playback rate",
+                        snapped,
+                      );
                       updateAudioCfg.mutate({ preferredPlaybackRate: snapped });
                     }
                   }}

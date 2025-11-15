@@ -23,12 +23,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover";
-import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
+import { AudioPlayer } from "~/components/ui/audio-player";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
 import { useMarkdownTools } from "../utils/markdown";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { PopoverClose } from "@radix-ui/react-popover";
-import { X } from "lucide-react";
+import { X, Play } from "lucide-react";
 import {
   DndContext,
   useDraggable,
@@ -38,6 +44,7 @@ import {
   TouchSensor,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { cn } from "~/lib/utils";
 
 type TtsSegment = {
   index: number;
@@ -272,6 +279,18 @@ function DraggablePopoverContent({
       id: "tts-popover",
     });
 
+  // Local playback index, initialized from initialIndex
+  const [currentIndex, setCurrentIndex] = useState(0);
+  useEffect(() => {
+    if (typeof initialIndex === "number" && initialIndex >= 0) {
+      setCurrentIndex(Math.min(initialIndex, Math.max(0, segments.length - 1)));
+    }
+  }, [initialIndex, segments.length]);
+  const current = useMemo(
+    () => segments[currentIndex],
+    [segments, currentIndex],
+  );
+
   const finalTransform = transform
     ? {
         x: position.x + transform.x,
@@ -280,55 +299,135 @@ function DraggablePopoverContent({
     : position;
 
   return (
-    <PopoverContent
+    <div
       ref={setNodeRef}
-      className="w-full min-w-[320px] max-w-2xl p-4"
-      side="bottom"
-      align="end"
-      sideOffset={8}
       style={{
         transform: `translate(${finalTransform.x}px, ${finalTransform.y}px)`,
       }}
-      onEscapeKeyDown={(e) => {
-        // Prevent closing on Escape key
-        e.preventDefault();
-      }}
-      onInteractOutside={(e) => {
-        // Prevent closing on outside click
-        e.preventDefault();
-      }}
     >
-      <PopoverClose asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-0 right-0 p-1 z-10"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </PopoverClose>
-      <h3
-        {...attributes}
-        {...listeners}
-        className={`text-lg font-semibold leading-none tracking-tight mb-4 select-none pr-8 ${
-          isDragging ? "cursor-grabbing" : "cursor-move"
-        }`}
+      <PopoverContent
+        className="w-full min-w-[320px] max-w-2xl px-4 pt-0 max-h-[40vh] overflow-y-auto gap-4"
+        side="bottom"
+        align="end"
+        sideOffset={8}
+        onEscapeKeyDown={(e) => {
+          // Prevent closing on Escape key
+          e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          // Prevent closing on outside click
+          e.preventDefault();
+        }}
       >
-        Play from here
-      </h3>
-      <div>
-        {loading && (
-          <div className="text-sm text-muted-foreground">Loading audio…</div>
-        )}
+        {/* Sticky header + controls */}
+        <div className="sticky top-0 z-20 bg-popover -mx-4 -mt-4 px-4 pt-4 pb-2">
+          <div className="relative min-w-xs">
+            <h3
+              {...attributes}
+              {...listeners}
+              className={`text-lg font-semibold leading-none tracking-tight mb-3 select-none ${
+                isDragging ? "cursor-grabbing" : "cursor-move"
+              }`}
+            >
+              Play from here
+            </h3>
+            <PopoverClose asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-0 right-0 p-1 z-30"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </PopoverClose>
+          </div>
+          {loading && (
+            <div className="text-sm text-muted-foreground">Loading audio…</div>
+          )}
+          {!loading && segments.length > 0 && (
+            <div className="space-y-2">
+              {current?.sectionTitle && (
+                <div className="text-sm text-muted-foreground font-medium">
+                  {current.sectionTitle}
+                </div>
+              )}
+              <AudioPlayer
+                src={current?.audioUrl ?? ""}
+                autoPlay
+                onEnded={() => {
+                  if (currentIndex < segments.length - 1) {
+                    setCurrentIndex(currentIndex + 1);
+                  }
+                }}
+                className="min-w-xs"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Scrollable segments list */}
         {!loading && segments.length > 0 && (
-          <ArticleAudioPlayer segments={segments} initialIndex={initialIndex} />
+          <Accordion
+            type="single"
+            collapsible
+            className="border border-border rounded-md w-full max-w-xs min-w-xs mt-4"
+          >
+            <AccordionItem value="segments">
+              <AccordionTrigger className="px-4">Segments</AccordionTrigger>
+              <AccordionContent className="flex flex-col gap-0 divide-y divide-border pb-0">
+                {segments.map((s, i) => {
+                  const isCurrent = i === currentIndex;
+                  const isLast = i === segments.length - 1;
+                  const segmentName = (() => {
+                    if (s.sectionTitle) {
+                      let chunkCount = 0;
+                      for (let j = 0; j <= i; j++) {
+                        if (
+                          segments[j]?.sectionTitle === s.sectionTitle &&
+                          (s.sectionIndex === undefined ||
+                            segments[j]?.sectionIndex === s.sectionIndex)
+                        ) {
+                          chunkCount++;
+                        }
+                      }
+                      return chunkCount === 1
+                        ? s.sectionTitle
+                        : `${s.sectionTitle} (${chunkCount})`;
+                    }
+                    return `Block ${i + 1}`;
+                  })();
+                  return (
+                    <Button
+                      key={s.index}
+                      variant={isCurrent ? "default" : "secondary"}
+                      onClick={() => setCurrentIndex(i)}
+                      className={cn(
+                        "w-full flex flex-row items-center justify-start gap-2 rounded-none",
+                        {
+                          "rounded-b-md": isLast,
+                        },
+                      )}
+                    >
+                      <Play
+                        className={`size-4 mr-2 ${
+                          isCurrent ? "text-primary-foreground" : "text-primary"
+                        }`}
+                      />
+                      <span className="font-mono">{i + 1}.</span>
+                      <span className="truncate">{segmentName}</span>
+                    </Button>
+                  );
+                })}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
         {!loading && segments.length === 0 && (
           <div className="text-sm text-muted-foreground">
             No audio segments found. Generate audio first.
           </div>
         )}
-      </div>
-    </PopoverContent>
+      </PopoverContent>
+    </div>
   );
 }
