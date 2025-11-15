@@ -8,9 +8,13 @@ import type {
   KeyedSerializedEditorState,
   SerializedNodeWithKey,
 } from "../../types";
-import { useCallback } from "react";
+import { useCallback, useRef, useEffect } from "react";
 
 export const useKeyedSerialization = () => {
+  const serializeNodeWithKeysRecursiveRef = useRef<
+    (node: LexicalNode) => SerializedNodeWithKey | null
+  >(() => null);
+
   const serializeNodeWithKeysRecursive = useCallback(
     (node: LexicalNode): SerializedNodeWithKey | null => {
       if (!node) {
@@ -29,7 +33,7 @@ export const useKeyedSerialization = () => {
         const children = node.getChildren();
 
         childrenJson = children
-          .map((child) => serializeNodeWithKeysRecursive(child))
+          .map((child) => serializeNodeWithKeysRecursiveRef.current(child))
           .filter((child): child is SerializedNodeWithKey => child !== null);
       }
 
@@ -43,6 +47,10 @@ export const useKeyedSerialization = () => {
     },
     [],
   );
+
+  useEffect(() => {
+    serializeNodeWithKeysRecursiveRef.current = serializeNodeWithKeysRecursive;
+  }, [serializeNodeWithKeysRecursive]);
 
   const serializeEditorStateWithKeys = useCallback(
     (editorState: EditorState): KeyedSerializedEditorState | null => {

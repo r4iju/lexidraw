@@ -1,5 +1,12 @@
 import type React from "react";
-import { useState, useCallback, useMemo, useId } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useId,
+  useRef,
+  useEffect,
+} from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { Button } from "~/components/ui/button";
 import {
@@ -42,6 +49,10 @@ export const DebugPanel: React.FC = () => {
     if (!selectedToolName) return null;
     return runtimeTools[selectedToolName];
   }, [selectedToolName, runtimeTools]);
+
+  const parseZodSchemaRef = useRef<
+    (schema: ZodTypeAny) => ParsedParam[] | string
+  >(() => "Not initialized");
 
   const parseZodSchema = useCallback(
     (schema: ZodTypeAny): ParsedParam[] | string => {
@@ -130,7 +141,7 @@ export const DebugPanel: React.FC = () => {
 
       const maybeSchema = schema as unknown as { innerType?: () => ZodTypeAny };
       if (typeof maybeSchema.innerType === "function") {
-        return parseZodSchema(maybeSchema.innerType());
+        return parseZodSchemaRef.current(maybeSchema.innerType());
       }
 
       const baseTypeName =
@@ -140,6 +151,10 @@ export const DebugPanel: React.FC = () => {
     },
     [],
   );
+
+  useEffect(() => {
+    parseZodSchemaRef.current = parseZodSchema;
+  }, [parseZodSchema]);
 
   const handleRunTool = useCallback(async () => {
     if (!selectedTool || !selectedToolName) {

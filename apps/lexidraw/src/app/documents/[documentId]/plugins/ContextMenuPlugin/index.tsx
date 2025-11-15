@@ -30,19 +30,26 @@ function ContextMenuItem({
   onMouseEnter: () => void;
   option: ContextMenuOption;
 }) {
+  // Extract option properties before render to avoid ref access during render
+  const optionKey = option.key;
+  const setRefElement = option.setRefElement;
+  const title = option.title;
+
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: todo: fix key with click events
     <li
-      key={option.key}
+      key={optionKey}
       tabIndex={-1}
-      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
       data-highlighted={isSelected ? "" : undefined}
-      ref={option.setRefElement}
+      ref={(element) => {
+        setRefElement(element);
+      }}
       id={`typeahead-item-${index}`}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      <span className="flex-grow">{option.title}</span>
+      <span className="grow">{title}</span>
     </li>
   );
 }
