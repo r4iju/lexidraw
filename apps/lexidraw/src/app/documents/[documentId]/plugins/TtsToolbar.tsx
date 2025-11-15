@@ -415,6 +415,7 @@ export function TtsToolbar({ className }: Props) {
           <DropdownMenuItem
             onClick={handleGenerateAudio}
             className="flex items-center gap-2 justify-between"
+            disabled={isGeneratingAudio}
           >
             <span className="text-md mr-2">
               {ttsStatusQuery.data?.status === "ready"
