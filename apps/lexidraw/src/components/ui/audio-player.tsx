@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo, useId } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useRef,
+  useMemo,
+  useId,
+} from "react";
+import { usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Slider } from "~/components/ui/slider";
 import {
@@ -56,6 +64,8 @@ export function AudioPlayer({
   onEnded,
 }: Readonly<AudioPlayerProps>): React.ReactNode {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pathname = usePathname();
+  const lastPathRef = useRef(pathname);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -142,6 +152,103 @@ export function AudioPlayer({
     if (!audioRef.current) return;
     audioRef.current.playbackRate = rate;
   }, [rate]);
+
+  // Unmount cleanup: pause and clear audio element (layout effect for reliability)
+  useLayoutEffect(() => {
+    return () => {
+      const audio = audioRef.current;
+      if (audio) {
+        console.log("pausing audio on unmount");
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+    };
+  }, []);
+
+  // Pause on route changes (component may be preserved across layouts in Next.js 16)
+  useEffect(() => {
+    if (lastPathRef.current !== pathname) {
+      lastPathRef.current = pathname;
+      const audio = audioRef.current;
+      if (audio && !audio.paused) {
+        console.log("pausing audio on route change");
+        audio.pause();
+      }
+    }
+  }, [pathname]);
+
+  // Pause when page is hidden or being put into bfcache
+  useEffect(() => {
+    const pause = () => {
+      audioRef.current?.pause();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        pause();
+      }
+    };
+    window.addEventListener("pagehide", pause);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      console.log("removing pagehide and visibilitychange listeners");
+      window.removeEventListener("pagehide", pause);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
+  // Pause on SPA navigations (Navigation API with history/popstate fallback)
+  useEffect(() => {
+    const pause = () => {
+      const a = audioRef.current;
+      if (a && !a.paused) a.pause();
+    };
+
+    const nav = (
+      window as Window & {
+        navigation?: {
+          addEventListener?: (type: "navigate", listener: () => void) => void;
+          removeEventListener?: (
+            type: "navigate",
+            listener: () => void,
+          ) => void;
+        };
+      }
+    ).navigation;
+
+    if (nav && typeof nav.addEventListener === "function") {
+      const onNavigate = () => pause();
+      nav.addEventListener("navigate", onNavigate);
+      return () => {
+        nav.removeEventListener?.("navigate", onNavigate);
+      };
+    }
+
+    const onPop = () => pause();
+    window.addEventListener("popstate", onPop);
+
+    const originalPush = history.pushState.bind(history);
+    const originalReplace = history.replaceState.bind(history);
+    type PushArgs = Parameters<typeof history.pushState>;
+    type ReplaceArgs = Parameters<typeof history.replaceState>;
+    const onHistoryChange = () => pause();
+
+    history.pushState = (...args: PushArgs) => {
+      originalPush(...args);
+      onHistoryChange();
+    };
+
+    history.replaceState = (...args: ReplaceArgs) => {
+      originalReplace(...args);
+      onHistoryChange();
+    };
+
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      history.pushState = originalPush;
+      history.replaceState = originalReplace;
+    };
+  }, []);
 
   // Reset audio state when src changes (do not depend on rate to avoid restart)
   useEffect(() => {
