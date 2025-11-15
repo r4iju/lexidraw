@@ -127,16 +127,22 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
       [handleMove],
     );
 
+    const handleResizeEndRef = useRef<() => void>();
+
     const handleResizeEnd = useCallback(() => {
       if (!isResizingRef.current) return;
       isResizingRef.current = false;
       setIsResizing(false);
 
       document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleResizeEnd);
+      document.removeEventListener("mouseup", handleResizeEndRef.current!);
       document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleResizeEnd);
+      document.removeEventListener("touchend", handleResizeEndRef.current!);
     }, [handleMouseMove, handleTouchMove]);
+
+    useEffect(() => {
+      handleResizeEndRef.current = handleResizeEnd;
+    }, [handleResizeEnd]);
 
     const handleResizeStart = useCallback(
       (clientX: number) => {
@@ -152,13 +158,13 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
         initialWidthRef.current = componentSidebarRef.current.offsetWidth;
 
         document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseup", handleResizeEnd);
+        document.addEventListener("mouseup", handleResizeEndRef.current!);
         document.addEventListener("touchmove", handleTouchMove, {
           passive: false,
         });
-        document.addEventListener("touchend", handleResizeEnd);
+        document.addEventListener("touchend", handleResizeEndRef.current!);
       },
-      [handleMouseMove, handleTouchMove, handleResizeEnd],
+      [handleMouseMove, handleTouchMove],
     );
 
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -182,12 +188,12 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
       return () => {
         if (isResizingRef.current) {
           document.removeEventListener("mousemove", handleMouseMove);
-          document.removeEventListener("mouseup", handleResizeEnd);
+          document.removeEventListener("mouseup", handleResizeEndRef.current!);
           document.removeEventListener("touchmove", handleTouchMove);
-          document.removeEventListener("touchend", handleResizeEnd);
+          document.removeEventListener("touchend", handleResizeEndRef.current!);
         }
       };
-    }, [handleMouseMove, handleTouchMove, handleResizeEnd]);
+    }, [handleMouseMove, handleTouchMove]);
 
     useEffect(() => {
       const bodyStyle = document.body.style;

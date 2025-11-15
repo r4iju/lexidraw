@@ -546,24 +546,33 @@ function MentionsTypeaheadMenuItem({
   onMouseEnter: () => void;
   option: MentionTypeaheadOption;
 }) {
+  // Extract option properties before render to avoid ref access during render
+  const optionKey = option.key;
+  const setRefElement = option.setRefElement;
+  const picture = option.picture;
+  const name = option.name;
+  const pictureClassName = picture.props.className;
+
   return (
     // biome-ignore lint/a11y/useAriaPropsSupportedByRole: todo: fix aria props
     // biome-ignore lint/a11y/useKeyWithClickEvents: todo: fix key with click events
     <li
-      key={option.key}
+      key={optionKey}
       tabIndex={-1}
-      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
       data-highlighted={isSelected ? "" : undefined}
-      ref={option.setRefElement}
+      ref={(element) => {
+        setRefElement(element);
+      }}
       aria-selected={isSelected}
       id={`typeahead-item-${index}`}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      {React.cloneElement(option.picture, {
-        className: `${option.picture.props.className} mr-2`,
+      {React.cloneElement(picture, {
+        className: `${pictureClassName} mr-2`,
       })}
-      <span className="flex-grow">{option.name}</span>
+      <span className="grow">{name}</span>
     </li>
   );
 }

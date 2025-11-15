@@ -187,6 +187,8 @@ export function useWebRtcService(
     [],
   );
 
+  const initializeConnectionRef = useRef<() => Promise<void>>(null);
+
   const initializeConnection = useCallback(async () => {
     // check if we're already connected or if we're connecting
     if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
@@ -251,7 +253,8 @@ export function useWebRtcService(
         );
         setTimeout(() => {
           reconnectionAttemptsRef.current += 1;
-          initializeConnection()
+          initializeConnectionRef
+            .current?.()
             .then(() => console.log("Reconnecting websocket connection..."))
             .catch(console.error);
         }, delay);
@@ -270,6 +273,10 @@ export function useWebRtcService(
     handleRemoteOffer,
     userId,
   ]);
+
+  useEffect(() => {
+    initializeConnectionRef.current = initializeConnection;
+  }, [initializeConnection]);
 
   const closeConnection = useCallback((muted = false) => {
     shouldReconnectRef.current = false;

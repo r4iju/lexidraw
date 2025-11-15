@@ -163,19 +163,26 @@ function AutoEmbedMenuItem({
   onMouseEnter: () => void;
   option: AutoEmbedOption;
 }) {
+  // Extract option properties before render to avoid ref access during render
+  const optionKey = option.key;
+  const setRefElement = option.setRefElement;
+  const title = option.title;
+
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: todo: fix key with click events
     <li
-      key={option.key}
+      key={optionKey}
       tabIndex={-1}
-      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
       data-highlighted={isSelected ? "" : undefined}
-      ref={option.setRefElement}
+      ref={(element) => {
+        setRefElement(element);
+      }}
       id={`typeahead-item-${index}`}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      <span className="flex-grow">{option.title}</span>
+      <span className="grow">{title}</span>
     </li>
   );
 }
@@ -338,7 +345,7 @@ export function AutoEmbedDialog({
             </DialogHeader>
           </div>
 
-          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain break-words break-all">
+          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain wrap-break-word break-all">
             <Input
               type="text"
               className="w-full min-w-0"
@@ -393,7 +400,7 @@ export function AutoEmbedDialog({
           </Button>
         </div>
 
-        <div className="overflow-y-auto break-words break-all flex flex-col gap-4 min-w-0 max-w-full">
+        <div className="overflow-y-auto wrap-break-word break-all flex flex-col gap-4 min-w-0 max-w-full">
           {tab === "url" && (
             <div className="space-y-4 p-1">
               <Input
@@ -516,10 +523,10 @@ export function AutoEmbedDialog({
                       <div className="relative shrink-0 size-10 overflow-hidden rounded-md bg-muted" />
                     )}
                     <div className="min-w-0 max-w-full">
-                      <div className="text-sm font-medium break-words break-all truncate">
+                      <div className="text-sm font-medium wrap-break-word break-all truncate">
                         {e.title}
                       </div>
-                      <div className="text-xs text-muted-foreground break-words break-all truncate">
+                      <div className="text-xs text-muted-foreground wrap-break-word break-all truncate">
                         {e.id}
                       </div>
                     </div>

@@ -47,6 +47,12 @@ type EditorRegistry = {
 const EditorRegistryContext = createContext<EditorRegistry | null>(null);
 
 export const useLexicalTransformation = () => {
+  const transformRef = useRef<
+    (
+      keyedNode: SerializedNodeWithKey,
+    ) => SerializedRootNode<SerializedLexicalNode>
+  >(() => ({}) as SerializedRootNode<SerializedLexicalNode>);
+
   const transformToLexicalSourcedStateRecursive = useCallback(
     (
       keyedNode: SerializedNodeWithKey,
@@ -55,12 +61,16 @@ export const useLexicalTransformation = () => {
 
       const result = { ...lexicalProps };
       if (children && children.length > 0) {
-        result.children = children.map(transformToLexicalSourcedStateRecursive);
+        result.children = children.map((child) => transformRef.current(child));
       }
       return result as SerializedRootNode<SerializedLexicalNode>;
     },
     [],
   );
+
+  useEffect(() => {
+    transformRef.current = transformToLexicalSourcedStateRecursive;
+  }, [transformToLexicalSourcedStateRecursive]);
 
   const transformToLexicalSourcedJSON = useCallback(
     (source: KeyedSerializedEditorState): LexicalSerializedEditorState => {
@@ -256,6 +266,16 @@ export const EditorRegistryProvider = ({
   const { transformToLexicalSourcedJSON, getSlideBoxKeyedState } =
     useLexicalTransformation();
 
+  const buildKeyMapRecursiveRef = useRef<
+    (
+      originalNode: SerializedNodeWithKey,
+      liveNode: LexicalNode | null,
+      map: Map<NodeKey, NodeKey>,
+    ) => void
+  >(() => {
+    // Initial placeholder function
+  });
+
   const buildKeyMapRecursive = useCallback(
     (
       originalNode: SerializedNodeWithKey,
@@ -275,7 +295,7 @@ export const EditorRegistryProvider = ({
         for (let i = 0; i < originalNode.children.length; i++) {
           const originalChild = originalNode.children[i];
           if (originalChild && liveChildren[i]) {
-            buildKeyMapRecursive(
+            buildKeyMapRecursiveRef.current?.(
               originalChild,
               liveChildren[i] as LexicalNode,
               map,
@@ -286,6 +306,10 @@ export const EditorRegistryProvider = ({
     },
     [],
   );
+
+  useEffect(() => {
+    buildKeyMapRecursiveRef.current = buildKeyMapRecursive;
+  }, [buildKeyMapRecursive]);
 
   const getEditorEntryCb = useCallback(
     (id: string): EditorRegistryEntry | undefined => {
@@ -340,7 +364,11 @@ export const EditorRegistryProvider = ({
 
         const keyMap = new Map<NodeKey, NodeKey>();
         headlessEditor.getEditorState().read(() => {
-          buildKeyMapRecursive(originalKeyedState.root, $getRoot(), keyMap);
+          buildKeyMapRecursiveRef.current?.(
+            originalKeyedState.root,
+            $getRoot(),
+            keyMap,
+          );
         });
 
         // Setup auto-persistence for this headless editor
@@ -386,7 +414,6 @@ export const EditorRegistryProvider = ({
       return undefined;
     },
     [
-      buildKeyMapRecursive,
       editorRegistry,
       getSlideBoxKeyedState,
       mainEditor,

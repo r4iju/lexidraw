@@ -1,5 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRuntimeSpec } from "./reflect-editor-runtime";
 import {
   $getRoot,
@@ -37,13 +37,23 @@ export function useSystemPrompt(
     () => new Set<string>(),
   );
 
+  const collectTypesRef = useRef<(node: LexicalNode, set: Set<string>) => void>(
+    () => {
+      // Initial placeholder function
+    },
+  );
+
   const collectTypes = useCallback((node: LexicalNode, set: Set<string>) => {
     if (!$isElementNode(node)) return;
     set.add(node.getType());
     for (const child of node.getChildren()) {
-      collectTypes(child, set);
+      collectTypesRef.current(child, set);
     }
   }, []);
+
+  useEffect(() => {
+    collectTypesRef.current = collectTypes;
+  }, [collectTypes]);
 
   useEffect(() => {
     const computeNodeTypes = (state: EditorState) => {
