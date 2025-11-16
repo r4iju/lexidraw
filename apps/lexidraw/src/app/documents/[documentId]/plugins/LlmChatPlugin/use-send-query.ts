@@ -72,12 +72,8 @@ export const useSendQuery = () => {
 
   // --- Helper: Build full prompt string ---
   const buildPromptString = useCallback(
-    (args: {
-      prompt: string;
-      files?: File[] | FileList | null;
-      editorStateJson?: string;
-    }): string => {
-      const { prompt, files, editorStateJson } = args;
+    (args: { prompt: string; files?: File[] | FileList | null }): string => {
+      const { prompt, files } = args;
 
       const historyToInclude = messages
         .filter((msg: HistoryMessage) => msg.role !== "system")
@@ -148,7 +144,6 @@ export const useSendQuery = () => {
         const fullPrompt = buildPromptString({
           prompt,
           files,
-          editorStateJson,
         });
 
         // --- Select generation function based on mode ---
