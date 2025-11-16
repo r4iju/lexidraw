@@ -306,7 +306,7 @@ function DraggablePopoverContent({
       }}
     >
       <PopoverContent
-        className="w-full min-w-[320px] max-w-2xl px-4 pt-0 max-h-[40vh] overflow-y-auto gap-4"
+        className="w-full min-w-[320px] max-w-2xl px-4 pt-0 max-h-[40vh] overflow-y-auto overflow-x-hidden gap-4"
         side="bottom"
         align="end"
         sideOffset={8}
