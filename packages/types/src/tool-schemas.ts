@@ -389,3 +389,28 @@ export const SaveSlideContentAndMetadataSchema = z.object({
   refinedSpeakerNotes: z.string(),
   editorKey: EditorKeySchema.optional(),
 });
+
+// Code execution (server-side)
+export const ExecuteCodeSchema = z.object({
+  code: z.string(),
+  language: z.enum(["node"]).optional(),
+  timeoutMs: z
+    .number()
+    .int()
+    .min(100)
+    .max(5 * 60_000)
+    .optional(),
+  resources: z
+    .object({
+      vcpus: z.number().int().min(1).max(8).optional(),
+      memoryMbPerVcpu: z.number().int().min(512).max(2048).optional(),
+    })
+    .optional(),
+});
+
+// Code execution (client-side browser sandbox)
+export const ExecuteCodeClientSchema = z.object({
+  code: z.string(),
+  timeoutMs: z.number().int().min(50).max(60_000).optional(),
+  maxOps: z.number().int().min(1).max(10000).optional(),
+});

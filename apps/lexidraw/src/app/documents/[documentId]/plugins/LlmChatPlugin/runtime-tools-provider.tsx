@@ -9,6 +9,7 @@ import { useTextTools } from "./tools/text";
 import { useMarkdownTools } from "./tools/markdown";
 import { useListTools } from "./tools/list";
 import { useCodeTools } from "./tools/code";
+import { useClientCodeModeTools } from "./tools/code-mode";
 import { useCommentTools } from "./tools/comment";
 import { useLinkTools } from "./tools/link";
 import { useTableTools } from "./tools/table";
@@ -86,6 +87,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
   const { insertMarkdown } = useMarkdownTools();
   const { insertListNode, insertListItemNode } = useListTools();
   const { insertCodeBlock, insertCodeHighlightNode } = useCodeTools();
+  const { executeCodeClient } = useClientCodeModeTools();
   const {
     findAndSelectTextForComment,
     addCommentThread,
@@ -137,6 +139,7 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertTable && { insertTable }),
     ...(insertHashtag && { insertHashtag }),
     ...(applyTextStyle && { applyTextStyle }),
+    ...(executeCodeClient && { executeCodeClient }),
     ...(removeNode && { removeNode }),
     ...(moveNode && { moveNode }),
     ...(requestClarificationOrPlan && { requestClarificationOrPlan }),
