@@ -5,7 +5,11 @@ import { callLlmStep } from "./call-llm-step";
 import { decisionStep } from "./decision-step";
 import { createHook, getWritable } from "workflow";
 import type { AgentEvent } from "@packages/types";
-import { getAvailableToolNames } from "~/server/llm/tools/registry";
+import {
+  getAvailableToolNames,
+  getToolGroup,
+} from "~/server/llm/tools/registry";
+import { executeServerTool } from "./execute-server-tool";
 import {
   appendAssistantToolCall,
   appendToolResult,
@@ -168,37 +172,61 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
             assistantText: llmResult.text,
           });
 
-          // Create hook and emit tool-call event
-          const hook = createHook<{
-            toolCallId: string;
-            result: LanguageModelV2ToolResultOutput;
-          }>();
-          const hookToken = hook.token;
+          // Check if tool is server-side or client-side
+          const toolGroup = getToolGroup(toolCall.toolName);
 
-          {
-            const event: AgentEvent = {
-              type: "tool-call",
-              id: String(eventId++),
+          if (toolGroup === "server") {
+            // Execute server tool directly in workflow (no hook/SSE)
+            const serverResult = await executeServerTool({
+              name: toolCall.toolName,
+              input: toolCall.input as Record<string, unknown>,
+              userId: args.userId,
               runId,
+            });
+
+            // Append tool result message
+            currentMessages = appendToolResult(currentMessages, {
               toolCallId: toolCall.toolCallId,
               toolName: toolCall.toolName,
-              input: toolCall.input,
-              hookToken,
-            };
-            await agentWrite(writable, event);
+              result: serverResult,
+            });
+
+            // Track last tool call details for decision surrogate
+            lastToolCallName = toolCall.toolName;
+            lastToolResultOutput = serverResult;
+          } else {
+            // Client tool: create hook and emit tool-call event
+            const hook = createHook<{
+              toolCallId: string;
+              result: LanguageModelV2ToolResultOutput;
+            }>();
+            const hookToken = hook.token;
+
+            {
+              const event: AgentEvent = {
+                type: "tool-call",
+                id: String(eventId++),
+                runId,
+                toolCallId: toolCall.toolCallId,
+                toolName: toolCall.toolName,
+                input: toolCall.input,
+                hookToken,
+              };
+              await agentWrite(writable, event);
+            }
+
+            // Wait for tool result and append tool message
+            const hookResult = await hook;
+            currentMessages = appendToolResult(currentMessages, {
+              toolCallId: hookResult.toolCallId,
+              toolName: toolCall.toolName,
+              result: hookResult.result,
+            });
+
+            // Track last tool call details for decision surrogate
+            lastToolCallName = toolCall.toolName;
+            lastToolResultOutput = hookResult.result;
           }
-
-          // Wait for tool result and append tool message
-          const hookResult = await hook;
-          currentMessages = appendToolResult(currentMessages, {
-            toolCallId: hookResult.toolCallId,
-            toolName: toolCall.toolName,
-            result: hookResult.result,
-          });
-
-          // Track last tool call details for decision surrogate
-          lastToolCallName = toolCall.toolName;
-          lastToolResultOutput = hookResult.result;
         }
 
         // After all tool calls complete, decide: continue or finish?

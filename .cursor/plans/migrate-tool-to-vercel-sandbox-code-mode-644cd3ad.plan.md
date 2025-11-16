@@ -77,10 +77,10 @@ File: `apps/lexidraw/src/server/llm/tools/code-execution.ts`
 - Export `executeCodeInSandbox(args)`:
 - Input: `{ code: string; language?: "node"; timeoutMs?: number; resources?: { vcpus?: number; memoryMbPerVcpu?: number } }`
 - Behavior:
-  - Create sandbox via `Sandbox.create({ runtime: "node22", timeout, resources })`
-  - Write code to a temp file (e.g., `/tmp/main.mjs`) to avoid shell quoting issues
-  - Run with `["node", "/tmp/main.mjs"]`
-  - Capture `stdout`, `stderr`, and exit status; enforce timeout; dispose sandbox
+- Create sandbox via `Sandbox.create({ runtime: "node22", timeout, resources })`
+- Write code to a temp file (e.g., `/tmp/main.mjs`) to avoid shell quoting issues
+- Run with `["node", "/tmp/main.mjs"]`
+- Capture `stdout`, `stderr`, and exit status; enforce timeout; dispose sandbox
 - Output: `{ ok: boolean; stdout: string; stderr: string; exitCode: number; durationMs: number }`
 
 Observability: logs/exit codes visible in Vercel Dashboard → Observability → Sandboxes.
@@ -113,10 +113,10 @@ File: `apps/lexidraw/src/workflows/agent/agent-workflow.ts`
 - On each toolCall:
 - Look up tool group from registry by name
 - If `group === "server"`:
-  - Append assistant `tool-call` message to the transcript (for traceability)
-  - Call a new helper `executeServerTool({ name, input, userId, runId })`
-  - Append tool result message to transcript
-  - Do NOT emit hook/SSE event for these
+- Append assistant `tool-call` message to the transcript (for traceability)
+- Call a new helper `executeServerTool({ name, input, userId, runId })`
+- Append tool result message to transcript
+- Do NOT emit hook/SSE event for these
 - Else (client tools): keep existing hook creation, `tool-call` event emission, and `/api/llm/agent/callback` flow
 - Ensure the result shape is consistent (e.g., JSON object payload `{ ok, stdout, stderr, exitCode, durationMs }`)
 
@@ -184,19 +184,22 @@ Some editor‑aware tools must run near Lexical. For “real Code Mode in the br
 ### High‑level architecture
 
 1) Host app (main window)
+
 - Owns Lexical and UI; holds auth/session.
 - Serializes a document snapshot to a JSON format (no secrets).
 - Sends `{ code, initialDoc, toolParams }` to sandbox; later applies `{ newDoc | ops }`.
 
 2) Code sandbox (isolated execution)
+
 - Option A: Sandboxed iframe without `allow-same-origin`, with `sandbox="allow-scripts"`.
 - Option B: Cross‑origin Web Worker (served from another origin with CORS).
 - Receives doc snapshot and code string; runs code with a tiny “tool API” limited to:
-  - `getDocument()`, `setDocument(json)`, optionally `getSelection()` (logical).
-  - Logging and bounded timers.
+- `getDocument()`, `setDocument(json)`, optionally `getSelection()` (logical).
+- Logging and bounded timers.
 - Returns `{ ok, newDoc?, ops?, logs?, error? }`.
 
 3) Bridge (message protocol)
+
 - Use `postMessage` to send requests/responses.
 - Host validates response sizes and operation count before applying to Lexical.
 
@@ -209,31 +212,31 @@ Some editor‑aware tools must run near Lexical. For “real Code Mode in the br
 ### Sandboxing options (browser)
 
 - Iframe (recommended for strongest isolation):
-  - Hosted at separate origin (e.g., `https://code-runner.your-sandbox.example/runner.html`).
-  - `sandbox="allow-scripts"` (no `allow-same-origin`, no forms, no top‑navigation).
-  - Communication via `postMessage`.
+- Hosted at separate origin (e.g., `https://code-runner.your-sandbox.example/runner.html`).
+- `sandbox="allow-scripts"` (no `allow-same-origin`, no forms, no top‑navigation).
+- Communication via `postMessage`.
 - Cross‑origin Worker:
-  - Worker JS hosted on a different origin with CORS permitted.
-  - No DOM access; message passing only. Network access may still exist; rely on CORS/auth server‑side.
+- Worker JS hosted on a different origin with CORS permitted.
+- No DOM access; message passing only. Network access may still exist; rely on CORS/auth server‑side.
 
 ### New client tool definition
 
 - Add `executeCodeClient` in `apps/lexidraw/src/server/llm/tools/registry.ts` with:
-  - `group: "client"`
-  - Input schema (in `@packages/types`): `ExecuteCodeClientSchema`
-    - `{ code: string; timeoutMs?: number; maxOps?: number; selection?: {...}? }`
-  - Description: “Run small browser sandbox code that returns a document update; the host applies to Lexical.”
+- `group: "client"`
+- Input schema (in `@packages/types`): `ExecuteCodeClientSchema`
+ - `{ code: string; timeoutMs?: number; maxOps?: number; selection?: {...}? }`
+- Description: “Run small browser sandbox code that returns a document update; the host applies to Lexical.”
 - The agent planner can include `executeCodeClient` for editor‑adjacent tasks; actual execution remains in the client hook flow (unchanged) [[memory:10692632]].
 
 ### Client integration points (proposed files)
 
 - `apps/lexidraw/src/app/documents/[documentId]/plugins/LlmChatPlugin/code-mode/`
-  - `run-in-iframe-sandbox.ts` (or `run-in-worker-sandbox.ts`): start sandbox, send `{ code, initialDoc }`, await result.
-  - `message-protocol.ts`: request/response TypeScript types, size limits, guards.
-  - `lexical-adapter.ts`: `exportLexicalToJson`, `importJsonIntoLexical`.
-  - `index.ts`: thin façade used by the client tool runner.
+- `run-in-iframe-sandbox.ts` (or `run-in-worker-sandbox.ts`): start sandbox, send `{ code, initialDoc }`, await result.
+- `message-protocol.ts`: request/response TypeScript types, size limits, guards.
+- `lexical-adapter.ts`: `exportLexicalToJson`, `importJsonIntoLexical`.
+- `index.ts`: thin façade used by the client tool runner.
 - If using an iframe:
-  - Host `runner.html` on a separate origin (infra task). For local dev, a second Vercel project/domain is sufficient. Alternatively, a static file in another app served on a different hostname.
+- Host `runner.html` on a separate origin (infra task). For local dev, a second Vercel project/domain is sufficient. Alternatively, a static file in another app served on a different hostname.
 
 ### Guardrails
 
@@ -246,7 +249,7 @@ Some editor‑aware tools must run near Lexical. For “real Code Mode in the br
 
 - Unit test `exportLexicalToJson` and `importJsonIntoLexical` with representative docs.
 - E2E test iframe/worker message round‑trip with simple code:
-  - Insert heading; modify paragraph; out‑of‑bounds selection handling.
+- Insert heading; modify paragraph; out‑of‑bounds selection handling.
 - Negative tests: infinite loop (timeout), huge output (reject), invalid schema (reject).
 - Ensure undo/redo works after applying sandbox results.
 
@@ -264,10 +267,11 @@ Some editor‑aware tools must run near Lexical. For “real Code Mode in the br
 10. `packages/types/src/index.ts` — re‑export schema/contract
 11. `packages/env/src/index.ts` — optional `VERCEL_*` additions (typed)
 12. Client Code Mode (browser):
-   - `apps/lexidraw/src/server/llm/tools/registry.ts` — add `executeCodeClient` (`group: "client"`)
-   - `packages/types/src/tool-schemas.ts` — add `ExecuteCodeClientSchema`; re‑export in `index.ts`, add contract
-   - `apps/lexidraw/src/app/documents/[documentId]/plugins/LlmChatPlugin/code-mode/*` — NEW browser sandbox bridge, protocol, and Lexical adapters
-   - (Infra) Separate origin hosting for iframe or cross‑origin Worker script
+
+- `apps/lexidraw/src/server/llm/tools/registry.ts` — add `executeCodeClient` (`group: "client"`)
+- `packages/types/src/tool-schemas.ts` — add `ExecuteCodeClientSchema`; re‑export in `index.ts`, add contract
+- `apps/lexidraw/src/app/documents/[documentId]/plugins/LlmChatPlugin/code-mode/*` — NEW browser sandbox bridge, protocol, and Lexical adapters
+- (Infra) Separate origin hosting for iframe or cross‑origin Worker script
 
 ## Security Considerations
 

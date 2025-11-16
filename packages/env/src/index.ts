@@ -80,6 +80,11 @@ const env = createEnv({
     // Cloudflare Access (used on Vercel only; optional locally)
     CF_ACCESS_CLIENT_ID: z.string().optional(),
     CF_ACCESS_CLIENT_SECRET: z.string().optional(),
+    // Vercel Sandbox (optional; auto-available on Vercel via OIDC, or set manually for local/testing)
+    VERCEL_OIDC_TOKEN: z.string().optional(),
+    VERCEL_TOKEN: z.string().optional(),
+    VERCEL_TEAM_ID: z.string().optional(),
+    VERCEL_PROJECT_ID: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_UNSPLASH_APP_NAME: z.string().min(1),
@@ -91,6 +96,7 @@ const env = createEnv({
     NEXT_PUBLIC_FIRESTORE_STORAGE_BUCKET: z.string().min(1),
     NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID: z.string().min(1),
     NEXT_PUBLIC_FIRESTORE_APP_ID: z.string().min(1),
+    NEXT_PUBLIC_CODE_MODE_RUNNER_URL: z.string().optional(),
   },
   runtimeEnv: {
     REACT_SCAN_ENABLED: process.env.REACT_SCAN_ENABLED,
@@ -150,6 +156,12 @@ const env = createEnv({
     NORDVPN_SERVICE_PASS: process.env.NORDVPN_SERVICE_PASS,
     CF_ACCESS_CLIENT_ID: process.env.CF_ACCESS_CLIENT_ID,
     CF_ACCESS_CLIENT_SECRET: process.env.CF_ACCESS_CLIENT_SECRET,
+    VERCEL_OIDC_TOKEN: process.env.VERCEL_OIDC_TOKEN,
+    VERCEL_TOKEN: process.env.VERCEL_TOKEN,
+    VERCEL_TEAM_ID: process.env.VERCEL_TEAM_ID,
+    VERCEL_PROJECT_ID: process.env.VERCEL_PROJECT_ID,
+    NEXT_PUBLIC_CODE_MODE_RUNNER_URL:
+      process.env.NEXT_PUBLIC_CODE_MODE_RUNNER_URL,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

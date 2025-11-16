@@ -16,6 +16,8 @@ import {
   InsertListNodeSchema,
   ExtractWebpageContentSchema,
   SearchAndAddImageToSlidePageSchema,
+  ExecuteCodeSchema,
+  ExecuteCodeClientSchema,
 } from "./tool-schemas.js";
 
 // Minimal shared shapes are imported from base-schemas
@@ -139,6 +141,18 @@ export const TOOL_CONTRACTS: Record<string, Contract> = {
     description:
       "Search Unsplash and add the image to a specific slide page in a deck.",
     schema: SearchAndAddImageToSlidePageSchema,
+  },
+  executeCode: {
+    name: "executeCode",
+    description:
+      "Run short Node.js snippets in an isolated sandbox and return stdout/stderr.",
+    schema: ExecuteCodeSchema,
+  },
+  executeCodeClient: {
+    name: "executeCodeClient",
+    description:
+      "Run small browser-sandboxed code that returns a document update to be applied by the host.",
+    schema: ExecuteCodeClientSchema,
   },
 };
 

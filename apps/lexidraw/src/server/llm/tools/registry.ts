@@ -50,6 +50,9 @@ import {
   UpdateElementPropertiesSchema,
   SaveStoryboardOutputSchema,
   SaveSlideContentAndMetadataSchema,
+  // Code execution
+  ExecuteCodeSchema,
+  ExecuteCodeClientSchema,
 } from "@packages/types";
 
 type ToolSpec = {
@@ -286,10 +289,30 @@ const TOOL_SPECS: Record<string, ToolSpec> = {
     inputSchema: SaveSlideContentAndMetadataSchema,
     group: "client",
   },
+
+  // Code execution (server-side)
+  executeCode: {
+    description:
+      "Run short Node.js snippets in an isolated sandbox and return stdout/stderr.",
+    inputSchema: ExecuteCodeSchema,
+    group: "server",
+  },
+  // Code execution (client-side)
+  executeCodeClient: {
+    description:
+      "Run small browser-sandboxed code and return a document update; the host applies to Lexical.",
+    inputSchema: ExecuteCodeClientSchema,
+    group: "client",
+  },
 };
 
 export function getAvailableToolNames(): string[] {
   return Object.keys(TOOL_SPECS);
+}
+
+export function getToolGroup(toolName: string): "client" | "server" | null {
+  const spec = TOOL_SPECS[toolName];
+  return spec?.group ?? null;
 }
 
 export function getAiSdkToolMap(
