@@ -1,6 +1,6 @@
-import { tool } from "ai";
 import type { Tool } from "ai";
 import { z, type ZodTypeAny } from "zod";
+import { tool } from "ai";
 import {
   // Text & structure
   InsertMarkdownSchema,
@@ -315,11 +315,13 @@ export function getToolGroup(toolName: string): "client" | "server" | null {
   return spec?.group ?? null;
 }
 
-export function getAiSdkToolMap(
+export async function getAiSdkToolMap(
   allowedNames: string[],
-): Record<
-  string,
-  Tool<unknown, { success: boolean; content: Record<string, never> }>
+): Promise<
+  Record<
+    string,
+    Tool<unknown, { success: boolean; content: Record<string, never> }>
+  >
 > {
   const names = new Set(allowedNames);
   const entries = Object.entries(TOOL_SPECS).filter(([name]) =>

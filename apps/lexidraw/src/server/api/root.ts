@@ -17,6 +17,7 @@ import { llmRouter } from "./routers/llm";
 import { documentRouter } from "./routers/documents";
 import { backupsRouter } from "./routers/backups";
 import { toolsRouter } from "./routers/tools";
+import { sandboxRouter } from "./routers/sandbox";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -37,6 +38,7 @@ export const appRouter = createTRPCRouter({
   documents: documentRouter,
   backups: backupsRouter,
   tools: toolsRouter,
+  sandbox: sandboxRouter,
 });
 
 // export type definition of API

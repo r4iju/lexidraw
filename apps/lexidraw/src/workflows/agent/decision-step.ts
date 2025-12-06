@@ -1,13 +1,13 @@
 import "server-only";
 
 import type { ModelMessage } from "ai";
+import { z } from "zod";
+import type { EffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { generateObject } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { z } from "zod";
 import env from "@packages/env";
-import type { EffectiveLlmConfig } from "~/server/llm/get-effective-config";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
 
 export interface DecisionStepArgs {
   messages: ModelMessage[];
@@ -29,25 +29,22 @@ export async function decisionStep(
   console.log("[decisionStep] args", JSON.stringify(args, null, 2));
   const { messages, system, config, priorAssistantText } = args;
 
-  const openaiApiKey = env.OPENAI_API_KEY;
-  const googleApiKey = env.GOOGLE_API_KEY;
-
   let model: ReturnType<
     | ReturnType<typeof createOpenAI>
     | ReturnType<typeof createGoogleGenerativeAI>
   > | null = null;
 
   if (config.provider === "openai") {
-    if (!openaiApiKey) {
+    if (!env.OPENAI_API_KEY) {
       throw new Error("Missing OpenAI API key");
     }
-    const openai = createOpenAI({ apiKey: openaiApiKey });
+    const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
     model = openai(config.modelId);
   } else if (config.provider === "google") {
-    if (!googleApiKey) {
+    if (!env.GOOGLE_API_KEY) {
       throw new Error("Missing Google API key");
     }
-    const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
+    const google = createGoogleGenerativeAI({ apiKey: env.GOOGLE_API_KEY });
     model = google(config.modelId);
   } else {
     throw new Error(`Unsupported provider: ${config.provider}`);

@@ -80,13 +80,11 @@ export async function runInIframeSandbox(
       // Ensure we clear timer when promise resolves/rejects
       const origResolve = resolve;
       const origReject = reject;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (resolve as any) = (value: unknown) => {
+      resolve = (value: unknown) => {
         clearTimeout(timer);
         origResolve(value as CodeModeResponse);
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (reject as any) = (err: unknown) => {
+      reject = (err: unknown) => {
         clearTimeout(timer);
         origReject(err as Error);
       };
