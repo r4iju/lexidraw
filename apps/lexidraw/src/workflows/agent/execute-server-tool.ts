@@ -1,5 +1,5 @@
-import { executeCodeInSandbox } from "~/server/llm/tools/code-execution";
 import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
+import { executeCodeInSandbox } from "~/server/llm/tools/code-execution";
 
 export interface ExecuteServerToolArgs {
   name: string;
@@ -15,6 +15,7 @@ export interface ExecuteServerToolArgs {
 export async function executeServerTool(
   args: ExecuteServerToolArgs,
 ): Promise<LanguageModelV2ToolResultOutput> {
+  "use step";
   const { name, input } = args;
 
   switch (name) {

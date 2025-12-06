@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     documentJson: z.record(z.string(), z.unknown()).optional(),
     messages: z.array(z.any()).optional(),
     documentId: z.string(),
+    serverCodeMode: z.boolean().optional(),
   });
 
   const parsed = BodySchema.parse(await req.json());
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
     documentJson,
     messages,
     documentId,
+    serverCodeMode,
   } = parsed;
   console.log({ parsed });
 
@@ -161,6 +163,7 @@ export async function POST(req: NextRequest) {
     userId,
     documentId,
     runId,
+    serverCodeMode,
   };
 
   const run = await start(agentWorkflow, [workflowArgs]);

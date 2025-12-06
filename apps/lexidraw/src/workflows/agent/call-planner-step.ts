@@ -1,8 +1,5 @@
 import "server-only";
 
-import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
-import { planTools } from "~/server/llm/planner";
-
 export interface CallPlannerStepArgs {
   prompt: string;
   availableTools: string[];
@@ -30,6 +27,10 @@ export async function callPlannerStep(
     userId: args.userId,
   });
 
+  const [{ getEffectiveLlmConfig }, { planTools }] = await Promise.all([
+    import("~/server/llm/get-effective-config"),
+    import("~/server/llm/planner"),
+  ]);
   // Resolve provider from effective config (agent mode)
   const cfg = await getEffectiveLlmConfig({
     mode: "agent",

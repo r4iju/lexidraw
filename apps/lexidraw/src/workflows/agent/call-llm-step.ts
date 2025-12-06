@@ -1,14 +1,14 @@
 import "server-only";
 
 import type { ModelMessage, LanguageModel } from "ai";
-import { generateText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import env from "@packages/env";
 import type { EffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import type { AgentEvent } from "@packages/types";
 import { getAiSdkToolMap } from "~/server/llm/tools/registry";
 import { generateUUID } from "~/lib/utils";
+import { generateText } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import env from "@packages/env";
 
 export interface CallLlmStepArgs {
   messages: ModelMessage[];
@@ -71,26 +71,22 @@ export async function callLlmStep(
   const { messages, system, config } = args;
   // Note: allowedTools is not used yet - will be used in Phase 4 to map tools
 
-  // Create model instance
-  const openaiApiKey = env.OPENAI_API_KEY;
-  const googleApiKey = env.GOOGLE_API_KEY;
-
   let model: ReturnType<
     | ReturnType<typeof createOpenAI>
     | ReturnType<typeof createGoogleGenerativeAI>
   > | null = null;
 
   if (config.provider === "openai") {
-    if (!openaiApiKey) {
+    if (!env.OPENAI_API_KEY) {
       throw new Error("Missing OpenAI API key");
     }
-    const openai = createOpenAI({ apiKey: openaiApiKey });
+    const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
     model = openai(config.modelId);
   } else if (config.provider === "google") {
-    if (!googleApiKey) {
+    if (!env.GOOGLE_API_KEY) {
       throw new Error("Missing Google API key");
     }
-    const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
+    const google = createGoogleGenerativeAI({ apiKey: env.GOOGLE_API_KEY });
     model = google(config.modelId);
   } else {
     throw new Error(`Unsupported provider: ${config.provider}`);
@@ -177,13 +173,14 @@ export async function callLlmStep(
     }
   })();
 
+  const toolMap = await getAiSdkToolMap(args.allowedTools ?? []);
   const result = await generateText({
     model: model as unknown as LanguageModel,
     messages,
     system,
     ...(isReasoning ? {} : { temperature: config.temperature }),
     maxOutputTokens: config.maxOutputTokens,
-    tools: getAiSdkToolMap(args.allowedTools ?? []),
+    tools: toolMap,
   });
 
   console.log(

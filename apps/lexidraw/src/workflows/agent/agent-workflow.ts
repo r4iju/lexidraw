@@ -9,13 +9,13 @@ import {
   getAvailableToolNames,
   getToolGroup,
 } from "~/server/llm/tools/registry";
-import { executeServerTool } from "./execute-server-tool";
 import {
   appendAssistantToolCall,
   appendToolResult,
   buildDecisionMessages,
 } from "./message-serializer";
 import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
+import { executeServerTool } from "./execute-server-tool";
 
 export type AgentConfig = EffectiveLlmConfig;
 
@@ -29,6 +29,7 @@ export interface AgentWorkflowArgs {
   userId: string;
   documentId: string;
   runId: string;
+  serverCodeMode?: boolean;
 }
 
 const MAX_CYCLES = 6; // Maximum number of LLM cycles before forcing finish
@@ -105,7 +106,10 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
 
     // 1) Planner once per run - use full tool registry
     const plannerPrompt = args.originalPrompt;
-    const mvpTools = getAvailableToolNames();
+    let mvpTools = getAvailableToolNames();
+    if (args.serverCodeMode) {
+      mvpTools = ["executeCode"];
+    }
     const plannerResult = await callPlannerStep({
       prompt: plannerPrompt,
       availableTools: mvpTools,
