@@ -4,10 +4,10 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "bun x tsc --watch --project tsconfig.json",
-    "build": "bun x tsc --project tsconfig.json",
+    "dev": "bun x tsgo --watch --project tsconfig.json",
+    "build": "bun x tsgo --project tsconfig.json",
     "lint": "bun x @biomejs/biome check --write .",
-    "test:ts": "bun x tsc --noEmit --project tsconfig.json",
+    "test:ts": "bun x tsgo --noEmit --project tsconfig.json",
     "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules"
   },
   "sideEffects": false,
@@ -46,6 +46,7 @@
   ],
   "devDependencies": {
     "@types/node": "^22.15.19",
+    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
     "typescript": "^5.9.2"
   }
 }

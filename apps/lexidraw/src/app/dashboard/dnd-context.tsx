@@ -18,7 +18,7 @@ import { EntityCard } from "./entity-card";
 import { revalidateDashboard } from "./server-actions";
 
 type Props = {
-  children: ReactNode;
+  children: React.ReactNode;
   flex: "flex-row" | "flex-col";
   sortBy: "updatedAt" | "createdAt" | "title";
   sortOrder: "asc" | "desc";

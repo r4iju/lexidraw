@@ -1,4 +1,5 @@
 import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
+import { ExecuteCodeSchema } from "@packages/types";
 import { executeCodeInSandbox } from "~/server/llm/tools/code-execution";
 
 export interface ExecuteServerToolArgs {
@@ -16,21 +17,28 @@ export async function executeServerTool(
   args: ExecuteServerToolArgs,
 ): Promise<LanguageModelV2ToolResultOutput> {
   "use step";
-  const { name, input } = args;
+  const { name, input, runId } = args;
 
   switch (name) {
     case "executeCode": {
-      const result = await executeCodeInSandbox(
-        input as {
-          code: string;
-          language?: "node";
-          timeoutMs?: number;
-          resources?: {
-            vcpus?: number;
-            memoryMbPerVcpu?: number;
-          };
-        },
-      );
+      const parsed = ExecuteCodeSchema.safeParse(input);
+      if (!parsed.success) {
+        const issues = parsed.error.issues.map((issue) => ({
+          code: issue.code,
+          message: issue.message,
+          path: issue.path.map((p) => String(p)),
+        }));
+        return {
+          type: "error-json",
+          value: {
+            ok: false,
+            error: "Invalid executeCode input",
+            issues,
+          },
+        };
+      }
+
+      const result = await executeCodeInSandbox(parsed.data, { runId });
 
       // Format as JSON tool result
       return {

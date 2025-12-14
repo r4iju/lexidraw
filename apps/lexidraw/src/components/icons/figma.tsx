@@ -1,4 +1,6 @@
-export function FigmaIcon(props: React.SVGProps<SVGSVGElement>) {
+import type { SVGProps } from "react";
+
+export function FigmaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       aria-label="Figma icon"

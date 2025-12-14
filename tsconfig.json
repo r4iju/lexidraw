@@ -29,7 +29,6 @@
     "lib": ["dom", "dom.iterable", "ES2022"],
 
     /* Path Aliases */
-    "baseUrl": ".",
     "paths": {
       "~/*": ["./src/*"]
     },

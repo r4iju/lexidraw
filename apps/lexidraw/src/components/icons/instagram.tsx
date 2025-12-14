@@ -1,4 +1,6 @@
-export function InstagramIcon(props: React.SVGProps<SVGSVGElement>) {
+import type { SVGProps } from "react";
+
+export function InstagramIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       aria-label="Instagram icon"

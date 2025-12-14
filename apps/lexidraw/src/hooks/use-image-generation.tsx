@@ -89,9 +89,10 @@ export const ImageGenerationProvider = ({
           contentType: mimeType,
           mode: "direct",
         });
+        const bytes = new Uint8Array(imageData);
         const { url } = await put(
           pathname,
-          new File([imageData], fileName, { type: mimeType }),
+          new File([bytes], fileName, { type: mimeType }),
           {
             access: "public",
             multipart: true,

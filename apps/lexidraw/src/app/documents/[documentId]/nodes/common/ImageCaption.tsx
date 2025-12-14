@@ -1,4 +1,3 @@
-import type * as React from "react";
 import { useEffect, useState } from "react";
 import type { LexicalEditor } from "lexical";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
@@ -23,7 +22,7 @@ export default function ImageCaption({
   containerRef,
   children,
   onHideCaption,
-}: ImageCaptionProps): React.JSX.Element {
+}: ImageCaptionProps) {
   const [isHovering, setIsHovering] = useState(false);
 
   useEffect(() => {

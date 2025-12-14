@@ -1,4 +1,6 @@
-export function TwitterIcon(props: React.SVGProps<SVGSVGElement>) {
+import type { SVGProps } from "react";
+
+export function TwitterIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       aria-label="Twitter icon"

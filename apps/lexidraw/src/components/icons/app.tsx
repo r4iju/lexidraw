@@ -1,4 +1,6 @@
-export function AppIcon(props: React.SVGProps<SVGSVGElement>) {
+import type { SVGProps } from "react";
+
+export function AppIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

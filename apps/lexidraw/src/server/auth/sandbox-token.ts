@@ -45,7 +45,7 @@ export function verifySandboxToken(token: string): SandboxTokenPayload | null {
     );
     if (expected !== s) return null;
     const json = JSON.parse(
-      Buffer.from(p, "base64").toString("utf8"),
+      Buffer.from(p, "base64url").toString("utf8"),
     ) as SandboxTokenPayload;
     const nowSec = Math.floor(Date.now() / 1000);
     if (typeof json.exp !== "number" || json.exp < nowSec) return null;
@@ -55,6 +55,3 @@ export function verifySandboxToken(token: string): SandboxTokenPayload | null {
     return null;
   }
 }
-
-
-
