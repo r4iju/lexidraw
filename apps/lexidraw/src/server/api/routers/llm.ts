@@ -13,6 +13,10 @@ import { recordLlmAudit, withTiming } from "~/server/audit/llm-audit";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import { generateUUID } from "~/lib/utils";
 import env from "@packages/env";
+import {
+  PLANNER_GOOGLE_MODEL_ID,
+  PLANNER_OPENAI_MODEL_ID,
+} from "~/lib/llm-models";
 
 export const llmRouter = createTRPCRouter({
   generate: protectedProcedure
@@ -234,7 +238,7 @@ export const llmRouter = createTRPCRouter({
           });
         const openai = createOpenAI({ apiKey: openaiApiKey });
         // Use non-reasoning micro model for planner
-        model = openai("gpt-5-nano");
+        model = openai(PLANNER_OPENAI_MODEL_ID);
         fallbackModel = null;
       } else if (provider === "google") {
         if (!googleApiKey)
@@ -244,7 +248,7 @@ export const llmRouter = createTRPCRouter({
           });
         const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
         // Use non-reasoning flash model for planner
-        model = google("gemini-2.5-flash");
+        model = google(PLANNER_GOOGLE_MODEL_ID);
         fallbackModel = null;
       } else {
         throw new TRPCError({

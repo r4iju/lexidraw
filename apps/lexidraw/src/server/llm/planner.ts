@@ -3,6 +3,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateObject, type LanguageModel } from "ai";
 import env from "@packages/env";
+import {
+  PLANNER_GOOGLE_MODEL_ID,
+  PLANNER_OPENAI_MODEL_ID,
+} from "~/lib/llm-models";
 
 export interface PlanToolsArgs {
   prompt: string;
@@ -38,11 +42,11 @@ export async function planTools(args: PlanToolsArgs): Promise<PlanToolsResult> {
   if (provider === "openai") {
     if (!openaiApiKey) throw new Error("Missing OpenAI API key");
     const openai = createOpenAI({ apiKey: openaiApiKey });
-    model = openai("gpt-5-nano");
+    model = openai(PLANNER_OPENAI_MODEL_ID);
   } else if (provider === "google") {
     if (!googleApiKey) throw new Error("Missing Google API key");
     const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
-    model = google("gemini-2.5-flash");
+    model = google(PLANNER_GOOGLE_MODEL_ID);
   } else {
     throw new Error("Unsupported provider");
   }
