@@ -3,6 +3,12 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
 import env from "@packages/env";
+import {
+  DEFAULT_GOOGLE_AGENT_MODEL_ID,
+  DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID,
+  DEFAULT_GOOGLE_CHAT_MODEL_ID,
+  DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
+} from "~/lib/llm-models";
 
 export const LlmBaseConfigSchema = z.object({
   modelId: z.string(),
@@ -93,14 +99,14 @@ function formatKokoroLabel(id: string): string {
 
 // Define separate defaults
 const defaultChatBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
-  modelId: "gemini-2.5-flash",
+  modelId: DEFAULT_GOOGLE_CHAT_MODEL_ID,
   provider: "google",
   temperature: 0.7,
   maxOutputTokens: 100000,
 };
 
 const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
-  modelId: "gemini-2.5-flash-lite",
+  modelId: DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID,
   provider: "google",
   temperature: 0.3,
   maxOutputTokens: 500,
@@ -108,7 +114,7 @@ const defaultAutocompleteBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
 
 const defaultAgentBaseConfig: z.infer<typeof LlmBaseConfigSchema> = {
   // For now mirror chat defaults; can be tuned separately later
-  modelId: "gemini-2.5-flash",
+  modelId: DEFAULT_GOOGLE_AGENT_MODEL_ID,
   provider: "google",
   temperature: 0.7,
   maxOutputTokens: 100000,
@@ -164,6 +170,47 @@ const defaultArticles: z.infer<typeof ArticleConfigSchema> = {
 };
 
 export const configRouter = createTRPCRouter({
+  getAutocompleteModelOptions: protectedProcedure.query(async ({ ctx }) => {
+    const [policy] = await ctx.drizzle
+      .select({
+        provider: schema.llmPolicies.provider,
+        modelId: schema.llmPolicies.modelId,
+        allowedModels: schema.llmPolicies.allowedModels,
+      })
+      .from(schema.llmPolicies)
+      .where(eq(schema.llmPolicies.mode, "autocomplete"))
+      .limit(1);
+
+    const allowed = Array.isArray(policy?.allowedModels)
+      ? policy.allowedModels
+      : [];
+
+    // Autocomplete currently uses OpenAI Responses API in server actions/routes,
+    // so only OpenAI model IDs are meaningful here.
+    const openaiAllowed = allowed
+      .filter((m) => m?.provider === "openai" && typeof m.modelId === "string")
+      .map((m) => m.modelId);
+
+    // Ensure the policy default is present if it's OpenAI (even if allowlist is empty/misaligned).
+    const defaultIfOpenai =
+      policy?.provider === "openai" && typeof policy.modelId === "string"
+        ? policy.modelId
+        : undefined;
+
+    const uniqueIds = Array.from(
+      new Set([
+        ...(defaultIfOpenai ? [defaultIfOpenai] : []),
+        ...openaiAllowed,
+      ]),
+    ).filter(Boolean);
+
+    return {
+      defaultModelId:
+        defaultIfOpenai ?? uniqueIds[0] ?? DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
+      models: uniqueIds.map((id) => ({ id, label: id })),
+    };
+  }),
+
   // --- Autocomplete (separate, minimal engine) ---
   getAutocompleteConfig: protectedProcedure.query(async ({ ctx }) => {
     const user = await ctx.drizzle.query.users.findFirst({
@@ -174,7 +221,7 @@ export const configRouter = createTRPCRouter({
       enabled: true,
       delayMs: 200,
       provider: "openai",
-      modelId: "gpt-5-nano",
+      modelId: DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
       temperature: 0.3,
       maxOutputTokens: 400,
       reasoningEffort: "minimal" as const,
@@ -231,7 +278,7 @@ export const configRouter = createTRPCRouter({
         enabled: true,
         delayMs: 200,
         provider: "openai",
-        modelId: "gpt-5-nano",
+        modelId: DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
         temperature: 0.3,
         maxOutputTokens: 400,
         reasoningEffort: "minimal",

@@ -4,7 +4,7 @@ import { api } from "~/trpc/server";
 import DocumentEditor from "../../../documents/[documentId]/document-editor-client";
 import DrawingScreenshotView from "../drawing-screenshot-view";
 import { drizzle as db, schema, eq } from "@packages/drizzle";
-import type { StoredLlmConfig } from "~/server/api/routers/config";
+import { INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER } from "~/server/llm/initial-llm-config";
 import { AccessLevel, type PublicAccess } from "@packages/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -109,26 +109,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
 
   const iceServers = await api.auth.iceServers.query();
 
-  const initialLlmConfig: StoredLlmConfig = {
-    chat: {
-      modelId: "gpt-5",
-      provider: "openai",
-      temperature: 0.7,
-      maxOutputTokens: 100000,
-    },
-    autocomplete: {
-      modelId: "gpt-5-nano",
-      provider: "openai",
-      temperature: 0.3,
-      maxOutputTokens: 500,
-    },
-    agent: {
-      modelId: "gpt-5",
-      provider: "openai",
-      temperature: 0.7,
-      maxOutputTokens: 100000,
-    },
-  };
+  const initialLlmConfig = INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER;
 
   return (
     <div className="w-full h-full overflow-hidden">

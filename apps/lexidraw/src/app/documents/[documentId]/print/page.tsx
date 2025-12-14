@@ -7,7 +7,7 @@ import type { PublicAccess } from "@packages/types";
 import { AccessLevel } from "@packages/types";
 import DocumentEditor from "../document-editor-client";
 import { api } from "~/trpc/server";
-import type { StoredLlmConfig } from "~/server/api/routers/config";
+import { INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER } from "~/server/llm/initial-llm-config";
 
 const Params = {
   parse: (params: { documentId: string }) => ({
@@ -70,26 +70,7 @@ export default async function PrintDocumentPage(props: Props) {
 
   const iceServers = await api.auth.iceServers.query();
 
-  const initialLlmConfig: StoredLlmConfig = {
-    chat: {
-      modelId: "gpt-5",
-      provider: "openai",
-      temperature: 0.7,
-      maxOutputTokens: 100000,
-    },
-    autocomplete: {
-      modelId: "gpt-5-nano",
-      provider: "openai",
-      temperature: 0.3,
-      maxOutputTokens: 500,
-    },
-    agent: {
-      modelId: "gpt-5",
-      provider: "openai",
-      temperature: 0.7,
-      maxOutputTokens: 100000,
-    },
-  };
+  const initialLlmConfig = INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER;
 
   return (
     <div className="print-container">

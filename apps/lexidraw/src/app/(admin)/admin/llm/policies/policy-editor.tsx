@@ -153,8 +153,8 @@ function ModeCard({
         </div>
         <pre className="text-xs text-muted-foreground bg-muted p-2 rounded-md border border-border mb-2 overflow-x-auto">
           {`[
-  {"provider": "openai", "modelId": "gpt-4"},
-  {"provider": "google", "modelId": "gemini-2.5-flash"}
+  {"provider": "openai", "modelId": "gpt-5.2"},
+  {"provider": "google", "modelId": "gemini-3-flash"}
 ]`}
         </pre>
         <Textarea
@@ -170,7 +170,7 @@ function ModeCard({
             jsonError && "border-destructive focus-visible:ring-destructive",
           )}
           rows={8}
-          placeholder='[{"provider": "openai", "modelId": "gpt-4"}]'
+          placeholder='[{"provider": "openai", "modelId": "gpt-5.2"}]'
         />
         {jsonError ? (
           <div className="text-destructive text-xs">{jsonError}</div>

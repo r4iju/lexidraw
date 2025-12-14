@@ -22,16 +22,21 @@ import {
 import { Button } from "~/components/ui/button";
 import { Check } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID } from "~/lib/llm-models";
 
 export function AutocompleteConfig({ className }: { className?: string }) {
   const { data: cfg, refetch } = api.config.getAutocompleteConfig.useQuery();
+  const { data: modelOptions } =
+    api.config.getAutocompleteModelOptions.useQuery();
   const update = api.config.updateAutocompleteConfig.useMutation({
     onSuccess: () => refetch(),
   });
 
   const [enabled, setEnabled] = useState<boolean>(true);
   const [delayMs, setDelayMs] = useState<number>(200);
-  const [modelId, setModelId] = useState<string>("gpt-5-nano");
+  const [modelId, setModelId] = useState<string>(
+    DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
+  );
   const [temperature, setTemperature] = useState<number>(0.3);
   const [maxOutputTokens, setMaxOutputTokens] = useState<number>(400);
   const [reasoningEffort, setReasoningEffort] = useState<
@@ -43,7 +48,7 @@ export function AutocompleteConfig({ className }: { className?: string }) {
     if (!cfg) return;
     setEnabled(!!cfg.enabled);
     setDelayMs(Number(cfg.delayMs ?? 200));
-    setModelId(String(cfg.modelId ?? "gpt-5-nano"));
+    setModelId(String(cfg.modelId ?? DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID));
     setTemperature(Number(cfg.temperature ?? 0.3));
     setMaxOutputTokens(Number(cfg.maxOutputTokens ?? 400));
     setReasoningEffort(
@@ -66,13 +71,12 @@ export function AutocompleteConfig({ className }: { className?: string }) {
     update.mutate(patch);
   };
 
-  const models = useMemo(
-    () => [
-      { id: "gpt-5-nano", label: "GPT-5 Nano" },
-      { id: "gpt-5-mini", label: "GPT-5 Mini" },
-    ],
-    [],
-  );
+  const models = useMemo(() => {
+    const fromPolicy = modelOptions?.models ?? [];
+    if (fromPolicy.length > 0) return fromPolicy;
+    // Fallback for safety (e.g., policy row missing in dev DB)
+    return [{ id: modelId, label: modelId }];
+  }, [modelOptions?.models, modelId]);
 
   return (
     <div className={cn("flex flex-col gap-3 min-w-64", className)}>
