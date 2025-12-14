@@ -14,14 +14,16 @@ export const DEFAULT_GOOGLE_AGENT_MODEL_ID = "gemini-3-pro-preview";
 // on an available Flash-Lite.
 export const DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID = "gemini-2.5-flash-lite";
 
-// --- OpenAI (GPT-5.2 family) defaults ---
+// --- OpenAI (GPT-5 family) defaults ---
+// Note: Your OpenAI account rejected `gpt-5.2-*` model IDs. These defaults use the
+// older GPT-5 naming that existed in this codebase previously.
 export const DEFAULT_OPENAI_CHAT_MODEL_ID = "gpt-5.2";
-export const DEFAULT_OPENAI_AGENT_MODEL_ID = "gpt-5.2-pro";
-export const DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID = "gpt-5.2-nano";
+export const DEFAULT_OPENAI_AGENT_MODEL_ID = "gpt-5.2";
+export const DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID = "gpt-5-nano";
 
 // --- Planner (tool selection) ---
 // We intentionally pin planner to small, fast models rather than the user's main chat model.
-export const PLANNER_OPENAI_MODEL_ID = "gpt-5.2-nano";
+export const PLANNER_OPENAI_MODEL_ID = "gpt-5-nano";
 export const PLANNER_GOOGLE_MODEL_ID = "gemini-2.5-flash";
 
 /** 
@@ -29,7 +31,7 @@ export const PLANNER_GOOGLE_MODEL_ID = "gemini-2.5-flash";
   [
     { "provider": "openai", "modelId": "gpt-5.2" },
     { "provider": "openai", "modelId": "gpt-5.2-pro" },
-    { "provider": "openai", "modelId": "gpt-5.2-nano" },
+    { "provider": "openai", "modelId": "gpt-5-mini" },
     { "provider": "google", "modelId": "gemini-3-pro-preview" }
     { "provider": "google", "modelId": "gemini-2.5-flash" }
   ]
