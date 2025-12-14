@@ -17,7 +17,7 @@ import { cn } from "~/lib/utils";
 
 type Policy = {
   id: number;
-  mode: "chat" | "agent" | "autocomplete";
+  mode: "chat" | "agent" | "autocomplete" | "image";
   provider: string;
   modelId: string;
   temperature: number;
@@ -278,8 +278,79 @@ export function PoliciesEditor({
 
   const buildPolicies = React.useCallback(
     (policiesFromServer: Policy[]): Policy[] => {
-      // Do not create client-side fallbacks; render only server-provided policies
-      return policiesFromServer;
+      const byMode = new Map(
+        policiesFromServer.map((p) => [p.mode, p] as const),
+      );
+      const defaults: Record<Policy["mode"], Omit<Policy, "id">> = {
+        chat: {
+          mode: "chat",
+          provider: "openai",
+          modelId: "gpt-5.2",
+          temperature: 0.7,
+          maxOutputTokens: 8192,
+          allowedModels: [
+            { provider: "openai", modelId: "gpt-5.2" },
+            { provider: "google", modelId: "gemini-3-pro-preview" },
+          ],
+          enforcedCaps: {
+            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
+          },
+          extraConfig: undefined,
+        },
+        agent: {
+          mode: "agent",
+          provider: "openai",
+          modelId: "gpt-5.2-pro",
+          temperature: 0.7,
+          maxOutputTokens: 8192,
+          allowedModels: [
+            { provider: "openai", modelId: "gpt-5.2" },
+            { provider: "openai", modelId: "gpt-5.2-pro" },
+            { provider: "google", modelId: "gemini-3-pro-preview" },
+          ],
+          enforcedCaps: {
+            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
+          },
+          extraConfig: undefined,
+        },
+        autocomplete: {
+          mode: "autocomplete",
+          provider: "openai",
+          modelId: "gpt-5.2-nano",
+          temperature: 0.3,
+          maxOutputTokens: 500,
+          allowedModels: [{ provider: "openai", modelId: "gpt-5.2-nano" }],
+          enforcedCaps: {
+            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
+          },
+          extraConfig: { reasoningEffort: "minimal", verbosity: "low" },
+        },
+        image: {
+          mode: "image",
+          provider: "google",
+          modelId: "gemini-3-pro-image-preview",
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+          allowedModels: [
+            { provider: "google", modelId: "gemini-3-pro-image-preview" },
+            { provider: "google", modelId: "gemini-3-pro-preview" },
+          ],
+          enforcedCaps: {
+            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
+          },
+          extraConfig: undefined,
+        },
+      };
+
+      const modes: Policy["mode"][] = [
+        "chat",
+        "agent",
+        "autocomplete",
+        "image",
+      ];
+      return modes.map(
+        (mode) => byMode.get(mode) ?? ({ id: 0, ...defaults[mode] } as Policy),
+      );
     },
     [],
   );

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const LLMModeSchema = z.enum(["chat", "agent", "autocomplete"]);
+export const LLMModeSchema = z.enum(["chat", "agent", "autocomplete", "image"]);
 
 export const AllowedModelSchema = z.object({
   provider: z.string().min(1),

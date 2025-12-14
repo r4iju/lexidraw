@@ -273,10 +273,12 @@ export function InsertImageGeneratedDialogBody({
   onGenerate,
   isLoading,
   isConfigured,
+  disabledReason,
 }: {
   onGenerate: (prompt: string) => void;
   isLoading: boolean;
   isConfigured: boolean;
+  disabledReason?: string;
 }) {
   const [prompt, setPrompt] = useState("");
   const isDisabled = prompt.trim() === "" || isLoading || !isConfigured;
@@ -285,8 +287,8 @@ export function InsertImageGeneratedDialogBody({
     <>
       {!isConfigured && (
         <p className="text-center text-sm text-destructive p-4 border border-destructive rounded-md">
-          Image generation service is not configured. Please set the OpenAI API
-          key in the settings.
+          Image generation is not configured.
+          {disabledReason ? ` ${disabledReason}` : ""}
         </p>
       )}
       <Label htmlFor={imagePromptTextareaId}>Image Prompt</Label>
@@ -335,6 +337,18 @@ export function InsertImageDialog({
     isLoading: isGenerating,
     isConfigured: isGenerationConfigured,
   } = useLexicalImageGeneration();
+  const { data: aiStatus } = api.image.getAiGenerationStatus.useQuery();
+
+  const disabledReason =
+    aiStatus && aiStatus.isConfigured === false
+      ? !aiStatus.hasPolicy
+        ? "Create an Image policy in Admin → LLM → Policies (Image) and click Save."
+        : aiStatus.policy?.provider === "google" && !aiStatus.hasGoogleApiKey
+          ? "Missing GOOGLE_API_KEY."
+          : aiStatus.policy?.provider === "openai" && !aiStatus.hasOpenAiApiKey
+            ? "Missing OPENAI_API_KEY."
+            : "Check Image policy provider/modelId and allowedModels."
+      : undefined;
 
   const handleUnsplashImageSelect = useCallback(
     (image: UnsplashImageResult) => {
@@ -400,7 +414,9 @@ export function InsertImageDialog({
             onClick={() => setMode("generate")}
             disabled={!isGenerationConfigured}
             title={
-              !isGenerationConfigured ? "OpenAI API key required" : undefined
+              !isGenerationConfigured
+                ? (disabledReason ?? "Image generation not configured")
+                : undefined
             }
           >
             Generate (AI)
@@ -419,6 +435,7 @@ export function InsertImageDialog({
           onGenerate={handleGenerateImage}
           isLoading={isGenerating}
           isConfigured={isGenerationConfigured}
+          disabledReason={disabledReason}
         />
       )}
     </>

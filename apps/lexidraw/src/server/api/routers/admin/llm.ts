@@ -50,7 +50,7 @@ export const adminLlmRouter = createTRPCRouter({
       return z
         .array(
           z.object({
-            mode: z.enum(["chat", "agent", "autocomplete"]),
+            mode: z.enum(["chat", "agent", "autocomplete", "image"]),
             provider: z.string(),
             modelId: z.string(),
             temperature: z.number(),
