@@ -11,7 +11,6 @@ import {
   MouseSensor,
   TouchSensor,
 } from "@dnd-kit/core";
-import type { ReactNode } from "react";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { EntityCard } from "./entity-card";
