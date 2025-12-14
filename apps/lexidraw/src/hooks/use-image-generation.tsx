@@ -8,7 +8,6 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-// Only need the OpenAI API key from LLM config
 import { put } from "@vercel/blob/client";
 
 type AllowedContentType =
@@ -48,8 +47,11 @@ export const ImageGenerationProvider = ({
 }) => {
   const { mutateAsync: generateUploadUrlAsync } =
     api.entities.generateUploadUrl.useMutation();
-  const [isLoading] = useState(false);
-  const isConfigured = false;
+  const { data: genStatus } = api.image.getAiGenerationStatus.useQuery();
+  const { mutateAsync: generateAiImage } =
+    api.image.generateAiImage.useMutation();
+  const [isLoading, setIsLoading] = useState(false);
+  const isConfigured = !!genStatus?.isConfigured;
 
   const sanitizeFilename = useCallback(
     (name: string) => name.replace(/[^a-z0-9_\-.]/gi, "_").substring(0, 50),
@@ -68,12 +70,43 @@ export const ImageGenerationProvider = ({
     [],
   );
 
-  const generateImageData = useCallback(() => {
-    toast.error(
-      "Image generation is not available. Please configure API keys at the app level.",
-    );
-    return Promise.resolve(null);
-  }, []);
+  const generateImageData = useCallback(
+    async (
+      prompt: string,
+      options?: { size?: "256x256" | "512x512" | "1024x1024" },
+    ) => {
+      if (!isConfigured) {
+        toast.error(
+          "Image generation is not available. Please configure the Image policy and API keys.",
+        );
+        return null;
+      }
+      setIsLoading(true);
+      try {
+        const res = await generateAiImage({
+          prompt,
+          size: options?.size,
+        });
+        // `imageBase64` is standard base64 (no data: prefix)
+        const binStr = atob(res.imageBase64);
+        const bytes = new Uint8Array(binStr.length);
+        for (let i = 0; i < binStr.length; i++) {
+          bytes[i] = binStr.charCodeAt(i);
+        }
+        return { imageData: bytes, mimeType: res.mimeType };
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Unknown image generation error.";
+        toast.error("Image generation failed", { description: message });
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [generateAiImage, isConfigured],
+  );
 
   const uploadImageData = useCallback(
     async (imageData: Uint8Array, mimeType: string, prompt: string) => {

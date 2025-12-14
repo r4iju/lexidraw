@@ -3,6 +3,7 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { getUnsplash } from "~/server/unsplash";
 import { TRPCError } from "@trpc/server";
 import env from "@packages/env";
+import { schema, eq } from "@packages/drizzle";
 
 const TrackDownloadInput = z.object({
   downloadLocation: z.url(),
@@ -15,7 +16,205 @@ const SearchUnsplashInput = z.object({
   perPage: z.number().int().min(1).max(30).optional().default(10), // Max 30 per Unsplash guidelines
 });
 
+const GenerateAiImageInput = z.object({
+  prompt: z.string().min(1),
+  // Keep optional for future UI; policy defaults are used when omitted.
+  provider: z.enum(["openai", "google"]).optional(),
+  modelId: z.string().optional(),
+  size: z.enum(["256x256", "512x512", "1024x1024"]).optional(),
+});
+
 export const imageRouter = createTRPCRouter({
+  getAiGenerationStatus: protectedProcedure.query(async ({ ctx }) => {
+    const [policy] = await ctx.drizzle
+      .select({
+        provider: schema.llmPolicies.provider,
+        modelId: schema.llmPolicies.modelId,
+      })
+      .from(schema.llmPolicies)
+      .where(eq(schema.llmPolicies.mode, "image"))
+      .limit(1);
+
+    const hasGoogle = !!env.GOOGLE_API_KEY;
+    const hasOpenAi = !!env.OPENAI_API_KEY;
+
+    return {
+      hasPolicy: !!policy,
+      policy: policy ?? null,
+      hasGoogleApiKey: hasGoogle,
+      hasOpenAiApiKey: hasOpenAi,
+      isConfigured:
+        !!policy &&
+        ((policy?.provider === "google" && hasGoogle) ||
+          (policy?.provider === "openai" && hasOpenAi)),
+    };
+  }),
+
+  generateAiImage: protectedProcedure
+    .input(GenerateAiImageInput)
+    .mutation(async ({ ctx, input }) => {
+      const [policy] = await ctx.drizzle
+        .select({
+          provider: schema.llmPolicies.provider,
+          modelId: schema.llmPolicies.modelId,
+          allowedModels: schema.llmPolicies.allowedModels,
+        })
+        .from(schema.llmPolicies)
+        .where(eq(schema.llmPolicies.mode, "image"))
+        .limit(1);
+
+      if (!policy) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "No LLM policy found for mode: image. Create it in Admin → LLM → Policies (Image).",
+        });
+      }
+
+      const provider = (input.provider ?? policy.provider).toString();
+      const modelId = (input.modelId ?? policy.modelId).toString();
+
+      const allowed = Array.isArray(policy.allowedModels)
+        ? policy.allowedModels
+        : [];
+      if (allowed.length > 0) {
+        const ok = allowed.some(
+          (m) => m.provider === provider && m.modelId === modelId,
+        );
+        if (!ok) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Model ${provider}:${modelId} is not allowed for image mode.`,
+          });
+        }
+      }
+
+      if (provider === "google") {
+        const apiKey = env.GOOGLE_API_KEY;
+        if (!apiKey) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Missing GOOGLE_API_KEY for Gemini image generation.",
+          });
+        }
+
+        const url = new URL(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+            modelId,
+          )}:generateContent`,
+        );
+        url.searchParams.set("key", apiKey);
+
+        const payload = {
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: input.prompt }],
+            },
+          ],
+          generationConfig: {
+            // These values are best-effort; image preview models may ignore them.
+            temperature: 0.2,
+            responseModalities: ["IMAGE"],
+          },
+        } as const;
+
+        const resp = await fetch(url.toString(), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = (await resp.json().catch(() => ({}))) as unknown;
+        if (!resp.ok) {
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message: `Gemini image generation failed: ${resp.status} ${resp.statusText} ${JSON.stringify(json)}`,
+          });
+        }
+
+        type GeminiInlineData = { mimeType?: string; data?: string };
+        type GeminiPart = { inlineData?: GeminiInlineData; text?: string };
+        type GeminiCandidate = { content?: { parts?: GeminiPart[] } };
+        type GeminiResponse = { candidates?: GeminiCandidate[] };
+
+        const data = (json as GeminiResponse).candidates
+          ?.flatMap((c) => c.content?.parts ?? [])
+          .map((p) => p.inlineData)
+          .find((d) => d && typeof d.data === "string" && d.data.length > 0);
+
+        if (!data?.data) {
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message:
+              "Gemini response did not include image inlineData. Check model capabilities and request format.",
+          });
+        }
+
+        return {
+          provider,
+          modelId,
+          mimeType: data.mimeType || "image/png",
+          imageBase64: data.data,
+        };
+      }
+
+      if (provider === "openai") {
+        const apiKey = env.OPENAI_API_KEY;
+        if (!apiKey) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Missing OPENAI_API_KEY for OpenAI image generation.",
+          });
+        }
+
+        const resp = await fetch(
+          "https://api.openai.com/v1/images/generations",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: modelId,
+              prompt: input.prompt,
+              size: input.size ?? "1024x1024",
+              response_format: "b64_json",
+            }),
+          },
+        );
+
+        const json = (await resp.json().catch(() => ({}))) as unknown;
+        if (!resp.ok) {
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message: `OpenAI image generation failed: ${resp.status} ${resp.statusText} ${JSON.stringify(json)}`,
+          });
+        }
+
+        const b64 = (json as { data?: Array<{ b64_json?: string }> }).data?.[0]
+          ?.b64_json;
+        if (typeof b64 !== "string" || !b64) {
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message: "OpenAI response missing b64_json image data.",
+          });
+        }
+
+        return {
+          provider,
+          modelId,
+          mimeType: "image/png",
+          imageBase64: b64,
+        };
+      }
+
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Unsupported provider for image generation: ${provider}`,
+      });
+    }),
+
   imLuckyUnsplash: protectedProcedure
     .input(z.object({ query: z.string().min(1) }))
     .query(async ({ input }) => {
