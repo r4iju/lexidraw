@@ -21,5 +21,20 @@ export const DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID = "gpt-5.2-nano";
 
 // --- Planner (tool selection) ---
 // We intentionally pin planner to small, fast models rather than the user's main chat model.
-export const PLANNER_OPENAI_MODEL_ID = "gpt-5.2-instant";
+export const PLANNER_OPENAI_MODEL_ID = "gpt-5.2-nano";
 export const PLANNER_GOOGLE_MODEL_ID = "gemini-2.5-flash";
+
+/** 
+  // llm
+  [
+    { "provider": "openai", "modelId": "gpt-5.2" },
+    { "provider": "openai", "modelId": "gpt-5.2-pro" },
+    { "provider": "openai", "modelId": "gpt-5.2-nano" },
+    { "provider": "google", "modelId": "gemini-3-pro-preview" }
+    { "provider": "google", "modelId": "gemini-2.5-flash" }
+  ]
+  // image
+  [
+    { "provider": "google", "modelId": "gemini-3-pro-image-preview" }
+  ]
+*/
