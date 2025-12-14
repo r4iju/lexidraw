@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "echo 'collaborator is disabled' # node --experimental-strip-types watch src/index.ts",
     "start": "echo 'collaborator is disabled' # node dist/index.js",
-    "build": "tsc",
+    "build": "tsgo",
     "lint": "bun x @biomejs/biome check --write .",
     "clean": "rm -rf ./dist && rm -rf .turbo && rm -rf node_modules",
-    "test:ts": "tsc --noEmit"
+    "test:ts": "tsgo --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@packages/types": "workspace:*",
     "@types/ws": "^8.18.1",
+    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
     "typescript": "^5.9.2"
   }
 }

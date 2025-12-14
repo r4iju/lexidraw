@@ -34,6 +34,7 @@
       "devDependencies": {
         "@packages/types": "workspace:*",
         "@types/ws": "^8.18.1",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "typescript": "^5.9.2",
       },
     },
@@ -42,6 +43,7 @@
       "version": "1.0.0",
       "devDependencies": {
         "@types/node": "^22.15.19",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "typescript": "^5.9.2",
       },
     },
@@ -164,10 +166,11 @@
         "@types/katex": "^0.16.7",
         "@types/ms": "^0.7.4",
         "@types/node": "^22.15.19",
-        "@types/react": "^19.2.2",
-        "@types/react-dom": "^19.2.2",
+        "@types/react": "19.2.4",
+        "@types/react-dom": "19.2.3",
         "@types/sanitize-html": "^2.16.0",
         "@types/uuid": "^9.0.8",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "babel-plugin-react-compiler": "^1.0.0",
         "dompurify": "^3.2.5",
         "drizzle-kit": "^0.30.6",
@@ -209,6 +212,7 @@
       "dependencies": {
         "@packages/lib": "workspace:*",
         "@sparticuz/chromium": "^129.0.0",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "next": "16.0.10",
         "puppeteer-core": "^24.25.0",
         "react": "19.2.3",
@@ -231,6 +235,7 @@
       "devDependencies": {
         "@packages/types": "workspace:*",
         "@types/ws": "^8.18.1",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "artillery": "^2.0.22",
         "typescript": "^5.9.2",
         "vitest": "^1.6.1",
@@ -249,6 +254,7 @@
       "devDependencies": {
         "@packages/types": "workspace:*",
         "@types/node": "^22.15.19",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "dotenv-cli": "latest",
         "drizzle-kit": "^0.30.6",
         "typescript": "^5.9.2",
@@ -263,6 +269,7 @@
       },
       "devDependencies": {
         "@types/node": "^22.15.19",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "typescript": "^5.9.2",
       },
     },
@@ -276,6 +283,7 @@
       },
       "devDependencies": {
         "@types/node": "^22.15.19",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "typescript": "^5.9.2",
       },
     },
@@ -288,6 +296,7 @@
       "devDependencies": {
         "@excalidraw/excalidraw": "^0.18.0",
         "@types/node": "^22.15.19",
+        "@typescript/native-preview": "^7.0.0-dev.20251214.1",
         "typescript": "^5.9.2",
       },
     },
@@ -1588,6 +1597,22 @@
     "@typescript-eslint/typescript-estree": ["@typescript-eslint/typescript-estree@5.62.0", "", { "dependencies": { "@typescript-eslint/types": "5.62.0", "@typescript-eslint/visitor-keys": "5.62.0", "debug": "^4.3.4", "globby": "^11.1.0", "is-glob": "^4.0.3", "semver": "^7.3.7", "tsutils": "^3.21.0" } }, "sha512-CmcQ6uY7b9y694lKdRB8FEel7JbU/40iSAPomu++SjLMntB+2Leay2LO6i8VnJk58MtE9/nQSFIH6jpyRWyYzA=="],
 
     "@typescript-eslint/visitor-keys": ["@typescript-eslint/visitor-keys@5.62.0", "", { "dependencies": { "@typescript-eslint/types": "5.62.0", "eslint-visitor-keys": "^3.3.0" } }, "sha512-07ny+LHRzQXepkGg6w0mFY41fVUNBrL2Roj/++7V1txKugfjm/Ci/qSND03r2RhlJhJYMcTn9AhhSSqQp0Ysyw=="],
+
+    "@typescript/native-preview": ["@typescript/native-preview@7.0.0-dev.20251214.1", "", { "optionalDependencies": { "@typescript/native-preview-darwin-arm64": "7.0.0-dev.20251214.1", "@typescript/native-preview-darwin-x64": "7.0.0-dev.20251214.1", "@typescript/native-preview-linux-arm": "7.0.0-dev.20251214.1", "@typescript/native-preview-linux-arm64": "7.0.0-dev.20251214.1", "@typescript/native-preview-linux-x64": "7.0.0-dev.20251214.1", "@typescript/native-preview-win32-arm64": "7.0.0-dev.20251214.1", "@typescript/native-preview-win32-x64": "7.0.0-dev.20251214.1" }, "bin": { "tsgo": "bin/tsgo.js" } }, "sha512-UM/NR04ko1Tjrjx7glA1yYrOWvCErk2B/eHI4BeV0P6i4JrcxESCXB3EdI2h9QyE2H4FvG1VJzb2pB4u7wpdiA=="],
+
+    "@typescript/native-preview-darwin-arm64": ["@typescript/native-preview-darwin-arm64@7.0.0-dev.20251214.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-bDVzeTBS3L3kze4AKt0NgrSKxHMoRJvsyOoPwonnJVmBawmNT9i5KJLmILjmG/pQKsoIprO3wIQ/eHFCc+UCRg=="],
+
+    "@typescript/native-preview-darwin-x64": ["@typescript/native-preview-darwin-x64@7.0.0-dev.20251214.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-833kmlu42eJTbqAr5YmyWXLu6Pmp1FlX0VtUJJyIECiZOsaukYDqv56kMCh5kKFRkdnCG5nk8Ry4JhMHO0pPWQ=="],
+
+    "@typescript/native-preview-linux-arm": ["@typescript/native-preview-linux-arm@7.0.0-dev.20251214.1", "", { "os": "linux", "cpu": "arm" }, "sha512-sY9Gbwsvf3DqOeG3xiPNjV5M1txC+zDwcBAS8pThje0AlCqjjvs12X3o0SitnJj4IzzRAv43mGR4lZV3p2nRgw=="],
+
+    "@typescript/native-preview-linux-arm64": ["@typescript/native-preview-linux-arm64@7.0.0-dev.20251214.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-ymqki3Yw8p+mgdKb7TdLF6O6cvvlodNDahl89PEOJ3KTtKZZ3yghAUTqfXH+yLN04CXezixACBYVrYQfH0NpQw=="],
+
+    "@typescript/native-preview-linux-x64": ["@typescript/native-preview-linux-x64@7.0.0-dev.20251214.1", "", { "os": "linux", "cpu": "x64" }, "sha512-ebKRfaF7pySe8hyijeFmXEJ/RZ4HVXTxCX/STXdCtEBHAgGRUfImldpNXmxzBwUxEfb4yOFzK1Gy8WKm2A2lTQ=="],
+
+    "@typescript/native-preview-win32-arm64": ["@typescript/native-preview-win32-arm64@7.0.0-dev.20251214.1", "", { "os": "win32", "cpu": "arm64" }, "sha512-kSTKEL5GC4+iJzwPAJTv0gbRWMuLv1iep0I8Zuep/um2BUqpE4kgoB9bVWAQdc0XvUc9FYL7FfGfwKM5tyKdpA=="],
+
+    "@typescript/native-preview-win32-x64": ["@typescript/native-preview-win32-x64@7.0.0-dev.20251214.1", "", { "os": "win32", "cpu": "x64" }, "sha512-+9+FqWybjVYSY9fZnWRWU+OMqRPBQWRY7n+RaY40Iuc5XPVUhZsKeV/0xwJetz3gu3XYdPAazSziuH2m+/BDHg=="],
 
     "@vercel/analytics": ["@vercel/analytics@1.5.0", "", { "peerDependencies": { "@remix-run/react": "^2", "@sveltejs/kit": "^1 || ^2", "next": ">= 13", "react": "^18 || ^19 || ^19.0.0-rc", "svelte": ">= 4", "vue": "^3", "vue-router": "^4" }, "optionalPeers": ["@remix-run/react", "@sveltejs/kit", "next", "react", "svelte", "vue", "vue-router"] }, "sha512-MYsBzfPki4gthY5HnYN7jgInhAZ7Ac1cYDoRWFomwGHWEX7odTEzbtg9kf/QSo7XEsEAqlQugA6gJ2WS2DEa3g=="],
 

@@ -1,4 +1,6 @@
-export function FacebookIcon(props: React.SVGProps<SVGSVGElement>) {
+import type { SVGProps } from "react";
+
+export function FacebookIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       aria-label="Facebook icon"

@@ -61,7 +61,8 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
       return;
     }
     // create a blob from the image data
-    const blob = new Blob([image.imageData], { type: image.mimeType });
+    const bytes = new Uint8Array(image.imageData);
+    const blob = new Blob([bytes], { type: image.mimeType });
     // create a url from the blob
     const url = URL.createObjectURL(blob);
     // set the selected thumbnail to the url

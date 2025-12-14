@@ -127,7 +127,10 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
       [handleMove],
     );
 
-    const handleResizeEndRef = useRef<() => void>();
+    const handleResizeEndRef = useRef<() => void>(() => {});
+    const handleResizeEndListener = useCallback(() => {
+      handleResizeEndRef.current();
+    }, []);
 
     const handleResizeEnd = useCallback(() => {
       if (!isResizingRef.current) return;
@@ -135,10 +138,10 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
       setIsResizing(false);
 
       document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleResizeEndRef.current!);
+      document.removeEventListener("mouseup", handleResizeEndListener);
       document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleResizeEndRef.current!);
-    }, [handleMouseMove, handleTouchMove]);
+      document.removeEventListener("touchend", handleResizeEndListener);
+    }, [handleMouseMove, handleResizeEndListener, handleTouchMove]);
 
     useEffect(() => {
       handleResizeEndRef.current = handleResizeEnd;
@@ -158,13 +161,13 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
         initialWidthRef.current = componentSidebarRef.current.offsetWidth;
 
         document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseup", handleResizeEndRef.current!);
+        document.addEventListener("mouseup", handleResizeEndListener);
         document.addEventListener("touchmove", handleTouchMove, {
           passive: false,
         });
-        document.addEventListener("touchend", handleResizeEndRef.current!);
+        document.addEventListener("touchend", handleResizeEndListener);
       },
-      [handleMouseMove, handleTouchMove],
+      [handleMouseMove, handleResizeEndListener, handleTouchMove],
     );
 
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -188,12 +191,12 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
       return () => {
         if (isResizingRef.current) {
           document.removeEventListener("mousemove", handleMouseMove);
-          document.removeEventListener("mouseup", handleResizeEndRef.current!);
+          document.removeEventListener("mouseup", handleResizeEndListener);
           document.removeEventListener("touchmove", handleTouchMove);
-          document.removeEventListener("touchend", handleResizeEndRef.current!);
+          document.removeEventListener("touchend", handleResizeEndListener);
         }
       };
-    }, [handleMouseMove, handleTouchMove]);
+    }, [handleMouseMove, handleResizeEndListener, handleTouchMove]);
 
     useEffect(() => {
       const bodyStyle = document.body.style;

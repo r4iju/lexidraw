@@ -19,7 +19,6 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Paths & Types */
-    "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     },

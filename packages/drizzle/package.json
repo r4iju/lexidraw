@@ -4,16 +4,16 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "bun x tsc --watch --project tsconfig.json",
+    "dev": "bun x tsgo --watch --project tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:pull": "drizzle-kit introspect",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio --port 3100",
     "postinstall": "# drizzle-kit generate",
-    "build": "bun x tsc --project tsconfig.json",
+    "build": "bun x tsgo --project tsconfig.json",
     "lint": "bun x @biomejs/biome check --write .",
-    "test:ts": "bun x tsc --noEmit --project tsconfig.json",
+    "test:ts": "bun x tsgo --noEmit --project tsconfig.json",
     "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules"
   },
   "sideEffects": false,
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@packages/types": "workspace:*",
     "@types/node": "^22.15.19",
+    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
     "dotenv-cli": "latest",
     "drizzle-kit": "^0.30.6",
     "typescript": "^5.9.2"

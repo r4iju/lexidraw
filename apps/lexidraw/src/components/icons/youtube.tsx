@@ -1,7 +1,9 @@
+import type { SVGProps } from "react";
+
 export default function YoutubeIcon({
   className,
   ...props
-}: React.SVGProps<SVGSVGElement>) {
+}: SVGProps<SVGSVGElement>) {
   return (
     // biome-ignore lint/a11y/noSvgWithoutTitle: todo: fix no svg without title
     <svg

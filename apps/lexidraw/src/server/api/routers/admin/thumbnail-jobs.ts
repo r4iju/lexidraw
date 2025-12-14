@@ -50,30 +50,25 @@ export const adminThumbnailJobsRouter = createTRPCRouter({
         })
         .from(ctx.schema.thumbnailJobs);
 
-      let query = where ? base.where(where) : base;
+      const orderByExpr = (() => {
+        const orderFn = sortOrder === "asc" ? asc : desc;
+        switch (sortBy) {
+          case "createdAt":
+            return orderFn(ctx.schema.thumbnailJobs.createdAt);
+          case "updatedAt":
+            return orderFn(ctx.schema.thumbnailJobs.updatedAt);
+          case "status":
+            return orderFn(ctx.schema.thumbnailJobs.status);
+          case "attempts":
+            return orderFn(ctx.schema.thumbnailJobs.attempts);
+          case "nextRunAt":
+            return orderFn(ctx.schema.thumbnailJobs.nextRunAt);
+          default:
+            return desc(ctx.schema.thumbnailJobs.createdAt);
+        }
+      })();
 
-      // Apply sorting
-      const orderFn = sortOrder === "asc" ? asc : desc;
-      switch (sortBy) {
-        case "createdAt":
-          query = query.orderBy(orderFn(ctx.schema.thumbnailJobs.createdAt));
-          break;
-        case "updatedAt":
-          query = query.orderBy(orderFn(ctx.schema.thumbnailJobs.updatedAt));
-          break;
-        case "status":
-          query = query.orderBy(orderFn(ctx.schema.thumbnailJobs.status));
-          break;
-        case "attempts":
-          query = query.orderBy(orderFn(ctx.schema.thumbnailJobs.attempts));
-          break;
-        case "nextRunAt":
-          query = query.orderBy(orderFn(ctx.schema.thumbnailJobs.nextRunAt));
-          break;
-        default:
-          query = query.orderBy(desc(ctx.schema.thumbnailJobs.createdAt));
-      }
-
+      const query = (where ? base.where(where) : base).orderBy(orderByExpr);
       const rows = await query.limit(size).offset((page - 1) * size);
 
       return rows;

@@ -10,7 +10,7 @@
     "dev": "next dev --hostname 0.0.0.0 --port 4025",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 4025",
-    "test:ts": "tsc --noEmit"
+    "test:ts": "tsgo --noEmit"
   },
   "dependencies": {
     "@packages/lib": "workspace:*",
@@ -19,6 +19,7 @@
     "react-dom": "19.2.3",
     "puppeteer-core": "^24.25.0",
     "@sparticuz/chromium": "^129.0.0",
+    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
     "typescript": "^5.9.2"
   },
   "devDependencies": {

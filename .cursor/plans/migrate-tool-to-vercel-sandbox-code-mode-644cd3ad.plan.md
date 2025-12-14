@@ -1,4 +1,9 @@
-<!-- 644cd3ad-e145-468b-9488-300c5e264f64 3834a612-a0df-4096-af1f-dca5757d9d28 -->
+---
+name: Migrate Tool to Vercel Sandbox (Code Mode) — Production‑ready Plan
+overview: ""
+todos: []
+---
+
 # Migrate Tool to Vercel Sandbox (Code Mode) — Production‑ready Plan
 
 ## Overview & Goals
@@ -168,6 +173,7 @@ Integration tests:
 Non‑regression:
 
 - Existing client tools still emit `tool-call` + hook and callback POST continues to work (`/api/llm/agent/callback`).
+
 ---
 
 ## Client (Browser) Code Mode — Safe In‑Browser Execution
@@ -183,13 +189,13 @@ Some editor‑aware tools must run near Lexical. For “real Code Mode in the br
 
 ### High‑level architecture
 
-1) Host app (main window)
+1. Host app (main window)
 
 - Owns Lexical and UI; holds auth/session.
 - Serializes a document snapshot to a JSON format (no secrets).
 - Sends `{ code, initialDoc, toolParams }` to sandbox; later applies `{ newDoc | ops }`.
 
-2) Code sandbox (isolated execution)
+2. Code sandbox (isolated execution)
 
 - Option A: Sandboxed iframe without `allow-same-origin`, with `sandbox="allow-scripts"`.
 - Option B: Cross‑origin Web Worker (served from another origin with CORS).
@@ -198,7 +204,7 @@ Some editor‑aware tools must run near Lexical. For “real Code Mode in the br
 - Logging and bounded timers.
 - Returns `{ ok, newDoc?, ops?, logs?, error? }`.
 
-3) Bridge (message protocol)
+3. Bridge (message protocol)
 
 - Use `postMessage` to send requests/responses.
 - Host validates response sizes and operation count before applying to Lexical.
@@ -224,7 +230,7 @@ Some editor‑aware tools must run near Lexical. For “real Code Mode in the br
 - Add `executeCodeClient` in `apps/lexidraw/src/server/llm/tools/registry.ts` with:
 - `group: "client"`
 - Input schema (in `@packages/types`): `ExecuteCodeClientSchema`
- - `{ code: string; timeoutMs?: number; maxOps?: number; selection?: {...}? }`
+- `{ code: string; timeoutMs?: number; maxOps?: number; selection?: {...}? }`
 - Description: “Run small browser sandbox code that returns a document update; the host applies to Lexical.”
 - The agent planner can include `executeCodeClient` for editor‑adjacent tasks; actual execution remains in the client hook flow (unchanged) [[memory:10692632]].
 

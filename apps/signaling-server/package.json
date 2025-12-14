@@ -6,12 +6,12 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
-    "build": "tsc",
+    "build": "tsgo",
     "lint": "bun x @biomejs/biome check --write .",
     "clean": "rm -rf ./dist && rm -rf .turbo && rm -rf node_modules",
     "load-test": "artillery run test/artillery.config.yml",
     "test": "vitest",
-    "test:ts": "tsc --noEmit"
+    "test:ts": "tsgo --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@packages/types": "workspace:*",
     "@types/ws": "^8.18.1",
+    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
     "artillery": "^2.0.22",
     "typescript": "^5.9.2",
     "vitest": "^1.6.1"

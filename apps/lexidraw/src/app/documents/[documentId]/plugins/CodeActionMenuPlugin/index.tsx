@@ -24,7 +24,7 @@ function CodeActionMenuContainer({
   anchorElem,
 }: {
   anchorElem: HTMLElement;
-}): React.JSX.Element {
+}) {
   const [editor] = useLexicalComposerContext();
   const [lang, setLang] = useState("");
   const [isShown, setShown] = useState<boolean>(false);
@@ -195,7 +195,7 @@ export default function CodeActionMenuPlugin({
   anchorElem = document.body,
 }: {
   anchorElem?: HTMLElement;
-}): React.ReactPortal | null {
+}) {
   return createPortal(
     <CodeActionMenuContainer anchorElem={anchorElem} />,
     anchorElem,
