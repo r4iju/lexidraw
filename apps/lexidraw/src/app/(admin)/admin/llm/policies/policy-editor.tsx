@@ -300,7 +300,7 @@ export function PoliciesEditor({
         agent: {
           mode: "agent",
           provider: "openai",
-          modelId: "gpt-5.2-pro",
+          modelId: "gpt-5.2",
           temperature: 0.7,
           maxOutputTokens: 8192,
           allowedModels: [
@@ -316,10 +316,10 @@ export function PoliciesEditor({
         autocomplete: {
           mode: "autocomplete",
           provider: "openai",
-          modelId: "gpt-5.2-nano",
+          modelId: "gpt-5-nano",
           temperature: 0.3,
           maxOutputTokens: 500,
-          allowedModels: [{ provider: "openai", modelId: "gpt-5.2-nano" }],
+          allowedModels: [{ provider: "openai", modelId: "gpt-5-nano" }],
           enforcedCaps: {
             maxOutputTokensByProvider: { openai: 32768, google: 65535 },
           },
