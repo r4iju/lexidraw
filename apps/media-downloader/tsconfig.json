@@ -20,7 +20,7 @@
 
     /* Paths & Types */
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
     "types": ["bun"],
 

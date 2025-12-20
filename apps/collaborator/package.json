@@ -22,7 +22,6 @@
   "devDependencies": {
     "@packages/types": "workspace:*",
     "@types/ws": "^8.18.1",
-    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
-    "typescript": "^5.9.2"
+    "@typescript/native-preview": "^7.0.0-dev.20251214.1"
   }
 }

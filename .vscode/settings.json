@@ -6,5 +6,7 @@
     "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.semanticHighlighting.enabled": true
   },
-  "python.defaultInterpreterPath": "/opt/homebrew/Caskroom/miniconda/base/envs/kokoro312/bin/python"
+  "python.defaultInterpreterPath": "/opt/homebrew/Caskroom/miniconda/base/envs/kokoro312/bin/python",
+  "typescript.tsdk": "./node_modules/@typescript/native-preview/lib",
+  "typescript.experimental.useTsgo": true
 }
