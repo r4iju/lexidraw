@@ -10,7 +10,6 @@
     "test:ts": "tsgo --noEmit"
   },
   "devDependencies": {
-    "typescript": "^5.9.2",
     "@types/node": "^22.15.19",
     "@typescript/native-preview": "^7.0.0-dev.20251214.1"
   }

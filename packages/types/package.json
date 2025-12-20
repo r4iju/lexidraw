@@ -46,7 +46,6 @@
   "devDependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
     "@types/node": "^22.15.19",
-    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
-    "typescript": "^5.9.2"
+    "@typescript/native-preview": "^7.0.0-dev.20251214.1"
   }
 }
