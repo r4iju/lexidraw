@@ -72,6 +72,7 @@ type ResizableImageProps = {
   className?: string;
   nodeKey: NodeKey;
   containerRef: React.RefObject<HTMLDivElement>;
+  onDoubleClick?: (e: React.MouseEvent) => void;
 };
 
 function ResizableImage({
@@ -83,6 +84,7 @@ function ResizableImage({
   className,
   nodeKey,
   containerRef,
+  onDoubleClick,
 }: ResizableImageProps): React.JSX.Element {
   return (
     <div
@@ -102,6 +104,7 @@ function ResizableImage({
             alt={altText}
             draggable={false}
             className="object-contain"
+            onDoubleClick={onDoubleClick}
           />
         )}
       >
@@ -112,7 +115,9 @@ function ResizableImage({
           style={{
             width: typeof width === "number" ? `${width}px` : "auto",
             height: typeof height === "number" ? `${height}px` : "auto",
+            objectFit: "contain",
           }}
+          onDoubleClick={onDoubleClick}
           className={cn(
             "block object-contain rounded-xs align-bottom",
             className,
@@ -288,6 +293,7 @@ export default function InlineImageComponent({
   captionsEnabled: boolean;
 }): React.JSX.Element {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [currentDimensions, setCurrentDimensions] = useState({
     width,
     height,
@@ -502,6 +508,10 @@ export default function InlineImageComponent({
             position={position}
             nodeKey={nodeKey}
             containerRef={containerRef as React.RefObject<HTMLDivElement>}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setIsLightboxOpen(true);
+            }}
           />
           {/* "Edit" button on top */}
           <Button
@@ -563,6 +573,17 @@ export default function InlineImageComponent({
           nodeKey={nodeKey}
           onClose={() => setIsDialogOpen(false)}
         />
+      </Dialog>
+
+      <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
+        <DialogContent className="w-auto h-auto min-w-0 min-h-0 max-w-none! !md:max-w-none bg-transparent border-none shadow-none p-0 focus:outline-none flex justify-center items-center">
+          <DialogTitle className="sr-only">Image Lightbox</DialogTitle>
+          <img
+            src={src}
+            alt={altText}
+            className="max-w-[95vw] max-h-[95vh] object-contain"
+          />
+        </DialogContent>
       </Dialog>
     </Suspense>
   );

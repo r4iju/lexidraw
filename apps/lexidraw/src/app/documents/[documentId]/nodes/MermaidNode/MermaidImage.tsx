@@ -5,6 +5,7 @@ import mermaid from "mermaid";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "~/lib/utils";
 import { MermaidNode } from ".";
+import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 
 type Dimension = number | "inherit";
 
@@ -25,6 +26,7 @@ export default function MermaidImage({
 }: Props) {
   const [editor] = useLexicalComposerContext();
   const [src, setSrc] = useState<string>("");
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   /* ─── render Mermaid to a blob URL ─── */
@@ -96,19 +98,35 @@ export default function MermaidImage({
   }
 
   return (
-    <img
-      ref={imgRef}
-      src={src}
-      alt="Mermaid diagram"
-      onLoad={handleLoad}
-      draggable={false}
-      className={cn("select-none object-contain block", className)}
-      style={{
-        width: typeof width === "number" ? `${width}px` : "auto",
-        height: typeof height === "number" ? `${height}px` : "auto",
-        maxWidth: "100%",
-        maxHeight: "100%",
-      }}
-    />
+    <>
+      <img
+        ref={imgRef}
+        src={src}
+        alt="Mermaid diagram"
+        onLoad={handleLoad}
+        draggable={false}
+        className={cn("select-none object-contain block", className)}
+        style={{
+          width: typeof width === "number" ? `${width}px` : "auto",
+          height: typeof height === "number" ? `${height}px` : "auto",
+          maxWidth: "100%",
+          maxHeight: "100%",
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setIsLightboxOpen(true);
+        }}
+      />
+      <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
+        <DialogContent className="w-auto h-auto min-w-0 min-h-0 max-w-none! !md:max-w-none bg-transparent border-none shadow-none p-0 focus:outline-none flex justify-center items-center">
+          <DialogTitle className="sr-only">Mermaid Lightbox</DialogTitle>
+          <img
+            src={src}
+            alt="Mermaid diagram"
+            className="max-w-[95vw] max-h-[95vh] object-contain"
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
