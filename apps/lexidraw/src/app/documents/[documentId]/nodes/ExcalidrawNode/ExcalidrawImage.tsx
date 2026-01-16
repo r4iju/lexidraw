@@ -8,6 +8,7 @@ import type {
 } from "@excalidraw/excalidraw/element/types";
 import { type JSX, type RefObject, useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
+import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { Theme } from "@packages/types/enums";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 
@@ -50,6 +51,7 @@ export default function ExcalidrawImage({
   children,
 }: Props): JSX.Element {
   const [url, setUrl] = useState<string | undefined>(undefined);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   const isDarkTheme = useIsDarkTheme();
 
@@ -95,8 +97,23 @@ export default function ExcalidrawImage({
         }}
         className={cn("rounded-xs", rootClassName)}
         ref={imageContainerRef as RefObject<HTMLImageElement>}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setIsLightboxOpen(!!e.currentTarget);
+        }}
       />
       {children}
+
+      <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
+        <DialogContent className="w-auto h-auto min-w-0 min-h-0 max-w-none! !md:max-w-none bg-transparent border-none shadow-none p-0 focus:outline-none flex justify-center items-center">
+          <DialogTitle className="sr-only">Excalidraw Lightbox</DialogTitle>
+          <img
+            src={url}
+            alt="Excalidraw"
+            className="max-w-[95vw] max-h-[95vh] object-contain"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

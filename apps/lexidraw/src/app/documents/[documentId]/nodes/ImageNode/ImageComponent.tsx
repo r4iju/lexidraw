@@ -43,7 +43,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import { cn } from "~/lib/utils";
 import ImageCaption from "../common/ImageCaption";
 import { Button } from "~/components/ui/button";
-import { Dialog } from "~/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { UpdateImageDialog } from "./UpdateImageDialog";
 
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> =
@@ -72,6 +72,7 @@ type LazyImageProps = {
   src: string;
   width: "inherit" | number;
   onError: () => void;
+  onDoubleClick?: (e: React.MouseEvent) => void;
 };
 
 function LazyImage({
@@ -82,6 +83,7 @@ function LazyImage({
   width,
   height,
   onError,
+  onDoubleClick,
 }: LazyImageProps): React.JSX.Element {
   return (
     <ErrorBoundary
@@ -98,6 +100,7 @@ function LazyImage({
             objectFit: "contain",
             maxWidth: "100%",
           }}
+          onDoubleClick={onDoubleClick}
         />
       )}
       onError={onError}
@@ -113,6 +116,7 @@ function LazyImage({
         draggable={false}
         className={cn("rounded-xs", className)}
         ref={imageRef as React.RefObject<HTMLImageElement>}
+        onDoubleClick={onDoubleClick}
       />
     </ErrorBoundary>
   );
@@ -158,6 +162,7 @@ export default function ImageComponent({
   });
   const nestedEditorContainerRef = useRef<HTMLDivElement>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
@@ -415,6 +420,11 @@ export default function ImageComponent({
             height={currentDimensions.height}
             maxWidth={maxWidth}
             onError={() => setIsLoadError(true)}
+            onDoubleClick={(e) => {
+              // prevent double clicking from propagating to parent
+              e.stopPropagation();
+              setIsLightboxOpen(true);
+            }}
           />
         )}
 
@@ -469,6 +479,16 @@ export default function ImageComponent({
           nodeKey={nodeKey}
           onClose={() => setIsDialogOpen(false)}
         />
+      </Dialog>
+      <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
+        <DialogContent className="w-auto h-auto min-w-0 min-h-0 max-w-none! !md:max-w-none bg-transparent border-none shadow-none p-0 focus:outline-none flex justify-center items-center">
+          <DialogTitle className="sr-only">Image Lightbox</DialogTitle>
+          <img
+            src={src}
+            alt={altText}
+            className="max-w-[95vw] max-h-[95vh] object-contain"
+          />
+        </DialogContent>
       </Dialog>
     </Suspense>
   );
