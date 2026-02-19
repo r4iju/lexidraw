@@ -1,5 +1,6 @@
 import "server-only";
 import type { TtsProvider, TtsSynthesizeInput } from "../types";
+import { FatalError } from "workflow";
 import env from "@packages/env";
 
 type GoogleTtsRequest = {
@@ -12,6 +13,25 @@ type GoogleTtsRequest = {
   };
 };
 
+const CHIRP3_HD_VOICES = new Set([
+  "Achernar", "Achird", "Algenib", "Algieba", "Alnilam",
+  "Aoede", "Autonoe", "Callirrhoe", "Charon", "Despina",
+  "Enceladus", "Erinome", "Fenrir", "Gacrux", "Iapetus",
+  "Kore", "Laomedeia", "Leda", "Orus", "Pulcherrima",
+  "Puck", "Rasalgethi", "Sadachbia", "Sadaltager", "Schedar",
+  "Sulafat", "Umbriel", "Vindemiatrix", "Zephyr", "Zubenelgenubi",
+]);
+
+function resolveGoogleVoiceName(
+  voiceId: string,
+  languageCode: string | undefined,
+): string {
+  if (CHIRP3_HD_VOICES.has(voiceId)) {
+    return `${languageCode ?? "en-US"}-Chirp3-HD-${voiceId}`;
+  }
+  return voiceId;
+}
+
 export function createGoogleTtsProvider(
   apiKeyFromUser?: string | null,
 ): TtsProvider {
@@ -22,7 +42,7 @@ export function createGoogleTtsProvider(
 
   return {
     name: "google",
-    maxCharsPerRequest: 5000, // per-request cap for text/ssml
+    maxCharsPerRequest: 5000,
     supportsSsml: true,
     async synthesize(input: TtsSynthesizeInput) {
       const endpointBase =
@@ -34,12 +54,16 @@ export function createGoogleTtsProvider(
           : input.format === "ogg"
             ? "OGG_OPUS"
             : "LINEAR16";
+      const voiceName = resolveGoogleVoiceName(
+        input.voiceId,
+        input.languageCode,
+      );
       const payload: GoogleTtsRequest = {
         input: input.textOrSsml.trim().startsWith("<speak")
           ? { ssml: input.textOrSsml }
           : { text: input.textOrSsml },
         voice: {
-          name: input.voiceId,
+          name: voiceName,
           languageCode: input.languageCode,
         },
         audioConfig: {
@@ -50,7 +74,6 @@ export function createGoogleTtsProvider(
       };
 
       const kind = payload.input.ssml ? "ssml" : "text";
-      // Do not log the actual text; only lengths and config
       console.log("[tts][google] request", {
         endpoint: endpointBase,
         kind,
@@ -75,9 +98,11 @@ export function createGoogleTtsProvider(
           statusText: res.statusText,
           body: text.slice(0, 500),
         });
-        throw new Error(
-          `Google TTS error: ${res.status} ${res.statusText} ${text}`,
-        );
+        const msg = `Google TTS error: ${res.status} ${res.statusText} ${text}`;
+        if (res.status >= 400 && res.status < 500) {
+          throw new FatalError(msg);
+        }
+        throw new Error(msg);
       }
       const json = (await res.json()) as { audioContent: string };
       const audio = Buffer.from(json.audioContent, "base64");
