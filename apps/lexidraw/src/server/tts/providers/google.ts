@@ -1,5 +1,6 @@
 import "server-only";
 import type { TtsProvider, TtsSynthesizeInput } from "../types";
+import { CHIRP3_HD_VOICES } from "~/workflows/document-tts/common";
 import { FatalError } from "workflow";
 import env from "@packages/env";
 
@@ -12,15 +13,6 @@ type GoogleTtsRequest = {
     sampleRateHertz?: number;
   };
 };
-
-const CHIRP3_HD_VOICES = new Set([
-  "Achernar", "Achird", "Algenib", "Algieba", "Alnilam",
-  "Aoede", "Autonoe", "Callirrhoe", "Charon", "Despina",
-  "Enceladus", "Erinome", "Fenrir", "Gacrux", "Iapetus",
-  "Kore", "Laomedeia", "Leda", "Orus", "Pulcherrima",
-  "Puck", "Rasalgethi", "Sadachbia", "Sadaltager", "Schedar",
-  "Sulafat", "Umbriel", "Vindemiatrix", "Zephyr", "Zubenelgenubi",
-]);
 
 function resolveGoogleVoiceName(
   voiceId: string,

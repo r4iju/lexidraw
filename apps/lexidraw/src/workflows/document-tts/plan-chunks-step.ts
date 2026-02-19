@@ -6,7 +6,7 @@ import {
   splitMarkdownIntoSections,
 } from "~/lib/markdown-for-tts";
 import type { TtsConfig } from "./generate-document-tts-workflow";
-import { chooseProvider } from "./common";
+import { chooseProvider, isChirp3HdVoice } from "./common";
 
 export async function planChunksStep(
   documentId: string,
@@ -34,9 +34,14 @@ export async function planChunksStep(
     sampleRate: tts.sampleRate,
   });
 
+  const hardCap =
+    providerName === "google" && isChirp3HdVoice(tts.voiceId ?? "")
+      ? 2500
+      : 4000;
+
   const sanitized = sanitizeMarkdownForTts(markdown);
   const sections = splitMarkdownIntoSections(sanitized);
-  const chunks = chunkSections(sections, { targetSize: 1400, hardCap: 4000 });
+  const chunks = chunkSections(sections, { targetSize: 1400, hardCap });
 
   const planned = chunks.map((c) => {
     const normalizedText = normalizeForTts(c.text);
