@@ -1,6 +1,6 @@
 import "server-only";
 import type { TtsProvider, TtsSynthesizeInput } from "../types";
-import { CHIRP3_HD_VOICES } from "~/workflows/document-tts/common";
+import { CHIRP3_HD_VOICES } from "~/server/tts/google-voices";
 import { FatalError } from "workflow";
 import env from "@packages/env";
 

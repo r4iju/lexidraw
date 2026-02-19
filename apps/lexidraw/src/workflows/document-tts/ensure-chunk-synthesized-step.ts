@@ -64,7 +64,7 @@ export async function ensureChunkSynthesizedStep(args: {
   const path = `tts/chunks/${args.chunkHash}.${segmentFormat}`;
   const existingUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${path}`;
 
-  // Synthesize (let Workflow default retries handle errors)
+  // 4xx errors throw FatalError (no retry); 5xx/transient errors retry up to maxRetries
   const { audio } = await provider.synthesize({
     textOrSsml: ssml ?? textForTts,
     voiceId: args.voiceId,
