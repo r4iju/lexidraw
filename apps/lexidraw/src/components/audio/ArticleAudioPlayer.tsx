@@ -98,7 +98,7 @@ export default function ArticleAudioPlayer({
       <Accordion
         type="single"
         collapsible
-        className="border border-border rounded-md px-4 max-w-sm min-w-sm"
+        className="border border-border rounded-md px-4 w-full max-w-sm"
       >
         <AccordionItem value="segments">
           <AccordionTrigger>Segments</AccordionTrigger>
