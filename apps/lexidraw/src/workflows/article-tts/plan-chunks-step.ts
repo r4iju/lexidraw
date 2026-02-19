@@ -7,7 +7,7 @@ import {
 } from "~/lib/markdown-for-tts";
 import { htmlToPlainText } from "~/lib/html-to-text";
 import type { TtsConfig } from "../document-tts/generate-document-tts-workflow";
-import { chooseProvider } from "../document-tts/common";
+import { chooseProvider, isChirp3HdVoice } from "../document-tts/common";
 
 export type ArticleChunk = {
   index: number;
@@ -54,6 +54,12 @@ export async function planChunksStep(
     sampleRate: tts.sampleRate,
   });
 
+  // Chirp 3: HD has a 4000-byte limit; SSML wrapping adds ~300-800 bytes of overhead
+  const hardCap =
+    providerName === "google" && isChirp3HdVoice(tts.voiceId ?? "")
+      ? 2500
+      : 4000;
+
   let chunks: Array<{
     index: number;
     text: string;
@@ -63,11 +69,9 @@ export async function planChunksStep(
   }>;
 
   if (htmlContent) {
-    // Extract sections from HTML
     const htmlSections = splitHtmlIntoSections(htmlContent);
 
     if (htmlSections.length > 0 && htmlSections[0]?.title !== undefined) {
-      // Convert HTML sections to markdown-like sections with plain text
       const sections = htmlSections.map((section) => ({
         title: section.title,
         depth: section.depth,
@@ -75,10 +79,9 @@ export async function planChunksStep(
         index: section.index,
       }));
 
-      // Chunk sections (this will create chunks with section metadata)
       const docChunks = chunkSections(sections, {
         targetSize: 1400,
-        hardCap: 4000,
+        hardCap,
       });
 
       chunks = docChunks.map((c) => ({
@@ -89,10 +92,9 @@ export async function planChunksStep(
         headingDepth: c.headingDepth,
       }));
     } else {
-      // No sections found, fall back to plain text chunking
       const textChunks = chunkTextByParagraphs(plainText, {
         targetSize: 1400,
-        hardCap: 4000,
+        hardCap,
       });
       chunks = textChunks.map((c) => ({
         index: c.index,
@@ -100,10 +102,9 @@ export async function planChunksStep(
       }));
     }
   } else {
-    // No HTML provided, use plain text chunking
     const textChunks = chunkTextByParagraphs(plainText, {
       targetSize: 1400,
-      hardCap: 4000,
+      hardCap,
     });
     chunks = textChunks.map((c) => ({
       index: c.index,
