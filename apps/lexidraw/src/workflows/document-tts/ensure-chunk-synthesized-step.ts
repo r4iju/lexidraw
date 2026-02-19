@@ -131,5 +131,4 @@ export async function ensureChunkSynthesizedStep(args: {
   };
 }
 
-// Increase retries for TTS synthesis (can be flaky)
-ensureChunkSynthesizedStep.maxRetries = 5;
+ensureChunkSynthesizedStep.maxRetries = 1;
