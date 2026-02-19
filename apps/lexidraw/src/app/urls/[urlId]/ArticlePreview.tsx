@@ -586,7 +586,7 @@ export default function ArticlePreview({
                 <Settings className="size-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[380px]">
+            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[380px]">
               <div className="space-y-4">
                 <div>
                   <div className="text-sm font-medium mb-2">Audio (TTS)</div>
