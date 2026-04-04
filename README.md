@@ -19,9 +19,10 @@ Follow t3-stack deployment guides for [Vercel](https://create.t3.gg/en/deploymen
 - Legal: We do not bypass paywalls or logins. The app stores only content returned by a direct fetch.
 - Re-distill: Use the Re-distill button in the preview to refresh content.
 
-### NordVPN dynamic HTTPS proxy support
+### Bright Data proxy fallback
 
-- The server dynamically fetches recommended HTTPS proxy endpoints from Nord's public API (`/v1/servers/recommendations?filters[servers_technologies][identifier]=proxy_ssl`) and connects via port 89 using undici's `ProxyAgent`.
-- Attempts: 1 direct fetch + up to 20 proxy attempts (shuffled).
-- Credentials: set `NORDVPN_SERVICE_USER` and `NORDVPN_SERVICE_PASS` with your Nord service credentials (from "Set up NordVPN manually").
-- Notes: No manual proxy override env is used. SOCKS5 is not supported here.
+- The server uses Bright Data session-based proxy URLs for both article distillation and headless render fallback.
+- Attempts: 1 direct fetch/render attempt, then up to 50 Bright Data proxy sessions (shuffled).
+- Required env: `BRIGHTDATA_PROXY_URL`, for example `http://brd-customer-<zone>:<password>@brd.superproxy.io:33335`.
+- Optional env: `BRIGHTDATA_PROXY_COUNTRY`, `BRIGHTDATA_PROXY_SESSION_COUNT`, and `BRIGHTDATA_PROXY_SESSION_PREFIX`.
+- Username format: provide the base Bright Data zone username in `BRIGHTDATA_PROXY_URL`; the app appends `country-...` and rotating `session-...` suffixes automatically.

@@ -5,7 +5,7 @@ import sanitizeHtml, { type IOptions } from "sanitize-html";
 import { Readability } from "@mozilla/readability";
 import { z } from "zod";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
-import { getNordHttpsProxyUrls } from "@packages/lib";
+import { getBrightDataProxyUrls } from "@packages/lib";
 import env from "@packages/env";
 
 type DistilledImage = {
@@ -303,15 +303,20 @@ export async function extractAndSanitizeArticle({
   // replace username and password with *
   const loggableUrl = url.replace(/https?:\/\/[^/]+@/, "https://***@");
 
-  // Build dispatcher attempts: 1 direct + up to 50 Nord HTTPS proxies
+  // Build dispatcher attempts: 1 direct + up to 50 Bright Data proxy sessions
   let attemptDispatchers: Array<{ label: string; dispatcher?: unknown }> = [
     { label: "direct", dispatcher: undefined },
   ];
   try {
-    const user = env.NORDVPN_SERVICE_USER;
-    const pass = env.NORDVPN_SERVICE_PASS;
-    if (user && pass) {
-      const urls = await getNordHttpsProxyUrls({ user, pass, limit: 120 });
+    const proxyUrl = env.BRIGHTDATA_PROXY_URL;
+    if (proxyUrl) {
+      const urls = await getBrightDataProxyUrls({
+        proxyUrl,
+        country: env.BRIGHTDATA_PROXY_COUNTRY,
+        sessionPrefix:
+          env.BRIGHTDATA_PROXY_SESSION_PREFIX ?? "article-distill",
+        limit: Math.max(1, env.BRIGHTDATA_PROXY_SESSION_COUNT ?? 50),
+      });
       const limited = urls.slice(0, 50);
       attemptDispatchers = [
         { label: "direct", dispatcher: undefined },
@@ -323,7 +328,7 @@ export async function extractAndSanitizeArticle({
     }
   } catch (e) {
     devLog(
-      "nord:proxy_fetch_error",
+      "brightdata:proxy_config_error",
       e instanceof Error ? e.message : String(e),
     );
   }
