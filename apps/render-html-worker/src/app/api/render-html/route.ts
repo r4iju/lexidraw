@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import type { Browser, LaunchOptions } from "puppeteer-core";
-import { getNordHttpsProxyUrls } from "@packages/lib";
+import { getBrightDataProxyUrls } from "@packages/lib";
 
 export const maxDuration = 30;
 
@@ -67,6 +67,25 @@ function normalizeUrl(url: string): string {
       ? "http://"
       : "https://";
   return protocol + urlWithoutProtocol;
+}
+
+function getBrightDataProxyPool(limit: number) {
+  const proxyUrl = process.env.BRIGHTDATA_PROXY_URL;
+  if (!proxyUrl) return null;
+
+  const sessionCount = Number.parseInt(
+    process.env.BRIGHTDATA_PROXY_SESSION_COUNT ?? "",
+    10,
+  );
+
+  return {
+    proxyUrl,
+    country: process.env.BRIGHTDATA_PROXY_COUNTRY,
+    sessionPrefix:
+      process.env.BRIGHTDATA_PROXY_SESSION_PREFIX ?? "render-html",
+    limit:
+      Number.isFinite(sessionCount) && sessionCount > 0 ? sessionCount : limit,
+  } as const;
 }
 
 async function performPageWorkflow(
@@ -316,14 +335,13 @@ export async function POST(req: NextRequest) {
         await browser?.close();
       } catch {}
 
-      const user = process.env.NORDVPN_SERVICE_USER;
-      const pass = process.env.NORDVPN_SERVICE_PASS;
-      if (!user || !pass)
-        return new NextResponse("Proxy creds missing", { status: 500 });
+      const proxyPool = getBrightDataProxyPool(50);
+      if (!proxyPool)
+        return new NextResponse("Bright Data proxy config missing", {
+          status: 500,
+        });
 
-      const urls = (
-        await getNordHttpsProxyUrls({ user, pass, limit: 100 })
-      ).slice(0, 50);
+      const urls = (await getBrightDataProxyUrls(proxyPool)).slice(0, 50);
       const isProdVercel =
         process.env.VERCEL === "1" && process.env.NODE_ENV === "production";
       const CONCURRENCY = isProdVercel ? 3 : 10;
@@ -339,9 +357,9 @@ export async function POST(req: NextRequest) {
         inFlight += 1;
         try {
           const u = new URL(proxyUrl);
-          const proxyServer = `${u.protocol}//${u.hostname}:${u.port || 89}`;
-          const username = decodeURIComponent(u.username || user);
-          const password = decodeURIComponent(u.password || pass);
+          const proxyServer = `${u.protocol}//${u.hostname}${u.port ? `:${u.port}` : ""}`;
+          const username = decodeURIComponent(u.username);
+          const password = decodeURIComponent(u.password);
 
           const isProd = isProdVercel;
           let browserLocal: Browser;
