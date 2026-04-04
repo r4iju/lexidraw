@@ -30,6 +30,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "~/components/ui/accordion";
+import { Progress } from "~/components/ui/progress";
 import { useMarkdownTools } from "../utils/markdown";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
@@ -67,15 +68,17 @@ export function PlayFromHereButton({
   const [segments, setSegments] = useState<TtsSegment[]>([]);
   const [initialIndex, setInitialIndex] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [activeDocKey, setActiveDocKey] = useState<string | null>(null);
   const hasTriggeredTts = useRef(false);
   const [position, setPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
   });
   const { convertEditorStateToMarkdown } = useMarkdownTools();
+  const utils = api.useUtils();
   const startTts = api.tts.startDocumentTts.useMutation();
   const statusQuery = api.tts.getDocumentTtsStatus.useQuery(
-    { documentId },
+    { documentId, docKey: activeDocKey ?? undefined },
     {
       enabled: open,
       refetchOnWindowFocus: (query) => {
@@ -95,9 +98,16 @@ export function PlayFromHereButton({
     },
   );
   const manifestQuery = api.tts.getDocumentTtsManifest.useQuery(
-    { documentId },
+    { documentId, docKey: activeDocKey ?? undefined },
     { enabled: open && statusQuery.data?.status === "ready" },
   );
+
+  useEffect(() => {
+    const docKey = statusQuery.data?.docKey;
+    if (docKey) {
+      setActiveDocKey((prev) => prev ?? docKey);
+    }
+  }, [statusQuery.data?.docKey]);
 
   const slugifySection = useCallback(
     (title: string | undefined, index: number): string => {
@@ -160,6 +170,7 @@ export function PlayFromHereButton({
       // Reset segments and tracking when closing
       setSegments([]);
       setInitialIndex(0);
+      setActiveDocKey(null);
       hasTriggeredTts.current = false;
       setPosition({ x: 0, y: 0 }); // Reset position when closing
     } else {
@@ -195,7 +206,12 @@ export function PlayFromHereButton({
     try {
       setLoading(true);
       const md = convertEditorStateToMarkdown(editor.getEditorState());
-      await startTts.mutateAsync({ documentId, markdown: md });
+      const started = await startTts.mutateAsync({ documentId, markdown: md });
+      setActiveDocKey(started.docKey);
+      await utils.tts.getDocumentTtsStatus.invalidate({
+        documentId,
+        docKey: started.docKey,
+      });
     } catch (e) {
       console.warn("[play-from-here] error", e);
       toast.error("Failed to load audio.");
@@ -210,6 +226,14 @@ export function PlayFromHereButton({
     if (!open) return;
     generateTts();
   }, [open, generateTts]);
+
+  const progress = useMemo(() => {
+    const completed = statusQuery.data?.segmentCount ?? 0;
+    const total =
+      statusQuery.data?.plannedCount ?? statusQuery.data?.segmentCount ?? 0;
+    const pct = total > 0 ? (completed / total) * 100 : 0;
+    return { completed, total, pct };
+  }, [statusQuery.data?.plannedCount, statusQuery.data?.segmentCount]);
 
   const disabled = useMemo(() => false, []);
 
@@ -255,6 +279,10 @@ export function PlayFromHereButton({
         <DraggablePopoverContent
           position={position}
           loading={loading}
+          status={statusQuery.data?.status}
+          completedSegments={progress.completed}
+          totalSegments={progress.total}
+          progress={progress.pct}
           segments={segments}
           initialIndex={initialIndex}
         />
@@ -266,11 +294,19 @@ export function PlayFromHereButton({
 function DraggablePopoverContent({
   position,
   loading,
+  status,
+  completedSegments,
+  totalSegments,
+  progress,
   segments,
   initialIndex,
 }: {
   position: { x: number; y: number };
   loading: boolean;
+  status?: "queued" | "processing" | "ready" | "error" | "cancelled";
+  completedSegments: number;
+  totalSegments: number;
+  progress: number;
   segments: TtsSegment[];
   initialIndex: number;
 }) {
@@ -343,6 +379,21 @@ function DraggablePopoverContent({
           </div>
           {loading && (
             <div className="text-sm text-muted-foreground">Loading audio…</div>
+          )}
+          {!loading && (status === "queued" || status === "processing") && (
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">
+                {status === "queued"
+                  ? "Queued for generation"
+                  : "Generating audio"}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {totalSegments > 0
+                  ? `${completedSegments}/${totalSegments} segments`
+                  : "Preparing segments..."}
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
           )}
           {!loading && segments.length > 0 && (
             <div className="space-y-2">

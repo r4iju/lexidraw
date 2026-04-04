@@ -79,6 +79,7 @@ export default function ArticlePreview({
   const [stitchedUrl, setStitchedUrl] = useState<string | undefined>(undefined);
   const [ttsError, setTtsError] = useState<string | null>(null);
   const [autoTriggered, setAutoTriggered] = useState(false);
+  const [activeDocKey, setActiveDocKey] = useState<string | null>(null);
   const uid = useId();
 
   // Fetch per-user defaults
@@ -317,9 +318,17 @@ export default function ArticlePreview({
   const startArticleTts = api.tts.startArticleTts.useMutation();
   const deleteArticleTts = api.tts.deleteArticleTts.useMutation();
   const ttsStatusQuery = api.tts.getArticleTtsStatus.useQuery(
-    { articleId: entity.id },
+    { articleId: entity.id, docKey: activeDocKey ?? undefined },
     { enabled: !!entity.id },
   );
+
+  useEffect(() => {
+    const docKey = ttsStatusQuery.data?.docKey;
+    if (docKey) {
+      setActiveDocKey((prev) => prev ?? docKey);
+    }
+  }, [ttsStatusQuery.data?.docKey]);
+
   const handleGenerateAudio = useCallback(async () => {
     if (!sourceUrl) return;
     setIsGenerating(true);
@@ -335,14 +344,16 @@ export default function ArticlePreview({
       if (isRegenerating) {
         // Delete old audio files before regenerating
         await deleteArticleTts.mutateAsync({ articleId: entity.id });
+        setActiveDocKey(null);
         // Invalidate status query to refresh
         await utils.tts.getArticleTtsStatus.invalidate({
           articleId: entity.id,
+          docKey: undefined,
         });
       }
 
       // Start TTS generation via tRPC
-      await startArticleTts.mutateAsync({
+      const started = await startArticleTts.mutateAsync({
         articleId: entity.id,
         plainText: derivedText,
         provider: ttsCfg.provider,
@@ -351,6 +362,11 @@ export default function ArticlePreview({
         format: ttsCfg.format,
         languageCode: ttsCfg.languageCode,
         sampleRate: ttsCfg.sampleRate,
+      });
+      setActiveDocKey(started.docKey);
+      await utils.tts.getArticleTtsStatus.invalidate({
+        articleId: entity.id,
+        docKey: started.docKey,
       });
 
       // Show initial loading toast
@@ -372,6 +388,7 @@ export default function ArticlePreview({
       for (;;) {
         const snap = await utils.tts.getArticleTtsStatus.fetch({
           articleId: entity.id,
+          docKey: started.docKey,
         });
         if (!snap) {
           break;
@@ -402,6 +419,7 @@ export default function ArticlePreview({
           // Fetch manifest when ready
           const manifest = await utils.tts.getArticleTtsManifest.fetch({
             articleId: entity.id,
+            docKey: started.docKey,
           });
           setSegments(
             Array.isArray(manifest.segments)

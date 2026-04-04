@@ -25,6 +25,37 @@ const TtsJobSnapshot = z.object({
 
 export type TtsJobSnapshot = z.infer<typeof TtsJobSnapshot>;
 
+const TtsStatusInput = z.object({
+  entityId: z.string(),
+  docKey: z.string().optional(),
+});
+
+async function getLatestTtsJobForUser(
+  userId: string,
+  input: z.infer<typeof TtsStatusInput>,
+) {
+  const where = input.docKey
+    ? and(
+        eq(schema.ttsJobs.id, input.docKey),
+        eq(schema.ttsJobs.entityId, input.entityId),
+        eq(schema.ttsJobs.userId, userId),
+      )
+    : and(
+        eq(schema.ttsJobs.entityId, input.entityId),
+        eq(schema.ttsJobs.userId, userId),
+      );
+
+  const rows = await drizzle
+    .select()
+    .from(schema.ttsJobs)
+    .where(where)
+    .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
+    .limit(1)
+    .execute();
+
+  return rows[0] ?? null;
+}
+
 async function assertCanAccessDocumentOrThrow(
   userId: string | undefined,
   documentId: string,
@@ -198,20 +229,16 @@ export const ttsRouter = createTRPCRouter({
     }),
 
   getDocumentTtsStatus: protectedProcedure
-    .input(z.object({ documentId: z.string() }))
+    .input(z.object({ documentId: z.string(), docKey: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      await assertCanAccessDocumentOrThrow(
-        ctx.session?.user?.id,
-        input.documentId,
-      );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.documentId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
+      const userId = ctx.session?.user?.id;
+      await assertCanAccessDocumentOrThrow(userId, input.documentId);
+      const row = userId
+        ? await getLatestTtsJobForUser(userId, {
+            entityId: input.documentId,
+            docKey: input.docKey,
+          })
+        : null;
       if (!row) {
         return null;
       }
@@ -229,20 +256,16 @@ export const ttsRouter = createTRPCRouter({
     }),
 
   getDocumentTtsManifest: protectedProcedure
-    .input(z.object({ documentId: z.string() }))
+    .input(z.object({ documentId: z.string(), docKey: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      await assertCanAccessDocumentOrThrow(
-        ctx.session?.user?.id,
-        input.documentId,
-      );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.documentId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
+      const userId = ctx.session?.user?.id;
+      await assertCanAccessDocumentOrThrow(userId, input.documentId);
+      const row = userId
+        ? await getLatestTtsJobForUser(userId, {
+            entityId: input.documentId,
+            docKey: input.docKey,
+          })
+        : null;
       console.log("[trpc][tts][getDocumentTtsManifest] row", row);
       if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
       const r = await fetch(row.manifestUrl, { cache: "no-store" });
@@ -264,9 +287,11 @@ export const ttsRouter = createTRPCRouter({
       const userId = ctx.session?.user?.id;
       await assertCanAccessDocumentOrThrow(userId, input.documentId);
 
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.documentId),
-      });
+      const row = userId
+        ? await getLatestTtsJobForUser(userId, {
+            entityId: input.documentId,
+          })
+        : null;
 
       if (!row) {
         return { deleted: false };
@@ -457,20 +482,16 @@ export const ttsRouter = createTRPCRouter({
     }),
 
   getArticleTtsStatus: protectedProcedure
-    .input(z.object({ articleId: z.string() }))
+    .input(z.object({ articleId: z.string(), docKey: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      await assertCanAccessArticleOrThrow(
-        ctx.session?.user?.id,
-        input.articleId,
-      );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.articleId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
+      const userId = ctx.session?.user?.id;
+      await assertCanAccessArticleOrThrow(userId, input.articleId);
+      const row = userId
+        ? await getLatestTtsJobForUser(userId, {
+            entityId: input.articleId,
+            docKey: input.docKey,
+          })
+        : null;
       if (!row) {
         return null;
       }
@@ -488,20 +509,16 @@ export const ttsRouter = createTRPCRouter({
     }),
 
   getArticleTtsManifest: protectedProcedure
-    .input(z.object({ articleId: z.string() }))
+    .input(z.object({ articleId: z.string(), docKey: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      await assertCanAccessArticleOrThrow(
-        ctx.session?.user?.id,
-        input.articleId,
-      );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.articleId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
+      const userId = ctx.session?.user?.id;
+      await assertCanAccessArticleOrThrow(userId, input.articleId);
+      const row = userId
+        ? await getLatestTtsJobForUser(userId, {
+            entityId: input.articleId,
+            docKey: input.docKey,
+          })
+        : null;
       console.log("[trpc][tts][getArticleTtsManifest] row", row);
       if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
       const r = await fetch(row.manifestUrl, { cache: "no-store" });
@@ -523,9 +540,11 @@ export const ttsRouter = createTRPCRouter({
       const userId = ctx.session?.user?.id;
       await assertCanAccessArticleOrThrow(userId, input.articleId);
 
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.articleId),
-      });
+      const row = userId
+        ? await getLatestTtsJobForUser(userId, {
+            entityId: input.articleId,
+          })
+        : null;
 
       if (!row) {
         return { deleted: false };

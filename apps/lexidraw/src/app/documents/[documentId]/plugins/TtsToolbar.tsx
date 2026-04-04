@@ -61,9 +61,11 @@ export function TtsToolbar({ className }: Props) {
     staleTime: 0,
   });
 
+  const [activeDocKey, setActiveDocKey] = useState<string | null>(null);
+
   // Check if audio already exists
   const ttsStatusQuery = api.tts.getDocumentTtsStatus.useQuery(
-    { documentId },
+    { documentId, docKey: activeDocKey ?? undefined },
     {
       refetchOnMount: true,
       refetchOnWindowFocus: (query) => {
@@ -96,6 +98,13 @@ export function TtsToolbar({ className }: Props) {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const lastOpened = useRef<number | null>(null);
+
+  useEffect(() => {
+    const docKey = ttsStatusQuery.data?.docKey;
+    if (docKey) {
+      setActiveDocKey((prev) => prev ?? docKey);
+    }
+  }, [ttsStatusQuery.data?.docKey]);
 
   useEffect(() => {
     if (ttsQuery.data) {
@@ -268,11 +277,15 @@ export function TtsToolbar({ className }: Props) {
       if (isRegenerating) {
         // Delete old audio files before regenerating
         await deleteTts.mutateAsync({ documentId });
+        setActiveDocKey(null);
         // Invalidate status query to refresh
-        await utils.tts.getDocumentTtsStatus.invalidate({ documentId });
+        await utils.tts.getDocumentTtsStatus.invalidate({
+          documentId,
+          docKey: undefined,
+        });
       }
 
-      await startTts.mutateAsync({
+      const started = await startTts.mutateAsync({
         documentId,
         markdown,
         provider: ttsCfg.provider,
@@ -281,6 +294,11 @@ export function TtsToolbar({ className }: Props) {
         format: ttsCfg.format,
         languageCode: ttsCfg.languageCode,
         sampleRate: ttsCfg.sampleRate,
+      });
+      setActiveDocKey(started.docKey);
+      await utils.tts.getDocumentTtsStatus.invalidate({
+        documentId,
+        docKey: started.docKey,
       });
 
       // Show initial loading toast
@@ -302,6 +320,7 @@ export function TtsToolbar({ className }: Props) {
       for (;;) {
         const snap = await utils.tts.getDocumentTtsStatus.fetch({
           documentId,
+          docKey: started.docKey,
         });
         if (!snap) {
           break;
