@@ -33,9 +33,11 @@ import {
 import {
   entityPath,
   entityTagNames,
+  findOwnedEntity,
   findReadableEntity,
   findWritableEntity,
 } from "~/server/entities/readable";
+import { isoDate } from "../rest-schemas";
 import { start } from "workflow/api";
 import { generateDocumentPdfWorkflow } from "~/workflows/document-pdf-export/generate-document-pdf-workflow";
 
@@ -95,6 +97,54 @@ const nonBlank = (field: string) =>
 // Refined rather than trimmed: leading indentation is markdown too.
 const MarkdownBody = nonBlank("markdown");
 
+/**
+ * What every markdown write answers with, beyond what it changed. `updatedAt`
+ * is the revision the write produced, so it is the precondition for the next.
+ */
+const writtenRevision = { id: z.string(), updatedAt: isoDate };
+
+/**
+ * The stored Lexical state, passed through as it is: `parseEditorState`
+ * guarantees the root and its children and nothing below them, so describing
+ * the node types here would be a second, weaker copy of the editor's schema.
+ */
+const editorState = z.looseObject({
+  root: z.looseObject({ children: z.array(z.unknown()) }),
+});
+
+const markdownMeta = {
+  id: z.string(),
+  title: z.string(),
+  /** Ancestor directory titles and the title, joined with "/". */
+  path: z.string(),
+  updatedAt: isoDate,
+  tags: z.array(z.string()),
+};
+
+/**
+ * `format` decides what `content` is, so the two travel as one union rather
+ * than as an object whose `content` is a string or an object either way.
+ */
+const markdownRead = z.union([
+  z.object({
+    ...markdownMeta,
+    format: z.enum(["markdown", "raw"]),
+    content: z.string(),
+  }),
+  z.object({
+    ...markdownMeta,
+    format: z.literal("json"),
+    content: editorState,
+  }),
+]);
+
+/**
+ * A write adds two statuses a read cannot reach: the 409 its precondition
+ * guards, and the 403 a read-scope token earns for attempting a mutation.
+ */
+const READ_ERRORS = [400, 401, 404, 422, 500];
+const WRITE_ERRORS = [400, 401, 403, 404, 409, 422, 500];
+
 export const documentRouter = createTRPCRouter({
   create: protectedProcedure
     .input(CreateDocument)
@@ -128,12 +178,23 @@ export const documentRouter = createTRPCRouter({
    * entities.load. Fails naming the node types that have no markdown form yet.
    */
   getMarkdown: publicProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/documents/{id}/markdown",
+        tags: ["documents"],
+        summary: "Read a document as markdown",
+        protect: true,
+        errorResponses: READ_ERRORS,
+      },
+    })
     .input(
       z.object({
         id: z.string(),
         format: z.enum(["markdown", "raw", "json"]).default("markdown"),
       }),
     )
+    .output(markdownRead)
     .query(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id ?? "";
       const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
@@ -157,7 +218,10 @@ export const documentRouter = createTRPCRouter({
       try {
         const state = parseEditorState(entity.elements);
         if (input.format === "json") {
-          return { ...meta, format: "json" as const, content: state };
+          // Spread because `SerializedEditorState` is an interface, so it has
+          // no implicit index signature and does not satisfy the passthrough
+          // object the output schema describes. Same value either way.
+          return { ...meta, format: "json" as const, content: { ...state } };
         }
         const markdown = editorStateToMarkdown(state);
         return {
@@ -187,6 +251,16 @@ export const documentRouter = createTRPCRouter({
    * current one as `data.currentUpdatedAt`.
    */
   appendMarkdown: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/documents/{id}/markdown/append",
+        tags: ["documents"],
+        summary: "Append markdown to the end of a document",
+        protect: true,
+        errorResponses: WRITE_ERRORS,
+      },
+    })
     .input(
       z.object({
         id: z.string(),
@@ -194,6 +268,7 @@ export const documentRouter = createTRPCRouter({
         ifUnmodifiedSince: z.iso.datetime().optional(),
       }),
     )
+    .output(z.object({ ...writtenRevision, appendedBlocks: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const entity = await findWritableEntity(
         ctx.drizzle,
@@ -228,6 +303,16 @@ export const documentRouter = createTRPCRouter({
    * among blocks the caller must have read to be able to point at them.
    */
   insertMarkdown: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/documents/{id}/markdown/insert",
+        tags: ["documents"],
+        summary: "Insert markdown after a heading or at a block index",
+        protect: true,
+        errorResponses: WRITE_ERRORS,
+      },
+    })
     .input(
       z
         .object({
@@ -271,6 +356,13 @@ export const documentRouter = createTRPCRouter({
           ctx.addIssue({ code: "custom", message: ONE_PLACEMENT });
           return z.NEVER;
         }),
+    )
+    .output(
+      z.object({
+        ...writtenRevision,
+        insertedBlocks: z.number(),
+        blockIndex: z.number(),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const entity = await findWritableEntity(
@@ -319,11 +411,29 @@ export const documentRouter = createTRPCRouter({
    * block, so it only makes sense against the revision the caller read.
    */
   replaceMarkdown: protectedProcedure
+    .meta({
+      openapi: {
+        method: "PUT",
+        path: "/documents/{id}/markdown",
+        tags: ["documents"],
+        summary: "Rewrite a whole document from markdown",
+        protect: true,
+        errorResponses: WRITE_ERRORS,
+      },
+    })
     .input(
       z.object({
         id: z.string(),
         markdown: MarkdownBody,
         ifUnmodifiedSince: z.iso.datetime(),
+      }),
+    )
+    .output(
+      z.object({
+        ...writtenRevision,
+        blocks: z.number(),
+        restoredPlaceholders: z.number(),
+        removedPlaceholders: z.number(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -352,6 +462,17 @@ export const documentRouter = createTRPCRouter({
   save: protectedProcedure
     .input(z.object({ id: z.string(), elements: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (entity?.entityType !== "document") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
       return await ctx.drizzle
         .update(schema.entities)
         .set({
@@ -366,6 +487,19 @@ export const documentRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      // Deleting is the owner's alone; an editor may write the document but
+      // not take it away from whoever shared it.
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (entity?.entityType !== "document") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
       return await ctx.drizzle
         .update(schema.entities)
         .set({

@@ -43,29 +43,33 @@ loading tool schemas into the agent's context until they are needed.
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
-  tags, share, and directory listing. Planned: the markdown procedures (#29)
-  and drawing normalize and render (#33, #34). Admin, TTS, backups, snapshot,
-  image generation, and LLM procedures stay tRPC-only.
+  tags, share, and directory listing — plus the four markdown procedures.
+  Planned: drawing normalize and render (#33, #34). Admin, TTS, backups,
+  snapshot, image generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
 
-| Method | Path                             | Procedure                    |
-| ------ | -------------------------------- | ---------------------------- |
-| GET    | `/me`                            | `auth.me`                    |
-| GET    | `/entities`                      | `entities.list`              |
-| POST   | `/entities`                      | `entities.create`            |
-| GET    | `/entities/search`               | `entities.search`            |
-| GET    | `/entities/{id}`                 | `entities.load`              |
-| PUT    | `/entities/{id}`                 | `entities.save`              |
-| PATCH  | `/entities/{id}`                 | `entities.update`            |
-| DELETE | `/entities/{id}`                 | `entities.delete`            |
-| GET    | `/entities/{id}/tags`            | `entities.getEntityTags`     |
-| PUT    | `/entities/{id}/tags`            | `entities.updateEntityTags`  |
-| GET    | `/entities/{id}/shares`          | `entities.getSharedInfo`     |
-| POST   | `/entities/{id}/shares`          | `entities.share`             |
-| PATCH  | `/entities/{id}/shares/{userId}` | `entities.changeAccessLevel` |
-| DELETE | `/entities/{id}/shares/{userId}` | `entities.unShare`           |
-| GET    | `/tags`                          | `entities.getUserTags`       |
+| Method | Path                              | Procedure                    |
+| ------ | --------------------------------- | ---------------------------- |
+| GET    | `/me`                             | `auth.me`                    |
+| GET    | `/entities`                       | `entities.list`              |
+| POST   | `/entities`                       | `entities.create`            |
+| GET    | `/entities/search`                | `entities.search`            |
+| GET    | `/entities/{id}`                  | `entities.load`              |
+| PUT    | `/entities/{id}`                  | `entities.save`              |
+| PATCH  | `/entities/{id}`                  | `entities.update`            |
+| DELETE | `/entities/{id}`                  | `entities.delete`            |
+| GET    | `/entities/{id}/tags`             | `entities.getEntityTags`     |
+| PUT    | `/entities/{id}/tags`             | `entities.updateEntityTags`  |
+| GET    | `/entities/{id}/shares`           | `entities.getSharedInfo`     |
+| POST   | `/entities/{id}/shares`           | `entities.share`             |
+| PATCH  | `/entities/{id}/shares/{userId}`  | `entities.changeAccessLevel` |
+| DELETE | `/entities/{id}/shares/{userId}`  | `entities.unShare`           |
+| GET    | `/tags`                           | `entities.getUserTags`       |
+| GET    | `/documents/{id}/markdown`        | `documents.getMarkdown`      |
+| PUT    | `/documents/{id}/markdown`        | `documents.replaceMarkdown`  |
+| POST   | `/documents/{id}/markdown/append` | `documents.appendMarkdown`   |
+| POST   | `/documents/{id}/markdown/insert` | `documents.insertMarkdown`   |
 
 A directory listing is `GET /entities?parentId={directoryId}`; omitting
 `parentId` lists the root. `/entities/search` is registered before
@@ -75,7 +79,7 @@ comma-separated, since a single repetition arrives as a bare string.
 
 #### Error codes
 
-Every error body is `{ message, code, issues? }`, and `code` is drawn from
+Every error body is `{ message, code, issues?, data? }`, and `code` is drawn from
 the vocabulary in `src/server/api/error-codes.ts`, which the OpenAPI document
 publishes as the `ErrorResponse` component:
 
@@ -102,6 +106,20 @@ Reaching an entity you may not touch answers `NOT_FOUND`, not `FORBIDDEN`, so
 existence itself stays private. `FORBIDDEN` is reserved for the case where the
 caller can already see the entity and only the operation is out of reach, such
 as an editor changing public access.
+
+#### Preconditions over REST
+
+`GET /documents/{id}/markdown?format=markdown|raw|json` reads a document:
+`markdown` carries the YAML frontmatter, `raw` drops it, `json` returns the
+stored Lexical state. Its `updatedAt`, as the ISO string the response carries,
+is what the writes take as `ifUnmodifiedSince` in the body — append may omit
+it, insert and replace require it, and a body without it is a 400 whose
+`issues` name the field. A precondition that no longer matches writes nothing
+and answers 409 with `data.currentUpdatedAt` to re-read from. An
+`afterHeading` matching several headings answers 400 with `data.candidates`
+(`nth`, `blockIndex`, `tag`, `text`); pass one's `nth` to choose. Every write
+answers with the `updatedAt` it produced, which is the precondition for the
+next one, so a chain of writes never needs a read between them.
 
 ### CLI
 

@@ -85,6 +85,10 @@ describe("openApiDocument", () => {
     ["/entities/{id}/shares/{userId}", "patch", "entities"],
     ["/entities/{id}/shares/{userId}", "delete", "entities"],
     ["/tags", "get", "entities"],
+    ["/documents/{id}/markdown", "get", "documents"],
+    ["/documents/{id}/markdown", "put", "documents"],
+    ["/documents/{id}/markdown/append", "post", "documents"],
+    ["/documents/{id}/markdown/insert", "post", "documents"],
   ] as const;
 
   it.each(expectedOperations)("exposes %s %s", (path, method, tag) => {
@@ -104,6 +108,40 @@ describe("openApiDocument", () => {
         .map(([path, method]) => `${method} ${path}`)
         .toSorted(),
     );
+  });
+
+  // A markdown write lands among blocks the caller read, so each of them can
+  // lose the race the precondition guards.
+  const markdownWrites = [
+    ["/documents/{id}/markdown", "put"],
+    ["/documents/{id}/markdown/append", "post"],
+    ["/documents/{id}/markdown/insert", "post"],
+  ] as const;
+
+  it.each(markdownWrites)("declares a conflict on %s %s", (path, method) => {
+    expect(document.paths?.[path]?.[method]?.responses?.[409]).toMatchObject({
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/ErrorResponse" },
+        },
+      },
+    });
+  });
+
+  it("documents what a conflict and an ambiguous heading put on data", () => {
+    expect(document.components?.schemas?.ErrorResponse).toMatchObject({
+      properties: {
+        data: {
+          properties: {
+            currentUpdatedAt: { type: ["string", "null"], format: "date-time" },
+            candidates: {
+              type: ["array", "null"],
+              items: { required: ["nth", "blockIndex", "tag", "text"] },
+            },
+          },
+        },
+      },
+    });
   });
 
   // The routers that stay tRPC-only; a stray `meta.openapi` would show up as a
