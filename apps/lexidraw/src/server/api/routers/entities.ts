@@ -33,6 +33,23 @@ import {
   findReadableEntity,
 } from "~/server/entities/readable";
 
+/**
+ * What `load` returns, declared so the REST transport can describe it.
+ * `appState` and `elements` are the stored JSON blobs, kept as the opaque
+ * strings they are on the wire.
+ */
+const loadOutput = z.object({
+  id: z.string(),
+  title: z.string(),
+  appState: z.string().nullable(),
+  elements: z.string(),
+  publicAccess: z.enum(PublicAccess),
+  sharedWith: z.array(
+    z.object({ userId: z.string(), accessLevel: z.string() }),
+  ),
+  accessLevel: z.enum(AccessLevel),
+});
+
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
 
@@ -261,7 +278,17 @@ export const entityRouter = createTRPCRouter({
     }
   }),
   load: publicProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/entities/{id}",
+        tags: ["entities"],
+        summary: "Load one entity",
+        protect: true,
+      },
+    })
     .input(z.object({ id: z.string() }))
+    .output(loadOutput)
     .query(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id ?? "";
 
@@ -290,9 +317,9 @@ export const entityRouter = createTRPCRouter({
         appState: entity.appState,
         elements: entity.elements,
         publicAccess: entity.publicAccess,
-        sharedWith: sharedEntities.map((entity) => ({
-          userId: entity.id,
-          accessLevel: entity.accessLevel,
+        sharedWith: sharedEntities.map((share) => ({
+          userId: share.userId,
+          accessLevel: share.accessLevel,
         })),
         accessLevel,
       };
