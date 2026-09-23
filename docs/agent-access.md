@@ -46,8 +46,8 @@ loading tool schemas into the agent's context until they are needed.
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
   tags, share, and directory listing — plus the four markdown procedures and
-  the drawing procedures. Planned: drawing render (#34). Admin, TTS, backups,
-  snapshot, image generation, and LLM procedures stay tRPC-only.
+  the drawing procedures, render included. Nothing further is planned. Admin,
+  TTS, backups, snapshot, image generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
 
@@ -74,6 +74,7 @@ loading tool schemas into the agent's context until they are needed.
 | POST   | `/documents/{id}/markdown/insert` | `documents.insertMarkdown`   |
 | GET    | `/drawings/{id}`                  | `drawings.get`               |
 | PUT    | `/drawings/{id}`                  | `drawings.put`               |
+| GET    | `/drawings/{id}/render`           | `drawings.render`            |
 | POST   | `/drawings`                       | `drawings.create`            |
 
 A directory listing is `GET /entities?parentId={directoryId}`; omitting
@@ -206,10 +207,11 @@ next one, so a chain of writes never needs a read between them.
   token source is `LEXIDRAW_TOKEN` and `auth login` refuses to store one.
   `auth login` validates a token against `/me` before storing it; `auth
   status` reports the profile, base URL, token source, and scope.
-- Live today: `doc`, `dir`, `search`, `drawing get|put|create`, `auth
+- Live today: `doc`, `dir`, `search`, `drawing get|put|create|render`, `auth
   login|status`, `api`, and
   `schema <command>|--list`, whose registry maps a command name to an
-  operationId in the cached document.
+  operationId in the cached document. `drawing render` writes the image to
+  `--out` or to stdout, and refuses to write PNG bytes to a terminal.
 - Skill: `skills/lexidraw/SKILL.md` in this repo. `bun run skills:install`
   builds and installs the binary, then symlinks `skills/lexidraw` to
   `~/.ai/skills/lexidraw`; it is idempotent, refuses to replace anything
@@ -382,14 +384,23 @@ registers alongside the tools in `src/server/mcp/`.
   conversion and nothing else touches.
 - The format is documented in [drawing-format.md](drawing-format.md), which the
   skill embeds so agents that learned the official MCP already know it.
-- Live today: `drawings.get|put|create` as `GET /drawings/{id}`,
-  `PUT /drawings/{id}` (precondition mandatory, as for a markdown replace) and
-  `POST /drawings`, and `lexidraw drawing get|put|create`, whose `put` takes
-  `--if-unmodified-since <iso|latest>`.
-- `drawing render --format svg|png` calls a server-side export using
-  `@excalidraw/utils` with the jsdom shim. Pin the package: the `exportToSvg`
-  signature changed to `{ data, config }` in 0.1.4 while the docs still show
-  the old shape.
+- Live today: `drawings.get|put|create|render` as `GET /drawings/{id}`,
+  `PUT /drawings/{id}` (precondition mandatory, as for a markdown replace),
+  `GET /drawings/{id}/render` and `POST /drawings`, and `lexidraw drawing
+  get|put|create|render`, whose `put` takes `--if-unmodified-since
+  <iso|latest>`.
+- Render is `exportToSvg` from the same pinned `@excalidraw/excalidraw` 0.18.1
+  bundle, under the same DOM shim; `@excalidraw/utils` is not published in a
+  version that matches. Its signature has changed across releases, so the call
+  shape is written down in `packages/excalidraw-converter/src/index.ts`, where
+  a bump has to reckon with it. PNG is that SVG rasterised with `@resvg/resvg-js`,
+  pinned, with the editor's own faces checked in under
+  `apps/lexidraw/src/server/drawings/fonts` — resvg reads fonts from files and
+  does not read WOFF2, so `bun run fonts:sync` decompresses them. The image
+  travels in the JSON body, base64 for PNG: the OpenAPI adapter answers
+  `application/json` for every path, and one generated contract is worth more
+  than a second transport for one operation. See
+  [drawing-format.md](drawing-format.md#rendering).
 - Mermaid is not a write format: `mermaid-to-excalidraw` needs a real browser.
   It could become an optional adapter on the render worker later.
 

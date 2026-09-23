@@ -29,6 +29,9 @@ const VALUE_FLAGS = [
   "at-block",
   "parent",
   "if-unmodified-since",
+  "format",
+  "out",
+  "scale",
 ];
 
 const USAGE = `lexidraw — Lexidraw from the terminal
@@ -54,6 +57,7 @@ Usage:
   lexidraw drawing get <id>
   lexidraw drawing put <id> --file <elements.json|-> --if-unmodified-since <iso|latest>
   lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
+  lexidraw drawing render <id> [--format svg|png] [--scale 1-4] [--out <file>]
   lexidraw schema <command> | lexidraw schema --list
 
 Addressing:
@@ -85,8 +89,8 @@ Environment:
                     address on the dev profile
   LEXIDRAW_TOKEN    token, taking precedence over the keychain
 
-Output is JSON on stdout; errors are a JSON object on stderr with a stable
-\`code\` and a non-zero exit.
+Output is JSON on stdout, except for a render, which is the image itself;
+errors are a JSON object on stderr with a stable \`code\` and a non-zero exit.
 `;
 
 export async function run(argv: readonly string[], io: Io): Promise<number> {

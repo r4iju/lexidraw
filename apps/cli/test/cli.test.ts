@@ -29,6 +29,14 @@ const DRAWING = {
   updatedAt: "2026-09-23T10:00:00.000Z",
 };
 
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><text>Ingest</text></svg>';
+
+/** A one pixel PNG, so the bytes the CLI writes are recognisably an image. */
+const PNG = new Uint8Array([
+  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0,
+  0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137,
+]);
+
 const unauthorized = () =>
   Response.json(
     {
@@ -78,6 +86,32 @@ beforeAll(async () => {
             { status: 409 },
           )
         : Response.json({ ...DRAWING, id: "stale" });
+    }
+    if (url.pathname === "/api/v1/drawings/abc/render") {
+      const format = url.searchParams.get("format") ?? "svg";
+      return Response.json(
+        format === "png"
+          ? {
+              id: "abc",
+              format: "png",
+              contentType: "image/png",
+              encoding: "base64",
+              width: 220,
+              height: 100,
+              data: Buffer.from(PNG).toString("base64"),
+              updatedAt: DRAWING.updatedAt,
+            }
+          : {
+              id: "abc",
+              format: "svg",
+              contentType: "image/svg+xml",
+              encoding: "utf-8",
+              width: 220,
+              height: 100,
+              data: SVG,
+              updatedAt: DRAWING.updatedAt,
+            },
+      );
     }
     if (url.pathname === "/api/v1/drawings" && request.method === "POST") {
       return Response.json({
@@ -390,6 +424,7 @@ describe("schema", () => {
         "auth status",
         "doc append",
         "drawing put",
+        "drawing render",
         "search",
       ]),
     });
@@ -538,6 +573,75 @@ describe("drawing", () => {
     const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
     expect(await run(["drawing", "get", "missing"], io.io)).toBe(1);
     expect(JSON.parse(io.stderr()).code).toBe("NOT_FOUND");
+  });
+
+  it("render prints the SVG itself on stdout", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(["drawing", "render", "abc"], io.io)).toBe(0);
+    expect(stub.requests.at(-1)?.path).toBe(
+      "/api/v1/drawings/abc/render?format=svg",
+    );
+    expect(io.stdout()).toBe(SVG);
+  });
+
+  it("render decodes the base64 PNG to bytes", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(
+      await run(["drawing", "render", "abc", "--format", "png"], io.io),
+    ).toBe(0);
+    expect(io.stdoutBytes()).toEqual(PNG);
+    expect(io.stdout()).toBe("");
+  });
+
+  it("render writes --out and reports what it wrote", async () => {
+    const out = join(cacheHome, "drawing.png");
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(
+      await run(
+        [
+          "drawing",
+          "render",
+          "abc",
+          "--format",
+          "png",
+          "--scale",
+          "2",
+          "--out",
+          out,
+        ],
+        io.io,
+      ),
+    ).toBe(0);
+    expect(stub.requests.at(-1)?.path).toBe(
+      "/api/v1/drawings/abc/render?format=png&scale=2",
+    );
+    expect(await Bun.file(out).bytes()).toEqual(PNG);
+    expect(JSON.parse(io.stdout())).toMatchObject({
+      format: "png",
+      contentType: "image/png",
+      bytes: PNG.length,
+      out,
+    });
+  });
+
+  it("render refuses to write PNG bytes to a terminal", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }), tty: true });
+    const before = stub.requests.length;
+    expect(
+      await run(["drawing", "render", "abc", "--format", "png"], io.io),
+    ).toBe(2);
+    expect(JSON.parse(io.stderr()).message).toContain("--out");
+    expect(stub.requests).toHaveLength(before);
+  });
+
+  it("render refuses a format the server does not have, without a request", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    const before = stub.requests.length;
+    expect(
+      await run(["drawing", "render", "abc", "--format", "pdf"], io.io),
+    ).toBe(2);
+    expect(JSON.parse(io.stderr()).message).toContain("--format");
+    expect(stub.requests).toHaveLength(before);
   });
 
   it("schema describes the put operation", async () => {

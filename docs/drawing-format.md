@@ -1,8 +1,9 @@
-# Drawing write format
+# Drawing format
 
 `PUT /api/v1/drawings/{id}` and `POST /api/v1/drawings` take a drawing's whole
-element set. Two shapes go in, one comes out: whatever you send is stored as
-canonical Excalidraw elements, the same ones the browser editor writes.
+element set, and [Rendering](#rendering) draws what is stored. Two shapes go
+in, one comes out: whatever you send is stored as canonical Excalidraw
+elements, the same ones the browser editor writes.
 
 ## The two shapes
 
@@ -206,6 +207,62 @@ From the CLI, `lexidraw drawing put <id> --file elements.json
 --if-unmodified-since <iso|latest>` is the same write; `latest` reads the
 revision immediately before writing, for a caller that accepts whatever is
 stored this second.
+
+## Rendering
+
+`GET /api/v1/drawings/{id}/render?format=svg|png` draws the stored elements
+with Excalidraw's own SVG export, running server-side. `format` defaults to
+`svg`; `scale`, 1 to 4, multiplies the raster and is ignored by `svg`.
+
+The image comes back in the JSON body, because every REST path here is served
+by one adapter that answers `application/json`:
+
+```json
+{
+  "id": "abc",
+  "format": "png",
+  "contentType": "image/png",
+  "encoding": "base64",
+  "width": 660,
+  "height": 120,
+  "data": "iVBORw0KGgo...",
+  "updatedAt": "2026-09-23T10:00:00.000Z"
+}
+```
+
+`data` is the SVG source for `format=svg` and the base64 PNG for `format=png`,
+as `encoding` says; `contentType` is what those bytes would be served as, and
+`width` and `height` are the image's, so a PNG at `scale=2` reports twice the
+SVG's. `updatedAt` is the revision that was rendered.
+
+From the CLI, `lexidraw drawing render <id> [--format svg|png] [--scale 1-4]
+[--out <file>]` decodes it: without `--out` the image goes to stdout, the SVG
+as text and the PNG as bytes, which it refuses to write to a terminal.
+
+### Fonts
+
+The PNG is drawn with the editor's own faces, which ship with the server, so a
+label rasterises in the font it was drawn in. The SVG names the font families
+— `Excalifont`, `Nunito`, `Comic Shanns`, `Liberation Sans` and the rest —
+without embedding them, so a viewer that does not have them installed
+substitutes and the text moves. Embedding is what would make a render fetch
+the faces at request time, which is not something a render is allowed to do.
+
+The CJK fallback face, Xiaolai, is not bundled: it is 25 MB of subsets. CJK and
+emoji text is in the SVG either way, but comes out of the PNG in whatever the
+raster can find, which on a serverless filesystem is nothing.
+
+### Size and limits
+
+The export pads the elements' bounding box by 10 scene units and paints the
+drawing's own `viewBackgroundColor`, white if it never set one. A raster over
+16 megapixels is refused with `BAD_REQUEST` naming the limit — lower the scale
+or ask for `svg`, which has no limit. Elements that reference uploaded images
+render as empty frames: a render reads the stored elements, not the file store.
+
+Labels were measured server-side when they were written, by character count
+rather than by a font, so a line can sit a pixel or two off where the browser
+would put it. The geometry around it is the editor's own.
 
 ## Mermaid
 

@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 // Externals that ship as CommonJS and are loaded on the server. Add a package
 // here when it lands in `serverExternalPackages` or Next's default external
 // list and is imported from server code.
-const SERVER_EXTERNALS = ["jsdom"];
+const SERVER_EXTERNALS = ["jsdom", "@resvg/resvg-js"];
 
 let failed = false;
 for (const name of SERVER_EXTERNALS) {

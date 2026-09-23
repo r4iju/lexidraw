@@ -1,17 +1,21 @@
 import type { DrawingTools } from "./normalize";
-import { importWithDomShim, withDomShim } from "./dom-shim";
+import { withDomShim, withDomShimAsync } from "./dom-shim";
 
 /**
- * The official skeleton converter and scene restorer, running on the server.
+ * The editor's own element code, running on the server: the skeleton
+ * converter and scene restorer a write goes through, and the SVG export a
+ * render goes through.
  *
  * They come from `@packages/excalidraw-converter`, which bundles them out of
  * the editor with React stubbed out; that package's README says why. What is
  * left still wants a DOM while its modules evaluate, so the import is dynamic:
  * the shim has to be installed first, and this is the only module that pulls
- * either of them in. Callers pass `drawingTools` itself rather than its
- * result, so a payload that never gets as far as converting never loads it.
+ * it in. Callers take it from here rather than importing it themselves, so a
+ * request that never gets as far as needing it never loads it.
  */
-let tools: Promise<DrawingTools> | undefined;
+type Excalidraw = typeof import("@packages/excalidraw-converter");
+
+let bundle: Promise<Excalidraw> | undefined;
 
 /**
  * Character widths without a canvas. Excalidraw asks for a line's width and
@@ -27,23 +31,28 @@ function measureLine(text: string, fontString: string): number {
   return [...text].length * WIDTH_PER_CHARACTER * (fontSize || 20);
 }
 
-export function drawingTools(): Promise<DrawingTools> {
-  tools ??= load();
-  return tools;
+export function excalidraw(): Promise<Excalidraw> {
+  bundle ??= load();
+  return bundle;
 }
 
-async function load(): Promise<DrawingTools> {
-  const excalidraw = await importWithDomShim(
+async function load(): Promise<Excalidraw> {
+  const loaded = await withDomShimAsync(
     () => import("@packages/excalidraw-converter"),
   );
-  excalidraw.setCustomTextMetricsProvider({ getLineWidth: measureLine });
+  loaded.setCustomTextMetricsProvider({ getLineWidth: measureLine });
+  return loaded;
+}
+
+export async function drawingTools(): Promise<DrawingTools> {
+  const loaded = await excalidraw();
   return {
     // Ids are the caller's handles: they name bindings and frame children on
     // the way in, and address elements on the way back out.
     convert: (skeleton) =>
       withDomShim(
         () =>
-          excalidraw.convertToExcalidrawElements(skeleton as never, {
+          loaded.convertToExcalidrawElements(skeleton as never, {
             regenerateIds: false,
           }) as unknown as Record<string, unknown>[],
       ),
@@ -54,7 +63,7 @@ async function load(): Promise<DrawingTools> {
     restore: (elements) =>
       withDomShim(
         () =>
-          excalidraw.restoreElements(elements as never, null, {
+          loaded.restoreElements(elements as never, null, {
             refreshDimensions: false,
             repairBindings: true,
           }) as unknown as Record<string, unknown>[],

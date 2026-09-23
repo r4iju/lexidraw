@@ -8,9 +8,12 @@ export type { Env };
 export type Io = {
   env: Env;
   stdout(text: string): void;
+  /** Bytes, for output that is an image rather than text. */
+  stdoutBytes(bytes: Uint8Array): void;
   stderr(text: string): void;
   tokens: TokenStore;
   stdinIsTty: boolean;
+  stdoutIsTty: boolean;
   readLine(): Promise<string>;
   /** All of standard input, for `--file -`. */
   readAll(): Promise<string>;
@@ -45,11 +48,15 @@ export function realIo(): Io {
     stdout: (text) => {
       process.stdout.write(text);
     },
+    stdoutBytes: (bytes) => {
+      process.stdout.write(bytes);
+    },
     stderr: (text) => {
       process.stderr.write(text);
     },
     tokens: keychainStore,
     stdinIsTty: Boolean(process.stdin.isTTY),
+    stdoutIsTty: Boolean(process.stdout.isTTY),
     readLine,
     readAll: () => Bun.stdin.text(),
     setEcho: (on) => {

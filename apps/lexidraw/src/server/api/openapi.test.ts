@@ -91,6 +91,7 @@ describe("openApiDocument", () => {
     ["/documents/{id}/markdown/insert", "post", "documents"],
     ["/drawings/{id}", "get", "drawings"],
     ["/drawings/{id}", "put", "drawings"],
+    ["/drawings/{id}/render", "get", "drawings"],
     ["/drawings", "post", "drawings"],
   ] as const;
 

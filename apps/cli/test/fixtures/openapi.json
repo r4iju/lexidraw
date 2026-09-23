@@ -5,22 +5,14 @@
     "description": "REST access to Lexidraw documents and drawings. Authenticate with a personal access token created at /settings/tokens.",
     "version": "1.0.0"
   },
-  "servers": [
-    {
-      "url": "/api/v1"
-    }
-  ],
+  "servers": [{ "url": "/api/v1" }],
   "paths": {
     "/me": {
       "get": {
         "operationId": "auth-me",
         "summary": "The user and scope the request resolves to",
         "tags": ["auth"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -30,25 +22,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "userId": {
-                      "type": "string"
-                    },
-                    "email": {
-                      "type": ["string", "null"]
-                    },
+                    "userId": { "type": "string" },
+                    "email": { "type": ["string", "null"] },
                     "authKind": {
                       "type": "string",
                       "enum": ["session", "token"]
                     },
                     "scope": {
                       "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": ["read", "write"]
-                        },
-                        {
-                          "type": "null"
-                        }
+                        { "type": "string", "enum": ["read", "write"] },
+                        { "type": "null" }
                       ]
                     }
                   },
@@ -70,6 +53,76 @@
           },
           "401": {
             "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities": {
+      "post": {
+        "operationId": "entities-create",
+        "summary": "Create an entity; returns the existing one on a repeat",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "title": { "type": "string" },
+                  "elements": { "type": "string" },
+                  "entityType": {
+                    "type": "string",
+                    "enum": ["drawing", "document", "directory", "url"]
+                  },
+                  "parentId": { "type": ["string", "null"] }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "elements",
+                  "entityType",
+                  "parentId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
@@ -543,6 +596,256 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "entities-list",
+        "summary": "List the entities in a directory; omit parentId for the root",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "in": "query", "name": "parentId", "schema": { "type": "string" } },
+          {
+            "in": "query",
+            "name": "tagNames",
+            "schema": {
+              "anyOf": [
+                { "type": "array", "items": { "type": "string" } },
+                {
+                  "type": "string",
+                  "description": "Tag names, comma-separated."
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "schema": {
+              "default": "updatedAt",
+              "type": "string",
+              "enum": ["updatedAt", "createdAt", "title"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortOrder",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeArchived",
+            "schema": {
+              "anyOf": [
+                { "type": "boolean" },
+                { "type": "string", "const": "true" },
+                { "type": "string", "const": "false" }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "onlyFavorites",
+            "schema": {
+              "anyOf": [
+                { "type": "boolean" },
+                { "type": "string", "const": "true" },
+                { "type": "string", "const": "false" }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "entityTypes",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["document", "drawing", "directory", "url"]
+                  }
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(document|drawing|directory|url)(,(document|drawing|directory|url))*$",
+                  "description": "Entity types to include, comma-separated; each one of document, drawing, directory, url."
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "title": { "type": "string" },
+                      "entityType": {
+                        "type": "string",
+                        "enum": ["drawing", "document", "directory", "url"]
+                      },
+                      "createdAt": { "format": "date-time", "type": "string" },
+                      "updatedAt": { "format": "date-time", "type": "string" },
+                      "screenShotLight": { "type": "string" },
+                      "screenShotDark": { "type": "string" },
+                      "thumbnailStatus": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": ["pending", "ready", "error"]
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "thumbnailVersion": { "type": ["string", "null"] },
+                      "thumbnailUpdatedAt": {
+                        "anyOf": [
+                          { "format": "date-time", "type": "string" },
+                          { "type": "null" }
+                        ]
+                      },
+                      "userId": { "type": "string" },
+                      "publicAccess": {
+                        "type": "string",
+                        "enum": ["READ", "PRIVATE", "EDIT"]
+                      },
+                      "parentId": { "type": ["string", "null"] },
+                      "favoritedAt": {
+                        "anyOf": [
+                          { "format": "date-time", "type": "string" },
+                          { "type": "null" }
+                        ]
+                      },
+                      "archivedAt": {
+                        "anyOf": [
+                          { "format": "date-time", "type": "string" },
+                          { "type": "null" }
+                        ]
+                      },
+                      "sharedWithCount": { "type": "number" },
+                      "tags": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "childCount": { "type": "number" }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "entityType",
+                      "createdAt",
+                      "updatedAt",
+                      "screenShotLight",
+                      "screenShotDark",
+                      "thumbnailStatus",
+                      "thumbnailVersion",
+                      "thumbnailUpdatedAt",
+                      "userId",
+                      "publicAccess",
+                      "parentId",
+                      "favoritedAt",
+                      "archivedAt",
+                      "sharedWithCount",
+                      "tags",
+                      "childCount"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -674,18 +977,105 @@
         "operationId": "entities-load",
         "summary": "Load one entity",
         "tags": ["entities"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "in": "path",
             "name": "id",
-            "schema": {
-              "type": "string"
-            },
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "elements": { "type": "string" },
+                  "appState": { "type": ["string", "null"] },
+                  "entityType": {
+                    "type": "string",
+                    "enum": ["drawing", "document", "directory", "url"]
+                  },
+                  "parentId": { "type": "string" }
+                },
+                "required": ["elements"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "updatedAt": { "format": "date-time", "type": "string" }
+                  },
+                  "required": ["id", "updatedAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "entities-load",
+        "summary": "Load one entity",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
             "required": true
           }
         ],
@@ -722,12 +1112,8 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "userId": {
-                            "type": "string"
-                          },
-                          "accessLevel": {
-                            "type": "string"
-                          }
+                          "userId": { "type": "string" },
+                          "accessLevel": { "type": "string" }
                         },
                         "required": ["userId", "accessLevel"],
                         "additionalProperties": false
@@ -765,6 +1151,54 @@
           },
           "401": {
             "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "entities-delete",
+        "summary": "Move an entity to the trash",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
@@ -2539,27 +2973,728 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
-      }
-    },
-    "/drawings/{id}": {
-      "get": {
-        "operationId": "drawings-get",
-        "summary": "Read a drawing's elements",
-        "tags": ["drawings"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+      },
+      "patch": {
+        "operationId": "entities-update",
+        "summary": "Change an entity's title, parent, or public access",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "in": "path",
             "name": "id",
-            "schema": {
-              "type": "string"
-            },
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "parentId": { "type": ["string", "null"] },
+                  "prevParentId": { "type": ["string", "null"] },
+                  "screenShotLight": { "type": "string" },
+                  "screenShotDark": { "type": "string" },
+                  "publicAccess": {
+                    "type": "string",
+                    "enum": ["READ", "EDIT", "PRIVATE"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "id": { "type": "string" } },
+                  "required": ["id"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/search": {
+      "get": {
+        "operationId": "entities-search",
+        "summary": "Search entities by title",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "title": { "type": "string" },
+                      "entityType": {
+                        "type": "string",
+                        "enum": ["drawing", "document", "directory", "url"]
+                      },
+                      "screenShotLight": { "type": "string" },
+                      "screenShotDark": { "type": "string" },
+                      "updatedAt": { "format": "date-time", "type": "string" },
+                      "parentId": { "type": ["string", "null"] }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "entityType",
+                      "screenShotLight",
+                      "screenShotDark",
+                      "updatedAt",
+                      "parentId"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "operationId": "entities-getUserTags",
+        "summary": "List every tag the caller has used",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}/tags": {
+      "get": {
+        "operationId": "entities-getEntityTags",
+        "summary": "List the tags on one entity",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "entities-updateEntityTags",
+        "summary": "Replace the tags on one entity",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tagNames": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["tagNames"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "tags": { "type": "array", "items": { "type": "string" } }
+                  },
+                  "required": ["id", "tags"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}/shares": {
+      "get": {
+        "operationId": "entities-getSharedInfo",
+        "summary": "List the users an entity is shared with",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "entityId": { "type": "string" },
+                      "userId": { "type": "string" },
+                      "accessLevel": {
+                        "type": "string",
+                        "enum": ["READ", "EDIT"]
+                      },
+                      "email": { "type": ["string", "null"] },
+                      "name": { "type": ["string", "null"] }
+                    },
+                    "required": [
+                      "entityId",
+                      "userId",
+                      "accessLevel",
+                      "email",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "entities-share",
+        "summary": "Share an entity with a user by email",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userEmail": { "type": "string" },
+                  "accessLevel": { "type": "string", "enum": ["READ", "EDIT"] }
+                },
+                "required": ["userEmail", "accessLevel"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}/shares/{userId}": {
+      "patch": {
+        "operationId": "entities-changeAccessLevel",
+        "summary": "Change one user's access level on an entity",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accessLevel": { "type": "string", "enum": ["READ", "EDIT"] }
+                },
+                "required": ["accessLevel"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "entities-unShare",
+        "summary": "Stop sharing an entity with one user",
+        "tags": ["entities"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "schema": { "type": "string" },
             "required": true
           }
         ],
@@ -2571,12 +3706,617 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/markdown": {
+      "get": {
+        "operationId": "documents-getMarkdown",
+        "summary": "Read a document as markdown",
+        "tags": ["documents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "default": "markdown",
+              "type": "string",
+              "enum": ["markdown", "raw", "json"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": "string" },
+                        "path": { "type": "string" },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        },
+                        "format": { "type": "string", "const": "markdown" },
+                        "content": { "type": "string" }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "path",
+                        "updatedAt",
+                        "tags",
+                        "format",
+                        "content"
+                      ],
+                      "additionalProperties": false
                     },
-                    "title": {
-                      "type": "string"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": "string" },
+                        "path": { "type": "string" },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        },
+                        "format": { "type": "string", "const": "raw" },
+                        "content": { "type": "string" }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "path",
+                        "updatedAt",
+                        "tags",
+                        "format",
+                        "content"
+                      ],
+                      "additionalProperties": false
                     },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": "string" },
+                        "path": { "type": "string" },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        },
+                        "format": { "type": "string", "const": "json" },
+                        "content": {
+                          "type": "object",
+                          "properties": {
+                            "root": {
+                              "type": "object",
+                              "properties": {
+                                "children": { "type": "array", "items": {} }
+                              },
+                              "required": ["children"],
+                              "additionalProperties": {}
+                            }
+                          },
+                          "required": ["root"],
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "path",
+                        "updatedAt",
+                        "tags",
+                        "format",
+                        "content"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "documents-replaceMarkdown",
+        "summary": "Rewrite a whole document from markdown",
+        "tags": ["documents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "markdown": { "type": "string" },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": ["markdown", "ifUnmodifiedSince"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "updatedAt": { "format": "date-time", "type": "string" },
+                    "blocks": { "type": "number" },
+                    "restoredPlaceholders": { "type": "number" },
+                    "removedPlaceholders": { "type": "number" }
+                  },
+                  "required": [
+                    "id",
+                    "updatedAt",
+                    "blocks",
+                    "restoredPlaceholders",
+                    "removedPlaceholders"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/markdown/append": {
+      "post": {
+        "operationId": "documents-appendMarkdown",
+        "summary": "Append markdown to the end of a document",
+        "tags": ["documents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "markdown": { "type": "string" },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": ["markdown"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "updatedAt": { "format": "date-time", "type": "string" },
+                    "appendedBlocks": { "type": "number" }
+                  },
+                  "required": ["id", "updatedAt", "appendedBlocks"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/markdown/insert": {
+      "post": {
+        "operationId": "documents-insertMarkdown",
+        "summary": "Insert markdown after a heading or at a block index",
+        "tags": ["documents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "markdown": { "type": "string" },
+                  "afterHeading": {
+                    "description": "Insert after the first root-level heading whose plain text matches (trimmed, whitespace collapsed, case-insensitive). Pass exactly one of afterHeading or atBlockIndex.",
+                    "type": "string"
+                  },
+                  "nth": {
+                    "description": "1-based pick among headings matching afterHeading; only valid with afterHeading.",
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "atBlockIndex": {
+                    "description": "Insert before the root-level block at this 0-based index; the block count appends. Pass exactly one of afterHeading or atBlockIndex.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": ["markdown", "ifUnmodifiedSince"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "updatedAt": { "format": "date-time", "type": "string" },
+                    "insertedBlocks": { "type": "number" },
+                    "blockIndex": { "type": "number" }
+                  },
+                  "required": [
+                    "id",
+                    "updatedAt",
+                    "insertedBlocks",
+                    "blockIndex"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drawings/{id}": {
+      "get": {
+        "operationId": "drawings-get",
+        "summary": "Read a drawing's elements",
+        "tags": ["drawings"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "title": { "type": "string" },
                     "elements": {
                       "type": "array",
                       "items": {
@@ -2592,9 +4332,7 @@
                           "properties": {},
                           "additionalProperties": {}
                         },
-                        {
-                          "type": "null"
-                        }
+                        { "type": "null" }
                       ]
                     },
                     "updatedAt": {
@@ -2619,9 +4357,7 @@
             "description": "Invalid input data",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -2629,9 +4365,7 @@
             "description": "Authorization not provided",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -2639,9 +4373,7 @@
             "description": "Not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -2649,9 +4381,7 @@
             "description": "Unprocessable content",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -2659,9 +4389,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -2671,18 +4399,12 @@
         "operationId": "drawings-put",
         "summary": "Replace a drawing's elements",
         "tags": ["drawings"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "in": "path",
             "name": "id",
-            "schema": {
-              "type": "string"
-            },
+            "schema": { "type": "string" },
             "required": true
           }
         ],
@@ -2707,27 +4429,15 @@
                                   "type": "string",
                                   "enum": ["rectangle", "ellipse", "diamond"]
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
                                 "label": {
                                   "type": "object",
                                   "properties": {
-                                    "text": {
-                                      "type": "string"
-                                    },
+                                    "text": { "type": "string" },
                                     "fontSize": {
                                       "type": "number",
                                       "exclusiveMinimum": 0
@@ -2747,31 +4457,17 @@
                                   "type": "string",
                                   "const": "stickynote"
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "text": {
-                                  "type": "string"
-                                },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "text": { "type": "string" },
                                 "fontSize": {
                                   "type": "number",
                                   "exclusiveMinimum": 0
                                 },
-                                "backgroundColor": {
-                                  "type": "string"
-                                }
+                                "backgroundColor": { "type": "string" }
                               },
                               "required": ["type", "x", "y", "text"],
                               "additionalProperties": {}
@@ -2779,22 +4475,11 @@
                             {
                               "type": "object",
                               "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "const": "text"
-                                },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "text": {
-                                  "type": "string"
-                                },
+                                "type": { "type": "string", "const": "text" },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "text": { "type": "string" },
                                 "fontSize": {
                                   "type": "number",
                                   "exclusiveMinimum": 0
@@ -2810,27 +4495,15 @@
                                   "type": "string",
                                   "enum": ["arrow", "line"]
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
                                 "label": {
                                   "type": "object",
                                   "properties": {
-                                    "text": {
-                                      "type": "string"
-                                    },
+                                    "text": { "type": "string" },
                                     "fontSize": {
                                       "type": "number",
                                       "exclusiveMinimum": 0
@@ -2842,9 +4515,7 @@
                                 "start": {
                                   "type": "object",
                                   "properties": {
-                                    "id": {
-                                      "type": "string"
-                                    },
+                                    "id": { "type": "string" },
                                     "type": {
                                       "type": "string",
                                       "enum": [
@@ -2854,18 +4525,14 @@
                                         "text"
                                       ]
                                     },
-                                    "text": {
-                                      "type": "string"
-                                    }
+                                    "text": { "type": "string" }
                                   },
                                   "additionalProperties": {}
                                 },
                                 "end": {
                                   "type": "object",
                                   "properties": {
-                                    "id": {
-                                      "type": "string"
-                                    },
+                                    "id": { "type": "string" },
                                     "type": {
                                       "type": "string",
                                       "enum": [
@@ -2875,9 +4542,7 @@
                                         "text"
                                       ]
                                     },
-                                    "text": {
-                                      "type": "string"
-                                    }
+                                    "text": { "type": "string" }
                                   },
                                   "additionalProperties": {}
                                 },
@@ -2886,12 +4551,8 @@
                                   "items": {
                                     "type": "array",
                                     "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
+                                      { "type": "number" },
+                                      { "type": "number" }
                                     ],
                                     "items": false,
                                     "minItems": 2,
@@ -2909,18 +4570,12 @@
                                   "type": "string",
                                   "enum": ["frame", "magicframe"]
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
+                                "id": { "type": "string" },
                                 "children": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "name": {
-                                  "type": "string"
-                                }
+                                "name": { "type": "string" }
                               },
                               "required": ["type", "children"],
                               "additionalProperties": {}
@@ -2932,79 +4587,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -3012,20 +4620,14 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "type": {
@@ -3037,12 +4639,8 @@
                                   "items": {
                                     "type": "array",
                                     "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
+                                      { "type": "number" },
+                                      { "type": "number" }
                                     ],
                                     "items": false,
                                     "minItems": 2,
@@ -3054,22 +4652,14 @@
                                     {
                                       "type": "object",
                                       "properties": {
-                                        "elementId": {
-                                          "type": "string"
-                                        },
-                                        "focus": {
-                                          "type": "number"
-                                        },
-                                        "gap": {
-                                          "type": "number"
-                                        }
+                                        "elementId": { "type": "string" },
+                                        "focus": { "type": "number" },
+                                        "gap": { "type": "number" }
                                       },
                                       "required": ["elementId"],
                                       "additionalProperties": {}
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "endBinding": {
@@ -3077,22 +4667,14 @@
                                     {
                                       "type": "object",
                                       "properties": {
-                                        "elementId": {
-                                          "type": "string"
-                                        },
-                                        "focus": {
-                                          "type": "number"
-                                        },
-                                        "gap": {
-                                          "type": "number"
-                                        }
+                                        "elementId": { "type": "string" },
+                                        "focus": { "type": "number" },
+                                        "gap": { "type": "number" }
                                       },
                                       "required": ["elementId"],
                                       "additionalProperties": {}
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 }
                               },
@@ -3109,79 +4691,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -3189,20 +4724,14 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "type": {
@@ -3214,12 +4743,8 @@
                                   "items": {
                                     "type": "array",
                                     "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
+                                      { "type": "number" },
+                                      { "type": "number" }
                                     ],
                                     "items": false,
                                     "minItems": 2,
@@ -3228,9 +4753,7 @@
                                 },
                                 "pressures": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "number"
-                                  }
+                                  "items": { "type": "number" }
                                 }
                               },
                               "required": [
@@ -3246,79 +4769,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -3326,42 +4802,25 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
-                                "type": {
-                                  "type": "string",
-                                  "const": "text"
-                                },
-                                "text": {
-                                  "type": "string"
-                                },
-                                "originalText": {
-                                  "type": "string"
-                                },
+                                "type": { "type": "string", "const": "text" },
+                                "text": { "type": "string" },
+                                "originalText": { "type": "string" },
                                 "fontSize": {
                                   "type": "number",
                                   "exclusiveMinimum": 0
                                 },
-                                "fontFamily": {
-                                  "type": "number"
-                                },
-                                "containerId": {
-                                  "type": ["string", "null"]
-                                }
+                                "fontFamily": { "type": "number" },
+                                "containerId": { "type": ["string", "null"] }
                               },
                               "required": [
                                 "id",
@@ -3377,79 +4836,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -3457,20 +4869,14 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "type": {
@@ -3531,9 +4937,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
+                    "id": { "type": "string" },
                     "updatedAt": {
                       "type": "string",
                       "format": "date-time",
@@ -3555,9 +4959,7 @@
             "description": "Invalid input data",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -3565,9 +4967,7 @@
             "description": "Authorization not provided",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -3575,9 +4975,7 @@
             "description": "Insufficient access",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -3585,9 +4983,7 @@
             "description": "Not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -3595,9 +4991,7 @@
             "description": "Conflict",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -3605,9 +4999,7 @@
             "description": "Unprocessable content",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -3615,9 +5007,132 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drawings/{id}/render": {
+      "get": {
+        "operationId": "drawings-render",
+        "summary": "Render a drawing as SVG or PNG",
+        "description": "Returns the image in the JSON body: `data` is the SVG source when `format=svg`, and the PNG base64-encoded when `format=png`, as `encoding` says. `scale` multiplies the raster and is ignored by `svg`. SVG text names the Excalidraw font families without embedding them, so a viewer without them installed substitutes; the PNG is drawn with the fonts this server carries.",
+        "tags": ["drawings"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "default": "svg",
+              "type": "string",
+              "enum": ["svg", "png"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "scale",
+            "schema": {
+              "default": 1,
+              "description": "Raster pixels per scene unit, 1 to 4; png only.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "format": { "type": "string", "enum": ["svg", "png"] },
+                    "contentType": { "type": "string" },
+                    "encoding": {
+                      "type": "string",
+                      "enum": ["utf-8", "base64"]
+                    },
+                    "width": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "data": { "type": "string" },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "format",
+                    "contentType",
+                    "encoding",
+                    "width",
+                    "height",
+                    "data",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
                 }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -3629,11 +5144,7 @@
         "operationId": "drawings-create",
         "summary": "Create a drawing",
         "tags": ["drawings"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -3642,14 +5153,8 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "id": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "title": {
-                    "type": "string",
-                    "minLength": 1
-                  },
+                  "id": { "type": "string", "minLength": 1 },
+                  "title": { "type": "string", "minLength": 1 },
                   "elements": {
                     "maxItems": 10000,
                     "type": "array",
@@ -3664,27 +5169,15 @@
                                   "type": "string",
                                   "enum": ["rectangle", "ellipse", "diamond"]
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
                                 "label": {
                                   "type": "object",
                                   "properties": {
-                                    "text": {
-                                      "type": "string"
-                                    },
+                                    "text": { "type": "string" },
                                     "fontSize": {
                                       "type": "number",
                                       "exclusiveMinimum": 0
@@ -3704,31 +5197,17 @@
                                   "type": "string",
                                   "const": "stickynote"
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "text": {
-                                  "type": "string"
-                                },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "text": { "type": "string" },
                                 "fontSize": {
                                   "type": "number",
                                   "exclusiveMinimum": 0
                                 },
-                                "backgroundColor": {
-                                  "type": "string"
-                                }
+                                "backgroundColor": { "type": "string" }
                               },
                               "required": ["type", "x", "y", "text"],
                               "additionalProperties": {}
@@ -3736,22 +5215,11 @@
                             {
                               "type": "object",
                               "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "const": "text"
-                                },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "text": {
-                                  "type": "string"
-                                },
+                                "type": { "type": "string", "const": "text" },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "text": { "type": "string" },
                                 "fontSize": {
                                   "type": "number",
                                   "exclusiveMinimum": 0
@@ -3767,27 +5235,15 @@
                                   "type": "string",
                                   "enum": ["arrow", "line"]
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
                                 "label": {
                                   "type": "object",
                                   "properties": {
-                                    "text": {
-                                      "type": "string"
-                                    },
+                                    "text": { "type": "string" },
                                     "fontSize": {
                                       "type": "number",
                                       "exclusiveMinimum": 0
@@ -3799,9 +5255,7 @@
                                 "start": {
                                   "type": "object",
                                   "properties": {
-                                    "id": {
-                                      "type": "string"
-                                    },
+                                    "id": { "type": "string" },
                                     "type": {
                                       "type": "string",
                                       "enum": [
@@ -3811,18 +5265,14 @@
                                         "text"
                                       ]
                                     },
-                                    "text": {
-                                      "type": "string"
-                                    }
+                                    "text": { "type": "string" }
                                   },
                                   "additionalProperties": {}
                                 },
                                 "end": {
                                   "type": "object",
                                   "properties": {
-                                    "id": {
-                                      "type": "string"
-                                    },
+                                    "id": { "type": "string" },
                                     "type": {
                                       "type": "string",
                                       "enum": [
@@ -3832,9 +5282,7 @@
                                         "text"
                                       ]
                                     },
-                                    "text": {
-                                      "type": "string"
-                                    }
+                                    "text": { "type": "string" }
                                   },
                                   "additionalProperties": {}
                                 },
@@ -3843,12 +5291,8 @@
                                   "items": {
                                     "type": "array",
                                     "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
+                                      { "type": "number" },
+                                      { "type": "number" }
                                     ],
                                     "items": false,
                                     "minItems": 2,
@@ -3866,18 +5310,12 @@
                                   "type": "string",
                                   "enum": ["frame", "magicframe"]
                                 },
-                                "id": {
-                                  "type": "string"
-                                },
+                                "id": { "type": "string" },
                                 "children": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "name": {
-                                  "type": "string"
-                                }
+                                "name": { "type": "string" }
                               },
                               "required": ["type", "children"],
                               "additionalProperties": {}
@@ -3889,79 +5327,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -3969,20 +5360,14 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "type": {
@@ -3994,12 +5379,8 @@
                                   "items": {
                                     "type": "array",
                                     "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
+                                      { "type": "number" },
+                                      { "type": "number" }
                                     ],
                                     "items": false,
                                     "minItems": 2,
@@ -4011,22 +5392,14 @@
                                     {
                                       "type": "object",
                                       "properties": {
-                                        "elementId": {
-                                          "type": "string"
-                                        },
-                                        "focus": {
-                                          "type": "number"
-                                        },
-                                        "gap": {
-                                          "type": "number"
-                                        }
+                                        "elementId": { "type": "string" },
+                                        "focus": { "type": "number" },
+                                        "gap": { "type": "number" }
                                       },
                                       "required": ["elementId"],
                                       "additionalProperties": {}
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "endBinding": {
@@ -4034,22 +5407,14 @@
                                     {
                                       "type": "object",
                                       "properties": {
-                                        "elementId": {
-                                          "type": "string"
-                                        },
-                                        "focus": {
-                                          "type": "number"
-                                        },
-                                        "gap": {
-                                          "type": "number"
-                                        }
+                                        "elementId": { "type": "string" },
+                                        "focus": { "type": "number" },
+                                        "gap": { "type": "number" }
                                       },
                                       "required": ["elementId"],
                                       "additionalProperties": {}
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 }
                               },
@@ -4066,79 +5431,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -4146,20 +5464,14 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "type": {
@@ -4171,12 +5483,8 @@
                                   "items": {
                                     "type": "array",
                                     "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
+                                      { "type": "number" },
+                                      { "type": "number" }
                                     ],
                                     "items": false,
                                     "minItems": 2,
@@ -4185,9 +5493,7 @@
                                 },
                                 "pressures": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "number"
-                                  }
+                                  "items": { "type": "number" }
                                 }
                               },
                               "required": [
@@ -4203,79 +5509,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -4283,42 +5542,25 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
-                                "type": {
-                                  "type": "string",
-                                  "const": "text"
-                                },
-                                "text": {
-                                  "type": "string"
-                                },
-                                "originalText": {
-                                  "type": "string"
-                                },
+                                "type": { "type": "string", "const": "text" },
+                                "text": { "type": "string" },
+                                "originalText": { "type": "string" },
                                 "fontSize": {
                                   "type": "number",
                                   "exclusiveMinimum": 0
                                 },
-                                "fontFamily": {
-                                  "type": "number"
-                                },
-                                "containerId": {
-                                  "type": ["string", "null"]
-                                }
+                                "fontFamily": { "type": "number" },
+                                "containerId": { "type": ["string", "null"] }
                               },
                               "required": [
                                 "id",
@@ -4334,79 +5576,32 @@
                             {
                               "type": "object",
                               "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "minLength": 1
-                                },
-                                "x": {
-                                  "type": "number"
-                                },
-                                "y": {
-                                  "type": "number"
-                                },
-                                "width": {
-                                  "type": "number"
-                                },
-                                "height": {
-                                  "type": "number"
-                                },
-                                "angle": {
-                                  "type": "number"
-                                },
-                                "strokeColor": {
-                                  "type": "string"
-                                },
-                                "backgroundColor": {
-                                  "type": "string"
-                                },
-                                "fillStyle": {
-                                  "type": "string"
-                                },
-                                "strokeWidth": {
-                                  "type": "number"
-                                },
-                                "strokeStyle": {
-                                  "type": "string"
-                                },
-                                "roughness": {
-                                  "type": "number"
-                                },
-                                "opacity": {
-                                  "type": "number"
-                                },
+                                "id": { "type": "string", "minLength": 1 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "angle": { "type": "number" },
+                                "strokeColor": { "type": "string" },
+                                "backgroundColor": { "type": "string" },
+                                "fillStyle": { "type": "string" },
+                                "strokeWidth": { "type": "number" },
+                                "strokeStyle": { "type": "string" },
+                                "roughness": { "type": "number" },
+                                "opacity": { "type": "number" },
                                 "groupIds": {
                                   "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
+                                  "items": { "type": "string" }
                                 },
-                                "frameId": {
-                                  "type": ["string", "null"]
-                                },
-                                "index": {
-                                  "type": ["string", "null"]
-                                },
-                                "seed": {
-                                  "type": "number"
-                                },
-                                "version": {
-                                  "type": "number"
-                                },
-                                "versionNonce": {
-                                  "type": "number"
-                                },
-                                "isDeleted": {
-                                  "type": "boolean"
-                                },
-                                "updated": {
-                                  "type": "number"
-                                },
-                                "link": {
-                                  "type": ["string", "null"]
-                                },
-                                "locked": {
-                                  "type": "boolean"
-                                },
+                                "frameId": { "type": ["string", "null"] },
+                                "index": { "type": ["string", "null"] },
+                                "seed": { "type": "number" },
+                                "version": { "type": "number" },
+                                "versionNonce": { "type": "number" },
+                                "isDeleted": { "type": "boolean" },
+                                "updated": { "type": "number" },
+                                "link": { "type": ["string", "null"] },
+                                "locked": { "type": "boolean" },
                                 "boundElements": {
                                   "anyOf": [
                                     {
@@ -4414,20 +5609,14 @@
                                       "items": {
                                         "type": "object",
                                         "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "type": {
-                                            "type": "string"
-                                          }
+                                          "id": { "type": "string" },
+                                          "type": { "type": "string" }
                                         },
                                         "required": ["id", "type"],
                                         "additionalProperties": {}
                                       }
                                     },
-                                    {
-                                      "type": "null"
-                                    }
+                                    { "type": "null" }
                                   ]
                                 },
                                 "type": {
@@ -4465,9 +5654,7 @@
                       ]
                     }
                   },
-                  "parentId": {
-                    "type": ["string", "null"]
-                  },
+                  "parentId": { "type": ["string", "null"] },
                   "mermaid": {
                     "description": "Rejected: Mermaid is not a write format; convert it in the browser",
                     "type": "string"
@@ -4486,9 +5673,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
+                    "id": { "type": "string" },
                     "updatedAt": {
                       "type": "string",
                       "format": "date-time",
@@ -4505,9 +5690,7 @@
             "description": "Invalid input data",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -4515,9 +5698,7 @@
             "description": "Authorization not provided",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -4525,9 +5706,7 @@
             "description": "Insufficient access",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -4535,9 +5714,7 @@
             "description": "Not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -4545,9 +5722,7 @@
             "description": "Conflict",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -4555,9 +5730,7 @@
             "description": "Unprocessable content",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -4565,9 +5738,7 @@
             "description": "Internal server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -4609,11 +5780,7 @@
             "description": "The input validation failures behind a 400, when any.",
             "items": {
               "type": "object",
-              "properties": {
-                "message": {
-                  "type": "string"
-                }
-              },
+              "properties": { "message": { "type": "string" } },
               "required": ["message"]
             }
           },
