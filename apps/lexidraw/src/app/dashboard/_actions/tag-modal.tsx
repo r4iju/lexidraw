@@ -46,18 +46,14 @@ const TagEntityModal = (props: Props) => {
 
   // Fetch tags if not provided
   const { data: fetchedTags } = api.entities.getEntityTags.useQuery(
-    { entityId },
+    { id: entityId },
     {
       enabled: isOpen && initialTags === undefined,
     },
   );
 
   const currentTags = useMemo(() => {
-    return (
-      initialTags ??
-      fetchedTags?.map((tag) => tag.name ?? "").filter(Boolean) ??
-      []
-    );
+    return initialTags ?? fetchedTags ?? [];
   }, [initialTags, fetchedTags]);
 
   const [tags, setTags] = useState<string[]>(currentTags);
@@ -74,7 +70,7 @@ const TagEntityModal = (props: Props) => {
   const handleSave = () => {
     setIsLoading(true);
     addTags(
-      { entityId, tagNames: tags },
+      { id: entityId, tagNames: tags },
       {
         onSuccess: async () => {
           if (onSuccess) {

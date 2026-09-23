@@ -64,7 +64,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
    * -------------------------------------
    */
   const { data: sharedWithUsers } = api.entities.getSharedInfo.useQuery(
-    { drawingId: entity.id },
+    { id: entity.id },
     {
       enabled: isOpen,
       refetchOnWindowFocus: false,
@@ -129,7 +129,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
     api.entities.share.useMutation({
       async onMutate(newShare) {
         // Cancel any ongoing fetches for getSharedInfo
-        const queryKey = { drawingId: newShare.drawingId };
+        const queryKey = { id: newShare.id };
         await utils.entities.getSharedInfo.cancel(queryKey);
 
         // Snapshot previous data
@@ -147,7 +147,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
             userId: "temp-id",
             name: newShare.userEmail,
             accessLevel: newShare.accessLevel,
-            drawingId: newShare.drawingId,
+            entityId: newShare.id,
             email: newShare.userEmail,
           },
         ]);
@@ -181,8 +181,8 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
    */
   const { mutate: changeAccessLevel, isPending: changeAccessLevelIsLoading } =
     api.entities.changeAccessLevel.useMutation({
-      async onMutate({ drawingId, userId, accessLevel }) {
-        const queryKey = { drawingId };
+      async onMutate({ id, userId, accessLevel }) {
+        const queryKey = { id };
         await utils.entities.getSharedInfo.cancel(queryKey);
 
         const previousData =
@@ -219,8 +219,8 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
    */
   const { mutate: unshare, isPending: unshareIsLoading } =
     api.entities.unShare.useMutation({
-      async onMutate({ drawingId, userId }) {
-        const queryKey = { drawingId };
+      async onMutate({ id, userId }) {
+        const queryKey = { id };
         await utils.entities.getSharedInfo.cancel(queryKey);
 
         const previousData =
@@ -258,7 +258,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
   const handleShareWith = () => {
     if (!shareWith) return;
     shareWithUser({
-      drawingId: entity.id,
+      id: entity.id,
       userEmail: shareWith,
       accessLevel,
     });
@@ -272,14 +272,14 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
     accessLevel: AccessLevel;
   }) => {
     changeAccessLevel({
-      drawingId: entity.id,
+      id: entity.id,
       userId,
       accessLevel,
     });
   };
 
   const handleUnshare = (userId: string) => {
-    unshare({ userId, drawingId: entity.id });
+    unshare({ userId, id: entity.id });
   };
 
   const handleChangePublicAccess = (access: PublicAccess) => {
