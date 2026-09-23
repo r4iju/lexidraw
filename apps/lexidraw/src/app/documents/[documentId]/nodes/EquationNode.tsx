@@ -13,7 +13,6 @@ export class EquationNode extends HeadlessEquationNode {
   static getType = HeadlessEquationNode.getType;
   static clone = HeadlessEquationNode.clone;
   static importJSON = HeadlessEquationNode.importJSON;
-  static importDOM = HeadlessEquationNode.importDOM;
 
   exportDOM(): DOMExportOutput {
     const output = super.exportDOM();

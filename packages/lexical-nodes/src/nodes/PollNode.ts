@@ -76,6 +76,10 @@ export class PollNode extends DecoratorNode<unknown> {
     };
   }
 
+  getQuestion(): string {
+    return this.__question;
+  }
+
   addOption(option: Option): void {
     const self = this.getWritable();
     const options = Array.from(self.__options);

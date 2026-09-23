@@ -130,11 +130,45 @@ describe("decorator node markdown", () => {
           $createParagraphNode().append(
             PollNode.$createPollNode("a -->\n b", []),
           ),
+          $createParagraphNode().append(
+            PollNode.$createPollNode("a ---->> b", []),
+          ),
         );
       },
       { discrete: true },
     );
-    expect(toMarkdown(editor)).toBe("<!-- lexidraw:poll#1 a b -->");
+    expect(toMarkdown(editor)).toBe(
+      "<!-- lexidraw:poll#1 a -> b -->\n\n<!-- lexidraw:poll#2 a ->> b -->",
+    );
+  });
+
+  test("markdown inside a placeholder summary is not parsed", () => {
+    const editor = editorWithCoreNodes();
+    const input = [
+      "<!-- lexidraw:inline-image#1 ![logo](https://example.com/logo.png) -->",
+      "see <!-- lexidraw:poll#1 Cost $5 or $10? --> and ![real](https://example.com/r.png) plus $a$",
+    ].join("\n\n");
+    fromMarkdown(editor, input);
+    editor.getEditorState().read(() => {
+      const [first, second] = $getRoot().getChildren();
+      expect($isParagraphNode(first) && $isParagraphNode(second)).toBe(true);
+      const paragraphs = [first, second] as ReturnType<
+        typeof $createParagraphNode
+      >[];
+      expect(paragraphs[0]?.getChildren().map((c) => c.getType())).toEqual([
+        "text",
+      ]);
+      expect(paragraphs[0]?.getTextContent()).toBe(input.split("\n\n")[0]);
+      expect(paragraphs[1]?.getChildren().map((c) => c.getType())).toEqual([
+        "text",
+        "image",
+        "text",
+        "equation",
+      ]);
+      expect(paragraphs[1]?.getTextContent()).toContain(
+        "see <!-- lexidraw:poll#1 Cost $5 or $10? --> and ",
+      );
+    });
   });
 
   test("placeholders import as literal text, never as nodes", () => {

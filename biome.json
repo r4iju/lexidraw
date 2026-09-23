@@ -60,6 +60,16 @@
   },
   "overrides": [
     {
+      "includes": ["packages/lexical-nodes/src/nodes/**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noThisInStatic": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["apps/code-runner/public/**"],
       "linter": {
         "rules": {

@@ -106,7 +106,7 @@ const PLACEHOLDER_SUMMARIES: ReadonlyArray<
   [(node) => StickyNode.$isStickyNode(node), () => ""],
   [
     (node) => PollNode.$isPollNode(node),
-    (node) => (node as PollNode).__question,
+    (node) => (node as PollNode).getQuestion(),
   ],
   [
     (node) => ChartNode.$isChartNode(node),
@@ -141,8 +141,10 @@ function $ordinalOf(node: LexicalNode): number {
 function $exportPlaceholder(node: LexicalNode): string | null {
   const entry = PLACEHOLDER_SUMMARIES.find(([matches]) => matches(node));
   if (!entry) return null;
+  // HTML comments cannot contain "--", so collapsing runs of dashes also
+  // keeps the summary from closing the comment early.
   const summary = entry[1](node)
-    .replace(/-->/g, "")
+    .replace(/-{2,}/g, "-")
     .replace(/\s+/g, " ")
     .trim();
   const suffix = summary ? ` ${summary}` : "";
@@ -170,11 +172,18 @@ export const PLACEHOLDER_BLOCK: ElementTransformer = {
   type: "element",
 };
 
-/** Inline placeholder nodes; export-only, so the comment stays literal text. */
+/**
+ * Inline placeholder nodes. The import side claims the whole comment and
+ * leaves it as text: the importer picks the outermost text match, so this
+ * keeps IMAGE and EQUATION from turning a summary like `![alt](src)` into a
+ * node. No trigger, so typing a placeholder does nothing.
+ */
 export const PLACEHOLDER_INLINE: TextMatchTransformer = {
   dependencies: PLACEHOLDER_NODES,
   export: $exportPlaceholder,
+  importRegExp: PLACEHOLDER_PATTERN,
   regExp: new RegExp(`${PLACEHOLDER_PATTERN.source}$`),
+  replace: () => {},
   type: "text-match",
 };
 
