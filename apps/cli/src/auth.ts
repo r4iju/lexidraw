@@ -2,9 +2,11 @@ import { one, parseArgs, rejectExtra } from "./args";
 import { json, type Context } from "./context";
 import { usageError } from "./errors";
 import { expectOk, requestApi } from "./http";
+import { keychainRefusal } from "./profile";
 import { requireToken } from "./tokens";
 
-const TOKEN_PREFIX = "lxd_";
+/** `lxd_` plus base64url, as the server mints them. */
+const TOKEN_PATTERN = /^lxd_[A-Za-z0-9_-]+$/;
 
 export type Me = {
   userId: string;
@@ -31,9 +33,18 @@ export async function authLogin(
   const args = parseArgs(argv, { value: ["token"], boolean: [] });
   rejectExtra(args, 0);
 
+  if (!context.profile.keychainAllowed) {
+    throw usageError(
+      `cannot store a token for this origin: ${keychainRefusal(context.profile)}`,
+    );
+  }
+
   const token = (one(args, "token") ?? (await promptForToken(context))).trim();
-  if (!token.startsWith(TOKEN_PREFIX)) {
-    throw usageError(`a Lexidraw token starts with ${TOKEN_PREFIX}`);
+  if (token === "") {
+    throw usageError("no token given on --token or stdin");
+  }
+  if (!TOKEN_PATTERN.test(token)) {
+    throw usageError("a Lexidraw token is lxd_ followed by base64url");
   }
 
   // Validated before it is stored: a keychain entry that does not work is
@@ -59,7 +70,7 @@ export async function authStatus(
 
   const { name, baseUrl } = context.profile;
   const { token, source } = requireToken(
-    name,
+    context.profile,
     context.io.env,
     context.io.tokens,
   );
@@ -76,12 +87,14 @@ export async function authStatus(
 }
 
 async function promptForToken(context: Context): Promise<string> {
-  if (context.io.stdinIsTty) {
-    context.io.stderr(`Paste a token for profile "${context.profile.name}": `);
+  if (!context.io.stdinIsTty) return context.io.readLine();
+  context.io.stderr(`Paste a token for profile "${context.profile.name}": `);
+  // A pasted token would otherwise stay on screen and in the scrollback.
+  context.io.setEcho(false);
+  try {
+    return await context.io.readLine();
+  } finally {
+    context.io.setEcho(true);
+    context.io.stderr("\n");
   }
-  const token = await context.io.readLine();
-  if (token.trim() === "") {
-    throw usageError("no token given on --token or stdin");
-  }
-  return token;
 }

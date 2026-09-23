@@ -1,8 +1,16 @@
+import { chmod, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import type { Env, Io } from "../src/context";
 
 export type FakeIo = {
   io: Io;
   stored: Map<string, string>;
+  /** Accounts `get` was asked for, so a test can prove the keychain was
+   * never consulted. */
+  lookups: string[];
+  echo: boolean[];
   stdout(): string;
   stderr(): string;
 };
@@ -16,6 +24,8 @@ export function fakeIo(
   } = {},
 ): FakeIo {
   const stored = new Map(Object.entries(options.tokens ?? {}));
+  const lookups: string[] = [];
+  const echo: boolean[] = [];
   const out: string[] = [];
   const err: string[] = [];
   return {
@@ -28,15 +38,23 @@ export function fakeIo(
         err.push(text);
       },
       tokens: {
-        get: (account) => stored.get(account) ?? null,
+        get: (account) => {
+          lookups.push(account);
+          return stored.get(account) ?? null;
+        },
         set: (account, token) => {
           stored.set(account, token);
         },
       },
       stdinIsTty: options.tty ?? false,
       readLine: async () => options.stdin ?? "",
+      setEcho: (on) => {
+        echo.push(on);
+      },
     },
     stored,
+    lookups,
+    echo,
     stdout: () => out.join(""),
     stderr: () => err.join(""),
   };
@@ -72,4 +90,13 @@ export function startStub(
       server.stop(true);
     },
   };
+}
+
+/** A fake `security` on disk, so the keychain paths are tested without one. */
+export async function writeShim(body: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "lexidraw-shim-"));
+  const path = join(dir, "security");
+  await Bun.write(path, `#!/usr/bin/env bash\n${body}\n`);
+  await chmod(path, 0o755);
+  return path;
 }

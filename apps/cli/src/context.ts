@@ -1,7 +1,8 @@
-import { keychainStore, type TokenStore } from "./tokens";
+import type { Env } from "./env";
 import type { Profile } from "./profile";
+import { keychainStore, type TokenStore } from "./tokens";
 
-export type Env = Record<string, string | undefined>;
+export type { Env };
 
 /** Everything the commands touch outside themselves, so tests can stand in. */
 export type Io = {
@@ -11,6 +12,7 @@ export type Io = {
   tokens: TokenStore;
   stdinIsTty: boolean;
   readLine(): Promise<string>;
+  setEcho(on: boolean): void;
 };
 
 export type Context = {
@@ -47,5 +49,13 @@ export function realIo(): Io {
     tokens: keychainStore,
     stdinIsTty: Boolean(process.stdin.isTTY),
     readLine,
+    setEcho: (on) => {
+      Bun.spawnSync({
+        cmd: ["stty", on ? "echo" : "-echo"],
+        stdin: "inherit",
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+    },
   };
 }

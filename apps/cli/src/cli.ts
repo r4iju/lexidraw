@@ -25,7 +25,9 @@ Global flags:
 
 Environment:
   LEXIDRAW_PROFILE  profile to use
-  LEXIDRAW_URL      base URL override
+  LEXIDRAW_URL      base URL override; the keychain is only read when it
+                    points at the profile's own host, or at a loopback
+                    address on the dev profile
   LEXIDRAW_TOKEN    token, taking precedence over the keychain
 
 Output is JSON on stdout; errors are a JSON object on stderr with a stable
@@ -99,6 +101,13 @@ export function takeGlobals(argv: readonly string[]): Globals {
   let refresh = false;
   let help = false;
 
+  const setProfile = (value: string) => {
+    if (profile !== undefined) {
+      throw usageError("--profile was given more than once");
+    }
+    profile = value;
+  };
+
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index] as string;
     if (arg === "--") {
@@ -117,11 +126,11 @@ export function takeGlobals(argv: readonly string[]): Globals {
       index += 1;
       const value = argv[index];
       if (value === undefined) throw usageError("--profile needs a value");
-      profile = value;
+      setProfile(value);
       continue;
     }
     if (arg.startsWith("--profile=")) {
-      profile = arg.slice("--profile=".length);
+      setProfile(arg.slice("--profile=".length));
       continue;
     }
     rest.push(arg);

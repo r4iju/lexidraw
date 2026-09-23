@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bash scripts/build.sh",
+    "compile": "bash scripts/compile.sh",
     "dev": "bun run src/main.ts",
     "lint": "bun x @biomejs/biome check .",
     "test": "bun test",

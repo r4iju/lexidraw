@@ -54,10 +54,10 @@ loading tool schemas into the agent's context until they are needed.
 
 - Package `apps/cli`, binary `lexidraw`, compiled with `bun build --compile`,
   installed to `~/.ai/bin` by `bun run cli:install`.
-- Built on the REST layer. Caches the OpenAPI document per profile at
-  `~/.cache/lexidraw/<profile>/openapi.json` for 5 minutes, fetched
-  unauthenticated; `lexidraw schema <command>` reads from it and `--refresh`
-  bypasses it.
+- Built on the REST layer. Caches the OpenAPI document at
+  `~/.cache/lexidraw/<profile>/<origin>/openapi.json` for 5 minutes, fetched
+  unauthenticated; `lexidraw schema <command>` reads from it, refetches once
+  if a known command is missing, and `--refresh` bypasses it.
 - Nouns and verbs:
   - `doc list|get|create|append|insert|put|delete`
   - `drawing get|put|create|render`
@@ -80,8 +80,12 @@ loading tool schemas into the agent's context until they are needed.
   (http://localhost:3025), chosen with `--profile` or `LEXIDRAW_PROFILE`;
   `LEXIDRAW_URL` overrides the base URL. Token lookup: `LEXIDRAW_TOKEN`, then
   the macOS keychain (service `cli/lexidraw`, account `<profile>`), like the
-  notion wrapper. `auth login` validates a token against `/me` before storing
-  it; `auth status` reports the profile, base URL, token source, and scope.
+  notion wrapper. A token is a credential for one server, so the keychain is
+  read and written only when `LEXIDRAW_URL` resolves to the profile's own
+  origin, or to a loopback address on `dev`; pointed anywhere else the only
+  token source is `LEXIDRAW_TOKEN` and `auth login` refuses to store one.
+  `auth login` validates a token against `/me` before storing it; `auth
+  status` reports the profile, base URL, token source, and scope.
 - Live today: `auth login|status`, `api`, and `schema <command>|--list`, whose
   registry maps a command name to an operationId in the cached document.
 - Skill: `skills/lexidraw/SKILL.md` in this repo, symlinked into

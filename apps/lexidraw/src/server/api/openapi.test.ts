@@ -50,6 +50,7 @@ describe("openApiDocument", () => {
     expect(operation).toBeDefined();
     expect(operation?.operationId).toBe("auth-me");
     expect(operation?.tags).toEqual(["auth"]);
+    expect(operation?.security).toEqual([{ bearerAuth: [] }]);
   });
 
   it("guards entity load with the bearer scheme", () => {

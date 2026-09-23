@@ -140,6 +140,26 @@ describe("api", () => {
     );
     expect(JSON.parse(io.stderr()).code).toBe("USAGE");
   });
+
+  it("rejects a body on GET and HEAD before any request", async () => {
+    for (const verb of ["GET", "HEAD"]) {
+      const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+      const before = stub.requests.length;
+      expect(
+        await run(["api", verb, "/entities/abc", "--json", "{}"], io.io),
+      ).toBe(2);
+      expect(JSON.parse(io.stderr()).message).toContain("does not take a body");
+      expect(stub.requests).toHaveLength(before);
+    }
+  });
+
+  it("rejects a path that climbs out of /api/v1", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    const before = stub.requests.length;
+    expect(await run(["api", "GET", "/../../admin"], io.io)).toBe(2);
+    expect(JSON.parse(io.stderr()).code).toBe("USAGE");
+    expect(stub.requests).toHaveLength(before);
+  });
 });
 
 describe("auth", () => {
@@ -204,10 +224,92 @@ describe("auth", () => {
     expect(io.stored.get("dev")).toBe("lxd_good");
   });
 
+  it("login turns the terminal echo off around a prompted paste", async () => {
+    const io = fakeIo({ env: env(), stdin: "lxd_good\n", tty: true });
+    expect(await run(["auth", "login"], io.io)).toBe(0);
+    expect(io.echo).toEqual([false, true]);
+    expect(io.stderr()).toContain("Paste a token");
+  });
+
   it("login rejects something that is not a Lexidraw token", async () => {
     const io = fakeIo({ env: env() });
     expect(await run(["auth", "login", "--token", "nope"], io.io)).toBe(2);
     expect(JSON.parse(io.stderr()).code).toBe("USAGE");
+  });
+
+  it("login rejects a token whose shape could confuse `security -i`", async () => {
+    const io = fakeIo({ env: env() });
+    expect(
+      await run(["auth", "login", "--token", 'lxd_a" -a other -w x'], io.io),
+    ).toBe(2);
+    expect(io.stored.has("dev")).toBe(false);
+  });
+});
+
+describe("origin rule", () => {
+  it("refuses to read the keychain for a profile pointed elsewhere", async () => {
+    const io = fakeIo({
+      env: {
+        LEXIDRAW_PROFILE: "prod",
+        LEXIDRAW_URL: stub.baseUrl,
+        XDG_CACHE_HOME: cacheHome,
+      },
+      tokens: { prod: "lxd_good" },
+    });
+    expect(await run(["auth", "status"], io.io)).toBe(1);
+    expect(JSON.parse(io.stderr())).toMatchObject({
+      code: "NO_TOKEN",
+      profile: "prod",
+      tokenSource: "none",
+    });
+    expect(io.lookups).toEqual([]);
+  });
+
+  it("still honours LEXIDRAW_TOKEN for such an origin", async () => {
+    const io = fakeIo({
+      env: {
+        LEXIDRAW_PROFILE: "prod",
+        LEXIDRAW_URL: stub.baseUrl,
+        XDG_CACHE_HOME: cacheHome,
+        LEXIDRAW_TOKEN: "lxd_good",
+      },
+    });
+    expect(await run(["auth", "status"], io.io)).toBe(0);
+    expect(JSON.parse(io.stdout()).tokenSource).toBe("env");
+  });
+
+  it("refuses to store a token for such an origin", async () => {
+    const io = fakeIo({
+      env: {
+        LEXIDRAW_PROFILE: "prod",
+        LEXIDRAW_URL: stub.baseUrl,
+        XDG_CACHE_HOME: cacheHome,
+      },
+    });
+    expect(await run(["auth", "login", "--token", "lxd_good"], io.io)).toBe(2);
+    expect(JSON.parse(io.stderr()).code).toBe("USAGE");
+    expect(io.stored.size).toBe(0);
+  });
+
+  it("caches the schema under the origin, not the profile alone", async () => {
+    const io = fakeIo({
+      env: {
+        LEXIDRAW_PROFILE: "prod",
+        LEXIDRAW_URL: stub.baseUrl,
+        XDG_CACHE_HOME: cacheHome,
+      },
+    });
+    expect(await run(["schema", "doc get"], io.io)).toBe(0);
+    const plain = join(cacheHome, "lexidraw", "prod", "openapi.json");
+    expect(await Bun.file(plain).exists()).toBe(false);
+    const keyed = join(
+      cacheHome,
+      "lexidraw",
+      "prod",
+      `http-${new URL(stub.baseUrl).host.replace(":", "-")}`,
+      "openapi.json",
+    );
+    expect(await Bun.file(keyed).exists()).toBe(true);
   });
 });
 
@@ -221,10 +323,12 @@ describe("schema", () => {
       method: "GET",
       path: "/entities/{id}",
       operationId: "entities-load",
+      summary: "Load one entity",
     });
     expect(schema.parameters.map((p: { name: string }) => p.name)).toEqual([
       "id",
     ]);
+    expect(schema.response.properties.title).toEqual({ type: "string" });
   });
 
   it("accepts the command as separate words", async () => {
@@ -250,6 +354,16 @@ describe("schema", () => {
       known: ["auth status", "doc get"],
     });
   });
+
+  it("treats an inherited property as an unknown command, without a request", async () => {
+    for (const name of ["constructor", "toString", "__proto__"]) {
+      const io = fakeIo({ env: env() });
+      const before = stub.requests.length;
+      expect(await run(["schema", name], io.io)).toBe(2);
+      expect(JSON.parse(io.stderr()).code).toBe("UNKNOWN_COMMAND");
+      expect(stub.requests).toHaveLength(before);
+    }
+  });
 });
 
 describe("dispatch", () => {
@@ -274,5 +388,16 @@ describe("dispatch", () => {
       2,
     );
     expect(JSON.parse(io.stderr()).code).toBe("USAGE");
+  });
+
+  it("rejects a repeated --profile", async () => {
+    const io = fakeIo({ env: env() });
+    expect(
+      await run(
+        ["auth", "status", "--profile", "dev", "--profile", "prod"],
+        io.io,
+      ),
+    ).toBe(2);
+    expect(JSON.parse(io.stderr()).message).toContain("more than once");
   });
 });

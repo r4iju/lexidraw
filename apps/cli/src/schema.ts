@@ -2,7 +2,7 @@ import { parseArgs } from "./args";
 import { COMMANDS, KNOWN_COMMANDS } from "./commands";
 import { json, type Context } from "./context";
 import { CliError, usageError } from "./errors";
-import { extractOperation, loadDocument } from "./openapi";
+import { operationSchema } from "./openapi";
 
 export async function schemaCommand(
   context: Context,
@@ -29,19 +29,24 @@ export async function schemaCommand(
       "usage: lexidraw schema <command> | lexidraw schema --list",
     );
   }
-  const operationId = COMMANDS[command];
-  if (operationId === undefined) {
+  // `hasOwn`, so `constructor` and friends are unknown commands rather than
+  // inherited properties.
+  if (!Object.hasOwn(COMMANDS, command)) {
     throw new CliError("UNKNOWN_COMMAND", `no command "${command}"`, {
       exitCode: 2,
       details: { known: KNOWN_COMMANDS },
     });
   }
 
-  const document = await loadDocument({
-    profile: context.profile.name,
-    baseUrl: context.profile.baseUrl,
-    refresh: context.refresh,
-    env: context.io.env,
-  });
-  context.io.stdout(json(extractOperation(document, operationId, command)));
+  context.io.stdout(
+    json(
+      await operationSchema({
+        profile: context.profile,
+        refresh: context.refresh,
+        env: context.io.env,
+        command,
+        operationId: COMMANDS[command] as string,
+      }),
+    ),
+  );
 }

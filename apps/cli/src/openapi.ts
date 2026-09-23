@@ -2,18 +2,23 @@ import { mkdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
+import type { Env } from "./env";
 import { CliError } from "./errors";
 import { expectOk, requestApi } from "./http";
-import type { Env } from "./context";
+import { originKey, type Profile } from "./profile";
 
-/** Long enough to keep a burst of commands off the network, short enough that
- * a deploy is visible without `--refresh`. */
+/**
+ * Long enough to keep a burst of commands off the network, short enough that a
+ * deploy is visible without `--refresh`.
+ */
 export const CACHE_TTL_MS = 5 * 60 * 1000;
 
 export type OpenApiOperation = {
   operationId?: string;
+  summary?: string;
   parameters?: unknown;
   requestBody?: unknown;
+  responses?: Record<string, unknown>;
 };
 
 export type OpenApiDocument = {
@@ -26,31 +31,44 @@ export type CommandSchema = {
   method: string;
   path: string;
   operationId: string;
+  summary: string | null;
   parameters: unknown;
   requestBody: unknown;
+  response: unknown;
+};
+
+type LoadOptions = {
+  profile: Profile;
+  refresh: boolean;
+  env: Env;
+  now?: number;
 };
 
 const METHODS = ["get", "post", "put", "patch", "delete"] as const;
 
-export function cachePath(profile: string, env: Env): string {
+/** Keyed by origin as well as profile: `LEXIDRAW_URL` changes which server a
+ * profile describes, and two servers do not share a schema. */
+export function cachePath(profile: Profile, env: Env): string {
   const base = env.XDG_CACHE_HOME || join(homedir(), ".cache");
-  return join(base, "lexidraw", profile, "openapi.json");
+  return join(
+    base,
+    "lexidraw",
+    profile.name,
+    originKey(profile.origin),
+    "openapi.json",
+  );
 }
 
-export async function loadDocument(options: {
-  profile: string;
-  baseUrl: string;
-  refresh: boolean;
-  env: Env;
-  now?: number;
-}): Promise<OpenApiDocument> {
+export async function loadDocument(
+  options: LoadOptions,
+): Promise<{ document: OpenApiDocument; cached: boolean }> {
   const file = cachePath(options.profile, options.env);
   if (!options.refresh) {
     const cached = await readFresh(file, options.now ?? Date.now());
-    if (cached) return cached;
+    if (cached) return { document: cached, cached: true };
   }
   const response = await requestApi({
-    baseUrl: options.baseUrl,
+    baseUrl: options.profile.baseUrl,
     method: "GET",
     path: "/openapi.json",
   });
@@ -60,7 +78,26 @@ export async function loadDocument(options: {
   ) as OpenApiDocument;
   await mkdir(dirname(file), { recursive: true });
   await Bun.write(file, JSON.stringify(document));
-  return document;
+  return { document, cached: false };
+}
+
+/** The schema for one command, refetching once when only the cache disagrees. */
+export async function operationSchema(
+  options: LoadOptions & { command: string; operationId: string },
+): Promise<CommandSchema> {
+  const { command, operationId } = options;
+  const first = await loadDocument(options);
+  try {
+    return extractOperation(first.document, operationId, command);
+  } catch (error) {
+    const stale =
+      first.cached &&
+      error instanceof CliError &&
+      error.code === "OPERATION_NOT_IN_SCHEMA";
+    if (!stale) throw error;
+    const fresh = await loadDocument({ ...options, refresh: true });
+    return extractOperation(fresh.document, operationId, command);
+  }
 }
 
 async function readFresh(
@@ -68,7 +105,10 @@ async function readFresh(
   now: number,
 ): Promise<OpenApiDocument | null> {
   const info = await stat(file).catch(() => null);
-  if (!info || now - info.mtimeMs > CACHE_TTL_MS) return null;
+  if (!info) return null;
+  // A negative age means the clock moved; trust the network over the file.
+  const age = now - info.mtimeMs;
+  if (age < 0 || age > CACHE_TTL_MS) return null;
   try {
     return JSON.parse(await Bun.file(file).text()) as OpenApiDocument;
   } catch {
@@ -90,16 +130,25 @@ export function extractOperation(
         method: method.toUpperCase(),
         path,
         operationId,
+        summary: operation.summary ?? null,
         parameters: resolveRefs(document, operation.parameters ?? []),
         requestBody: resolveRefs(document, operation.requestBody ?? null),
+        response: resolveRefs(document, successSchema(operation) ?? null),
       };
     }
   }
   throw new CliError(
     "OPERATION_NOT_IN_SCHEMA",
-    `"${command}" maps to ${operationId}, which this server's OpenAPI document does not describe`,
+    `"${command}" maps to ${operationId}, which this server's OpenAPI document does not describe; try --refresh`,
     { details: { operationId } },
   );
+}
+
+function successSchema(operation: OpenApiOperation): unknown {
+  const ok = operation.responses?.["200"] as
+    | { content?: Record<string, { schema?: unknown }> }
+    | undefined;
+  return ok?.content?.["application/json"]?.schema;
 }
 
 /** Inlines `#/...` references so the printed schema stands on its own. */
