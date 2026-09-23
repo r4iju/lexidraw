@@ -34,7 +34,14 @@
                       "type": "string"
                     },
                     "email": {
-                      "type": ["string", "null"]
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "authKind": {
                       "type": "string",
@@ -143,7 +150,14 @@
                     "enum": ["drawing", "document", "directory", "url"]
                   },
                   "parentId": {
-                    "type": ["string", "null"]
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -176,7 +190,14 @@
                       "enum": ["drawing", "document", "directory", "url"]
                     },
                     "parentId": {
-                      "type": ["string", "null"]
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "createdAt": {
                       "format": "date-time",
@@ -222,6 +243,16 @@
           },
           "403": {
             "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -410,7 +441,14 @@
                         ]
                       },
                       "thumbnailVersion": {
-                        "type": ["string", "null"]
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "thumbnailUpdatedAt": {
                         "anyOf": [
@@ -431,7 +469,14 @@
                         "enum": ["READ", "PRIVATE", "EDIT"]
                       },
                       "parentId": {
-                        "type": ["string", "null"]
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "favoritedAt": {
                         "anyOf": [
@@ -581,7 +626,14 @@
                     "type": "string"
                   },
                   "appState": {
-                    "type": ["string", "null"]
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "entityType": {
                     "type": "string",
@@ -708,7 +760,14 @@
                       "enum": ["drawing", "document", "directory", "url"]
                     },
                     "appState": {
-                      "type": ["string", "null"]
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "elements": {
                       "type": "string"
@@ -924,10 +983,24 @@
                     "type": "string"
                   },
                   "parentId": {
-                    "type": ["string", "null"]
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "prevParentId": {
-                    "type": ["string", "null"]
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "screenShotLight": {
                     "type": "string"
@@ -1066,7 +1139,14 @@
                         "type": "string"
                       },
                       "parentId": {
-                        "type": ["string", "null"]
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -1456,10 +1536,24 @@
                         "enum": ["READ", "EDIT"]
                       },
                       "email": {
-                        "type": ["string", "null"]
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "name": {
-                        "type": ["string", "null"]
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -2411,8 +2505,8 @@
                     "type": "string"
                   },
                   "afterHeading": {
-                    "description": "Insert after the first root-level heading whose plain text matches (trimmed, whitespace collapsed, case-insensitive). Pass exactly one of afterHeading or atBlockIndex.",
-                    "type": "string"
+                    "type": "string",
+                    "description": "Insert after the first root-level heading whose plain text matches (trimmed, whitespace collapsed, case-insensitive). Pass exactly one of afterHeading or atBlockIndex."
                   },
                   "nth": {
                     "description": "1-based pick among headings matching afterHeading; only valid with afterHeading.",
@@ -2884,18 +2978,12 @@
                                 "points": {
                                   "type": "array",
                                   "items": {
-                                    "type": "array",
-                                    "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
-                                    ],
-                                    "items": false,
                                     "minItems": 2,
-                                    "maxItems": 2
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    }
                                   }
                                 }
                               },
@@ -2979,10 +3067,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -3000,7 +3102,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -3035,18 +3144,12 @@
                                 "points": {
                                   "type": "array",
                                   "items": {
-                                    "type": "array",
-                                    "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
-                                    ],
-                                    "items": false,
                                     "minItems": 2,
-                                    "maxItems": 2
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    }
                                   }
                                 },
                                 "startBinding": {
@@ -3156,10 +3259,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -3177,7 +3294,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -3212,18 +3336,12 @@
                                 "points": {
                                   "type": "array",
                                   "items": {
-                                    "type": "array",
-                                    "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
-                                    ],
-                                    "items": false,
                                     "minItems": 2,
-                                    "maxItems": 2
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    }
                                   }
                                 },
                                 "pressures": {
@@ -3293,10 +3411,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -3314,7 +3446,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -3360,7 +3499,14 @@
                                   "type": "number"
                                 },
                                 "containerId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
@@ -3424,10 +3570,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -3445,7 +3605,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -4001,18 +4168,12 @@
                                 "points": {
                                   "type": "array",
                                   "items": {
-                                    "type": "array",
-                                    "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
-                                    ],
-                                    "items": false,
                                     "minItems": 2,
-                                    "maxItems": 2
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    }
                                   }
                                 }
                               },
@@ -4096,10 +4257,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -4117,7 +4292,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -4152,18 +4334,12 @@
                                 "points": {
                                   "type": "array",
                                   "items": {
-                                    "type": "array",
-                                    "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
-                                    ],
-                                    "items": false,
                                     "minItems": 2,
-                                    "maxItems": 2
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    }
                                   }
                                 },
                                 "startBinding": {
@@ -4273,10 +4449,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -4294,7 +4484,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -4329,18 +4526,12 @@
                                 "points": {
                                   "type": "array",
                                   "items": {
-                                    "type": "array",
-                                    "prefixItems": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "number"
-                                      }
-                                    ],
-                                    "items": false,
                                     "minItems": 2,
-                                    "maxItems": 2
+                                    "maxItems": 2,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    }
                                   }
                                 },
                                 "pressures": {
@@ -4410,10 +4601,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -4431,7 +4636,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -4477,7 +4689,14 @@
                                   "type": "number"
                                 },
                                 "containerId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
@@ -4541,10 +4760,24 @@
                                   }
                                 },
                                 "frameId": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "index": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "seed": {
                                   "type": "number"
@@ -4562,7 +4795,14 @@
                                   "type": "number"
                                 },
                                 "link": {
-                                  "type": ["string", "null"]
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "locked": {
                                   "type": "boolean"
@@ -4626,7 +4866,14 @@
                     }
                   },
                   "parentId": {
-                    "type": ["string", "null"]
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "mermaid": {
                     "description": "Rejected: Mermaid is not a write format; convert it in the browser",
@@ -4653,9 +4900,14 @@
                       "type": "string",
                       "format": "date-time",
                       "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "elementCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
-                  "required": ["id", "updatedAt"],
+                  "required": ["id", "updatedAt", "elementCount"],
                   "additionalProperties": false
                 }
               }
@@ -4782,12 +5034,26 @@
             "description": "Machine readable detail; each field is null on the errors that do not carry it.",
             "properties": {
               "currentUpdatedAt": {
-                "type": ["string", "null"],
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
                 "format": "date-time",
                 "description": "On a 409, the document's current `updatedAt`; re-read from it and retry with it as `ifUnmodifiedSince`."
               },
               "candidates": {
-                "type": ["array", "null"],
+                "anyOf": [
+                  {
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
                 "items": {
                   "type": "object",
                   "title": "Heading candidate",

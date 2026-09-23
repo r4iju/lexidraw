@@ -18,6 +18,12 @@ import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
  * so this has to run before the first import of anything under `~/server`, and
  * a caller imports the route dynamically once it has resolved.
  *
+ * `bun test` runs every file in one process, and `@packages/drizzle` resolves
+ * its singleton at the first import of the package, so only the first
+ * installation is the database the routes in this process talk to. A later
+ * caller is handed that one back and seeds rows of its own into it, which is
+ * why each test file's ids have to be its own.
+ *
  * The tables are the schema itself, rendered to DDL by drizzle-kit rather than
  * copied: the stored migrations begin mid-history and cannot be replayed from
  * empty, and a hand-written subset would drift away from the columns the
@@ -29,6 +35,8 @@ export async function installServerRuntime(): Promise<
   LibSQLDatabase<typeof schema>
 > {
   mock.module("server-only", () => ({}));
+  const installed = (globalThis as { db?: LibSQLDatabase<typeof schema> }).db;
+  if (installed) return installed;
   const runtimeEnv = process.env as Record<string, string | undefined>;
   runtimeEnv.MEDIA_DOWNLOADER_URL ??= "http://media-downloader.test";
   // `bun test` sets NODE_ENV itself; a plain `bun` run of a harness does not.

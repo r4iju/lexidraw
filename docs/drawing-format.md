@@ -183,11 +183,11 @@ converter is shown the shorthand batch and nothing else.
 
 ## What you get back
 
-`PUT` answers with `{ id, updatedAt, elementCount }`, where `elementCount`
-counts stored elements, so a payload of two labelled boxes and an arrow comes
-back as more elements than you sent. `GET /api/v1/drawings/{id}` answers with
-`{ id, title, elements, appState, updatedAt }`, `elements` parsed rather than
-as a JSON string.
+`PUT` and `POST` both answer with `{ id, updatedAt, elementCount }`, where
+`elementCount` counts stored elements, so a payload of two labelled boxes and
+an arrow comes back as more elements than you sent. `GET
+/api/v1/drawings/{id}` answers with `{ id, title, elements, appState,
+updatedAt }`, `elements` parsed rather than as a JSON string.
 
 Ids survive normalization. An id you give a shorthand element is the id it is
 stored under, so the next request can bind to it or replace it. Elements the

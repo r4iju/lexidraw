@@ -5,10 +5,11 @@ import { z } from "zod";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { AccessLevel } from "@packages/types";
+import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 import type { Metadata } from "next";
-import { revalidatePath } from "next/cache";
+import { cacheTag, revalidatePath } from "next/cache";
 import DrawingBoardWithSave from "./drawing-board-wrapper";
 import ViewBoard from "./board-view-client";
 import { redirect } from "next/navigation";
@@ -43,6 +44,11 @@ export default async function DrawingBoard(props: Props) {
   const [param, search] = await Promise.all([props.params, props.searchParams]);
   const { drawingId } = Params.parse(param);
   const { new: isNew, parentId } = SearchParams.parse(search);
+
+  // What this render is about, so a write to it anywhere — the browser, the
+  // REST path, MCP, the CLI — drops this entry instead of leaving a stale
+  // drawing on screen until it expires.
+  cacheTag(entityTag(drawingId));
 
   if (isNew === "true") {
     await api.entities.create.mutate({

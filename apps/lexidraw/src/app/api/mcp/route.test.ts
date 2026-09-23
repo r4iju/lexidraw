@@ -5,6 +5,7 @@ import { PublicAccess } from "@packages/types";
 
 import { hashApiToken } from "~/server/auth/api-token-format";
 import { installServerRuntime } from "~/test/server-runtime";
+import { unportable } from "~/test/unportable";
 
 const db = await installServerRuntime();
 // After the runtime is installed, so the route's imports find the test
@@ -262,6 +263,19 @@ describe("the MCP endpoint", () => {
       expect(schema.properties.elements).toMatchObject({ type: "array" });
       expect(schema.properties.elements.items).toBeDefined();
     }
+  });
+
+  test("publishes tool schemas a strict JSON Schema client can read", async () => {
+    const { body } = await rpc(WRITE_TOKEN, "tools/list");
+    const tools = body.result.tools as { name: string; inputSchema: Json }[];
+    const problems: string[] = [];
+    for (const tool of tools) {
+      unportable(tool.inputSchema, `${tool.name}.inputSchema`, problems);
+    }
+    // A `false` where a schema belongs is what zod writes a tuple as, and an
+    // array-valued `type` is what it writes a nullable as. A strict client
+    // drops the first and misreads the second, so neither may be published.
+    expect(problems).toEqual([]);
   });
 
   test("resolves the token to its owner", async () => {

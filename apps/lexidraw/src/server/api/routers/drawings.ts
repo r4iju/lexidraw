@@ -31,6 +31,7 @@ import {
   DrawingElements,
   MERMAID_REJECTION,
 } from "~/server/drawings/skeleton-schema";
+import { revalidateEntities } from "../entity-cache";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 /** An element on the wire: canonical Excalidraw, so its fields are its own. */
@@ -341,6 +342,8 @@ export const drawingRouter = createTRPCRouter({
           elements,
           input.ifUnmodifiedSince,
         );
+        // The parent too: a directory listing shows each child's updatedAt.
+        revalidateEntities(input.id, drawing.parentId);
         return { ...written, updatedAt: written.updatedAt.toISOString() };
       } catch (error) {
         throwAsDrawingWriteError(error);
@@ -370,7 +373,16 @@ export const drawingRouter = createTRPCRouter({
         mermaid,
       }),
     )
-    .output(z.object({ id: z.string(), updatedAt: Iso }))
+    // `elementCount` is the converter's answer, not the payload's length: one
+    // shorthand element becomes several stored ones, so a create says how many
+    // it actually wrote, exactly as `put` does.
+    .output(
+      z.object({
+        id: z.string(),
+        updatedAt: Iso,
+        elementCount: z.number().int().nonnegative(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const parentId = await resolveParentDirectory(
         ctx.drizzle,
@@ -399,7 +411,12 @@ export const drawingRouter = createTRPCRouter({
           message: `An entity with id "${input.id}" already exists`,
         });
       }
-      return { id: row.id, updatedAt: row.updatedAt.toISOString() };
+      revalidateEntities(row.id, parentId);
+      return {
+        id: row.id,
+        updatedAt: row.updatedAt.toISOString(),
+        elementCount: elements.length,
+      };
     }),
 });
 

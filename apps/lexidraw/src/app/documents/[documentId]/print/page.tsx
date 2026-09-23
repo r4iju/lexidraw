@@ -1,6 +1,8 @@
 "use cache: private";
 
+import { cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { entityTag } from "~/server/api/entity-cache";
 import { verifyPrintToken } from "~/server/auth/print-token";
 import { drizzle as db, schema, eq } from "@packages/drizzle";
 import type { EntityType, PublicAccess } from "@packages/types";
@@ -27,6 +29,10 @@ export default async function PrintDocumentPage(props: Props) {
   ]);
   const { documentId } = Params.parse(params);
   const { token } = searchParams;
+
+  // Same tag the editor page carries: a write over any transport drops this
+  // render too, so a print never shows a revision the document no longer has.
+  cacheTag(entityTag(documentId));
 
   // Validate token (for server renderer) or check session (for user preview)
   if (token) {

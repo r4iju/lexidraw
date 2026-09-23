@@ -1,6 +1,8 @@
 "use cache: private";
 
 import { Suspense } from "react";
+import { cacheTag } from "next/cache";
+import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
 import { Dashboard } from "../dashboard";
 import { DashboardSkeleton } from "../skeleton";
@@ -118,6 +120,11 @@ async function DashboardContent({ params, searchParams }: Props) {
 }
 
 export default async function DashboardPage(props: Props) {
+  // The listing this render shows, so a child created, deleted, renamed, or
+  // moved over any transport drops it. Tagged here rather than in
+  // `DashboardContent`, which the Suspense boundary may render after this
+  // cached scope has closed.
+  cacheTag(entityTag((await props.params).directoryId));
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       <DashboardContent {...props} />

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { portableJsonSchema } from "~/server/api/portable-schema";
+
 /**
  * A drawing write accepts two shapes over one pipeline: canonical Excalidraw
  * elements, and the skeleton shorthand agents already know from the official
@@ -25,6 +27,14 @@ export const MERMAID_REJECTION =
 export const MAX_DRAWING_ELEMENTS = 10_000;
 
 const finite = z.number().finite();
+
+/**
+ * One `[x, y]` pair. An array of length two rather than a tuple: zod writes a
+ * tuple as `prefixItems` plus `items: false`, and a strict MCP client rejects
+ * a `false` where a schema belongs and drops the whole tool. The constraint is
+ * the same either way — exactly two numbers.
+ */
+const Point = z.array(finite).length(2);
 
 /** Fields only a canonical element carries; see {@link isSkeletonElement}. */
 export const CANONICAL_ONLY_FIELDS = [
@@ -89,7 +99,7 @@ const TextSkeleton = z.looseObject({
   fontSize: finite.positive().optional(),
 });
 
-const Points = z.array(z.tuple([finite, finite]));
+const Points = z.array(Point);
 
 const LinearSkeleton = z.looseObject({
   type: z.enum(["arrow", "line"]),
@@ -254,10 +264,17 @@ const schemaFor = (value: unknown): SchemaFor => {
   return isSkeletonElement(value) ? SkeletonElement : RawElement;
 };
 
-/** The two shapes as published; the runtime check picks between them. */
-const published: Record<string, unknown> = z.toJSONSchema(
-  z.union([SkeletonElement, RawElement, MermaidElement]),
-  { io: "input" },
+/**
+ * The two shapes as published; the runtime check picks between them. Run
+ * through {@link portableJsonSchema}, because this object is what both the
+ * OpenAPI document and the MCP tool schemas carry, and a nullable field zod
+ * writes as `type: ["string", "null"]` reads as a plain string to a client
+ * that takes `type` for a string.
+ */
+const published: Record<string, unknown> = portableJsonSchema(
+  z.toJSONSchema(z.union([SkeletonElement, RawElement, MermaidElement]), {
+    io: "input",
+  }),
 );
 delete published.$schema;
 

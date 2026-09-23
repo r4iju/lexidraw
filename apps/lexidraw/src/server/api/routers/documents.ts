@@ -1,3 +1,4 @@
+import { revalidateEntities } from "../entity-cache";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { AfterHeading, CreateDocument, MarkdownBody } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
@@ -279,12 +280,15 @@ export const documentRouter = createTRPCRouter({
         });
       }
       try {
-        return await appendMarkdownToDocument(
+        const written = await appendMarkdownToDocument(
           drizzleDocumentStore(ctx.drizzle),
           entity,
           input.markdown,
           input.ifUnmodifiedSince,
         );
+        // The parent too: a directory listing shows each child's updatedAt.
+        revalidateEntities(input.id, entity.parentId);
+        return written;
       } catch (error) {
         throwAsDocumentWriteError(error);
       }
@@ -388,13 +392,16 @@ export const documentRouter = createTRPCRouter({
         });
       }
       try {
-        return await insertMarkdownIntoDocument(
+        const written = await insertMarkdownIntoDocument(
           drizzleDocumentStore(ctx.drizzle),
           entity,
           input.markdown,
           input.placement,
           input.ifUnmodifiedSince,
         );
+        // The parent too: a directory listing shows each child's updatedAt.
+        revalidateEntities(input.id, entity.parentId);
+        return written;
       } catch (error) {
         throwAsDocumentWriteError(error);
       }
@@ -460,12 +467,15 @@ export const documentRouter = createTRPCRouter({
         });
       }
       try {
-        return await replaceMarkdownInDocument(
+        const written = await replaceMarkdownInDocument(
           drizzleDocumentStore(ctx.drizzle),
           entity,
           input.markdown,
           input.ifUnmodifiedSince,
         );
+        // The parent too: a directory listing shows each child's updatedAt.
+        revalidateEntities(input.id, entity.parentId);
+        return written;
       } catch (error) {
         throwAsDocumentWriteError(error);
       }
