@@ -5,10 +5,19 @@
  */
 export const COMMANDS: Record<string, string> = {
   "auth status": "auth-me",
-  "doc get": "entities-load",
   "drawing create": "drawings-create",
   "drawing get": "drawings-get",
   "drawing put": "drawings-put",
+  "dir create": "entities-create",
+  "dir list": "entities-list",
+  "doc append": "documents-appendMarkdown",
+  "doc create": "entities-create",
+  "doc delete": "entities-delete",
+  "doc get": "documents-getMarkdown",
+  "doc insert": "documents-insertMarkdown",
+  "doc list": "entities-list",
+  "doc put": "documents-replaceMarkdown",
+  search: "entities-search",
 };
 
 export const KNOWN_COMMANDS = Object.keys(COMMANDS).sort();
