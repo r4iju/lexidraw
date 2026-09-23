@@ -238,4 +238,13 @@ arrows):
   validated and normalised by Excalidraw's restore, not stored byte for byte.
 
 Mermaid is rejected by name; at most 10,000 elements; keep the body under
-Vercel's 4.5 MB limit. Rendering to SVG or PNG lands with issue #34.
+Vercel's 4.5 MB limit.
+
+```bash
+lexidraw drawing render <id> [--format svg|png] [--scale 1-4] [--out <file>]
+```
+
+`render` writes the image to `--out`, or to stdout (SVG as text; PNG bytes
+are refused on a terminal, so pass `--out`). SVG names the font families
+rather than embedding them; PNG is rasterised server-side with the bundled
+fonts, `--scale` multiplies the pixel size.
