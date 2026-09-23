@@ -42,6 +42,8 @@ loading tool schemas into the agent's context until they are needed.
 - Paths under `/api/v1/...`. GET inputs must be flat objects; mutations are
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
+- Live today: `entities.load` as `GET /api/v1/entities/{id}`, with the
+  generated document served at `/api/v1/openapi.json`.
 - v1 exposes: entities list/load/create/save/update/delete/search, tags,
   share, directory listing, the markdown procedures, drawing normalize and
   render. Admin, TTS, backups, snapshot, image generation, LLM procedures stay
