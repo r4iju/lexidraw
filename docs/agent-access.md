@@ -113,12 +113,13 @@ loading tool schemas into the agent's context until they are needed.
   - `documents.insertMarkdown(id, md, { afterHeading | atBlockIndex },
     ifUnmodifiedSince)` — precondition mandatory. `afterHeading` puts the
     blocks directly below a top-level heading whose text matches trimmed,
-    whitespace-collapsed, and case-insensitively; several matches fail with
-    `BAD_REQUEST` listing them on `data.candidates` (`nth`, `blockIndex`,
-    `tag`, `text`), and `nth` (1-based, in document order) picks one.
-    `atBlockIndex` counts top-level blocks from 0, and the block count itself
-    means append. The placement is resolved again on a retried write, so it
-    follows blocks another writer moved.
+    whitespace-collapsed, and case-insensitively, inline markup ignored (the
+    heading's plain text is compared, so `## Plan **B**` is matched by
+    `Plan B`); no match fails naming the top-level headings that do exist.
+    Several matches fail with `BAD_REQUEST` listing them on `data.candidates`
+    (`nth`, `blockIndex`, `tag`, `text`), and `nth` (1-based, in document
+    order) picks one. `atBlockIndex` counts top-level blocks from 0, and the
+    block count itself means append.
   - `documents.replaceMarkdown(id, md, ifUnmodifiedSince)` — precondition
     mandatory; CLI exposes it only as `doc put --replace`.
 - Blocks without a markdown form (slides, excalidraw, mermaid, chart, poll,

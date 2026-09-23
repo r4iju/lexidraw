@@ -75,10 +75,13 @@ function throwAsDocumentWriteError(error: unknown): never {
 
 const ONE_PLACEMENT = "pass exactly one of afterHeading or atBlockIndex";
 
+const nonBlank = (field: string) =>
+  z
+    .string()
+    .refine((value) => value.trim() !== "", `${field} must not be blank`);
+
 // Refined rather than trimmed: leading indentation is markdown too.
-const MarkdownBody = z
-  .string()
-  .refine((value) => value.trim() !== "", "markdown must not be blank");
+const MarkdownBody = nonBlank("markdown");
 
 export const documentRouter = createTRPCRouter({
   create: protectedProcedure
@@ -204,9 +207,10 @@ export const documentRouter = createTRPCRouter({
     }),
   /**
    * Inserts markdown directly below a top-level heading, or at a top-level
-   * block index, for agents and the CLI. The heading text is matched trimmed,
-   * whitespace-collapsed, and case-insensitively; several matches fail with
-   * the candidates on `data.candidates`, and `nth` (1-based) picks one.
+   * block index, for agents and the CLI. A heading is matched by its plain
+   * text, trimmed, whitespace-collapsed, and case-insensitively; several
+   * matches fail with the candidates on `data.candidates`, and `nth` (1-based)
+   * picks one.
    *
    * `ifUnmodifiedSince` is mandatory here: unlike an append, an insert lands
    * among blocks the caller must have read to be able to point at them.
@@ -217,7 +221,7 @@ export const documentRouter = createTRPCRouter({
         .object({
           id: z.string(),
           markdown: MarkdownBody,
-          afterHeading: z.string().optional(),
+          afterHeading: nonBlank("afterHeading").optional(),
           nth: z.number().int().positive().optional(),
           atBlockIndex: z.number().int().nonnegative().optional(),
           ifUnmodifiedSince: z.iso.datetime(),

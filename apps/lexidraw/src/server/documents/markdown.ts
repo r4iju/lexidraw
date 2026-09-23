@@ -173,26 +173,52 @@ export type HeadingCandidate = {
   text: string;
 };
 
+// Enough for the caller to recognise the heading it meant without another
+// read, short of pasting a long document's whole outline into an error.
+const LISTED_HEADINGS = 20;
+
+const headingCount = (count: number) =>
+  `${count} top-level heading${count === 1 ? "" : "s"}`;
+
 export class HeadingNotFoundError extends Error {
   readonly text: string;
+  /** Every top-level heading the document does have, in document order. */
+  readonly headings: string[];
 
-  constructor(text: string) {
-    super(`No top-level heading matches ${JSON.stringify(text)}`);
+  constructor(text: string, headings: string[]) {
+    // The headings that do exist are in the message so the caller can pick
+    // one without re-reading the document.
+    const listed = [
+      ...headings
+        .slice(0, LISTED_HEADINGS)
+        .map((heading) => JSON.stringify(heading)),
+      ...(headings.length > LISTED_HEADINGS
+        ? [`and ${headings.length - LISTED_HEADINGS} more`]
+        : []),
+    ];
+    super(
+      `No top-level heading matches ${JSON.stringify(text)}; the document has ${listed.length === 0 ? "none" : listed.join(", ")}`,
+    );
     this.name = "HeadingNotFoundError";
     this.text = text;
+    this.headings = headings;
   }
 }
 
 export class AmbiguousHeadingError extends Error {
   readonly text: string;
   readonly candidates: HeadingCandidate[];
+  /** The `nth` that pointed past the candidates, when there was one. */
+  readonly nth?: number;
 
-  constructor(text: string, candidates: HeadingCandidate[]) {
+  constructor(text: string, candidates: HeadingCandidate[], nth?: number) {
     // The candidates are in the message as well as on the error so a client
     // that only surfaces the message can still tell the caller what exists.
     super(
       [
-        `${candidates.length} top-level heading${candidates.length === 1 ? "" : "s"} match ${JSON.stringify(text)}; pass nth to choose one:`,
+        nth === undefined
+          ? `${headingCount(candidates.length)} ${candidates.length === 1 ? "matches" : "match"} ${JSON.stringify(text)}; pass nth to choose one:`
+          : `nth ${nth} is past the ${headingCount(candidates.length)} matching ${JSON.stringify(text)}:`,
         ...candidates.map(
           (candidate) =>
             `#${candidate.nth} ${candidate.tag} ${JSON.stringify(candidate.text)} at block ${candidate.blockIndex}`,
@@ -202,6 +228,7 @@ export class AmbiguousHeadingError extends Error {
     this.name = "AmbiguousHeadingError";
     this.text = text;
     this.candidates = candidates;
+    this.nth = nth;
   }
 }
 
@@ -219,10 +246,17 @@ export class BlockIndexOutOfRangeError extends Error {
   }
 }
 
-/** All text below `node`, in document order. */
+/**
+ * All text below `node`, in document order, with the line breaks it renders
+ * as. Formatting is dropped: a heading is matched by what it reads as, not by
+ * the bold or italic runs it happens to be split into.
+ */
 function nodeText(node: SerializedLexicalNode): string {
   const parts: string[] = [];
   const visit = (current: SerializedLexicalNode) => {
+    if (current.type === "linebreak") {
+      parts.push("\n");
+    }
     if ("text" in current && typeof current.text === "string") {
       parts.push(current.text);
     }
@@ -242,28 +276,21 @@ function nodeText(node: SerializedLexicalNode): string {
 const foldHeadingText = (text: string) =>
   text.trim().replace(/\s+/g, " ").toLowerCase();
 
-function headingCandidates(
-  state: SerializedEditorState,
-  text: string,
-): HeadingCandidate[] {
-  const wanted = foldHeadingText(text);
-  const candidates: HeadingCandidate[] = [];
+type TopLevelHeading = Omit<HeadingCandidate, "nth">;
+
+function topLevelHeadings(state: SerializedEditorState): TopLevelHeading[] {
+  const headings: TopLevelHeading[] = [];
   state.root.children.forEach((child, blockIndex) => {
     if (child.type !== "heading") {
       return;
     }
-    const headingText = nodeText(child);
-    if (foldHeadingText(headingText) !== wanted) {
-      return;
-    }
-    candidates.push({
-      nth: candidates.length + 1,
+    headings.push({
       blockIndex,
       tag: "tag" in child && typeof child.tag === "string" ? child.tag : "",
-      text: headingText,
+      text: nodeText(child),
     });
   });
-  return candidates;
+  return headings;
 }
 
 /**
@@ -289,17 +316,27 @@ export function resolveInsertIndex(
       }
       return placement.index;
     case "afterHeading": {
-      const candidates = headingCandidates(state, placement.text);
+      const headings = topLevelHeadings(state);
+      const wanted = foldHeadingText(placement.text);
+      const candidates: HeadingCandidate[] = headings
+        .filter((heading) => foldHeadingText(heading.text) === wanted)
+        .map((heading, index) => ({ nth: index + 1, ...heading }));
       if (candidates.length === 0) {
-        throw new HeadingNotFoundError(placement.text);
+        throw new HeadingNotFoundError(
+          placement.text,
+          headings.map((heading) => heading.text),
+        );
       }
       if (placement.nth === undefined && candidates.length > 1) {
         throw new AmbiguousHeadingError(placement.text, candidates);
       }
-      // An nth past the end is ambiguous too: the candidates say what exists.
       const chosen = candidates[(placement.nth ?? 1) - 1];
       if (!chosen) {
-        throw new AmbiguousHeadingError(placement.text, candidates);
+        throw new AmbiguousHeadingError(
+          placement.text,
+          candidates,
+          placement.nth,
+        );
       }
       return chosen.blockIndex + 1;
     }

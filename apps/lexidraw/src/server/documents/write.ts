@@ -58,9 +58,6 @@ export type AppendResult = {
  * clobbered. Without a precondition, losing that race is retried once against
  * what the other writer left. With one, the retry would insert into a revision
  * the caller has not seen, so a lost race is a conflict straight away.
- *
- * The placement is resolved again on the retry: the other writer may have
- * moved, added, or removed the blocks it was pointing at.
  */
 export async function insertMarkdownIntoDocument(
   store: DocumentStore,
@@ -80,6 +77,9 @@ export async function insertMarkdownIntoDocument(
   }
 
   for (let attempt = 0; ; attempt++) {
+    // Resolved against the state this attempt writes into, never against the
+    // stale read. Only a call without a precondition retries today, and the
+    // only placement such a call carries is the append's `end`.
     const blockIndex = resolveInsertIndex(state, placement);
     const written = await store.write(
       current.id,

@@ -221,7 +221,16 @@ Second note.`,
     ).toBe(1);
   });
 
-  test("heading text is trimmed, collapsed, case-folded, and joined", () => {
+  const caught = (run: () => unknown): unknown => {
+    try {
+      run();
+    } catch (error) {
+      return error;
+    }
+    throw new Error("expected a throw");
+  };
+
+  test("heading text is trimmed, collapsed, case-folded, and unformatted", () => {
     const state = markdownToEditorState("## Plan **B**\n\nBody.");
     expect(
       resolveInsertIndex(state, {
@@ -231,18 +240,37 @@ Second note.`,
     ).toBe(1);
   });
 
+  test("a line break inside a heading reads as whitespace", () => {
+    const state = {
+      root: {
+        ...OUTLINE.root,
+        children: [
+          {
+            type: "heading",
+            tag: "h2",
+            version: 1,
+            children: [
+              { type: "text", version: 1, text: "Line one" },
+              { type: "linebreak", version: 1 },
+              { type: "text", version: 1, text: "Line two" },
+            ],
+          } as never,
+        ],
+      },
+    } as SerializedEditorState;
+
+    expect(
+      resolveInsertIndex(state, {
+        kind: "afterHeading",
+        text: "line one line two",
+      }),
+    ).toBe(1);
+  });
+
   test("duplicate headings name every candidate, and nth picks one", () => {
     const placement = { kind: "afterHeading" as const, text: " NOTES " };
 
-    expect(() => resolveInsertIndex(OUTLINE, placement)).toThrow(
-      AmbiguousHeadingError,
-    );
-    let thrown: unknown;
-    try {
-      resolveInsertIndex(OUTLINE, placement);
-    } catch (error) {
-      thrown = error;
-    }
+    const thrown = caught(() => resolveInsertIndex(OUTLINE, placement));
     expect(thrown).toBeInstanceOf(AmbiguousHeadingError);
     expect((thrown as AmbiguousHeadingError).candidates).toEqual([
       { nth: 1, blockIndex: 2, tag: "h2", text: "Notes" },
@@ -260,31 +288,82 @@ Second note.`,
     expect(resolveInsertIndex(OUTLINE, { ...placement, nth: 2 })).toBe(5);
   });
 
-  test("an nth past the last candidate is ambiguous, candidates and all", () => {
-    for (const placement of [
-      { kind: "afterHeading" as const, text: "Notes", nth: 3 },
-      { kind: "afterHeading" as const, text: "Title", nth: 2 },
-    ]) {
-      expect(() => resolveInsertIndex(OUTLINE, placement)).toThrow(
-        AmbiguousHeadingError,
-      );
-    }
-    expect(() =>
+  test("an nth past the last candidate says so, candidates and all", () => {
+    const past = caught(() =>
       resolveInsertIndex(OUTLINE, {
         kind: "afterHeading",
-        text: "Title",
-        nth: 2,
+        text: "Notes",
+        nth: 3,
       }),
-    ).toThrow('#1 h1 "Title" at block 0');
+    );
+    expect(past).toBeInstanceOf(AmbiguousHeadingError);
+    expect((past as AmbiguousHeadingError).candidates).toHaveLength(2);
+    expect((past as AmbiguousHeadingError).message).toBe(
+      [
+        'nth 3 is past the 2 top-level headings matching "Notes":',
+        '#1 h2 "Notes" at block 2',
+        '#2 h2 "notes" at block 4',
+      ].join("\n"),
+    );
+
+    // One match and an nth of 2: not ambiguous to the caller, just too far.
+    expect(
+      (
+        caught(() =>
+          resolveInsertIndex(OUTLINE, {
+            kind: "afterHeading",
+            text: "Title",
+            nth: 2,
+          }),
+        ) as AmbiguousHeadingError
+      ).message,
+    ).toBe(
+      [
+        'nth 2 is past the 1 top-level heading matching "Title":',
+        '#1 h1 "Title" at block 0',
+      ].join("\n"),
+    );
   });
 
-  test("a heading nobody has is not found", () => {
+  test("a heading nobody has is not found, and the others are named", () => {
+    const thrown = caught(() =>
+      resolveInsertIndex(OUTLINE, { kind: "afterHeading", text: "Missing" }),
+    );
+    expect(thrown).toBeInstanceOf(HeadingNotFoundError);
+    expect((thrown as HeadingNotFoundError).headings).toEqual([
+      "Title",
+      "Notes",
+      "notes",
+    ]);
+    expect((thrown as HeadingNotFoundError).message).toBe(
+      'No top-level heading matches "Missing"; the document has "Title", "Notes", "notes"',
+    );
+
+    // A paragraph with the same text is not a heading.
     expect(() =>
       resolveInsertIndex(OUTLINE, { kind: "afterHeading", text: "Intro." }),
     ).toThrow(HeadingNotFoundError);
     expect(() =>
-      resolveInsertIndex(OUTLINE, { kind: "afterHeading", text: "Missing" }),
-    ).toThrow('No top-level heading matches "Missing"');
+      resolveInsertIndex(markdownToEditorState("Just text."), {
+        kind: "afterHeading",
+        text: "Missing",
+      }),
+    ).toThrow('No top-level heading matches "Missing"; the document has none');
+  });
+
+  test("a long outline is named up to twenty headings deep", () => {
+    const many = markdownToEditorState(
+      Array.from({ length: 25 }, (_, index) => `# H${index + 1}`).join("\n\n"),
+    );
+
+    const thrown = caught(() =>
+      resolveInsertIndex(many, { kind: "afterHeading", text: "Missing" }),
+    );
+    expect((thrown as HeadingNotFoundError).headings).toHaveLength(25);
+    expect((thrown as HeadingNotFoundError).message).toContain(
+      '"H20", and 5 more',
+    );
+    expect((thrown as HeadingNotFoundError).message).not.toContain('"H21"');
   });
 
   test("a block index is in range up to the block count, which appends", () => {

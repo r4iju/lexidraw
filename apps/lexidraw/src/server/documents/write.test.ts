@@ -307,7 +307,10 @@ describe("insertMarkdownIntoDocument", () => {
     ).rejects.toThrow(new StaleDocumentError(SECOND));
   });
 
-  test("the retry resolves the placement against what the other writer left", async () => {
+  test("without a precondition the retry re-resolves the placement", async () => {
+    // Only reachable from here: insertMarkdown makes the precondition
+    // mandatory, so the router's inserts never retry.
+    //
     // The same document with a paragraph pushed in front, so the heading the
     // insert was aiming at has moved one block down.
     const moved = JSON.stringify(
