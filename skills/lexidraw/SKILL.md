@@ -21,8 +21,11 @@ Everything below is the live surface. `lexidraw --help` is the same text,
 ## Setup
 
 ```bash
-bun run cli:install          # from the lexidraw repo; installs ~/.ai/bin/lexidraw
-lexidraw auth login          # paste a lxd_... token, validated before it is stored
+bun run skills:install       # from a clone of the lexidraw repo: builds and
+                             # installs ~/.ai/bin/lexidraw and links this skill
+lexidraw auth login --token lxd_...   # validated against /me before it is stored;
+                                      # without --token it reads the token from
+                                      # stdin, interactively when stdin is a tty
 lexidraw auth status         # profile, base URL, token source, scope
 ```
 
@@ -64,14 +67,16 @@ lexidraw doc get --path "Projects/Release notes"
 # # Release notes
 # ...
 
-# 3. Append. Never destructive, so the precondition is optional.
+# 3. Append. New trailing blocks at the end of the document, never
+#    destructive, so the precondition is optional.
 lexidraw doc append --path "Projects/Release notes" --text '## 0.4.2
 
 - Faster export.'
 
-# 4. Insert under a heading. Precondition mandatory; `latest` re-reads first
-#    (two calls, still racy, only explicitly so). Use the updatedAt from the
-#    read when the read is fresh.
+# 4. Insert immediately after a heading block, before the section's existing
+#    body (the new bullet lands above "- Faster export."). Precondition
+#    mandatory; `latest` re-reads first (two calls, still racy, only
+#    explicitly so). Use the updatedAt from the read when the read is fresh.
 lexidraw doc insert --path "Projects/Release notes" \
   --after-heading "0.4.2" --text "- Fixed the PDF margins." \
   --if-unmodified-since latest
@@ -113,16 +118,22 @@ label rather than something to feed back to `--path`.
 Several matches: a **read** takes the most recently updated and says which on
 stderr; a **write** fails `AMBIGUOUS_PATH` with the candidates as
 `{ id, title, updatedAt }`. `--nth N` picks one, counting from the most recent,
-among the matches for the last segment of `--path`; an ambiguous directory
-segment, or a `--dir-path` segment, has to be addressed by id. On `doc insert`
-that flag belongs to `--after-heading`, so an ambiguous path there has to be
-addressed by id too.
+among the matches for the last segment of `--path` (also on `dir list`); an
+ambiguous directory segment, or a `--dir-path` segment, has to be addressed by
+id. On `doc insert` that flag belongs to `--after-heading`, so an ambiguous
+path there has to be addressed by id too.
 
 `--after-heading` matches a top-level heading trimmed, whitespace-collapsed,
 case-insensitively, inline markup ignored (`## Plan **B**` is matched by
-`Plan B`). Several matching headings fail `BAD_REQUEST` with `data.candidates`
-carrying `nth`, `blockIndex`, `tag`, and `text`; pass that `nth`.
-`--at-block N` counts top-level blocks from 0, and the block count appends.
+`Plan B`), and inserts immediately after that heading block. Several matching
+headings fail `BAD_REQUEST` with `data.candidates` carrying `nth`,
+`blockIndex`, `tag`, and `text`; pass that `nth`, which counts matching
+headings **in document order**, not by recency as on paths. No match is a
+`BAD_REQUEST` without candidates. `--at-block N` counts top-level blocks from
+0, and the block count appends.
+
+`doc list` lists documents only; `dir list` lists every entity type in a
+directory, which is how a drawing's id is found without `search`.
 
 ## Placeholders
 
@@ -151,10 +162,11 @@ the markdown given. The response reports `blocks`, `restoredPlaceholders`, and
 
 ## Output and escape hatches
 
-Output is JSON on stdout. `doc get` takes `--format md|raw|json`: `md` (the
-default) is markdown with frontmatter, `raw` drops the frontmatter, `json` is
-the stored editor state. Listings take `--format json|table`, and `--page-all`
-emits NDJSON, one row per line.
+Output is JSON on stdout unless a format says otherwise. `doc get` takes
+`--format md|raw|json`: `md` (the default) is markdown with frontmatter, `raw`
+drops the frontmatter, `json` is the stored editor state. Listings take
+`--format json|table`; `--page-all` (`doc list`, `dir list`) emits NDJSON, one
+row per line, and cannot be combined with `--format`.
 
 ```bash
 lexidraw schema doc insert       # request and response schema of one command
@@ -177,35 +189,51 @@ usage errors exit 2.
 | `NO_TOKEN` | no token for this profile | `lexidraw auth login`, or set `LEXIDRAW_TOKEN` |
 | `KEYCHAIN_UNAVAILABLE` | `security` could not be run or read | set `LEXIDRAW_TOKEN` instead |
 | `UNAUTHORIZED` | the token is unknown, revoked, or expired | mint a new one at `/settings/tokens` |
-| `FORBIDDEN` | a `read`-scope token tried to write | use a `write`-scope token |
+| `FORBIDDEN` | a `read`-scope token tried to write, or the entity is shared without edit rights | use a `write`-scope token; ask the owner for edit access |
 | `UNKNOWN_COMMAND` | no such command for `schema` | `lexidraw schema --list` |
 | `AMBIGUOUS_PATH` | a write path matched several entities | pick one from `candidates` with `--nth N` or its id |
 | `NOT_FOUND` | no match for a segment, or `--nth` past the end | check the path; the error names the segment and parent |
-| `BAD_REQUEST` | ambiguous `--after-heading`, or a misplaced placeholder | pass the `nth` from `data.candidates`; move the placeholder to its own line |
+| `BAD_REQUEST` | invalid input: an ambiguous or unmatched `--after-heading`, `--at-block` out of range, a misplaced placeholder, a malformed drawing element (`issues` names the path) | with `data.candidates`, pass its `nth`; otherwise fix the input the message names |
 | `CONFLICT` | the document moved since the read | re-read from `data.currentUpdatedAt` and redo the edit |
 | `UNPROCESSABLE_CONTENT` | the document holds a node type this version cannot read or build | do not rewrite it; report the types the error names |
+| `PAYLOAD_TOO_LARGE` | the request body is over the 4.5 MB limit | send less, or split the write |
+| `TOO_MANY_REQUESTS` | rate limited | wait and retry |
+| `NETWORK` | the server could not be reached | check the base URL and that the server is up |
+| `BAD_RESPONSE` | the server answered with something the CLI could not parse | retry with `--refresh`; report it if it persists |
+| `INTERNAL`, `INTERNAL_SERVER_ERROR` | a bug on either side, details masked | report it with the command that failed |
 
 ## Drawings
 
 ```bash
-lexidraw drawing get <id>                        # canonical Excalidraw elements
+lexidraw drawing get <id>        # { id, title, elements, appState, updatedAt }
 lexidraw drawing create --title T [--file f|-] [--parent <dir id>]
 lexidraw drawing put <id> --file <f|-> --if-unmodified-since <iso|latest>
 ```
 
-`put` replaces the whole element set, so read first and send everything back.
-The body is a JSON array mixing two shapes, both described in
-`docs/drawing-format.md` in the lexidraw repo (read it before writing a
-drawing that is more than boxes and arrows):
+`put` replaces the whole element set and `--file` must hold a bare JSON
+array, so a round trip edits the `elements` of the read and carries its
+`updatedAt`:
+
+```bash
+lexidraw drawing get <id> > d.json
+jq '.elements' d.json > elements.json          # edit this
+lexidraw drawing put <id> --file elements.json \
+  --if-unmodified-since "$(jq -r .updatedAt d.json)"
+```
+
+The array mixes two shapes, both described in `drawing-format.md` next to
+this file (read it before writing a drawing that is more than boxes and
+arrows):
 
 - **Shorthand**, the format of the official Excalidraw MCP: a shape with
-  `label: { text }` gets a centred text element; an arrow with
+  `label: { text, fontSize? }` gets a centred text element; an arrow with
   `start: { id }` / `end: { id }` is bound to those shapes; a `frame` with
-  `children: [ids]` groups them; `stickynote` is a filled box with text.
-  Give every shorthand element an `id` so bindings and later edits can name
-  it. Geometry is `x`, `y`, `width`, `height`; look comes from
-  `backgroundColor`, `fillStyle`, `strokeColor`, `strokeWidth`, `roundness`,
-  `fontSize`, `fontFamily`.
+  `children: [ids]` groups them (frames take no geometry, only `children` and
+  an optional `name`); `stickynote` is a filled box with text. Give every
+  shorthand element an `id` so bindings and later edits can name it. Shapes
+  need `x` and `y`, take `width` and `height`, and look comes from
+  `backgroundColor`, `fillStyle`, `strokeColor`, `strokeWidth`, and
+  `roundness: { "type": 3 }` for rounded corners.
 - **Canonical** elements, exactly as `drawing get` returns them. They are
   validated and normalised by Excalidraw's restore, not stored byte for byte.
 

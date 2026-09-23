@@ -15,6 +15,14 @@ if [ ! -f "$source_dir/SKILL.md" ]; then
   exit 1
 fi
 
+# The symlink outlives a worktree, so a checkout that will be deleted is not
+# a place to point the global skill at.
+if [ "${LEXIDRAW_ALLOW_WORKTREE:-}" != "1" ] &&
+  [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
+  echo "refusing to install from a git worktree ($repo_root); run this from the main checkout, or set LEXIDRAW_ALLOW_WORKTREE=1" >&2
+  exit 1
+fi
+
 bun run cli:install
 echo "binary:  $HOME/.ai/bin/lexidraw"
 
