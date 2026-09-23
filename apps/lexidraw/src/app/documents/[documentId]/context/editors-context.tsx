@@ -9,7 +9,6 @@ import {
   type NodeKey,
   type SerializedEditorState as LexicalSerializedEditorState,
   type SerializedRootNode,
-  type SerializedLexicalNode,
 } from "lexical";
 import {
   createContext,
@@ -48,22 +47,18 @@ const EditorRegistryContext = createContext<EditorRegistry | null>(null);
 
 export const useLexicalTransformation = () => {
   const transformRef = useRef<
-    (
-      keyedNode: SerializedNodeWithKey,
-    ) => SerializedRootNode<SerializedLexicalNode>
-  >(() => ({}) as SerializedRootNode<SerializedLexicalNode>);
+    (keyedNode: SerializedNodeWithKey) => SerializedRootNode
+  >(() => ({}) as SerializedRootNode);
 
   const transformToLexicalSourcedStateRecursive = useCallback(
-    (
-      keyedNode: SerializedNodeWithKey,
-    ): SerializedRootNode<SerializedLexicalNode> => {
+    (keyedNode: SerializedNodeWithKey): SerializedRootNode => {
       const { key: _key, children, ...lexicalProps } = keyedNode;
 
       const result = { ...lexicalProps };
       if (children && children.length > 0) {
         result.children = children.map((child) => transformRef.current(child));
       }
-      return result as SerializedRootNode<SerializedLexicalNode>;
+      return result as SerializedRootNode;
     },
     [],
   );

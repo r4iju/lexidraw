@@ -130,7 +130,7 @@ export async function callLlmStep(
         contentKind: kind,
       };
       if (Array.isArray(m.content)) {
-        const parts = m.content.map((p) => {
+        const parts = (m.content as ReadonlyArray<unknown>).map((p) => {
           const base: Record<string, unknown> = {
             type:
               isObject(p) && typeof p.type === "string" ? p.type : "unknown",
@@ -177,6 +177,7 @@ export async function callLlmStep(
   const result = await generateText({
     model: model as unknown as LanguageModel,
     messages,
+    allowSystemInMessages: true,
     system,
     ...(isReasoning ? {} : { temperature: config.temperature }),
     maxOutputTokens: config.maxOutputTokens,

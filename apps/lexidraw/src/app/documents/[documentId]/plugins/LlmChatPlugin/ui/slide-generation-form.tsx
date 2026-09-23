@@ -189,7 +189,7 @@ export const SlideGenerationForm: React.FC = () => {
           <div className="space-y-1 pt-1">
             {files.map((file, index) => (
               <div
-                key={`${file.name}-${index}`}
+                key={`${file.name}-${file.size}-${file.lastModified}`}
                 className="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-muted text-xs"
               >
                 <div className="flex items-center gap-2 truncate">

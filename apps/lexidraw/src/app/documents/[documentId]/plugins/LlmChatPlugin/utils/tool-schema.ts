@@ -1,5 +1,4 @@
-import type { ZodTypeAny } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 
 export type ToolDef = {
   name: string;
@@ -9,17 +8,16 @@ export type ToolDef = {
 
 export function buildToolDef(
   name: string,
-  schema: ZodTypeAny | undefined,
+  schema: z.ZodType | undefined,
   description?: string,
 ): ToolDef | null {
   if (!schema) return null;
-  // Inline all refs so providers require no external definitions
-  const json = zodToJsonSchema(schema, { $refStrategy: "none" });
-  if (!json || typeof json !== "object") return null;
-  const typeVal = (json as { type?: unknown }).type;
+  // Providers require a self-contained object schema; zod inlines refs unless
+  // the schema is recursive, and `unrepresentable: "any"` keeps custom types
+  // from throwing instead of degrading to `{}`.
+  const json = z.toJSONSchema(schema, { io: "input", unrepresentable: "any" });
   // Ensure the root is an object schema as required by function-calling
-  if (typeVal !== "object") {
-    // If the converter did not return an object schema, reject to avoid invalid server errors.
+  if (json.type !== "object") {
     return null;
   }
   return {

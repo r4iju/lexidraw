@@ -10,7 +10,7 @@ import {
 type Props<T extends FieldValues> = {
   children: React.ReactNode;
   methods: UseFormReturn<T>;
-  onSubmit?: (e: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onSubmit?: (e: FormEvent<HTMLFormElement>) => void | Promise<unknown>;
 };
 
 export default function FormProvider<T extends FieldValues>({

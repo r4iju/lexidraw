@@ -1,15 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type SortingState,
-} from "@tanstack/react-table";
+import { flexRender, type SortingState, useTable } from "@tanstack/react-table";
+import { adminTableFeatures } from "~/components/admin/data-table/features";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import {
@@ -51,14 +44,11 @@ export function EntitiesDataTable(props: {
   const [pageIndex, setPageIndex] = React.useState(props.page - 1);
   const pageSize = props.size;
 
-  const table = useReactTable({
+  const table = useTable({
+    features: adminTableFeatures,
     data: props.rows,
     columns: entityColumns,
     onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     state: { sorting },
     manualPagination: true,
   });

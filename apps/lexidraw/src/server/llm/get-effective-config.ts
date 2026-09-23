@@ -18,6 +18,9 @@ export type UserLlmConfig = {
   agent?: Partial<LlmBaseConfig> & {
     extraConfig?: Record<string, unknown>;
   };
+  image?: Partial<LlmBaseConfig> & {
+    extraConfig?: Record<string, unknown>;
+  };
   autocomplete?: Partial<LlmBaseConfig> & {
     enabled?: boolean;
     reasoningEffort?: "minimal" | "standard" | "heavy";

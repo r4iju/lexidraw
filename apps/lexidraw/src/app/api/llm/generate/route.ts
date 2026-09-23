@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
         ...(hasMessages && inputMessages
           ? { messages: inputMessages }
           : { prompt }),
+        allowSystemInMessages: true,
         system,
         temperature: effectiveTemperature,
         maxOutputTokens: effectiveMaxTokens,

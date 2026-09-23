@@ -216,8 +216,10 @@ export const DebugPanel: React.FC = () => {
     setError(null);
 
     const tool = runtimeTools[toolName];
-    if ((tool as any)?.inputSchema) {
-      const parsed = parseZodSchema((tool as any).inputSchema as ZodTypeAny);
+    const inputSchema = (tool as { inputSchema?: unknown } | undefined)
+      ?.inputSchema;
+    if (inputSchema) {
+      const parsed = parseZodSchema(inputSchema as ZodTypeAny);
       if (Array.isArray(parsed)) {
         const schemaString = parsed
           .map(
@@ -272,7 +274,9 @@ export const DebugPanel: React.FC = () => {
         <ScrollArea className="h-48 p-2 border rounded-md bg-muted">
           <p className="text-sm font-semibold">Description:</p>
           <p className="text-xs mb-2">
-            {selectedTool.description || "No description provided."}
+            {typeof selectedTool.description === "function"
+              ? "(description resolved at call time)"
+              : selectedTool.description || "No description provided."}
           </p>
           <p className="text-sm font-semibold">Input Schema:</p>
           <pre className="text-xs whitespace-pre-wrap break-all">

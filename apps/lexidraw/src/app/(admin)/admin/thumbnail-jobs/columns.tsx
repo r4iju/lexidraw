@@ -1,6 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
+import type { AdminTableFeatures } from "~/components/admin/data-table/features";
 import { format } from "date-fns";
 import Link from "next/link";
 import { RowActions } from "./row-actions";
@@ -46,7 +47,10 @@ function getStatusColor(status: string): string {
   }
 }
 
-export const thumbnailJobColumns: ColumnDef<ThumbnailJobRow>[] = [
+export const thumbnailJobColumns: ColumnDef<
+  AdminTableFeatures,
+  ThumbnailJobRow
+>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (

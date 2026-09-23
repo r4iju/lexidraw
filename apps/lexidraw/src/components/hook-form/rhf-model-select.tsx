@@ -38,7 +38,7 @@ export function RHFModelSelect({
       : [];
     const isValid =
       !!modelValue && modelsForProvider.some((m) => m.modelId === modelValue);
-    if (!!modelValue && !isValid) {
+    if (modelValue && !isValid) {
       setValue(name, "");
     }
   }, [provider, modelValue, allowedModels, name, setValue]);

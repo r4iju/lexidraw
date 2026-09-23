@@ -616,9 +616,10 @@ export default function ImagePlugin({
       COMMAND_PRIORITY_LOW,
     );
 
-    const unregisterPaste = editor.registerCommand<ClipboardEvent>(
+    const unregisterPaste = editor.registerCommand(
       PASTE_COMMAND,
       (event) => {
+        if (!(event instanceof ClipboardEvent)) return false;
         const clipboardData = event.clipboardData;
         if (!clipboardData) {
           return false;

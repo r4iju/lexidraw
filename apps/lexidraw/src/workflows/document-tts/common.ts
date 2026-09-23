@@ -23,4 +23,3 @@ export function chooseProvider(
   if (languageCode && !lang.startsWith("en")) return "google";
   return "openai";
 }
-

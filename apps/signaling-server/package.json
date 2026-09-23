@@ -17,13 +17,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ws": "^8.18.1"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@packages/types": "workspace:*",
     "@types/ws": "^8.18.1",
-    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
-    "artillery": "^2.0.22",
-    "vitest": "^1.6.1"
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "artillery": "^2.0.34",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
   }
 }

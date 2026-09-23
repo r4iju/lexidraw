@@ -133,7 +133,8 @@ export const useChatTools = ({ dispatch }: { dispatch: ChatDispatch }) => {
         // Return the message string directly for MVP (server extracts this for finish event)
         return message;
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         console.error("Error dispatching reply message:", errorMessage);
         throw new Error(`Failed to dispatch reply: ${errorMessage}`);
       }

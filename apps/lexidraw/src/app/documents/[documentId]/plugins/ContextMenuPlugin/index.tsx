@@ -1,176 +1,83 @@
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
-  LexicalContextMenuPlugin,
-  MenuOption,
-} from "@lexical/react/LexicalContextMenuPlugin";
+  NodeContextMenuOption,
+  NodeContextMenuPlugin,
+  NodeContextMenuSeparator,
+} from "@lexical/react/LexicalNodeContextMenuPlugin";
 import {
-  $getNearestNodeFromDOMNode,
   $getSelection,
   $isRangeSelection,
   COPY_COMMAND,
   CUT_COMMAND,
+  type LexicalEditor,
   type LexicalNode,
   PASTE_COMMAND,
 } from "lexical";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { JSX } from "react";
-import * as ReactDOM from "react-dom";
 
-function ContextMenuItem({
-  index,
-  isSelected,
-  onClick,
-  onMouseEnter,
-  option,
-}: {
-  index: number;
-  isSelected: boolean;
-  onClick: () => void;
-  onMouseEnter: () => void;
-  option: ContextMenuOption;
-}) {
-  // Extract option properties before render to avoid ref access during render
-  const optionKey = option.key;
-  const setRefElement = option.setRefElement;
-  const title = option.title;
-
-  return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: todo: fix key with click events
-    <li
-      key={optionKey}
-      tabIndex={-1}
-      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-      data-highlighted={isSelected ? "" : undefined}
-      ref={(element) => {
-        setRefElement(element);
-      }}
-      id={`typeahead-item-${index}`}
-      onMouseEnter={onMouseEnter}
-      onClick={onClick}
-    >
-      <span className="grow">{title}</span>
-    </li>
-  );
-}
-
-function ContextMenu({
-  options,
-  selectedItemIndex,
-  onOptionClick,
-  onOptionMouseEnter,
-}: {
-  selectedItemIndex: number | null;
-  onOptionClick: (option: ContextMenuOption, index: number) => void;
-  onOptionMouseEnter: (index: number) => void;
-  options: ContextMenuOption[];
-}) {
-  return (
-    <ul className="list-none p-0 m-0">
-      {options.map((option: ContextMenuOption, i: number) => (
-        <ContextMenuItem
-          index={i}
-          isSelected={selectedItemIndex === i}
-          onClick={() => onOptionClick(option, i)}
-          onMouseEnter={() => onOptionMouseEnter(i)}
-          key={option.key}
-          option={option}
-        />
-      ))}
-    </ul>
-  );
-}
-
-export class ContextMenuOption extends MenuOption {
-  title: string;
-  onSelect: (targetNode: LexicalNode | null) => void;
-  constructor(
-    title: string,
-    options: {
-      onSelect: (targetNode: LexicalNode | null) => void;
-    },
-  ) {
-    super(title);
-    this.title = title;
-    this.onSelect = options.onSelect.bind(this);
+async function pasteFromClipboard(
+  editor: LexicalEditor,
+  plainTextOnly: boolean,
+): Promise<void> {
+  const permission = await navigator.permissions.query({
+    // @ts-expect-error These types are incorrect.
+    name: "clipboard-read",
+  });
+  if (permission.state === "denied") {
+    alert("Not allowed to paste from clipboard.");
+    return;
   }
+
+  const data = new DataTransfer();
+  if (plainTextOnly) {
+    data.setData("text/plain", await navigator.clipboard.readText());
+  } else {
+    const item = (await navigator.clipboard.read())[0];
+    if (!item) return;
+    for (const type of item.types) {
+      data.setData(type, await (await item.getType(type)).text());
+    }
+  }
+
+  editor.dispatchCommand(
+    PASTE_COMMAND,
+    new ClipboardEvent("paste", { clipboardData: data }),
+  );
+}
+
+function $isInsideLink(node: LexicalNode): boolean {
+  return $isLinkNode(node) || $isLinkNode(node.getParent());
 }
 
 export default function ContextMenuPlugin(): JSX.Element {
   const [editor] = useLexicalComposerContext();
 
-  const defaultOptions = useMemo(() => {
-    return [
-      new ContextMenuOption(`Copy`, {
-        onSelect: (_node) => {
+  const items = useMemo(
+    () => [
+      new NodeContextMenuOption("Copy", {
+        $onSelect: () => {
           editor.dispatchCommand(COPY_COMMAND, null);
         },
       }),
-      new ContextMenuOption(`Cut`, {
-        onSelect: (_node) => {
+      new NodeContextMenuOption("Cut", {
+        $onSelect: () => {
           editor.dispatchCommand(CUT_COMMAND, null);
         },
       }),
-      new ContextMenuOption(`Paste`, {
-        onSelect: (_node) => {
-          navigator.clipboard.read().then(async (..._args) => {
-            const data = new DataTransfer();
-
-            const items = await navigator.clipboard.read();
-            const item = items[0];
-
-            if (!item) {
-              return;
-            }
-
-            const permission = await navigator.permissions.query({
-              // @ts-expect-error These types are incorrect.
-              name: "clipboard-read",
-            });
-            if (permission.state === "denied") {
-              alert("Not allowed to paste from clipboard.");
-              return;
-            }
-
-            for (const type of item.types) {
-              const dataString = await (await item.getType(type)).text();
-              data.setData(type, dataString);
-            }
-
-            const event = new ClipboardEvent("paste", {
-              clipboardData: data,
-            });
-
-            editor.dispatchCommand(PASTE_COMMAND, event);
-          });
+      new NodeContextMenuOption("Paste", {
+        $onSelect: () => {
+          void pasteFromClipboard(editor, false);
         },
       }),
-      new ContextMenuOption(`Paste as Plain Text`, {
-        onSelect: (_node) => {
-          navigator.clipboard.read().then(async (..._args) => {
-            const permission = await navigator.permissions.query({
-              // @ts-expect-error These types are incorrect.
-              name: "clipboard-read",
-            });
-
-            if (permission.state === "denied") {
-              alert("Not allowed to paste from clipboard.");
-              return;
-            }
-
-            const data = new DataTransfer();
-            const items = await navigator.clipboard.readText();
-            data.setData("text/plain", items);
-
-            const event = new ClipboardEvent("paste", {
-              clipboardData: data,
-            });
-            editor.dispatchCommand(PASTE_COMMAND, event);
-          });
+      new NodeContextMenuOption("Paste as Plain Text", {
+        $onSelect: () => {
+          void pasteFromClipboard(editor, true);
         },
       }),
-      new ContextMenuOption(`Delete Node`, {
-        onSelect: (_node) => {
+      new NodeContextMenuOption("Delete Node", {
+        $onSelect: () => {
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
             const currentNode = selection.anchor.getNode();
@@ -182,88 +89,23 @@ export default function ContextMenuPlugin(): JSX.Element {
           }
         },
       }),
-    ];
-  }, [editor]);
-
-  const [options, setOptions] = useState(defaultOptions);
-
-  const onSelectOption = useCallback(
-    (
-      selectedOption: ContextMenuOption,
-      targetNode: LexicalNode | null,
-      closeMenu: () => void,
-    ) => {
-      editor.update(() => {
-        selectedOption.onSelect(targetNode);
-        closeMenu();
-      });
-    },
+      new NodeContextMenuSeparator({ $showOn: $isInsideLink }),
+      new NodeContextMenuOption("Remove Link", {
+        $showOn: $isInsideLink,
+        $onSelect: () => {
+          editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+        },
+      }),
+    ],
     [editor],
   );
 
-  const onWillOpen = (event: MouseEvent) => {
-    let newOptions = defaultOptions;
-    editor.update(() => {
-      const node = $getNearestNodeFromDOMNode(event.target as Element);
-      if (node) {
-        const parent = node.getParent();
-        if ($isLinkNode(parent)) {
-          newOptions = [
-            new ContextMenuOption(`Remove Link`, {
-              onSelect: (_node) => {
-                editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
-              },
-            }),
-            ...defaultOptions,
-          ];
-        }
-      }
-    });
-    setOptions(newOptions);
-  };
-
   return (
-    <LexicalContextMenuPlugin
-      options={options}
-      onSelectOption={onSelectOption}
-      onWillOpen={onWillOpen}
-      menuRenderFn={(
-        anchorElementRef,
-        {
-          selectedIndex,
-          options: _options,
-          selectOptionAndCleanUp,
-          setHighlightedIndex,
-        },
-        { setMenuRef },
-      ) =>
-        anchorElementRef.current
-          ? ReactDOM.createPortal(
-              <div
-                className="bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50"
-                style={{
-                  marginLeft: anchorElementRef.current.style.width,
-                  userSelect: "none",
-                  width: 200,
-                }}
-                ref={setMenuRef}
-              >
-                <ContextMenu
-                  options={options}
-                  selectedItemIndex={selectedIndex}
-                  onOptionClick={(option: ContextMenuOption, index: number) => {
-                    setHighlightedIndex(index);
-                    selectOptionAndCleanUp(option);
-                  }}
-                  onOptionMouseEnter={(index: number) => {
-                    setHighlightedIndex(index);
-                  }}
-                />
-              </div>,
-              anchorElementRef.current,
-            )
-          : null
-      }
+    <NodeContextMenuPlugin
+      items={items}
+      className="z-50 w-[200px] list-none rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+      itemClassName="flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled=true]:opacity-50"
+      separatorClassName="my-1 h-px bg-border"
     />
   );
 }

@@ -1,13 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type SortingState,
-} from "@tanstack/react-table";
+import { flexRender, type SortingState, useTable } from "@tanstack/react-table";
+import { adminTableFeatures } from "~/components/admin/data-table/features";
 import {
   Table,
   TableBody,
@@ -51,12 +46,11 @@ export function ThumbnailJobsDataTable(props: {
     "pending" | "processing" | "done" | "error" | "stale" | "all"
   >(props.status ?? "all");
 
-  const table = useReactTable({
+  const table = useTable({
+    features: adminTableFeatures,
     data: props.rows,
     columns: thumbnailJobColumns,
     onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     state: { sorting },
     manualSorting: true,
   });

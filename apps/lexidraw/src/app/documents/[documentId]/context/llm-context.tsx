@@ -347,6 +347,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
       const genOptions = {
         model: model as unknown as LanguageModel,
         messages: baseMessages,
+        allowSystemInMessages: true,
         system,
         temperature: temperature ?? activeConfig.temperature,
         tools: tools as unknown as RuntimeToolMap,

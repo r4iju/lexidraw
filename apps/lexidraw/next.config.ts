@@ -52,7 +52,6 @@ const config = {
   productionBrowserSourceMaps: true,
   cacheComponents: true,
   experimental: {
-    useCache: true,
     turbopackFileSystemCacheForDev: true,
   },
   reactCompiler: {
@@ -108,4 +107,17 @@ const config = {
   },
 } satisfies NextConfig;
 
-export default withBundleAnalyzer(withWorkflow(config));
+const configWithWorkflow = withWorkflow(config);
+
+export default async function nextConfig(
+  phase: string,
+  ctx: { defaultConfig: NextConfig },
+): Promise<NextConfig> {
+  const resolved = await configWithWorkflow(phase, ctx);
+  // @next/bundle-analyzer resolves its `next` types through bun's hoisted
+  // copy, which is a different peer-hashed instance than the one this app
+  // links; the NextConfig shapes are identical, so bridge the identity.
+  return withBundleAnalyzer(
+    resolved as unknown as Parameters<typeof withBundleAnalyzer>[0],
+  ) as NextConfig;
+}

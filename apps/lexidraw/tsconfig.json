@@ -26,28 +26,14 @@
     ],
     "incremental": true,
     /* runs in the DOM */
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "ES2023"
-    ],
+    "lib": ["dom", "dom.iterable", "ES2023"],
     /* Path Aliases */
     "paths": {
-      "~/*": [
-        "./src/*"
-      ],
-      "react": [
-        "../../node_modules/react"
-      ],
-      "react-dom": [
-        "../../node_modules/react-dom"
-      ],
-      "react/jsx-runtime": [
-        "../../node_modules/react/jsx-runtime"
-      ],
-      "react/jsx-dev-runtime": [
-        "../../node_modules/react/jsx-dev-runtime"
-      ]
+      "~/*": ["./src/*"],
+      "react": ["../../node_modules/react"],
+      "react-dom": ["../../node_modules/react-dom"],
+      "react/jsx-runtime": ["../../node_modules/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["../../node_modules/react/jsx-dev-runtime"]
     },
     "module": "esnext"
   },
@@ -63,8 +49,5 @@
     ".next/dev/types/**/*.ts",
     ".next/dev/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    ".next"
-  ]
+  "exclude": ["node_modules", ".next"]
 }

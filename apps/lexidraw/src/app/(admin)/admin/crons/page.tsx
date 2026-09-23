@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/server";
-import { parseExpression } from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 import {
   Table,
   TableBody,
@@ -19,13 +19,11 @@ async function CronsContent() {
   const crons = await api.crons.list.query();
 
   const nextRun = (schedule: string) => {
-    const cron = parseExpression(schedule);
-    return cron.next().toDate();
+    return CronExpressionParser.parse(schedule).next().toDate();
   };
 
   const lastRun = (schedule: string) => {
-    const cron = parseExpression(schedule);
-    return cron.prev().toDate();
+    return CronExpressionParser.parse(schedule).prev().toDate();
   };
 
   return (

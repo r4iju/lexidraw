@@ -1,5 +1,6 @@
 "use client";
 import type { ColumnDef } from "@tanstack/react-table";
+import type { AdminTableFeatures } from "~/components/admin/data-table/features";
 import { Badge } from "~/components/ui/badge";
 import { format } from "date-fns";
 import { RowActions } from "./row-actions";
@@ -15,7 +16,7 @@ export type UserRow = {
   requests30d: number;
 };
 
-export const userColumns: ColumnDef<UserRow>[] = [
+export const userColumns: ColumnDef<AdminTableFeatures, UserRow>[] = [
   {
     accessorKey: "name",
     header: "Name",

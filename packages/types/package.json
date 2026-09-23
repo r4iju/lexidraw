@@ -20,7 +20,7 @@
     ]
   },
   "dependencies": {
-    "zod": "^4.1.12"
+    "zod": "^4.6.5"
   },
   "typesVersions": {
     "*": {
@@ -44,8 +44,8 @@
     "dist"
   ],
   "devDependencies": {
-    "@excalidraw/excalidraw": "^0.18.0",
-    "@types/node": "^22.15.19",
-    "@typescript/native-preview": "^7.0.0-dev.20251214.1"
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@types/node": "^22.20.4",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2"
   }
 }

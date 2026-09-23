@@ -63,11 +63,7 @@ export const useEmbedConfigs = () => {
         /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/.exec(
           url,
         );
-      const id = match
-        ? (match?.[2] as string).length === 11
-          ? match[2]
-          : null
-        : null;
+      const id = match?.[2]?.length === 11 ? match[2] : null;
       if (id != null) {
         return { id, url };
       }

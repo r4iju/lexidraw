@@ -13,13 +13,14 @@
     "start": "next start -p 3333"
   },
   "dependencies": {
-    "next": "16.0.10",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "next": "16.3.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@types/node": "^22.15.19",
-    "@types/react": "19.2.4",
-    "@typescript/native-preview": "^7.0.0-dev.20251214.1"
+    "@types/node": "^22.20.4",
+    "@types/react": "19.3.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "typescript": "^7.0.2"
   }
 }

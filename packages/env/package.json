@@ -20,8 +20,8 @@
     ]
   },
   "dependencies": {
-    "@t3-oss/env-nextjs": "^0.13.8",
-    "zod": "^4.1.12"
+    "@t3-oss/env-nextjs": "^0.13.11",
+    "zod": "^4.6.5"
   },
   "typesVersions": {
     "*": {
@@ -45,7 +45,7 @@
     "dist"
   ],
   "devDependencies": {
-    "@types/node": "^22.15.19",
-    "@typescript/native-preview": "^7.0.0-dev.20251214.1"
+    "@types/node": "^22.20.4",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2"
   }
 }

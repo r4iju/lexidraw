@@ -3,7 +3,6 @@ import "server-only";
 import type { ModelMessage } from "ai";
 import { z } from "zod";
 import type { EffectiveLlmConfig } from "~/server/llm/get-effective-config";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { generateObject } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -97,7 +96,7 @@ export async function decisionStep(
   );
 
   const result = await generateObject({
-    model: model as LanguageModelV2,
+    model,
     messages: decisionMessages,
     system: decisionSystem,
     schema: DecisionSchema,

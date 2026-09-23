@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { DotsHorizontalIcon, Link1Icon } from "@radix-ui/react-icons";
-import { CODE_LANGUAGE_MAP, CodeNode as OriginalCodeNode } from "@lexical/code";
+import { CodeNode as OriginalCodeNode } from "@lexical/code";
+import { CODE_LANGUAGE_OPTIONS } from "./code-language";
 
 function SelectLanguage() {
   const handleSelect = (language: string) => {
@@ -24,13 +25,13 @@ function SelectLanguage() {
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuGroup>
-          {Object.keys(CODE_LANGUAGE_MAP).map((language) => (
+          {CODE_LANGUAGE_OPTIONS.map(([language, friendlyName]) => (
             <DropdownMenuItem
               key={language}
               onSelect={() => handleSelect(language)}
               className="justify-between"
             >
-              {language}
+              {friendlyName}
               <Link1Icon />
             </DropdownMenuItem>
           ))}

@@ -1,4 +1,5 @@
-import { $isCodeNode, CODE_LANGUAGE_MAP } from "@lexical/code";
+import { $isCodeNode } from "@lexical/code";
+import { normalizeCodeLanguage } from "@lexical/code-shiki";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $isListNode, ListNode } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -198,11 +199,8 @@ export default function ToolbarPlugin({
             setBlockType(type as BlockType);
           }
           if ($isCodeNode(element)) {
-            const language =
-              element.getLanguage() as keyof typeof CODE_LANGUAGE_MAP;
-            setCodeLanguage(
-              language ? CODE_LANGUAGE_MAP[language] || language : "",
-            );
+            const language = element.getLanguage();
+            setCodeLanguage(language ? normalizeCodeLanguage(language) : "");
             return;
           }
         }

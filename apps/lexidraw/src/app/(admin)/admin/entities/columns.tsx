@@ -1,5 +1,6 @@
 "use client";
 import type { ColumnDef } from "@tanstack/react-table";
+import type { AdminTableFeatures } from "~/components/admin/data-table/features";
 import { format } from "date-fns";
 import { RowActions } from "./row-actions";
 
@@ -12,7 +13,7 @@ export type EntityRow = {
   createdAt: Date;
 };
 
-export const entityColumns: ColumnDef<EntityRow>[] = [
+export const entityColumns: ColumnDef<AdminTableFeatures, EntityRow>[] = [
   { accessorKey: "title", header: "Title" },
   { accessorKey: "ownerLabel", header: "Owner" },
   { accessorKey: "membersCount", header: "Members" },

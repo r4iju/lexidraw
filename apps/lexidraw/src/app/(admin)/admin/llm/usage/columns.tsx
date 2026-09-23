@@ -1,6 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
+import type { AdminTableFeatures } from "~/components/admin/data-table/features";
 import { DataTableColumnHeader } from "~/components/admin/data-table/column-header";
 
 export type UsageRow = {
@@ -20,7 +21,7 @@ export type UsageRow = {
   httpStatus: number | null;
 };
 
-export const usageColumns: ColumnDef<UsageRow>[] = [
+export const usageColumns: ColumnDef<AdminTableFeatures, UsageRow>[] = [
   {
     id: "createdAt",
     accessorFn: (row) => row.createdAt.getTime(),
@@ -30,7 +31,7 @@ export const usageColumns: ColumnDef<UsageRow>[] = [
     cell: ({ row }) => (
       <div>{new Date(row.original.createdAt).toLocaleString()}</div>
     ),
-    sortingFn: "basic",
+    sortFn: "basic",
   },
   {
     accessorKey: "requestId",
@@ -50,7 +51,7 @@ export const usageColumns: ColumnDef<UsageRow>[] = [
     cell: ({ row }) => (
       <div>{row.original.userEmail ?? row.original.userId}</div>
     ),
-    sortingFn: "alphanumeric",
+    sortFn: "alphanumeric",
   },
   {
     accessorKey: "entityId",
