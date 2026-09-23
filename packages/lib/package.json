@@ -5,10 +5,11 @@
   "private": true,
   "scripts": {
     "dev": "bun x tsgo --watch --project tsconfig.json",
-    "build": "bun x tsgo --project tsconfig.json",
+    "build": "bun x tsgo --project tsconfig.build.json",
     "lint": "bun x @biomejs/biome check --write .",
     "test:ts": "bun x tsgo --noEmit --project tsconfig.json",
-    "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules"
+    "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules",
+    "test": "bun test"
   },
   "sideEffects": false,
   "type": "module",
@@ -46,6 +47,7 @@
     "dist"
   ],
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "@types/node": "^22.20.4",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2"
   }

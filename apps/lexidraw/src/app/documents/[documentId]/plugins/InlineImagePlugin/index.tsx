@@ -237,7 +237,7 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
         return false;
       }
       dataTransfer.setData("text/plain", "_");
-      dataTransfer.setDragImage(img, 0, 0);
+      dataTransfer.setDragImage(getDragImage(), 0, 0);
       dataTransfer.setData(
         "application/x-lexical-drag",
         JSON.stringify({
@@ -338,8 +338,15 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
 
 const TRANSPARENT_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-const img = document.createElement("img");
-img.src = TRANSPARENT_IMAGE;
+let dragImage: HTMLImageElement | null = null;
+// Created on first drag rather than at import so the module loads without a DOM.
+function getDragImage(): HTMLImageElement {
+  if (!dragImage) {
+    dragImage = document.createElement("img");
+    dragImage.src = TRANSPARENT_IMAGE;
+  }
+  return dragImage;
+}
 
 declare global {
   interface DragEvent {

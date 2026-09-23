@@ -103,6 +103,10 @@
     "test:ts": {
       "dependsOn": ["^test"],
       "outputs": []
+    },
+    "@apps/lexidraw#test": {
+      "dependsOn": ["^build"],
+      "outputs": []
     }
   }
 }
