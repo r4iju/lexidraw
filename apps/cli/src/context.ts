@@ -12,6 +12,8 @@ export type Io = {
   tokens: TokenStore;
   stdinIsTty: boolean;
   readLine(): Promise<string>;
+  /** All of standard input, for `--file -`. */
+  readAll(): Promise<string>;
   setEcho(on: boolean): void;
 };
 
@@ -49,6 +51,7 @@ export function realIo(): Io {
     tokens: keychainStore,
     stdinIsTty: Boolean(process.stdin.isTTY),
     readLine,
+    readAll: () => Bun.stdin.text(),
     setEcho: (on) => {
       Bun.spawnSync({
         cmd: ["stty", on ? "echo" : "-echo"],

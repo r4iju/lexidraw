@@ -1,14 +1,24 @@
 import { apiCommand } from "./api";
+import { drawingCommand } from "./drawing";
 import { authLogin, authStatus } from "./auth";
 import type { Context, Io } from "./context";
 import { exitCodeOf, formatError, usageError } from "./errors";
 import { PROFILES, resolveProfile } from "./profile";
 import { schemaCommand } from "./schema";
 
-const TOP_LEVEL = ["api", "auth", "schema"];
+const TOP_LEVEL = ["api", "auth", "drawing", "schema"];
 
 /** Flags whose value must not be mistaken for a global flag while scanning. */
-const VALUE_FLAGS = ["profile", "token", "json", "query"];
+const VALUE_FLAGS = [
+  "profile",
+  "token",
+  "json",
+  "query",
+  "file",
+  "title",
+  "parent",
+  "if-unmodified-since",
+];
 
 const USAGE = `lexidraw — Lexidraw from the terminal
 
@@ -16,6 +26,9 @@ Usage:
   lexidraw auth login [--token lxd_...]
   lexidraw auth status
   lexidraw api <METHOD> <path> [--json <body>|@file] [--query k=v ...]
+  lexidraw drawing get <id>
+  lexidraw drawing put <id> --file <elements.json|-> [--if-unmodified-since <iso>]
+  lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
   lexidraw schema <command> | lexidraw schema --list
 
 Global flags:
@@ -63,6 +76,9 @@ async function dispatch(argv: readonly string[], io: Io): Promise<number> {
       return 0;
     case "api":
       await apiCommand(context, tail);
+      return 0;
+    case "drawing":
+      await drawingCommand(context, tail);
       return 0;
     case "schema":
       await schemaCommand(context, tail);

@@ -6,6 +6,9 @@
 export const COMMANDS: Record<string, string> = {
   "auth status": "auth-me",
   "doc get": "entities-load",
+  "drawing create": "drawings-create",
+  "drawing get": "drawings-get",
+  "drawing put": "drawings-put",
 };
 
 export const KNOWN_COMMANDS = Object.keys(COMMANDS).sort();

@@ -43,8 +43,8 @@ loading tool schemas into the agent's context until they are needed.
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
-  tags, share, and directory listing — plus the four markdown procedures.
-  Planned: drawing normalize and render (#33, #34). Admin, TTS, backups,
+  tags, share, and directory listing — plus the four markdown procedures and
+  the drawing procedures. Planned: drawing render (#34). Admin, TTS, backups,
   snapshot, image generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
@@ -70,6 +70,9 @@ loading tool schemas into the agent's context until they are needed.
 | PUT    | `/documents/{id}/markdown`        | `documents.replaceMarkdown`  |
 | POST   | `/documents/{id}/markdown/append` | `documents.appendMarkdown`   |
 | POST   | `/documents/{id}/markdown/insert` | `documents.insertMarkdown`   |
+| GET    | `/drawings/{id}`                  | `drawings.get`               |
+| PUT    | `/drawings/{id}`                  | `drawings.put`               |
+| POST   | `/drawings`                       | `drawings.create`            |
 
 A directory listing is `GET /entities?parentId={directoryId}`; omitting
 `parentId` lists the root. `/entities/search` is registered before
@@ -157,8 +160,9 @@ next one, so a chain of writes never needs a read between them.
   token source is `LEXIDRAW_TOKEN` and `auth login` refuses to store one.
   `auth login` validates a token against `/me` before storing it; `auth
   status` reports the profile, base URL, token source, and scope.
-- Live today: `auth login|status`, `api`, and `schema <command>|--list`, whose
-  registry maps a command name to an operationId in the cached document.
+- Live today: `auth login|status`, `api`, `drawing get|put|create`, and
+  `schema <command>|--list`, whose registry maps a command name to an
+  operationId in the cached document.
 - Skill: `skills/lexidraw/SKILL.md` in this repo, symlinked into
   `~/.ai/skills` by `bun run skills:install`.
 
@@ -243,11 +247,19 @@ next one, so a chain of writes never needs a read between them.
 - Write accepts two shapes over one pipeline: raw Excalidraw elements, and the
   skeleton/shorthand format used by `excalidraw/excalidraw-mcp` (`label` on
   shapes and arrows, bindings by id, `frame.children`, `stickynote`).
-  Normalized server-side with `convertToExcalidrawElements` from
-  `@excalidraw/element` under jsdom plus `setCustomTextMetricsProvider`, then
-  validated and stored as canonical elements.
-- The skill embeds the upstream `read_me` cheat sheet so agents that learned
-  the official MCP already know the format.
+  Normalized server-side with `convertToExcalidrawElements` under jsdom plus
+  `setCustomTextMetricsProvider`, then validated and stored as canonical
+  elements. `@excalidraw/element` is only published as prereleases of 0.18.0,
+  none matching the 0.18.1 editor, so the converter comes from
+  `@excalidraw/excalidraw`. That entry point is the React editor, and Next's
+  `react-server` layer resolves a React without `createContext` on a frozen
+  namespace, so it cannot be imported from a route. `packages/excalidraw-converter`
+  pre-bundles just the converter with React stubbed out; the route imports that
+  package lazily behind a DOM shim that nothing else touches.
+- The format is documented in [drawing-format.md](drawing-format.md), which the
+  skill embeds so agents that learned the official MCP already know it.
+- Live today: `drawings.get|put|create` as `GET /drawings/{id}`,
+  `PUT /drawings/{id}` and `POST /drawings`, and `lexidraw drawing get|put|create`.
 - `drawing render --format svg|png` calls a server-side export using
   `@excalidraw/utils` with the jsdom shim. Pin the package: the `exportToSvg`
   signature changed to `{ data, config }` in 0.1.4 while the docs still show

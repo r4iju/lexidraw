@@ -58,6 +58,20 @@ describe("openApiDocument", () => {
     expect(operation?.security).toEqual([{ bearerAuth: [] }]);
   });
 
+  it("exposes the drawing procedures", () => {
+    const expected = [
+      ["/drawings/{id}", "get", "drawings-get"],
+      ["/drawings/{id}", "put", "drawings-put"],
+      ["/drawings", "post", "drawings-create"],
+    ] as const;
+    for (const [path, method, operationId] of expected) {
+      const operation = document.paths?.[path]?.[method];
+      expect(operation?.operationId).toBe(operationId);
+      expect(operation?.tags).toEqual(["drawings"]);
+      expect(operation?.security).toEqual([{ bearerAuth: [] }]);
+    }
+  });
+
   it("guards entity load with the bearer scheme", () => {
     expect(document.paths?.["/entities/{id}"]?.get?.security).toEqual([
       { bearerAuth: [] },

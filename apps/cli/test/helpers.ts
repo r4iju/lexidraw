@@ -48,6 +48,7 @@ export function fakeIo(
       },
       stdinIsTty: options.tty ?? false,
       readLine: async () => options.stdin ?? "",
+      readAll: async () => options.stdin ?? "",
       setEcho: (on) => {
         echo.push(on);
       },
@@ -62,7 +63,12 @@ export function fakeIo(
 
 export type Stub = {
   baseUrl: string;
-  requests: { method: string; path: string; auth: string | null }[];
+  requests: {
+    method: string;
+    path: string;
+    auth: string | null;
+    body: string;
+  }[];
   stop(): void;
 };
 
@@ -73,12 +79,15 @@ export function startStub(
   const requests: Stub["requests"] = [];
   const server = Bun.serve({
     port: 0,
-    fetch: (request) => {
+    fetch: async (request) => {
       const url = new URL(request.url);
+      // Read before the handler, which would otherwise consume the body.
+      const body = await request.clone().text();
       requests.push({
         method: request.method,
         path: `${url.pathname}${url.search}`,
         auth: request.headers.get("authorization"),
+        body,
       });
       return handler(url, request);
     },
