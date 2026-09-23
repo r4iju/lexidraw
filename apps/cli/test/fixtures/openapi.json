@@ -547,10 +547,10 @@
         }
       }
     },
-    "/entities/search": {
-      "get": {
-        "operationId": "entities-search",
-        "summary": "Search entities by title",
+    "/entities/{id}": {
+      "put": {
+        "operationId": "entities-save",
+        "summary": "Replace the stored content of an entity",
         "tags": ["entities"],
         "security": [
           {
@@ -559,59 +559,61 @@
         ],
         "parameters": [
           {
-            "in": "query",
-            "name": "query",
+            "in": "path",
+            "name": "id",
             "schema": {
               "type": "string"
             },
             "required": true
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "elements": {
+                    "type": "string"
+                  },
+                  "appState": {
+                    "type": ["string", "null"]
+                  },
+                  "entityType": {
+                    "type": "string",
+                    "enum": ["drawing", "document", "directory", "url"]
+                  },
+                  "parentId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["elements"]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "title": {
-                        "type": "string"
-                      },
-                      "entityType": {
-                        "type": "string",
-                        "enum": ["drawing", "document", "directory", "url"]
-                      },
-                      "screenShotLight": {
-                        "type": "string"
-                      },
-                      "screenShotDark": {
-                        "type": "string"
-                      },
-                      "updatedAt": {
-                        "format": "date-time",
-                        "type": "string"
-                      },
-                      "parentId": {
-                        "type": ["string", "null"]
-                      }
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
                     },
-                    "required": [
-                      "id",
-                      "title",
-                      "entityType",
-                      "screenShotLight",
-                      "screenShotDark",
-                      "updatedAt",
-                      "parentId"
-                    ],
-                    "additionalProperties": false
-                  }
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "updatedAt"],
+                  "additionalProperties": false
                 }
               }
             }
@@ -667,9 +669,7 @@
             }
           }
         }
-      }
-    },
-    "/entities/{id}": {
+      },
       "get": {
         "operationId": "entities-load",
         "summary": "Load one entity",
@@ -893,6 +893,970 @@
             }
           }
         }
+      },
+      "patch": {
+        "operationId": "entities-update",
+        "summary": "Change an entity's title, parent, or public access",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "parentId": {
+                    "type": ["string", "null"]
+                  },
+                  "prevParentId": {
+                    "type": ["string", "null"]
+                  },
+                  "screenShotLight": {
+                    "type": "string"
+                  },
+                  "screenShotDark": {
+                    "type": "string"
+                  },
+                  "publicAccess": {
+                    "type": "string",
+                    "enum": ["READ", "EDIT", "PRIVATE"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/search": {
+      "get": {
+        "operationId": "entities-search",
+        "summary": "Search entities by title",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "entityType": {
+                        "type": "string",
+                        "enum": ["drawing", "document", "directory", "url"]
+                      },
+                      "screenShotLight": {
+                        "type": "string"
+                      },
+                      "screenShotDark": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "parentId": {
+                        "type": ["string", "null"]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "entityType",
+                      "screenShotLight",
+                      "screenShotDark",
+                      "updatedAt",
+                      "parentId"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "operationId": "entities-getUserTags",
+        "summary": "List every tag the caller has used",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}/tags": {
+      "get": {
+        "operationId": "entities-getEntityTags",
+        "summary": "List the tags on one entity",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "entities-updateEntityTags",
+        "summary": "Replace the tags on one entity",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tagNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["tagNames"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["id", "tags"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}/shares": {
+      "get": {
+        "operationId": "entities-getSharedInfo",
+        "summary": "List the users an entity is shared with",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "entityId": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "accessLevel": {
+                        "type": "string",
+                        "enum": ["READ", "EDIT"]
+                      },
+                      "email": {
+                        "type": ["string", "null"]
+                      },
+                      "name": {
+                        "type": ["string", "null"]
+                      }
+                    },
+                    "required": [
+                      "entityId",
+                      "userId",
+                      "accessLevel",
+                      "email",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "entities-share",
+        "summary": "Share an entity with a user by email",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userEmail": {
+                    "type": "string"
+                  },
+                  "accessLevel": {
+                    "type": "string",
+                    "enum": ["READ", "EDIT"]
+                  }
+                },
+                "required": ["userEmail", "accessLevel"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["success", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}/shares/{userId}": {
+      "patch": {
+        "operationId": "entities-changeAccessLevel",
+        "summary": "Change one user's access level on an entity",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accessLevel": {
+                    "type": "string",
+                    "enum": ["READ", "EDIT"]
+                  }
+                },
+                "required": ["accessLevel"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["success", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "entities-unShare",
+        "summary": "Stop sharing an entity with one user",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["success", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/documents/{id}/markdown": {
@@ -930,7 +1894,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
+                  "oneOf": [
                     {
                       "type": "object",
                       "properties": {
@@ -955,7 +1919,48 @@
                         },
                         "format": {
                           "type": "string",
-                          "enum": ["markdown", "raw"]
+                          "const": "markdown"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "path",
+                        "updatedAt",
+                        "tags",
+                        "format",
+                        "content"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "format": {
+                          "type": "string",
+                          "const": "raw"
                         },
                         "content": {
                           "type": "string"
@@ -1028,7 +2033,8 @@
                       ],
                       "additionalProperties": false
                     }
-                  ]
+                  ],
+                  "type": "object"
                 }
               }
             }
@@ -1405,14 +2411,17 @@
                     "type": "string"
                   },
                   "afterHeading": {
+                    "description": "Insert after the first root-level heading whose plain text matches (trimmed, whitespace collapsed, case-insensitive). Pass exactly one of afterHeading or atBlockIndex.",
                     "type": "string"
                   },
                   "nth": {
+                    "description": "1-based pick among headings matching afterHeading; only valid with afterHeading.",
                     "type": "integer",
                     "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
                   },
                   "atBlockIndex": {
+                    "description": "Insert before the root-level block at this 0-based index; the block count appends. Pass exactly one of afterHeading or atBlockIndex.",
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
@@ -3568,95 +4577,6 @@
   },
   "components": {
     "schemas": {
-      "ErrorResponse": {
-        "type": "object",
-        "title": "Error response",
-        "description": "The body of every unsuccessful response.",
-        "properties": {
-          "message": {
-            "type": "string",
-            "description": "Human readable explanation."
-          },
-          "code": {
-            "type": "string",
-            "enum": [
-              "BAD_REQUEST",
-              "PARSE_ERROR",
-              "UNAUTHORIZED",
-              "FORBIDDEN",
-              "NOT_FOUND",
-              "METHOD_NOT_SUPPORTED",
-              "CONFLICT",
-              "PAYLOAD_TOO_LARGE",
-              "UNSUPPORTED_MEDIA_TYPE",
-              "UNPROCESSABLE_CONTENT",
-              "TOO_MANY_REQUESTS",
-              "INTERNAL_SERVER_ERROR"
-            ],
-            "description": "Stable error code; clients branch on this, not the text."
-          },
-          "issues": {
-            "type": "array",
-            "description": "The input validation failures behind a 400, when any.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": ["message"]
-            }
-          },
-          "data": {
-            "type": "object",
-            "description": "Machine readable detail; each field is null on the errors that do not carry it.",
-            "properties": {
-              "currentUpdatedAt": {
-                "type": ["string", "null"],
-                "format": "date-time",
-                "description": "On a 409, the document's current `updatedAt`; re-read from it and retry with it as `ifUnmodifiedSince`."
-              },
-              "candidates": {
-                "type": ["array", "null"],
-                "items": {
-                  "type": "object",
-                  "title": "Heading candidate",
-                  "properties": {
-                    "nth": {
-                      "type": "integer",
-                      "description": "1-based position among the matching headings."
-                    },
-                    "blockIndex": {
-                      "type": "integer",
-                      "description": "Position among the document's top-level blocks, from 0."
-                    },
-                    "tag": {
-                      "type": "string",
-                      "description": "The heading level as Lexical stores it, such as `h2`."
-                    },
-                    "text": {
-                      "type": "string",
-                      "description": "The heading's plain text."
-                    }
-                  },
-                  "required": ["nth", "blockIndex", "tag", "text"]
-                },
-                "description": "On a 400 from an ambiguous `afterHeading`, the headings it could have meant; pass one's `nth` to choose."
-              }
-            }
-          }
-        },
-        "required": ["message", "code"],
-        "additionalProperties": false,
-        "title": "Authorization not provided error (401)",
-        "description": "The error information",
-        "example": {
-          "code": "UNAUTHORIZED",
-          "message": "Authorization not provided",
-          "issues": []
-        }
-      },
       "ErrorResponse": {
         "type": "object",
         "title": "Error response",
