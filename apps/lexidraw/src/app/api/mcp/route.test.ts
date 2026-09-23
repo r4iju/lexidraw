@@ -72,12 +72,18 @@ async function readMessage(response: Response): Promise<Json> {
 async function callTool(token: string, name: string, args: unknown) {
   const { body } = await rpc(token, "tools/call", { name, arguments: args });
   const result = body.result as
-    | { isError?: boolean; content: { type: string; text: string }[] }
+    | {
+        isError?: boolean;
+        content: { type: string; text: string }[];
+        _meta?: Json;
+      }
     | undefined;
   if (!result) throw new Error(`no result: ${JSON.stringify(body)}`);
   return {
     isError: result.isError === true,
     value: JSON.parse(result.content[0]?.text ?? "null") as Json,
+    // What the host hands the preview widget, when the tool carries one.
+    preview: result._meta?.["app.lexidraw/drawing"] as Json | undefined,
   };
 }
 
@@ -414,6 +420,121 @@ describe("the MCP endpoint", () => {
     // A document is not a directory, and a directory of someone else's is not
     // reachable; neither case says which.
     expect(value.code).toBe("NOT_FOUND");
+  });
+
+  test("points the drawing tools at the preview widget", async () => {
+    const { body } = await rpc(WRITE_TOKEN, "tools/list");
+    const tools = body.result.tools as { name: string; _meta?: Json }[];
+    const carrying = tools
+      .filter((tool) => tool._meta?.ui?.resourceUri)
+      .map((tool) => tool.name)
+      .sort();
+    expect(carrying).toEqual(["create_drawing", "get_drawing", "put_drawing"]);
+    for (const tool of tools) {
+      if (!tool._meta?.ui) continue;
+      expect(tool._meta.ui.resourceUri).toBe("ui://lexidraw/drawing-preview");
+      // The SDK writes the pre-1.0 key too, for hosts that only read that one.
+      expect(tool._meta["ui/resourceUri"]).toBe(
+        "ui://lexidraw/drawing-preview",
+      );
+    }
+    // A client that knows nothing about MCP Apps still reads a plain tool.
+    const drawing = tools.find((tool) => tool.name === "get_drawing") as Json;
+    expect(drawing.inputSchema).toMatchObject({ type: "object" });
+  });
+
+  test("publishes the widget as an MCP Apps resource", async () => {
+    const { body } = await rpc(READ_TOKEN, "resources/list");
+    const resources = body.result.resources as Json[];
+    const widget = resources.find(
+      (resource) => resource.uri === "ui://lexidraw/drawing-preview",
+    );
+    expect(widget).toBeDefined();
+    expect(widget?.mimeType).toBe("text/html;profile=mcp-app");
+    // The fonts the editor loads are the only thing it fetches itself.
+    expect(widget?._meta.ui.csp.resourceDomains).toEqual(["https://esm.sh"]);
+    expect(widget?._meta.ui.csp.connectDomains).toEqual([]);
+  });
+
+  test("answers the widget as one self-contained document", async () => {
+    const { body } = await rpc(READ_TOKEN, "resources/read", {
+      uri: "ui://lexidraw/drawing-preview",
+    });
+    const contents = body.result.contents as Json[];
+    expect(contents).toHaveLength(1);
+    const document = contents[0] as Json;
+    expect(document.mimeType).toBe("text/html;profile=mcp-app");
+    const html = document.text as string;
+    expect(html.startsWith("<!doctype html>")).toBe(true);
+    // A whole editor, not a placeholder.
+    expect(html.length).toBeGreaterThan(1_000_000);
+    expect(html).toContain('<div id="root"></div>');
+    // The bridge the widget talks to the host over, and the editor it mounts.
+    expect(html).toContain("ui/initialize");
+    expect(html).toContain("excalidraw-container");
+    // One inline script, closed once: the editor's own `</script>` strings are
+    // escaped, or the document would end in the middle of the bundle.
+    expect(html.split("</script>")).toHaveLength(2);
+    expect(html.trimEnd().endsWith("</html>")).toBe(true);
+    expect(body.result._meta.ui.csp.resourceDomains).toEqual([
+      "https://esm.sh",
+    ]);
+  });
+
+  test("hands the widget what the server stored, not what was sent", async () => {
+    const created = await callTool(WRITE_TOKEN, "create_drawing", {
+      title: "Boxes",
+      elements: [
+        {
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 60,
+          label: { text: "one" },
+        },
+      ],
+    });
+    expect(created.isError).toBe(false);
+    // The skeleton became canonical elements on the way in; the widget renders
+    // those, so it never has to expand shorthand itself.
+    expect(created.preview).toMatchObject({
+      id: created.value.id,
+      title: "Boxes",
+      updatedAt: created.value.updatedAt,
+      canWrite: true,
+    });
+    const elements = created.preview?.elements as Json[];
+    expect(elements.length).toBeGreaterThanOrEqual(2);
+    expect(elements.map((element) => element.type)).toContain("rectangle");
+    expect(elements.some((element) => element.text === "one")).toBe(true);
+
+    const read = await callTool(READ_TOKEN, "get_drawing", {
+      id: created.value.id,
+    });
+    // A read-scope token opens the widget read-only rather than letting a save
+    // fail after the fact.
+    expect(read.preview?.canWrite).toBe(false);
+    expect(read.preview?.updatedAt).toBe(created.value.updatedAt);
+  });
+
+  test("leaves the widget nothing to render when the drawing is too large", async () => {
+    const { preview, isError } = await callTool(WRITE_TOKEN, "put_drawing", {
+      id: "draw_huge",
+      elements: hugeElements,
+      ifUnmodifiedSince: "2026-09-01T00:00:00.000Z",
+    });
+    expect(isError).toBe(false);
+    expect(preview?.elements).toBeNull();
+    expect(preview?.tooLarge).toBe(true);
+  });
+
+  test("turns away an unauthenticated read of the widget", async () => {
+    const { response, body } = await rpc(null, "resources/read", {
+      uri: "ui://lexidraw/drawing-preview",
+    });
+    expect(response.status).toBe(401);
+    expect(body).toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   test("turns away a request with no token", async () => {

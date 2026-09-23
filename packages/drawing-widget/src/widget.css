@@ -1,0 +1,75 @@
+/* The frame around the editor. Excalidraw brings its own stylesheet; this is
+   the header, the status line, and the box they share. */
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 420px;
+  color: #1b1b1f;
+  background: #ffffff;
+}
+
+.widget.dark {
+  color: #e3e3e8;
+  background: #121212;
+}
+
+.widget > header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgb(0 0 0 / 0.1);
+  font-size: 0.875rem;
+}
+
+.widget.dark > header {
+  border-bottom-color: rgb(255 255 255 / 0.15);
+}
+
+.widget .title {
+  font-weight: 600;
+}
+
+.widget .status {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+  opacity: 0.7;
+  font-size: 0.8125rem;
+}
+
+.widget .status.conflict,
+.widget .status.error {
+  color: #b42318;
+  opacity: 1;
+}
+
+.widget .status .detail {
+  max-width: 32rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget .canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.widget .empty {
+  padding: 2rem;
+  text-align: center;
+  opacity: 0.7;
+}

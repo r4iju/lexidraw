@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { EMPTY_CONTENT } from "@packages/lexical-nodes";
 import { v4 as uuidV4 } from "uuid";
@@ -12,6 +13,12 @@ import {
   MarkdownBody,
 } from "~/server/api/routers/documents-schema";
 import { DrawingElements } from "~/server/drawings/skeleton-schema";
+import {
+  DRAWING_PREVIEW_TOOL_META,
+  drawingPreviewMeta,
+  loadDrawingPreviewMeta,
+  registerDrawingPreview,
+} from "~/server/mcp/widget";
 
 /**
  * The server-side tRPC caller every tool runs through. Tools hold nothing but
@@ -85,6 +92,27 @@ async function call(run: () => Promise<unknown>) {
 }
 
 /**
+ * Like {@link call}, plus what the preview widget needs to render the drawing
+ * that was written. The payload is the stored drawing, read back, so the
+ * widget shows what the server made of the payload rather than the payload.
+ */
+async function callWrite(
+  run: () => Promise<{ id: string }>,
+  caller: RouterCaller,
+) {
+  let value: { id: string };
+  try {
+    value = await run();
+  } catch (error) {
+    return failed(error);
+  }
+  return {
+    ...ok(value),
+    _meta: await loadDrawingPreviewMeta(caller, value.id),
+  };
+}
+
+/**
  * A tool answer lands in a model's context, where a whole entity may not fit
  * and cannot be paged through. `/api/v1` has no such ceiling, because a CLI
  * writes what it reads to a file, so this is the MCP layer's own.
@@ -96,10 +124,16 @@ const MAX_READ_BYTES = 1_000_000;
  * too large is refused whole rather than truncated: half a document reads as a
  * document, and an agent would go on to write the rest of it away.
  */
-async function callRead(run: () => Promise<unknown>, instead: string) {
+async function callRead<T>(
+  run: () => Promise<T>,
+  instead: string,
+  meta?: (value: T) => Promise<Record<string, unknown>>,
+) {
+  let value: T;
   let text: string;
   try {
-    text = JSON.stringify(await run(), null, 2);
+    value = await run();
+    text = JSON.stringify(value, null, 2);
   } catch (error) {
     return failed(error);
   }
@@ -112,18 +146,23 @@ async function callRead(run: () => Promise<unknown>, instead: string) {
       }),
     );
   }
-  return { content: [{ type: "text" as const, text }] };
+  return {
+    content: [{ type: "text" as const, text }],
+    _meta: await meta?.(value),
+  };
 }
 
 /**
  * Registers the tool surface on a freshly constructed server. One tool per
- * procedure, holding no logic of its own; #36 adds the drawing preview as a
- * resource alongside these.
+ * procedure, holding no logic of its own, plus the drawing preview widget the
+ * three drawing tools point a host at.
  */
 export function registerLexidrawTools(
   server: McpServer,
   caller: RouterCaller,
 ): void {
+  registerDrawingPreview(server);
+
   server.registerTool(
     "whoami",
     {
@@ -289,7 +328,8 @@ export function registerLexidrawTools(
     (input) => call(() => caller.documents.replaceMarkdown(input)),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "get_drawing",
     {
       title: "Read a drawing",
@@ -297,12 +337,19 @@ export function registerLexidrawTools(
         "A drawing's stored Excalidraw elements and its updatedAt, which is the ifUnmodifiedSince of your next put_drawing.",
       inputSchema: z.object({ id: entityId }),
       annotations: { readOnlyHint: true },
+      _meta: DRAWING_PREVIEW_TOOL_META,
     },
     (input) =>
-      callRead(() => caller.drawings.get(input), "GET /api/v1/drawings/{id}"),
+      callRead(
+        () => caller.drawings.get(input),
+        "GET /api/v1/drawings/{id}",
+        // The elements are already in hand here; a write has to read them back.
+        (drawing) => drawingPreviewMeta(caller, drawing),
+      ),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "put_drawing",
     {
       title: "Replace a drawing",
@@ -313,11 +360,13 @@ export function registerLexidrawTools(
         elements: DrawingElements,
         ifUnmodifiedSince,
       }),
+      _meta: DRAWING_PREVIEW_TOOL_META,
     },
-    (input) => call(() => caller.drawings.put(input)),
+    (input) => callWrite(() => caller.drawings.put(input), caller),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "create_drawing",
     {
       title: "Create a drawing",
@@ -331,14 +380,17 @@ export function registerLexidrawTools(
           .nullish()
           .describe("The directory to create it in; omitted means the root."),
       }),
+      _meta: DRAWING_PREVIEW_TOOL_META,
     },
     (input) =>
-      call(() =>
-        caller.drawings.create({
-          title: input.title,
-          elements: input.elements ?? [],
-          parentId: input.parentId,
-        }),
+      callWrite(
+        () =>
+          caller.drawings.create({
+            title: input.title,
+            elements: input.elements ?? [],
+            parentId: input.parentId,
+          }),
+        caller,
       ),
   );
 }
