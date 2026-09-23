@@ -4,7 +4,7 @@ import { createClient } from "@libsql/client";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import { PublicAccess } from "@packages/types";
-import type { DocumentStore } from "./append";
+import type { DocumentStore } from "./write";
 import { drizzleDocumentStore } from "./document-store";
 
 // The Entities columns as `schema.entities` declares them, without the

@@ -13,6 +13,7 @@ import {
 } from "~/server/auth/api-token-format";
 import { resolveApiToken } from "~/server/auth/api-tokens";
 import { StaleDocumentError } from "~/server/documents/conflict";
+import { AmbiguousHeadingError } from "~/server/documents/markdown";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const bearer = readBearerApiToken(opts.headers);
@@ -55,6 +56,12 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
         currentUpdatedAt:
           error.cause instanceof StaleDocumentError
             ? error.cause.currentUpdatedAt.toISOString()
+            : null,
+        // The headings an ambiguous insert could have meant, so a caller can
+        // pick an `nth` without parsing the message.
+        candidates:
+          error.cause instanceof AmbiguousHeadingError
+            ? error.cause.candidates
             : null,
       },
     };

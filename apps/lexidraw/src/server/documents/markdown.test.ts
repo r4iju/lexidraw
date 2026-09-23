@@ -2,12 +2,17 @@
 import { describe, expect, test } from "bun:test";
 import type { SerializedEditorState } from "lexical";
 import {
+  AmbiguousHeadingError,
   appendBlocks,
+  BlockIndexOutOfRangeError,
   collectNodeTypes,
   editorStateToMarkdown,
+  HeadingNotFoundError,
+  insertBlocks,
   InvalidDocumentContentError,
   markdownToEditorState,
   parseEditorState,
+  resolveInsertIndex,
   UnsupportedNodeTypesError,
   unsupportedNodeTypes,
   withFrontmatter,
@@ -164,6 +169,219 @@ describe("appendBlocks", () => {
     // re-parses or re-serializes them.
     expect(JSON.stringify(appended.root.children.slice(0, 3))).toBe(
       JSON.stringify(state.root.children),
+    );
+  });
+});
+
+describe("insertBlocks", () => {
+  test("splices at the index without touching the input", () => {
+    const state = withNode("phantom");
+    const before = JSON.stringify(state);
+    const blocks = markdownToEditorState("Added.").root.children;
+
+    const inserted = insertBlocks(state, 1, blocks);
+
+    expect(JSON.stringify(state)).toBe(before);
+    expect(inserted.root.children).toEqual([
+      ...state.root.children.slice(0, 1),
+      ...blocks,
+      ...state.root.children.slice(1),
+    ]);
+    // Blocks with no markdown form survive an insert untouched: nothing
+    // re-parses or re-serializes them.
+    expect(JSON.stringify(inserted.root.children.slice(2))).toBe(
+      JSON.stringify(state.root.children.slice(1)),
+    );
+  });
+});
+
+describe("resolveInsertIndex", () => {
+  // Blocks 0..5: heading, paragraph, heading, paragraph, heading, paragraph.
+  const OUTLINE = markdownToEditorState(
+    `# Title
+
+Intro.
+
+## Notes
+
+First note.
+
+## notes
+
+Second note.`,
+  );
+
+  test("end is after the last block", () => {
+    expect(resolveInsertIndex(OUTLINE, { kind: "end" })).toBe(6);
+  });
+
+  test("a unique heading resolves to the block directly below it", () => {
+    expect(
+      resolveInsertIndex(OUTLINE, { kind: "afterHeading", text: "Title" }),
+    ).toBe(1);
+  });
+
+  const caught = (run: () => unknown): unknown => {
+    try {
+      run();
+    } catch (error) {
+      return error;
+    }
+    throw new Error("expected a throw");
+  };
+
+  test("heading text is trimmed, collapsed, case-folded, and unformatted", () => {
+    const state = markdownToEditorState("## Plan **B**\n\nBody.");
+    expect(
+      resolveInsertIndex(state, {
+        kind: "afterHeading",
+        text: "  plan\n  b ",
+      }),
+    ).toBe(1);
+  });
+
+  test("a line break inside a heading reads as whitespace", () => {
+    const state = {
+      root: {
+        ...OUTLINE.root,
+        children: [
+          {
+            type: "heading",
+            tag: "h2",
+            version: 1,
+            children: [
+              { type: "text", version: 1, text: "Line one" },
+              { type: "linebreak", version: 1 },
+              { type: "text", version: 1, text: "Line two" },
+            ],
+          } as never,
+        ],
+      },
+    } as SerializedEditorState;
+
+    expect(
+      resolveInsertIndex(state, {
+        kind: "afterHeading",
+        text: "line one line two",
+      }),
+    ).toBe(1);
+  });
+
+  test("duplicate headings name every candidate, and nth picks one", () => {
+    const placement = { kind: "afterHeading" as const, text: " NOTES " };
+
+    const thrown = caught(() => resolveInsertIndex(OUTLINE, placement));
+    expect(thrown).toBeInstanceOf(AmbiguousHeadingError);
+    expect((thrown as AmbiguousHeadingError).candidates).toEqual([
+      { nth: 1, blockIndex: 2, tag: "h2", text: "Notes" },
+      { nth: 2, blockIndex: 4, tag: "h2", text: "notes" },
+    ]);
+    expect((thrown as AmbiguousHeadingError).message).toBe(
+      [
+        '2 top-level headings match " NOTES "; pass nth to choose one:',
+        '#1 h2 "Notes" at block 2',
+        '#2 h2 "notes" at block 4',
+      ].join("\n"),
+    );
+
+    expect(resolveInsertIndex(OUTLINE, { ...placement, nth: 1 })).toBe(3);
+    expect(resolveInsertIndex(OUTLINE, { ...placement, nth: 2 })).toBe(5);
+  });
+
+  test("an nth past the last candidate says so, candidates and all", () => {
+    const past = caught(() =>
+      resolveInsertIndex(OUTLINE, {
+        kind: "afterHeading",
+        text: "Notes",
+        nth: 3,
+      }),
+    );
+    expect(past).toBeInstanceOf(AmbiguousHeadingError);
+    expect((past as AmbiguousHeadingError).candidates).toHaveLength(2);
+    expect((past as AmbiguousHeadingError).message).toBe(
+      [
+        'nth 3 is past the 2 top-level headings matching "Notes":',
+        '#1 h2 "Notes" at block 2',
+        '#2 h2 "notes" at block 4',
+      ].join("\n"),
+    );
+
+    // One match and an nth of 2: not ambiguous to the caller, just too far.
+    expect(
+      (
+        caught(() =>
+          resolveInsertIndex(OUTLINE, {
+            kind: "afterHeading",
+            text: "Title",
+            nth: 2,
+          }),
+        ) as AmbiguousHeadingError
+      ).message,
+    ).toBe(
+      [
+        'nth 2 is past the 1 top-level heading matching "Title":',
+        '#1 h1 "Title" at block 0',
+      ].join("\n"),
+    );
+  });
+
+  test("a heading nobody has is not found, and the others are named", () => {
+    const thrown = caught(() =>
+      resolveInsertIndex(OUTLINE, { kind: "afterHeading", text: "Missing" }),
+    );
+    expect(thrown).toBeInstanceOf(HeadingNotFoundError);
+    expect((thrown as HeadingNotFoundError).headings).toEqual([
+      "Title",
+      "Notes",
+      "notes",
+    ]);
+    expect((thrown as HeadingNotFoundError).message).toBe(
+      'No top-level heading matches "Missing"; the document has "Title", "Notes", "notes"',
+    );
+
+    // A paragraph with the same text is not a heading.
+    expect(() =>
+      resolveInsertIndex(OUTLINE, { kind: "afterHeading", text: "Intro." }),
+    ).toThrow(HeadingNotFoundError);
+    expect(() =>
+      resolveInsertIndex(markdownToEditorState("Just text."), {
+        kind: "afterHeading",
+        text: "Missing",
+      }),
+    ).toThrow('No top-level heading matches "Missing"; the document has none');
+  });
+
+  test("a long outline is named up to twenty headings deep", () => {
+    const many = markdownToEditorState(
+      Array.from({ length: 25 }, (_, index) => `# H${index + 1}`).join("\n\n"),
+    );
+
+    const thrown = caught(() =>
+      resolveInsertIndex(many, { kind: "afterHeading", text: "Missing" }),
+    );
+    expect((thrown as HeadingNotFoundError).headings).toHaveLength(25);
+    expect((thrown as HeadingNotFoundError).message).toContain(
+      '"H20", and 5 more',
+    );
+    expect((thrown as HeadingNotFoundError).message).not.toContain('"H21"');
+  });
+
+  test("a block index is in range up to the block count, which appends", () => {
+    expect(
+      resolveInsertIndex(OUTLINE, { kind: "atBlockIndex", index: 0 }),
+    ).toBe(0);
+    expect(
+      resolveInsertIndex(OUTLINE, { kind: "atBlockIndex", index: 6 }),
+    ).toBe(6);
+    for (const index of [7, -1, 1.5]) {
+      expect(() =>
+        resolveInsertIndex(OUTLINE, { kind: "atBlockIndex", index }),
+      ).toThrow(BlockIndexOutOfRangeError);
+    }
+    expect(() =>
+      resolveInsertIndex(OUTLINE, { kind: "atBlockIndex", index: 7 }),
+    ).toThrow(
+      "Block index 7 is out of range; the document has 6 top-level blocks, so 0 to 6 are insertable and 6 appends",
     );
   });
 });
