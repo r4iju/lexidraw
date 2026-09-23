@@ -315,6 +315,28 @@ describe("decorator node markdown", () => {
     });
   });
 
+  test("importJSON fills in the constructor defaults for missing fields", () => {
+    const editor = editorWithCoreNodes();
+    editor.update(
+      () => {
+        const drawing = ExcalidrawNode.importJSON({
+          type: "excalidraw",
+          version: 1,
+        } as never);
+        expect(drawing.getData()).toBe("[]");
+        expect(drawing.getWidth()).toBe("inherit");
+        expect(drawing.getHeight()).toBe("inherit");
+        const article = ArticleNode.importJSON({
+          type: "article",
+          version: 1,
+          data: { mode: "entity", entityId: "e1" },
+        } as never);
+        expect(article.exportJSON().format).toBe("");
+      },
+      { discrete: true },
+    );
+  });
+
   test("every node in the list is registered under its own type", () => {
     const editor = editorWithCoreNodes();
     for (const klass of [

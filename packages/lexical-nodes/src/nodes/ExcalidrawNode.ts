@@ -50,9 +50,9 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
 
   static importJSON(serializedNode: SerializedExcalidrawNode): ExcalidrawNode {
     const node = ExcalidrawNode.$createExcalidrawNode(false);
-    node.__data = serializedNode.data;
-    node.__width = serializedNode.width;
-    node.__height = serializedNode.height;
+    node.__data = serializedNode.data ?? "[]";
+    node.__width = serializedNode.width ?? "inherit";
+    node.__height = serializedNode.height ?? "inherit";
     return node;
   }
 

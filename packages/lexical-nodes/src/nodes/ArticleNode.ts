@@ -49,7 +49,7 @@ export class ArticleNode extends DecoratorBlockNode {
 
   static importJSON(serializedNode: SerializedArticleNode): ArticleNode {
     const node = ArticleNode.$createArticleNode(serializedNode.data);
-    node.setFormat(serializedNode.format);
+    node.setFormat(serializedNode.format || "");
     return node;
   }
 
