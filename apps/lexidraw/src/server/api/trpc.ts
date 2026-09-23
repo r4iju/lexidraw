@@ -65,10 +65,16 @@ const t = initTRPC
   .create({
     transformer: superjson,
     errorFormatter({ shape, error }) {
+      // A driver error quotes the failing SQL and its bound parameters, in the
+      // message and again in the stack. Neither leaves the server for a 500;
+      // the route handlers log the original.
+      const internal = error.code === "INTERNAL_SERVER_ERROR";
       return {
         ...shape,
+        message: internal ? "Internal server error" : shape.message,
         data: {
           ...shape.data,
+          stack: internal ? undefined : shape.data.stack,
           zodError:
             error.cause instanceof ZodError ? error.cause.flatten() : null,
           // ISO so a conflict reads the same over tRPC, REST, and the CLI.

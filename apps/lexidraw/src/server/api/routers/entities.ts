@@ -13,6 +13,7 @@ import {
   schema,
   sql,
   inArray,
+  type drizzle,
 } from "@packages/drizzle";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { v4 as uuidV4 } from "uuid";
@@ -30,8 +31,17 @@ import { computeThumbnailVersion } from "~/lib/thumbnail-version";
 import { nextUpdatedAt } from "~/server/documents/document-store";
 import {
   entityAncestors,
+  findOwnedEntity,
   findReadableEntity,
+  findWritableEntity,
 } from "~/server/entities/readable";
+import {
+  accessLevelOut,
+  entityTypeOut,
+  isoDate,
+  queryBoolean,
+  stringList,
+} from "../rest-schemas";
 
 /**
  * What `load` returns, declared so the REST transport can describe it.
@@ -50,36 +60,11 @@ const loadOutput = z.object({
   accessLevel: z.enum(AccessLevel),
 });
 
-/** A date reaches a REST client as an ISO string; tRPC clients get a Date. */
-const isoDate = z.date().meta({ format: "date-time" });
-
-/**
- * A repeated query parameter arrives as a bare string when only one value is
- * sent, so REST callers may also comma-separate. tRPC callers keep passing
- * arrays.
- */
-const stringList = <T extends z.ZodType<string, string>>(item: T) =>
-  z.union([
-    z.array(item),
-    z
-      .string()
-      .transform((value) => value.split(",").filter(Boolean))
-      .pipe(z.array(item)),
-  ]);
-
-/**
- * `z.coerce.boolean()` reads the string "false" as true, which a query
- * parameter cannot afford, so both spellings are spelled out.
- */
-const queryBoolean = z
-  .union([z.boolean(), z.literal("true"), z.literal("false")])
-  .transform((value) => value === true || value === "true");
-
 /** What `list` returns: one row per entity the dashboard draws. */
 const entityListItem = z.object({
   id: z.string(),
   title: z.string(),
-  entityType: z.string(),
+  entityType: entityTypeOut,
   createdAt: isoDate,
   updatedAt: isoDate,
   screenShotLight: z.string(),
@@ -101,7 +86,7 @@ const entityListItem = z.object({
 const entitySearchResult = z.object({
   id: z.string(),
   title: z.string(),
-  entityType: z.string(),
+  entityType: entityTypeOut,
   screenShotLight: z.string(),
   screenShotDark: z.string(),
   updatedAt: isoDate,
@@ -112,11 +97,35 @@ const entitySearchResult = z.object({
 const entitySummary = z.object({
   id: z.string(),
   title: z.string(),
-  entityType: z.string(),
+  entityType: entityTypeOut,
   parentId: z.string().nullable(),
   createdAt: isoDate,
   updatedAt: isoDate,
 });
+
+/** The tag names `userId` has put on `entityId`, sorted. */
+async function ownTagNames(
+  db: typeof drizzle,
+  entityId: string,
+  userId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ name: schema.tags.name })
+    .from(schema.entityTags)
+    .innerJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+    .where(
+      and(
+        eq(schema.entityTags.entityId, entityId),
+        eq(schema.entityTags.userId, userId),
+      ),
+    )
+    .orderBy(schema.tags.name)
+    .execute();
+  return rows.map((row) => row.name);
+}
+
+const notFound = () =>
+  new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -163,12 +172,14 @@ export const entityRouter = createTRPCRouter({
         method: "POST",
         path: "/entities",
         tags: ["entities"],
-        summary: "Create an entity; null when the id is already taken",
+        summary: "Create an entity; returns the existing one on a repeat",
         protect: true,
+        // A POST has no 404 by default, and 409 is this path's own.
+        errorResponses: [400, 401, 403, 409, 500],
       },
     })
     .input(CreateEntity)
-    .output(entitySummary.nullable())
+    .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
       const [created] = await ctx.drizzle
         .insert(schema.entities)
@@ -194,9 +205,30 @@ export const entityRouter = createTRPCRouter({
           createdAt: schema.entities.createdAt,
           updatedAt: schema.entities.updatedAt,
         });
-      // Nothing is inserted when the id is taken, and the caller learns
-      // nothing about the entity that holds it.
-      return created ?? null;
+      if (created) return created;
+
+      // The id is taken. `/…?new=true` re-runs this on a refresh, so the
+      // owner gets their own entity back; anyone else learns only that the id
+      // is gone, never whose it is.
+      const existing = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "An entity with this id already exists",
+        });
+      }
+      return {
+        id: existing.id,
+        title: existing.title,
+        entityType: existing.entityType,
+        parentId: existing.parentId,
+        createdAt: existing.createdAt,
+        updatedAt: existing.updatedAt,
+      };
     }),
   save: publicProcedure
     .meta({
@@ -211,62 +243,35 @@ export const entityRouter = createTRPCRouter({
     .input(SaveEntity)
     .output(z.object({ id: z.string(), updatedAt: isoDate }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user.id ?? "";
-      const drawings = await ctx.drizzle
-        .select({
-          count: sql<number>`cast(count(${schema.entities.id}) as int)`,
-        })
-        .from(schema.entities)
-        .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
-        .leftJoin(
-          schema.sharedEntities,
-          eq(schema.entities.id, schema.sharedEntities.entityId),
-        )
-        .where(
-          and(
-            or(
-              eq(schema.entities.userId, userId),
-              eq(schema.sharedEntities.userId, userId),
-              eq(schema.entities.publicAccess, PublicAccess.EDIT),
-            ),
-            isNull(schema.entities.deletedAt),
-          ),
-        )
-        .groupBy(schema.entities.id)
-        .having(({ count }) => eq(count, 1))
-        .execute();
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session?.user.id ?? "",
+      );
+      if (!entity) throw notFound();
 
-      if (!drawings[0]) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to save this drawing",
-        });
-      }
-
-      let appState: null | string = null;
-      const parsedAppState = JSON.parse(input.appState ?? "{}");
-      if (input.appState) {
+      // Omitting appState leaves the stored one alone; only an explicit null
+      // clears it.
+      let appState: string | null | undefined;
+      if (input.appState === null) {
+        appState = null;
+      } else if (input.appState !== undefined) {
+        const parsedAppState = JSON.parse(input.appState) as AppState;
         appState = JSON.stringify({
-          ...(parsedAppState as unknown as AppState),
+          ...parsedAppState,
           collaborators:
-            (parsedAppState as unknown as AppState).collaborators instanceof Map
-              ? Object.fromEntries(
-                  (
-                    parsedAppState as unknown as AppState
-                  ).collaborators.entries(),
-                )
+            parsedAppState.collaborators instanceof Map
+              ? Object.fromEntries(parsedAppState.collaborators.entries())
               : undefined,
         });
       }
-
-      console.log("appState", appState);
 
       const saved = await ctx.drizzle
         .update(schema.entities)
         .set({
           id: input.id,
           title: input.title,
-          appState: appState,
+          ...(appState !== undefined ? { appState } : {}),
           elements: input.elements,
           ...(input.parentId ? { parentId: input.parentId } : {}),
           // Strictly increasing, so a compare-and-set caller can tell this save
@@ -293,7 +298,12 @@ export const entityRouter = createTRPCRouter({
 
       // Enqueue thumbnail job (deduped by entityId+version)
       try {
-        const version = computeThumbnailVersion(input.elements, appState);
+        // The thumbnail follows what is stored, which is the previous
+        // appState when this save did not carry one.
+        const version = computeThumbnailVersion(
+          input.elements,
+          appState === undefined ? entity.appState : appState,
+        );
 
         const jobId = uuidV4();
         const createdAt = new Date();
@@ -558,8 +568,9 @@ export const entityRouter = createTRPCRouter({
     })
     .input(
       z.object({
-        parentId: z.string().nullable().optional(),
-        tagNames: stringList(z.string()).optional(),
+        // Omitted means the root; a directory id lists that directory.
+        parentId: z.string().optional(),
+        tagNames: stringList(z.string(), "Tag names").optional(),
         sortBy: z
           .enum(["updatedAt", "createdAt", "title"])
           .optional()
@@ -569,6 +580,7 @@ export const entityRouter = createTRPCRouter({
         onlyFavorites: queryBoolean.optional().default(false),
         entityTypes: stringList(
           z.enum(["document", "drawing", "directory", "url"]),
+          "Entity types to include",
         ).optional(),
       }),
     )
@@ -582,7 +594,14 @@ export const entityRouter = createTRPCRouter({
           .select({ entityId: schema.entityTags.entityId })
           .from(schema.entityTags)
           .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-          .where(inArray(schema.tags.name, input.tagNames))
+          .where(
+            and(
+              inArray(schema.tags.name, input.tagNames),
+              // A tag belongs to whoever put it there, so filtering by one
+              // means filtering by the caller's own.
+              eq(schema.entityTags.userId, ctx.session.user.id),
+            ),
+          )
           .execute();
 
         tagFilteredEntityIds = matchingEntityTags.map((row) => row.entityId);
@@ -631,7 +650,10 @@ export const entityRouter = createTRPCRouter({
         )
         .leftJoin(
           schema.entityTags,
-          eq(schema.entities.id, schema.entityTags.entityId),
+          and(
+            eq(schema.entities.id, schema.entityTags.entityId),
+            eq(schema.entityTags.userId, ctx.session.user.id),
+          ),
         )
         .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
         .where(
@@ -809,14 +831,14 @@ export const entityRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .output(z.array(z.string()))
     .query(async ({ ctx, input }) => {
-      const tags = await ctx.drizzle
-        .select({ name: schema.tags.name })
-        .from(schema.entityTags)
-        .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-        .where(eq(schema.entityTags.entityId, input.id))
-        .execute();
+      const entity = await findReadableEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
 
-      return tags.map((tag) => tag.name).filter((name) => name !== null);
+      return ownTagNames(ctx.drizzle, input.id, ctx.session.user.id);
     }),
   updateEntityTags: protectedProcedure
     .meta({
@@ -828,14 +850,30 @@ export const entityRouter = createTRPCRouter({
         protect: true,
       },
     })
-    .input(z.object({ id: z.string(), tagNames: z.array(z.string()) }))
+    .input(
+      z.object({
+        id: z.string(),
+        // Deduped so a repeated name cannot collide on the association key.
+        tagNames: z.array(z.string()).transform((names) => [...new Set(names)]),
+      }),
+    )
     .output(z.object({ id: z.string(), tags: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
-      // If no tagNames provided, simply delete all associations
+      const userId = ctx.session.user.id;
+      const entity = await findWritableEntity(ctx.drizzle, input.id, userId);
+      if (!entity) throw notFound();
+
+      // Tags are per user: another user's associations with this entity are
+      // neither read nor touched here.
+      const ownAssociations = and(
+        eq(schema.entityTags.entityId, input.id),
+        eq(schema.entityTags.userId, userId),
+      );
+
       if (input.tagNames.length === 0) {
         await ctx.drizzle
           .delete(schema.entityTags)
-          .where(eq(schema.entityTags.entityId, input.id))
+          .where(ownAssociations)
           .execute();
         return { id: input.id, tags: [] };
       }
@@ -880,7 +918,7 @@ export const entityRouter = createTRPCRouter({
         const currentAssociations = await tx
           .select({ tagId: schema.entityTags.tagId })
           .from(schema.entityTags)
-          .where(eq(schema.entityTags.entityId, input.id))
+          .where(ownAssociations)
           .execute();
         const currentTagIds = new Set(
           currentAssociations.map((assoc) => assoc.tagId),
@@ -899,7 +937,7 @@ export const entityRouter = createTRPCRouter({
             .delete(schema.entityTags)
             .where(
               and(
-                eq(schema.entityTags.entityId, input.id),
+                ownAssociations,
                 inArray(schema.entityTags.tagId, tagsToRemove),
               ),
             )
@@ -912,14 +950,17 @@ export const entityRouter = createTRPCRouter({
               tagsToAdd.map((tagId) => ({
                 entityId: input.id,
                 tagId,
-                userId: ctx.session.user.id,
+                userId,
               })),
             )
             .execute();
         }
       });
 
-      return { id: input.id, tags: input.tagNames };
+      return {
+        id: input.id,
+        tags: await ownTagNames(ctx.drizzle, input.id, userId),
+      };
     }),
   getSharedInfo: protectedProcedure
     .meta({
@@ -937,13 +978,23 @@ export const entityRouter = createTRPCRouter({
         z.object({
           entityId: z.string(),
           userId: z.string(),
-          accessLevel: z.string(),
+          accessLevel: accessLevelOut,
           email: z.string().nullable(),
           name: z.string().nullable(),
         }),
       ),
     )
     .query(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
+      // The rows carry emails and names, so a public link is not enough.
+      if (
+        !entity ||
+        (entity.ownerId !== userId && entity.sharedWithId !== userId)
+      ) {
+        throw notFound();
+      }
+
       const sharedDrawings = await ctx.drizzle
         .select({
           entityId: schema.sharedEntities.entityId,
@@ -975,6 +1026,13 @@ export const entityRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .output(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
+
       await ctx.drizzle
         .update(schema.entities)
         .set({
@@ -1010,34 +1068,15 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      console.log("update with input: ", input);
-      const drawings = await ctx.drizzle
-        .select({
-          count: sql<number>`cast(count(${schema.entities.id}) as int)`,
-        })
-        .from(schema.entities)
-        .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
-        .leftJoin(
-          schema.sharedEntities,
-          eq(schema.entities.id, schema.sharedEntities.entityId),
-        )
-        .where(
-          and(
-            or(
-              eq(schema.entities.userId, ctx.session?.user.id as string),
-              eq(schema.sharedEntities.userId, ctx.session?.user.id as string),
-            ),
-            isNull(schema.entities.deletedAt),
-          ),
-        )
-        .groupBy(schema.entities.id)
-        .having(({ count }) => eq(count, 1))
-        .execute();
-
-      if (!drawings[0]) {
+      const userId = ctx.session?.user.id ?? "";
+      const entity = await findWritableEntity(ctx.drizzle, input.id, userId);
+      if (!entity) throw notFound();
+      // Who may see the entity is the owner's call, not an editor's; they can
+      // already read it, so saying so is not a leak.
+      if ("publicAccess" in input && entity.ownerId !== userId) {
         throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to save this drawing",
+          code: "FORBIDDEN",
+          message: "Only the owner can change public access",
         });
       }
 
@@ -1187,6 +1226,8 @@ export const entityRouter = createTRPCRouter({
         tags: ["entities"],
         summary: "Share an entity with a user by email",
         protect: true,
+        // A POST has no 404 by default; an unknown entity or invitee is one.
+        errorResponses: [400, 401, 403, 404, 500],
       },
     })
     .input(
@@ -1198,62 +1239,26 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      console.log("share with input: ", input);
-
-      const sharedWith = await ctx.drizzle
-        .select()
-        .from(schema.sharedEntities)
-        .execute();
-      console.log("sharedWith: ", sharedWith);
-
-      // Ensure the current user is the owner of the drawing or has EDIT rights
-      const entities = await ctx.drizzle
-        .select({
-          id: schema.entities.id,
-        })
-        .from(schema.entities)
-        .where(
-          and(
-            eq(schema.entities.id, input.id),
-            or(
-              // Owner
-              eq(schema.entities.userId, ctx.session.user.id),
-              // Editor
-              and(
-                eq(schema.sharedEntities.userId, ctx.session.user.id),
-                eq(schema.sharedEntities.entityId, input.id),
-                eq(schema.sharedEntities.accessLevel, AccessLevel.EDIT),
-              ),
-            ),
-          ),
-        )
-        .leftJoin(
-          schema.sharedEntities,
-          eq(schema.entities.id, schema.sharedEntities.entityId),
-        )
-        .execute();
-
-      if (!entities[0]) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to share this drawing",
-        });
-      } else {
-        console.log("found applicable entity", entities[0].id);
+      const userId = ctx.session.user.id;
+      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
+      // Handing out access is the owner's or an editor's call; reading the
+      // entity through a public link is not enough.
+      if (
+        !entity ||
+        (entity.ownerId !== userId &&
+          entity.sharedAccessLevel !== AccessLevel.EDIT)
+      ) {
+        throw notFound();
       }
 
-      // Find the user by email
       const userToShareWith = await ctx.drizzle.query.users.findFirst({
         where: (user, { eq }) => eq(user.email, input.userEmail),
       });
-
       if (!userToShareWith) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Sorry that user doesn't exist",
         });
-      } else {
-        console.log("found user to share with: ", userToShareWith);
       }
 
       await ctx.drizzle
@@ -1294,37 +1299,12 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      // Ensure the current user is the owner of the drawing or has EDIT rights
-      const drawings = await ctx.drizzle
-        .select({
-          count: sql<number>`cast(count(${schema.entities.id}) as int)`,
-        })
-        .from(schema.entities)
-        .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
-        .leftJoin(
-          schema.sharedEntities,
-          eq(schema.entities.id, schema.sharedEntities.entityId),
-        )
-        .where(
-          and(
-            or(
-              eq(schema.entities.userId, ctx.session?.user.id as string),
-              eq(schema.sharedEntities.userId, ctx.session?.user.id as string),
-            ),
-            isNull(schema.entities.deletedAt),
-          ),
-        )
-        .groupBy(schema.entities.id)
-        .having(({ count }) => eq(count, 1))
-        .execute();
-
-      if (!drawings[0]) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message:
-            "You are not authorized to change access level of this drawing",
-        });
-      }
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
 
       await ctx.drizzle
         .update(schema.sharedEntities)
@@ -1353,6 +1333,13 @@ export const entityRouter = createTRPCRouter({
     .input(z.object({ id: z.string(), userId: z.string() }))
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
+
       await ctx.drizzle
         .delete(schema.sharedEntities)
         .where(
@@ -1638,6 +1625,7 @@ export const entityRouter = createTRPCRouter({
   // searches for tags or content
   deepSearch: protectedProcedure
     .input(z.object({ query: z.string() }))
+    .output(z.array(entitySearchResult))
     .query(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
       if (input.query.trim() === "") {

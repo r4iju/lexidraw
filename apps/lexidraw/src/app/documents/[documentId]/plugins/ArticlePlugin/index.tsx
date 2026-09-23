@@ -35,7 +35,6 @@ export default function ArticlePlugin(): React.JSX.Element | null {
   );
   const listRecent = api.entities.list.useQuery(
     {
-      parentId: null,
       includeArchived: false,
       onlyFavorites: false,
       sortBy: "updatedAt",

@@ -108,6 +108,8 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
                   id: entity.id,
                   elements: JSON.stringify({ url: normalizedUrl }),
                   entityType: "url",
+                  // A link carries no editor state.
+                  appState: null,
                 })
               }
               disabled={saveMutation.isPending || !isValidUrl}

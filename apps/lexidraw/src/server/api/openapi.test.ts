@@ -70,26 +70,27 @@ describe("openApiDocument", () => {
 
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
-    ["/entities", "get"],
-    ["/entities", "post"],
-    ["/entities/search", "get"],
-    ["/entities/{id}", "get"],
-    ["/entities/{id}", "put"],
-    ["/entities/{id}", "patch"],
-    ["/entities/{id}", "delete"],
-    ["/entities/{id}/tags", "get"],
-    ["/entities/{id}/tags", "put"],
-    ["/entities/{id}/shares", "get"],
-    ["/entities/{id}/shares", "post"],
-    ["/entities/{id}/shares/{userId}", "patch"],
-    ["/entities/{id}/shares/{userId}", "delete"],
-    ["/tags", "get"],
+    ["/me", "get", "auth"],
+    ["/entities", "get", "entities"],
+    ["/entities", "post", "entities"],
+    ["/entities/search", "get", "entities"],
+    ["/entities/{id}", "get", "entities"],
+    ["/entities/{id}", "put", "entities"],
+    ["/entities/{id}", "patch", "entities"],
+    ["/entities/{id}", "delete", "entities"],
+    ["/entities/{id}/tags", "get", "entities"],
+    ["/entities/{id}/tags", "put", "entities"],
+    ["/entities/{id}/shares", "get", "entities"],
+    ["/entities/{id}/shares", "post", "entities"],
+    ["/entities/{id}/shares/{userId}", "patch", "entities"],
+    ["/entities/{id}/shares/{userId}", "delete", "entities"],
+    ["/tags", "get", "entities"],
   ] as const;
 
-  it.each(expectedOperations)("exposes %s %s", (path, method) => {
+  it.each(expectedOperations)("exposes %s %s", (path, method, tag) => {
     const operation = document.paths?.[path]?.[method];
     expect(operation).toBeDefined();
-    expect(operation?.tags).toEqual(["entities"]);
+    expect(operation?.tags).toEqual([tag]);
     expect(operation?.security).toEqual([{ bearerAuth: [] }]);
   });
 
@@ -136,5 +137,36 @@ describe("API_ERROR_STATUS", () => {
       const status: number = API_ERROR_STATUS[code];
       expect(status).toBe(TRPC_ERROR_CODE_HTTP_STATUS[code]);
     }
+  });
+
+  /**
+   * The adapter throws before any procedure runs — a malformed body, a wrong
+   * content type, an unroutable path — so those codes reach clients without
+   * passing through the router. Read from the installed package rather than
+   * restated here, so an upgrade that adds one fails this test.
+   */
+  it("covers every code the REST adapter itself throws", async () => {
+    const adapters = join(
+      import.meta.dir,
+      "..",
+      "..",
+      "..",
+      "node_modules",
+      "trpc-to-openapi",
+      "dist",
+      "esm",
+      "adapters",
+    );
+    const sources = new Bun.Glob("**/*.mjs").scanSync({ cwd: adapters });
+    const thrown = new Set<string>();
+    for (const file of sources) {
+      const text = await Bun.file(join(adapters, file)).text();
+      for (const match of text.matchAll(/code: '([A-Z_]+)'/g)) {
+        if (match[1]) thrown.add(match[1]);
+      }
+    }
+    expect(thrown.size).toBeGreaterThan(0);
+    const known: readonly string[] = API_ERROR_CODES;
+    expect([...thrown].filter((code) => !known.includes(code))).toEqual([]);
   });
 });

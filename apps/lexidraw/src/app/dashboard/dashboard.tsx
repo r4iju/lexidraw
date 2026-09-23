@@ -45,7 +45,7 @@ export async function Dashboard({
     ...(onlyFavorites ? { onlyFavorites: String(onlyFavorites) } : {}),
   });
   const entities = await api.entities.list.query({
-    parentId: directory ? directory.id : null,
+    parentId: directory?.id,
     sortBy,
     sortOrder,
     tagNames: tags ? tags.split(",").filter(Boolean) : [],

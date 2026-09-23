@@ -82,7 +82,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
       async onMutate(newShare) {
         // Cancel any ongoing fetches for the "list" query
         const queryKey = {
-          parentId: entity.parentId ?? null,
+          parentId: entity.parentId ?? undefined,
           sortBy,
           sortOrder,
         } as const;
