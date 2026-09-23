@@ -58,20 +58,6 @@ describe("openApiDocument", () => {
     expect(operation?.security).toEqual([{ bearerAuth: [] }]);
   });
 
-  it("exposes the drawing procedures", () => {
-    const expected = [
-      ["/drawings/{id}", "get", "drawings-get"],
-      ["/drawings/{id}", "put", "drawings-put"],
-      ["/drawings", "post", "drawings-create"],
-    ] as const;
-    for (const [path, method, operationId] of expected) {
-      const operation = document.paths?.[path]?.[method];
-      expect(operation?.operationId).toBe(operationId);
-      expect(operation?.tags).toEqual(["drawings"]);
-      expect(operation?.security).toEqual([{ bearerAuth: [] }]);
-    }
-  });
-
   it("guards entity load with the bearer scheme", () => {
     expect(document.paths?.["/entities/{id}"]?.get?.security).toEqual([
       { bearerAuth: [] },
@@ -103,6 +89,9 @@ describe("openApiDocument", () => {
     ["/documents/{id}/markdown", "put", "documents"],
     ["/documents/{id}/markdown/append", "post", "documents"],
     ["/documents/{id}/markdown/insert", "post", "documents"],
+    ["/drawings/{id}", "get", "drawings"],
+    ["/drawings/{id}", "put", "drawings"],
+    ["/drawings", "post", "drawings"],
   ] as const;
 
   it.each(expectedOperations)("exposes %s %s", (path, method, tag) => {
