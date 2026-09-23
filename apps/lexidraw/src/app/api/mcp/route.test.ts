@@ -516,6 +516,10 @@ describe("the MCP endpoint", () => {
     // fail after the fact.
     expect(read.preview?.canWrite).toBe(false);
     expect(read.preview?.updatedAt).toBe(created.value.updatedAt);
+    // A read already answers with the elements, and they are not repeated
+    // under a second ceiling for the widget's benefit.
+    expect(read.preview).not.toHaveProperty("elements");
+    expect(read.value.elements.length).toBe(elements.length);
   });
 
   test("leaves the widget nothing to render when the drawing is too large", async () => {

@@ -36,9 +36,10 @@ export const DRAWING_PREVIEW_CSP = {
  *
  * A tool result reaches the widget as an MCP Apps `ui/notifications/tool-result`
  * notification, whose params are the whole `CallToolResult` — `_meta` included.
- * The elements ride there rather than in `content` because `content` is what
- * the model reads, and the model just sent those elements; repeating them back
- * would double the cost of every write for a payload only the widget uses.
+ * A write's elements ride there rather than in `content` because `content` is
+ * what the model reads, and the model just sent those elements; repeating them
+ * back would double the cost of every write for a payload only the widget uses.
+ * A read already answers with them, so its payload leaves them out.
  */
 export const DRAWING_PREVIEW_META_KEY = "app.lexidraw/drawing";
 
@@ -49,18 +50,24 @@ export const DRAWING_PREVIEW_URI = "ui://lexidraw/drawing-preview";
  * What a drawing tool attaches for the widget under
  * {@link DRAWING_PREVIEW_META_KEY}.
  *
- * `elements` is null when the drawing is too large to carry (the widget then
- * says so rather than rendering half a scene). A host that drops `_meta`
- * leaves the widget with no payload at all, and it loads the drawing with
- * `get_drawing` instead, so this is a fast path and not the only one.
+ * A host that drops `_meta` leaves the widget with no payload at all, and it
+ * loads the drawing with `get_drawing` instead, so this is a fast path and not
+ * the only one.
  */
 export type DrawingPreviewPayload = {
   id: string;
   title: string;
   /** The precondition the widget passes to its next `put_drawing`. */
   updatedAt: string;
-  /** The stored elements, as the server normalized them. */
-  elements: readonly Record<string, unknown>[] | null;
+  /**
+   * The stored elements, as the server normalized them.
+   *
+   * Omitted by `get_drawing`, whose own `content` is the whole drawing: the
+   * widget reads them from there rather than being sent the same array twice
+   * on one response. A write answers with counts rather than elements, so its
+   * payload carries them. `null` means they were dropped for size.
+   */
+  elements?: readonly Record<string, unknown>[] | null;
   /** False for a read-scope token: the widget opens read-only. */
   canWrite: boolean;
   /** Set when `elements` was dropped for size. */

@@ -330,20 +330,56 @@ save the widget tells the model what changed with `ui/update-model-context`,
 since the model read the old elements when the tool answered.
 
 What the widget renders travels in the result's `_meta` under
-`app.lexidraw/drawing` — `{ id, title, updatedAt, elements, canWrite }` — and
-not in `content`: `content` is what the model reads, and a model that just sent
-those elements has no use for them back. It is the stored drawing, read back
-after a write, so the widget shows what the server made of a skeleton payload
-rather than the payload. Past the 1 MB a read may answer with, `elements` is
-null and `tooLarge` is set, and the widget says so instead of drawing half a
-scene. A host that drops `_meta` costs the widget one `get_drawing` over the
-bridge and nothing else.
+`app.lexidraw/drawing`, and the payload differs by what the tool's own answer
+already carries:
+
+- `create_drawing` and `put_drawing` answer with an id and counts, so their
+  payload carries `{ id, title, updatedAt, elements, canWrite }`. The elements
+  are the stored drawing, read back after the write, so the widget shows what
+  the server made of a skeleton payload rather than the payload. They ride in
+  `_meta` rather than in `content` because `content` is what the model reads,
+  and a model that just sent those elements has no use for them back. Past the
+  1 MB a read may answer with, `elements` is null, `tooLarge` is set, and the
+  widget says so instead of drawing half a scene.
+- `get_drawing` answers with the whole drawing already, so its payload is
+  `{ id, title, updatedAt, canWrite }` and the widget takes the elements out of
+  the answer's own JSON. Sending them twice would put one drawing on the wire
+  under two separate ceilings.
+
+The payload is built only for a client that advertises MCP Apps, or for one
+whose capabilities this endpoint never saw. That second case is the usual one
+here and it is why the gate leans that way: the endpoint is stateless, so a
+`tools/call` arrives on a server built for that request alone, with no memory of
+the `initialize` that named the client's capabilities — and a host given no
+drawing renders nothing, while a plain client given a payload merely ignores it.
+A client that does negotiate and does not ask for MCP Apps pays nothing: no
+scope lookup, and no read-back of the drawing a write just stored.
+
+A host that drops `_meta` costs the widget one `get_drawing` over the bridge and
+nothing else. That is also the path a rejected call ends on: the host owns every
+call the widget makes and can deny, drop, or time one out, so a refused save
+keeps the edit and offers a retry rather than leaving the header mid-save, and a
+refused load says so.
 
 `_meta.ui.csp` declares one resource domain, `https://esm.sh`, which is where
 the editor's fonts come from (`window.EXCALIDRAW_ASSET_PATH` is pinned to
 `https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/`, the same path the
-editor falls back to on its own). There are no connect domains: the widget
-never talks to the network, only to the host.
+editor falls back to on its own). There are no connect domains: the widget never
+talks to the network, only to the host. The editor's chrome is cut to match
+rather than the policy widened to fit it — export, save-to-file, open, and the
+image tool are off through `UIOptions`, and the library button is hidden: they
+reach a file system the sandbox has none of, or fetch subsetted fonts and a wasm
+encoder from origins the policy does not name, and images are binary files
+`put_drawing` does not carry.
+
+`resources/read` answers about 5 MB, authenticated and uncached, whenever a host
+asks for the document. The document itself is built once per instance — it is a
+string literal in a module, and the module cache is the memoisation — and
+`scripts/build.ts` fails the build if it grows past 6 MB, so its size stays a
+decision rather than a drift. The transport answers it as an event stream
+(`content-type: text/event-stream`, no `content-length`) rather than one
+buffered body, so Vercel's buffered-response limit should not apply; that has
+been checked against the route and not against a real deployment or host.
 
 ## Documents
 

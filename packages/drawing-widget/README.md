@@ -21,13 +21,19 @@ reused. See docs/agent-access.md.
 `bun run build` regenerates `dist/`:
 
 - `dist/protocol.js` — the constants above, as the server reads them.
-- `dist/html.js` — the document, about 5 MB. A separate entry point (`./html`)
-  because the constants are read on every MCP request and the document only
-  when a host asks for the resource.
+- `dist/html.js` — the document, about 5 MB, and a separate entry point
+  (`./html`) because the constants are read on every MCP request and the
+  document only when a host asks for the resource. The build fails past 6 MB:
+  a host fetches this on every render, so its size is a decision.
 
 Mermaid is stubbed out of the bundle: it is 3.5 MB of the 8 MB an untrimmed
 editor would cost, on a document the host re-fetches per resource, and
 `put_drawing` refuses Mermaid anyway.
 
+The editor's chrome is cut to what a sandbox can carry out — no export, no
+save-to-file, no open, no image tool, no library — rather than asking the host
+to allow the origins those would reach. See `src/widget.tsx`.
+
 `bun test` runs the widget in Chromium against `AppBridge`, the SDK's host
-half, and checks the round trip a host would make.
+half, and checks the round trips a host would make, including the ones it
+refuses.

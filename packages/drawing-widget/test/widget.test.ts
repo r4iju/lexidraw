@@ -10,7 +10,7 @@
  */
 import { afterAll, expect, test } from "bun:test";
 import { DRAWING_PREVIEW_HTML } from "@packages/drawing-widget/html";
-import { type Browser, chromium, type Page } from "playwright";
+import { type Browser, chromium, type Frame, type Page } from "playwright";
 
 import { DRAWING_PREVIEW_META_KEY } from "../src/protocol";
 
@@ -100,7 +100,7 @@ let server: ReturnType<typeof Bun.serve> | null = null;
 let hostPage = "";
 
 /** A host page with the widget in it, connected and waiting for a result. */
-async function boot(): Promise<Page> {
+async function boot(query = ""): Promise<Page> {
   if (!browser) {
     const built = await Bun.build({
       entrypoints: [`${import.meta.dir}/host.ts`],
@@ -126,21 +126,28 @@ async function boot(): Promise<Page> {
   const page = await browser.newPage({
     viewport: { width: 1000, height: 700 },
   });
-  await page.goto(`http://localhost:${server?.port}/`);
+  await page.goto(`http://localhost:${server?.port}/${query}`);
   await page.waitForFunction(() => window.host?.initialized === true, null, {
     timeout: 30_000,
   });
   return page;
 }
 
-/** The frame the widget runs in, once its editor is on screen. */
-async function editor(page: Page) {
+/** The frame the widget runs in, once its document is up. */
+async function mounted(page: Page) {
   const frame = page.frameLocator("#app");
-  await frame.locator(".excalidraw").waitFor({ timeout: 30_000 });
+  await frame.locator(".widget").waitFor({ timeout: 30_000 });
   const widget = page
     .frames()
     .find((candidate) => candidate.url().endsWith("/widget"));
   if (!widget) throw new Error("the widget frame never loaded");
+  return { frame, widget };
+}
+
+/** The same, once the editor has the scene on screen. */
+async function editor(page: Page) {
+  const { frame, widget } = await mounted(page);
+  await frame.locator(".excalidraw").waitFor({ timeout: 30_000 });
   await widget.waitForFunction(
     () => (window.excalidrawAPI?.getSceneElements().length ?? 0) >= 4,
     null,
@@ -149,23 +156,68 @@ async function editor(page: Page) {
   return { frame, widget };
 }
 
-/** What a host sends when a drawing tool answers. */
-function deliver(page: Page, drawing: typeof payload) {
+/** Waits for the header to say something, the way a user reads it. */
+function says(widget: Frame, selector: string, text: string) {
+  return widget.waitForFunction(
+    ([target, needle]) =>
+      document
+        .querySelector(target as string)
+        ?.textContent?.includes(needle as string) ?? false,
+    [selector, text] as const,
+    { timeout: 30_000 },
+  );
+}
+
+/**
+ * What a host sends when a write answers: counts in the text the model reads,
+ * the elements in `_meta` for the widget.
+ */
+function deliver(
+  page: Page,
+  drawing: typeof payload,
+  options: { meta?: boolean } = {},
+) {
   return page.evaluate(
-    ([key, value]) =>
-      window.host.deliver({
+    ([key, value, withMeta]) => {
+      const drawn = value as typeof payload;
+      return window.host.deliver({
         content: [
           {
             type: "text",
             text: JSON.stringify({
-              id: (value as { id: string }).id,
-              updatedAt: (value as { updatedAt: string }).updatedAt,
-              elementCount: 4,
+              id: drawn.id,
+              updatedAt: drawn.updatedAt,
+              elementCount: drawn.elements.length,
             }),
           },
         ],
-        _meta: { [key as string]: value },
-      }),
+        ...(withMeta ? { _meta: { [key as string]: value } } : {}),
+      });
+    },
+    [DRAWING_PREVIEW_META_KEY, drawing, options.meta !== false] as const,
+  );
+}
+
+/**
+ * What a host sends when `get_drawing` answers: the drawing in the text, and
+ * a payload that leaves the elements out because they are already there.
+ */
+function deliverRead(page: Page, drawing: typeof payload) {
+  return page.evaluate(
+    ([key, value]) => {
+      const drawn = value as typeof payload;
+      return window.host.deliver({
+        content: [{ type: "text", text: JSON.stringify(drawn) }],
+        _meta: {
+          [key as string]: {
+            id: drawn.id,
+            title: drawn.title,
+            updatedAt: drawn.updatedAt,
+            canWrite: drawn.canWrite,
+          },
+        },
+      });
+    },
     [DRAWING_PREVIEW_META_KEY, drawing] as const,
   );
 }
@@ -227,6 +279,9 @@ test(
     const [told] = await page.evaluate(() => window.host.context);
     expect(told).toContain(payloadId);
     expect(told).toContain("5 elements");
+    // A host sizes the frame from what the app reports; nothing else tells it.
+    const sizes = await page.evaluate(() => window.host.sizes.length);
+    expect(sizes).toBeGreaterThan(0);
     await page.screenshot({ path: SCREENSHOT });
   },
   TIMEOUT,
@@ -246,6 +301,131 @@ test(
     await expect(
       frame.locator('[data-testid="status"]').innerText(),
     ).resolves.toContain("Read-only");
+  },
+  TIMEOUT,
+);
+
+test(
+  "takes a read's elements from the answer it already carries",
+  async () => {
+    const page = await boot();
+    await deliverRead(page, payload);
+    const { frame, widget } = await editor(page);
+    await expect(frame.locator(".title").innerText()).resolves.toBe(
+      "Two boxes",
+    );
+    // No second trip for elements that came with the answer.
+    await expect(page.evaluate(() => window.host.calls.length)).resolves.toBe(
+      0,
+    );
+    const ids = await widget.evaluate(() =>
+      window.excalidrawAPI?.getSceneElements().map((element) => element.id),
+    );
+    expect(ids).toEqual(["one", "one-label", "two", "two-label"]);
+  },
+  TIMEOUT,
+);
+
+test(
+  "keeps the edit and offers a retry when the host refuses the save",
+  async () => {
+    const page = await boot();
+    await page.evaluate(() => window.host.fail.push("put_drawing"));
+    await deliver(page, payload);
+    const { frame, widget } = await editor(page);
+
+    await widget.evaluate(
+      (element) => {
+        const api = window.excalidrawAPI;
+        if (!api) throw new Error("no editor");
+        api.updateScene({
+          elements: [...api.getSceneElements(), element] as never,
+        });
+      },
+      box("three", 580, "three")[0],
+    );
+
+    await says(widget, '[data-testid="status"]', "Problem");
+    // Not left mid-save, and the edit is still the widget's to send.
+    const status = frame.locator('[data-testid="status"]');
+    await expect(status.innerText()).resolves.not.toContain("Saving");
+    await widget.waitForSelector('[data-testid="retry"]', { timeout: 30_000 });
+
+    await page.evaluate(() => {
+      window.host.fail.length = 0;
+    });
+    await widget.click('[data-testid="retry"]');
+    await says(widget, '[data-testid="status"]', "Saved");
+
+    await expect(
+      page.evaluate(
+        () =>
+          window.host.calls.filter((call) => call.name === "put_drawing")
+            .length,
+      ),
+    ).resolves.toBe(2);
+    const saved = await page.evaluate(
+      () => window.host.drawing?.elements as { id: string }[],
+    );
+    expect(saved.map((element) => element.id)).toContain("three");
+  },
+  TIMEOUT,
+);
+
+test(
+  "says so when the host refuses the drawing it was told to load",
+  async () => {
+    const page = await boot();
+    await page.evaluate(() => window.host.fail.push("get_drawing"));
+    // A host that drops `_meta` leaves the widget nothing but the id, and the
+    // call it makes for the rest can be refused like any other.
+    await deliver(page, payload, { meta: false });
+    const { widget } = await mounted(page);
+    await says(widget, '[data-testid="status"]', "Problem");
+    await says(widget, ".empty", "could not be loaded");
+  },
+  TIMEOUT,
+);
+
+test(
+  "opens in the theme the host handed it",
+  async () => {
+    const page = await boot("?theme=dark");
+    await deliver(page, payload);
+    const { widget } = await editor(page);
+    await expect(
+      widget.evaluate(() => document.querySelector(".widget")?.className),
+    ).resolves.toContain("dark");
+    await expect(
+      widget.evaluate(() => window.excalidrawAPI?.getAppState().theme),
+    ).resolves.toBe("dark");
+  },
+  TIMEOUT,
+);
+
+test(
+  "offers nothing the sandbox cannot carry out",
+  async () => {
+    const page = await boot();
+    await deliver(page, payload);
+    const { widget } = await editor(page);
+    // The library is a second store of drawings, kept in this browser alone.
+    await expect(
+      widget.evaluate(() => {
+        const trigger = document.querySelector<HTMLElement>(".sidebar-trigger");
+        return trigger ? trigger.offsetParent !== null : false;
+      }),
+    ).resolves.toBe(false);
+    await widget.click(".dropdown-menu-button");
+    const items = await widget.evaluate(() =>
+      [...document.querySelectorAll(".dropdown-menu-item")].map(
+        (item) => item.textContent ?? "",
+      ),
+    );
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item).not.toMatch(/export|save|open|image/i);
+    }
   },
   TIMEOUT,
 );

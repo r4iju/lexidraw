@@ -83,6 +83,20 @@ app.addEventListener("toolresult", (params) => {
   onResult?.(latestResult);
 });
 
+/**
+ * The handshake. It is started here rather than after the first render so the
+ * host's context — the theme among it — is available as soon as it answers;
+ * `ui/notifications/host-context-changed` only fires on a later change.
+ */
+const connected = app.connect().catch((error: unknown) => {
+  console.error("[lexidraw] the host bridge did not connect", error);
+});
+
+/** What went wrong, as a widget can say it. */
+function reason(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Tells the model what the user did, where the host lets an app do that. */
 async function told(text: string) {
   if (!app.getHostCapabilities()?.updateModelContext) return;
@@ -123,6 +137,14 @@ function readPayload(params: ToolResultParams): DrawingPreviewPayload | null {
   return candidate as DrawingPreviewPayload;
 }
 
+/** The elements a read answers with, which its payload leaves out. */
+function readElements(
+  answer: Answer,
+): readonly Record<string, unknown>[] | undefined {
+  if (!answer.ok || !Array.isArray(answer.value.elements)) return undefined;
+  return answer.value.elements as readonly Record<string, unknown>[];
+}
+
 /**
  * What the drawing looks like right now, cheaply. Excalidraw bumps `version`
  * on every mutation, so this changes exactly when the scene does and not when
@@ -143,6 +165,8 @@ function Widget() {
   const [drawing, setDrawing] = useState<Drawing | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "waiting" });
   const [readOnly, setReadOnly] = useState(false);
+  /** An edit the server has not taken yet, so the header can offer a retry. */
+  const [unsaved, setUnsaved] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(
     () => app.getHostContext()?.theme ?? "light",
   );
@@ -153,6 +177,8 @@ function Widget() {
   const pending = useRef<readonly Record<string, unknown>[] | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saving = useRef(false);
+  /** The id a load is in flight for, so one cannot start another. */
+  const loading = useRef<string | null>(null);
 
   /** Puts a scene on screen without treating it as an edit to save back. */
   const show = useCallback((next: Drawing) => {
@@ -171,26 +197,48 @@ function Widget() {
 
   const load = useCallback(
     async (id: string): Promise<boolean> => {
-      const answer = readAnswer(
-        await app.callServerTool({ name: "get_drawing", arguments: { id } }),
-      );
-      if (!answer.ok) {
-        setStatus({ kind: "error", message: answer.message });
+      // The only call this widget makes other than a save, and never from
+      // inside itself: a load that failed is reported, not retried here.
+      if (loading.current !== null) return false;
+      loading.current = id;
+      try {
+        const answer = readAnswer(
+          await app.callServerTool({ name: "get_drawing", arguments: { id } }),
+        );
+        if (!answer.ok) {
+          setStatus({ kind: "error", message: answer.message });
+          return false;
+        }
+        show({
+          id,
+          title: String(answer.value.title ?? "Drawing"),
+          updatedAt: String(answer.value.updatedAt),
+          elements: (answer.value.elements ?? []) as readonly Record<
+            string,
+            unknown
+          >[],
+        });
+        return true;
+      } catch (error) {
+        // The host answers this call, and a host can refuse it, drop it, or
+        // close the bridge under it; none of those reach the branch above.
+        setStatus({
+          kind: "error",
+          message: `The drawing could not be loaded: ${reason(error)}`,
+        });
         return false;
+      } finally {
+        loading.current = null;
       }
-      show({
-        id,
-        title: String(answer.value.title ?? "Drawing"),
-        updatedAt: String(answer.value.updatedAt),
-        elements: (answer.value.elements ?? []) as readonly Record<
-          string,
-          unknown
-        >[],
-      });
-      return true;
     },
     [show],
   );
+
+  /** Holds on to an edit the server did not take, for a retry. */
+  const keep = useCallback((elements: readonly Record<string, unknown>[]) => {
+    pending.current = elements;
+    setUnsaved(true);
+  }, []);
 
   const save = useCallback(async () => {
     if (saving.current) return;
@@ -200,6 +248,9 @@ function Widget() {
     if (!elements || !id || !ifUnmodifiedSince) return;
     pending.current = null;
     saving.current = true;
+    // Whether the edit is back in `pending` because the server did not take
+    // it, which is what tells the loop below not to send it straight again.
+    let kept = false;
     setStatus({ kind: "saving" });
     try {
       const answer = readAnswer(
@@ -210,6 +261,7 @@ function Widget() {
       );
       if (answer.ok) {
         revision.current = String(answer.value.updatedAt);
+        setUnsaved(false);
         setStatus({ kind: "saved" });
         // The model read these elements when the tool answered; without this
         // it would go on reasoning about the drawing as it was.
@@ -220,6 +272,8 @@ function Widget() {
       }
       if (answer.code === "FORBIDDEN") {
         setReadOnly(true);
+        // There is nothing to retry: this connection will never take a write.
+        setUnsaved(false);
         setStatus({
           kind: "error",
           message: "This connection may only read. Editing is off.",
@@ -227,6 +281,7 @@ function Widget() {
         return;
       }
       if (answer.code === "CONFLICT") {
+        setUnsaved(false);
         const reloaded = await load(id);
         if (reloaded) {
           setStatus({
@@ -237,12 +292,25 @@ function Widget() {
         }
         return;
       }
+      keep(elements);
+      kept = true;
       setStatus({ kind: "error", message: answer.message });
+    } catch (error) {
+      // The host makes this call on the widget's behalf and can refuse it,
+      // time it out, or close the bridge under it. None of that reaches the
+      // branches above, and the edit is only in this widget: dropping it here
+      // would lose the user's work silently and leave the header at "Saving…".
+      keep(elements);
+      kept = true;
+      setStatus({
+        kind: "error",
+        message: `The edit was not saved: ${reason(error)}`,
+      });
     } finally {
       saving.current = false;
-      if (pending.current) void save();
+      if (pending.current && !kept) void save();
     }
-  }, [drawing?.id, load]);
+  }, [drawing?.id, keep, load]);
 
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[]) => {
@@ -287,11 +355,19 @@ function Widget() {
         });
         return;
       }
+      // A read leaves its elements out of the payload because its own answer
+      // carries them; a write's answer carries counts, so its payload does.
+      const elements = payload.elements ?? readElements(readAnswer(params));
+      if (!elements) {
+        setStatus({ kind: "loading" });
+        void load(payload.id).then((ok) => ok && setStatus({ kind: "clean" }));
+        return;
+      }
       show({
         id: payload.id,
         title: payload.title,
         updatedAt: payload.updatedAt,
-        elements: payload.elements,
+        elements,
       });
       setStatus({ kind: "clean" });
     };
@@ -303,9 +379,19 @@ function Widget() {
   }, [load, show]);
 
   useEffect(() => {
+    let mounted = true;
+    // The host's context arrives with the handshake, which is almost always
+    // later than the first render, and the notification below only fires on a
+    // change after that — so the first theme comes from the handshake itself.
+    void connected.then(() => {
+      if (mounted) setTheme(app.getHostContext()?.theme ?? "light");
+    });
     const onContext = () => setTheme(app.getHostContext()?.theme ?? "light");
     app.addEventListener("hostcontextchanged", onContext);
-    return () => app.removeEventListener("hostcontextchanged", onContext);
+    return () => {
+      mounted = false;
+      app.removeEventListener("hostcontextchanged", onContext);
+    };
   }, []);
 
   useEffect(() => {
@@ -317,6 +403,16 @@ function Widget() {
       <header>
         <span className="title">{drawing?.title ?? "Drawing"}</span>
         <StatusLabel status={status} readOnly={readOnly} />
+        {unsaved && !readOnly ? (
+          <button
+            type="button"
+            className="retry"
+            data-testid="retry"
+            onClick={() => void save()}
+          >
+            Retry
+          </button>
+        ) : null}
       </header>
       <div className="canvas">
         {drawing ? (
@@ -333,7 +429,23 @@ function Widget() {
               window.excalidrawAPI = instance;
             }}
             onChange={onChange}
-            UIOptions={{ canvasActions: { toggleTheme: false } }}
+            // Everything the sandbox cannot carry out: opening and saving a
+            // file reach a file system the app document has none of, and
+            // exporting an image fetches subsetted fonts and a wasm encoder
+            // from origins `_meta.ui.csp` does not name — widening the policy
+            // for them would be granting the widget more than it needs.
+            // Images are binary files, which `put_drawing` does not carry, so
+            // one placed here would vanish on the next save.
+            UIOptions={{
+              canvasActions: {
+                export: false,
+                loadScene: false,
+                saveAsImage: false,
+                saveToActiveFile: false,
+                toggleTheme: false,
+              },
+              tools: { image: false },
+            }}
           />
         ) : (
           <p className="empty">
@@ -388,7 +500,3 @@ function StatusLabel({
 
 const container = document.getElementById("root");
 if (container) createRoot(container).render(<Widget />);
-
-app.connect().catch((error: unknown) => {
-  console.error("[lexidraw] the host bridge did not connect", error);
-});

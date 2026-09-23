@@ -73,3 +73,21 @@ body,
   text-align: center;
   opacity: 0.7;
 }
+
+.widget .retry {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+/* The library is a second store of drawings, kept in the browser the widget
+   happens to run in and reachable from nowhere else; there is no UIOptions
+   flag for its button, so it goes out here. */
+.widget .layer-ui__wrapper__top-right .sidebar-trigger {
+  display: none;
+}

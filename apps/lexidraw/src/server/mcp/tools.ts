@@ -15,8 +15,8 @@ import {
 import { DrawingElements } from "~/server/drawings/skeleton-schema";
 import {
   DRAWING_PREVIEW_TOOL_META,
-  drawingPreviewMeta,
   loadDrawingPreviewMeta,
+  readPreviewMeta,
   registerDrawingPreview,
 } from "~/server/mcp/widget";
 
@@ -98,6 +98,7 @@ async function call(run: () => Promise<unknown>) {
  */
 async function callWrite(
   run: () => Promise<{ id: string }>,
+  server: McpServer,
   caller: RouterCaller,
 ) {
   let value: { id: string };
@@ -108,7 +109,7 @@ async function callWrite(
   }
   return {
     ...ok(value),
-    _meta: await loadDrawingPreviewMeta(caller, value.id),
+    _meta: await loadDrawingPreviewMeta(server, caller, value.id),
   };
 }
 
@@ -127,7 +128,7 @@ const MAX_READ_BYTES = 1_000_000;
 async function callRead<T>(
   run: () => Promise<T>,
   instead: string,
-  meta?: (value: T) => Promise<Record<string, unknown>>,
+  meta?: (value: T) => Promise<Record<string, unknown> | undefined>,
 ) {
   let value: T;
   let text: string;
@@ -343,8 +344,9 @@ export function registerLexidrawTools(
       callRead(
         () => caller.drawings.get(input),
         "GET /api/v1/drawings/{id}",
-        // The elements are already in hand here; a write has to read them back.
-        (drawing) => drawingPreviewMeta(caller, drawing),
+        // Without the elements: they are in the answer above, which the widget
+        // reads them from.
+        (drawing) => readPreviewMeta(server, caller, drawing),
       ),
   );
 
@@ -362,7 +364,7 @@ export function registerLexidrawTools(
       }),
       _meta: DRAWING_PREVIEW_TOOL_META,
     },
-    (input) => callWrite(() => caller.drawings.put(input), caller),
+    (input) => callWrite(() => caller.drawings.put(input), server, caller),
   );
 
   registerAppTool(
@@ -390,6 +392,7 @@ export function registerLexidrawTools(
             elements: input.elements ?? [],
             parentId: input.parentId,
           }),
+        server,
         caller,
       ),
   );

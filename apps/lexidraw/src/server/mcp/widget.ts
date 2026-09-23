@@ -1,5 +1,6 @@
 import {
   RESOURCE_MIME_TYPE,
+  getUiCapability,
   registerAppResource,
 } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
@@ -51,7 +52,9 @@ export function registerDrawingPreview(server: McpServer): void {
     },
     async () => {
       // Five megabytes of bundled editor: loaded when a host asks for it and
-      // not on the requests that only call a tool.
+      // not on the requests that only call a tool. The module cache is the
+      // memoisation — the document is one string literal in a module, built
+      // once per instance and read by reference on every later request.
       const { DRAWING_PREVIEW_HTML } = await import(
         "@packages/drawing-widget/html"
       );
@@ -77,14 +80,59 @@ type StoredDrawing = {
 };
 
 /**
- * The `_meta` a drawing tool answers with, from a drawing already read.
+ * Whether this connection has any use for a preview payload.
  *
- * It rides in `_meta` rather than in the tool's text because `content` is what
- * the model reads, and a model that just sent these elements has no use for
- * them back; the widget does. A host that drops `_meta` costs the widget one
- * `get_drawing` over the bridge and nothing else.
+ * MCP Apps is negotiated as a client capability, so a plain client can be told
+ * apart from a host that renders widgets — and a plain client is then charged
+ * nothing for one. This endpoint is stateless, though: every request builds its
+ * own server, and a `tools/call` arriving on its own carries no memory of the
+ * `initialize` that named those capabilities. Unknown therefore means yes,
+ * because the alternative is a host silently receiving no drawing to render.
  */
-export async function drawingPreviewMeta(
+export function wantsPreview(
+  capabilities: Parameters<typeof getUiCapability>[0],
+): boolean {
+  if (!capabilities) return true;
+  return getUiCapability(capabilities) !== undefined;
+}
+
+/** The same, for the server a tool is running on. */
+function serverWantsPreview(server: McpServer): boolean {
+  return wantsPreview(server.server.getClientCapabilities());
+}
+
+/**
+ * The `_meta` a read answers with: the drawing, without its elements.
+ *
+ * A read's own `content` is the whole drawing, and the widget takes the
+ * elements from there; sending them here as well would put the same array on
+ * the wire twice, under two separate ceilings.
+ */
+export async function readPreviewMeta(
+  server: McpServer,
+  caller: RouterCaller,
+  drawing: Omit<StoredDrawing, "elements">,
+): Promise<Record<string, unknown> | undefined> {
+  if (!serverWantsPreview(server)) return undefined;
+  const payload: DrawingPreviewPayload = {
+    id: drawing.id,
+    title: drawing.title,
+    updatedAt: drawing.updatedAt,
+    canWrite: await hasWriteScope(caller),
+  };
+  return { [DRAWING_PREVIEW_META_KEY]: payload };
+}
+
+/**
+ * The `_meta` a write answers with, from a drawing already read.
+ *
+ * A write answers with counts rather than elements, so this is where the
+ * widget gets a scene at all. It rides in `_meta` rather than in the tool's
+ * text because `content` is what the model reads, and a model that just sent
+ * these elements has no use for them back. A host that drops `_meta` costs the
+ * widget one `get_drawing` over the bridge and nothing else.
+ */
+async function writePreviewMeta(
   caller: RouterCaller,
   drawing: StoredDrawing,
 ): Promise<Record<string, unknown>> {
@@ -109,19 +157,23 @@ export async function drawingPreviewMeta(
 }
 
 /**
- * The same, for a write, which answers with an id rather than with elements.
+ * The write payload, for a write that answered with an id.
  *
- * The widget is shown what the server stored, not what the caller sent: a
- * skeleton payload is expanded and restored on the way in, and the preview is
- * how that is seen. A failure here answers with no payload at all — a preview
- * is never the reason a write reports itself as failed.
+ * The drawing is read back so the widget is shown what the server stored, not
+ * what the caller sent: a skeleton payload is expanded and restored on the way
+ * in, and the preview is how that is seen. That read is the reason this is
+ * gated on {@link wantsPreview} — a client that renders nothing pays for
+ * nothing. A failure here answers with no payload at all: a preview is never
+ * the reason a write reports itself as failed.
  */
 export async function loadDrawingPreviewMeta(
+  server: McpServer,
   caller: RouterCaller,
   id: string,
 ): Promise<Record<string, unknown> | undefined> {
+  if (!serverWantsPreview(server)) return undefined;
   try {
-    return await drawingPreviewMeta(caller, await caller.drawings.get({ id }));
+    return await writePreviewMeta(caller, await caller.drawings.get({ id }));
   } catch (error) {
     console.error("❌ MCP drawing preview failed:", error);
     return undefined;
