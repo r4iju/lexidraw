@@ -147,6 +147,9 @@ export function InsertInlineImageDialog({
 
 export default function InlineImagePlugin(): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
+  // Created in an effect rather than at import so the module loads without a
+  // DOM, and kept on a ref so the React Compiler sees no module-scope mutation.
+  const dragImageRef = useRef<HTMLImageElement | null>(null);
 
   const canDropImage = useCallback((event: DragEvent): boolean => {
     const target = event.target;
@@ -237,7 +240,9 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
         return false;
       }
       dataTransfer.setData("text/plain", "_");
-      dataTransfer.setDragImage(getDragImage(), 0, 0);
+      if (dragImageRef.current) {
+        dataTransfer.setDragImage(dragImageRef.current, 0, 0);
+      }
       dataTransfer.setData(
         "application/x-lexical-drag",
         JSON.stringify({
@@ -294,8 +299,9 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
     if (!editor.hasNodes([InlineImageNode])) {
       throw new Error("ImagesPlugin: ImageNode not registered on editor");
     }
-    // Warm the drag ghost so it has loaded before the first drag starts.
-    getDragImage();
+    const dragImage = document.createElement("img");
+    dragImage.src = TRANSPARENT_IMAGE;
+    dragImageRef.current = dragImage;
 
     return mergeRegister(
       editor.registerCommand<InsertInlineImagePayload>(
@@ -340,15 +346,6 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
 
 const TRANSPARENT_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-let dragImage: HTMLImageElement | null = null;
-// Created on first drag rather than at import so the module loads without a DOM.
-function getDragImage(): HTMLImageElement {
-  if (!dragImage) {
-    dragImage = document.createElement("img");
-    dragImage.src = TRANSPARENT_IMAGE;
-  }
-  return dragImage;
-}
 
 declare global {
   interface DragEvent {
