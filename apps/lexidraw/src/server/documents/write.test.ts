@@ -15,6 +15,7 @@ import {
   InvalidDocumentContentError,
   markdownToEditorState,
   parseEditorState,
+  UnsupportedNodeTypesError,
 } from "./markdown";
 
 const HOLOGRAM = { type: "hologram", version: 1, summary: "a slide" };
@@ -447,6 +448,36 @@ describe("replaceMarkdownInDocument", () => {
       ),
     ).rejects.toThrow(new StaleDocumentError(SECOND));
     expect(writes).toBe(1);
+  });
+
+  test("a stored node type the editor cannot build blocks the write", async () => {
+    // DOCUMENT holds a hologram, which has neither a markdown form nor a
+    // placeholder, so a replace could only drop it unannounced.
+    const db = fakeStore(revision());
+
+    await expect(
+      replaceMarkdownInDocument(
+        db.store,
+        revision(),
+        "# New",
+        FIRST.toISOString(),
+      ),
+    ).rejects.toThrow(UnsupportedNodeTypesError);
+    expect(db.stored()?.elements).toBe(DOCUMENT);
+  });
+
+  test("a stale precondition is answered before the content is read", async () => {
+    const broken = { ...revision(), elements: "nope" };
+    const db = fakeStore(broken);
+
+    await expect(
+      replaceMarkdownInDocument(
+        db.store,
+        broken,
+        "# New",
+        "2020-01-01T00:00:00.000Z",
+      ),
+    ).rejects.toThrow(new StaleDocumentError(FIRST));
   });
 
   test("a document deleted under the replace is gone, not stale", async () => {

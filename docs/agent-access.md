@@ -127,23 +127,32 @@ loading tool schemas into the agent's context until they are needed.
     becomes the whole document: a placeholder the caller left in puts the
     original node back from the stored revision, one the caller deleted
     deletes that node, and the summary after `#N` is ignored, so an edited or
-    dropped summary still resolves. A placeholder for a block stands alone on
-    its own line the way the read wrote it; used inside a line of text it
-    fails with `BAD_REQUEST`, as do an unknown `TYPE#N` (the error lists the
-    placeholders the document has) and one used twice. An article's
-    placeholder keeps the node and drops the prose below it that the read
-    derived, block by block, up to the first block the caller changed: edited
-    prose stays as content of its own. The response reports `blocks`,
-    `restoredPlaceholders`, and `removedPlaceholders`.
+    dropped summary still resolves. A placeholder for a block has to be a
+    top-level line of its own, the way the read wrote it; inside a line of
+    text, a list item, a quote, a heading, or a table cell it fails with
+    `BAD_REQUEST`, as do an unknown `TYPE#N` (the error lists the placeholders
+    the document has) and one used twice. To write *about* a placeholder
+    rather than keep it, wrap it in backticks or put it in a fenced block:
+    code is literal text and resolves nothing. A mangled placeholder (wrong
+    case, a missing space before `-->`) is literal text too, so its node is
+    deleted and only `removedPlaceholders` says so. An article's placeholder
+    keeps the node and drops the prose below it that the read derived, but
+    only when that prose is still character for character what the read
+    wrote; edited prose is kept whole, as content of its own, never partly
+    dropped. A document holding a node type this version cannot build is
+    rejected with `UNPROCESSABLE_CONTENT` rather than rewritten without it.
+    The response reports `blocks`, `restoredPlaceholders`, and
+    `removedPlaceholders`.
 - Blocks without a markdown form (slides, excalidraw, mermaid, chart, poll,
   comment, sticky, ...) render as opaque placeholder comments,
   `<!-- lexidraw:TYPE#N summary -->`, where N is the node's position among
   nodes of that type in document order (node keys are not stable across
-  loads) and the summary is a hint for the reader, never parsed. An article is
-  the one node that carries both: its placeholder line comes first and the
-  prose it renders as follows. On save, a placeholder that still appears
-  re-inserts the original node from the stored document; a deleted placeholder
-  deletes the node.
+  loads) and the summary is a hint for the reader, never parsed: every
+  character markdown acts on (`` []()!*_`~$<>| ``) is replaced by a space, so
+  a summary can never be re-read as markup. An article is the one node that
+  carries both: its placeholder line comes first and the prose it renders as
+  follows. On save, a placeholder that still appears re-inserts the original
+  node from the stored document; a deleted placeholder deletes the node.
 
 ## Drawings
 

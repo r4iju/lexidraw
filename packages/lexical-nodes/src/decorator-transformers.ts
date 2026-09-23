@@ -112,7 +112,7 @@ export const ARTICLE: ElementTransformer = {
       const source = data.entityId ? `\n\n[Saved](/urls/${data.entityId})` : "";
       return `${$placeholderLine(node, title)}\n\n### ${title}${source}\n\n${body}`;
     }
-    return `${$placeholderLine(node, data.entityId)}\n\nArticle: ${data.entityId}`;
+    return `${$placeholderLine(node, data.entityId ?? "")}\n\nArticle: ${data.entityId}`;
   },
   // Minimal, no-op import behavior (we don't import articles from markdown)
   regExp: /^<article\s+.*?>$/,
@@ -247,10 +247,22 @@ function $ordinalOf(node: LexicalNode): number {
   return ordinal;
 }
 
+/**
+ * A summary is a hint for a reader, so nothing in it may act as markdown: a
+ * character an inline transformer triggers on would let the placeholder's own
+ * text be re-parsed into a node on the way back in, taking the comment with
+ * it. Dropping the characters is enough because the summary is never parsed.
+ */
+const MARKDOWN_ACTIVE = /[[\]()!*_`~$<>|]/g;
+
 function $placeholderLine(node: LexicalNode, summary: string): string {
   // HTML comments cannot contain "--", so collapsing runs of dashes also
   // keeps the summary from closing the comment early.
-  const cleaned = summary.replace(/-{2,}/g, "-").replace(/\s+/g, " ").trim();
+  const cleaned = summary
+    .replace(MARKDOWN_ACTIVE, " ")
+    .replace(/-{2,}/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
   const suffix = cleaned ? ` ${cleaned}` : "";
   return `<!-- lexidraw:${node.getType()}#${$ordinalOf(node)}${suffix} -->`;
 }

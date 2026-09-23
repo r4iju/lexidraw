@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 import { createHeadlessEditor } from "@lexical/headless";
+import { $createLinkNode } from "@lexical/link";
 import { $createHeadingNode } from "@lexical/rich-text";
 import {
   ArticleNode,
@@ -27,12 +28,15 @@ import {
   type SerializedEditorState,
   type SerializedLexicalNode,
 } from "lexical";
-import { editorStateToMarkdown, markdownToEditorState } from "./markdown";
+import {
+  editorStateToMarkdown,
+  markdownToEditorState,
+  UnsupportedNodeTypesError,
+} from "./markdown";
 import {
   DuplicatePlaceholderError,
   PlaceholderPlacementError,
   replaceStateFromMarkdown,
-  sameBlock,
   UnknownPlaceholderError,
 } from "./replace";
 
@@ -221,21 +225,145 @@ describe("replaceStateFromMarkdown", () => {
   });
 });
 
-const WITH_ARTICLE = stateOf(() => {
+describe("replaceStateFromMarkdown and literal text", () => {
+  test("a placeholder in a fenced block or in code spans stays text", () => {
+    const markdown = [
+      "```",
+      "<!-- lexidraw:video#1 https://example.com/clip.mp4 -->",
+      "```",
+      "",
+      "Write `<!-- lexidraw:chart#1 pie -->` to name it.",
+    ].join("\n");
+
+    const { state, restoredPlaceholders, removedPlaceholders } =
+      replaceStateFromMarkdown(EVERY_KIND, markdown);
+
+    expect(types(state)).toEqual(["code", "paragraph"]);
+    expect(placeholders(state).size).toBe(0);
+    expect(restoredPlaceholders).toBe(0);
+    expect(removedPlaceholders).toBe(placeholders(EVERY_KIND).size);
+    expect(editorStateToMarkdown(state)).toBe(markdown);
+  });
+
+  test("a mangled placeholder is text, so its node is dropped", () => {
+    // Nothing resolves it, so nothing puts the node back; the count is the
+    // only trace, which is why the read's spelling has to survive editing.
+    const { state, removedPlaceholders } = replaceStateFromMarkdown(
+      EVERY_KIND,
+      "<!-- LEXIDRAW:video#1 https://example.com/clip.mp4 -->",
+    );
+
+    expect(types(state)).toEqual(["paragraph"]);
+    expect(removedPlaceholders).toBe(placeholders(EVERY_KIND).size);
+  });
+
+  test("a trailing tab still leaves the placeholder alone on its line", () => {
+    const { state } = replaceStateFromMarkdown(
+      EVERY_KIND,
+      "<!-- lexidraw:video#1 https://example.com/clip.mp4 -->\t",
+    );
+
+    expect(types(state)).toEqual(["video"]);
+  });
+});
+
+/** A link holding an inline node, whose summary sits inside the link text. */
+const LINKED = stateOf(() => {
   $getRoot().append(
-    $createParagraphNode().append($createTextNode("Intro.")),
-    ArticleNode.$createArticleNode({
-      mode: "url",
-      url: "https://example.com/post",
-      distilled: {
-        title: "On splitting nodes",
-        contentHtml: "<p>First para.</p><p>Second para.</p>",
-      },
-    }),
-    $createParagraphNode().append($createTextNode("Outro.")),
+    $createParagraphNode().append(
+      $createLinkNode("https://example.com").append(
+        $createTextNode("see "),
+        InlineImageNode.$createInlineImageNode({
+          altText: "logo",
+          src: "https://example.com/logo.png",
+        }),
+      ),
+    ),
   );
 });
 
+/** Markdown structure with no placeholder in it, to pin the plain round trip. */
+const TABLE_AND_LIST = markdownToEditorState(
+  "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- one\n  - nested\n- two\n\n> quoted",
+);
+
+describe("replaceStateFromMarkdown and document structure", () => {
+  test("an inline placeholder inside a link comes back inside it", () => {
+    const markdown = editorStateToMarkdown(LINKED);
+    expect(markdown).toBe(
+      "[see <!-- lexidraw:inline-image#1 logo https://example.com/logo.png -->](https://example.com)",
+    );
+
+    const { state } = replaceStateFromMarkdown(LINKED, markdown);
+
+    expect(JSON.stringify(state)).toBe(JSON.stringify(LINKED));
+  });
+
+  test("tables, nested lists and quotes are a fixed point", () => {
+    const { state } = replaceStateFromMarkdown(
+      TABLE_AND_LIST,
+      editorStateToMarkdown(TABLE_AND_LIST),
+    );
+
+    expect(JSON.stringify(state)).toBe(JSON.stringify(TABLE_AND_LIST));
+  });
+
+  test("a block placeholder inside a table cell is rejected", () => {
+    expect(() =>
+      replaceStateFromMarkdown(
+        EVERY_KIND,
+        "| <!-- lexidraw:video#1 x --> | b |\n| --- | --- |",
+      ),
+    ).toThrow(new PlaceholderPlacementError("video#1"));
+  });
+
+  test("a block placeholder alone in a list item is rejected", () => {
+    expect(() =>
+      replaceStateFromMarkdown(
+        EVERY_KIND,
+        "- <!-- lexidraw:video#1 https://example.com/clip.mp4 -->",
+      ),
+    ).toThrow(new PlaceholderPlacementError("video#1"));
+  });
+
+  test("a stored node type the editor cannot build is not silently erased", () => {
+    const future: SerializedEditorState = {
+      ...EVERY_KIND,
+      root: {
+        ...EVERY_KIND.root,
+        children: [
+          ...EVERY_KIND.root.children,
+          { type: "future-widget", version: 1 },
+        ],
+      },
+    };
+
+    expect(() => replaceStateFromMarkdown(future, "Just a line.")).toThrow(
+      UnsupportedNodeTypesError,
+    );
+  });
+});
+
+/** An article between an intro paragraph and whatever `after` parses to. */
+function article(body: string, after = ""): SerializedEditorState {
+  const base = stateOf(() => {
+    $getRoot().append(
+      $createParagraphNode().append($createTextNode("Intro.")),
+      ArticleNode.$createArticleNode({
+        mode: "url",
+        url: "https://example.com/post",
+        distilled: { title: "On splitting nodes", contentHtml: body },
+      }),
+    );
+  });
+  const trailing = after ? markdownToEditorState(after).root.children : [];
+  return {
+    ...base,
+    root: { ...base.root, children: [...base.root.children, ...trailing] },
+  };
+}
+
+const WITH_ARTICLE = article("<p>First para.</p><p>Second para.</p>");
 const ARTICLE_MARKDOWN = editorStateToMarkdown(WITH_ARTICLE);
 
 describe("replaceStateFromMarkdown with an article", () => {
@@ -247,7 +375,6 @@ describe("replaceStateFromMarkdown with an article", () => {
         "### On splitting nodes",
         "[Source](https://example.com/post)",
         "First para.\nSecond para.",
-        "Outro.",
       ].join("\n\n"),
     );
 
@@ -256,48 +383,65 @@ describe("replaceStateFromMarkdown with an article", () => {
       ARTICLE_MARKDOWN,
     );
 
-    expect(types(state)).toEqual(["paragraph", "article", "paragraph"]);
+    expect(types(state)).toEqual(["paragraph", "article"]);
     expect(placeholders(state)).toEqual(placeholders(WITH_ARTICLE));
     expect(restoredPlaceholders).toBe(1);
   });
 
-  test("prose the caller edited stays as content of its own", () => {
+  test("prose the caller edited is kept whole, never partly dropped", () => {
     const { state } = replaceStateFromMarkdown(
       WITH_ARTICLE,
-      ARTICLE_MARKDOWN.replace(
-        "First para.\nSecond para.",
-        "First para, edited.",
-      ),
+      ARTICLE_MARKDOWN.replace("Second para.", "Second para, edited."),
     );
 
     expect(types(state)).toEqual([
       "paragraph",
       "article",
+      "heading",
       "paragraph",
       "paragraph",
     ]);
-    expect(JSON.stringify(state.root.children[2])).toContain(
-      "First para, edited.",
-    );
-  });
-});
-
-describe("sameBlock", () => {
-  const block = (markdown: string) =>
-    markdownToEditorState(markdown).root.children[0] as SerializedLexicalNode;
-
-  test("blocks that read the same are the same block", () => {
-    expect(sameBlock(block("A line."), block("A line."))).toBe(true);
-    expect(sameBlock(block("A line."), block("Another line."))).toBe(false);
-    expect(sameBlock(block("## A line."), block("A line."))).toBe(false);
-    expect(sameBlock(block("A **bold** line."), block("A bold line."))).toBe(
-      false,
+    expect(JSON.stringify(state.root.children)).toContain(
+      "Second para, edited.",
     );
   });
 
-  test("the direction a block renders in is not part of it", () => {
-    const left = block("A line.");
-    const rendered = { ...left, direction: "ltr" } as SerializedLexicalNode;
-    expect(sameBlock(rendered, left)).toBe(true);
+  test("prose the caller wrote under the placeholder is content", () => {
+    const { state } = replaceStateFromMarkdown(
+      WITH_ARTICLE,
+      [
+        "<!-- lexidraw:article#1 On splitting nodes -->",
+        "### My own heading",
+        "My own notes.",
+      ].join("\n\n"),
+    );
+
+    expect(types(state)).toEqual(["article", "heading", "paragraph"]);
+  });
+
+  test("a list the caller wrote after an article is not absorbed", () => {
+    // The derived prose is bullets too, so parsing it next to the caller's
+    // list would merge the two and copy the article's on every cycle.
+    const bulleted = article("<p>- One</p><p>- Two</p>", "- mine\n- also mine");
+
+    let state = bulleted;
+    let markdown = editorStateToMarkdown(state);
+    for (let cycle = 0; cycle < 4; cycle += 1) {
+      state = replaceStateFromMarkdown(state, markdown).state;
+      expect(editorStateToMarkdown(state)).toBe(markdown);
+      markdown = editorStateToMarkdown(state);
+    }
+    expect(types(state)).toEqual(types(bulleted));
+    expect(placeholders(state)).toEqual(placeholders(bulleted));
+  });
+
+  test("an article body holding a code fence is a fixed point", () => {
+    const fenced = article("<p>Run ```bun test``` twice.</p>");
+    const markdown = editorStateToMarkdown(fenced);
+
+    const { state } = replaceStateFromMarkdown(fenced, markdown);
+
+    expect(types(state)).toEqual(["paragraph", "article"]);
+    expect(editorStateToMarkdown(state)).toBe(markdown);
   });
 });

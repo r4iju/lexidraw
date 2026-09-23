@@ -44,7 +44,10 @@ import { generateDocumentPdfWorkflow } from "~/workflows/document-pdf-export/gen
  * Anything else is rethrown untouched.
  */
 function throwAsDocumentWriteError(error: unknown): never {
-  if (error instanceof InvalidDocumentContentError) {
+  if (
+    error instanceof InvalidDocumentContentError ||
+    error instanceof UnsupportedNodeTypesError
+  ) {
     throw new TRPCError({
       code: "UNPROCESSABLE_CONTENT",
       message: error.message,

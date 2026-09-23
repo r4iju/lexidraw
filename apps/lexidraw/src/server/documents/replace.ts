@@ -2,12 +2,18 @@ import {
   PLACEHOLDER_NODE_TYPES,
   PLACEHOLDER_PATTERN,
 } from "@packages/lexical-nodes";
-import type {
-  SerializedEditorState,
-  SerializedLexicalNode,
-  SerializedRootNode,
+import {
+  IS_CODE,
+  type SerializedEditorState,
+  type SerializedLexicalNode,
+  type SerializedRootNode,
 } from "lexical";
-import { editorStateToMarkdown, markdownToEditorState } from "./markdown";
+import {
+  editorStateToMarkdown,
+  markdownToEditorState,
+  unsupportedNodeTypes,
+  UnsupportedNodeTypesError,
+} from "./markdown";
 
 /** What a placeholder names, such as `chart#2`. The summary is not part of it. */
 type PlaceholderRef = string;
@@ -56,7 +62,7 @@ export class PlaceholderPlacementError extends Error {
 
   constructor(ref: PlaceholderRef) {
     super(
-      `Placeholder ${ref} stands for a block; keep it alone on its own line rather than inside a line of text`,
+      `Placeholder ${ref} stands for a block, so a block placeholder must be a top-level line of its own`,
     );
     this.name = "PlaceholderPlacementError";
     this.ref = ref;
@@ -69,13 +75,25 @@ type StoredPlaceholder = {
   blockLevel: boolean;
 };
 
-type SerializedTextNode = SerializedLexicalNode & { text: string };
-type SerializedParentNode = SerializedLexicalNode & {
-  children: SerializedLexicalNode[];
+type SerializedTextNode = SerializedLexicalNode & {
+  text: string;
+  format?: number;
 };
 
-const isTextNode = (node: SerializedLexicalNode): node is SerializedTextNode =>
-  node.type === "text" && "text" in node && typeof node.text === "string";
+/** A text or tab node, the only two a placeholder line survives an import as. */
+const asText = (node: SerializedLexicalNode): SerializedTextNode | null =>
+  (node.type === "text" || node.type === "tab") &&
+  "text" in node &&
+  typeof node.text === "string"
+    ? (node as SerializedTextNode)
+    : null;
+
+/**
+ * Placeholder-shaped text the editor renders as code is something the caller
+ * wrote about a placeholder, not a reference to one, so it is left alone.
+ */
+const isCode = (node: SerializedTextNode) =>
+  ((node.format ?? 0) & IS_CODE) !== 0;
 
 const childrenOf = (
   node: SerializedLexicalNode,
@@ -117,43 +135,25 @@ const LEADING_PLACEHOLDER = new RegExp(`^${PLACEHOLDER_PATTERN.source}\\n\\n`);
 const refOf = (match: RegExpMatchArray): PlaceholderRef =>
   `${match[1]}#${match[2]}`;
 
-/** The placeholder a block stands for, when the block is one on its own line. */
+/**
+ * The placeholder a block stands for, when the block is a line holding
+ * nothing else. A trailing tab counts as nothing else: markdown keeps one as
+ * a node beside the text rather than as part of it.
+ */
 function blockPlaceholderRef(
   node: SerializedLexicalNode,
 ): PlaceholderRef | null {
   if (node.type !== "paragraph") return null;
   const children = childrenOf(node);
-  const only = children?.length === 1 ? children[0] : undefined;
-  if (!only || !isTextNode(only)) return null;
-  const match = BLOCK_PLACEHOLDER.exec(only.text.trim());
-  return match ? refOf(match) : null;
-}
-
-/**
- * `direction` is worked out from the text when a node renders rather than
- * authored, so two blocks that read the same are the same block even when one
- * was parsed on its own and the other inside a document.
- */
-function stableShape(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stableShape);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => key !== "direction")
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, nested]) => [key, stableShape(nested)]),
-    );
+  if (!children || children.length === 0) return null;
+  let line = "";
+  for (const child of children) {
+    const text = asText(child);
+    if (!text || isCode(text)) return null;
+    line += text.text;
   }
-  return value;
-}
-
-export function sameBlock(
-  left: SerializedLexicalNode,
-  right: SerializedLexicalNode,
-): boolean {
-  return (
-    JSON.stringify(stableShape(left)) === JSON.stringify(stableShape(right))
-  );
+  const match = BLOCK_PLACEHOLDER.exec(line.trim());
+  return match ? refOf(match) : null;
 }
 
 /** Resolves placeholders against the stored document, each at most once. */
@@ -161,7 +161,7 @@ class StoredPlaceholders {
   private readonly root: SerializedRootNode;
   private readonly index: Map<PlaceholderRef, StoredPlaceholder>;
   private readonly taken = new Set<PlaceholderRef>();
-  private readonly prose = new Map<PlaceholderRef, SerializedLexicalNode[]>();
+  private readonly prose = new Map<PlaceholderRef, string>();
 
   constructor(stored: SerializedEditorState) {
     this.root = stored.root;
@@ -181,18 +181,16 @@ class StoredPlaceholders {
   }
 
   /**
-   * The blocks the node below `ref` renders as after its placeholder line,
-   * or none when it renders as the line alone. Derived on demand: only an
-   * article has prose, and only one the caller kept needs it.
+   * The markdown the node below `ref` renders as after its placeholder line,
+   * empty for everything but an article. Derived on demand: only an article
+   * has prose, and only one the caller kept needs it.
    */
-  proseOf(ref: PlaceholderRef): SerializedLexicalNode[] {
+  proseOf(ref: PlaceholderRef): string {
     const cached = this.prose.get(ref);
-    if (cached) return cached;
+    if (cached !== undefined) return cached;
     const entry = this.index.get(ref);
     const derived =
-      entry && entry.node.type === "article"
-        ? articleProse(this.root, entry.node)
-        : [];
+      entry?.node.type === "article" ? articleProse(this.root, entry.node) : "";
     this.prose.set(ref, derived);
     return derived;
   }
@@ -209,32 +207,43 @@ class StoredPlaceholders {
 function articleProse(
   root: SerializedRootNode,
   node: SerializedLexicalNode,
-): SerializedLexicalNode[] {
+): string {
   const markdown = editorStateToMarkdown({
     root: { ...root, children: [node] },
   });
-  return markdownToEditorState(markdown.replace(LEADING_PLACEHOLDER, "")).root
-    .children;
+  const prose = markdown.replace(LEADING_PLACEHOLDER, "");
+  return prose === markdown ? "" : prose;
 }
 
 /**
- * How many blocks after `index` repeat `prose`, in order. They came from the
- * read the caller edited, so keeping them would print the article twice; a
- * block the caller changed ends the run and stays as content of its own.
+ * `markdown` without the prose below an article's placeholder, when it is
+ * still character for character the prose the read derived.
+ *
+ * The comparison is on the markdown rather than on the parsed blocks because
+ * how the prose parses depends on what surrounds it: a list the caller wrote
+ * below it would absorb the derived bullets, and a body line of ``` would
+ * swallow the rest of the document. Anything but an exact match is prose the
+ * caller changed, and that stays whole rather than partly dropped.
  */
-function matchedProse(
-  children: SerializedLexicalNode[],
-  index: number,
-  prose: SerializedLexicalNode[],
-): number {
-  let matched = 0;
-  while (matched < prose.length) {
-    const next = children[index + 1 + matched];
-    const expected = prose[matched];
-    if (!next || !expected || !sameBlock(next, expected)) break;
-    matched += 1;
+function stripArticleProse(
+  markdown: string,
+  placeholders: StoredPlaceholders,
+): string {
+  let kept = "";
+  let cursor = 0;
+  for (const match of markdown.matchAll(EVERY_PLACEHOLDER)) {
+    if (match.index !== 0 && markdown[match.index - 1] !== "\n") continue;
+    const prose = placeholders.proseOf(refOf(match));
+    if (!prose) continue;
+    const from = match.index + match[0].length;
+    const block = `\n\n${prose}`;
+    if (!markdown.startsWith(block, from)) continue;
+    const to = from + block.length;
+    if (to !== markdown.length && !markdown.startsWith("\n\n", to)) continue;
+    kept += markdown.slice(cursor, from);
+    cursor = to;
   }
-  return matched;
+  return kept + markdown.slice(cursor);
 }
 
 /** `text` with `slice` in place of its text, keeping its format and style. */
@@ -269,6 +278,10 @@ function splitAroundPlaceholders(
   return pieces;
 }
 
+type SerializedParentNode = SerializedLexicalNode & {
+  children: SerializedLexicalNode[];
+};
+
 const withChildren = (
   node: SerializedLexicalNode,
   children: SerializedLexicalNode[],
@@ -277,28 +290,34 @@ const withChildren = (
 function transformChildren(
   children: SerializedLexicalNode[],
   placeholders: StoredPlaceholders,
+  topLevel: boolean,
 ): SerializedLexicalNode[] {
   const result: SerializedLexicalNode[] = [];
-  for (let index = 0; index < children.length; index += 1) {
-    const child = children[index];
-    if (!child) continue;
-    const ref = blockPlaceholderRef(child);
+  for (const child of children) {
+    // A fenced block is content down to the last character.
+    if (child.type === "code") {
+      result.push(child);
+      continue;
+    }
+    // Only a top-level line can stand in for a block. Deeper down, a lone
+    // placeholder goes through the inline path, which rejects a block one.
+    const ref = topLevel ? blockPlaceholderRef(child) : null;
     if (ref) {
       const { node, blockLevel } = placeholders.take(ref);
       // An inline node cannot be a block, so it goes back inside the
       // paragraph the placeholder stood on.
       result.push(blockLevel ? node : withChildren(child, [node]));
-      index += matchedProse(children, index, placeholders.proseOf(ref));
       continue;
     }
-    if (isTextNode(child) && PLACEHOLDER_PATTERN.test(child.text)) {
-      result.push(...splitAroundPlaceholders(child, placeholders));
+    const text = child.type === "text" ? asText(child) : null;
+    if (text && !isCode(text) && PLACEHOLDER_PATTERN.test(text.text)) {
+      result.push(...splitAroundPlaceholders(text, placeholders));
       continue;
     }
     const nested = childrenOf(child);
     result.push(
       nested
-        ? withChildren(child, transformChildren(nested, placeholders))
+        ? withChildren(child, transformChildren(nested, placeholders, false))
         : child,
     );
   }
@@ -323,9 +342,18 @@ export function replaceStateFromMarkdown(
   stored: SerializedEditorState,
   markdown: string,
 ): ReplacedState {
+  // A node type the editor cannot build has no placeholder either, so it
+  // could only leave through this write unannounced. The read that would have
+  // produced this markdown fails on the same types.
+  const unsupported = unsupportedNodeTypes(stored);
+  if (unsupported.length > 0) {
+    throw new UnsupportedNodeTypesError(unsupported);
+  }
   const placeholders = new StoredPlaceholders(stored);
-  const parsed = markdownToEditorState(markdown);
-  const children = transformChildren(parsed.root.children, placeholders);
+  const parsed = markdownToEditorState(
+    stripArticleProse(markdown, placeholders),
+  );
+  const children = transformChildren(parsed.root.children, placeholders, true);
   return {
     state: { ...stored, root: { ...stored.root, children } },
     restoredPlaceholders: placeholders.restored,

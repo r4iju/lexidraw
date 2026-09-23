@@ -126,10 +126,13 @@ export async function replaceMarkdownInDocument(
   markdown: string,
   ifUnmodifiedSince: string,
 ): Promise<ReplaceResult> {
-  const stored = parseEditorState(revision.elements);
+  // Before the stored content is looked at, so a caller holding a stale
+  // revision of a document that is now unreadable still hears about the race
+  // rather than about the content, exactly as an insert would.
   if (new Date(ifUnmodifiedSince).getTime() !== revision.updatedAt.getTime()) {
     throw new StaleDocumentError(revision.updatedAt);
   }
+  const stored = parseEditorState(revision.elements);
   const { state, restoredPlaceholders, removedPlaceholders } =
     replaceStateFromMarkdown(stored, markdown);
 
