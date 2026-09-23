@@ -3,15 +3,22 @@ import type {
   TextMatchTransformer,
 } from "@lexical/markdown";
 import { $dfs } from "@lexical/utils";
-import { $isTextNode, type LexicalNode } from "lexical";
+import { $createTextNode, $isTextNode, type LexicalNode } from "lexical";
+import { htmlToPlainText } from "./html-to-text.js";
+import { ArticleNode } from "./nodes/ArticleNode.js";
 import { ChartNode } from "./nodes/ChartNode.js";
+import { CommentNode } from "./nodes/CommentNode.js";
 import { EquationNode } from "./nodes/EquationNode.js";
+import { ExcalidrawNode } from "./nodes/ExcalidrawNode.js";
 import { FigmaNode } from "./nodes/FigmaNode.js";
 import { ImageNode } from "./nodes/ImageNode.js";
 import { InlineImageNode } from "./nodes/InlineImageNode.js";
+import { MermaidNode } from "./nodes/MermaidNode.js";
 import { PageBreakNode } from "./nodes/PageBreakNode.js";
 import { PollNode } from "./nodes/PollNode.js";
+import { SlideNode } from "./nodes/SlideNode.js";
 import { StickyNode } from "./nodes/StickyNode.js";
+import { ThreadNode } from "./nodes/ThreadNode.js";
 import { TweetNode } from "./nodes/TweetNode.js";
 import { VideoNode } from "./nodes/VideoNode.js";
 import { YouTubeNode } from "./nodes/YouTubeNode.js";
@@ -79,6 +86,35 @@ export const TWEET: ElementTransformer = {
   type: "element",
 };
 
+export const ARTICLE: ElementTransformer = {
+  dependencies: [ArticleNode],
+  export: (node: LexicalNode) => {
+    if (!ArticleNode.$isArticleNode(node)) return null;
+    const data = node.getData();
+    if (data.mode === "url") {
+      const title = data.distilled.title || "Article";
+      const body = htmlToPlainText(data.distilled.contentHtml || "");
+      const source = data.url ? `\n\n[Source](${data.url})` : "";
+      return `### ${title}${source}\n\n${body}`;
+    }
+    // entity mode
+    const snap = data.snapshot;
+    if (snap?.contentHtml) {
+      const title = snap.title || "Article";
+      const body = htmlToPlainText(snap.contentHtml || "");
+      const source = data.entityId ? `\n\n[Saved](/urls/${data.entityId})` : "";
+      return `### ${title}${source}\n\n${body}`;
+    }
+    return `Article: ${data.entityId}`;
+  },
+  // Minimal, no-op import behavior (we don't import articles from markdown)
+  regExp: /^<article\s+.*?>$/,
+  replace: (textNode) => {
+    textNode.replace($createTextNode("Article"));
+  },
+  type: "element",
+};
+
 /**
  * Nodes with no markdown form export as `<!-- lexidraw:TYPE#N summary -->`.
  * N is the node's 1-based position among nodes of the same type in document
@@ -112,7 +148,58 @@ const PLACEHOLDER_SUMMARIES: ReadonlyArray<
     (node) => ChartNode.$isChartNode(node),
     (node) => (node as ChartNode).getChartType(),
   ],
+  [
+    (node) => SlideNode.$isSlideDeckNode(node),
+    (node) => {
+      const { slides } = (node as SlideNode).getData();
+      const titles = slides
+        .map((slide) => slide.slideMetadata?.storyboardTitle)
+        .filter((title): title is string => Boolean(title));
+      const suffix = titles.length > 0 ? `: ${titles.join(" / ")}` : "";
+      return `${slides.length} slides${suffix}`;
+    },
+  ],
+  [
+    (node) => ExcalidrawNode.$isExcalidrawNode(node),
+    (node) =>
+      `${excalidrawElementCount((node as ExcalidrawNode).getData())} elements`,
+  ],
+  [
+    (node) => MermaidNode.$isMermaidNode(node),
+    (node) =>
+      (node as MermaidNode)
+        .getSchema()
+        .split("\n")
+        .find((line) => line.trim() !== "") ?? "",
+  ],
+  [
+    (node) => CommentNode.$isCommentNode(node),
+    (node) => (node as CommentNode).__comment.content,
+  ],
+  [
+    (node) => ThreadNode.$isThreadNode(node),
+    (node) => (node as ThreadNode).__thread.quote,
+  ],
 ];
+
+/**
+ * Excalidraw stores `{ elements, files, appState }`; documents written before
+ * that shape stored the element array on its own.
+ */
+function excalidrawElementCount(data: string): number {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    return 0;
+  }
+  if (Array.isArray(parsed)) return parsed.length;
+  if (parsed && typeof parsed === "object") {
+    const { elements } = parsed as { elements?: unknown };
+    if (Array.isArray(elements)) return elements.length;
+  }
+  return 0;
+}
 
 const PLACEHOLDER_NODES = [
   InlineImageNode,
@@ -123,6 +210,11 @@ const PLACEHOLDER_NODES = [
   StickyNode,
   PollNode,
   ChartNode,
+  SlideNode,
+  ExcalidrawNode,
+  MermaidNode,
+  CommentNode,
+  ThreadNode,
 ];
 
 const PLACEHOLDER_PATTERN = /<!-- lexidraw:([a-z-]+)#(\d+)(?: (.*?))? -->/;
@@ -188,6 +280,6 @@ export const PLACEHOLDER_INLINE: TextMatchTransformer = {
 };
 
 export const DECORATOR_TRANSFORMERS = {
-  element: [TWEET, PLACEHOLDER_BLOCK],
+  element: [TWEET, ARTICLE, PLACEHOLDER_BLOCK],
   textMatch: [IMAGE, EQUATION, PLACEHOLDER_INLINE],
 };

@@ -53,6 +53,7 @@ import {
   CollapsibleContentNode,
   CollapsibleTitleNode,
   AutocompleteNode,
+  CORE_NODES,
 } from "@packages/lexical-nodes";
 import { HashtagNode } from "@lexical/hashtag";
 import { ImageNode } from "../ImageNode/ImageNode";
@@ -165,6 +166,10 @@ import { BlurPlugin } from "./BlurPlugin";
 import { useEmptyContent } from "../../initial-content";
 
 export const NESTED_EDITOR_NODES = [
+  // Every transformer in PLAYGROUND_TRANSFORMERS depends on a node in this
+  // set, and MarkdownShortcutPlugin runs in here too; the React subclasses
+  // after it take over their types, as in document-editor.
+  ...CORE_NODES,
   ChartNode,
   MarkNode,
   AutocompleteNode,

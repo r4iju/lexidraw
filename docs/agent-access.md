@@ -100,10 +100,10 @@ loading tool schemas into the agent's context until they are needed.
 - Server-side headless editor (`@lexical/headless`) behind new procedures:
   - `documents.getMarkdown({ id, format })` → `markdown` is markdown with
     YAML frontmatter (id, title, path, updatedAt, tags); `raw` drops the
-    frontmatter; `json` returns the Lexical state. Until the decorator nodes
-    are in the package, a document holding a node type outside it fails with
-    `UNPROCESSABLE_CONTENT` naming the types; malformed stored content fails
-    the same way.
+    frontmatter; `json` returns the Lexical state. Every node type the editor
+    registers has a markdown form or a placeholder, so only a document holding
+    an unknown type fails with `UNPROCESSABLE_CONTENT` naming the types;
+    malformed stored content fails the same way.
   - `documents.appendMarkdown(id, md)` — never destructive, precondition
     optional.
   - `documents.insertMarkdown(id, md, { afterHeading | atBlockIndex },

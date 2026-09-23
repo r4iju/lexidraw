@@ -1,87 +1,19 @@
-import type {
-  DOMExportOutput,
-  EditorConfig,
-  ElementFormatType,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  Spread,
-} from "lexical";
-import {
-  DecoratorBlockNode,
-  type SerializedDecoratorBlockNode,
-} from "@lexical/react/LexicalDecoratorBlockNode";
-import type * as React from "react";
-import { ArticleBlock } from "./ArticleBlock";
-import type { ArticleNodeData } from "@packages/types";
+import { ArticleNode as HeadlessArticleNode } from "@packages/lexical-nodes";
+import type { EditorConfig, LexicalEditor } from "lexical";
+import * as React from "react";
+import { Suspense } from "react";
 
-export type SerializedArticleNode = Spread<
-  {
-    data: ArticleNodeData;
-  },
-  SerializedDecoratorBlockNode
->;
+export type { SerializedArticleNode } from "@packages/lexical-nodes";
 
-export class ArticleNode extends DecoratorBlockNode {
-  __data: ArticleNodeData;
+const ArticleBlock = React.lazy(() =>
+  import("./ArticleBlock").then((mod) => ({ default: mod.ArticleBlock })),
+);
 
-  static getType(): string {
-    return "article";
-  }
-
-  static clone(node: ArticleNode): ArticleNode {
-    return new ArticleNode(node.__data, node.__format, node.__key);
-  }
-
-  constructor(
-    data: ArticleNodeData,
-    format?: ElementFormatType,
-    key?: NodeKey,
-  ) {
-    super(format, key);
-    this.__data = data;
-  }
-
-  static importJSON(serializedNode: SerializedArticleNode): ArticleNode {
-    const { data, format } = serializedNode as SerializedArticleNode;
-    return new ArticleNode(data, format);
-  }
-
-  exportJSON(): SerializedArticleNode {
-    return {
-      ...super.exportJSON(),
-      type: ArticleNode.getType(),
-      version: 1,
-      data: this.__data,
-    } as SerializedArticleNode;
-  }
-
-  exportDOM(): DOMExportOutput {
-    const element = document.createElement("div");
-    element.setAttribute("data-lexical-article", "1");
-    const mode = this.__data.mode;
-    element.setAttribute("data-article-mode", mode);
-    return { element };
-  }
-
-  static $createArticleNode(data: ArticleNodeData): ArticleNode {
-    return new ArticleNode(data);
-  }
-
-  static $isArticleNode(
-    node: ArticleNode | LexicalNode | null | undefined,
-  ): node is ArticleNode {
-    return node instanceof ArticleNode;
-  }
-
-  getData(): ArticleNodeData {
-    return this.__data;
-  }
-
-  setData(next: ArticleNodeData): void {
-    const w = this.getWritable();
-    w.__data = next;
-  }
+/** React half of the package's ArticleNode; see ImageNode. */
+export class ArticleNode extends HeadlessArticleNode {
+  static getType = HeadlessArticleNode.getType;
+  static clone = HeadlessArticleNode.clone;
+  static importJSON = HeadlessArticleNode.importJSON;
 
   decorate(_editor: LexicalEditor, config: EditorConfig): React.JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {};
@@ -90,11 +22,13 @@ export class ArticleNode extends DecoratorBlockNode {
       focus: embedBlockTheme.focus || "",
     };
     return (
-      <ArticleBlock
-        className={className}
-        nodeKey={this.getKey()}
-        data={this.__data}
-      />
+      <Suspense fallback={null}>
+        <ArticleBlock
+          className={className}
+          nodeKey={this.getKey()}
+          data={this.__data}
+        />
+      </Suspense>
     );
   }
 }

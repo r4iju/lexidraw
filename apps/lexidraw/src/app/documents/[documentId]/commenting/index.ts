@@ -1,21 +1,8 @@
+import type { Comment, Thread } from "@packages/lexical-nodes";
 import type { LexicalEditor } from "lexical";
 import { useEffect, useState } from "react";
 
-export type Comment = {
-  author: string;
-  content: string;
-  deleted: boolean;
-  id: string;
-  timeStamp: number;
-  type: "comment";
-};
-
-export type Thread = {
-  comments: Comment[];
-  id: string;
-  quote: string;
-  type: "thread";
-};
+export type { Comment, Thread } from "@packages/lexical-nodes";
 
 export type Comments = (Thread | Comment)[];
 

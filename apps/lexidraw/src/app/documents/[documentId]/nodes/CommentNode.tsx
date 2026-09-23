@@ -1,94 +1,17 @@
-import {
-  DecoratorNode,
-  type EditorConfig,
-  type LexicalEditor,
-  type LexicalNode,
-  type SerializedLexicalNode,
-} from "lexical";
+import { CommentNode as HeadlessCommentNode } from "@packages/lexical-nodes";
+import type { EditorConfig, LexicalEditor } from "lexical";
 import type { JSX } from "react";
 
-import type { Comment } from "../commenting";
+export type { SerializedCommentNode } from "@packages/lexical-nodes";
 
-export type SerializedCommentNode = {
-  type: "comment";
-  version: 1;
-  // original Lexical props
-  format: number;
-  indent: number;
-  direction: "ltr" | "rtl" | null;
-  children: SerializedLexicalNode[];
-  // our custom data
-  comment: Comment;
-} & SerializedLexicalNode;
-
-export class CommentNode extends DecoratorNode<JSX.Element> {
-  __comment: Comment;
-  __format: number;
-  __indent: number;
-  __direction: "ltr" | "rtl" | null;
-
-  constructor(comment: Comment, key?: string) {
-    super(key);
-    this.__comment = comment;
-    this.__format = 0;
-    this.__indent = 0;
-    this.__direction = null;
-  }
-
-  static getType(): string {
-    return "comment";
-  }
-
-  static clone(node: CommentNode): CommentNode {
-    return new CommentNode(node.__comment, node.__key);
-  }
-
-  createDOM(_config: EditorConfig): HTMLElement {
-    const div = document.createElement("div");
-    div.className = "LexicalCommentNode";
-    return div;
-  }
-
-  updateDOM(): false {
-    return false;
-  }
+/** React half of the package's CommentNode; see ImageNode. */
+export class CommentNode extends HeadlessCommentNode {
+  static getType = HeadlessCommentNode.getType;
+  static clone = HeadlessCommentNode.clone;
+  static importJSON = HeadlessCommentNode.importJSON;
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
     // hidden since side panel does the heavy-lifting
     return <div className="hidden" />;
   }
-
-  setFormat(format: number): void {
-    this.__format = format;
-  }
-
-  setIndent(indent: number): void {
-    this.__indent = indent;
-  }
-
-  exportJSON(): SerializedCommentNode {
-    return {
-      ...super.exportJSON(),
-      type: "comment",
-      comment: this.__comment,
-      format: this.__format,
-      indent: this.__indent,
-      direction: this.__direction,
-      children: [],
-      version: 1,
-    };
-  }
-
-  static importJSON(serializedNode: SerializedCommentNode): CommentNode {
-    const node = new CommentNode(serializedNode.comment);
-    node.setFormat(serializedNode.format);
-    node.setIndent(serializedNode.indent);
-    return node;
-  }
-
-  static $isCommentNode = (
-    node: LexicalNode | null | undefined,
-  ): node is CommentNode => {
-    return node?.getType?.() === "comment";
-  };
 }
