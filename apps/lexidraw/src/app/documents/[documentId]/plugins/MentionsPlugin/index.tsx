@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
-import { $createMentionNode } from "../../nodes/MentionNode";
+import { $createMentionNode } from "@packages/lexical-nodes";
 
 const PUNCTUATION =
   "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;";

@@ -2,8 +2,7 @@ import { tool } from "ai";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $createParagraphNode } from "lexical";
-import { LayoutContainerNode } from "../../../nodes/LayoutContainerNode";
-import { LayoutItemNode } from "../../../nodes/LayoutItemNode";
+import { LayoutContainerNode, LayoutItemNode } from "@packages/lexical-nodes";
 import { InsertLayoutSchema } from "@packages/types";
 
 export const useLayoutTools = () => {

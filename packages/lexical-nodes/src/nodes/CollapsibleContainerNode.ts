@@ -11,9 +11,6 @@ import {
   type Spread,
 } from "lexical";
 
-// import { IS_CHROME } from "@lexical/utils"; // Unused
-// import ReactDOMServer from "react-dom/server"; // Unused
-
 type SerializedCollapsibleContainerNode = Spread<
   {
     open: boolean;

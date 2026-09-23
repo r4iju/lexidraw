@@ -9,10 +9,7 @@ import {
   type SerializedElementNode,
 } from "lexical";
 
-import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
-// import { IS_CHROME } from "@lexical/utils"; // No longer needed
-// import invariant from "../../shared/invariant"; // No longer needed
-// import ReactDOMServer from "react-dom/server"; // No longer needed
+import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
 
 type SerializedCollapsibleContentNode = SerializedElementNode;
 

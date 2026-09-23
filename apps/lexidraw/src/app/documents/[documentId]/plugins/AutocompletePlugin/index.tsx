@@ -22,7 +22,7 @@ import {
   type AutocompleteEditorContext,
   useAutocompleteLLM,
 } from "./use-auto-complete";
-import { AutocompleteNode } from "../../nodes/AutocompleteNode";
+import { AutocompleteNode } from "@packages/lexical-nodes";
 import { mergeRegister } from "@lexical/utils";
 import { $isAtNodeEnd } from "@lexical/selection";
 

@@ -25,7 +25,7 @@ import { Slider } from "~/components/ui/slider";
 import { Progress } from "~/components/ui/progress";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { htmlToPlainText } from "~/lib/html-to-text";
+import { htmlToPlainText } from "@packages/lexical-nodes";
 import { labelForLanguage, titleize } from "~/lib/i18n";
 
 type Props = {

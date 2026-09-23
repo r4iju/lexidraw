@@ -1,8 +1,21 @@
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateDocument } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
 import { and, eq, schema } from "@packages/drizzle";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import {
+  editorStateToMarkdown,
+  InvalidDocumentContentError,
+  parseEditorState,
+  UnsupportedNodeTypesError,
+  withFrontmatter,
+} from "~/server/documents/markdown";
+import {
+  entityPath,
+  entityTagNames,
+  findReadableEntity,
+} from "~/server/entities/readable";
 import { start } from "workflow/api";
 import { generateDocumentPdfWorkflow } from "~/workflows/document-pdf-export/generate-document-pdf-workflow";
 
@@ -33,6 +46,63 @@ export const documentRouter = createTRPCRouter({
         where: (doc, { eq, and }) =>
           and(eq(doc.id, input.id), eq(doc.entityType, "document")),
       });
+    }),
+  /**
+   * The document as markdown for agents and the CLI. Same read rule as
+   * entities.load. Fails naming the node types that have no markdown form yet.
+   */
+  getMarkdown: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        format: z.enum(["markdown", "raw", "json"]).default("markdown"),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session?.user?.id ?? "";
+      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
+      if (entity?.entityType !== "document") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
+      const [path, tags] = await Promise.all([
+        entityPath(ctx.drizzle, entity),
+        entityTagNames(ctx.drizzle, entity.id),
+      ]);
+      const meta = {
+        id: entity.id,
+        title: entity.title,
+        path,
+        updatedAt: entity.updatedAt,
+        tags,
+      };
+      try {
+        const state = parseEditorState(entity.elements);
+        if (input.format === "json") {
+          return { ...meta, format: "json" as const, content: state };
+        }
+        const markdown = editorStateToMarkdown(state);
+        return {
+          ...meta,
+          format: input.format,
+          content:
+            input.format === "raw" ? markdown : withFrontmatter(meta, markdown),
+        };
+      } catch (error) {
+        if (
+          error instanceof UnsupportedNodeTypesError ||
+          error instanceof InvalidDocumentContentError
+        ) {
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message: error.message,
+            cause: error,
+          });
+        }
+        throw error;
+      }
     }),
   list: protectedProcedure.query(async ({ ctx }) => {
     return await ctx.drizzle

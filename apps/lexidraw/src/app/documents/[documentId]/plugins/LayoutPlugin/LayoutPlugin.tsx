@@ -26,8 +26,7 @@ import {
 } from "lexical";
 import { useCallback, useEffect } from "react";
 
-import { LayoutContainerNode } from "../../nodes/LayoutContainerNode";
-import { LayoutItemNode } from "../../nodes/LayoutItemNode";
+import { LayoutContainerNode, LayoutItemNode } from "@packages/lexical-nodes";
 
 export const INSERT_LAYOUT_COMMAND: LexicalCommand<string> =
   createCommand<string>();

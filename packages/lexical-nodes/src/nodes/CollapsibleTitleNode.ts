@@ -8,9 +8,12 @@ import {
   type RangeSelection,
   type SerializedElementNode,
 } from "lexical";
-import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
-import ReactDOMServer from "react-dom/server";
-import { ChevronRight } from "lucide-react";
+import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
+
+// lucide-react's ChevronRight rendered to static markup, inlined so this
+// module has no React or icon dependency and loads outside the browser.
+const CHEVRON_RIGHT_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0 transition-transform" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>';
 
 type SerializedCollapsibleTitleNode = SerializedElementNode;
 
@@ -52,9 +55,7 @@ export class CollapsibleTitleNode extends ElementNode {
       "[&[data-state=open]>svg]:rotate-90",
     ].join(" ");
 
-    button.innerHTML = ReactDOMServer.renderToStaticMarkup(
-      <ChevronRight className="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0 transition-transform " />,
-    );
+    button.innerHTML = CHEVRON_RIGHT_SVG;
 
     button.addEventListener("click", (e) => {
       e.preventDefault();
