@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { getSignUpSchema } from "~/app/signup/schema";
 import { ProfileSchema } from "~/app/profile/schema";
 import env from "@packages/env";
@@ -215,6 +216,36 @@ export const authRouter = createTRPCRouter({
         .where(eq(schema.users.id, ctx.session.user.id));
       return;
     }),
+  /**
+   * Who the caller is, over any transport. A CLI holding a token needs a cheap
+   * way to check that it is still valid and what it may do; every other REST
+   * path costs a document read.
+   */
+  me: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/me",
+        tags: ["auth"],
+        summary: "The user and scope the request resolves to",
+        protect: true,
+      },
+    })
+    .input(z.object({}))
+    .output(
+      z.object({
+        userId: z.string(),
+        email: z.string().nullable(),
+        authKind: z.enum(["session", "token"]),
+        scope: z.enum(["read", "write"]).nullable(),
+      }),
+    )
+    .query(({ ctx }) => ({
+      userId: ctx.session.user.id,
+      email: ctx.session.user.email ?? null,
+      authKind: ctx.auth.kind,
+      scope: ctx.auth.kind === "token" ? ctx.auth.scope : null,
+    })),
   iceServers: publicProcedure.query(() => {
     return env.ICE_SERVER_CONFIG satisfies RTCIceServer[];
   }),
