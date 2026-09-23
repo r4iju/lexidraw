@@ -133,23 +133,61 @@ next one, so a chain of writes never needs a read between them.
   unauthenticated; `lexidraw schema <command>` reads from it, refetches once
   if a known command is missing, and `--refresh` bypasses it.
 - Nouns and verbs:
-  - `doc list|get|create|append|insert|put|delete`
-  - `drawing get|put|create|render`
-  - `dir list|create`
+  - `doc list [--dir <id>|--dir-path P]`, `doc get <id|--path P>`,
+    `doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]`,
+    `doc append <id|--path P> (--file f|--text s)`,
+    `doc insert ... (--after-heading H [--nth N] | --at-block N)`,
+    `doc put ... --replace`, `doc delete <id|--path P>`; `--file -` is stdin
+  - `dir list [<id>|--path P]`,
+    `dir create --title T [--dir <id>|--dir-path P]`
   - `search <query>`
-  - `share ...`
+  - `drawing get|put|create|render` and `share ...`, still to come
   - `api <METHOD> <path> [--json ...]` raw escape hatch, only reaches
     procedures that have a REST path
   - `auth login|status`
   - `schema <command>`
-- Addressing: entity id, or `--path "Dir/Sub/Title"` resolved through
-  directory titles. Ambiguous matches on writes fail with candidates as JSON;
-  reads pick the most recently updated with a warning on stderr. `--nth`
-  disambiguates.
-- Output: JSON default, `--format json|md|table`. Markdown commands print raw
-  markdown to stdout. `--page-all` emits NDJSON.
+- Addressing: entity id, or `--path "Dir/Sub/Title"` walked through directory
+  titles from the root, matched exactly first and case-insensitively only if
+  nothing matched exactly. Several matches: a read takes the most recently
+  updated and says which on stderr, a write fails `AMBIGUOUS_PATH` with the
+  candidates as `{ id, title, updatedAt }`. `--nth N` picks one, counting from
+  the most recent, among the matches for the last segment of `--path`; on
+  `doc insert` that flag belongs to `--after-heading`, so an ambiguous path
+  there is addressed by id. A directory the path walked through is never what
+  `--nth` picks, so an ambiguous one is answered with an id instead: the
+  directory's own for `--dir-path`, the entity's own for `--path`. Nothing
+  matched is `NOT_FOUND` with the parent id and the segment that failed. A
+  parent directory is `--dir <id>` or `--dir-path "Dir/Sub"`: entity ids are
+  free text, so the flag says which form was meant rather than the value's
+  shape deciding.
+- Titles with a `/` in them: a path splits on `/` unconditionally and has no
+  escape, so such a title is only addressable by id. `doc get` prints a
+  `path` in its frontmatter joined the same way, which is a display label and
+  not always something `--path` can resolve back.
+- Writes: `doc put` replaces the whole document and only with `--replace`;
+  `insert` and `put` refuse to run without `--if-unmodified-since`, which is
+  the `updatedAt` the write expects to find. `--if-unmodified-since latest`
+  reads the document first and writes against what it found: check-then-write
+  in two calls, still racy, only explicitly so. `doc create` with a body is a
+  create then a replace against the revision the create answered, so the
+  document starts at the caller's markdown rather than after the empty
+  paragraph a new document carries, and reports that write's `updatedAt`.
+- Output: JSON default, `--format json|md|raw|table`. `doc get` defaults to
+  `md` and prints markdown with frontmatter to stdout, `raw` the same without
+  it, `json` the response carrying the stored editor state. `table` pads
+  `id`, `title`, `type`, `updatedAt`, and `parentId` for a directory listing.
+  `doc list` and `dir list` take `--page-all`, which emits NDJSON, one row per
+  line, and refuses an explicit `--format` because it renders its own;
+  `entities.list` returns a directory in one answer, so there is nothing to
+  page through yet. `search` answers in one page and has no `--page-all`.
 - Errors: JSON object on stderr with a stable `code` mirroring the OpenAPI
-  error codes, non-zero exit.
+  error codes, non-zero exit; a usage error exits 2. The server's `data`
+  travels with it, so a 409 carries `currentUpdatedAt` and an ambiguous
+  `afterHeading` carries `candidates`; the `stack` and the `zodError` that
+  repeats `issues` are dropped. A write the server is known to refuse, blank
+  markdown above all, is a usage error before any call. `doc create` with a
+  body is two calls, so a failure of the second carries `createdId`, the
+  empty document the first left behind.
 - Profiles: `prod` (https://lexidraw.app, default) and `dev`
   (http://localhost:3025), chosen with `--profile` or `LEXIDRAW_PROFILE`;
   `LEXIDRAW_URL` overrides the base URL. Token lookup: `LEXIDRAW_TOKEN`, then
@@ -160,7 +198,8 @@ next one, so a chain of writes never needs a read between them.
   token source is `LEXIDRAW_TOKEN` and `auth login` refuses to store one.
   `auth login` validates a token against `/me` before storing it; `auth
   status` reports the profile, base URL, token source, and scope.
-- Live today: `auth login|status`, `api`, `drawing get|put|create`, and
+- Live today: `doc`, `dir`, `search`, `drawing get|put|create`, `auth
+  login|status`, `api`, and
   `schema <command>|--list`, whose registry maps a command name to an
   operationId in the cached document.
 - Skill: `skills/lexidraw/SKILL.md` in this repo, symlinked into

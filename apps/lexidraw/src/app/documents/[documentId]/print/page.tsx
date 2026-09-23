@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { verifyPrintToken } from "~/server/auth/print-token";
 import { drizzle as db, schema, eq } from "@packages/drizzle";
-import type { PublicAccess } from "@packages/types";
+import type { EntityType, PublicAccess } from "@packages/types";
 import { AccessLevel } from "@packages/types";
 import DocumentEditor from "../document-editor-client";
 import { api } from "~/trpc/server";
@@ -49,6 +49,7 @@ export default async function PrintDocumentPage(props: Props) {
       .select({
         id: schema.entities.id,
         title: schema.entities.title,
+        entityType: schema.entities.entityType,
         appState: schema.entities.appState,
         elements: schema.entities.elements,
         publicAccess: schema.entities.publicAccess,
@@ -61,6 +62,7 @@ export default async function PrintDocumentPage(props: Props) {
   const entity = {
     id: row.id,
     title: row.title,
+    entityType: row.entityType as EntityType,
     appState: row.appState,
     elements: row.elements,
     publicAccess: row.publicAccess as PublicAccess,

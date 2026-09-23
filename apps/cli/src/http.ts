@@ -1,4 +1,6 @@
+import type { Context } from "./context";
 import { CliError, describe } from "./errors";
+import { requireToken } from "./tokens";
 
 export const API_PREFIX = "/api/v1";
 
@@ -68,9 +70,29 @@ export async function requestApi(
   }
 }
 
+/** Where a command sends its calls, with the token resolved once. */
+export type ApiSession = { baseUrl: string; token: string };
+
+export function apiSession(context: Context): ApiSession {
+  const { token } = requireToken(
+    context.profile,
+    context.io.env,
+    context.io.tokens,
+  );
+  return { baseUrl: context.profile.baseUrl, token };
+}
+
+export async function callApi(
+  session: ApiSession,
+  options: Omit<RequestOptions, "baseUrl" | "token">,
+): Promise<unknown> {
+  const response = await requestApi({ ...options, ...session });
+  return expectOk(response, `${options.method} ${options.path} failed`);
+}
+
 /**
- * Re-raises the server's own `{ code, message, issues }` so a REST error and a
- * CLI error read the same, with the status added.
+ * Re-raises the server's own `{ code, message, issues, data }` so a REST error
+ * and a CLI error read the same, with the status added.
  */
 export function expectOk(response: ApiResponse, fallback: string): unknown {
   if (response.status >= 200 && response.status < 300) return response.body;
@@ -80,7 +102,7 @@ export function expectOk(response: ApiResponse, fallback: string): unknown {
       ? body.code
       : (STATUS_CODES[response.status] ?? `HTTP_${response.status}`);
   const message = typeof body.message === "string" ? body.message : fallback;
-  return raise(code, message, response.status, body.issues);
+  return raise(code, message, response.status, body.issues, body.data);
 }
 
 function raise(
@@ -88,8 +110,30 @@ function raise(
   message: string,
   status: number,
   issues: unknown,
+  data: unknown,
 ): never {
   throw new CliError(code, message, {
-    details: { status, ...(issues === undefined ? {} : { issues }) },
+    details: {
+      status,
+      ...(issues === undefined ? {} : { issues }),
+      ...machineReadable(data),
+    },
   });
+}
+
+/** What a caller cannot act on: a stack, and a `zodError` that `issues`
+ * already says in the form the CLI prints. */
+const DROPPED = ["stack", "zodError"];
+
+/**
+ * The server's `data`, keeping what this error actually carries: null is how
+ * it marks a field that does not apply.
+ */
+function machineReadable(data: unknown): { data?: Record<string, unknown> } {
+  if (data === null || typeof data !== "object") return {};
+  const kept = Object.entries(data as Record<string, unknown>).filter(
+    ([key, value]) =>
+      !DROPPED.includes(key) && value !== null && value !== undefined,
+  );
+  return kept.length === 0 ? {} : { data: Object.fromEntries(kept) };
 }

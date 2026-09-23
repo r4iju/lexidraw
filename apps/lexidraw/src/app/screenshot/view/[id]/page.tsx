@@ -5,7 +5,11 @@ import DocumentEditor from "../../../documents/[documentId]/document-editor-clie
 import DrawingScreenshotView from "../drawing-screenshot-view";
 import { drizzle as db, schema, eq } from "@packages/drizzle";
 import { INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER } from "~/server/llm/initial-llm-config";
-import { AccessLevel, type PublicAccess } from "@packages/types";
+import {
+  AccessLevel,
+  type EntityType,
+  type PublicAccess,
+} from "@packages/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
@@ -58,6 +62,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
     const drawing = {
       id: row.id,
       title: row.title,
+      entityType: row.entityType as EntityType,
       appState: row.appState,
       elements: row.elements,
       publicAccess: row.publicAccess as PublicAccess,
@@ -100,6 +105,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
   const entity = {
     id: row.id,
     title: row.title,
+    entityType: row.entityType as EntityType,
     appState: row.appState,
     elements: row.elements,
     publicAccess: row.publicAccess as PublicAccess,

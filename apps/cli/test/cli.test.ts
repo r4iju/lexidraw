@@ -356,14 +356,14 @@ describe("schema", () => {
     expect(schema).toMatchObject({
       command: "doc get",
       method: "GET",
-      path: "/entities/{id}",
-      operationId: "entities-load",
-      summary: "Load one entity",
+      path: "/documents/{id}/markdown",
+      operationId: "documents-getMarkdown",
+      summary: "Read a document as markdown",
     });
     expect(schema.parameters.map((p: { name: string }) => p.name)).toEqual([
       "id",
+      "format",
     ]);
-    expect(schema.response.properties.title).toEqual({ type: "string" });
   });
 
   it("accepts the command as separate words", async () => {
@@ -386,13 +386,12 @@ describe("schema", () => {
     expect(await run(["schema", "doc frobnicate"], io.io)).toBe(2);
     expect(JSON.parse(io.stderr())).toMatchObject({
       code: "UNKNOWN_COMMAND",
-      known: [
+      known: expect.arrayContaining([
         "auth status",
-        "doc get",
-        "drawing create",
-        "drawing get",
+        "doc append",
         "drawing put",
-      ],
+        "search",
+      ]),
     });
   });
 
@@ -565,7 +564,7 @@ describe("dispatch", () => {
     expect(await run(["frobnicate"], io.io)).toBe(2);
     expect(JSON.parse(io.stderr())).toMatchObject({
       code: "USAGE",
-      known: ["api", "auth", "drawing", "schema"],
+      known: ["api", "auth", "dir", "doc", "drawing", "schema", "search"],
     });
   });
 

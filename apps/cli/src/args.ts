@@ -66,6 +66,23 @@ export function one(args: ParsedArgs, name: string): string | undefined {
   return given[0];
 }
 
+/** The single value of a flag that counts something, from `min` up. */
+export function integer(
+  args: ParsedArgs,
+  name: string,
+  min: number,
+): number | undefined {
+  const given = one(args, name);
+  if (given === undefined) return undefined;
+  const value = Number(given);
+  if (!Number.isInteger(value) || value < min) {
+    throw usageError(
+      `--${name} expects a whole number from ${min}, got "${given}"`,
+    );
+  }
+  return value;
+}
+
 export function rejectExtra(args: ParsedArgs, after: number): void {
   const extra = args.positionals[after];
   if (extra !== undefined) {

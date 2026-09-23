@@ -2,11 +2,14 @@ import { apiCommand } from "./api";
 import { drawingCommand } from "./drawing";
 import { authLogin, authStatus } from "./auth";
 import type { Context, Io } from "./context";
+import { dirCommand } from "./dir";
+import { docCommand } from "./doc";
 import { exitCodeOf, formatError, usageError } from "./errors";
 import { PROFILES, resolveProfile } from "./profile";
 import { schemaCommand } from "./schema";
+import { searchCommand } from "./search";
 
-const TOP_LEVEL = ["api", "auth", "drawing", "schema"];
+const TOP_LEVEL = ["api", "auth", "dir", "doc", "drawing", "schema", "search"];
 
 /** Flags whose value must not be mistaken for a global flag while scanning. */
 const VALUE_FLAGS = [
@@ -14,8 +17,16 @@ const VALUE_FLAGS = [
   "token",
   "json",
   "query",
-  "file",
+  "path",
+  "dir",
+  "dir-path",
   "title",
+  "file",
+  "text",
+  "format",
+  "nth",
+  "after-heading",
+  "at-block",
   "parent",
   "if-unmodified-since",
 ];
@@ -23,6 +34,20 @@ const VALUE_FLAGS = [
 const USAGE = `lexidraw — Lexidraw from the terminal
 
 Usage:
+  lexidraw doc list [--dir <id>|--dir-path P] [--format json|table] [--page-all]
+  lexidraw doc get <id|--path P> [--format md|raw|json]
+  lexidraw doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]
+                      (a body replaces the new document's empty paragraph)
+  lexidraw doc append <id|--path P> (--file f|--text s) [--if-unmodified-since W]
+  lexidraw doc insert <id|--path P> (--file f|--text s)
+                      (--after-heading H [--nth N] | --at-block N)
+                      --if-unmodified-since W
+  lexidraw doc put <id|--path P> --replace (--file f|--text s)
+                   --if-unmodified-since W
+  lexidraw doc delete <id|--path P>
+  lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]
+  lexidraw dir create --title T [--dir <id>|--dir-path P]
+  lexidraw search <query> [--format json|table]
   lexidraw auth login [--token lxd_...]
   lexidraw auth status
   lexidraw api <METHOD> <path> [--json <body>|@file] [--query k=v ...]
@@ -30,6 +55,23 @@ Usage:
   lexidraw drawing put <id> --file <elements.json|-> --if-unmodified-since <iso|latest>
   lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
   lexidraw schema <command> | lexidraw schema --list
+
+Addressing:
+  An entity is its id, or --path "Dir/Sub/Title" walked through directory
+  titles from the root; a parent directory is --dir <id> or --dir-path
+  "Dir/Sub", never guessed from the value's shape. Several matches: a read
+  takes the most recently updated and says so on stderr, a write fails with
+  the candidates. --nth N picks one, counting from the most recent, among the
+  matches for the last segment of --path. --file - reads stdin.
+
+  A path splits on "/" with no escape, so a title containing "/" is only
+  addressable by id, and the "path" a "doc get" prints in its frontmatter is
+  a display label rather than something to feed back to --path.
+
+Preconditions:
+  --if-unmodified-since <iso> is the updatedAt the write expects to find;
+  "latest" reads the document first and uses what it finds, which is two
+  calls and still racy, only explicitly so.
 
 Global flags:
   --profile <${Object.keys(PROFILES).join("|")}>  default: prod
@@ -82,6 +124,15 @@ async function dispatch(argv: readonly string[], io: Io): Promise<number> {
       return 0;
     case "schema":
       await schemaCommand(context, tail);
+      return 0;
+    case "doc":
+      await docCommand(context, tail);
+      return 0;
+    case "dir":
+      await dirCommand(context, tail);
+      return 0;
+    case "search":
+      await searchCommand(context, tail);
       return 0;
     default:
       throw usageError(`unknown command "${name}"`, { known: TOP_LEVEL });
