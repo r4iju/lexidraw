@@ -1,7 +1,7 @@
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import type { DocumentStore } from "./append";
+import type { DocumentStore } from "./write";
 
 // The schema module rather than the @packages/drizzle barrel: the barrel
 // builds the Turso client, and with it the whole environment, on import.
@@ -18,7 +18,7 @@ export const nextUpdatedAt = () =>
   sql`max(${schema.entities.updatedAt} + 1, ${Date.now()})`;
 
 /**
- * The document table as a {@link DocumentStore}. Kept apart from the append
+ * The document table as a {@link DocumentStore}. Kept apart from the write
  * itself so the algorithm carries no database with it.
  */
 export function drizzleDocumentStore(db: Db): DocumentStore {

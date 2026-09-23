@@ -111,7 +111,14 @@ loading tool schemas into the agent's context until they are needed.
     write itself is a compare-and-set on `updatedAt`, so a save that lands
     between the read and the write is retried against, never clobbered.
   - `documents.insertMarkdown(id, md, { afterHeading | atBlockIndex },
-    ifUnmodifiedSince)` — precondition mandatory.
+    ifUnmodifiedSince)` — precondition mandatory. `afterHeading` puts the
+    blocks directly below a top-level heading whose text matches trimmed,
+    whitespace-collapsed, and case-insensitively; several matches fail with
+    `BAD_REQUEST` listing them on `data.candidates` (`nth`, `blockIndex`,
+    `tag`, `text`), and `nth` (1-based, in document order) picks one.
+    `atBlockIndex` counts top-level blocks from 0, and the block count itself
+    means append. The placement is resolved again on a retried write, so it
+    follows blocks another writer moved.
   - `documents.replaceMarkdown(id, md, ifUnmodifiedSince)` — precondition
     mandatory; CLI exposes it only as `doc put --replace`.
 - Blocks without a markdown form (slides, excalidraw, mermaid, chart, poll,

@@ -1,11 +1,13 @@
 import { StaleDocumentError } from "./conflict";
 import {
-  appendBlocks,
+  type InsertPlacement,
+  insertBlocks,
   markdownToEditorState,
   parseEditorState,
+  resolveInsertIndex,
 } from "./markdown";
 
-/** A document as an append needs to see it, already checked for write access. */
+/** A document as a write needs to see it, already checked for write access. */
 export type DocumentRevision = {
   id: string;
   elements: string;
@@ -13,7 +15,7 @@ export type DocumentRevision = {
 };
 
 /**
- * The storage an append talks to. `write` is compare-and-set: it stores
+ * The storage a write talks to. `write` is compare-and-set: it stores
  * `elements` only while the row still carries `expectedUpdatedAt`, and answers
  * null when another write got there first.
  */
@@ -33,6 +35,14 @@ export class DocumentGoneError extends Error {
   }
 }
 
+export type InsertResult = {
+  id: string;
+  updatedAt: Date;
+  insertedBlocks: number;
+  /** Where the first inserted block ended up among the root's children. */
+  blockIndex: number;
+};
+
 export type AppendResult = {
   id: string;
   updatedAt: Date;
@@ -40,20 +50,25 @@ export type AppendResult = {
 };
 
 /**
- * Appends `markdown` to the end of `revision` and stores the result.
+ * Inserts `markdown` into `revision` where `placement` says and stores the
+ * result.
  *
  * The write is a compare-and-set against the `updatedAt` the blocks were
- * appended to, so a save that lands between the read and the write is never
+ * inserted into, so a save that lands between the read and the write is never
  * clobbered. Without a precondition, losing that race is retried once against
- * what the other writer left. With one, the retry would append to a revision
+ * what the other writer left. With one, the retry would insert into a revision
  * the caller has not seen, so a lost race is a conflict straight away.
+ *
+ * The placement is resolved again on the retry: the other writer may have
+ * moved, added, or removed the blocks it was pointing at.
  */
-export async function appendMarkdownToDocument(
+export async function insertMarkdownIntoDocument(
   store: DocumentStore,
   revision: DocumentRevision,
   markdown: string,
+  placement: InsertPlacement,
   ifUnmodifiedSince?: string,
-): Promise<AppendResult> {
+): Promise<InsertResult> {
   let current = revision;
   let state = parseEditorState(current.elements);
   const blocks = markdownToEditorState(markdown).root.children;
@@ -65,13 +80,14 @@ export async function appendMarkdownToDocument(
   }
 
   for (let attempt = 0; ; attempt++) {
+    const blockIndex = resolveInsertIndex(state, placement);
     const written = await store.write(
       current.id,
-      JSON.stringify(appendBlocks(state, blocks)),
+      JSON.stringify(insertBlocks(state, blockIndex, blocks)),
       current.updatedAt,
     );
     if (written) {
-      return { ...written, appendedBlocks: blocks.length };
+      return { ...written, insertedBlocks: blocks.length, blockIndex };
     }
     const reread = await store.read(current.id);
     if (!reread) {
@@ -83,4 +99,21 @@ export async function appendMarkdownToDocument(
     current = reread;
     state = parseEditorState(current.elements);
   }
+}
+
+/** {@link insertMarkdownIntoDocument} at the end of the document. */
+export async function appendMarkdownToDocument(
+  store: DocumentStore,
+  revision: DocumentRevision,
+  markdown: string,
+  ifUnmodifiedSince?: string,
+): Promise<AppendResult> {
+  const { id, updatedAt, insertedBlocks } = await insertMarkdownIntoDocument(
+    store,
+    revision,
+    markdown,
+    { kind: "end" },
+    ifUnmodifiedSince,
+  );
+  return { id, updatedAt, appendedBlocks: insertedBlocks };
 }

@@ -125,19 +125,185 @@ export function markdownToEditorState(markdown: string): SerializedEditorState {
 }
 
 /**
- * `state` with `blocks` after its own children, without touching `state`.
- * Appending serialized nodes keeps blocks that have no markdown form, and any
- * node the running editor would not know how to build, byte-identical: they
- * are never re-parsed or re-serialized.
+ * `state` with `blocks` spliced in at `index` among the root's children,
+ * without touching `state`. Inserting serialized nodes keeps blocks that have
+ * no markdown form, and any node the running editor would not know how to
+ * build, byte-identical: they are never re-parsed or re-serialized.
  */
+export function insertBlocks(
+  state: SerializedEditorState,
+  index: number,
+  blocks: SerializedLexicalNode[],
+): SerializedEditorState {
+  const children = state.root.children;
+  return {
+    ...state,
+    root: {
+      ...state.root,
+      children: [
+        ...children.slice(0, index),
+        ...blocks,
+        ...children.slice(index),
+      ],
+    },
+  };
+}
+
+/** {@link insertBlocks} at the end of the root's children. */
 export function appendBlocks(
   state: SerializedEditorState,
   blocks: SerializedLexicalNode[],
 ): SerializedEditorState {
-  return {
-    ...state,
-    root: { ...state.root, children: [...state.root.children, ...blocks] },
+  return insertBlocks(state, state.root.children.length, blocks);
+}
+
+/** Where an insert puts its blocks among the root's children. */
+export type InsertPlacement =
+  | { kind: "end" }
+  | { kind: "afterHeading"; text: string; nth?: number }
+  | { kind: "atBlockIndex"; index: number };
+
+/** A top-level heading an `afterHeading` placement could have meant. */
+export type HeadingCandidate = {
+  /** 1-based position among the matching headings, in document order. */
+  nth: number;
+  blockIndex: number;
+  /** The heading level as Lexical stores it, such as `h2`. */
+  tag: string;
+  text: string;
+};
+
+export class HeadingNotFoundError extends Error {
+  readonly text: string;
+
+  constructor(text: string) {
+    super(`No top-level heading matches ${JSON.stringify(text)}`);
+    this.name = "HeadingNotFoundError";
+    this.text = text;
+  }
+}
+
+export class AmbiguousHeadingError extends Error {
+  readonly text: string;
+  readonly candidates: HeadingCandidate[];
+
+  constructor(text: string, candidates: HeadingCandidate[]) {
+    // The candidates are in the message as well as on the error so a client
+    // that only surfaces the message can still tell the caller what exists.
+    super(
+      [
+        `${candidates.length} top-level heading${candidates.length === 1 ? "" : "s"} match ${JSON.stringify(text)}; pass nth to choose one:`,
+        ...candidates.map(
+          (candidate) =>
+            `#${candidate.nth} ${candidate.tag} ${JSON.stringify(candidate.text)} at block ${candidate.blockIndex}`,
+        ),
+      ].join("\n"),
+    );
+    this.name = "AmbiguousHeadingError";
+    this.text = text;
+    this.candidates = candidates;
+  }
+}
+
+export class BlockIndexOutOfRangeError extends Error {
+  readonly index: number;
+  readonly length: number;
+
+  constructor(index: number, length: number) {
+    super(
+      `Block index ${index} is out of range; the document has ${length} top-level block${length === 1 ? "" : "s"}, so 0 to ${length} are insertable and ${length} appends`,
+    );
+    this.name = "BlockIndexOutOfRangeError";
+    this.index = index;
+    this.length = length;
+  }
+}
+
+/** All text below `node`, in document order. */
+function nodeText(node: SerializedLexicalNode): string {
+  const parts: string[] = [];
+  const visit = (current: SerializedLexicalNode) => {
+    if ("text" in current && typeof current.text === "string") {
+      parts.push(current.text);
+    }
+    if ("children" in current && Array.isArray(current.children)) {
+      for (const child of current.children as SerializedLexicalNode[]) {
+        visit(child);
+      }
+    }
   };
+  visit(node);
+  return parts.join("");
+}
+
+// Headings are matched the way a caller reads them off the rendered document,
+// not the way they are stored: a caller cannot see the whitespace or the
+// casing markdown happened to leave behind.
+const foldHeadingText = (text: string) =>
+  text.trim().replace(/\s+/g, " ").toLowerCase();
+
+function headingCandidates(
+  state: SerializedEditorState,
+  text: string,
+): HeadingCandidate[] {
+  const wanted = foldHeadingText(text);
+  const candidates: HeadingCandidate[] = [];
+  state.root.children.forEach((child, blockIndex) => {
+    if (child.type !== "heading") {
+      return;
+    }
+    const headingText = nodeText(child);
+    if (foldHeadingText(headingText) !== wanted) {
+      return;
+    }
+    candidates.push({
+      nth: candidates.length + 1,
+      blockIndex,
+      tag: "tag" in child && typeof child.tag === "string" ? child.tag : "",
+      text: headingText,
+    });
+  });
+  return candidates;
+}
+
+/**
+ * The index among the root's children where `placement` puts its blocks, or a
+ * throw naming what the caller could have meant instead.
+ */
+export function resolveInsertIndex(
+  state: SerializedEditorState,
+  placement: InsertPlacement,
+): number {
+  const length = state.root.children.length;
+  switch (placement.kind) {
+    case "end":
+      return length;
+    case "atBlockIndex":
+      // `length` is in range: inserting after the last block is an append.
+      if (
+        !Number.isInteger(placement.index) ||
+        placement.index < 0 ||
+        placement.index > length
+      ) {
+        throw new BlockIndexOutOfRangeError(placement.index, length);
+      }
+      return placement.index;
+    case "afterHeading": {
+      const candidates = headingCandidates(state, placement.text);
+      if (candidates.length === 0) {
+        throw new HeadingNotFoundError(placement.text);
+      }
+      if (placement.nth === undefined && candidates.length > 1) {
+        throw new AmbiguousHeadingError(placement.text, candidates);
+      }
+      // An nth past the end is ambiguous too: the candidates say what exists.
+      const chosen = candidates[(placement.nth ?? 1) - 1];
+      if (!chosen) {
+        throw new AmbiguousHeadingError(placement.text, candidates);
+      }
+      return chosen.blockIndex + 1;
+    }
+  }
 }
 
 export type DocumentFrontmatter = {

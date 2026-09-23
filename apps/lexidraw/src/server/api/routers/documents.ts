@@ -7,14 +7,18 @@ import { z } from "zod";
 import {
   appendMarkdownToDocument,
   DocumentGoneError,
-} from "~/server/documents/append";
+  insertMarkdownIntoDocument,
+} from "~/server/documents/write";
 import {
   drizzleDocumentStore,
   nextUpdatedAt,
 } from "~/server/documents/document-store";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
+  AmbiguousHeadingError,
+  BlockIndexOutOfRangeError,
   editorStateToMarkdown,
+  HeadingNotFoundError,
   InvalidDocumentContentError,
   parseEditorState,
   UnsupportedNodeTypesError,
@@ -28,6 +32,53 @@ import {
 } from "~/server/entities/readable";
 import { start } from "workflow/api";
 import { generateDocumentPdfWorkflow } from "~/workflows/document-pdf-export/generate-document-pdf-workflow";
+
+/**
+ * How every markdown write reports the failures it shares with the others.
+ * Anything else is rethrown untouched.
+ */
+function throwAsDocumentWriteError(error: unknown): never {
+  if (error instanceof InvalidDocumentContentError) {
+    throw new TRPCError({
+      code: "UNPROCESSABLE_CONTENT",
+      message: error.message,
+      cause: error,
+    });
+  }
+  if (error instanceof DocumentGoneError) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: error.message,
+      cause: error,
+    });
+  }
+  if (error instanceof StaleDocumentError) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: error.message,
+      cause: error,
+    });
+  }
+  if (
+    error instanceof HeadingNotFoundError ||
+    error instanceof AmbiguousHeadingError ||
+    error instanceof BlockIndexOutOfRangeError
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: error.message,
+      cause: error,
+    });
+  }
+  throw error;
+}
+
+const ONE_PLACEMENT = "pass exactly one of afterHeading or atBlockIndex";
+
+// Refined rather than trimmed: leading indentation is markdown too.
+const MarkdownBody = z
+  .string()
+  .refine((value) => value.trim() !== "", "markdown must not be blank");
 
 export const documentRouter = createTRPCRouter({
   create: protectedProcedure
@@ -124,10 +175,7 @@ export const documentRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        // Refined rather than trimmed: leading indentation is markdown too.
-        markdown: z
-          .string()
-          .refine((value) => value.trim() !== "", "markdown must not be blank"),
+        markdown: MarkdownBody,
         ifUnmodifiedSince: z.iso.datetime().optional(),
       }),
     )
@@ -151,28 +199,85 @@ export const documentRouter = createTRPCRouter({
           input.ifUnmodifiedSince,
         );
       } catch (error) {
-        if (error instanceof InvalidDocumentContentError) {
-          throw new TRPCError({
-            code: "UNPROCESSABLE_CONTENT",
-            message: error.message,
-            cause: error,
-          });
-        }
-        if (error instanceof DocumentGoneError) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: error.message,
-            cause: error,
-          });
-        }
-        if (error instanceof StaleDocumentError) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: error.message,
-            cause: error,
-          });
-        }
-        throw error;
+        throwAsDocumentWriteError(error);
+      }
+    }),
+  /**
+   * Inserts markdown directly below a top-level heading, or at a top-level
+   * block index, for agents and the CLI. The heading text is matched trimmed,
+   * whitespace-collapsed, and case-insensitively; several matches fail with
+   * the candidates on `data.candidates`, and `nth` (1-based) picks one.
+   *
+   * `ifUnmodifiedSince` is mandatory here: unlike an append, an insert lands
+   * among blocks the caller must have read to be able to point at them.
+   */
+  insertMarkdown: protectedProcedure
+    .input(
+      z
+        .object({
+          id: z.string(),
+          markdown: MarkdownBody,
+          afterHeading: z.string().optional(),
+          nth: z.number().int().positive().optional(),
+          atBlockIndex: z.number().int().nonnegative().optional(),
+          ifUnmodifiedSince: z.iso.datetime(),
+        })
+        // Transformed rather than refined so the placement the procedure reads
+        // carries only the one the caller asked for.
+        .transform(({ afterHeading, nth, atBlockIndex, ...rest }, ctx) => {
+          if (afterHeading !== undefined && atBlockIndex !== undefined) {
+            ctx.addIssue({ code: "custom", message: ONE_PLACEMENT });
+            return z.NEVER;
+          }
+          if (nth !== undefined && afterHeading === undefined) {
+            ctx.addIssue({
+              code: "custom",
+              message: "nth only applies to afterHeading",
+            });
+            return z.NEVER;
+          }
+          if (afterHeading !== undefined) {
+            return {
+              ...rest,
+              placement: {
+                kind: "afterHeading" as const,
+                text: afterHeading,
+                nth,
+              },
+            };
+          }
+          if (atBlockIndex !== undefined) {
+            return {
+              ...rest,
+              placement: { kind: "atBlockIndex" as const, index: atBlockIndex },
+            };
+          }
+          ctx.addIssue({ code: "custom", message: ONE_PLACEMENT });
+          return z.NEVER;
+        }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (entity?.entityType !== "document") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
+      try {
+        return await insertMarkdownIntoDocument(
+          drizzleDocumentStore(ctx.drizzle),
+          entity,
+          input.markdown,
+          input.placement,
+          input.ifUnmodifiedSince,
+        );
+      } catch (error) {
+        throwAsDocumentWriteError(error);
       }
     }),
   list: protectedProcedure.query(async ({ ctx }) => {

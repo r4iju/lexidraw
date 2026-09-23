@@ -6,9 +6,15 @@ import {
   DocumentGoneError,
   type DocumentRevision,
   type DocumentStore,
-} from "./append";
+  insertMarkdownIntoDocument,
+} from "./write";
 import { StaleDocumentError } from "./conflict";
-import { InvalidDocumentContentError, parseEditorState } from "./markdown";
+import {
+  HeadingNotFoundError,
+  InvalidDocumentContentError,
+  markdownToEditorState,
+  parseEditorState,
+} from "./markdown";
 
 const HOLOGRAM = { type: "hologram", version: 1, summary: "a slide" };
 
@@ -207,5 +213,143 @@ describe("appendMarkdownToDocument", () => {
       ),
     ).rejects.toThrow(InvalidDocumentContentError);
     expect(db.stored()?.elements).toBe("nope");
+  });
+});
+
+// Blocks 0..3: heading "Title", paragraph, heading "Notes", paragraph.
+const OUTLINE = JSON.stringify(
+  markdownToEditorState("# Title\n\nIntro.\n\n## Notes\n\nA note."),
+);
+
+const outline = (): DocumentRevision => ({
+  id: "doc_1",
+  elements: OUTLINE,
+  updatedAt: FIRST,
+});
+
+const AFTER_NOTES = { kind: "afterHeading" as const, text: "notes" };
+
+describe("insertMarkdownIntoDocument", () => {
+  test("puts the blocks directly below the matched heading", async () => {
+    const db = fakeStore(outline());
+
+    const result = await insertMarkdownIntoDocument(
+      db.store,
+      outline(),
+      "Added.",
+      AFTER_NOTES,
+      FIRST.toISOString(),
+    );
+
+    expect(result).toEqual({
+      id: "doc_1",
+      updatedAt: SECOND,
+      insertedBlocks: 1,
+      blockIndex: 3,
+    });
+    const children = storedState(db.stored()?.elements ?? "").root.children;
+    expect(children.map((child) => child.type)).toEqual([
+      "heading",
+      "paragraph",
+      "heading",
+      "paragraph",
+      "paragraph",
+    ]);
+    expect(JSON.stringify(children[3])).toBe(
+      JSON.stringify(markdownToEditorState("Added.").root.children[0]),
+    );
+  });
+
+  test("a block index counts top-level blocks, and its end appends", async () => {
+    const db = fakeStore(outline());
+
+    const result = await insertMarkdownIntoDocument(
+      db.store,
+      outline(),
+      "Added.",
+      { kind: "atBlockIndex", index: 4 },
+      FIRST.toISOString(),
+    );
+
+    expect(result.blockIndex).toBe(4);
+    const children = storedState(db.stored()?.elements ?? "").root.children;
+    expect(children).toHaveLength(5);
+  });
+
+  test("a stale precondition writes nothing", async () => {
+    const db = fakeStore(outline());
+
+    await expect(
+      insertMarkdownIntoDocument(
+        db.store,
+        outline(),
+        "Added.",
+        AFTER_NOTES,
+        "2026-01-01T00:00:00.000Z",
+      ),
+    ).rejects.toThrow(new StaleDocumentError(FIRST));
+    expect(db.stored()?.elements).toBe(OUTLINE);
+  });
+
+  test("losing the race with a precondition is a conflict, not a retry", async () => {
+    const db = fakeStore(outline(), (attempt) => {
+      if (attempt === 0) db.move(OUTLINE, SECOND);
+    });
+
+    await expect(
+      insertMarkdownIntoDocument(
+        db.store,
+        outline(),
+        "Added.",
+        AFTER_NOTES,
+        FIRST.toISOString(),
+      ),
+    ).rejects.toThrow(new StaleDocumentError(SECOND));
+  });
+
+  test("the retry resolves the placement against what the other writer left", async () => {
+    // The same document with a paragraph pushed in front, so the heading the
+    // insert was aiming at has moved one block down.
+    const moved = JSON.stringify(
+      markdownToEditorState(
+        "Preface.\n\n# Title\n\nIntro.\n\n## Notes\n\nA note.",
+      ),
+    );
+    const db = fakeStore(outline(), (attempt) => {
+      if (attempt === 0) db.move(moved, SECOND);
+    });
+
+    const result = await insertMarkdownIntoDocument(
+      db.store,
+      outline(),
+      "Added.",
+      AFTER_NOTES,
+    );
+
+    expect(result.blockIndex).toBe(4);
+    const children = storedState(db.stored()?.elements ?? "").root.children;
+    expect(children.map((child) => child.type)).toEqual([
+      "paragraph",
+      "heading",
+      "paragraph",
+      "heading",
+      "paragraph",
+      "paragraph",
+    ]);
+  });
+
+  test("a placement that matches nothing fails before any write", async () => {
+    const db = fakeStore(outline());
+
+    await expect(
+      insertMarkdownIntoDocument(
+        db.store,
+        outline(),
+        "Added.",
+        { kind: "afterHeading", text: "Missing" },
+        FIRST.toISOString(),
+      ),
+    ).rejects.toThrow(HeadingNotFoundError);
+    expect(db.stored()?.elements).toBe(OUTLINE);
   });
 });
