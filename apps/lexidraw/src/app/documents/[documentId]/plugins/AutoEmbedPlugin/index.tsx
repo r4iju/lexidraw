@@ -280,7 +280,6 @@ export function AutoEmbedDialog({
   );
   const savedList = api.entities.list.useQuery(
     {
-      parentId: null,
       sortBy,
       sortOrder,
       tagNames: selectedTags,

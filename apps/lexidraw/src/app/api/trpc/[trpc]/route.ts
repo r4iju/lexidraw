@@ -10,14 +10,18 @@ const handler = async (req: Request) =>
     router: appRouter,
     createContext: () =>
       createTRPCContext({ headers: new Headers(req.headers) }),
-    onError:
-      env.NODE_ENV === "development"
-        ? ({ path, error }) => {
-            console.error(
-              `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
-            );
-          }
-        : undefined,
+    // A 500 reaches the client with its message replaced, so the original
+    // only survives here.
+    onError: ({ path, error }) => {
+      if (
+        error.code === "INTERNAL_SERVER_ERROR" ||
+        env.NODE_ENV === "development"
+      ) {
+        console.error(
+          `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
+        );
+      }
+    },
   });
 
 export { handler as GET, handler as POST };

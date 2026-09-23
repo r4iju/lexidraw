@@ -50,12 +50,12 @@ export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
 
       // 1) Create React Query keys for both the old and new parent
       const oldParentKey = {
-        parentId: oldParentId ?? null,
+        parentId: oldParentId ?? undefined,
         sortBy,
         sortOrder,
       } as const;
       const newParentKey = {
-        parentId: newParentId ?? null,
+        parentId: newParentId ?? undefined,
         sortBy,
         sortOrder,
       } as const;

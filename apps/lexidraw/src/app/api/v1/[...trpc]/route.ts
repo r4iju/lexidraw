@@ -11,14 +11,18 @@ const handler = (req: Request) =>
     router: appRouter,
     createContext: () =>
       createRestContext({ headers: new Headers(req.headers) }),
-    onError:
-      env.NODE_ENV === "development"
-        ? ({ path, error }) => {
-            console.error(
-              `❌ REST failed on ${path ?? "<no-path>"}: ${error.message}`,
-            );
-          }
-        : undefined,
+    // A 500 reaches the client with its message replaced, so the original
+    // only survives here.
+    onError: ({ path, error }) => {
+      if (
+        error.code === "INTERNAL_SERVER_ERROR" ||
+        env.NODE_ENV === "development"
+      ) {
+        console.error(
+          `❌ REST failed on ${path ?? "<no-path>"}: ${error.message}`,
+        );
+      }
+    },
   });
 
 export {

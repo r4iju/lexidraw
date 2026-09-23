@@ -142,7 +142,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
                   screenShotDark: dark,
                 },
                 {
-                  onSuccess: resolve,
+                  onSuccess: () => resolve(),
                   onError: (e) => reject(e),
                 },
               );

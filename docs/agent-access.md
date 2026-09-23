@@ -42,13 +42,66 @@ loading tool schemas into the agent's context until they are needed.
 - Paths under `/api/v1/...`. GET inputs must be flat objects; mutations are
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
-- Live today: `entities.load` as `GET /api/v1/entities/{id}` and `auth.me` as
-  `GET /api/v1/me`, which answers with the user id, email, and token scope a
-  request resolves to.
-- v1 exposes: entities list/load/create/save/update/delete/search, tags,
-  share, directory listing, the markdown procedures, drawing normalize and
-  render. Admin, TTS, backups, snapshot, image generation, LLM procedures stay
-  tRPC-only.
+- Live: the entity subset below — list/load/create/save/update/delete/search,
+  tags, share, and directory listing. Planned: the markdown procedures (#29)
+  and drawing normalize and render (#33, #34). Admin, TTS, backups, snapshot,
+  image generation, and LLM procedures stay tRPC-only.
+
+#### Paths (live)
+
+| Method | Path                             | Procedure                    |
+| ------ | -------------------------------- | ---------------------------- |
+| GET    | `/me`                            | `auth.me`                    |
+| GET    | `/entities`                      | `entities.list`              |
+| POST   | `/entities`                      | `entities.create`            |
+| GET    | `/entities/search`               | `entities.search`            |
+| GET    | `/entities/{id}`                 | `entities.load`              |
+| PUT    | `/entities/{id}`                 | `entities.save`              |
+| PATCH  | `/entities/{id}`                 | `entities.update`            |
+| DELETE | `/entities/{id}`                 | `entities.delete`            |
+| GET    | `/entities/{id}/tags`            | `entities.getEntityTags`     |
+| PUT    | `/entities/{id}/tags`            | `entities.updateEntityTags`  |
+| GET    | `/entities/{id}/shares`          | `entities.getSharedInfo`     |
+| POST   | `/entities/{id}/shares`          | `entities.share`             |
+| PATCH  | `/entities/{id}/shares/{userId}` | `entities.changeAccessLevel` |
+| DELETE | `/entities/{id}/shares/{userId}` | `entities.unShare`           |
+| GET    | `/tags`                          | `entities.getUserTags`       |
+
+A directory listing is `GET /entities?parentId={directoryId}`; omitting
+`parentId` lists the root. `/entities/search` is registered before
+`/entities/{id}` because the adapter matches paths in registration order.
+Repeated query parameters (`tagNames`, `entityTypes`) may also be
+comma-separated, since a single repetition arrives as a bare string.
+
+#### Error codes
+
+Every error body is `{ message, code, issues? }`, and `code` is drawn from
+the vocabulary in `src/server/api/error-codes.ts`, which the OpenAPI document
+publishes as the `ErrorResponse` component:
+
+| Code                     | HTTP |
+| ------------------------ | ---- |
+| `BAD_REQUEST`            | 400  |
+| `PARSE_ERROR`            | 400  |
+| `UNAUTHORIZED`           | 401  |
+| `FORBIDDEN`              | 403  |
+| `NOT_FOUND`              | 404  |
+| `METHOD_NOT_SUPPORTED`   | 405  |
+| `CONFLICT`               | 409  |
+| `PAYLOAD_TOO_LARGE`      | 413  |
+| `UNSUPPORTED_MEDIA_TYPE` | 415  |
+| `UNPROCESSABLE_CONTENT`  | 422  |
+| `TOO_MANY_REQUESTS`      | 429  |
+| `INTERNAL_SERVER_ERROR`  | 500  |
+
+Clients branch on `code`, never on `message`. The last five arrive from the
+transport before a procedure runs. A 500's message is always the fixed
+"Internal server error": the original is logged server-side, never returned.
+
+Reaching an entity you may not touch answers `NOT_FOUND`, not `FORBIDDEN`, so
+existence itself stays private. `FORBIDDEN` is reserved for the case where the
+caller can already see the entity and only the operation is out of reach, such
+as an editor changing public access.
 
 ### CLI
 

@@ -55,7 +55,7 @@ export default function CreateUrlModal({
 
   const distillMutation = api.entities.distillUrl.useMutation({
     async onSuccess() {
-      await utils.entities.list.invalidate({ parentId: parentId ?? null });
+      await utils.entities.list.invalidate({ parentId: parentId ?? undefined });
       toast.success("Article distilled");
       onOpenChange(false);
     },

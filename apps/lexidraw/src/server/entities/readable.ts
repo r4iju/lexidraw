@@ -6,41 +6,45 @@ import {
   ne,
   or,
   schema,
+  type SQL,
 } from "@packages/drizzle";
 import { AccessLevel, PublicAccess } from "@packages/types";
 
 type Db = typeof drizzle;
 
+const entityColumns = {
+  id: schema.entities.id,
+  title: schema.entities.title,
+  appState: schema.entities.appState,
+  elements: schema.entities.elements,
+  entityType: schema.entities.entityType,
+  publicAccess: schema.entities.publicAccess,
+  parentId: schema.entities.parentId,
+  createdAt: schema.entities.createdAt,
+  updatedAt: schema.entities.updatedAt,
+  sharedWithId: schema.sharedEntities.userId,
+  sharedAccessLevel: schema.sharedEntities.accessLevel,
+  ownerId: schema.users.id,
+};
+
+export type ReachableEntity = Awaited<ReturnType<typeof findEntity>>;
+
 /**
- * The entity when `userId` may read it: they own it, it is shared with them,
- * or it is not private. `userId` is "" for anonymous callers.
+ * The live entity with `id` when `reach` admits `userId`, otherwise null. The
+ * share join is narrowed to `userId` first, so `sharedAccessLevel` describes
+ * this caller's share and nobody else's.
  */
-export async function findReadableEntity(db: Db, id: string, userId: string) {
+async function findEntity(
+  db: Db,
+  id: string,
+  userId: string,
+  reach: SQL | undefined,
+) {
   const rows = await db
-    .select({
-      id: schema.entities.id,
-      title: schema.entities.title,
-      appState: schema.entities.appState,
-      elements: schema.entities.elements,
-      entityType: schema.entities.entityType,
-      publicAccess: schema.entities.publicAccess,
-      parentId: schema.entities.parentId,
-      updatedAt: schema.entities.updatedAt,
-      sharedWithId: schema.sharedEntities.userId,
-      sharedAccessLevel: schema.sharedEntities.accessLevel,
-      ownerId: schema.users.id,
-    })
+    .select(entityColumns)
     .from(schema.entities)
     .where(
-      and(
-        eq(schema.entities.id, id),
-        isNull(schema.entities.deletedAt),
-        or(
-          eq(schema.entities.userId, userId),
-          eq(schema.sharedEntities.userId, userId),
-          ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
-        ),
-      ),
+      and(eq(schema.entities.id, id), isNull(schema.entities.deletedAt), reach),
     )
     .leftJoin(
       schema.sharedEntities,
@@ -55,48 +59,47 @@ export async function findReadableEntity(db: Db, id: string, userId: string) {
 }
 
 /**
+ * The entity when `userId` may read it: they own it, it is shared with them,
+ * or it is not private. `userId` is "" for anonymous callers.
+ */
+export async function findReadableEntity(db: Db, id: string, userId: string) {
+  return findEntity(
+    db,
+    id,
+    userId,
+    or(
+      eq(schema.entities.userId, userId),
+      eq(schema.sharedEntities.userId, userId),
+      ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
+    ),
+  );
+}
+
+/**
  * The entity when `userId` may write it: they own it, it is shared with them
  * for editing, or anyone may edit it. Read-only shares and `READ` public
  * access do not qualify, so a reader is told the entity does not exist rather
  * than that it exists and is out of reach.
  */
 export async function findWritableEntity(db: Db, id: string, userId: string) {
-  const rows = await db
-    .select({
-      id: schema.entities.id,
-      title: schema.entities.title,
-      appState: schema.entities.appState,
-      elements: schema.entities.elements,
-      entityType: schema.entities.entityType,
-      publicAccess: schema.entities.publicAccess,
-      parentId: schema.entities.parentId,
-      updatedAt: schema.entities.updatedAt,
-      sharedWithId: schema.sharedEntities.userId,
-      sharedAccessLevel: schema.sharedEntities.accessLevel,
-      ownerId: schema.users.id,
-    })
-    .from(schema.entities)
-    .where(
-      and(
-        eq(schema.entities.id, id),
-        isNull(schema.entities.deletedAt),
-        or(
-          eq(schema.entities.userId, userId),
-          eq(schema.sharedEntities.accessLevel, AccessLevel.EDIT),
-          eq(schema.entities.publicAccess, PublicAccess.EDIT),
-        ),
-      ),
-    )
-    .leftJoin(
-      schema.sharedEntities,
-      and(
-        eq(schema.sharedEntities.entityId, schema.entities.id),
-        eq(schema.sharedEntities.userId, userId),
-      ),
-    )
-    .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
-    .execute();
-  return rows[0] ?? null;
+  return findEntity(
+    db,
+    id,
+    userId,
+    or(
+      eq(schema.entities.userId, userId),
+      eq(schema.sharedEntities.accessLevel, AccessLevel.EDIT),
+      eq(schema.entities.publicAccess, PublicAccess.EDIT),
+    ),
+  );
+}
+
+/**
+ * The entity when `userId` owns it. Sharing and deleting are the owner's to
+ * decide, so an editor gets the same answer as a stranger.
+ */
+export async function findOwnedEntity(db: Db, id: string, userId: string) {
+  return findEntity(db, id, userId, eq(schema.entities.userId, userId));
 }
 
 // Directory nesting is user-made, so the walk is bounded rather than trusted.

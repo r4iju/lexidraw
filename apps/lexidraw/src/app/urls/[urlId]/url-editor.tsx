@@ -113,6 +113,8 @@ export default function UrlEditor({ entity }: Props) {
                     title,
                     elements: JSON.stringify({ url }),
                     entityType: "url",
+                    // A link carries no editor state.
+                    appState: null,
                   })
                 }
                 disabled={saveMutation.isPending || !isValidUrl}
