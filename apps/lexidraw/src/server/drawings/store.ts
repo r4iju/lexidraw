@@ -47,7 +47,7 @@ export async function replaceDrawingElements(
   ifUnmodifiedSince: string,
 ): Promise<{ id: string; updatedAt: Date; elementCount: number }> {
   if (new Date(ifUnmodifiedSince).getTime() !== revision.updatedAt.getTime()) {
-    throw new StaleDocumentError(revision.updatedAt);
+    throw new StaleDocumentError(revision.updatedAt, "Drawing");
   }
 
   const written = await store.write(
@@ -59,5 +59,5 @@ export async function replaceDrawingElements(
 
   const reread = await store.read(revision.id);
   if (!reread) throw new DocumentGoneError();
-  throw new StaleDocumentError(reread.updatedAt);
+  throw new StaleDocumentError(reread.updatedAt, "Drawing");
 }

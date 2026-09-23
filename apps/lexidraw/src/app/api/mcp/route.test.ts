@@ -5,6 +5,7 @@ import { PublicAccess } from "@packages/types";
 
 import { hashApiToken } from "~/server/auth/api-token-format";
 import { installServerRuntime } from "~/test/server-runtime";
+import { unportable } from "~/test/unportable";
 
 const db = await installServerRuntime();
 // After the runtime is installed, so the route's imports find the test
@@ -264,6 +265,19 @@ describe("the MCP endpoint", () => {
     }
   });
 
+  test("publishes tool schemas a strict JSON Schema client can read", async () => {
+    const { body } = await rpc(WRITE_TOKEN, "tools/list");
+    const tools = body.result.tools as { name: string; inputSchema: Json }[];
+    const problems: string[] = [];
+    for (const tool of tools) {
+      unportable(tool.inputSchema, `${tool.name}.inputSchema`, problems);
+    }
+    // A `false` where a schema belongs is what zod writes a tuple as, and an
+    // array-valued `type` is what it writes a nullable as. A strict client
+    // drops the first and misreads the second, so neither may be published.
+    expect(problems).toEqual([]);
+  });
+
   test("resolves the token to its owner", async () => {
     const { value } = await callTool(READ_TOKEN, "whoami", {});
     expect(value).toEqual({
@@ -409,6 +423,30 @@ describe("the MCP endpoint", () => {
       parentId: "dir_owned",
     });
     expect(listed.value.map((row: Json) => row.id)).toContain(created.value.id);
+  });
+
+  test("reads a null parentId as the root, as the router always has", async () => {
+    // The published schema says a plain optional string, which is what a
+    // strict client needs; an agent sending the null the REST path takes is
+    // not told its input is invalid over the spelling.
+    const withNull = await callTool(WRITE_TOKEN, "create_document", {
+      title: "At the root, explicitly",
+      parentId: null,
+    });
+    expect(withNull.isError).toBe(false);
+    expect(withNull.value.parentId).toBe(null);
+
+    const omitted = await callTool(WRITE_TOKEN, "create_document", {
+      title: "At the root, by omission",
+    });
+    expect(omitted.isError).toBe(false);
+    expect(omitted.value.parentId).toBe(null);
+
+    const drawn = await callTool(WRITE_TOKEN, "create_drawing", {
+      title: "Drawn at the root",
+      parentId: null,
+    });
+    expect(drawn.isError).toBe(false);
   });
 
   test("refuses to file a document under something that is not a directory", async () => {

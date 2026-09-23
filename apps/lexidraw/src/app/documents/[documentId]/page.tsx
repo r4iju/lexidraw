@@ -1,8 +1,10 @@
 "use cache: private";
 
 import type { Metadata } from "next";
+import { cacheTag } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
+import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
 import DocumentEditor from "./document-editor-client";
 import { EMPTY_CONTENT } from "./initial-content";
@@ -43,6 +45,11 @@ export default async function DocumentPage(props: Props) {
   ) {
     return notFound();
   }
+
+  // What this render is about, so a write to it anywhere — the browser, the
+  // REST path, MCP, the CLI — drops this entry instead of leaving a stale
+  // document on screen until it expires.
+  cacheTag(entityTag(documentId));
 
   if (isNew === "true") {
     await api.entities.create.mutate({

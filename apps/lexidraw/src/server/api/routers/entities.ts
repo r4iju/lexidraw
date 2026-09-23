@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  revalidateEntities,
+  revalidateEntitiesAndParents,
+} from "../entity-cache";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateEntity, SaveEntity } from "./entities-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
@@ -216,7 +220,14 @@ export const entityRouter = createTRPCRouter({
           createdAt: schema.entities.createdAt,
           updatedAt: schema.entities.updatedAt,
         });
-      if (created) return created;
+      if (created) {
+        await revalidateEntitiesAndParents(
+          ctx.drizzle,
+          created.id,
+          created.parentId,
+        );
+        return created;
+      }
 
       // The id is taken. `/…?new=true` re-runs this on a refresh, so the
       // owner gets their own entity back; anyone else learns only that the id
@@ -400,6 +411,14 @@ export const entityRouter = createTRPCRouter({
         // swallow: saving the document should not fail due to queueing issues
       }
 
+      // Both directories, because `parentId` may have moved the entity out of
+      // the one it was listed in, and the listings above them with it.
+      await revalidateEntitiesAndParents(
+        ctx.drizzle,
+        input.id,
+        entity.parentId,
+        input.parentId,
+      );
       // The new mark for a compare-and-set caller; see nextUpdatedAt.
       return { id: input.id, updatedAt: entityUpdatedAt };
     }),
@@ -469,12 +488,7 @@ export const entityRouter = createTRPCRouter({
       const userId = ctx.session?.user?.id ?? "";
 
       const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
-      if (!entity) {
-        throw new TRPCError({
-          message: "Drawing not found",
-          code: "NOT_FOUND",
-        });
-      }
+      if (!entity) throw notFound();
 
       const sharedEntities = await ctx.drizzle
         .select()
@@ -770,6 +784,10 @@ export const entityRouter = createTRPCRouter({
           },
         })
         .execute();
+
+      // Favourite and archive are both rendered in the listing this entity
+      // appears in, so the directory above it goes with it.
+      await revalidateEntitiesAndParents(ctx.drizzle, input.entityId);
     }),
   getCookies: protectedProcedure.query(async ({ ctx }) => {
     const result = await ctx.drizzle
@@ -887,6 +905,7 @@ export const entityRouter = createTRPCRouter({
           .delete(schema.entityTags)
           .where(ownAssociations)
           .execute();
+        revalidateEntities(input.id, entity.parentId);
         return { id: input.id, tags: [] };
       }
 
@@ -969,6 +988,8 @@ export const entityRouter = createTRPCRouter({
         }
       });
 
+      // The parent too: a directory listing shows each child's tags.
+      revalidateEntities(input.id, entity.parentId);
       return {
         id: input.id,
         tags: await ownTagNames(ctx.drizzle, input.id, userId),
@@ -1053,6 +1074,11 @@ export const entityRouter = createTRPCRouter({
         .where(eq(schema.entities.id, input.id))
         .execute();
 
+      await revalidateEntitiesAndParents(
+        ctx.drizzle,
+        input.id,
+        entity.parentId,
+      );
       return { id: input.id };
     }),
   update: publicProcedure
@@ -1112,6 +1138,16 @@ export const entityRouter = createTRPCRouter({
         .where(eq(schema.entities.id, input.id))
         .execute();
 
+      // Every directory this entity was or is listed in; `prevParentId` is
+      // what a drag out of a directory carries. A move changes both
+      // directories' child counts, so the listings above them go too.
+      await revalidateEntitiesAndParents(
+        ctx.drizzle,
+        input.id,
+        entity.parentId,
+        input.parentId,
+        input.prevParentId,
+      );
       return { id: input.id };
     }),
   /** Generate thumbnails via headless worker (WEBP light/dark). */
@@ -1228,6 +1264,8 @@ export const entityRouter = createTRPCRouter({
         .where(eq(schema.entities.id, input.id))
         .execute();
 
+      // A thumbnail is what the listing shows of an entity.
+      await revalidateEntitiesAndParents(ctx.drizzle, input.id);
       return { light: lightBlob.url, dark: darkBlob.url };
     }),
   share: protectedProcedure
@@ -1290,7 +1328,9 @@ export const entityRouter = createTRPCRouter({
         })
         .execute();
 
-      return { success: true, message: "Drawing shared successfully" };
+      // The listing renders how many people an entity is shared with.
+      revalidateEntities(input.id, entity.parentId);
+      return { success: true, message: "Entity shared successfully" };
     }),
   changeAccessLevel: protectedProcedure
     .meta({
@@ -1330,6 +1370,7 @@ export const entityRouter = createTRPCRouter({
           ),
         )
         .execute();
+      revalidateEntities(input.id, entity.parentId);
       return { success: true, message: "Access level changed successfully" };
     }),
   unShare: protectedProcedure
@@ -1361,7 +1402,8 @@ export const entityRouter = createTRPCRouter({
           ),
         )
         .execute();
-      return { success: true, message: "Drawing unshared successfully" };
+      revalidateEntities(input.id, entity.parentId);
+      return { success: true, message: "Entity unshared successfully" };
     }),
   generateUploadUrl: protectedProcedure
     .input(
@@ -1618,7 +1660,7 @@ export const entityRouter = createTRPCRouter({
         console.error("entity not found");
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Drawing not found",
+          message: "Entity not found",
         });
       }
 
@@ -1891,6 +1933,7 @@ export const entityRouter = createTRPCRouter({
         .where(eq(schema.entities.id, input.id))
         .execute();
 
+      await revalidateEntitiesAndParents(ctx.drizzle, input.id);
       return distilled;
     }),
   regenerateThumbnail: protectedProcedure
@@ -1932,6 +1975,9 @@ export const entityRouter = createTRPCRouter({
         .set({ thumbnailStatus: "pending", thumbnailVersion: version })
         .where(eq(ctx.schema.entities.id, input.id))
         .execute();
+
+      // The listing renders the thumbnail and whether one is on its way.
+      await revalidateEntitiesAndParents(ctx.drizzle, input.id);
 
       await ctx.drizzle
         .insert(ctx.schema.thumbnailJobs)

@@ -82,7 +82,7 @@ beforeAll(async () => {
         ? Response.json(
             {
               message:
-                "Document was modified at 2026-09-23T10:00:05.000Z; re-read it and retry with the new updatedAt",
+                "Drawing was modified at 2026-09-23T10:00:05.000Z; re-read it and retry with the new updatedAt",
               code: "CONFLICT",
             },
             { status: 409 },
@@ -119,6 +119,7 @@ beforeAll(async () => {
       return Response.json({
         id: "new-1",
         updatedAt: "2026-09-23T10:00:00.000Z",
+        elementCount: 3,
       });
     }
     if (url.pathname === "/api/v1/html") {
@@ -562,7 +563,10 @@ describe("drawing", () => {
       path: "/api/v1/drawings",
     });
     expect(body()).toEqual({ title: "Flow", parentId: "dir-1" });
-    expect(JSON.parse(io.stdout()).id).toBe("new-1");
+    const created = JSON.parse(io.stdout());
+    expect(created.id).toBe("new-1");
+    // What the converter stored, which a shorthand payload does not predict.
+    expect(created.elementCount).toBe(3);
   });
 
   it("create without --title is a usage error", async () => {

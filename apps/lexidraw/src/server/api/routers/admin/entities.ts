@@ -7,6 +7,7 @@ import { v4 as uuidV4 } from "uuid";
 import { start } from "workflow/api";
 import { generateBatchThumbnailWorkflow } from "~/workflows/thumbnail/generate-batch-thumbnail-workflow";
 import { computeThumbnailVersion } from "~/lib/thumbnail-version";
+import { revalidateEntitiesAndParents } from "~/server/api/entity-cache";
 
 export const adminEntitiesRouter = createTRPCRouter({
   members: adminProcedure
@@ -116,6 +117,7 @@ export const adminEntitiesRouter = createTRPCRouter({
         targetId: input.entityId,
         createdAt: new Date(),
       });
+      await revalidateEntitiesAndParents(ctx.drizzle, input.entityId);
       return { ok: true } as const;
     }),
 
@@ -138,6 +140,7 @@ export const adminEntitiesRouter = createTRPCRouter({
         data: JSON.stringify({ newOwnerId: input.newOwnerId }),
         createdAt: new Date(),
       });
+      await revalidateEntitiesAndParents(ctx.drizzle, input.entityId);
       return { ok: true } as const;
     }),
 

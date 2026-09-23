@@ -10,6 +10,10 @@ import {
   type GenerateClientTokenOptions,
 } from "@vercel/blob/client";
 import env from "@packages/env";
+import {
+  revalidateEntities,
+  revalidateEntitiesAndParents,
+} from "~/server/api/entity-cache";
 
 const THEME = {
   DARK: "dark",
@@ -104,6 +108,9 @@ export const snapshotRouter = createTRPCRouter({
         })
         .where(eq(schema.entities.id, input.entityId))
         .execute();
+
+      // A thumbnail is what the listing shows of an entity.
+      revalidateEntities(input.entityId, entity.parentId);
     }),
 
   /* -------------------------- UPDATE -------------------------------- */
@@ -144,6 +151,9 @@ export const snapshotRouter = createTRPCRouter({
         })
         .where(eq(schema.entities.id, input.entityId))
         .execute();
+
+      // A thumbnail is what the listing shows of an entity.
+      revalidateEntities(input.entityId, entity.parentId);
 
       return { url };
     }),
@@ -332,5 +342,8 @@ export const snapshotRouter = createTRPCRouter({
         .set({ [column]: input.url })
         .where(eq(schema.entities.id, input.entityId))
         .execute();
+
+      // The parent comes from the row, because this step carries only the id.
+      await revalidateEntitiesAndParents(ctx.drizzle, input.entityId);
     }),
 });

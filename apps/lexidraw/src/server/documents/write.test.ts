@@ -134,7 +134,7 @@ describe("appendMarkdownToDocument", () => {
         "Added.",
         "2026-01-01T00:00:00.000Z",
       ),
-    ).rejects.toThrow(new StaleDocumentError(FIRST));
+    ).rejects.toThrow(new StaleDocumentError(FIRST, "Document"));
     expect(db.stored()?.elements).toBe(DOCUMENT);
 
     const result = await appendMarkdownToDocument(
@@ -178,7 +178,7 @@ describe("appendMarkdownToDocument", () => {
 
     await expect(
       appendMarkdownToDocument(db.store, revision(), "Added."),
-    ).rejects.toThrow(new StaleDocumentError(fourth));
+    ).rejects.toThrow(new StaleDocumentError(fourth, "Document"));
   });
 
   test("a precondition is not retried against a revision the caller has not seen", async () => {
@@ -193,7 +193,7 @@ describe("appendMarkdownToDocument", () => {
         "Added.",
         FIRST.toISOString(),
       ),
-    ).rejects.toThrow(new StaleDocumentError(SECOND));
+    ).rejects.toThrow(new StaleDocumentError(SECOND, "Document"));
   });
 
   test("a document deleted under the append is gone, not stale", async () => {
@@ -289,7 +289,7 @@ describe("insertMarkdownIntoDocument", () => {
         AFTER_NOTES,
         "2026-01-01T00:00:00.000Z",
       ),
-    ).rejects.toThrow(new StaleDocumentError(FIRST));
+    ).rejects.toThrow(new StaleDocumentError(FIRST, "Document"));
     expect(db.stored()?.elements).toBe(OUTLINE);
   });
 
@@ -306,7 +306,7 @@ describe("insertMarkdownIntoDocument", () => {
         AFTER_NOTES,
         FIRST.toISOString(),
       ),
-    ).rejects.toThrow(new StaleDocumentError(SECOND));
+    ).rejects.toThrow(new StaleDocumentError(SECOND, "Document"));
   });
 
   test("without a precondition the retry re-resolves the placement", async () => {
@@ -428,7 +428,7 @@ describe("replaceMarkdownInDocument", () => {
         "# New",
         "2026-01-01T00:00:00.000Z",
       ),
-    ).rejects.toThrow(new StaleDocumentError(FIRST));
+    ).rejects.toThrow(new StaleDocumentError(FIRST, "Document"));
     expect(db.stored()?.elements).toBe(filmed().elements);
   });
 
@@ -446,7 +446,7 @@ describe("replaceMarkdownInDocument", () => {
         "# New",
         FIRST.toISOString(),
       ),
-    ).rejects.toThrow(new StaleDocumentError(SECOND));
+    ).rejects.toThrow(new StaleDocumentError(SECOND, "Document"));
     expect(writes).toBe(1);
   });
 
@@ -477,7 +477,7 @@ describe("replaceMarkdownInDocument", () => {
         "# New",
         "2020-01-01T00:00:00.000Z",
       ),
-    ).rejects.toThrow(new StaleDocumentError(FIRST));
+    ).rejects.toThrow(new StaleDocumentError(FIRST, "Document"));
   });
 
   test("a document deleted under the replace is gone, not stale", async () => {

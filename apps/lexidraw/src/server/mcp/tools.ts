@@ -52,6 +52,20 @@ const ifUnmodifiedSince = z.iso
     "The updatedAt of your last read of this document, as an ISO string. A stale value writes nothing and fails with CONFLICT carrying data.currentUpdatedAt.",
   );
 
+/**
+ * The directory a create files its entity in. Published as a plain optional
+ * string: the router takes null for the root, but zod publishes a nullable
+ * string as `type: ["string", "null"]` and several MCP clients read that as a
+ * plain string. Omitting it says the same thing, portably.
+ *
+ * Null is still accepted and read as omitted — it is what the router, the REST
+ * path, and this tool's own earlier schema all take for "the root", and an
+ * agent that sends it should not be told its input is invalid over a spelling.
+ */
+const parentId = z
+  .preprocess((value) => value ?? undefined, z.string().optional())
+  .describe("The directory to create it in; omitted or null means the root.");
+
 const entityTypes = z
   .array(z.enum(["document", "drawing", "directory", "url"]))
   .describe("Restrict the listing to these entity types.");
@@ -224,10 +238,7 @@ export function registerLexidrawTools(
         "A new, empty document owned by the caller. Answers with its id and updatedAt; write the body with append_markdown or replace_markdown against that updatedAt.",
       inputSchema: z.object({
         title: z.string().min(1).describe("The document's title."),
-        parentId: z
-          .string()
-          .nullish()
-          .describe("The directory to create it in; omitted means the root."),
+        parentId,
       }),
     },
     (input) =>
@@ -377,10 +388,7 @@ export function registerLexidrawTools(
       inputSchema: z.object({
         title: z.string().min(1).describe("The drawing's title."),
         elements: DrawingElements.optional(),
-        parentId: z
-          .string()
-          .nullish()
-          .describe("The directory to create it in; omitted means the root."),
+        parentId,
       }),
       _meta: DRAWING_PREVIEW_TOOL_META,
     },

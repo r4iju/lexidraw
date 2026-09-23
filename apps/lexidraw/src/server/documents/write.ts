@@ -83,7 +83,7 @@ export async function insertMarkdownIntoDocument(
     ifUnmodifiedSince !== undefined &&
     new Date(ifUnmodifiedSince).getTime() !== current.updatedAt.getTime()
   ) {
-    throw new StaleDocumentError(current.updatedAt);
+    throw new StaleDocumentError(current.updatedAt, "Document");
   }
 
   for (let attempt = 0; ; attempt++) {
@@ -104,7 +104,7 @@ export async function insertMarkdownIntoDocument(
       throw new DocumentGoneError();
     }
     if (attempt > 0 || ifUnmodifiedSince !== undefined) {
-      throw new StaleDocumentError(reread.updatedAt);
+      throw new StaleDocumentError(reread.updatedAt, "Document");
     }
     current = reread;
     state = parseEditorState(current.elements);
@@ -130,7 +130,7 @@ export async function replaceMarkdownInDocument(
   // revision of a document that is now unreadable still hears about the race
   // rather than about the content, exactly as an insert would.
   if (new Date(ifUnmodifiedSince).getTime() !== revision.updatedAt.getTime()) {
-    throw new StaleDocumentError(revision.updatedAt);
+    throw new StaleDocumentError(revision.updatedAt, "Document");
   }
   const stored = parseEditorState(revision.elements);
   const { state, restoredPlaceholders, removedPlaceholders } =
@@ -153,7 +153,7 @@ export async function replaceMarkdownInDocument(
   if (!reread) {
     throw new DocumentGoneError();
   }
-  throw new StaleDocumentError(reread.updatedAt);
+  throw new StaleDocumentError(reread.updatedAt, "Document");
 }
 
 /** {@link insertMarkdownIntoDocument} at the end of the document. */

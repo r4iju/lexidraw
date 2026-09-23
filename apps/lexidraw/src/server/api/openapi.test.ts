@@ -6,6 +6,7 @@ import {
   type OpenAPIObject,
 } from "trpc-to-openapi";
 
+import { unportable } from "~/test/unportable";
 import { API_ERROR_CODES, API_ERROR_STATUS } from "./error-codes";
 
 const testDir = join(import.meta.dir, "..", "..", "test");
@@ -42,6 +43,13 @@ beforeAll(() => {
 describe("openApiDocument", () => {
   it("is an OpenAPI 3 document", () => {
     expect(document.openapi).toStartWith("3.");
+  });
+
+  it("publishes only schema spellings every generator reads", () => {
+    const problems: string[] = [];
+    unportable(document.paths, "paths", problems);
+    unportable(document.components, "components", problems);
+    expect(problems).toEqual([]);
   });
 
   it("exposes entity load as GET /entities/{id}", () => {
@@ -151,9 +159,14 @@ describe("openApiDocument", () => {
       properties: {
         data: {
           properties: {
-            currentUpdatedAt: { type: ["string", "null"], format: "date-time" },
+            // Published as `anyOf` rather than `type: [...]`; see
+            // portable-schema.ts.
+            currentUpdatedAt: {
+              anyOf: [{ type: "string" }, { type: "null" }],
+              format: "date-time",
+            },
             candidates: {
-              type: ["array", "null"],
+              anyOf: [{ type: "array" }, { type: "null" }],
               items: { required: ["nth", "blockIndex", "tag", "text"] },
             },
           },

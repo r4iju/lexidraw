@@ -1,8 +1,10 @@
 "use cache: private";
 
 import type { Metadata } from "next";
+import { cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
 
 export const metadata: Metadata = {
@@ -32,6 +34,10 @@ export default async function UrlPage(props: Props) {
   const [param, search] = await Promise.all([props.params, props.searchParams]);
   const { urlId } = Params.parse(param);
   const { new: isNew, parentId } = search ?? {};
+
+  // What this render is about, so a write to it over any transport drops this
+  // entry rather than leaving a stale link on screen until it expires.
+  cacheTag(entityTag(urlId));
 
   if (isNew === "true") {
     await api.entities.create.mutate({

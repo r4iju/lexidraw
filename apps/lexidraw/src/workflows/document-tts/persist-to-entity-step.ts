@@ -1,5 +1,6 @@
 import type { TtsResult } from "~/server/tts/types";
 import { drizzle, schema, eq, and } from "@packages/drizzle";
+import { revalidateEntitiesOutsideRequest } from "~/server/api/entity-cache";
 
 export async function persistToEntityStep(
   documentId: string,
@@ -29,4 +30,8 @@ export async function persistToEntityStep(
     .set({ elements: JSON.stringify(next), updatedAt: new Date() })
     .where(eq(schema.entities.id, documentId))
     .execute();
+
+  // The stored audio is part of what the document page renders. This step
+  // runs on its own, with no request to carry the revalidation.
+  revalidateEntitiesOutsideRequest(documentId);
 }

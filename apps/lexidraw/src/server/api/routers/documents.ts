@@ -1,3 +1,7 @@
+import {
+  revalidateEntities,
+  revalidateEntitiesAndParents,
+} from "../entity-cache";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { AfterHeading, CreateDocument, MarkdownBody } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
@@ -146,7 +150,7 @@ export const documentRouter = createTRPCRouter({
   create: protectedProcedure
     .input(CreateDocument)
     .mutation(async ({ input, ctx }) => {
-      return await ctx.drizzle
+      const created = await ctx.drizzle
         .insert(schema.entities)
         .values({
           id: input.id,
@@ -161,6 +165,11 @@ export const documentRouter = createTRPCRouter({
         })
         .onConflictDoNothing()
         .returning();
+      await revalidateEntitiesAndParents(
+        ctx.drizzle,
+        ...created.map((row) => row.id),
+      );
+      return created;
     }),
   get: protectedProcedure
     .input(z.object({ id: z.string() }))
@@ -279,12 +288,15 @@ export const documentRouter = createTRPCRouter({
         });
       }
       try {
-        return await appendMarkdownToDocument(
+        const written = await appendMarkdownToDocument(
           drizzleDocumentStore(ctx.drizzle),
           entity,
           input.markdown,
           input.ifUnmodifiedSince,
         );
+        // The parent too: a directory listing shows each child's updatedAt.
+        revalidateEntities(input.id, entity.parentId);
+        return written;
       } catch (error) {
         throwAsDocumentWriteError(error);
       }
@@ -388,13 +400,16 @@ export const documentRouter = createTRPCRouter({
         });
       }
       try {
-        return await insertMarkdownIntoDocument(
+        const written = await insertMarkdownIntoDocument(
           drizzleDocumentStore(ctx.drizzle),
           entity,
           input.markdown,
           input.placement,
           input.ifUnmodifiedSince,
         );
+        // The parent too: a directory listing shows each child's updatedAt.
+        revalidateEntities(input.id, entity.parentId);
+        return written;
       } catch (error) {
         throwAsDocumentWriteError(error);
       }
@@ -460,12 +475,15 @@ export const documentRouter = createTRPCRouter({
         });
       }
       try {
-        return await replaceMarkdownInDocument(
+        const written = await replaceMarkdownInDocument(
           drizzleDocumentStore(ctx.drizzle),
           entity,
           input.markdown,
           input.ifUnmodifiedSince,
         );
+        // The parent too: a directory listing shows each child's updatedAt.
+        revalidateEntities(input.id, entity.parentId);
+        return written;
       } catch (error) {
         throwAsDocumentWriteError(error);
       }
@@ -484,7 +502,7 @@ export const documentRouter = createTRPCRouter({
           message: "Document not found",
         });
       }
-      return await ctx.drizzle
+      const saved = await ctx.drizzle
         .update(schema.entities)
         .set({
           // Strictly increasing, so a compare-and-set caller can tell this
@@ -494,6 +512,8 @@ export const documentRouter = createTRPCRouter({
         })
         .where(eq(schema.entities.id, input.id))
         .returning();
+      revalidateEntities(input.id, entity.parentId);
+      return saved;
     }),
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
@@ -511,12 +531,18 @@ export const documentRouter = createTRPCRouter({
           message: "Document not found",
         });
       }
-      return await ctx.drizzle
+      const deleted = await ctx.drizzle
         .update(schema.entities)
         .set({
           deletedAt: new Date(),
         })
         .where(eq(schema.entities.id, input.id));
+      await revalidateEntitiesAndParents(
+        ctx.drizzle,
+        input.id,
+        entity.parentId,
+      );
+      return deleted;
     }),
   exportPdf: protectedProcedure
     .input(
