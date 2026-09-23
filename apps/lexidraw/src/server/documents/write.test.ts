@@ -7,6 +7,7 @@ import {
   type DocumentRevision,
   type DocumentStore,
   insertMarkdownIntoDocument,
+  replaceMarkdownInDocument,
 } from "./write";
 import { StaleDocumentError } from "./conflict";
 import {
@@ -14,6 +15,7 @@ import {
   InvalidDocumentContentError,
   markdownToEditorState,
   parseEditorState,
+  UnsupportedNodeTypesError,
 } from "./markdown";
 
 const HOLOGRAM = { type: "hologram", version: 1, summary: "a slide" };
@@ -354,5 +356,140 @@ describe("insertMarkdownIntoDocument", () => {
       ),
     ).rejects.toThrow(HeadingNotFoundError);
     expect(db.stored()?.elements).toBe(OUTLINE);
+  });
+});
+
+// A node with no markdown form, so the only way it survives a replace is the
+// placeholder the read wrote for it.
+const VIDEO = {
+  type: "video",
+  version: 1,
+  src: "https://example.com/clip.mp4",
+};
+const KEEP_VIDEO = "<!-- lexidraw:video#1 a summary -->";
+
+const filmed = (): DocumentRevision => ({
+  id: "doc_1",
+  elements: JSON.stringify({
+    root: { ...storedState(DOCUMENT).root, children: [VIDEO] },
+  }),
+  updatedAt: FIRST,
+});
+
+describe("replaceMarkdownInDocument", () => {
+  test("rewrites the document and reports what the placeholders did", async () => {
+    const db = fakeStore(filmed());
+
+    const result = await replaceMarkdownInDocument(
+      db.store,
+      filmed(),
+      `# New\n\n${KEEP_VIDEO}`,
+      FIRST.toISOString(),
+    );
+
+    expect(result).toEqual({
+      id: "doc_1",
+      updatedAt: SECOND,
+      blocks: 2,
+      restoredPlaceholders: 1,
+      removedPlaceholders: 0,
+    });
+    const children = storedState(db.stored()?.elements ?? "").root.children;
+    expect(children.map((child) => child.type)).toEqual(["heading", "video"]);
+    expect(children[1]).toEqual(VIDEO);
+  });
+
+  test("a placeholder the markdown drops deletes its node", async () => {
+    const db = fakeStore(filmed());
+
+    const result = await replaceMarkdownInDocument(
+      db.store,
+      filmed(),
+      "# New",
+      FIRST.toISOString(),
+    );
+
+    expect(result.blocks).toBe(1);
+    expect(result.removedPlaceholders).toBe(1);
+    expect(
+      storedState(db.stored()?.elements ?? "").root.children.map(
+        (child) => child.type,
+      ),
+    ).toEqual(["heading"]);
+  });
+
+  test("a stale precondition writes nothing", async () => {
+    const db = fakeStore(filmed());
+
+    await expect(
+      replaceMarkdownInDocument(
+        db.store,
+        filmed(),
+        "# New",
+        "2026-01-01T00:00:00.000Z",
+      ),
+    ).rejects.toThrow(new StaleDocumentError(FIRST));
+    expect(db.stored()?.elements).toBe(filmed().elements);
+  });
+
+  test("losing the race is a conflict, never a retry", async () => {
+    let writes = 0;
+    const db = fakeStore(filmed(), (attempt) => {
+      writes = attempt + 1;
+      if (attempt === 0) db.move(filmed().elements, SECOND);
+    });
+
+    await expect(
+      replaceMarkdownInDocument(
+        db.store,
+        filmed(),
+        "# New",
+        FIRST.toISOString(),
+      ),
+    ).rejects.toThrow(new StaleDocumentError(SECOND));
+    expect(writes).toBe(1);
+  });
+
+  test("a stored node type the editor cannot build blocks the write", async () => {
+    // DOCUMENT holds a hologram, which has neither a markdown form nor a
+    // placeholder, so a replace could only drop it unannounced.
+    const db = fakeStore(revision());
+
+    await expect(
+      replaceMarkdownInDocument(
+        db.store,
+        revision(),
+        "# New",
+        FIRST.toISOString(),
+      ),
+    ).rejects.toThrow(UnsupportedNodeTypesError);
+    expect(db.stored()?.elements).toBe(DOCUMENT);
+  });
+
+  test("a stale precondition is answered before the content is read", async () => {
+    const broken = { ...revision(), elements: "nope" };
+    const db = fakeStore(broken);
+
+    await expect(
+      replaceMarkdownInDocument(
+        db.store,
+        broken,
+        "# New",
+        "2020-01-01T00:00:00.000Z",
+      ),
+    ).rejects.toThrow(new StaleDocumentError(FIRST));
+  });
+
+  test("a document deleted under the replace is gone, not stale", async () => {
+    const db = fakeStore(filmed(), () => db.remove());
+
+    await expect(
+      replaceMarkdownInDocument(
+        db.store,
+        filmed(),
+        "# New",
+        FIRST.toISOString(),
+      ),
+    ).rejects.toThrow(DocumentGoneError);
   });
 });

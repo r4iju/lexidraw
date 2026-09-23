@@ -86,6 +86,13 @@ export const TWEET: ElementTransformer = {
   type: "element",
 };
 
+/**
+ * An article carries a placeholder line ahead of the prose it renders as.
+ * The prose is derived from the distilled HTML and cannot be parsed back, so
+ * without the placeholder a round trip would flatten the node into plain
+ * blocks; with it, a replace puts the node back and drops the prose it
+ * derived. See PLACEHOLDER_BLOCK for how the line survives an import.
+ */
 export const ARTICLE: ElementTransformer = {
   dependencies: [ArticleNode],
   export: (node: LexicalNode) => {
@@ -95,7 +102,7 @@ export const ARTICLE: ElementTransformer = {
       const title = data.distilled.title || "Article";
       const body = htmlToPlainText(data.distilled.contentHtml || "");
       const source = data.url ? `\n\n[Source](${data.url})` : "";
-      return `### ${title}${source}\n\n${body}`;
+      return `${$placeholderLine(node, title)}\n\n### ${title}${source}\n\n${body}`;
     }
     // entity mode
     const snap = data.snapshot;
@@ -103,9 +110,9 @@ export const ARTICLE: ElementTransformer = {
       const title = snap.title || "Article";
       const body = htmlToPlainText(snap.contentHtml || "");
       const source = data.entityId ? `\n\n[Saved](/urls/${data.entityId})` : "";
-      return `### ${title}${source}\n\n${body}`;
+      return `${$placeholderLine(node, title)}\n\n### ${title}${source}\n\n${body}`;
     }
-    return `Article: ${data.entityId}`;
+    return `${$placeholderLine(node, data.entityId ?? "")}\n\nArticle: ${data.entityId}`;
   },
   // Minimal, no-op import behavior (we don't import articles from markdown)
   regExp: /^<article\s+.*?>$/,
@@ -217,7 +224,17 @@ const PLACEHOLDER_NODES = [
   ThreadNode,
 ];
 
-const PLACEHOLDER_PATTERN = /<!-- lexidraw:([a-z-]+)#(\d+)(?: (.*?))? -->/;
+/**
+ * The node types a placeholder can stand for, so a writer resolving one
+ * against a stored document counts the same nodes the export numbered.
+ */
+export const PLACEHOLDER_NODE_TYPES: readonly string[] = [
+  ...PLACEHOLDER_NODES.map((node) => node.getType()),
+  ArticleNode.getType(),
+];
+
+export const PLACEHOLDER_PATTERN =
+  /<!-- lexidraw:([a-z-]+)#(\d+)(?: (.*?))? -->/;
 
 function $ordinalOf(node: LexicalNode): number {
   const type = node.getType();
@@ -230,17 +247,30 @@ function $ordinalOf(node: LexicalNode): number {
   return ordinal;
 }
 
-function $exportPlaceholder(node: LexicalNode): string | null {
-  const entry = PLACEHOLDER_SUMMARIES.find(([matches]) => matches(node));
-  if (!entry) return null;
+/**
+ * A summary is a hint for a reader, so nothing in it may act as markdown: a
+ * character an inline transformer triggers on would let the placeholder's own
+ * text be re-parsed into a node on the way back in, taking the comment with
+ * it. Dropping the characters is enough because the summary is never parsed.
+ */
+const MARKDOWN_ACTIVE = /[[\]()!*_`~$<>|]/g;
+
+function $placeholderLine(node: LexicalNode, summary: string): string {
   // HTML comments cannot contain "--", so collapsing runs of dashes also
   // keeps the summary from closing the comment early.
-  const summary = entry[1](node)
+  const cleaned = summary
+    .replace(MARKDOWN_ACTIVE, " ")
     .replace(/-{2,}/g, "-")
     .replace(/\s+/g, " ")
     .trim();
-  const suffix = summary ? ` ${summary}` : "";
+  const suffix = cleaned ? ` ${cleaned}` : "";
   return `<!-- lexidraw:${node.getType()}#${$ordinalOf(node)}${suffix} -->`;
+}
+
+function $exportPlaceholder(node: LexicalNode): string | null {
+  const entry = PLACEHOLDER_SUMMARIES.find(([matches]) => matches(node));
+  if (!entry) return null;
+  return $placeholderLine(node, entry[1](node));
 }
 
 /**

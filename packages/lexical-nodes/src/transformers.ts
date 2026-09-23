@@ -130,7 +130,10 @@ export function createTableTransformer(
   transformers: TransformerSource,
 ): ElementTransformer {
   const $createTableCell = (textContent: string): TableCellNode => {
-    textContent = textContent.replace(/\\n/g, "\n");
+    // The export pads every cell with a space on either side. Keeping that
+    // padding as content would widen the cell by one space on each round
+    // trip, so it is stripped before the escaped newlines are restored.
+    textContent = textContent.trim().replace(/\\n/g, "\n");
     const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS);
     $convertFromMarkdownString(textContent, transformers(), cell);
     return cell;

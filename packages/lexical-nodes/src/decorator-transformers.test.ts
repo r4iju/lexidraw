@@ -117,7 +117,7 @@ describe("decorator node markdown", () => {
 
     expect(toMarkdown(editor)).toBe(
       [
-        "before <!-- lexidraw:inline-image#1 ![logo](https://example.com/logo.png) --> after <!-- lexidraw:chart#1 pie -->",
+        "before <!-- lexidraw:inline-image#1 logo https://example.com/logo.png --> after <!-- lexidraw:chart#1 pie -->",
         "<!-- lexidraw:video#1 https://example.com/clip.mp4 -->",
         "<!-- lexidraw:youtube#1 https://www.youtube.com/watch?v=dQw4w9WgXcQ -->",
         "<!-- lexidraw:figma#1 https://www.figma.com/file/abc -->",
@@ -222,7 +222,7 @@ describe("decorator node markdown", () => {
     );
   });
 
-  test("an article exports as markdown, not as a placeholder", () => {
+  test("an article exports as a placeholder followed by its prose", () => {
     const editor = editorWithCoreNodes();
     editor.update(
       () => {
@@ -235,6 +235,10 @@ describe("decorator node markdown", () => {
               contentHtml: "<p>First para.</p><p>Second para.</p>",
             },
           }),
+          ArticleNode.$createArticleNode({
+            mode: "entity",
+            entityId: "urls_1",
+          }),
         );
       },
       { discrete: true },
@@ -242,7 +246,14 @@ describe("decorator node markdown", () => {
 
     expect(CORE_TRANSFORMERS).toContain(ARTICLE);
     expect(toMarkdown(editor)).toBe(
-      "### On splitting nodes\n\n[Source](https://example.com/post)\n\nFirst para.\nSecond para.",
+      [
+        "<!-- lexidraw:article#1 On splitting nodes -->",
+        "### On splitting nodes",
+        "[Source](https://example.com/post)",
+        "First para.\nSecond para.",
+        "<!-- lexidraw:article#2 urls 1 -->",
+        "Article: urls_1",
+      ].join("\n\n"),
     );
   });
 
@@ -262,7 +273,42 @@ describe("decorator node markdown", () => {
       { discrete: true },
     );
     expect(toMarkdown(editor)).toBe(
-      "<!-- lexidraw:poll#1 a -> b -->\n\n<!-- lexidraw:poll#2 a ->> b -->",
+      "<!-- lexidraw:poll#1 a - b -->\n\n<!-- lexidraw:poll#2 a - b -->",
+    );
+  });
+
+  test("a summary carries no character markdown would act on", () => {
+    const editor = editorWithCoreNodes();
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            PollNode.$createPollNode(
+              "Cost $5, `code`, *stars* or [a link]?",
+              [],
+            ),
+          ),
+        );
+      },
+      { discrete: true },
+    );
+    expect(toMarkdown(editor)).toBe(
+      "<!-- lexidraw:poll#1 Cost 5, code , stars or a link ? -->",
+    );
+  });
+
+  test("a table survives the markdown round trip unchanged", () => {
+    const markdown = "| a | b |\n| --- | --- |\n| 1 | 2 |";
+    const first = editorWithCoreNodes();
+    fromMarkdown(first, markdown);
+    expect(toMarkdown(first)).toBe(markdown);
+
+    // Cells were padded on export and trimmed on import, so a second cycle
+    // lands on exactly the same state rather than a wider one.
+    const second = editorWithCoreNodes();
+    fromMarkdown(second, toMarkdown(first));
+    expect(JSON.stringify(second.getEditorState().toJSON())).toBe(
+      JSON.stringify(first.getEditorState().toJSON()),
     );
   });
 
