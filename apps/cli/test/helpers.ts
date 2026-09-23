@@ -12,6 +12,8 @@ export type FakeIo = {
   lookups: string[];
   echo: boolean[];
   stdout(): string;
+  /** Everything written to stdout as bytes, which is how an image comes out. */
+  stdoutBytes(): Uint8Array;
   stderr(): string;
 };
 
@@ -27,12 +29,16 @@ export function fakeIo(
   const lookups: string[] = [];
   const echo: boolean[] = [];
   const out: string[] = [];
+  const bytes_: Uint8Array[] = [];
   const err: string[] = [];
   return {
     io: {
       env: options.env ?? {},
       stdout: (text) => {
         out.push(text);
+      },
+      stdoutBytes: (bytes) => {
+        bytes_.push(Uint8Array.from(bytes));
       },
       stderr: (text) => {
         err.push(text);
@@ -47,6 +53,7 @@ export function fakeIo(
         },
       },
       stdinIsTty: options.tty ?? false,
+      stdoutIsTty: options.tty ?? false,
       readLine: async () => options.stdin ?? "",
       readAll: async () => options.stdin ?? "",
       setEcho: (on) => {
@@ -57,6 +64,7 @@ export function fakeIo(
     lookups,
     echo,
     stdout: () => out.join(""),
+    stdoutBytes: () => concat(bytes_),
     stderr: () => err.join(""),
   };
 }
@@ -71,6 +79,17 @@ export type Stub = {
   }[];
   stop(): void;
 };
+
+function concat(chunks: readonly Uint8Array[]): Uint8Array {
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const joined = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, at);
+    at += chunk.length;
+  }
+  return joined;
+}
 
 /** A local stand-in for `/api/v1`, so the HTTP path is exercised for real. */
 export function startStub(

@@ -8,6 +8,7 @@ export const COMMANDS: Record<string, string> = {
   "drawing create": "drawings-create",
   "drawing get": "drawings-get",
   "drawing put": "drawings-put",
+  "drawing render": "drawings-render",
   "dir create": "entities-create",
   "dir list": "entities-list",
   "doc append": "documents-appendMarkdown",

@@ -1,6 +1,6 @@
 import { one, parseArgs, rejectExtra } from "./args";
 import { json, type Context } from "./context";
-import { describe, usageError } from "./errors";
+import { CliError, describe, usageError } from "./errors";
 import { expectOk, requestApi } from "./http";
 import { requireToken } from "./tokens";
 
@@ -8,15 +8,39 @@ const USAGE = `usage:
   lexidraw drawing get <id>
   lexidraw drawing put <id> --file <elements.json|-> --if-unmodified-since <iso|latest>
   lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
+  lexidraw drawing render <id> [--format svg|png] [--scale 1-4] [--out <file>]
 
 put replaces every element, so it states which revision it replaces: pass the
 updatedAt a get returned, or "latest" to read it again immediately before
-writing.`;
+writing.
+
+render writes the image to --out, or to stdout: the SVG as text, the PNG as
+bytes, which it refuses to write to a terminal.`;
 
 const FLAGS = {
-  value: ["file", "title", "parent", "if-unmodified-since"],
+  value: [
+    "file",
+    "title",
+    "parent",
+    "if-unmodified-since",
+    "format",
+    "out",
+    "scale",
+  ],
   boolean: [],
 } as const;
+
+const FORMATS = ["svg", "png"];
+
+/** The render envelope, as the OpenAPI document declares it. */
+type Render = {
+  format: string;
+  contentType: string;
+  encoding: string;
+  width: number;
+  height: number;
+  data: string;
+};
 
 export async function drawingCommand(
   context: Context,
@@ -29,13 +53,19 @@ export async function drawingCommand(
     context.io.env,
     context.io.tokens,
   );
-  const request = async (method: string, path: string, body?: unknown) => {
+  const request = async (
+    method: string,
+    path: string,
+    body?: unknown,
+    query?: readonly (readonly [string, string])[],
+  ) => {
     const response = await requestApi({
       baseUrl: context.profile.baseUrl,
       method,
       path,
       token,
       body,
+      query,
     });
     return expectOk(response, `${method} ${path} failed`);
   };
@@ -87,9 +117,79 @@ export async function drawingCommand(
         ...(parentId === undefined ? {} : { parentId }),
       });
     }
+    case "render": {
+      rejectExtra(args, 2);
+      if (id === undefined) throw usageError(USAGE);
+      const format = one(args, "format") ?? "svg";
+      if (!FORMATS.includes(format)) {
+        throw usageError(`--format must be ${FORMATS.join(" or ")}`);
+      }
+      const out = one(args, "out");
+      // Raw PNG bytes down a terminal are noise the shell then has to be
+      // reset from, so the caller has to say where they go.
+      if (format === "png" && out === undefined && context.io.stdoutIsTty) {
+        throw usageError(
+          "drawing render --format png writes bytes: give --out <file>, or redirect stdout",
+        );
+      }
+      const scale = one(args, "scale");
+      const rendered = (await request(
+        "GET",
+        `/drawings/${encodeURIComponent(id)}/render`,
+        undefined,
+        [
+          ["format", format],
+          ...(scale === undefined ? [] : [["scale", scale] as const]),
+        ],
+      )) as Render;
+      return writeRender(context, rendered, out);
+    }
     default:
       throw usageError(USAGE);
   }
+}
+
+/**
+ * The image, decoded from the envelope the REST path answers with. A PNG
+ * arrives base64 encoded because that path is JSON only; see the procedure's
+ * description in the OpenAPI document.
+ */
+async function writeRender(
+  context: Context,
+  rendered: Render,
+  out: string | undefined,
+): Promise<void> {
+  if (typeof rendered.data !== "string") {
+    throw new CliError("BAD_RESPONSE", "the render carried no data");
+  }
+  const image =
+    rendered.encoding === "base64"
+      ? Buffer.from(rendered.data, "base64")
+      : rendered.data;
+  if (out === undefined) {
+    if (typeof image === "string") return context.io.stdout(image);
+    return context.io.stdoutBytes(image);
+  }
+  try {
+    await Bun.write(out, image);
+  } catch (cause) {
+    throw new CliError(
+      "WRITE_FAILED",
+      `--out ${out} could not be written: ${describe(cause)}`,
+    );
+  }
+  context.io.stdout(
+    json({
+      format: rendered.format,
+      contentType: rendered.contentType,
+      width: rendered.width,
+      height: rendered.height,
+      // What the file holds, not what the string counts: an SVG's characters
+      // are UTF-16 units here and UTF-8 bytes on disk.
+      bytes: Buffer.byteLength(image),
+      out,
+    }),
+  );
 }
 
 /**

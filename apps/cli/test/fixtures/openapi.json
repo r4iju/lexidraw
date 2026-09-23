@@ -3624,6 +3624,166 @@
         }
       }
     },
+    "/drawings/{id}/render": {
+      "get": {
+        "operationId": "drawings-render",
+        "summary": "Render a drawing as SVG or PNG",
+        "description": "Returns the image in the JSON body: `data` is the SVG source when `format=svg`, and the PNG base64-encoded when `format=png`, as `encoding` says. `scale` multiplies the raster and is ignored by `svg`. SVG text names the Excalidraw font families without embedding them, so a viewer without them installed substitutes; the PNG is drawn with the fonts this server carries. Two ceilings apply: a raster over 16 megapixels is refused with 400, and an encoded image over 3 MB with 413. A smaller `scale`, or `svg`, answers either.",
+        "tags": ["drawings"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "default": "svg",
+              "type": "string",
+              "enum": ["svg", "png"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "scale",
+            "schema": {
+              "default": 1,
+              "description": "Raster pixels per scene unit, 1 to 4; png only.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": ["svg", "png"]
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "encoding": {
+                      "type": "string",
+                      "enum": ["utf-8", "base64"]
+                    },
+                    "width": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "The image's own size: pixels for png, scene units for svg, which may be fractional."
+                    },
+                    "height": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "The image's own size: pixels for png, scene units for svg, which may be fractional."
+                    },
+                    "data": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "format",
+                    "contentType",
+                    "encoding",
+                    "width",
+                    "height",
+                    "data",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/drawings": {
       "post": {
         "operationId": "drawings-create",

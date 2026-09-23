@@ -49,6 +49,17 @@ const config = {
     return config;
   },
   allowedDevOrigins: [env.VERCEL_URL],
+  // A PNG render rasterises with resvg, which is a native binding: it has to
+  // be required at runtime rather than bundled.
+  serverExternalPackages: ["@resvg/resvg-js"],
+  // resvg reads the editor's fonts from disk, and nothing imports them, so
+  // tracing cannot find them. Without this a deployed render draws every
+  // label in a substitute font. Keyed on every entry rather than the two
+  // routes that render today, because the next one to call `renderDrawing`
+  // would otherwise fail silently, in production only.
+  outputFileTracingIncludes: {
+    "**": ["./src/server/drawings/fonts/*.ttf"],
+  },
   productionBrowserSourceMaps: true,
   cacheComponents: true,
   // `next dev` otherwise writes AGENTS.md/CLAUDE.md into the app; the repo keeps

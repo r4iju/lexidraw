@@ -117,14 +117,21 @@ export function withDomShim<T>(body: () => T): T {
 }
 
 /**
- * The same, around a module that reads the DOM while it evaluates. The await
- * is the one point where another request can observe the globals; it happens
- * once per process, on the first drawing written.
+ * The same, around work that is asynchronous: importing a module that reads
+ * the DOM while it evaluates, and the SVG export, which is an async function.
+ *
+ * The awaits are where another request could observe the globals. Neither
+ * caller waits on input or output — the import is resolved from disk by the
+ * time this runs, and the export is only told not to inline fonts so that it
+ * fetches nothing — so the whole body settles in one drain of the microtask
+ * queue, before the event loop can hand a socket to anything else. That is
+ * what keeps the window closed, and it is why the export must never be given
+ * an option that makes it fetch.
  */
-export async function importWithDomShim<T>(load: () => Promise<T>): Promise<T> {
+export async function withDomShimAsync<T>(body: () => Promise<T>): Promise<T> {
   const previous = install();
   try {
-    return await load();
+    return await body();
   } finally {
     restore(previous);
   }

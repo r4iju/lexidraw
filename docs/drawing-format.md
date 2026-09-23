@@ -1,8 +1,9 @@
-# Drawing write format
+# Drawing format
 
 `PUT /api/v1/drawings/{id}` and `POST /api/v1/drawings` take a drawing's whole
-element set. Two shapes go in, one comes out: whatever you send is stored as
-canonical Excalidraw elements, the same ones the browser editor writes.
+element set, and [Rendering](#rendering) draws what is stored. Two shapes go
+in, one comes out: whatever you send is stored as canonical Excalidraw
+elements, the same ones the browser editor writes.
 
 ## The two shapes
 
@@ -206,6 +207,82 @@ From the CLI, `lexidraw drawing put <id> --file elements.json
 --if-unmodified-since <iso|latest>` is the same write; `latest` reads the
 revision immediately before writing, for a caller that accepts whatever is
 stored this second.
+
+## Rendering
+
+`GET /api/v1/drawings/{id}/render?format=svg|png` draws the stored elements
+with Excalidraw's own SVG export, running server-side. `format` defaults to
+`svg`; `scale`, 1 to 4, multiplies the raster and is ignored by `svg`.
+
+The image comes back in the JSON body, because every REST path here is served
+by one adapter that answers `application/json`:
+
+```json
+{
+  "id": "abc",
+  "format": "png",
+  "contentType": "image/png",
+  "encoding": "base64",
+  "width": 660,
+  "height": 120,
+  "data": "iVBORw0KGgo...",
+  "updatedAt": "2026-09-23T10:00:00.000Z"
+}
+```
+
+`data` is the SVG source for `format=svg` and the base64 PNG for `format=png`,
+as `encoding` says; `contentType` is what those bytes would be served as.
+`width` and `height` are the image's own: pixels for a PNG, so `scale=2`
+reports twice the 1x size, and scene units for an SVG, where they are whatever
+the export wrote and may be fractional. `updatedAt` is the revision rendered.
+
+From the CLI, `lexidraw drawing render <id> [--format svg|png] [--scale 1-4]
+[--out <file>]` decodes it: without `--out` the image goes to stdout, the SVG
+as text and the PNG as bytes, which it refuses to write to a terminal.
+
+### Fonts
+
+The PNG is drawn with the editor's own faces, which ship with the server, so a
+label rasterises in the font it was drawn in. The SVG names the font families
+— `Excalifont`, `Nunito`, `Comic Shanns`, `Liberation Sans` and the rest —
+without embedding them, so a viewer that does not have them installed
+substitutes and the text moves. Embedding is what would make a render fetch
+the faces at request time, which is not something a render is allowed to do.
+
+The rasteriser matches a font by the name in the face's own tables, and several
+of them differ from the family the editor writes: `Cascadia` is `Cascadia
+Code`, `Nunito` is `Nunito ExtraLight`, `Comic Shanns` is `Comic Shanns
+Regular`. `src/server/drawings/fonts.generated.ts` holds the map, written by
+`bun run fonts:sync`, and only the copy of the SVG handed to the rasteriser is
+renamed. `Helvetica` is the one substitution: the editor lists it as a font the
+system provides and ships no face for it, so a PNG draws it in Liberation Sans,
+which is metric-compatible. The faces and their licences are in
+`src/server/drawings/fonts`.
+
+The CJK fallback face, Xiaolai, is not bundled: it is 25 MB of subsets. CJK and
+emoji text is in the SVG either way, but comes out of the PNG in whatever the
+raster can find, which on a serverless filesystem is nothing.
+
+### Size and limits
+
+The export pads the elements' bounding box by 10 scene units and paints the
+drawing's own `viewBackgroundColor`, white if it never set one. That is the
+only stored `appState` a render reads: a drawing saved with
+`exportWithDarkMode` or a dark `theme` still renders light.
+
+Two ceilings apply. A raster over 16 megapixels is refused with `BAD_REQUEST`
+before it is drawn, and an image whose encoded `data` is over 3 MB with
+`PAYLOAD_TOO_LARGE` after it is — the body has to fit in the 4.5 MB a response
+may carry. Both name the limit; a smaller `scale`, or `svg`, answers either.
+
+Elements added and then deleted stay in a stored drawing, and a render leaves
+them out rather than sizing the canvas around where they sat. Elements that
+reference uploaded images draw nothing, though their bounds still reserve the
+space: a render reads the stored elements, not the file store.
+
+Labels were measured server-side when they were written, by character count
+rather than by a font, so a line can sit a pixel or two off where the browser
+would put it. The geometry around it is the editor's own.
 
 ## Mermaid
 
