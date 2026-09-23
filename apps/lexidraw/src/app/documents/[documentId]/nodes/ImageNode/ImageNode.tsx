@@ -23,8 +23,7 @@ import {
 import { LinkNode } from "@lexical/link";
 import * as React from "react";
 import { Suspense } from "react";
-import { EmojiNode } from "../EmojiNode";
-import { KeywordNode } from "../KeywordNode";
+import { EmojiNode, KeywordNode } from "@packages/lexical-nodes";
 import { HashtagNode } from "@lexical/hashtag";
 
 const ImageComponent = React.lazy(() => import("./ImageComponent"));

@@ -10,12 +10,6 @@ import {
 } from "react";
 import { debounce } from "@packages/lib";
 import { type MessageStructure, PublicAccess } from "@packages/types";
-import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { AutoLinkNode, LinkNode } from "@lexical/link";
-import { ListItemNode, ListNode } from "@lexical/list";
-import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
-import { MarkNode } from "@lexical/mark";
-import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import CommentPluginProvider, {
   CommentUI,
   useCommentPlugin,
@@ -27,6 +21,7 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import MarkdownShortcutPlugin from "./plugins/MarkdownShortcutPlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
+import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
@@ -56,7 +51,6 @@ import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import FloatingLinkEditorPlugin from "./plugins/FloatingTextFormatToolbarPlugin/FloatingLinkEditorPlugin";
 import AutoEmbedPlugin from "./plugins/AutoEmbedPlugin";
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
-import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { TableContext } from "./plugins/TablePlugin";
 import TableCellResizer from "./plugins/TableCellResizer";
 import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
@@ -64,7 +58,7 @@ import { ImageNode } from "./nodes/ImageNode/ImageNode";
 import ImagePlugin from "./plugins/ImagePlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
 import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
-import { AutocompleteNode } from "./nodes/AutocompleteNode";
+import { CORE_NODES } from "@packages/lexical-nodes";
 import TwitterPlugin from "./plugins/TwitterPlugin";
 import YouTubePlugin from "./plugins/YouTubePlugin";
 import { TweetNode } from "./nodes/TweetNode";
@@ -89,11 +83,6 @@ import { PageBreakNode } from "./nodes/PageBreakNode";
 import PollPlugin from "./plugins/PollPlugin";
 import { PollNode } from "./nodes/PollNode";
 import { StickyNode } from "./nodes/StickyNode";
-import { CollapsibleContainerNode } from "./plugins/CollapsiblePlugin/CollapsibleContainerNode";
-import { CollapsibleContentNode } from "./plugins/CollapsiblePlugin/CollapsibleContentNode";
-import { CollapsibleTitleNode } from "./plugins/CollapsiblePlugin/CollapsibleTitleNode";
-import { LayoutContainerNode } from "./nodes/LayoutContainerNode";
-import { LayoutItemNode } from "./nodes/LayoutItemNode";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { SlidePlugin } from "./plugins/SlidePlugin";
@@ -745,26 +734,18 @@ export default function DocumentEditor({
   const appState = appStateSchema.parse(JSON.parse(entity.appState ?? "{}"));
 
   const lexicalNodes: Klass<LexicalNode>[] = [
+    ...CORE_NODES,
+    // Same "horizontalrule" type as the headless node in CORE_NODES. Lexical
+    // keeps the last class registered per type and instantiates it everywhere
+    // (importJSON, markdown import, $create), so listing the React subclass
+    // after the core set keeps the selectable decorator in the browser.
+    HorizontalRuleNode,
     SlideNode,
     CommentNode,
     ThreadNode,
-    HeadingNode,
-    QuoteNode,
-    ListItemNode,
-    ListNode,
-    HorizontalRuleNode,
-    MarkNode,
-    CodeNode,
-    CodeHighlightNode,
-    TableNode,
-    TableCellNode,
-    TableRowNode,
     ImageNode,
     InlineImageNode,
     VideoNode,
-    AutocompleteNode,
-    LinkNode,
-    AutoLinkNode,
     TweetNode,
     YouTubeNode,
     ExcalidrawNode,
@@ -775,11 +756,6 @@ export default function DocumentEditor({
     PageBreakNode,
     PollNode,
     StickyNode,
-    CollapsibleContainerNode,
-    CollapsibleContentNode,
-    CollapsibleTitleNode,
-    LayoutContainerNode,
-    LayoutItemNode,
     ArticleNode,
   ];
 

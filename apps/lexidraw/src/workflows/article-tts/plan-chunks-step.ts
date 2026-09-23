@@ -5,7 +5,7 @@ import {
   splitHtmlIntoSections,
   chunkSections,
 } from "~/lib/markdown-for-tts";
-import { htmlToPlainText } from "~/lib/html-to-text";
+import { htmlToPlainText } from "@packages/lexical-nodes";
 import type { TtsConfig } from "../document-tts/generate-document-tts-workflow";
 import { chooseProvider, isChirp3HdVoice } from "../document-tts/common";
 

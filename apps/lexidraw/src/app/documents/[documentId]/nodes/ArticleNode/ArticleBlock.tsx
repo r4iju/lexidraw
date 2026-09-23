@@ -21,11 +21,13 @@ import {
   $insertNodes,
   $isElementNode,
 } from "lexical";
-import { htmlToPlainText } from "~/lib/html-to-text";
+import {
+  htmlToPlainText,
+  CollapsibleContainerNode,
+  CollapsibleContentNode,
+  CollapsibleTitleNode,
+} from "@packages/lexical-nodes";
 import { ArticleNode } from "./ArticleNode";
-import { CollapsibleContainerNode } from "../../plugins/CollapsiblePlugin/CollapsibleContainerNode";
-import { CollapsibleContentNode } from "../../plugins/CollapsiblePlugin/CollapsibleContentNode";
-import { CollapsibleTitleNode } from "../../plugins/CollapsiblePlugin/CollapsibleTitleNode";
 import {
   Dialog,
   DialogContent,

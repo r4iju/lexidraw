@@ -44,11 +44,17 @@ import {
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
-import { LayoutContainerNode } from "../LayoutContainerNode";
-import { LayoutItemNode } from "../LayoutItemNode";
-import { KeywordNode } from "../KeywordNode";
+import {
+  LayoutContainerNode,
+  LayoutItemNode,
+  KeywordNode,
+  EmojiNode,
+  CollapsibleContainerNode,
+  CollapsibleContentNode,
+  CollapsibleTitleNode,
+  AutocompleteNode,
+} from "@packages/lexical-nodes";
 import { HashtagNode } from "@lexical/hashtag";
-import { EmojiNode } from "../EmojiNode";
 import { ImageNode } from "../ImageNode/ImageNode";
 import { InlineImageNode } from "../InlineImageNode/InlineImageNode";
 import { VideoNode } from "../VideoNode/VideoNode";
@@ -85,9 +91,6 @@ import ImagePlugin from "../../plugins/ImagePlugin";
 import VideoPlugin from "../../plugins/VideoPlugin";
 import { LayoutPlugin } from "../../plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "../../plugins/CollapsiblePlugin";
-import { CollapsibleContainerNode } from "../../plugins/CollapsiblePlugin/CollapsibleContainerNode";
-import { CollapsibleContentNode } from "../../plugins/CollapsiblePlugin/CollapsibleContentNode";
-import { CollapsibleTitleNode } from "../../plugins/CollapsiblePlugin/CollapsibleTitleNode";
 import PollPlugin from "../../plugins/PollPlugin";
 import TableCellResizer from "../../plugins/TableCellResizer";
 import TableActionMenuPlugin from "../../plugins/TableActionMenuPlugin";
@@ -124,7 +127,6 @@ import {
   DialogHeader,
 } from "~/components/ui/dialog";
 import { MarkNode } from "@lexical/mark";
-import { AutocompleteNode } from "../AutocompleteNode";
 import { ThreadNode } from "../ThreadNode";
 import { CommentNode } from "../CommentNode";
 import { MermaidNode } from "../MermaidNode";

@@ -4,7 +4,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { TextNode } from "lexical";
 import { useCallback, useEffect, useMemo } from "react";
 
-import { EmojiNode } from "../../nodes/EmojiNode";
+import { EmojiNode } from "@packages/lexical-nodes";
 
 function useEmojis(editor: LexicalEditor): void {
   const emojis = useMemo(

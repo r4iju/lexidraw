@@ -22,9 +22,11 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 
-import { CollapsibleContainerNode } from "./CollapsibleContainerNode";
-import { CollapsibleContentNode } from "./CollapsibleContentNode";
-import { CollapsibleTitleNode } from "./CollapsibleTitleNode";
+import {
+  CollapsibleContainerNode,
+  CollapsibleContentNode,
+  CollapsibleTitleNode,
+} from "@packages/lexical-nodes";
 
 export const INSERT_COLLAPSIBLE_COMMAND = createCommand<undefined>();
 export const TOGGLE_COLLAPSIBLE_COMMAND = createCommand<NodeKey>();

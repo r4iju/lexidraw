@@ -27,6 +27,10 @@ import { headers } from "next/headers";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
 import { computeThumbnailVersion } from "~/lib/thumbnail-version";
+import {
+  entityAncestors,
+  findReadableEntity,
+} from "~/server/entities/readable";
 
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
@@ -258,40 +262,7 @@ export const entityRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id ?? "";
 
-      const entities = await ctx.drizzle
-        .select({
-          id: schema.entities.id,
-          title: schema.entities.title,
-          appState: schema.entities.appState,
-          elements: schema.entities.elements,
-          entityType: schema.entities.entityType,
-          publicAccess: schema.entities.publicAccess,
-          sharedWithId: schema.sharedEntities.userId,
-          sharedAccessLevel: schema.sharedEntities.accessLevel,
-          ownerId: schema.users.id,
-        })
-        .from(schema.entities)
-        .where(
-          and(
-            eq(schema.entities.id, input.id),
-            isNull(schema.entities.deletedAt),
-            or(
-              eq(schema.entities.userId, userId),
-              eq(schema.sharedEntities.userId, userId),
-              ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
-            ),
-          ),
-        )
-        .leftJoin(
-          schema.sharedEntities,
-          and(
-            eq(schema.sharedEntities.entityId, schema.entities.id),
-            eq(schema.sharedEntities.userId, userId),
-          ),
-        )
-        .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
-        .execute();
-      const entity = entities[0];
+      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
       if (!entity) {
         throw new TRPCError({
           message: "Drawing not found",
@@ -370,33 +341,12 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
-      // 2. recursively fetch all ancestors
+      // 2. ancestors nearest first, then the virtual root
       const ancestors: {
         id: string | null;
         title: string;
         parentId: string | null;
-      }[] = [];
-      let currentParentId = entity.parentId;
-
-      while (currentParentId) {
-        const parentData = await ctx.drizzle
-          .select({
-            id: schema.entities.id,
-            title: schema.entities.title,
-            parentId: schema.entities.parentId,
-          })
-          .from(schema.entities)
-          .where(eq(schema.entities.id, currentParentId))
-          .execute();
-
-        const parent = parentData[0];
-        if (!parent) break;
-
-        ancestors.push(parent);
-        currentParentId = parent.parentId;
-      }
-
-      // add the root entity
+      }[] = await entityAncestors(ctx.drizzle, entity.parentId);
       ancestors.push({
         id: null,
         title: "Root",

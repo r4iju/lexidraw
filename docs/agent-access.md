@@ -98,9 +98,12 @@ loading tool schemas into the agent's context until they are needed.
   plugins, and stop the `@packages/lib` barrel from re-exporting env-dependent
   modules (or import `isEqual` directly).
 - Server-side headless editor (`@lexical/headless`) behind new procedures:
-  - `documents.getMarkdown(id)` → markdown with YAML frontmatter (id, title,
-    updatedAt, tags, parent path). `--raw` drops the frontmatter;
-    `--format json` returns Lexical state.
+  - `documents.getMarkdown({ id, format })` → `markdown` is markdown with
+    YAML frontmatter (id, title, path, updatedAt, tags); `raw` drops the
+    frontmatter; `json` returns the Lexical state. Until the decorator nodes
+    are in the package, a document holding a node type outside it fails with
+    `UNPROCESSABLE_CONTENT` naming the types; malformed stored content fails
+    the same way.
   - `documents.appendMarkdown(id, md)` — never destructive, precondition
     optional.
   - `documents.insertMarkdown(id, md, { afterHeading | atBlockIndex },

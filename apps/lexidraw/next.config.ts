@@ -51,6 +51,9 @@ const config = {
   allowedDevOrigins: [env.VERCEL_URL],
   productionBrowserSourceMaps: true,
   cacheComponents: true,
+  // `next dev` otherwise writes AGENTS.md/CLAUDE.md into the app; the repo keeps
+  // its own at the root.
+  agentRules: false,
   experimental: {
     turbopackFileSystemCacheForDev: true,
   },

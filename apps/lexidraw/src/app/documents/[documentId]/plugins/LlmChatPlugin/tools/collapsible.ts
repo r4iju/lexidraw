@@ -1,10 +1,12 @@
 import { tool } from "ai";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { CollapsibleContainerNode } from "../../CollapsiblePlugin/CollapsibleContainerNode";
-import { CollapsibleTitleNode } from "../../CollapsiblePlugin/CollapsibleTitleNode";
+import {
+  CollapsibleContainerNode,
+  CollapsibleTitleNode,
+  CollapsibleContentNode,
+} from "@packages/lexical-nodes";
 import { $createParagraphNode, $createTextNode } from "lexical";
-import { CollapsibleContentNode } from "../../CollapsiblePlugin/CollapsibleContentNode";
 import { $convertFromMarkdownString } from "@lexical/markdown";
 import { PLAYGROUND_TRANSFORMERS } from "../../MarkdownTransformers";
 import { InsertCollapsibleSectionSchema } from "@packages/types";
