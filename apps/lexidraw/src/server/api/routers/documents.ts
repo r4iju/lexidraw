@@ -125,10 +125,15 @@ const markdownMeta = {
  * `format` decides what `content` is, so the two travel as one union rather
  * than as an object whose `content` is a string or an object either way.
  */
-const markdownRead = z.union([
+const markdownRead = z.discriminatedUnion("format", [
   z.object({
     ...markdownMeta,
-    format: z.enum(["markdown", "raw"]),
+    format: z.literal("markdown"),
+    content: z.string(),
+  }),
+  z.object({
+    ...markdownMeta,
+    format: z.literal("raw"),
     content: z.string(),
   }),
   z.object({
@@ -318,9 +323,27 @@ export const documentRouter = createTRPCRouter({
         .object({
           id: z.string(),
           markdown: MarkdownBody,
-          afterHeading: nonBlank("afterHeading").optional(),
-          nth: z.number().int().positive().optional(),
-          atBlockIndex: z.number().int().nonnegative().optional(),
+          afterHeading: nonBlank("afterHeading")
+            .optional()
+            .describe(
+              "Insert after the first root-level heading whose plain text matches (trimmed, whitespace collapsed, case-insensitive). Pass exactly one of afterHeading or atBlockIndex.",
+            ),
+          nth: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe(
+              "1-based pick among headings matching afterHeading; only valid with afterHeading.",
+            ),
+          atBlockIndex: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .describe(
+              "Insert before the root-level block at this 0-based index; the block count appends. Pass exactly one of afterHeading or atBlockIndex.",
+            ),
           ifUnmodifiedSince: z.iso.datetime(),
         })
         // Transformed rather than refined so the placement the procedure reads
