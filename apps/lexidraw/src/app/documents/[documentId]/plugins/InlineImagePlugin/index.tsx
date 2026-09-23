@@ -294,6 +294,8 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
     if (!editor.hasNodes([InlineImageNode])) {
       throw new Error("ImagesPlugin: ImageNode not registered on editor");
     }
+    // Warm the drag ghost so it has loaded before the first drag starts.
+    getDragImage();
 
     return mergeRegister(
       editor.registerCommand<InsertInlineImagePayload>(
