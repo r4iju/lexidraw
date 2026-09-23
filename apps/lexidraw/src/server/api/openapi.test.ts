@@ -1,24 +1,37 @@
-import { beforeAll, describe, expect, it, mock } from "bun:test";
+/// <reference types="bun" />
+import { beforeAll, describe, expect, it } from "bun:test";
+import { join } from "node:path";
 import type { OpenAPIObject } from "trpc-to-openapi";
 
-// The document is generated from the whole router, so importing it drags in
-// every module the app touches at import time. Neither of these two has
-// anything to say about the shape of the schema, and stubbing them keeps the
-// test hermetic instead of dependent on a populated .env.
-mock.module("server-only", () => ({}));
-mock.module("@packages/env", () => ({
-  default: new Proxy(
-    {},
-    {
-      get: (_t, key) => (key === "NODE_ENV" ? "test" : "https://example.test"),
-    },
-  ),
-}));
+const testDir = join(import.meta.dir, "..", "..", "test");
+
+/**
+ * Generating the document means importing the whole router, which only loads
+ * with `server-only` and the validated env stubbed out. Those stubs are
+ * process-global, so they run in a child process rather than leaking into
+ * every other test file in the suite.
+ */
+function generate(): OpenAPIObject {
+  const result = Bun.spawnSync({
+    cmd: [
+      "bun",
+      "--preload",
+      join(testDir, "stub-env.ts"),
+      join(testDir, "print-openapi.ts"),
+    ],
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  if (result.exitCode !== 0) {
+    throw new Error(`generating the document failed: ${result.stderr}`);
+  }
+  return JSON.parse(result.stdout.toString());
+}
 
 let document: OpenAPIObject;
 
-beforeAll(async () => {
-  document = (await import("./openapi")).openApiDocument;
+beforeAll(() => {
+  document = generate();
 });
 
 describe("openApiDocument", () => {

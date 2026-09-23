@@ -317,9 +317,9 @@ export const entityRouter = createTRPCRouter({
         appState: entity.appState,
         elements: entity.elements,
         publicAccess: entity.publicAccess,
-        sharedWith: sharedEntities.map((entity) => ({
-          userId: entity.id,
-          accessLevel: entity.accessLevel,
+        sharedWith: sharedEntities.map((share) => ({
+          userId: share.userId,
+          accessLevel: share.accessLevel,
         })),
         accessLevel,
       };
