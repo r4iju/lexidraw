@@ -15,6 +15,7 @@ export const SessionedDropdown = () => {
     pathname === "/dashboard" || pathname.startsWith("/dashboard/");
   const profileActive =
     pathname === "/profile" || pathname.startsWith("/profile/");
+  const tokensActive = pathname.startsWith("/settings/tokens");
   return (
     <>
       <DropdownMenuItem asChild>
@@ -39,6 +40,18 @@ export const SessionedDropdown = () => {
           aria-current={profileActive ? "page" : undefined}
         >
           Profile
+        </Link>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <Link
+          className={cn(
+            "cursor-default",
+            tokensActive && "bg-accent text-accent-foreground",
+          )}
+          href="/settings/tokens"
+          aria-current={tokensActive ? "page" : undefined}
+        >
+          API tokens
         </Link>
       </DropdownMenuItem>
       <DropdownMenuSeparator />
