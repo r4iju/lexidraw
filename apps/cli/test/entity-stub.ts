@@ -17,7 +17,13 @@ export type Row = {
 
 export type Seed = Partial<Row> & Pick<Row, "id" | "title" | "entityType">;
 
-export type EntityStub = Stub & { rows: Map<string, Row> };
+/** Knobs a test turns to see what a command does when a call fails. */
+export type Control = { failMarkdownWrites: boolean };
+
+export type EntityStub = Stub & {
+  rows: Map<string, Row>;
+  control: Control;
+};
 
 export const TOKEN = "lxd_good";
 
@@ -33,6 +39,7 @@ function clock(start: number): () => string {
 export function startEntityStub(seeds: readonly Seed[] = []): EntityStub {
   const now = clock(Date.parse("2026-01-01T00:00:00.000Z"));
   const rows = new Map<string, Row>();
+  const control: Control = { failMarkdownWrites: false };
   for (const seed of seeds) {
     rows.set(seed.id, {
       parentId: null,
@@ -78,9 +85,14 @@ export function startEntityStub(seeds: readonly Seed[] = []): EntityStub {
     }
 
     const entity = path.match(/^\/entities\/([^/]+)$/);
-    if (entity && request.method === "DELETE") {
-      rows.delete(entity[1] as string);
-      return Response.json({ id: entity[1] });
+    if (entity) {
+      const row = rows.get(entity[1] as string);
+      if (!row) return fail(404, "NOT_FOUND", "Drawing not found");
+      if (request.method === "GET") return Response.json(loaded(row));
+      if (request.method === "DELETE") {
+        rows.delete(row.id);
+        return Response.json({ id: row.id });
+      }
     }
 
     const markdown = path.match(/^\/documents\/([^/]+)\/markdown(\/\w+)?$/);
@@ -90,12 +102,29 @@ export function startEntityStub(seeds: readonly Seed[] = []): EntityStub {
         return fail(404, "NOT_FOUND", "Document not found");
       }
       if (request.method === "GET") return read(row, url);
+      if (control.failMarkdownWrites) {
+        return fail(500, "INTERNAL_SERVER_ERROR", "Internal server error");
+      }
       return write(row, markdown[2] ?? "", body, now);
     }
     return fail(404, "NOT_FOUND", `no stub for ${request.method} ${path}`);
   });
 
-  return { ...stub, rows };
+  return { ...stub, rows, control };
+}
+
+/** `entities.load`: what an id names, whatever type it is. */
+function loaded(row: Row) {
+  return {
+    id: row.id,
+    title: row.title,
+    entityType: row.entityType,
+    appState: null,
+    elements: "{}",
+    publicAccess: "PRIVATE",
+    sharedWith: [],
+    accessLevel: "EDIT",
+  };
 }
 
 function summary(row: Row) {

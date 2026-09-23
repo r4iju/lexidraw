@@ -703,6 +703,10 @@
                     "title": {
                       "type": "string"
                     },
+                    "entityType": {
+                      "type": "string",
+                      "enum": ["drawing", "document", "directory", "url"]
+                    },
                     "appState": {
                       "type": ["string", "null"]
                     },
@@ -737,6 +741,7 @@
                   "required": [
                     "id",
                     "title",
+                    "entityType",
                     "appState",
                     "elements",
                     "publicAccess",

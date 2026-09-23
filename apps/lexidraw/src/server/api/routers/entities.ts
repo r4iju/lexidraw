@@ -46,11 +46,14 @@ import {
 /**
  * What `load` returns, declared so the REST transport can describe it.
  * `appState` and `elements` are the stored JSON blobs, kept as the opaque
- * strings they are on the wire.
+ * strings they are on the wire. `entityType` is here because a caller holding
+ * only an id — the CLI before a delete, say — has no other way to learn what
+ * the id names before acting on it.
  */
 const loadOutput = z.object({
   id: z.string(),
   title: z.string(),
+  entityType: entityTypeOut,
   appState: z.string().nullable(),
   elements: z.string(),
   publicAccess: z.enum(PublicAccess),
@@ -479,6 +482,7 @@ export const entityRouter = createTRPCRouter({
       return {
         id: entity.id,
         title: entity.title,
+        entityType: entity.entityType,
         appState: entity.appState,
         elements: entity.elements,
         publicAccess: entity.publicAccess,

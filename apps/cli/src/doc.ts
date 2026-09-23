@@ -9,7 +9,7 @@ import {
 import { type Context, json } from "./context";
 import { createEntity, listEntities } from "./entities";
 import { CliError, describe, usageError } from "./errors";
-import { chooseFormat, entityTable, ndjson } from "./format";
+import { chooseFormat, entityTable, ndjson, rejectFormat } from "./format";
 import { type ApiSession, apiSession, callApi } from "./http";
 import { dirSpec, resolveEntity, resolveOptional } from "./resolve";
 
@@ -26,10 +26,13 @@ const VERBS = [
 /** Every verb that addresses one document takes the same two forms. */
 const ADDRESS = ["path", "nth"];
 
+/** A parent directory, by id or by path, never guessed from one value. */
+const PARENT = ["dir", "dir-path"];
+
 const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
-  list: { value: ["dir", "format"], boolean: ["page-all"] },
+  list: { value: [...PARENT, "format"], boolean: ["page-all"] },
   get: { value: [...ADDRESS, "format"], boolean: [] },
-  create: { value: ["title", "dir", "file", "text"], boolean: [] },
+  create: { value: ["title", ...PARENT, "file", "text"], boolean: [] },
   append: {
     value: [...ADDRESS, "file", "text", "if-unmodified-since"],
     boolean: [],
@@ -86,13 +89,11 @@ async function list(context: Context, args: ParsedArgs): Promise<void> {
   rejectExtra(args, 0);
   const pageAll = args.booleans.has("page-all");
   const format = chooseFormat(args, ["json", "table"], "json");
-  if (pageAll && format !== "json") {
-    throw usageError("--page-all streams NDJSON; drop --format");
-  }
+  if (pageAll) rejectFormat(args, "--page-all streams NDJSON; drop --format");
 
   const session = apiSession(context);
   const parentId = await resolveOptional(context, session, {
-    ...dirSpec(one(args, "dir")),
+    ...parent(args),
     kind: "directory",
     access: "read",
   });
@@ -132,7 +133,7 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
 
   const session = apiSession(context);
   const parentId = await resolveOptional(context, session, {
-    ...dirSpec(one(args, "dir")),
+    ...parent(args),
     kind: "directory",
     access: "write",
   });
@@ -147,11 +148,13 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
   // than following it, and the create's own revision is the precondition, so
   // nothing can have slipped in between. The `updatedAt` a caller needs for
   // its next write is that write's, not the empty document's.
-  const written = await callApi(session, {
-    method: "PUT",
-    path: markdownPath(id),
-    body: { markdown, ifUnmodifiedSince: revisionOf(created) },
-  });
+  const written = await withCreatedId(id, () =>
+    callApi(session, {
+      method: "PUT",
+      path: markdownPath(id),
+      body: { markdown, ifUnmodifiedSince: revisionOf(created) },
+    }),
+  );
   context.io.stdout(
     json({
       ...created,
@@ -239,7 +242,11 @@ async function put(context: Context, args: ParsedArgs): Promise<void> {
 
 async function remove(context: Context, args: ParsedArgs): Promise<void> {
   const session = apiSession(context);
-  const id = await resolveEntity(context, session, address(args, "write"));
+  const target = address(args, "write");
+  const id = await resolveEntity(context, session, target);
+  // DELETE /entities/{id} takes any entity, a directory with everything under
+  // it included, so an id is checked here; --path only ever matched documents.
+  if (target.id !== undefined) await requireDocument(session, id);
   context.io.stdout(
     json(
       await callApi(session, {
@@ -258,7 +265,55 @@ function address(args: ParsedArgs, access: "read" | "write") {
     kind: "document" as const,
     access,
     nth: integer(args, "nth", 1),
+    // No doc verb that takes --path also names a directory, so a directory on
+    // the way to the document is only escaped by naming the document itself.
+    dirHint: "address the document by id",
   };
+}
+
+/** The directory a listing or a create is aimed at. */
+function parent(args: ParsedArgs) {
+  return dirSpec(one(args, "dir"), one(args, "dir-path"));
+}
+
+/** What the entity with `id` is, where the path taken would not check. */
+async function requireDocument(session: ApiSession, id: string): Promise<void> {
+  const entity = await callApi(session, {
+    method: "GET",
+    path: `/entities/${encodeURIComponent(id)}`,
+  });
+  const entityType = (entity as { entityType?: unknown }).entityType;
+  if (entityType === "document") return;
+  throw new CliError(
+    "NOT_FOUND",
+    typeof entityType === "string"
+      ? `"${id}" is a ${entityType}, not a document`
+      : `"${id}" is not a document`,
+    { details: { id, entityType } },
+  );
+}
+
+/**
+ * A failure after the entity exists names it, so the caller can finish the
+ * write or delete what it left behind.
+ */
+async function withCreatedId<T>(
+  id: string,
+  call: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await call();
+  } catch (cause) {
+    const error =
+      cause instanceof CliError
+        ? cause
+        : new CliError("INTERNAL", describe(cause));
+    const said = `${error.message}; the document ${id} was created and is empty`;
+    throw new CliError(error.code, said, {
+      exitCode: error.exitCode,
+      details: { ...error.details, createdId: id },
+    });
+  }
 }
 
 function revisionOf(created: Record<string, unknown>): string {
@@ -283,18 +338,27 @@ async function body(context: Context, args: ParsedArgs): Promise<string> {
   if (file !== undefined && text !== undefined) {
     throw usageError("--file and --text are both given; pick one");
   }
-  if (text !== undefined) return text;
+  if (text !== undefined) return nonBlank(text, "--text");
   if (file === undefined) {
     throw usageError(
       'the markdown is missing: pass --file <path> or --text "..."',
     );
   }
-  if (file === "-") return await context.io.readAll();
+  if (file === "-") return nonBlank(await context.io.readAll(), "stdin");
   try {
-    return await Bun.file(file).text();
+    return nonBlank(await Bun.file(file).text(), `--file ${file}`);
   } catch (cause) {
+    if (cause instanceof CliError) throw cause;
     throw usageError(`--file ${file} could not be read: ${describe(cause)}`);
   }
+}
+
+/** Every write path rejects blank markdown, so the round trip is skipped. */
+function nonBlank(markdown: string, source: string): string {
+  if (markdown.trim() === "") {
+    throw usageError(`${source} is blank; a write needs markdown`);
+  }
+  return markdown;
 }
 
 /**

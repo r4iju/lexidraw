@@ -19,6 +19,11 @@ export function chooseFormat<T extends Format>(
   return match;
 }
 
+/** Refuses an explicit `--format`, for a mode that has its own rendering. */
+export function rejectFormat(args: ParsedArgs, why: string): void {
+  if (one(args, "format") !== undefined) throw usageError(why);
+}
+
 /** Columns padded to their widest cell; the last one is left unpadded. */
 export function table(
   headers: readonly string[],

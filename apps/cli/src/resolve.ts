@@ -25,19 +25,32 @@ export type Target = {
   nth?: number;
   /** What to do about an ambiguous write, where `--nth` is not free. */
   hint?: string;
+  /**
+   * The same for a directory on the way to the target: `--nth` picks the
+   * target, never a directory the path walked through.
+   */
+  dirHint?: string;
 };
 
 const BY_NTH = "pass --nth N, or the id";
 
-/** An id is a UUID here, so `--dir <id|path>` needs no second flag. */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A directory named by `--dir`/`--dir-path` is addressable by its own id. */
+const BY_DIR_ID = "address the directory by id (--dir <id>)";
 
-export function dirSpec(value: string | undefined): {
-  id?: string;
-  path?: string;
-} {
-  if (value === undefined) return {};
-  return UUID.test(value) ? { id: value } : { path: value };
+/**
+ * `--dir <id>` and `--dir-path "Dir/Sub"`. An entity id is free text, so the
+ * flag says which form was meant rather than the value's shape deciding.
+ */
+export function dirSpec(
+  id: string | undefined,
+  path: string | undefined,
+): Pick<Target, "id" | "path" | "hint" | "dirHint"> {
+  if (id !== undefined && path !== undefined) {
+    throw usageError("--dir takes an id and --dir-path a path; give one");
+  }
+  if (id !== undefined) return { id };
+  if (path === undefined) return {};
+  return { path, hint: BY_DIR_ID, dirHint: BY_DIR_ID };
 }
 
 /** The id a command was aimed at, from either form of address. */
@@ -93,7 +106,7 @@ async function resolvePath(
       segment,
       kind: "directory",
       access: target.access,
-      hint: target.hint,
+      hint: target.dirHint ?? target.hint,
     });
     parentId = step.id;
   }

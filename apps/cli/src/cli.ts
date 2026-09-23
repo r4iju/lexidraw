@@ -19,6 +19,7 @@ const VALUE_FLAGS = [
   "query",
   "path",
   "dir",
+  "dir-path",
   "title",
   "file",
   "text",
@@ -33,9 +34,9 @@ const VALUE_FLAGS = [
 const USAGE = `lexidraw — Lexidraw from the terminal
 
 Usage:
-  lexidraw doc list [--dir <id|path>] [--format json|table] [--page-all]
+  lexidraw doc list [--dir <id>|--dir-path P] [--format json|table] [--page-all]
   lexidraw doc get <id|--path P> [--format md|raw|json]
-  lexidraw doc create --title T [--dir <id|path>] [--file f|--text s]
+  lexidraw doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]
                       (a body replaces the new document's empty paragraph)
   lexidraw doc append <id|--path P> (--file f|--text s) [--if-unmodified-since W]
   lexidraw doc insert <id|--path P> (--file f|--text s)
@@ -45,7 +46,7 @@ Usage:
                    --if-unmodified-since W
   lexidraw doc delete <id|--path P>
   lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]
-  lexidraw dir create --title T [--dir <id|path>]
+  lexidraw dir create --title T [--dir <id>|--dir-path P]
   lexidraw search <query> [--format json|table]
   lexidraw auth login [--token lxd_...]
   lexidraw auth status
@@ -57,9 +58,15 @@ Usage:
 
 Addressing:
   An entity is its id, or --path "Dir/Sub/Title" walked through directory
-  titles from the root. Several matches: a read takes the most recently
-  updated and says so on stderr, a write fails with the candidates. --nth N
-  picks one, counting from the most recent. --file - reads stdin.
+  titles from the root; a parent directory is --dir <id> or --dir-path
+  "Dir/Sub", never guessed from the value's shape. Several matches: a read
+  takes the most recently updated and says so on stderr, a write fails with
+  the candidates. --nth N picks one, counting from the most recent, among the
+  matches for the last segment of --path. --file - reads stdin.
+
+  A path splits on "/" with no escape, so a title containing "/" is only
+  addressable by id, and the "path" a "doc get" prints in its frontmatter is
+  a display label rather than something to feed back to --path.
 
 Preconditions:
   --if-unmodified-since <iso> is the updatedAt the write expects to find;

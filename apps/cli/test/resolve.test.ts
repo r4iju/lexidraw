@@ -36,6 +36,10 @@ beforeEach(() => {
       parentId: "dir-notes",
     },
     { id: "doc-case", title: "MiXeD", entityType: "document" },
+    // Two directories sharing a title, so a segment on the way can be
+    // ambiguous as well as the last one.
+    { id: "dir-twin-a", title: "Twins", entityType: "directory" },
+    { id: "dir-twin-b", title: "Twins", entityType: "directory" },
   ]);
 });
 
@@ -100,6 +104,7 @@ describe("--path", () => {
       "doc-new",
       "doc-old",
     ]);
+    expect(error.message).toContain("pass --nth N, or the id");
     expect(error.candidates[0]).toHaveProperty("updatedAt");
     expect(stub.rows.get("doc-new")?.blocks).toEqual([]);
   });
@@ -163,28 +168,65 @@ describe("--path", () => {
   });
 });
 
-describe("--dir", () => {
-  it("takes a path when the value is not a uuid", async () => {
+describe("an ambiguous directory on the way", () => {
+  it("sends a --path write to the document's own id", async () => {
     const out = io();
-    expect(await run(["doc", "list", "--dir", "Notes/Sub"], out.io)).toBe(0);
+    expect(
+      await run(
+        ["doc", "append", "--path", "Twins/Any", "--text", "x"],
+        out.io,
+      ),
+    ).toBe(1);
+    const error = JSON.parse(out.stderr());
+    expect(error.code).toBe("AMBIGUOUS_PATH");
+    expect(error.message).toContain("address the document by id");
+    expect(
+      error.candidates.map((row: { id: string }) => row.id).sort(),
+    ).toEqual(["dir-twin-a", "dir-twin-b"]);
+  });
+
+  it("sends a --dir-path write to the directory's own id", async () => {
+    const out = io();
+    expect(
+      await run(
+        ["doc", "create", "--title", "Fresh", "--dir-path", "Twins"],
+        out.io,
+      ),
+    ).toBe(1);
+    expect(JSON.parse(out.stderr()).message).toContain(
+      "address the directory by id (--dir <id>)",
+    );
+  });
+});
+
+describe("--dir and --dir-path", () => {
+  it("walks directory titles for --dir-path", async () => {
+    const out = io();
+    expect(await run(["doc", "list", "--dir-path", "Notes/Sub"], out.io)).toBe(
+      0,
+    );
     expect(
       JSON.parse(out.stdout()).map((row: { id: string }) => row.id),
     ).toEqual(["doc-deep"]);
   });
 
-  it("takes a uuid as the id itself", async () => {
-    const id = "11111111-2222-4333-8444-555555555555";
-    stub.rows.set(id, {
-      id,
-      title: "By id",
-      entityType: "directory",
-      parentId: null,
-      updatedAt: "2026-02-01T00:00:00.000Z",
-      blocks: [],
-    });
+  it("takes --dir as an id, whatever the id looks like", async () => {
     const out = io();
-    expect(await run(["doc", "list", "--dir", id], out.io)).toBe(0);
-    expect(JSON.parse(out.stdout())).toEqual([]);
-    expect(stub.requests.at(-1)?.path).toContain(`parentId=${id}`);
+    expect(await run(["doc", "list", "--dir", "dir-sub"], out.io)).toBe(0);
+    expect(
+      JSON.parse(out.stdout()).map((row: { id: string }) => row.id),
+    ).toEqual(["doc-deep"]);
+    expect(stub.requests.at(-1)?.path).toContain("parentId=dir-sub");
+  });
+
+  it("refuses both at once", async () => {
+    const out = io();
+    expect(
+      await run(
+        ["doc", "list", "--dir", "dir-sub", "--dir-path", "Notes/Sub"],
+        out.io,
+      ),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).code).toBe("USAGE");
   });
 });

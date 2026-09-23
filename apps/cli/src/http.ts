@@ -121,14 +121,19 @@ function raise(
   });
 }
 
+/** What a caller cannot act on: a stack, and a `zodError` that `issues`
+ * already says in the form the CLI prints. */
+const DROPPED = ["stack", "zodError"];
+
 /**
  * The server's `data`, keeping what this error actually carries: null is how
- * it marks a field that does not apply, and a stack is not for a caller.
+ * it marks a field that does not apply.
  */
 function machineReadable(data: unknown): { data?: Record<string, unknown> } {
   if (data === null || typeof data !== "object") return {};
   const kept = Object.entries(data as Record<string, unknown>).filter(
-    ([key, value]) => key !== "stack" && value !== null && value !== undefined,
+    ([key, value]) =>
+      !DROPPED.includes(key) && value !== null && value !== undefined,
   );
   return kept.length === 0 ? {} : { data: Object.fromEntries(kept) };
 }

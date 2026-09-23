@@ -133,12 +133,13 @@ next one, so a chain of writes never needs a read between them.
   unauthenticated; `lexidraw schema <command>` reads from it, refetches once
   if a known command is missing, and `--refresh` bypasses it.
 - Nouns and verbs:
-  - `doc list [--dir <id|path>]`, `doc get <id|--path P>`,
-    `doc create --title T [--dir <id|path>] [--file f|--text s]`,
+  - `doc list [--dir <id>|--dir-path P]`, `doc get <id|--path P>`,
+    `doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]`,
     `doc append <id|--path P> (--file f|--text s)`,
     `doc insert ... (--after-heading H [--nth N] | --at-block N)`,
     `doc put ... --replace`, `doc delete <id|--path P>`; `--file -` is stdin
-  - `dir list [<id>|--path P]`, `dir create --title T [--dir <id|path>]`
+  - `dir list [<id>|--path P]`,
+    `dir create --title T [--dir <id>|--dir-path P]`
   - `search <query>`
   - `drawing get|put|create|render` and `share ...`, still to come
   - `api <METHOD> <path> [--json ...]` raw escape hatch, only reaches
@@ -150,10 +151,19 @@ next one, so a chain of writes never needs a read between them.
   nothing matched exactly. Several matches: a read takes the most recently
   updated and says which on stderr, a write fails `AMBIGUOUS_PATH` with the
   candidates as `{ id, title, updatedAt }`. `--nth N` picks one, counting from
-  the most recent; on `doc insert` that flag belongs to `--after-heading`, so
-  an ambiguous path there is addressed by id. Nothing matched is `NOT_FOUND`
-  with the parent id and the segment that failed. `--dir` takes one value for
-  either form, and an id is a UUID, so the shape decides.
+  the most recent, among the matches for the last segment of `--path`; on
+  `doc insert` that flag belongs to `--after-heading`, so an ambiguous path
+  there is addressed by id. A directory the path walked through is never what
+  `--nth` picks, so an ambiguous one is answered with an id instead: the
+  directory's own for `--dir-path`, the entity's own for `--path`. Nothing
+  matched is `NOT_FOUND` with the parent id and the segment that failed. A
+  parent directory is `--dir <id>` or `--dir-path "Dir/Sub"`: entity ids are
+  free text, so the flag says which form was meant rather than the value's
+  shape deciding.
+- Titles with a `/` in them: a path splits on `/` unconditionally and has no
+  escape, so such a title is only addressable by id. `doc get` prints a
+  `path` in its frontmatter joined the same way, which is a display label and
+  not always something `--path` can resolve back.
 - Writes: `doc put` replaces the whole document and only with `--replace`;
   `insert` and `put` refuse to run without `--if-unmodified-since`, which is
   the `updatedAt` the write expects to find. `--if-unmodified-since latest`
@@ -166,12 +176,18 @@ next one, so a chain of writes never needs a read between them.
   `md` and prints markdown with frontmatter to stdout, `raw` the same without
   it, `json` the response carrying the stored editor state. `table` pads
   `id`, `title`, `type`, `updatedAt`, and `parentId` for a directory listing.
-  `--page-all` emits NDJSON, one row per line; `entities.list` returns a
-  directory in one answer, so there is nothing to page through yet.
+  `doc list` and `dir list` take `--page-all`, which emits NDJSON, one row per
+  line, and refuses an explicit `--format` because it renders its own;
+  `entities.list` returns a directory in one answer, so there is nothing to
+  page through yet. `search` answers in one page and has no `--page-all`.
 - Errors: JSON object on stderr with a stable `code` mirroring the OpenAPI
   error codes, non-zero exit; a usage error exits 2. The server's `data`
   travels with it, so a 409 carries `currentUpdatedAt` and an ambiguous
-  `afterHeading` carries `candidates`.
+  `afterHeading` carries `candidates`; the `stack` and the `zodError` that
+  repeats `issues` are dropped. A write the server is known to refuse, blank
+  markdown above all, is a usage error before any call. `doc create` with a
+  body is two calls, so a failure of the second carries `createdId`, the
+  empty document the first left behind.
 - Profiles: `prod` (https://lexidraw.app, default) and `dev`
   (http://localhost:3025), chosen with `--profile` or `LEXIDRAW_PROFILE`;
   `LEXIDRAW_URL` overrides the base URL. Token lookup: `LEXIDRAW_TOKEN`, then

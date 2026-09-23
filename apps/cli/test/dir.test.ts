@@ -70,6 +70,14 @@ describe("dir list", () => {
     expect(lines.at(-1)).toEndWith("dir-notes");
   });
 
+  it("refuses --page-all with an explicit --format", async () => {
+    const out = io();
+    expect(
+      await run(["dir", "list", "--page-all", "--format", "json"], out.io),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).code).toBe("USAGE");
+  });
+
   it("streams NDJSON for --page-all", async () => {
     const out = io();
     expect(await run(["dir", "list", "dir-notes", "--page-all"], out.io)).toBe(
@@ -89,7 +97,7 @@ describe("dir create", () => {
     const out = io();
     expect(
       await run(
-        ["dir", "create", "--title", "Fresh", "--dir", "Notes"],
+        ["dir", "create", "--title", "Fresh", "--dir-path", "Notes"],
         out.io,
       ),
     ).toBe(0);

@@ -43,7 +43,7 @@ const revision = (id: string) => stub.rows.get(id)?.updatedAt as string;
 describe("doc list", () => {
   it("lists the documents of a directory as JSON", async () => {
     const out = io();
-    expect(await run(["doc", "list", "--dir", "Notes"], out.io)).toBe(0);
+    expect(await run(["doc", "list", "--dir-path", "Notes"], out.io)).toBe(0);
     expect(
       JSON.parse(out.stdout()).map((row: { id: string }) => row.id),
     ).toEqual(["doc-plan"]);
@@ -68,19 +68,21 @@ describe("doc list", () => {
   it("streams one JSON object per line for --page-all", async () => {
     const out = io();
     expect(
-      await run(["doc", "list", "--dir", "Notes", "--page-all"], out.io),
+      await run(["doc", "list", "--dir-path", "Notes", "--page-all"], out.io),
     ).toBe(0);
     const lines = out.stdout().trimEnd().split("\n");
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0] as string).id).toBe("doc-plan");
   });
 
-  it("refuses --page-all with a table", async () => {
-    const out = io();
-    expect(
-      await run(["doc", "list", "--page-all", "--format", "table"], out.io),
-    ).toBe(2);
-    expect(JSON.parse(out.stderr()).code).toBe("USAGE");
+  it("refuses --page-all with any --format, json included", async () => {
+    for (const format of ["table", "json"]) {
+      const out = io();
+      expect(
+        await run(["doc", "list", "--page-all", "--format", format], out.io),
+      ).toBe(2);
+      expect(JSON.parse(out.stderr()).code).toBe("USAGE");
+    }
   });
 });
 
@@ -125,7 +127,7 @@ describe("doc create", () => {
     const out = io();
     expect(
       await run(
-        ["doc", "create", "--title", "Fresh", "--dir", "Notes"],
+        ["doc", "create", "--title", "Fresh", "--dir-path", "Notes"],
         out.io,
       ),
     ).toBe(0);
@@ -157,6 +159,29 @@ describe("doc create", () => {
     const out = io();
     expect(await run(["doc", "create"], out.io)).toBe(2);
     expect(JSON.parse(out.stderr()).message).toContain("--title");
+  });
+
+  it("refuses a blank body before it calls anything", async () => {
+    const out = io();
+    expect(
+      await run(["doc", "create", "--title", "Fresh", "--text", "   "], out.io),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).message).toContain("blank");
+    expect(stub.requests).toHaveLength(0);
+  });
+
+  it("names the document it created when the body write fails", async () => {
+    const out = io();
+    stub.control.failMarkdownWrites = true;
+    expect(
+      await run(["doc", "create", "--title", "Fresh", "--text", "Hi."], out.io),
+    ).toBe(1);
+    const error = JSON.parse(out.stderr());
+    expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+    expect(stub.rows.get(error.createdId)).toMatchObject({
+      title: "Fresh",
+      blocks: [],
+    });
   });
 });
 
@@ -233,6 +258,15 @@ describe("doc append", () => {
     const out = io();
     expect(await run(["doc", "append", "doc-plan"], out.io)).toBe(2);
     expect(JSON.parse(out.stderr()).message).toContain("--file");
+  });
+
+  it("refuses blank markdown from stdin before it calls anything", async () => {
+    const out = io("  \n");
+    expect(
+      await run(["doc", "append", "doc-plan", "--file", "-"], out.io),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).message).toContain("blank");
+    expect(stub.requests).toHaveLength(0);
   });
 });
 
@@ -439,5 +473,25 @@ describe("doc delete", () => {
     );
     expect(JSON.parse(out.stdout())).toEqual({ id: "doc-plan" });
     expect(stub.rows.has("doc-plan")).toBe(false);
+  });
+
+  it("refuses an id that names a directory", async () => {
+    const out = io();
+    expect(await run(["doc", "delete", "dir-notes"], out.io)).toBe(1);
+    expect(JSON.parse(out.stderr())).toMatchObject({
+      code: "NOT_FOUND",
+      entityType: "directory",
+    });
+    expect(stub.rows.has("dir-notes")).toBe(true);
+    expect(stub.requests.every((call) => call.method !== "DELETE")).toBe(true);
+  });
+
+  it("reports an id that names nothing", async () => {
+    const out = io();
+    expect(await run(["doc", "delete", "nope"], out.io)).toBe(1);
+    expect(JSON.parse(out.stderr())).toMatchObject({
+      code: "NOT_FOUND",
+      status: 404,
+    });
   });
 });
