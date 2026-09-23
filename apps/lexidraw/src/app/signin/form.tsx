@@ -34,10 +34,16 @@ export default function SignInForm() {
         ...data,
         redirect: false,
       });
-      if (res?.ok) {
+      // next-auth reports `ok` from the HTTP status, which is 200 even when
+      // the credentials were rejected; the rejection only shows up in `error`.
+      if (res?.error) {
+        setSubmitError(
+          res.error === "CredentialsSignin"
+            ? "Invalid email or password."
+            : res.error,
+        );
+      } else if (res?.ok) {
         router.push("/dashboard");
-      } else if (res?.error) {
-        setSubmitError(res.error);
       }
     } catch (err) {
       if (err instanceof Error) {
