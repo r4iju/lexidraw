@@ -202,8 +202,11 @@ next one, so a chain of writes never needs a read between them.
   login|status`, `api`, and
   `schema <command>|--list`, whose registry maps a command name to an
   operationId in the cached document.
-- Skill: `skills/lexidraw/SKILL.md` in this repo, symlinked into
-  `~/.ai/skills` by `bun run skills:install`.
+- Skill: `skills/lexidraw/SKILL.md` in this repo. `bun run skills:install`
+  builds and installs the binary, then symlinks `skills/lexidraw` to
+  `~/.ai/skills/lexidraw`; it is idempotent, refuses to replace anything
+  there that is not already a symlink, and refuses to run from a git
+  worktree, whose path would not outlive it.
 
 ### MCP (last phase)
 

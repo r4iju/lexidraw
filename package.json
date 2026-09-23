@@ -23,7 +23,8 @@
     "format": "bun x @biomejs/biome format --write .",
     "test": "bun dotenv -e .env.test -- turbo run test --continue",
     "test:ts": "bun dotenv -e .env.test -- turbo run test:ts --continue",
-    "cli:install": "bun run --filter @apps/cli compile && mkdir -p \"$HOME/.ai/bin\" && install -m 755 apps/cli/dist/lexidraw \"$HOME/.ai/bin/lexidraw\""
+    "cli:install": "bun run --filter @apps/cli compile && mkdir -p \"$HOME/.ai/bin\" && install -m 755 apps/cli/dist/lexidraw \"$HOME/.ai/bin/lexidraw\"",
+    "skills:install": "bash scripts/install-skills.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
