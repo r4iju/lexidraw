@@ -35,36 +35,29 @@ export const findWritableDrawing = async (db: Db, id: string, userId: string) =>
  *
  * The write is a compare-and-set on `updatedAt`, so a save from the editor
  * that lands between the caller's read and this write is never clobbered
- * unnoticed. With `ifUnmodifiedSince` the caller says which revision it is
- * replacing, and losing that race is a conflict. Without one it is asking to
- * replace whatever is current, so the race is retried once against what the
- * other writer left.
+ * unnoticed. `ifUnmodifiedSince` is the revision the caller is replacing, and
+ * losing that race is a conflict rather than something to retry: replacing
+ * every element of a drawing that has moved on is not a write anyone can
+ * merge afterwards.
  */
 export async function replaceDrawingElements(
   store: DocumentStore,
   revision: DocumentRevision,
   elements: readonly CanonicalElement[],
-  ifUnmodifiedSince?: string,
+  ifUnmodifiedSince: string,
 ): Promise<{ id: string; updatedAt: Date; elementCount: number }> {
-  if (
-    ifUnmodifiedSince !== undefined &&
-    new Date(ifUnmodifiedSince).getTime() !== revision.updatedAt.getTime()
-  ) {
+  if (new Date(ifUnmodifiedSince).getTime() !== revision.updatedAt.getTime()) {
     throw new StaleDocumentError(revision.updatedAt);
   }
 
-  const serialized = JSON.stringify(elements);
-  let expected = revision.updatedAt;
-  for (let attempt = 0; ; attempt++) {
-    const written = await store.write(revision.id, serialized, expected);
-    if (written) {
-      return { ...written, elementCount: elements.length };
-    }
-    const reread = await store.read(revision.id);
-    if (!reread) throw new DocumentGoneError();
-    if (attempt > 0 || ifUnmodifiedSince !== undefined) {
-      throw new StaleDocumentError(reread.updatedAt);
-    }
-    expected = reread.updatedAt;
-  }
+  const written = await store.write(
+    revision.id,
+    JSON.stringify(elements),
+    revision.updatedAt,
+  );
+  if (written) return { ...written, elementCount: elements.length };
+
+  const reread = await store.read(revision.id);
+  if (!reread) throw new DocumentGoneError();
+  throw new StaleDocumentError(reread.updatedAt);
 }

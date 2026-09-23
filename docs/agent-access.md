@@ -246,20 +246,28 @@ next one, so a chain of writes never needs a read between them.
 
 - Write accepts two shapes over one pipeline: raw Excalidraw elements, and the
   skeleton/shorthand format used by `excalidraw/excalidraw-mcp` (`label` on
-  shapes and arrows, bindings by id, `frame.children`, `stickynote`).
-  Normalized server-side with `convertToExcalidrawElements` under jsdom plus
-  `setCustomTextMetricsProvider`, then validated and stored as canonical
-  elements. `@excalidraw/element` is only published as prereleases of 0.18.0,
-  none matching the 0.18.1 editor, so the converter comes from
+  shapes and arrows, bindings by id, `frame.children`, `stickynote`). Which
+  shape an element is is decided before it is parsed, and it is then validated
+  against that shape alone, so nothing reaches the converter that no schema
+  checked. Shorthand is expanded with `convertToExcalidrawElements` under jsdom
+  plus `setCustomTextMetricsProvider`; everything, converted or raw, then goes
+  through Excalidraw's `restoreElements`, so what is stored is what the editor
+  would have made of the payload. At most 10,000 elements, under the 4.5 MB
+  request body the app is deployed behind.
+- `@excalidraw/element` is only published as prereleases of 0.18.0, none
+  matching the 0.18.1 editor, so both functions come from
   `@excalidraw/excalidraw`. That entry point is the React editor, and Next's
   `react-server` layer resolves a React without `createContext` on a frozen
   namespace, so it cannot be imported from a route. `packages/excalidraw-converter`
-  pre-bundles just the converter with React stubbed out; the route imports that
-  package lazily behind a DOM shim that nothing else touches.
+  pre-bundles just those functions with React stubbed out; the route imports
+  that package lazily, behind a DOM shim that is installed for the length of a
+  conversion and nothing else touches.
 - The format is documented in [drawing-format.md](drawing-format.md), which the
   skill embeds so agents that learned the official MCP already know it.
 - Live today: `drawings.get|put|create` as `GET /drawings/{id}`,
-  `PUT /drawings/{id}` and `POST /drawings`, and `lexidraw drawing get|put|create`.
+  `PUT /drawings/{id}` (precondition mandatory, as for a markdown replace) and
+  `POST /drawings`, and `lexidraw drawing get|put|create`, whose `put` takes
+  `--if-unmodified-since <iso|latest>`.
 - `drawing render --format svg|png` calls a server-side export using
   `@excalidraw/utils` with the jsdom shim. Pin the package: the `exportToSvg`
   signature changed to `{ data, config }` in 0.1.4 while the docs still show

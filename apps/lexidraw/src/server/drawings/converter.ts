@@ -1,16 +1,17 @@
-import type { SkeletonConverter } from "./normalize";
+import type { DrawingTools } from "./normalize";
 import { importWithDomShim, withDomShim } from "./dom-shim";
 
 /**
- * The official skeleton converter, running on the server.
+ * The official skeleton converter and scene restorer, running on the server.
  *
- * It comes from `@packages/excalidraw-converter`, which bundles it out of the
- * editor with React stubbed out; that package's README says why. What is left
- * still wants a DOM while its modules evaluate, so the import is dynamic: the
- * shim has to be installed first, and this is the only module that pulls
- * either of them in.
+ * They come from `@packages/excalidraw-converter`, which bundles them out of
+ * the editor with React stubbed out; that package's README says why. What is
+ * left still wants a DOM while its modules evaluate, so the import is dynamic:
+ * the shim has to be installed first, and this is the only module that pulls
+ * either of them in. Callers pass `drawingTools` itself rather than its
+ * result, so a payload that never gets as far as converting never loads it.
  */
-let converter: Promise<SkeletonConverter> | undefined;
+let tools: Promise<DrawingTools> | undefined;
 
 /**
  * Character widths without a canvas. Excalidraw asks for a line's width and
@@ -26,23 +27,37 @@ function measureLine(text: string, fontString: string): number {
   return [...text].length * WIDTH_PER_CHARACTER * (fontSize || 20);
 }
 
-export function skeletonConverter(): Promise<SkeletonConverter> {
-  converter ??= load();
-  return converter;
+export function drawingTools(): Promise<DrawingTools> {
+  tools ??= load();
+  return tools;
 }
 
-async function load(): Promise<SkeletonConverter> {
+async function load(): Promise<DrawingTools> {
   const excalidraw = await importWithDomShim(
     () => import("@packages/excalidraw-converter"),
   );
   excalidraw.setCustomTextMetricsProvider({ getLineWidth: measureLine });
-  // Ids are the caller's handles: they name bindings and frame children on the
-  // way in, and address elements on the way back out.
-  return (skeleton) =>
-    withDomShim(
-      () =>
-        excalidraw.convertToExcalidrawElements(skeleton as never, {
-          regenerateIds: false,
-        }) as unknown as Record<string, unknown>[],
-    );
+  return {
+    // Ids are the caller's handles: they name bindings and frame children on
+    // the way in, and address elements on the way back out.
+    convert: (skeleton) =>
+      withDomShim(
+        () =>
+          excalidraw.convertToExcalidrawElements(skeleton as never, {
+            regenerateIds: false,
+          }) as unknown as Record<string, unknown>[],
+      ),
+    // Dimensions are the caller's too: refreshing them would re-measure every
+    // text element against fonts this process does not have. Bindings are
+    // repaired, because a binding to an element that is not in the payload is
+    // what makes the editor throw on open.
+    restore: (elements) =>
+      withDomShim(
+        () =>
+          excalidraw.restoreElements(elements as never, null, {
+            refreshDimensions: false,
+            repairBindings: true,
+          }) as unknown as Record<string, unknown>[],
+      ),
+  };
 }

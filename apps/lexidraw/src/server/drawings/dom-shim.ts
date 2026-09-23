@@ -133,8 +133,10 @@ export async function importWithDomShim<T>(load: () => Promise<T>): Promise<T> {
 type Saved = Map<string, PropertyDescriptor | undefined>;
 
 function install(): Saved | undefined {
-  depth += 1;
-  if (depth > 1) return undefined;
+  if (depth > 0) {
+    depth += 1;
+    return undefined;
+  }
   shim ??= buildShim();
   const previous: Saved = new Map();
   for (const name of SHIMMED) {
@@ -148,6 +150,9 @@ function install(): Saved | undefined {
       value: shim[name],
     });
   }
+  // Counted only once the globals are in place: a build that threw must not
+  // leave the shim looking installed to every call after it.
+  depth = 1;
   return previous;
 }
 

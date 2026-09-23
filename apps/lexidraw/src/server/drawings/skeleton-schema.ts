@@ -4,33 +4,29 @@ import { z } from "zod";
  * A drawing write accepts two shapes over one pipeline: canonical Excalidraw
  * elements, and the skeleton shorthand agents already know from the official
  * Excalidraw MCP. Both are described here so the OpenAPI document carries the
- * contract; which of the two an element is is decided in `normalize.ts`.
+ * contract, and both are validated here: which of the two an element is is
+ * decided by {@link isSkeletonElement} before it is parsed, so an element is
+ * only ever measured against the shape it claims to be. A union would instead
+ * fall through to the other shape and hand the converter a payload no schema
+ * ever checked.
  *
  * Mermaid is not one of them. It needs a real browser to lay out, so a payload
- * that carries it is refused here rather than half-converted server-side.
+ * that carries it is refused by name in `normalize.ts` rather than being
+ * half-converted server-side.
  */
 export const MERMAID_REJECTION =
   "Mermaid is not a write format; convert it in the browser";
 
+/**
+ * A drawing the editor can still open. Excalidraw slows to a crawl well before
+ * this, and a payload this size is far past the 4.5 MB request body the app is
+ * deployed behind, so the cap is a guard rail rather than a target.
+ */
+export const MAX_DRAWING_ELEMENTS = 10_000;
+
 const finite = z.number().finite();
 
-/** Every canonical element type the editor stores. `selection` is transient. */
-export const ELEMENT_TYPES = [
-  "rectangle",
-  "ellipse",
-  "diamond",
-  "text",
-  "arrow",
-  "line",
-  "freedraw",
-  "image",
-  "frame",
-  "magicframe",
-  "embeddable",
-  "iframe",
-] as const;
-
-/** Fields only a canonical element carries; see `isSkeletonElement`. */
+/** Fields only a canonical element carries; see {@link isSkeletonElement}. */
 export const CANONICAL_ONLY_FIELDS = [
   "version",
   "versionNonce",
@@ -93,6 +89,8 @@ const TextSkeleton = z.looseObject({
   fontSize: finite.positive().optional(),
 });
 
+const Points = z.array(z.tuple([finite, finite]));
+
 const LinearSkeleton = z.looseObject({
   type: z.enum(["arrow", "line"]),
   id: z.string().optional(),
@@ -103,7 +101,7 @@ const LinearSkeleton = z.looseObject({
   label: Label.optional(),
   start: Endpoint.optional(),
   end: Endpoint.optional(),
-  points: z.array(z.tuple([finite, finite])).optional(),
+  points: Points.optional(),
 });
 
 const FrameSkeleton = z.looseObject({
@@ -121,38 +119,179 @@ const SkeletonElement = z.discriminatedUnion("type", [
   FrameSkeleton,
 ]);
 
-/** A canonical element, kept whole: the editor owns the rest of its fields. */
-const RawElement = z.looseObject({
-  type: z.enum(ELEMENT_TYPES),
+/**
+ * A canonical element. The editor owns most of its fields, so unknown ones are
+ * kept as they arrive, but everything the converter, the restorer or the
+ * editor reads positionally is typed: a `points` array of anything but pairs
+ * of numbers, or a text element with no text, crashes the editor on open.
+ */
+const rawCommon = {
   id: z.string().min(1),
   x: finite,
   y: finite,
   width: finite,
   height: finite,
+  angle: finite.optional(),
+  strokeColor: z.string().optional(),
+  backgroundColor: z.string().optional(),
+  fillStyle: z.string().optional(),
+  strokeWidth: finite.optional(),
+  strokeStyle: z.string().optional(),
+  roughness: finite.optional(),
+  opacity: finite.optional(),
+  groupIds: z.array(z.string()).optional(),
+  frameId: z.string().nullish(),
+  index: z.string().nullish(),
+  seed: finite.optional(),
+  version: finite.optional(),
+  versionNonce: finite.optional(),
+  isDeleted: z.boolean().optional(),
+  updated: finite.optional(),
+  link: z.string().nullish(),
+  locked: z.boolean().optional(),
+  boundElements: z
+    .array(z.looseObject({ id: z.string(), type: z.string() }))
+    .nullish(),
+};
+
+const Binding = z
+  .looseObject({
+    elementId: z.string(),
+    focus: finite.optional(),
+    gap: finite.optional(),
+  })
+  .nullable();
+
+const RawLinear = z.looseObject({
+  ...rawCommon,
+  type: z.enum(["arrow", "line"]),
+  points: Points.optional(),
+  startBinding: Binding.optional(),
+  endBinding: Binding.optional(),
 });
 
+const RawFreedraw = z.looseObject({
+  ...rawCommon,
+  type: z.literal("freedraw"),
+  points: Points.optional(),
+  pressures: z.array(finite).optional(),
+});
+
+const RawText = z.looseObject({
+  ...rawCommon,
+  type: z.literal("text"),
+  text: z.string(),
+  originalText: z.string().optional(),
+  fontSize: finite.positive().optional(),
+  fontFamily: finite.optional(),
+  containerId: z.string().nullish(),
+});
+
+const RawShape = z.looseObject({
+  ...rawCommon,
+  type: z.enum([
+    "rectangle",
+    "ellipse",
+    "diamond",
+    "image",
+    "frame",
+    "magicframe",
+    "embeddable",
+    "iframe",
+  ]),
+});
+
+const RawElement = z.discriminatedUnion("type", [
+  RawLinear,
+  RawFreedraw,
+  RawText,
+  RawShape,
+]);
+
 /**
- * Mermaid is recognised so it can be refused by name. It is in the union, and
- * in the published schema, because a write that carried it has to come back
- * with {@link MERMAID_REJECTION} rather than "nothing in the union matched"; a
- * shape error over REST reads as "Input validation failed", which tells the
- * caller nothing it can act on. `normalize.ts` does the refusing.
+ * Mermaid is recognised so it can be refused by name, both as an element and
+ * as the bare `{ mermaid }` object the official MCP takes. It is in the
+ * published schema because a write that carried it has to come back with
+ * {@link MERMAID_REJECTION} rather than "nothing matched"; a shape error over
+ * REST reads as "Input validation failed", which tells the caller nothing it
+ * can act on. `normalize.ts` does the refusing.
  */
-const MermaidElement = z.looseObject({ type: z.literal("mermaid") }).meta({
+const MermaidElement = z.looseObject({}).meta({
   description: `Rejected: ${MERMAID_REJECTION}`,
 });
 
 export const looksLikeMermaid = (value: unknown): boolean =>
-  typeof value === "object" &&
-  value !== null &&
-  ((value as Record<string, unknown>).type === "mermaid" ||
-    typeof (value as Record<string, unknown>).mermaid === "string");
+  isRecord(value) &&
+  (value.type === "mermaid" || typeof value.mermaid === "string");
 
-const Element = z.union([SkeletonElement, RawElement, MermaidElement]);
+/**
+ * Whether an element is shorthand rather than a stored element. The shorthand
+ * never carries the bookkeeping the editor stamps on every element it saves,
+ * and the fields that only exist in the shorthand settle the case on their
+ * own. This is the only classifier: parsing and normalizing both ask it, so an
+ * element cannot be validated as one shape and converted as the other.
+ */
+export function isSkeletonElement(element: unknown): boolean {
+  if (!isRecord(element)) return false;
+  if (SKELETON_ONLY_FIELDS.some((field) => element[field] !== undefined)) {
+    return true;
+  }
+  if (element.type === "stickynote") return true;
+  return !CANONICAL_ONLY_FIELDS.some((field) => element[field] !== undefined);
+}
 
-export const DrawingElements = z.array(Element);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-export type DrawingElement = z.output<typeof Element>;
+type SchemaFor =
+  | typeof SkeletonElement
+  | typeof RawElement
+  | typeof MermaidElement;
+
+const schemaFor = (value: unknown): SchemaFor => {
+  if (looksLikeMermaid(value)) return MermaidElement;
+  return isSkeletonElement(value) ? SkeletonElement : RawElement;
+};
+
+/** The two shapes as published; the runtime check picks between them. */
+const published: Record<string, unknown> = z.toJSONSchema(
+  z.union([SkeletonElement, RawElement, MermaidElement]),
+  { io: "input" },
+);
+delete published.$schema;
+
+const Element = z
+  .unknown()
+  .check((ctx) => {
+    if (!isRecord(ctx.value)) {
+      ctx.issues.push({
+        code: "invalid_type",
+        expected: "object",
+        input: ctx.value,
+        message: "Expected an Excalidraw element object",
+      });
+      return;
+    }
+    const result = schemaFor(ctx.value).safeParse(ctx.value);
+    if (result.success) return;
+    for (const issue of result.error.issues) {
+      // Reported as the chosen schema saw it, so the path stays
+      // `elements[3].points[0]` rather than collapsing to the element.
+      ctx.issues.push({ ...issue, input: ctx.value } as never);
+    }
+  })
+  // Nothing is rebuilt: an element that passes its own schema is stored as the
+  // caller wrote it, and `restoreElements` is what fills the rest in.
+  .transform((value) => value as DrawingElement)
+  .meta(published as never);
+
+export const DrawingElements = z.array(Element).max(MAX_DRAWING_ELEMENTS);
+
+export type DrawingElement =
+  | z.output<typeof SkeletonElement>
+  | z.output<typeof RawElement>
+  | z.output<typeof MermaidElement>;
 export type SkeletonElement = z.output<typeof SkeletonElement>;
 export type RawElement = z.output<typeof RawElement>;
 

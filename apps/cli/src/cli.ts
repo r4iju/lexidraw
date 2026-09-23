@@ -27,7 +27,7 @@ Usage:
   lexidraw auth status
   lexidraw api <METHOD> <path> [--json <body>|@file] [--query k=v ...]
   lexidraw drawing get <id>
-  lexidraw drawing put <id> --file <elements.json|-> [--if-unmodified-since <iso>]
+  lexidraw drawing put <id> --file <elements.json|-> --if-unmodified-since <iso|latest>
   lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
   lexidraw schema <command> | lexidraw schema --list
 

@@ -1,10 +1,9 @@
 import {
-  CANONICAL_ONLY_FIELDS,
   type CanonicalElement,
   type DrawingElement,
+  isSkeletonElement,
   looksLikeMermaid,
   MERMAID_REJECTION,
-  SKELETON_ONLY_FIELDS,
   type SkeletonElement,
 } from "./skeleton-schema";
 
@@ -21,44 +20,46 @@ export type SkeletonConverter = (
   skeleton: readonly SkeletonElement[],
 ) => readonly Record<string, unknown>[];
 
+/**
+ * Excalidraw's own `restoreElements`, which is what the editor runs over a
+ * scene it is about to open.
+ */
+export type ElementRestorer = (
+  elements: readonly Record<string, unknown>[],
+) => readonly Record<string, unknown>[];
+
+export type DrawingTools = {
+  convert: SkeletonConverter;
+  restore: ElementRestorer;
+};
+
 const STICKY_NOTE_BACKGROUND = "#fff9db";
 const STICKY_NOTE_SIDE = 180;
 
 /**
- * Whether an element is shorthand rather than a stored element. The shorthand
- * never carries the bookkeeping the editor stamps on every element it saves,
- * and the fields that only exist in the shorthand settle the case on their own.
- */
-export function isSkeletonElement(element: DrawingElement): boolean {
-  const value = element as Record<string, unknown>;
-  if (SKELETON_ONLY_FIELDS.some((field) => value[field] !== undefined)) {
-    return true;
-  }
-  if (value.type === "stickynote") return true;
-  return !CANONICAL_ONLY_FIELDS.some((field) => value[field] !== undefined);
-}
-
-/**
  * The canonical elements a payload stores as.
  *
- * Raw elements are stored exactly as they arrived: a caller that read a
- * drawing, changed one element and wrote it back gets its drawing back, not a
- * re-stamped copy. Skeleton elements go through the converter as one batch, so
- * bindings and frame membership resolve across the whole payload, and the
- * result takes the place of the first of them; raw elements keep their
- * positions around it, and array order is z-order.
+ * Shorthand elements go through the converter as one batch, so bindings and
+ * frame membership resolve across the whole payload, and the result takes the
+ * place of the first of them; canonical elements keep their positions around
+ * it, and array order is z-order. Whatever comes out, canonical or converted,
+ * is then restored the way the editor restores a scene it opens, so what is
+ * stored is what the browser would have made of it.
  *
  * The two halves cannot reference each other. The converter only sees the
- * skeleton batch, so an arrow bound to a raw element would silently come out
- * unbound, and a frame listing one would silently not contain it. Both are
+ * skeleton batch, so an arrow bound to a canonical element would silently come
+ * out unbound, and a frame listing one would silently not contain it. Both are
  * refused instead.
+ *
+ * `loadTools` is a thunk because it pulls in a megabytes-large bundle of the
+ * editor: a payload that is refused here never pays for it.
  */
-export function normalizeDrawingElements(
+export async function normalizeDrawingElements(
   elements: readonly DrawingElement[],
-  convert: SkeletonConverter,
-): CanonicalElement[] {
+  loadTools: () => Promise<DrawingTools>,
+): Promise<CanonicalElement[]> {
   const skeleton: SkeletonElement[] = [];
-  const raw: CanonicalElement[] = [];
+  const canonical: CanonicalElement[] = [];
   // `null` marks where the converted batch goes back in.
   const layout: (CanonicalElement | null)[] = [];
 
@@ -72,19 +73,44 @@ export function normalizeDrawingElements(
       continue;
     }
     const element_ = element as CanonicalElement;
-    raw.push(element_);
+    canonical.push(element_);
     layout.push(element_);
   }
 
-  assertUniqueIds([...skeleton, ...raw] as Record<string, unknown>[]);
+  assertUniqueIds([...skeleton, ...canonical] as Record<string, unknown>[]);
   assertReferencesResolve(skeleton);
 
-  if (skeleton.length === 0) return raw;
+  const tools = await loadTools();
+  const converted =
+    skeleton.length === 0
+      ? []
+      : (tools.convert(skeleton.map(expandShorthand)) as CanonicalElement[]);
+  const merged = layout.flatMap((slot) =>
+    slot === null ? converted : [slot],
+  ) as Record<string, unknown>[];
 
-  const converted = convert(
-    skeleton.map(expandShorthand),
-  ) as CanonicalElement[];
-  return layout.flatMap((slot) => (slot === null ? converted : [slot]));
+  return restore(merged, tools.restore);
+}
+
+/**
+ * The scene as the editor would have loaded it: defaults filled in, bindings
+ * repaired against what is actually in the payload, element order indexed.
+ * Anything the restorer cannot make sense of is the caller's payload, not our
+ * bug, so it comes back as a rejection rather than a 500.
+ */
+function restore(
+  elements: readonly Record<string, unknown>[],
+  restorer: ElementRestorer,
+): CanonicalElement[] {
+  try {
+    return restorer(elements) as CanonicalElement[];
+  } catch (cause) {
+    throw new InvalidDrawingError(
+      `These elements are not a drawing the editor can open: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }`,
+    );
+  }
 }
 
 /**

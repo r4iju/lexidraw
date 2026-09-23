@@ -1,5 +1,5 @@
 import { PublicAccess } from "@packages/types";
-import { schema } from "@packages/drizzle";
+import { type drizzle, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { v4 as uuidV4 } from "uuid";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { z } from "zod";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import { drizzleDocumentStore } from "~/server/documents/document-store";
 import { DocumentGoneError } from "~/server/documents/write";
-import { skeletonConverter } from "~/server/drawings/converter";
+import { drawingTools } from "~/server/drawings/converter";
 import {
   InvalidDrawingError,
   normalizeDrawingElements,
@@ -17,6 +17,7 @@ import {
   findWritableDrawing,
   replaceDrawingElements,
 } from "~/server/drawings/store";
+import { findWritableEntity } from "~/server/entities/readable";
 import {
   type CanonicalElement,
   DrawingElements,
@@ -38,6 +39,13 @@ const mermaid = z
   .meta({ description: `Rejected: ${MERMAID_REJECTION}` });
 
 const Iso = z.iso.datetime();
+
+/**
+ * A write adds two statuses a read cannot reach: the 409 its precondition
+ * guards, and the 403 a read-scope token earns for attempting a mutation.
+ */
+const READ_ERRORS = [400, 401, 404, 422, 500];
+const WRITE_ERRORS = [400, 401, 403, 404, 409, 422, 500];
 
 function throwAsDrawingWriteError(error: unknown): never {
   if (error instanceof InvalidDrawingError) {
@@ -110,7 +118,7 @@ async function normalize(input: {
     throw new TRPCError({ code: "BAD_REQUEST", message: MERMAID_REJECTION });
   }
   try {
-    return normalizeDrawingElements(input.elements, await skeletonConverter());
+    return await normalizeDrawingElements(input.elements, drawingTools);
   } catch (error) {
     throwAsDrawingWriteError(error);
   }
@@ -129,6 +137,7 @@ export const drawingRouter = createTRPCRouter({
         tags: ["drawings"],
         summary: "Read a drawing's elements",
         protect: true,
+        errorResponses: READ_ERRORS,
       },
     })
     .input(z.object({ id: z.string() }))
@@ -161,7 +170,10 @@ export const drawingRouter = createTRPCRouter({
    * Excalidraw elements, as the skeleton shorthand, or as a mix; see
    * docs/drawing-format.md. `ifUnmodifiedSince` is the `updatedAt` the caller
    * read, and a write that no longer matches it fails with `CONFLICT` plus
-   * `data.currentUpdatedAt` to re-read from.
+   * `data.currentUpdatedAt` to re-read from. It is mandatory: replacing every
+   * element of a drawing someone else has meanwhile edited is the one write
+   * that cannot be merged afterwards, and a caller with nothing to say here
+   * wants `create` instead.
    */
   put: protectedProcedure
     .meta({
@@ -171,13 +183,14 @@ export const drawingRouter = createTRPCRouter({
         tags: ["drawings"],
         summary: "Replace a drawing's elements",
         protect: true,
+        errorResponses: WRITE_ERRORS,
       },
     })
     .input(
       z.object({
         id: z.string(),
         elements: DrawingElements,
-        ifUnmodifiedSince: Iso.optional(),
+        ifUnmodifiedSince: Iso,
         mermaid,
       }),
     )
@@ -220,6 +233,7 @@ export const drawingRouter = createTRPCRouter({
         tags: ["drawings"],
         summary: "Create a drawing",
         protect: true,
+        errorResponses: WRITE_ERRORS,
       },
     })
     .input(
@@ -233,27 +247,25 @@ export const drawingRouter = createTRPCRouter({
     )
     .output(z.object({ id: z.string(), updatedAt: Iso }))
     .mutation(async ({ input, ctx }) => {
+      const parentId = await resolveParent(
+        ctx.drizzle,
+        input.parentId,
+        ctx.session.user.id,
+      );
       const elements = await normalize(input);
       const now = new Date();
-      const rows = await ctx.drizzle
-        .insert(schema.entities)
-        .values({
-          id: input.id ?? uuidV4(),
-          createdAt: now,
-          updatedAt: now,
-          title: input.title,
-          userId: ctx.session.user.id,
-          entityType: "drawing",
-          publicAccess: PublicAccess.PRIVATE,
-          elements: JSON.stringify(elements),
-          parentId: input.parentId ?? null,
-          appState: JSON.stringify({}),
-        })
-        .onConflictDoNothing()
-        .returning({
-          id: schema.entities.id,
-          updatedAt: schema.entities.updatedAt,
-        });
+      const rows = await insertDrawing(ctx.drizzle, {
+        id: input.id ?? uuidV4(),
+        createdAt: now,
+        updatedAt: now,
+        title: input.title,
+        userId: ctx.session.user.id,
+        entityType: "drawing",
+        publicAccess: PublicAccess.PRIVATE,
+        elements: JSON.stringify(elements),
+        parentId,
+        appState: JSON.stringify({}),
+      });
       const row = rows[0];
       if (!row) {
         throw new TRPCError({
@@ -264,3 +276,49 @@ export const drawingRouter = createTRPCRouter({
       return { id: row.id, updatedAt: row.updatedAt.toISOString() };
     }),
 });
+
+/**
+ * The directory the new drawing goes in, checked before the insert: the
+ * foreign key would otherwise fail with the statement in its message, and a
+ * parent the caller cannot write to is not theirs to file things under. A
+ * parent they cannot reach reads as missing, the way an unreachable drawing
+ * does.
+ */
+async function resolveParent(
+  db: typeof drizzle,
+  parentId: string | null | undefined,
+  userId: string,
+): Promise<string | null> {
+  if (parentId === null || parentId === undefined) return null;
+  const parent = await findWritableEntity(db, parentId, userId);
+  if (parent?.entityType !== "directory") {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: `No directory "${parentId}" to create the drawing in`,
+    });
+  }
+  return parent.id;
+}
+
+/** The insert, with anything the database says about it kept server-side. */
+async function insertDrawing(
+  db: typeof drizzle,
+  values: typeof schema.entities.$inferInsert,
+) {
+  try {
+    return await db
+      .insert(schema.entities)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({
+        id: schema.entities.id,
+        updatedAt: schema.entities.updatedAt,
+      });
+  } catch (cause) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Could not create the drawing",
+      cause,
+    });
+  }
+}

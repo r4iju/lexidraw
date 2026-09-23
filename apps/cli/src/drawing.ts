@@ -6,8 +6,12 @@ import { requireToken } from "./tokens";
 
 const USAGE = `usage:
   lexidraw drawing get <id>
-  lexidraw drawing put <id> --file <elements.json|-> [--if-unmodified-since <iso>]
-  lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]`;
+  lexidraw drawing put <id> --file <elements.json|-> --if-unmodified-since <iso|latest>
+  lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
+
+put replaces every element, so it states which revision it replaces: pass the
+updatedAt a get returned, or "latest" to read it again immediately before
+writing.`;
 
 const FLAGS = {
   value: ["file", "title", "parent", "if-unmodified-since"],
@@ -25,7 +29,7 @@ export async function drawingCommand(
     context.io.env,
     context.io.tokens,
   );
-  const call = async (method: string, path: string, body?: unknown) => {
+  const request = async (method: string, path: string, body?: unknown) => {
     const response = await requestApi({
       baseUrl: context.profile.baseUrl,
       method,
@@ -33,7 +37,10 @@ export async function drawingCommand(
       token,
       body,
     });
-    context.io.stdout(json(expectOk(response, `${method} ${path} failed`)));
+    return expectOk(response, `${method} ${path} failed`);
+  };
+  const call = async (method: string, path: string, body?: unknown) => {
+    context.io.stdout(json(await request(method, path, body)));
   };
 
   switch (verb) {
@@ -49,11 +56,19 @@ export async function drawingCommand(
       if (file === undefined) {
         throw usageError("drawing put needs --file <elements.json|->");
       }
-      const ifUnmodifiedSince = one(args, "if-unmodified-since");
-      return call("PUT", `/drawings/${encodeURIComponent(id)}`, {
+      const since = one(args, "if-unmodified-since");
+      if (since === undefined) {
+        throw usageError(
+          "drawing put needs --if-unmodified-since <iso|latest>",
+        );
+      }
+      const path = `/drawings/${encodeURIComponent(id)}`;
+      const elements = await readElements(context, file);
+      return call("PUT", path, {
         id,
-        elements: await readElements(context, file),
-        ...(ifUnmodifiedSince === undefined ? {} : { ifUnmodifiedSince }),
+        elements,
+        ifUnmodifiedSince:
+          since === "latest" ? await readUpdatedAt(request, path) : since,
       });
     }
     case "create": {
@@ -75,6 +90,22 @@ export async function drawingCommand(
     default:
       throw usageError(USAGE);
   }
+}
+
+/**
+ * The revision to replace, read now. "latest" says the caller has nothing to
+ * compare against and accepts whatever is stored this second; a save that
+ * lands between this read and the write is still refused by the server.
+ */
+async function readUpdatedAt(
+  request: (method: string, path: string) => Promise<unknown>,
+  path: string,
+): Promise<string> {
+  const drawing = (await request("GET", path)) as { updatedAt?: unknown };
+  if (typeof drawing.updatedAt !== "string") {
+    throw usageError(`${path} did not answer with an updatedAt to replace`);
+  }
+  return drawing.updatedAt;
 }
 
 /** The elements to write, from a file or, as `-`, from standard input. */

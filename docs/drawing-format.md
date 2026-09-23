@@ -95,12 +95,13 @@ ordinary labelled rectangle.
 
 ### Canonical elements
 
-Elements that came from a `GET`, or from the editor, go back unchanged. Each
-one needs `type`, a non-empty `id`, and finite `x`, `y`, `width`, `height`;
-every other field is stored with the value you sent, including on `isDeleted`
-elements, so reading a drawing, changing one element and writing it back loses
-nothing. Validation rebuilds the JSON object, so the order of an element's keys
-may differ from the order you sent them in; nothing else does.
+Elements that came from a `GET`, or from the editor, go back as they are, bar
+the normalization below. Each one needs `type`, a non-empty `id`, and finite
+`x`, `y`, `width`, `height`. Fields the editor reads positionally are checked
+too — `points` as pairs of numbers, `text` on a text element, a binding as
+`{ "elementId": "..." }` — and anything else is kept with the value you sent,
+including on `isDeleted` elements, so reading a drawing, changing one element
+and writing it back loses nothing.
 
 ```json
 [
@@ -134,6 +135,26 @@ may differ from the order you sent them in; nothing else does.
   }
 ]
 ```
+
+## Normalization
+
+Whatever you send, shorthand or canonical, is run through Excalidraw's own
+`restoreElements` before it is stored — the same pass the editor runs over a
+scene it is about to open. It fills in missing defaults, gives every element
+its ordering index, and repairs bindings against what is actually in the
+payload, so a binding to an element you did not send is dropped rather than
+left for the editor to trip over. What is stored is therefore what the browser
+would have made of your payload, which is not always byte for byte what you
+sent. Text dimensions are the exception: they are left alone, because this
+process has no fonts to re-measure them with.
+
+## Limits
+
+- At most 10,000 elements per request.
+- The app is deployed behind a 4.5 MB request body limit. A drawing that large
+  is unusual; splitting a write is not possible, so keep payloads to the
+  elements that changed plus the rest of the scene, and prefer shorthand, which
+  is far smaller than canonical elements.
 
 ## Bindings
 
@@ -174,11 +195,17 @@ generated ids.
 
 ## Preconditions
 
-`ifUnmodifiedSince` is the `updatedAt` of the revision you read. The write is a
-compare-and-set on it, so a save from a browser that landed in between fails
-with `CONFLICT` and `data.currentUpdatedAt` to re-read from, instead of
-overwriting it. Without `ifUnmodifiedSince` the write replaces whatever is
-current.
+`ifUnmodifiedSince` is the `updatedAt` of the revision you read, and `PUT`
+requires it: it replaces every element, which is the one write that cannot be
+merged after the fact. The write is a compare-and-set on it, so a save from a
+browser that landed in between fails with `CONFLICT` and
+`data.currentUpdatedAt` to re-read from, instead of overwriting it. A caller
+with no revision to name wants `POST /api/v1/drawings` instead.
+
+From the CLI, `lexidraw drawing put <id> --file elements.json
+--if-unmodified-since <iso|latest>` is the same write; `latest` reads the
+revision immediately before writing, for a caller that accepts whatever is
+stored this second.
 
 ## Mermaid
 

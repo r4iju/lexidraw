@@ -358,6 +358,7 @@
     },
   },
   "overrides": {
+    "@excalidraw/excalidraw": "0.18.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
   },

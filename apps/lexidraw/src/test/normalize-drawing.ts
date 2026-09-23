@@ -7,7 +7,7 @@
  * it stayed behind, which a test in the same process as everything else could
  * not tell apart from a DOM some other test installed.
  */
-import { skeletonConverter } from "~/server/drawings/converter";
+import { drawingTools } from "~/server/drawings/converter";
 import { normalizeDrawingElements } from "~/server/drawings/normalize";
 import { DrawingElements } from "~/server/drawings/skeleton-schema";
 
@@ -26,5 +26,5 @@ const defined = () => WATCHED.filter((name) => name in globalThis);
 
 const before = defined();
 const input = DrawingElements.parse(JSON.parse(process.argv[2] as string));
-const elements = normalizeDrawingElements(input, await skeletonConverter());
+const elements = await normalizeDrawingElements(input, drawingTools);
 process.stdout.write(JSON.stringify({ elements, before, after: defined() }));
