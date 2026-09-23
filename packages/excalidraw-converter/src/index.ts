@@ -8,6 +8,19 @@ export {
 export type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/data/transform";
 
 /**
+ * An element the scene still holds, which is what the export takes: the
+ * declaration says `NonDeleted<ExcalidrawElement>[]`, and nothing in the
+ * export checks it, so a deleted element passed in draws nothing while still
+ * counting towards the exported bounds.
+ */
+export type NonDeletedElement = Record<string, unknown> & { isDeleted?: false };
+
+/** `ExcalidrawFrameLikeElement`: a frame or a magic frame. */
+export type FrameLikeElement = Record<string, unknown> & {
+  type: "frame" | "magicframe";
+};
+
+/**
  * The 0.18.1 call shape of `exportToSvg`, written down because nothing else
  * checks it: the editor re-exports the function from `@excalidraw/utils`, a
  * package it does not depend on, so its declaration does not resolve and the
@@ -21,10 +34,12 @@ export type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/data/tran
  * which it does by fetching them.
  */
 export type ExportToSvgOptions = {
-  elements: readonly unknown[];
+  elements: readonly NonDeletedElement[];
   files: Record<string, unknown> | null;
   appState?: Record<string, unknown>;
   exportPadding?: number;
+  maxWidthOrHeight?: number;
+  exportingFrame?: FrameLikeElement | null;
   renderEmbeddables?: boolean;
   skipInliningFonts?: true;
   reuseImages?: boolean;

@@ -184,7 +184,9 @@ async function writeRender(
       contentType: rendered.contentType,
       width: rendered.width,
       height: rendered.height,
-      bytes: image.length,
+      // What the file holds, not what the string counts: an SVG's characters
+      // are UTF-16 units here and UTF-8 bytes on disk.
+      bytes: Buffer.byteLength(image),
       out,
     }),
   );

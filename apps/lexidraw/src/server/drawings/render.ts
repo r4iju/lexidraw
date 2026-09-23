@@ -1,6 +1,7 @@
 import { excalidraw } from "./converter";
 import { withDomShimAsync } from "./dom-shim";
 import { excalidrawFontFiles } from "./fonts";
+import { EXCALIDRAW_FONT_FAMILIES } from "./fonts.generated";
 import type { CanonicalElement } from "./skeleton-schema";
 
 export const RENDER_FORMATS = ["svg", "png"] as const;
@@ -15,6 +16,16 @@ export const MAX_RENDER_SCALE = 4;
  * is one nobody wants as a single PNG anyway; the SVG has no such limit.
  */
 export const MAX_RENDER_PIXELS = 16_000_000;
+
+/**
+ * The most encoded image a render may answer with. The image comes back
+ * inside a JSON body, and the deployment caps a response at 4.5 MB, so a
+ * render that is under the pixel limit can still be one the platform truncates
+ * into an unparseable body: a detailed drawing compresses badly, and base64
+ * adds a third on top. Refusing here turns that into an error the caller can
+ * read and act on.
+ */
+export const MAX_RENDER_BYTES = 3_000_000;
 
 /** The canvas colour a drawing whose appState never set one is exported on. */
 const DEFAULT_BACKGROUND = "#ffffff";
@@ -92,7 +103,11 @@ async function toSvg(
   const loaded = await excalidraw();
   const element = await withDomShimAsync(() =>
     loaded.exportToSvg({
-      elements,
+      // The editor deletes an element by marking it, and keeps the marked
+      // element in the scene; the export takes only the live ones and does not
+      // check, so a deleted element left in would draw nothing and still
+      // stretch the canvas out to wherever it was sitting.
+      elements: elements.filter(isVisible),
       files: null,
       appState: {
         exportBackground: true,
@@ -111,6 +126,12 @@ async function toSvg(
   };
 }
 
+function isVisible(
+  element: CanonicalElement,
+): element is CanonicalElement & { isDeleted?: false } {
+  return element.isDeleted !== true;
+}
+
 async function toPng(
   svg: string,
   scale: number,
@@ -119,7 +140,7 @@ async function toPng(
   // out of the bundle and a build without it should not have to resolve until
   // a PNG is actually asked for.
   const { Resvg } = await import("@resvg/resvg-js");
-  const rendered = new Resvg(svg, {
+  const rendered = new Resvg(withBundledFamilies(svg), {
     font: {
       // Nothing is installed on a serverless filesystem, and a font that
       // happened to be there would make a render depend on the host.
@@ -137,6 +158,34 @@ async function toPng(
     height: rendered.height,
     png: rendered.asPng(),
   };
+}
+
+const FONT_FAMILY = /font-family="([^"]*)"/g;
+
+/**
+ * The same SVG, naming the bundled faces instead of the editor's families.
+ *
+ * Half of the faces the editor ships call themselves something else in their
+ * own name tables — `Cascadia` is `Cascadia Code`, `Nunito` is
+ * `Nunito ExtraLight` — and `Helvetica` is a local font it ships nothing for.
+ * A rasteriser matches on those internal names, so without this every one of
+ * them falls back silently and the text comes out in the wrong face.
+ *
+ * Only the copy handed to the rasteriser is rewritten. The SVG a caller gets
+ * is the export's own, naming the families the drawing actually uses, so it
+ * still picks up the real fonts wherever they are installed.
+ */
+function withBundledFamilies(svg: string): string {
+  return svg.replace(FONT_FAMILY, (_, families: string) => {
+    const bundled = families
+      .split(",")
+      .map((family) => family.trim())
+      // An unmapped name is left alone rather than dropped: it is one of the
+      // emoji or CJK fallbacks, which no bundled face answers to and the
+      // rasteriser simply passes over.
+      .map((family) => EXCALIDRAW_FONT_FAMILIES[family] ?? family);
+    return `font-family="${bundled.join(", ")}"`;
+  });
 }
 
 /** The exported `width`/`height`, which are scene units with `px` on them. */

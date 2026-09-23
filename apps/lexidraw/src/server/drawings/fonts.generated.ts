@@ -26,3 +26,19 @@ export const EXCALIDRAW_FONT_FILES = [
   "Assistant-Regular.ttf",
   "Assistant-SemiBold.ttf",
 ] as const;
+
+/**
+ * Every family Excalidraw writes into an exported SVG, mapped to the name
+ * the bundled face answers to. They differ often enough that leaving one
+ * unmapped is how text silently comes out in the default font.
+ */
+export const EXCALIDRAW_FONT_FAMILIES: Record<string, string> = {
+  Excalifont: "Excalifont",
+  Virgil: "Virgil",
+  "Comic Shanns": "Comic Shanns Regular",
+  Nunito: "Nunito ExtraLight",
+  "Liberation Sans": "Liberation Sans",
+  Helvetica: "Liberation Sans",
+  Cascadia: "Cascadia Code",
+  "Lilita One": "Lilita One",
+};

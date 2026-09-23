@@ -13,6 +13,8 @@ import {
   normalizeDrawingElements,
 } from "~/server/drawings/normalize";
 import {
+  MAX_RENDER_BYTES,
+  MAX_RENDER_PIXELS,
   MAX_RENDER_SCALE,
   RENDER_FORMATS,
   RenderTooLargeError,
@@ -52,6 +54,12 @@ const Iso = z.iso.datetime();
  */
 const READ_ERRORS = [400, 401, 404, 422, 500];
 const WRITE_ERRORS = [400, 401, 403, 404, 409, 422, 500];
+/** A read that also refuses an image too big for one response body. */
+const RENDER_ERRORS = [400, 401, 404, 413, 422, 500];
+
+/** Reported as the image measures itself, so neither format is rounded. */
+const SIDE =
+  "The image's own size: pixels for png, scene units for svg, which may be fractional.";
 
 function throwAsDrawingWriteError(error: unknown): never {
   if (error instanceof InvalidDrawingError) {
@@ -209,10 +217,9 @@ export const drawingRouter = createTRPCRouter({
         path: "/drawings/{id}/render",
         tags: ["drawings"],
         summary: "Render a drawing as SVG or PNG",
-        description:
-          "Returns the image in the JSON body: `data` is the SVG source when `format=svg`, and the PNG base64-encoded when `format=png`, as `encoding` says. `scale` multiplies the raster and is ignored by `svg`. SVG text names the Excalidraw font families without embedding them, so a viewer without them installed substitutes; the PNG is drawn with the fonts this server carries.",
+        description: `Returns the image in the JSON body: \`data\` is the SVG source when \`format=svg\`, and the PNG base64-encoded when \`format=png\`, as \`encoding\` says. \`scale\` multiplies the raster and is ignored by \`svg\`. SVG text names the Excalidraw font families without embedding them, so a viewer without them installed substitutes; the PNG is drawn with the fonts this server carries. Two ceilings apply: a raster over ${MAX_RENDER_PIXELS / 1_000_000} megapixels is refused with 400, and an encoded image over ${MAX_RENDER_BYTES / 1_000_000} MB with 413. A smaller \`scale\`, or \`svg\`, answers either.`,
         protect: true,
-        errorResponses: READ_ERRORS,
+        errorResponses: RENDER_ERRORS,
       },
     })
     .input(
@@ -236,8 +243,8 @@ export const drawingRouter = createTRPCRouter({
         format: z.enum(RENDER_FORMATS),
         contentType: z.string(),
         encoding: z.enum(["utf-8", "base64"]),
-        width: z.number().int().positive(),
-        height: z.number().int().positive(),
+        width: z.number().positive().meta({ description: SIDE }),
+        height: z.number().positive().meta({ description: SIDE }),
         data: z.string(),
         /** The revision rendered, so a caller can tell one render from a later one. */
         updatedAt: Iso,
@@ -257,18 +264,29 @@ export const drawingRouter = createTRPCRouter({
         scale: input.scale,
         background: typeof background === "string" ? background : null,
       });
+      const data =
+        rendered.format === "svg"
+          ? rendered.svg
+          : Buffer.from(rendered.png).toString("base64");
+      // After encoding rather than before: the pixel count bounds the raster,
+      // not the JSON it travels in, and how far a drawing compresses is only
+      // known once it has.
+      const bytes = Buffer.byteLength(data);
+      if (bytes > MAX_RENDER_BYTES) {
+        throw new TRPCError({
+          code: "PAYLOAD_TOO_LARGE",
+          message: `This render encodes to ${Math.round(bytes / 100_000) / 10} MB, over the ${MAX_RENDER_BYTES / 1_000_000} MB a response can carry; ${rendered.format === "png" ? "ask for a smaller scale or for svg" : "the drawing is too detailed to return as one image"}`,
+        });
+      }
       return {
         id: drawing.id,
         format: rendered.format,
         contentType: rendered.contentType,
         encoding:
           rendered.format === "svg" ? ("utf-8" as const) : ("base64" as const),
-        width: Math.round(rendered.width),
-        height: Math.round(rendered.height),
-        data:
-          rendered.format === "svg"
-            ? rendered.svg
-            : Buffer.from(rendered.png).toString("base64"),
+        width: rendered.width,
+        height: rendered.height,
+        data,
         updatedAt: drawing.updatedAt.toISOString(),
       };
     }),

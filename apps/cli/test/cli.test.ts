@@ -29,7 +29,9 @@ const DRAWING = {
   updatedAt: "2026-09-23T10:00:00.000Z",
 };
 
-const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><text>Ingest</text></svg>';
+/** Labelled in non-ASCII, so a byte count and a character count differ. */
+const SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg"><text>Ingest \u2192 Résumé</text></svg>';
 
 /** A one pixel PNG, so the bytes the CLI writes are recognisably an image. */
 const PNG = new Uint8Array([
@@ -622,6 +624,22 @@ describe("drawing", () => {
       bytes: PNG.length,
       out,
     });
+  });
+
+  it("render --out reports the bytes it wrote, not the characters", async () => {
+    const out = join(cacheHome, "drawing.svg");
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(["drawing", "render", "abc", "--out", out], io.io)).toBe(
+      0,
+    );
+    expect(await Bun.file(out).text()).toBe(SVG);
+    expect(JSON.parse(io.stdout())).toMatchObject({
+      format: "svg",
+      bytes: Buffer.byteLength(SVG),
+      out,
+    });
+    // The file is longer than the string: the labels are not ASCII.
+    expect(Buffer.byteLength(SVG)).toBeGreaterThan(SVG.length);
   });
 
   it("render refuses to write PNG bytes to a terminal", async () => {

@@ -54,10 +54,11 @@ const config = {
   serverExternalPackages: ["@resvg/resvg-js"],
   // resvg reads the editor's fonts from disk, and nothing imports them, so
   // tracing cannot find them. Without this a deployed render draws every
-  // label in a substitute font.
+  // label in a substitute font. Keyed on every entry rather than the two
+  // routes that render today, because the next one to call `renderDrawing`
+  // would otherwise fail silently, in production only.
   outputFileTracingIncludes: {
-    "/api/v1/[...trpc]": ["./src/server/drawings/fonts/*.ttf"],
-    "/api/trpc/[trpc]": ["./src/server/drawings/fonts/*.ttf"],
+    "**": ["./src/server/drawings/fonts/*.ttf"],
   },
   productionBrowserSourceMaps: true,
   cacheComponents: true,

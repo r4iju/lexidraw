@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 
+import { EXCALIDRAW_FONT_FAMILIES } from "./fonts.generated";
+
 const script = join(import.meta.dir, "..", "..", "test", "render-drawing.ts");
 
 /** One labelled box, one unlabelled box, and a labelled arrow between them. */
@@ -54,13 +56,17 @@ type Rendered = {
 
 let directory: string;
 
-function render(format: string, scale?: number): Rendered {
-  const file = join(directory, `${format}-${scale ?? 1}.${format}`);
-  const result = Bun.spawnSync({
+function spawn(
+  elements: unknown,
+  file: string,
+  format: string,
+  scale?: number,
+) {
+  return Bun.spawnSync({
     cmd: [
       "bun",
       script,
-      JSON.stringify(DRAWING),
+      JSON.stringify(elements),
       file,
       format,
       ...(scale === undefined ? [] : [String(scale)]),
@@ -68,11 +74,26 @@ function render(format: string, scale?: number): Rendered {
     stdout: "pipe",
     stderr: "pipe",
   });
+}
+
+function renderElements(
+  elements: unknown,
+  format: string,
+  { scale, name }: { scale?: number; name?: string } = {},
+): Rendered {
+  const file = join(
+    directory,
+    `${name ?? `${format}-${scale ?? 1}`}.${format}`,
+  );
+  const result = spawn(elements, file, format, scale);
   if (result.exitCode !== 0) {
     throw new Error(`rendering failed: ${result.stderr}`);
   }
   return { ...JSON.parse(result.stdout.toString()), file };
 }
+
+const render = (format: string, scale?: number): Rendered =>
+  renderElements(DRAWING, format, { scale });
 
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "lexidraw-render-"));
@@ -156,20 +177,144 @@ describe("png", () => {
     const huge = [
       { type: "rectangle", id: "big", x: 0, y: 0, width: 4000, height: 4000 },
     ];
-    const result = Bun.spawnSync({
-      cmd: [
-        "bun",
-        script,
-        JSON.stringify(huge),
-        join(directory, "big.png"),
-        "png",
-        "4",
-      ],
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    const result = spawn(huge, join(directory, "big.png"), "png", 4);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr.toString()).toContain("megapixel limit");
+  });
+});
+
+/**
+ * A deleted element stays in a stored drawing, because a read and a write back
+ * has to lose nothing; see `normalize.ts`. The export takes live elements only
+ * and does not check, so one left in draws nothing and still counts towards
+ * the bounds.
+ */
+describe("deleted elements", () => {
+  const box = (over: Record<string, unknown>) => ({
+    type: "rectangle",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    version: 7,
+    versionNonce: 1,
+    seed: 2,
+    ...over,
+  });
+
+  it("renders a drawing with nothing live as an empty canvas", () => {
+    const rendered = renderElements(
+      [box({ id: "gone", isDeleted: true })],
+      "svg",
+      { name: "deleted-only" },
+    );
+    // What the editor exports for an empty scene: the padding, twice.
+    expect([rendered.width, rendered.height]).toEqual([20, 20]);
+  });
+
+  it("sizes the canvas to the live elements alone", () => {
+    const rendered = renderElements(
+      [
+        box({ id: "here", isDeleted: false }),
+        box({ id: "gone", x: 5000, y: 5000, isDeleted: true }),
+      ],
+      "svg",
+      { name: "deleted-far" },
+    );
+    expect([rendered.width, rendered.height]).toEqual([120, 120]);
+  });
+});
+
+/**
+ * Half the families the editor ships call themselves something else in their
+ * own name tables, so the SVG handed to the rasteriser has them renamed; see
+ * `withBundledFamilies` in render.ts. Getting that wrong is invisible in every
+ * other assertion here: the text still rasterises, in the fallback face.
+ */
+describe("font families", () => {
+  /** `FONT_FAMILY` in the pinned editor, as the ids an element stores. */
+  const IDS: Record<string, number> = {
+    Virgil: 1,
+    Helvetica: 2,
+    Cascadia: 3,
+    Excalifont: 5,
+    Nunito: 6,
+    "Lilita One": 7,
+    "Comic Shanns": 8,
+    "Liberation Sans": 9,
+  };
+
+  /**
+   * Wide enough that a family's own advance widths separate it from the
+   * fallback's by more than the pixel or so antialiasing moves an edge by.
+   */
+  const SAMPLE = "Hamburgefonstiv Hamburgefonstiv Hamburgefonstiv";
+
+  /** The families whose bundled face answers to some other name. */
+  const RENAMED = Object.entries(EXCALIDRAW_FONT_FAMILIES)
+    .filter(([family, face]) => face !== family)
+    .map(([family]) => family);
+
+  async function inkWidth(family: string): Promise<number> {
+    const id = IDS[family];
+    const rendered = renderElements(
+      [
+        {
+          type: "text",
+          id: "t",
+          x: 0,
+          y: 0,
+          text: SAMPLE,
+          fontSize: 24,
+          fontFamily: id,
+        },
+      ],
+      "png",
+      { name: `family-${id}` },
+    );
+    return inkColumns(decode(await Bun.file(rendered.file).bytes()));
+  }
+
+  it("renames only the families that need it", () => {
+    expect(RENAMED.toSorted()).toEqual([
+      "Cascadia",
+      "Comic Shanns",
+      "Helvetica",
+      "Nunito",
+    ]);
+  });
+
+  it("draws a renamed family in its own face, not the fallback", async () => {
+    // A family the rasteriser cannot match falls back to Excalifont, which
+    // lays the same string out to the same width, to the pixel.
+    const fallback = await inkWidth("Excalifont");
+    for (const family of RENAMED) {
+      const width = await inkWidth(family);
+      expect([family, Math.abs(width - fallback) > 1]).toEqual([family, true]);
+    }
+  });
+
+  it("leaves the SVG naming the drawing's own families", async () => {
+    const rendered = renderElements(
+      [
+        {
+          type: "text",
+          id: "t",
+          x: 0,
+          y: 0,
+          text: SAMPLE,
+          fontSize: 24,
+          fontFamily: IDS.Cascadia,
+        },
+      ],
+      "svg",
+      { name: "family-svg" },
+    );
+    const svg = await Bun.file(rendered.file).text();
+    // The rename is for the rasteriser; a caller's SVG keeps the family the
+    // drawing uses, so a viewer with the real font installed picks it up.
+    expect(svg).toContain('font-family="Cascadia,');
+    expect(svg).not.toContain("Cascadia Code");
   });
 });
 
@@ -253,6 +398,19 @@ function predict(filter: number, left: number, up: number, upLeft: number) {
     default:
       throw new Error(`unknown PNG filter ${filter}`);
   }
+}
+
+/** How wide the drawn text is, as the columns carrying any ink. */
+function inkColumns(image: Image): number {
+  let first = image.width;
+  let last = -1;
+  for (let x = 0; x < image.width; x++) {
+    if (darkPixels(image, { x, y: 0, width: 1, height: image.height }) > 0) {
+      first = Math.min(first, x);
+      last = x;
+    }
+  }
+  return last < first ? 0 : last - first + 1;
 }
 
 function darkPixels(

@@ -396,10 +396,13 @@ registers alongside the tools in `src/server/mcp/`.
   a bump has to reckon with it. PNG is that SVG rasterised with `@resvg/resvg-js`,
   pinned, with the editor's own faces checked in under
   `apps/lexidraw/src/server/drawings/fonts` — resvg reads fonts from files and
-  does not read WOFF2, so `bun run fonts:sync` decompresses them. The image
-  travels in the JSON body, base64 for PNG: the OpenAPI adapter answers
-  `application/json` for every path, and one generated contract is worth more
-  than a second transport for one operation. See
+  does not read WOFF2, so `bun run fonts:sync` decompresses them, records their
+  licences, and writes the map from the families the editor names to the ones
+  the faces answer to, which half of them disagree on. The image travels in the
+  JSON body, base64 for PNG: the OpenAPI adapter answers `application/json` for
+  every path, and one generated contract is worth more than a second transport
+  for one operation. That body is why a render has a second ceiling, on the
+  encoded size, besides the one on pixels. See
   [drawing-format.md](drawing-format.md#rendering).
 - Mermaid is not a write format: `mermaid-to-excalidraw` needs a real browser.
   It could become an optional adapter on the render worker later.

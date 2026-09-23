@@ -114,6 +114,20 @@ describe("openApiDocument", () => {
     );
   });
 
+  // The image travels in the JSON body, so a render the body cannot carry is
+  // a refusal the contract has to name; see drawings.ts.
+  it("declares a payload limit on a render", () => {
+    expect(
+      document.paths?.["/drawings/{id}/render"]?.get?.responses?.[413],
+    ).toMatchObject({
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/ErrorResponse" },
+        },
+      },
+    });
+  });
+
   // A markdown write lands among blocks the caller read, so each of them can
   // lose the race the precondition guards.
   const markdownWrites = [

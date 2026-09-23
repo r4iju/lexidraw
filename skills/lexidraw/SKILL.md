@@ -247,4 +247,7 @@ lexidraw drawing render <id> [--format svg|png] [--scale 1-4] [--out <file>]
 `render` writes the image to `--out`, or to stdout (SVG as text; PNG bytes
 are refused on a terminal, so pass `--out`). SVG names the font families
 rather than embedding them; PNG is rasterised server-side with the bundled
-fonts, `--scale` multiplies the pixel size.
+fonts, `--scale` multiplies the pixel size. Deleted elements are left out and
+only `viewBackgroundColor` is honoured, so a dark-mode drawing still renders
+light. A raster over 16 megapixels is refused, and so is one that encodes to
+over 3 MB; lower `--scale` or ask for `svg`.

@@ -3628,7 +3628,7 @@
       "get": {
         "operationId": "drawings-render",
         "summary": "Render a drawing as SVG or PNG",
-        "description": "Returns the image in the JSON body: `data` is the SVG source when `format=svg`, and the PNG base64-encoded when `format=png`, as `encoding` says. `scale` multiplies the raster and is ignored by `svg`. SVG text names the Excalidraw font families without embedding them, so a viewer without them installed substitutes; the PNG is drawn with the fonts this server carries.",
+        "description": "Returns the image in the JSON body: `data` is the SVG source when `format=svg`, and the PNG base64-encoded when `format=png`, as `encoding` says. `scale` multiplies the raster and is ignored by `svg`. SVG text names the Excalidraw font families without embedding them, so a viewer without them installed substitutes; the PNG is drawn with the fonts this server carries. Two ceilings apply: a raster over 16 megapixels is refused with 400, and an encoded image over 3 MB with 413. A smaller `scale`, or `svg`, answers either.",
         "tags": ["drawings"],
         "security": [
           {
@@ -3688,14 +3688,14 @@
                       "enum": ["utf-8", "base64"]
                     },
                     "width": {
-                      "type": "integer",
+                      "type": "number",
                       "exclusiveMinimum": 0,
-                      "maximum": 9007199254740991
+                      "description": "The image's own size: pixels for png, scene units for svg, which may be fractional."
                     },
                     "height": {
-                      "type": "integer",
+                      "type": "number",
                       "exclusiveMinimum": 0,
-                      "maximum": 9007199254740991
+                      "description": "The image's own size: pixels for png, scene units for svg, which may be fractional."
                     },
                     "data": {
                       "type": "string"
@@ -3743,6 +3743,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
             "content": {
               "application/json": {
                 "schema": {
