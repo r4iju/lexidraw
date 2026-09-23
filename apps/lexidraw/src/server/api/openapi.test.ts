@@ -45,6 +45,14 @@ describe("openApiDocument", () => {
     expect(operation?.tags).toEqual(["entities"]);
   });
 
+  it("exposes the caller identity as GET /me", () => {
+    const operation = document.paths?.["/me"]?.get;
+    expect(operation).toBeDefined();
+    expect(operation?.operationId).toBe("auth-me");
+    expect(operation?.tags).toEqual(["auth"]);
+    expect(operation?.security).toEqual([{ bearerAuth: [] }]);
+  });
+
   it("guards entity load with the bearer scheme", () => {
     expect(document.paths?.["/entities/{id}"]?.get?.security).toEqual([
       { bearerAuth: [] },

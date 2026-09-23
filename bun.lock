@@ -9,6 +9,14 @@
         "turbo": "^2.11.3",
       },
     },
+    "apps/cli": {
+      "name": "@apps/cli",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@types/bun": "1.3.0",
+        "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+      },
+    },
     "apps/code-runner": {
       "name": "@apps/code-runner",
       "version": "0.0.1",
@@ -354,6 +362,8 @@
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 
     "@antfu/install-pkg": ["@antfu/install-pkg@2.1.0", "", { "dependencies": { "package-manager-detector": "^1.8.0", "tinyexec": "^1.3.1" } }, "sha512-sdg9NxU3zR4Mnawfbc/x6GB5Wf17WYud5qOuEuxXjaKpYpMkISSJEjItGebXJ2bQ4DIcly4NYH23mtkGJjvKUw=="],
+
+    "@apps/cli": ["@apps/cli@workspace:apps/cli"],
 
     "@apps/code-runner": ["@apps/code-runner@workspace:apps/code-runner"],
 

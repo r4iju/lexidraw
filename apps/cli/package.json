@@ -1,0 +1,17 @@
+{
+  "name": "@apps/cli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "bash scripts/compile.sh",
+    "dev": "bun run src/main.ts",
+    "lint": "bun x @biomejs/biome check .",
+    "test": "bun test",
+    "test:ts": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2"
+  }
+}

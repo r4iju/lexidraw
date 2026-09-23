@@ -42,8 +42,9 @@ loading tool schemas into the agent's context until they are needed.
 - Paths under `/api/v1/...`. GET inputs must be flat objects; mutations are
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
-- Live today: `entities.load` as `GET /api/v1/entities/{id}`, with the
-  generated document served at `/api/v1/openapi.json`.
+- Live today: `entities.load` as `GET /api/v1/entities/{id}` and `auth.me` as
+  `GET /api/v1/me`, which answers with the user id, email, and token scope a
+  request resolves to.
 - v1 exposes: entities list/load/create/save/update/delete/search, tags,
   share, directory listing, the markdown procedures, drawing normalize and
   render. Admin, TTS, backups, snapshot, image generation, LLM procedures stay
@@ -52,9 +53,11 @@ loading tool schemas into the agent's context until they are needed.
 ### CLI
 
 - Package `apps/cli`, binary `lexidraw`, compiled with `bun build --compile`,
-  installed to `~/.ai/bin` by a repo script.
-- Built on the REST layer. Caches the OpenAPI document per profile with a
-  short TTL; `lexidraw schema <command>` reads from it.
+  installed to `~/.ai/bin` by `bun run cli:install`.
+- Built on the REST layer. Caches the OpenAPI document at
+  `~/.cache/lexidraw/<profile>/<origin>/openapi.json` for 5 minutes, fetched
+  unauthenticated; `lexidraw schema <command>` reads from it, refetches once
+  if a known command is missing, and `--refresh` bypasses it.
 - Nouns and verbs:
   - `doc list|get|create|append|insert|put|delete`
   - `drawing get|put|create|render`
@@ -73,8 +76,18 @@ loading tool schemas into the agent's context until they are needed.
   markdown to stdout. `--page-all` emits NDJSON.
 - Errors: JSON object on stderr with a stable `code` mirroring the OpenAPI
   error codes, non-zero exit.
-- Profiles: `prod` (https://lexidraw.app, default) and `dev` (localhost).
-  Token lookup: env var, then macOS keychain, like the notion wrapper.
+- Profiles: `prod` (https://lexidraw.app, default) and `dev`
+  (http://localhost:3025), chosen with `--profile` or `LEXIDRAW_PROFILE`;
+  `LEXIDRAW_URL` overrides the base URL. Token lookup: `LEXIDRAW_TOKEN`, then
+  the macOS keychain (service `cli/lexidraw`, account `<profile>`), like the
+  notion wrapper. A token is a credential for one server, so the keychain is
+  read and written only when `LEXIDRAW_URL` resolves to the profile's own
+  origin, or to a loopback address on `dev`; pointed anywhere else the only
+  token source is `LEXIDRAW_TOKEN` and `auth login` refuses to store one.
+  `auth login` validates a token against `/me` before storing it; `auth
+  status` reports the profile, base URL, token source, and scope.
+- Live today: `auth login|status`, `api`, and `schema <command>|--list`, whose
+  registry maps a command name to an operationId in the cached document.
 - Skill: `skills/lexidraw/SKILL.md` in this repo, symlinked into
   `~/.ai/skills` by `bun run skills:install`.
 
