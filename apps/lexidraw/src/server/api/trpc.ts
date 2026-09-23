@@ -12,6 +12,7 @@ import {
   type RequestAuth,
 } from "~/server/auth/api-token-format";
 import { resolveApiToken } from "~/server/auth/api-tokens";
+import { StaleDocumentError } from "~/server/documents/conflict";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const bearer = readBearerApiToken(opts.headers);
@@ -50,6 +51,11 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
         ...shape.data,
         zodError:
           error.cause instanceof ZodError ? error.cause.flatten() : null,
+        // ISO so a conflict reads the same over tRPC, REST, and the CLI.
+        currentUpdatedAt:
+          error.cause instanceof StaleDocumentError
+            ? error.cause.currentUpdatedAt.toISOString()
+            : null,
       },
     };
   },

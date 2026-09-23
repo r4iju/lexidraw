@@ -27,6 +27,7 @@ import { headers } from "next/headers";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
 import { computeThumbnailVersion } from "~/lib/thumbnail-version";
+import { nextUpdatedAt } from "~/server/documents/document-store";
 import {
   entityAncestors,
   findReadableEntity,
@@ -141,8 +142,7 @@ export const entityRouter = createTRPCRouter({
 
     console.log("appState", appState);
 
-    const entityUpdatedAt = new Date();
-    await ctx.drizzle
+    const saved = await ctx.drizzle
       .update(schema.entities)
       .set({
         id: input.id,
@@ -150,13 +150,16 @@ export const entityRouter = createTRPCRouter({
         appState: appState,
         elements: input.elements,
         ...(input.parentId ? { parentId: input.parentId } : {}),
-        updatedAt: entityUpdatedAt,
+        // Strictly increasing, so a compare-and-set caller can tell this save
+        // apart from its own; see nextUpdatedAt.
+        updatedAt: nextUpdatedAt(),
         // move thumbnail status bump here to avoid a second UPDATE
         // and ensure the UPDATE has at least one column always
         thumbnailStatus: "pending",
       })
       .where(eq(schema.entities.id, input.id))
-      .execute();
+      .returning({ updatedAt: schema.entities.updatedAt });
+    const entityUpdatedAt = saved[0]?.updatedAt ?? new Date();
 
     try {
       console.log(

@@ -5,6 +5,15 @@ import { and, eq, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
+  appendMarkdownToDocument,
+  DocumentGoneError,
+} from "~/server/documents/append";
+import {
+  drizzleDocumentStore,
+  nextUpdatedAt,
+} from "~/server/documents/document-store";
+import { StaleDocumentError } from "~/server/documents/conflict";
+import {
   editorStateToMarkdown,
   InvalidDocumentContentError,
   parseEditorState,
@@ -15,6 +24,7 @@ import {
   entityPath,
   entityTagNames,
   findReadableEntity,
+  findWritableEntity,
 } from "~/server/entities/readable";
 import { start } from "workflow/api";
 import { generateDocumentPdfWorkflow } from "~/workflows/document-pdf-export/generate-document-pdf-workflow";
@@ -104,6 +114,67 @@ export const documentRouter = createTRPCRouter({
         throw error;
       }
     }),
+  /**
+   * Appends markdown to the end of a document for agents and the CLI.
+   * `ifUnmodifiedSince` is the `updatedAt` of the revision the caller read;
+   * when it no longer matches, nothing is written and the error carries the
+   * current one as `data.currentUpdatedAt`.
+   */
+  appendMarkdown: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        // Refined rather than trimmed: leading indentation is markdown too.
+        markdown: z
+          .string()
+          .refine((value) => value.trim() !== "", "markdown must not be blank"),
+        ifUnmodifiedSince: z.iso.datetime().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (entity?.entityType !== "document") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
+      try {
+        return await appendMarkdownToDocument(
+          drizzleDocumentStore(ctx.drizzle),
+          entity,
+          input.markdown,
+          input.ifUnmodifiedSince,
+        );
+      } catch (error) {
+        if (error instanceof InvalidDocumentContentError) {
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message: error.message,
+            cause: error,
+          });
+        }
+        if (error instanceof DocumentGoneError) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: error.message,
+            cause: error,
+          });
+        }
+        if (error instanceof StaleDocumentError) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: error.message,
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    }),
   list: protectedProcedure.query(async ({ ctx }) => {
     return await ctx.drizzle
       .select()
@@ -122,7 +193,9 @@ export const documentRouter = createTRPCRouter({
       return await ctx.drizzle
         .update(schema.entities)
         .set({
-          updatedAt: new Date(),
+          // Strictly increasing, so a compare-and-set caller can tell this
+          // save apart from its own; see nextUpdatedAt.
+          updatedAt: nextUpdatedAt(),
           elements: input.elements,
         })
         .where(eq(schema.entities.id, input.id))

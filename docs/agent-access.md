@@ -105,7 +105,11 @@ loading tool schemas into the agent's context until they are needed.
     an unknown type fails with `UNPROCESSABLE_CONTENT` naming the types;
     malformed stored content fails the same way.
   - `documents.appendMarkdown(id, md)` — never destructive, precondition
-    optional.
+    optional. The precondition is the `updatedAt` of the last read; a stale
+    one writes nothing and fails with `CONFLICT` plus `data.currentUpdatedAt`
+    (ISO) to re-read from. Insert and replace share that error shape, and the
+    write itself is a compare-and-set on `updatedAt`, so a save that lands
+    between the read and the write is retried against, never clobbered.
   - `documents.insertMarkdown(id, md, { afterHeading | atBlockIndex },
     ifUnmodifiedSince)` — precondition mandatory.
   - `documents.replaceMarkdown(id, md, ifUnmodifiedSince)` — precondition

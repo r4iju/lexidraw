@@ -1,13 +1,12 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
-import { createHeadlessEditor } from "@lexical/headless";
-import { $convertFromMarkdownString } from "@lexical/markdown";
-import { CORE_NODES, CORE_TRANSFORMERS } from "@packages/lexical-nodes";
 import type { SerializedEditorState } from "lexical";
 import {
+  appendBlocks,
   collectNodeTypes,
   editorStateToMarkdown,
   InvalidDocumentContentError,
+  markdownToEditorState,
   parseEditorState,
   UnsupportedNodeTypesError,
   unsupportedNodeTypes,
@@ -38,22 +37,6 @@ const x: number = 1;
 
 ***`;
 
-function stateFromMarkdown(markdown: string): SerializedEditorState {
-  const editor = createHeadlessEditor({
-    nodes: CORE_NODES,
-    onError: (error) => {
-      throw error;
-    },
-  });
-  editor.update(
-    () => {
-      $convertFromMarkdownString(markdown, CORE_TRANSFORMERS);
-    },
-    { discrete: true },
-  );
-  return editor.getEditorState().toJSON();
-}
-
 const withNode = (type: string): SerializedEditorState =>
   ({
     root: {
@@ -83,7 +66,7 @@ describe("editorStateToMarkdown", () => {
   test("rich text round-trips through the headless editor", () => {
     // The importer keeps the spaces around table cells, so trim them before
     // comparing rows; documents edited in the browser have no such padding.
-    const markdown = editorStateToMarkdown(stateFromMarkdown(SAMPLE))
+    const markdown = editorStateToMarkdown(markdownToEditorState(SAMPLE))
       .split("\n")
       .map((line) =>
         line.startsWith("|")
@@ -153,6 +136,35 @@ describe("editorStateToMarkdown", () => {
     const state = withNode("paragraph");
     state.root.children = [];
     expect(editorStateToMarkdown(state)).toBe("");
+  });
+});
+
+describe("markdownToEditorState", () => {
+  test("each block of markdown becomes one top-level node", () => {
+    const state = markdownToEditorState("# Title\n\nA line.\n\n- one\n- two");
+    expect(state.root.children.map((child) => child.type)).toEqual([
+      "heading",
+      "paragraph",
+      "list",
+    ]);
+  });
+});
+
+describe("appendBlocks", () => {
+  test("appends after the existing children without touching the input", () => {
+    const state = withNode("phantom");
+    const before = JSON.stringify(state);
+    const blocks = markdownToEditorState("Added.").root.children;
+
+    const appended = appendBlocks(state, blocks);
+
+    expect(JSON.stringify(state)).toBe(before);
+    expect(appended.root.children).toEqual([...state.root.children, ...blocks]);
+    // Blocks with no markdown form survive an append untouched: nothing
+    // re-parses or re-serializes them.
+    expect(JSON.stringify(appended.root.children.slice(0, 3))).toBe(
+      JSON.stringify(state.root.children),
+    );
   });
 });
 
