@@ -7,9 +7,11 @@ import { z } from "zod";
 import {
   appendMarkdownToDocument,
   DocumentGoneError,
-  EmptyMarkdownError,
 } from "~/server/documents/append";
-import { drizzleDocumentStore } from "~/server/documents/document-store";
+import {
+  drizzleDocumentStore,
+  nextUpdatedAt,
+} from "~/server/documents/document-store";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
   editorStateToMarkdown,
@@ -122,7 +124,10 @@ export const documentRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        markdown: z.string().min(1),
+        // Refined rather than trimmed: leading indentation is markdown too.
+        markdown: z
+          .string()
+          .refine((value) => value.trim() !== "", "markdown must not be blank"),
         ifUnmodifiedSince: z.iso.datetime().optional(),
       }),
     )
@@ -149,13 +154,6 @@ export const documentRouter = createTRPCRouter({
         if (error instanceof InvalidDocumentContentError) {
           throw new TRPCError({
             code: "UNPROCESSABLE_CONTENT",
-            message: error.message,
-            cause: error,
-          });
-        }
-        if (error instanceof EmptyMarkdownError) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
             message: error.message,
             cause: error,
           });
@@ -195,7 +193,9 @@ export const documentRouter = createTRPCRouter({
       return await ctx.drizzle
         .update(schema.entities)
         .set({
-          updatedAt: new Date(),
+          // Strictly increasing, so a compare-and-set caller can tell this
+          // save apart from its own; see nextUpdatedAt.
+          updatedAt: nextUpdatedAt(),
           elements: input.elements,
         })
         .where(eq(schema.entities.id, input.id))

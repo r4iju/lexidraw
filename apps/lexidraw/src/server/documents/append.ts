@@ -26,15 +26,6 @@ export type DocumentStore = {
   ): Promise<{ id: string; updatedAt: Date } | null>;
 };
 
-// Every transformer today yields at least an empty paragraph, so this guards
-// against a future one silently rewriting the document with nothing added.
-export class EmptyMarkdownError extends Error {
-  constructor() {
-    super("Markdown produced no blocks");
-    this.name = "EmptyMarkdownError";
-  }
-}
-
 export class DocumentGoneError extends Error {
   constructor() {
     super("Document not found");
@@ -66,9 +57,6 @@ export async function appendMarkdownToDocument(
   let current = revision;
   let state = parseEditorState(current.elements);
   const blocks = markdownToEditorState(markdown).root.children;
-  if (blocks.length === 0) {
-    throw new EmptyMarkdownError();
-  }
   if (
     ifUnmodifiedSince !== undefined &&
     new Date(ifUnmodifiedSince).getTime() !== current.updatedAt.getTime()
