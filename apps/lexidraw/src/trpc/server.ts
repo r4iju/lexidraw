@@ -105,6 +105,9 @@ function sanitizeForLog(value: unknown): unknown {
 const createContext = cache(async () => {
   const heads = new Headers(await headers());
   heads.set("x-trpc-source", "rsc");
+  // Page renders authenticate with the session cookie only; API tokens are
+  // accepted on the /api/trpc route, never on a navigation.
+  heads.delete("authorization");
   return createTRPCContext({
     headers: heads,
   });
