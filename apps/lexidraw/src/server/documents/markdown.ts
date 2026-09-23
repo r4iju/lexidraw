@@ -1,5 +1,8 @@
 import { createHeadlessEditor } from "@lexical/headless";
-import { $convertToMarkdownString } from "@lexical/markdown";
+import {
+  $convertFromMarkdownString,
+  $convertToMarkdownString,
+} from "@lexical/markdown";
 import { CORE_NODES, CORE_TRANSFORMERS } from "@packages/lexical-nodes";
 import {
   $getRoot,
@@ -102,6 +105,39 @@ export function editorStateToMarkdown(state: SerializedEditorState): string {
   return editor
     .getEditorState()
     .read(() => $convertToMarkdownString(CORE_TRANSFORMERS, $getRoot()));
+}
+
+/** The blocks markdown parses to, as a state whose root holds only them. */
+export function markdownToEditorState(markdown: string): SerializedEditorState {
+  const editor = createHeadlessEditor({
+    nodes: CORE_NODES,
+    onError: (error) => {
+      throw error;
+    },
+  });
+  editor.update(
+    () => {
+      $convertFromMarkdownString(markdown, CORE_TRANSFORMERS);
+    },
+    { discrete: true },
+  );
+  return editor.getEditorState().toJSON();
+}
+
+/**
+ * `state` with `blocks` after its own children, without touching `state`.
+ * Appending serialized nodes keeps blocks that have no markdown form, and any
+ * node the running editor would not know how to build, byte-identical: they
+ * are never re-parsed or re-serialized.
+ */
+export function appendBlocks(
+  state: SerializedEditorState,
+  blocks: SerializedLexicalNode[],
+): SerializedEditorState {
+  return {
+    ...state,
+    root: { ...state.root, children: [...state.root.children, ...blocks] },
+  };
 }
 
 export type DocumentFrontmatter = {

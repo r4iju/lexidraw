@@ -7,7 +7,7 @@ import {
   or,
   schema,
 } from "@packages/drizzle";
-import { PublicAccess } from "@packages/types";
+import { AccessLevel, PublicAccess } from "@packages/types";
 
 type Db = typeof drizzle;
 
@@ -39,6 +39,51 @@ export async function findReadableEntity(db: Db, id: string, userId: string) {
           eq(schema.entities.userId, userId),
           eq(schema.sharedEntities.userId, userId),
           ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
+        ),
+      ),
+    )
+    .leftJoin(
+      schema.sharedEntities,
+      and(
+        eq(schema.sharedEntities.entityId, schema.entities.id),
+        eq(schema.sharedEntities.userId, userId),
+      ),
+    )
+    .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
+    .execute();
+  return rows[0] ?? null;
+}
+
+/**
+ * The entity when `userId` may write it: they own it, it is shared with them
+ * for editing, or anyone may edit it. Read-only shares and `READ` public
+ * access do not qualify, so a reader is told the entity does not exist rather
+ * than that it exists and is out of reach.
+ */
+export async function findWritableEntity(db: Db, id: string, userId: string) {
+  const rows = await db
+    .select({
+      id: schema.entities.id,
+      title: schema.entities.title,
+      appState: schema.entities.appState,
+      elements: schema.entities.elements,
+      entityType: schema.entities.entityType,
+      publicAccess: schema.entities.publicAccess,
+      parentId: schema.entities.parentId,
+      updatedAt: schema.entities.updatedAt,
+      sharedWithId: schema.sharedEntities.userId,
+      sharedAccessLevel: schema.sharedEntities.accessLevel,
+      ownerId: schema.users.id,
+    })
+    .from(schema.entities)
+    .where(
+      and(
+        eq(schema.entities.id, id),
+        isNull(schema.entities.deletedAt),
+        or(
+          eq(schema.entities.userId, userId),
+          eq(schema.sharedEntities.accessLevel, AccessLevel.EDIT),
+          eq(schema.entities.publicAccess, PublicAccess.EDIT),
         ),
       ),
     )
