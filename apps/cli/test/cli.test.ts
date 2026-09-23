@@ -21,6 +21,14 @@ const ENTITY = {
   accessLevel: "EDIT",
 };
 
+const DRAWING = {
+  id: "abc",
+  title: "QA drawing",
+  elements: [{ type: "rectangle", id: "r1", x: 0, y: 0, width: 1, height: 1 }],
+  appState: {},
+  updatedAt: "2026-09-23T10:00:00.000Z",
+};
+
 const unauthorized = () =>
   Response.json(
     {
@@ -50,6 +58,33 @@ beforeAll(async () => {
       });
     }
     if (url.pathname === "/api/v1/entities/abc") return Response.json(ENTITY);
+    if (url.pathname === "/api/v1/drawings/abc") {
+      return request.method === "PUT"
+        ? Response.json({
+            id: "abc",
+            updatedAt: "2026-09-23T10:00:01.000Z",
+            elementCount: 1,
+          })
+        : Response.json(DRAWING);
+    }
+    if (url.pathname === "/api/v1/drawings/stale") {
+      return request.method === "PUT"
+        ? Response.json(
+            {
+              message:
+                "Document was modified at 2026-09-23T10:00:05.000Z; re-read it and retry with the new updatedAt",
+              code: "CONFLICT",
+            },
+            { status: 409 },
+          )
+        : Response.json({ ...DRAWING, id: "stale" });
+    }
+    if (url.pathname === "/api/v1/drawings" && request.method === "POST") {
+      return Response.json({
+        id: "new-1",
+        updatedAt: "2026-09-23T10:00:00.000Z",
+      });
+    }
     if (url.pathname === "/api/v1/html") {
       return new Response("<html></html>", {
         headers: { "content-type": "text/html" },
@@ -351,7 +386,13 @@ describe("schema", () => {
     expect(await run(["schema", "doc frobnicate"], io.io)).toBe(2);
     expect(JSON.parse(io.stderr())).toMatchObject({
       code: "UNKNOWN_COMMAND",
-      known: ["auth status", "doc get"],
+      known: [
+        "auth status",
+        "doc get",
+        "drawing create",
+        "drawing get",
+        "drawing put",
+      ],
     });
   });
 
@@ -363,6 +404,152 @@ describe("schema", () => {
       expect(JSON.parse(io.stderr()).code).toBe("UNKNOWN_COMMAND");
       expect(stub.requests).toHaveLength(before);
     }
+  });
+});
+
+describe("drawing", () => {
+  const body = () => JSON.parse(stub.requests.at(-1)?.body as string);
+
+  it("get prints the parsed drawing", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(["drawing", "get", "abc"], io.io)).toBe(0);
+    expect(JSON.parse(io.stdout())).toEqual(DRAWING);
+  });
+
+  const put = (id: string, file: string, since = "latest") => [
+    "drawing",
+    "put",
+    id,
+    "--file",
+    file,
+    "--if-unmodified-since",
+    since,
+  ];
+
+  it("put sends the file's elements and the id from the path", async () => {
+    const file = join(cacheHome, "elements.json");
+    await Bun.write(file, JSON.stringify([{ type: "rectangle", x: 0, y: 0 }]));
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(put("abc", file), io.io)).toBe(0);
+    expect(stub.requests.at(-1)).toMatchObject({
+      method: "PUT",
+      path: "/api/v1/drawings/abc",
+    });
+    expect(body()).toEqual({
+      id: "abc",
+      elements: [{ type: "rectangle", x: 0, y: 0 }],
+      // --if-unmodified-since latest reads the revision first.
+      ifUnmodifiedSince: DRAWING.updatedAt,
+    });
+    expect(stub.requests.at(-2)).toMatchObject({
+      method: "GET",
+      path: "/api/v1/drawings/abc",
+    });
+    expect(JSON.parse(io.stdout()).elementCount).toBe(1);
+  });
+
+  it("put passes an explicit --if-unmodified-since through", async () => {
+    const file = join(cacheHome, "precondition.json");
+    await Bun.write(file, "[]");
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    await run(put("abc", file, "2026-09-23T10:00:00.000Z"), io.io);
+    expect(body().ifUnmodifiedSince).toBe("2026-09-23T10:00:00.000Z");
+    expect(stub.requests.at(-2)?.method).not.toBe("GET");
+  });
+
+  it("put reads the elements from stdin for --file -", async () => {
+    const io = fakeIo({
+      env: env({ LEXIDRAW_TOKEN: "lxd_good" }),
+      stdin: '[{"type":"ellipse","x":1,"y":2}]',
+    });
+    expect(await run(put("abc", "-"), io.io)).toBe(0);
+    expect(body().elements).toEqual([{ type: "ellipse", x: 1, y: 2 }]);
+  });
+
+  it("put re-raises the server's conflict", async () => {
+    const file = join(cacheHome, "stale.json");
+    await Bun.write(file, "[]");
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(
+      await run(put("stale", file, "2026-09-23T09:00:00.000Z"), io.io),
+    ).toBe(1);
+    const error = JSON.parse(io.stderr());
+    expect(error.code).toBe("CONFLICT");
+    expect(error.status).toBe(409);
+    expect(error.message).toContain("re-read it and retry");
+  });
+
+  it("put refuses a file that is not there, without a request", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    const before = stub.requests.length;
+    expect(await run(put("abc", join(cacheHome, "nothing.json")), io.io)).toBe(
+      2,
+    );
+    expect(JSON.parse(io.stderr()).code).toBe("USAGE");
+    expect(stub.requests).toHaveLength(before);
+  });
+
+  it("put without --if-unmodified-since is a usage error", async () => {
+    const file = join(cacheHome, "no-precondition.json");
+    await Bun.write(file, "[]");
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(["drawing", "put", "abc", "--file", file], io.io)).toBe(2);
+    expect(JSON.parse(io.stderr()).message).toContain("--if-unmodified-since");
+  });
+
+  it("put refuses a file that is not a JSON array, without a request", async () => {
+    const file = join(cacheHome, "object.json");
+    await Bun.write(file, '{"type":"rectangle"}');
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    const before = stub.requests.length;
+    expect(await run(put("abc", file), io.io)).toBe(2);
+    expect(JSON.parse(io.stderr()).code).toBe("USAGE");
+    expect(stub.requests).toHaveLength(before);
+  });
+
+  it("put without --file is a usage error", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(["drawing", "put", "abc"], io.io)).toBe(2);
+    expect(JSON.parse(io.stderr()).message).toContain("--file");
+  });
+
+  it("create posts the title and optional parent", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(
+      await run(
+        ["drawing", "create", "--title", "Flow", "--parent", "dir-1"],
+        io.io,
+      ),
+    ).toBe(0);
+    expect(stub.requests.at(-1)).toMatchObject({
+      method: "POST",
+      path: "/api/v1/drawings",
+    });
+    expect(body()).toEqual({ title: "Flow", parentId: "dir-1" });
+    expect(JSON.parse(io.stdout()).id).toBe("new-1");
+  });
+
+  it("create without --title is a usage error", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(["drawing", "create"], io.io)).toBe(2);
+    expect(JSON.parse(io.stderr()).message).toContain("--title");
+  });
+
+  it("surfaces the server's error code for a drawing that is not there", async () => {
+    const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
+    expect(await run(["drawing", "get", "missing"], io.io)).toBe(1);
+    expect(JSON.parse(io.stderr()).code).toBe("NOT_FOUND");
+  });
+
+  it("schema describes the put operation", async () => {
+    const io = fakeIo({ env: env() });
+    expect(await run(["schema", "drawing put"], io.io)).toBe(0);
+    expect(JSON.parse(io.stdout())).toMatchObject({
+      command: "drawing put",
+      method: "PUT",
+      path: "/drawings/{id}",
+      operationId: "drawings-put",
+    });
   });
 });
 
@@ -378,7 +565,7 @@ describe("dispatch", () => {
     expect(await run(["frobnicate"], io.io)).toBe(2);
     expect(JSON.parse(io.stderr())).toMatchObject({
       code: "USAGE",
-      known: ["api", "auth", "schema"],
+      known: ["api", "auth", "drawing", "schema"],
     });
   });
 

@@ -15,6 +15,7 @@ import { adminThumbnailJobsRouter } from "./routers/admin/thumbnail-jobs";
 import { ttsRouter } from "./routers/tts";
 import { llmRouter } from "./routers/llm";
 import { documentRouter } from "./routers/documents";
+import { drawingRouter } from "./routers/drawings";
 import { backupsRouter } from "./routers/backups";
 import { toolsRouter } from "./routers/tools";
 import { sandboxRouter } from "./routers/sandbox";
@@ -38,6 +39,7 @@ export const appRouter = createTRPCRouter({
   tts: ttsRouter,
   llm: llmRouter,
   documents: documentRouter,
+  drawings: drawingRouter,
   backups: backupsRouter,
   tools: toolsRouter,
   sandbox: sandboxRouter,

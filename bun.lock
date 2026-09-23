@@ -94,6 +94,7 @@
         "@mozilla/readability": "^0.6.0",
         "@packages/drizzle": "workspace:*",
         "@packages/env": "workspace:*",
+        "@packages/excalidraw-converter": "workspace:*",
         "@packages/lexical-nodes": "workspace:*",
         "@packages/lib": "workspace:*",
         "@packages/types": "workspace:*",
@@ -283,6 +284,18 @@
         "@typescript/native-preview": "^7.0.0-dev.20260707.2",
       },
     },
+    "packages/excalidraw-converter": {
+      "name": "@packages/excalidraw-converter",
+      "version": "0.0.1",
+      "dependencies": {
+        "@excalidraw/excalidraw": "^0.18.1",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.0",
+        "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/lexical-nodes": {
       "name": "@packages/lexical-nodes",
       "version": "0.0.1",
@@ -345,6 +358,7 @@
     },
   },
   "overrides": {
+    "@excalidraw/excalidraw": "0.18.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
   },
@@ -1064,6 +1078,8 @@
     "@packages/drizzle": ["@packages/drizzle@workspace:packages/drizzle"],
 
     "@packages/env": ["@packages/env@workspace:packages/env"],
+
+    "@packages/excalidraw-converter": ["@packages/excalidraw-converter@workspace:packages/excalidraw-converter"],
 
     "@packages/lexical-nodes": ["@packages/lexical-nodes@workspace:packages/lexical-nodes"],
 

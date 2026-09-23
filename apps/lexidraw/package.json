@@ -44,6 +44,7 @@
     "@mozilla/readability": "^0.6.0",
     "@packages/drizzle": "workspace:*",
     "@packages/env": "workspace:*",
+    "@packages/excalidraw-converter": "workspace:*",
     "@packages/lexical-nodes": "workspace:*",
     "@packages/lib": "workspace:*",
     "@packages/types": "workspace:*",

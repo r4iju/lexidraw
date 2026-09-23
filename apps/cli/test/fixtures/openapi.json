@@ -161,6 +161,2037 @@
           }
         }
       }
+    },
+    "/drawings/{id}": {
+      "get": {
+        "operationId": "drawings-get",
+        "summary": "Read a drawing's elements",
+        "tags": ["drawings"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "elements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": {}
+                      }
+                    },
+                    "appState": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {},
+                          "additionalProperties": {}
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "elements",
+                    "appState",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "drawings-put",
+        "summary": "Replace a drawing's elements",
+        "tags": ["drawings"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "elements": {
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["rectangle", "ellipse", "diamond"]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "label": {
+                                  "type": "object",
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "fontSize": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": ["text"],
+                                  "additionalProperties": {}
+                                }
+                              },
+                              "required": ["type", "x", "y"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "stickynote"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "fontSize": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type", "x", "y", "text"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "text"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "fontSize": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                }
+                              },
+                              "required": ["type", "x", "y", "text"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["arrow", "line"]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "label": {
+                                  "type": "object",
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "fontSize": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": ["text"],
+                                  "additionalProperties": {}
+                                },
+                                "start": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "rectangle",
+                                        "ellipse",
+                                        "diamond",
+                                        "text"
+                                      ]
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "additionalProperties": {}
+                                },
+                                "end": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "rectangle",
+                                        "ellipse",
+                                        "diamond",
+                                        "text"
+                                      ]
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "additionalProperties": {}
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  }
+                                }
+                              },
+                              "required": ["type", "x", "y"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["frame", "magicframe"]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "children": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type", "children"],
+                              "additionalProperties": {}
+                            }
+                          ]
+                        },
+                        {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["arrow", "line"]
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  }
+                                },
+                                "startBinding": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "elementId": {
+                                          "type": "string"
+                                        },
+                                        "focus": {
+                                          "type": "number"
+                                        },
+                                        "gap": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["elementId"],
+                                      "additionalProperties": {}
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "endBinding": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "elementId": {
+                                          "type": "string"
+                                        },
+                                        "focus": {
+                                          "type": "number"
+                                        },
+                                        "gap": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["elementId"],
+                                      "additionalProperties": {}
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type"
+                              ],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "const": "freedraw"
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  }
+                                },
+                                "pressures": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type"
+                              ],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "const": "text"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "originalText": {
+                                  "type": "string"
+                                },
+                                "fontSize": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                },
+                                "fontFamily": {
+                                  "type": "number"
+                                },
+                                "containerId": {
+                                  "type": ["string", "null"]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type",
+                                "text"
+                              ],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "rectangle",
+                                    "ellipse",
+                                    "diamond",
+                                    "image",
+                                    "frame",
+                                    "magicframe",
+                                    "embeddable",
+                                    "iframe"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type"
+                              ],
+                              "additionalProperties": {}
+                            }
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {},
+                          "additionalProperties": {},
+                          "description": "Rejected: Mermaid is not a write format; convert it in the browser"
+                        }
+                      ]
+                    }
+                  },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "mermaid": {
+                    "description": "Rejected: Mermaid is not a write format; convert it in the browser",
+                    "type": "string"
+                  }
+                },
+                "required": ["elements", "ifUnmodifiedSince"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "elementCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["id", "updatedAt", "elementCount"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drawings": {
+      "post": {
+        "operationId": "drawings-create",
+        "summary": "Create a drawing",
+        "tags": ["drawings"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "elements": {
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["rectangle", "ellipse", "diamond"]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "label": {
+                                  "type": "object",
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "fontSize": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": ["text"],
+                                  "additionalProperties": {}
+                                }
+                              },
+                              "required": ["type", "x", "y"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "stickynote"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "fontSize": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type", "x", "y", "text"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "text"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "fontSize": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                }
+                              },
+                              "required": ["type", "x", "y", "text"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["arrow", "line"]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "label": {
+                                  "type": "object",
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "fontSize": {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": ["text"],
+                                  "additionalProperties": {}
+                                },
+                                "start": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "rectangle",
+                                        "ellipse",
+                                        "diamond",
+                                        "text"
+                                      ]
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "additionalProperties": {}
+                                },
+                                "end": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "rectangle",
+                                        "ellipse",
+                                        "diamond",
+                                        "text"
+                                      ]
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "additionalProperties": {}
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  }
+                                }
+                              },
+                              "required": ["type", "x", "y"],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["frame", "magicframe"]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "children": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type", "children"],
+                              "additionalProperties": {}
+                            }
+                          ]
+                        },
+                        {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["arrow", "line"]
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  }
+                                },
+                                "startBinding": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "elementId": {
+                                          "type": "string"
+                                        },
+                                        "focus": {
+                                          "type": "number"
+                                        },
+                                        "gap": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["elementId"],
+                                      "additionalProperties": {}
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "endBinding": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "elementId": {
+                                          "type": "string"
+                                        },
+                                        "focus": {
+                                          "type": "number"
+                                        },
+                                        "gap": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["elementId"],
+                                      "additionalProperties": {}
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type"
+                              ],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "const": "freedraw"
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  }
+                                },
+                                "pressures": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type"
+                              ],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "const": "text"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "originalText": {
+                                  "type": "string"
+                                },
+                                "fontSize": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                },
+                                "fontFamily": {
+                                  "type": "number"
+                                },
+                                "containerId": {
+                                  "type": ["string", "null"]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type",
+                                "text"
+                              ],
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "angle": {
+                                  "type": "number"
+                                },
+                                "strokeColor": {
+                                  "type": "string"
+                                },
+                                "backgroundColor": {
+                                  "type": "string"
+                                },
+                                "fillStyle": {
+                                  "type": "string"
+                                },
+                                "strokeWidth": {
+                                  "type": "number"
+                                },
+                                "strokeStyle": {
+                                  "type": "string"
+                                },
+                                "roughness": {
+                                  "type": "number"
+                                },
+                                "opacity": {
+                                  "type": "number"
+                                },
+                                "groupIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "frameId": {
+                                  "type": ["string", "null"]
+                                },
+                                "index": {
+                                  "type": ["string", "null"]
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "version": {
+                                  "type": "number"
+                                },
+                                "versionNonce": {
+                                  "type": "number"
+                                },
+                                "isDeleted": {
+                                  "type": "boolean"
+                                },
+                                "updated": {
+                                  "type": "number"
+                                },
+                                "link": {
+                                  "type": ["string", "null"]
+                                },
+                                "locked": {
+                                  "type": "boolean"
+                                },
+                                "boundElements": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "type": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["id", "type"],
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "rectangle",
+                                    "ellipse",
+                                    "diamond",
+                                    "image",
+                                    "frame",
+                                    "magicframe",
+                                    "embeddable",
+                                    "iframe"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "x",
+                                "y",
+                                "width",
+                                "height",
+                                "type"
+                              ],
+                              "additionalProperties": {}
+                            }
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {},
+                          "additionalProperties": {},
+                          "description": "Rejected: Mermaid is not a write format; convert it in the browser"
+                        }
+                      ]
+                    }
+                  },
+                  "parentId": {
+                    "type": ["string", "null"]
+                  },
+                  "mermaid": {
+                    "description": "Rejected: Mermaid is not a write format; convert it in the browser",
+                    "type": "string"
+                  }
+                },
+                "required": ["title"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": ["id", "updatedAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -203,6 +2234,87 @@
           "message": "Authorization not provided",
           "issues": []
         }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "title": "Error response",
+        "description": "The body of every unsuccessful response.",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human readable explanation."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "BAD_REQUEST",
+              "PARSE_ERROR",
+              "UNAUTHORIZED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "METHOD_NOT_SUPPORTED",
+              "CONFLICT",
+              "PAYLOAD_TOO_LARGE",
+              "UNSUPPORTED_MEDIA_TYPE",
+              "UNPROCESSABLE_CONTENT",
+              "TOO_MANY_REQUESTS",
+              "INTERNAL_SERVER_ERROR"
+            ],
+            "description": "Stable error code; clients branch on this, not the text."
+          },
+          "issues": {
+            "type": "array",
+            "description": "The input validation failures behind a 400, when any.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["message"]
+            }
+          },
+          "data": {
+            "type": "object",
+            "description": "Machine readable detail; each field is null on the errors that do not carry it.",
+            "properties": {
+              "currentUpdatedAt": {
+                "type": ["string", "null"],
+                "format": "date-time",
+                "description": "On a 409, the document's current `updatedAt`; re-read from it and retry with it as `ifUnmodifiedSince`."
+              },
+              "candidates": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "object",
+                  "title": "Heading candidate",
+                  "properties": {
+                    "nth": {
+                      "type": "integer",
+                      "description": "1-based position among the matching headings."
+                    },
+                    "blockIndex": {
+                      "type": "integer",
+                      "description": "Position among the document's top-level blocks, from 0."
+                    },
+                    "tag": {
+                      "type": "string",
+                      "description": "The heading level as Lexical stores it, such as `h2`."
+                    },
+                    "text": {
+                      "type": "string",
+                      "description": "The heading's plain text."
+                    }
+                  },
+                  "required": ["nth", "blockIndex", "tag", "text"]
+                },
+                "description": "On a 400 from an ambiguous `afterHeading`, the headings it could have meant; pass one's `nth` to choose."
+              }
+            }
+          }
+        },
+        "required": ["message", "code"]
       }
     },
     "securitySchemes": {

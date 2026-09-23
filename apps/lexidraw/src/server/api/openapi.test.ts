@@ -89,6 +89,9 @@ describe("openApiDocument", () => {
     ["/documents/{id}/markdown", "put", "documents"],
     ["/documents/{id}/markdown/append", "post", "documents"],
     ["/documents/{id}/markdown/insert", "post", "documents"],
+    ["/drawings/{id}", "get", "drawings"],
+    ["/drawings/{id}", "put", "drawings"],
+    ["/drawings", "post", "drawings"],
   ] as const;
 
   it.each(expectedOperations)("exposes %s %s", (path, method, tag) => {
