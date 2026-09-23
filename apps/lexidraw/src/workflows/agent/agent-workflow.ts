@@ -14,7 +14,7 @@ import {
   appendToolResult,
   buildDecisionMessages,
 } from "./message-serializer";
-import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
+import type { ToolResultOutput } from "@ai-sdk/provider-utils";
 import { executeServerTool } from "./execute-server-tool";
 
 export type AgentConfig = EffectiveLlmConfig;
@@ -166,7 +166,7 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
       if (toolCalls.length > 0) {
         // Process each tool call sequentially
         let lastToolCallName: string | undefined;
-        let lastToolResultOutput: LanguageModelV2ToolResultOutput | undefined;
+        let lastToolResultOutput: ToolResultOutput | undefined;
         for (const toolCall of toolCalls) {
           // Append assistant tool-call message (with optional assistant text)
           currentMessages = appendAssistantToolCall(currentMessages, {
@@ -202,7 +202,7 @@ export async function agentWorkflow(args: AgentWorkflowArgs): Promise<void> {
             // Client tool: create hook and emit tool-call event
             const hook = createHook<{
               toolCallId: string;
-              result: LanguageModelV2ToolResultOutput;
+              result: ToolResultOutput;
             }>();
             const hookToken = hook.token;
 
@@ -341,7 +341,7 @@ function extractSummaryFromLastToolCall(
  */
 function formatToolDecisionSurrogate(
   toolName: string | undefined,
-  output: LanguageModelV2ToolResultOutput | undefined,
+  output: ToolResultOutput | undefined,
 ): string | undefined {
   if (!toolName) return undefined;
   if (!output) return `Executed tool ${toolName}.`;

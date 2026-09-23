@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import type { Browser, LaunchOptions } from "puppeteer-core";
+import type { Browser, Dialog, LaunchOptions, Page } from "puppeteer-core";
 import { getBrightDataProxyUrls } from "@packages/lib";
 
 export const maxDuration = 30;
@@ -81,15 +81,14 @@ function getBrightDataProxyPool(limit: number) {
   return {
     proxyUrl,
     country: process.env.BRIGHTDATA_PROXY_COUNTRY,
-    sessionPrefix:
-      process.env.BRIGHTDATA_PROXY_SESSION_PREFIX ?? "render-html",
+    sessionPrefix: process.env.BRIGHTDATA_PROXY_SESSION_PREFIX ?? "render-html",
     limit:
       Number.isFinite(sessionCount) && sessionCount > 0 ? sessionCount : limit,
   } as const;
 }
 
 async function performPageWorkflow(
-  page: any,
+  page: Page,
   url: string,
   cookiesHeader: string | undefined,
   waitUntil: WaitUntil,
@@ -102,7 +101,7 @@ async function performPageWorkflow(
     "accept-language": "en-US,en;q=0.9",
     ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
   });
-  page.on("dialog", async (d: any) => {
+  page.on("dialog", async (d: Dialog) => {
     try {
       await d.dismiss();
     } catch {}
@@ -209,7 +208,7 @@ async function performPageWorkflow(
           } catch {}
         }
       }
-      await page?.waitForTimeout(300);
+      await new Promise((resolve) => setTimeout(resolve, 300));
     } catch {}
   }
 

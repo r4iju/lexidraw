@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -42,7 +42,10 @@
       "!**/prettier.config.mjs",
       "!**/.turbo",
       "!**/node_modules",
-      "!**/build"
+      "!**/build",
+      "!**/.vercel",
+      "!**/*.svg",
+      "!**/.well-known/workflow"
     ]
   },
   "assist": {
@@ -53,5 +56,17 @@
         "organizeImports": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/code-runner/public/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noRedundantUseStrict": "off"
+          }
+        }
+      }
+    }
+  ]
 }

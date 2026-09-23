@@ -330,19 +330,19 @@ export default function InlineImageComponent({
   );
 
   const $onEnter = useCallback(
-    (event: KeyboardEvent) => {
+    (event: KeyboardEvent | null) => {
       const latestSelection = $getSelection();
       if (isSelected && $isNodeSelection(latestSelection)) {
         if (showCaption) {
           $setSelection(null);
-          event.preventDefault();
+          event?.preventDefault();
           caption.focus();
           return true;
         } else if (
           buttonRef.current !== null &&
           buttonRef.current !== document.activeElement
         ) {
-          event.preventDefault();
+          event?.preventDefault();
           buttonRef.current.focus();
           return true;
         }

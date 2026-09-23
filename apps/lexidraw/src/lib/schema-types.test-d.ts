@@ -7,7 +7,7 @@ import type {
   BarProps,
   AreaProps,
 } from "recharts";
-import { z } from "zod";
+import type { z } from "zod";
 import type { ChartDataSchema, ChartConfigSchema } from "./schemas";
 import type {
   NameType,
@@ -62,7 +62,11 @@ for (const s of cfg.series) {
     stroke: s.color,
   };
   const _bar: BarProps = { dataKey: s.dataKey, name: s.name, fill: s.color };
-  const _area: AreaProps = { dataKey: s.dataKey, name: s.name, fill: s.color };
+  const _area: AreaProps<unknown, unknown> = {
+    dataKey: s.dataKey,
+    name: s.name,
+    fill: s.color,
+  };
 }
 
 /* ------------------------------------------------------------------

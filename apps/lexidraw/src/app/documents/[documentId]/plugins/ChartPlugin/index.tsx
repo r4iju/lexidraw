@@ -56,7 +56,8 @@ export default function ChartPlugin(): JSX.Element | null {
       // this is just an example and might not be robust enough for production
       editor.registerCommand(
         PASTE_COMMAND,
-        (event: ClipboardEvent) => {
+        (event) => {
+          if (!(event instanceof ClipboardEvent)) return false;
           const text = event.clipboardData?.getData("text/plain");
           if (text) {
             try {

@@ -474,8 +474,8 @@ export const configRouter = createTRPCRouter({
         try {
           const cfHeaders =
             process.env.NODE_ENV === "production" &&
-            !!env.CF_ACCESS_CLIENT_ID &&
-            !!env.CF_ACCESS_CLIENT_SECRET
+            env.CF_ACCESS_CLIENT_ID &&
+            env.CF_ACCESS_CLIENT_SECRET
               ? {
                   "CF-Access-Client-Id": process.env
                     .CF_ACCESS_CLIENT_ID as string,
@@ -729,8 +729,8 @@ export const configRouter = createTRPCRouter({
       try {
         const cfHeaders =
           process.env.NODE_ENV === "production" &&
-          !!process.env.CF_ACCESS_CLIENT_ID &&
-          !!process.env.CF_ACCESS_CLIENT_SECRET
+          process.env.CF_ACCESS_CLIENT_ID &&
+          process.env.CF_ACCESS_CLIENT_SECRET
             ? {
                 "CF-Access-Client-Id": process.env
                   .CF_ACCESS_CLIENT_ID as string,

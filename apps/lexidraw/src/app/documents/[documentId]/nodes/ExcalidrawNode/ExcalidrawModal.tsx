@@ -184,7 +184,8 @@ export default function ExcalidrawInlineEditor({
         <ErrorBoundary
           errorComponent={({ error }) => (
             <div className="flex items-center justify-center size-full">
-              Error loading Excalidraw: {error.message}
+              Error loading Excalidraw:{" "}
+              {error instanceof Error ? error.message : String(error)}
             </div>
           )}
         >

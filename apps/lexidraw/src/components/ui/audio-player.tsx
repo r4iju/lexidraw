@@ -473,11 +473,11 @@ export function AudioPlayer({
             {/* Marker overlay */}
             {duration > 0 && safeMarkers.length > 0 ? (
               <div className="pointer-events-none absolute inset-0">
-                {safeMarkers.map((m, idx) => {
+                {safeMarkers.map((m) => {
                   const left = `${(m.time / duration) * 100}%`;
                   const label = m.label ?? formatTime(m.time);
                   return (
-                    <Tooltip key={`${m.time}-${idx}`}>
+                    <Tooltip key={`${m.time}-${label}`}>
                       <TooltipTrigger asChild>
                         <button
                           type="button"

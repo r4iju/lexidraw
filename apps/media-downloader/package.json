@@ -11,23 +11,23 @@
     "format": "bun x @biomejs/biome format --write ."
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.577.0",
-    "@aws-sdk/s3-request-presigner": "^3.804.0",
-    "@libsql/client": "^0.15.3",
+    "@aws-sdk/client-s3": "^3.1138.0",
+    "@aws-sdk/s3-request-presigner": "^3.1138.0",
+    "@libsql/client": "^0.18.0",
     "@packages/drizzle": "workspace:*",
     "@packages/env": "workspace:*",
     "@packages/types": "workspace:*",
-    "@paralleldrive/cuid2": "^2.2.2",
-    "@vercel/blob": "^1.0.1",
-    "drizzle-orm": "^0.41.0",
-    "elysia": "^1.0.0",
-    "mime-types": "^2.1.35",
+    "@paralleldrive/cuid2": "^3.3.0",
+    "@vercel/blob": "^2.8.0",
+    "drizzle-orm": "^0.45.3",
+    "elysia": "^1.4.30",
+    "mime-types": "^3.0.2",
     "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "@typescript/native-preview": "^7.0.0-dev.20251214.1",
-    "drizzle-kit": "^0.30.6",
-    "@types/mime-types": "^2.1.4"
+    "@types/bun": "^1.4.2",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "drizzle-kit": "^0.31.11",
+    "@types/mime-types": "^3.0.1"
   }
 }

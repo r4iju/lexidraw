@@ -4,12 +4,11 @@ import * as React from "react";
 import {
   type ColumnFiltersState,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
   type SortingState,
-  useReactTable,
-  type VisibilityState,
+  useTable,
+  type ColumnVisibilityState,
 } from "@tanstack/react-table";
+import { adminTableFeatures } from "~/components/admin/data-table/features";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import {
@@ -65,7 +64,7 @@ export function UsageDataTable(props: {
   type ViewState = {
     sorting: SortingState;
     columnFilters: ColumnFiltersState;
-    columnVisibility: VisibilityState;
+    columnVisibility: ColumnVisibilityState;
     routeFilter: string;
     modelFilter: string;
     pageIndex: number;
@@ -148,7 +147,8 @@ export function UsageDataTable(props: {
     );
   }, [apiRows, props.initialRawRows, viewState.modelFilter]);
 
-  const table = useReactTable({
+  const table = useTable({
+    features: adminTableFeatures,
     data: serverRows,
     columns: usageColumns,
     onSortingChange: (updater) =>
@@ -169,14 +169,12 @@ export function UsageDataTable(props: {
               )
             : updater,
       })),
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: (updater) =>
       setViewState((prev) => ({
         ...prev,
         columnVisibility:
           typeof updater === "function"
-            ? (updater as (s: VisibilityState) => VisibilityState)(
+            ? (updater as (s: ColumnVisibilityState) => ColumnVisibilityState)(
                 prev.columnVisibility,
               )
             : updater,

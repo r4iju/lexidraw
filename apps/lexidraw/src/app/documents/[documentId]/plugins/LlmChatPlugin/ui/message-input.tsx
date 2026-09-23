@@ -208,7 +208,7 @@ export const MessageInput = () => {
         <div className="flex flex-wrap gap-2 mx-2 mb-1">
           {files.map((file, index) => (
             <div
-              key={`${file.name}-${index}`}
+              key={`${file.name}-${file.size}-${file.lastModified}`}
               className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted"
             >
               <FileIcon className="size-5 shrink-0" />

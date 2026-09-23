@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
 
 export const size = {
-  width: 564.38,
-  height: 564.38,
+  width: 564,
+  height: 564,
 };
 
 export const contentType = "image/svg+xml";

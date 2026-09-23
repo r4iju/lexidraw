@@ -98,11 +98,11 @@ export default function VideoComponent({
   );
 
   const $onEnter = useCallback(
-    (event: KeyboardEvent) => {
+    (event: KeyboardEvent | null) => {
       if (isSelected && $isNodeSelection($getSelection())) {
         if (currentShowCaption && caption) {
           $setSelection(null);
-          event.preventDefault();
+          event?.preventDefault();
           caption.focus();
           return true;
         }

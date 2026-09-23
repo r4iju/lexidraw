@@ -77,7 +77,11 @@ const env = createEnv({
     HEADLESS_RENDER_URL: z.url().optional(),
     BRIGHTDATA_PROXY_URL: z.string().url().optional(),
     BRIGHTDATA_PROXY_COUNTRY: z.string().optional(),
-    BRIGHTDATA_PROXY_SESSION_COUNT: z.coerce.number().int().positive().optional(),
+    BRIGHTDATA_PROXY_SESSION_COUNT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional(),
     BRIGHTDATA_PROXY_SESSION_PREFIX: z.string().optional(),
     // Cloudflare Access (used on Vercel only; optional locally)
     CF_ACCESS_CLIENT_ID: z.string().optional(),

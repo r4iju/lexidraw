@@ -17,7 +17,7 @@ export function useRegisterKeybindings() {
     return mergeRegister(
       editor.registerCommand(
         KEY_ENTER_COMMAND,
-        (event: KeyboardEvent): boolean => {
+        (event: KeyboardEvent | null): boolean => {
           if (!event) return false;
 
           const { metaKey, altKey, ctrlKey, shiftKey } = event;

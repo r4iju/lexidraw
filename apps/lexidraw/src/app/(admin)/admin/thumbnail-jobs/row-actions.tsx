@@ -32,4 +32,3 @@ export function RowActions({ job }: { job: ThumbnailJobRow }) {
     </div>
   );
 }
-

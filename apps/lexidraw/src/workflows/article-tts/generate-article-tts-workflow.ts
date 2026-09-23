@@ -104,10 +104,10 @@ export async function generateArticleTtsWorkflow(
         .map((r) => r.value);
       if (successes.length === 0) {
         const reasons = batch
-          .filter(
-            (r): r is PromiseRejectedResult => r.status === "rejected",
-          )
-          .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
+          .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+          .map((r) =>
+            r.reason instanceof Error ? r.reason.message : String(r.reason),
+          );
         throw new Error(
           `All chunks in batch ${i}-${Math.min(i + BATCH - 1, planned.length - 1)} failed: ${reasons.join("; ")}`,
         );
@@ -149,7 +149,11 @@ export async function generateArticleTtsWorkflow(
     return { manifestUrl, stitchedUrl };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[tts][wf][article] failed", { articleId, articleKey, error: message });
+    console.error("[tts][wf][article] failed", {
+      articleId,
+      articleKey,
+      error: message,
+    });
     if (articleKey) {
       await markJobErrorStep(articleKey, message);
     }

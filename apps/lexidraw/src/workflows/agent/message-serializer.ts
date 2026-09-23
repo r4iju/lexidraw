@@ -1,11 +1,8 @@
 import "server-only";
 
 import type { ModelMessage } from "ai";
-import {
-  isJSONValue,
-  type JSONValue,
-  type LanguageModelV2ToolResultOutput,
-} from "@ai-sdk/provider";
+import type { ToolResultOutput } from "@ai-sdk/provider-utils";
+import { isJSONValue, type JSONValue } from "@ai-sdk/provider";
 import { z } from "zod";
 
 export interface AssistantToolCallArgs {
@@ -21,7 +18,7 @@ export interface ToolResultArgs {
   result: unknown;
 }
 
-// Zod schemas to validate LanguageModelV2ToolResultOutput at runtime
+// Zod schemas to validate ToolResultOutput at runtime
 const ToolOutputTextSchema = z.object({
   type: z.literal("text"),
   value: z.string(),
@@ -58,11 +55,11 @@ const ToolOutputSchema = z.union([
   ToolOutputContentSchema,
 ]);
 
-export function toToolOutput(raw: unknown): LanguageModelV2ToolResultOutput {
+export function toToolOutput(raw: unknown): ToolResultOutput {
   // Pass-through if it already matches the expected union
   const parsed = ToolOutputSchema.safeParse(raw);
   if (parsed.success) {
-    return parsed.data as LanguageModelV2ToolResultOutput;
+    return parsed.data as ToolResultOutput;
   }
   // Strings become text output
   if (typeof raw === "string") {

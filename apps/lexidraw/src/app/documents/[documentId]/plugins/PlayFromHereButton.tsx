@@ -209,7 +209,7 @@ export function PlayFromHereButton({
   useEffect(() => {
     if (!open) return;
     generateTts();
-  }, [open, generateTts]);
+  }, [open]);
 
   const disabled = useMemo(() => false, []);
 

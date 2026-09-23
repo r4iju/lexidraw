@@ -398,8 +398,7 @@ export const useCommonUtilities = () => {
       } else {
         return {
           status: "error",
-          message:
-            `Anchor type is missing and could not be inferred ${JSON.stringify(anchor)}. Provide { type: 'key'|'text', key?|text? }`,
+          message: `Anchor type is missing and could not be inferred ${JSON.stringify(anchor)}. Provide { type: 'key'|'text', key?|text? }`,
         };
       }
     }

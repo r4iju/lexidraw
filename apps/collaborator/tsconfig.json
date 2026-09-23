@@ -16,6 +16,7 @@
     /* If transpiling with TypeScript: */
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
+    "rootDir": "src",
     "outDir": "dist",
     "sourceMap": true,
 

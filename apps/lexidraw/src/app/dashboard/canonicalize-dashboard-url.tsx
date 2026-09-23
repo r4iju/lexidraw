@@ -45,7 +45,7 @@ export function CanonicalizeDashboardURL({
 
   useEffect(() => {
     updateUrlQueryParams();
-  }, [updateUrlQueryParams]);
+  }, []);
 
   return null;
 }

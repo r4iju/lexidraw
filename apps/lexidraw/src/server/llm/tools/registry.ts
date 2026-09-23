@@ -332,15 +332,17 @@ export async function getAiSdkToolMap(
     Tool<unknown, { success: boolean; content: Record<string, never> }>
   > = {};
   for (const [name, spec] of entries) {
-    mapped[name] = tool<
-      unknown,
-      { success: boolean; content: Record<string, never> }
-    >({
+    mapped[name] = tool({
       description: spec.description,
       inputSchema: spec.inputSchema,
       // This execute is never run server-side in the agent workflow; client executes instead
       // Returning a structural placeholder keeps types happy if invoked elsewhere
-      execute: async (_args: unknown) => ({ success: true, content: {} }),
+      execute: async (
+        _args: unknown,
+      ): Promise<{ success: boolean; content: Record<string, never> }> => ({
+        success: true,
+        content: {},
+      }),
     });
   }
   return mapped;

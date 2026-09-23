@@ -60,7 +60,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
       closeDialog();
     }
     prevPathnameRef.current = pathname;
-  }, [pathname, closeDialog]);
+  }, [pathname]);
 
   const handleOpenDelete = () => setOpenDialog("delete");
   const handleOpenShare = () => setOpenDialog("share");

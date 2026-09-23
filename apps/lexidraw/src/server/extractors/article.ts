@@ -313,8 +313,7 @@ export async function extractAndSanitizeArticle({
       const urls = await getBrightDataProxyUrls({
         proxyUrl,
         country: env.BRIGHTDATA_PROXY_COUNTRY,
-        sessionPrefix:
-          env.BRIGHTDATA_PROXY_SESSION_PREFIX ?? "article-distill",
+        sessionPrefix: env.BRIGHTDATA_PROXY_SESSION_PREFIX ?? "article-distill",
         limit: Math.max(1, env.BRIGHTDATA_PROXY_SESSION_COUNT ?? 50),
       });
       const limited = urls.slice(0, 50);

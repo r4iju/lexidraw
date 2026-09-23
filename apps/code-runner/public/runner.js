@@ -1,4 +1,4 @@
-(function () {
+(() => {
   "use strict";
 
   /** @type {string[]} */
@@ -24,28 +24,26 @@
    * @param {any} initialDoc
    */
   function createHostApi(initialDoc) {
-    /** @type {any} */ let nextDoc = undefined;
+    /** @type {any} */ let nextDoc;
     return {
-      getDocument: async function () {
+      getDocument: async () => {
         try {
           return JSON.parse(JSON.stringify(initialDoc));
         } catch {
           return initialDoc;
         }
       },
-      setDocument: async function (doc) {
+      setDocument: async (doc) => {
         nextDoc = doc;
         return true;
       },
-      getSelection: async function () {
+      getSelection: async () => {
         // Optional: not implemented in this minimal runner
         return undefined;
       },
       log: log,
       /** @internal */
-      __getNextDoc: function () {
-        return nextDoc;
-      },
+      __getNextDoc: () => nextDoc,
     };
   }
 

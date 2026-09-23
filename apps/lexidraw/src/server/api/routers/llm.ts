@@ -125,6 +125,7 @@ export const llmRouter = createTRPCRouter({
             ...(hasMessages && inputMessages
               ? { messages: inputMessages }
               : { prompt }),
+            allowSystemInMessages: true,
             system,
             temperature: effectiveTemperature,
             maxOutputTokens: effectiveMaxTokens,

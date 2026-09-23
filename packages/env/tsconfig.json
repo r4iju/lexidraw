@@ -26,6 +26,7 @@
 
     /* doesn't run in DOM */
     "lib": ["es2022"],
+    "types": ["node"],
 
     /* other */
     "outDir": "dist",

@@ -1,9 +1,6 @@
-import {
-  $isCodeNode,
-  CodeNode,
-  getLanguageFriendlyName,
-  normalizeCodeLang,
-} from "@lexical/code";
+import { $isCodeNode, CodeNode } from "@lexical/code";
+import { normalizeCodeLanguage } from "@lexical/code-shiki";
+import { getCodeLanguageFriendlyName } from "../code-language";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getNearestNodeFromDOMNode } from "lexical";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,11 +17,7 @@ type Position = {
   right: string;
 };
 
-function CodeActionMenuContainer({
-  anchorElem,
-}: {
-  anchorElem: HTMLElement;
-}) {
+function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
   const [editor] = useLexicalComposerContext();
   const [lang, setLang] = useState("");
   const [isShown, setShown] = useState<boolean>(false);
@@ -165,8 +158,8 @@ function CodeActionMenuContainer({
     return LANG_CAN_BE_PRETTIER.includes(lang);
   };
 
-  const normalizedLang = normalizeCodeLang(lang);
-  const codeFriendlyName = getLanguageFriendlyName(lang);
+  const normalizedLang = normalizeCodeLanguage(lang);
+  const codeFriendlyName = getCodeLanguageFriendlyName(lang);
 
   return (
     <>
