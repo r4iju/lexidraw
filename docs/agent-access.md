@@ -204,8 +204,9 @@ next one, so a chain of writes never needs a read between them.
   operationId in the cached document.
 - Skill: `skills/lexidraw/SKILL.md` in this repo. `bun run skills:install`
   builds and installs the binary, then symlinks `skills/lexidraw` to
-  `~/.ai/skills/lexidraw`; it is idempotent and refuses to replace anything
-  there that is not already a symlink.
+  `~/.ai/skills/lexidraw`; it is idempotent, refuses to replace anything
+  there that is not already a symlink, and refuses to run from a git
+  worktree, whose path would not outlive it.
 
 ### MCP (last phase)
 
