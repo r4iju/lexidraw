@@ -1,5 +1,5 @@
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { CreateDocument } from "./documents-schema";
+import { AfterHeading, CreateDocument, MarkdownBody } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
 import { and, eq, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
@@ -88,14 +88,6 @@ function throwAsDocumentWriteError(error: unknown): never {
 }
 
 const ONE_PLACEMENT = "pass exactly one of afterHeading or atBlockIndex";
-
-const nonBlank = (field: string) =>
-  z
-    .string()
-    .refine((value) => value.trim() !== "", `${field} must not be blank`);
-
-// Refined rather than trimmed: leading indentation is markdown too.
-const MarkdownBody = nonBlank("markdown");
 
 /**
  * What every markdown write answers with, beyond what it changed. `updatedAt`
@@ -323,11 +315,7 @@ export const documentRouter = createTRPCRouter({
         .object({
           id: z.string(),
           markdown: MarkdownBody,
-          afterHeading: nonBlank("afterHeading")
-            .optional()
-            .describe(
-              "Insert after the first root-level heading whose plain text matches (trimmed, whitespace collapsed, case-insensitive). Pass exactly one of afterHeading or atBlockIndex.",
-            ),
+          afterHeading: AfterHeading.optional(),
           nth: z
             .number()
             .int()
