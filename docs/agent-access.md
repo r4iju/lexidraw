@@ -293,8 +293,93 @@ The header is the only way in: a 401 from this endpoint carries no
 negotiate OAuth, and one that tries reports that it needs credentials it
 cannot obtain. Mint the token at `/settings/tokens` and pass it as above.
 
-Remaining: the drawing preview widget as an MCP Apps resource (#36), which
-registers alongside the tools in `src/server/mcp/`.
+### The drawing preview widget
+
+A drawing created, written, or read through MCP renders in the chat as an MCP
+Apps resource: `ui://lexidraw/drawing-preview`, mime type
+`text/html;profile=mcp-app`, registered from `src/server/mcp/widget.ts`
+alongside the tools and served by the same authenticated handler — an
+unauthenticated `resources/read` is the same 401 as everything else.
+`create_drawing`, `put_drawing`, and `get_drawing` carry
+`_meta.ui.resourceUri` pointing at it (the SDK writes the pre-1.0
+`_meta["ui/resourceUri"]` beside it), so a host that renders MCP Apps shows the
+editor and a host that does not reads the same JSON it always did.
+
+The widget is **ours**. `excalidraw/excalidraw-mcp` ships a comparable one, but
+the repository carries no LICENSE file, so neither its code nor its built
+widget is reused — not the checkpoint/save/export adapter tools either. This
+one is built on the MIT-licensed `@excalidraw/excalidraw` 0.18.1 the app
+already renders with, in `packages/drawing-widget`, which bundles the editor,
+the MCP Apps `App` bridge, and the stylesheet into one self-contained HTML
+document (~5 MB; Mermaid's 3.5 MB converter is stubbed out, and `put_drawing`
+refuses Mermaid anyway). `bun run build` regenerates it into `dist/`, which the
+turbo build already does before the app builds, so `next build` and Vercel need
+nothing of their own. The document is a second entry point (`/html`) so the
+route only loads five megabytes of editor when a host actually asks for the
+resource.
+
+Because the widget is the real editor, an edit in it is a real Excalidraw edit
+and is saved back through the same `put_drawing` the model calls, over the
+host's bridge on the same MCP connection — the widget holds no token and opens
+no socket of its own. The precondition travels with it: the `updatedAt` the
+tool answered is the `ifUnmodifiedSince` of the widget's next write, and each
+write answers with the next one. A `CONFLICT` reloads the drawing and says so;
+a `FORBIDDEN` switches the widget read-only, which a read-scope token never
+reaches because the payload already says the connection cannot write. After a
+save the widget tells the model what changed with `ui/update-model-context`,
+since the model read the old elements when the tool answered.
+
+What the widget renders travels in the result's `_meta` under
+`app.lexidraw/drawing`, and the payload differs by what the tool's own answer
+already carries:
+
+- `create_drawing` and `put_drawing` answer with an id and counts, so their
+  payload carries `{ id, title, updatedAt, elements, canWrite }`. The elements
+  are the stored drawing, read back after the write, so the widget shows what
+  the server made of a skeleton payload rather than the payload. They ride in
+  `_meta` rather than in `content` because `content` is what the model reads,
+  and a model that just sent those elements has no use for them back. Past the
+  1 MB a read may answer with, `elements` is null, `tooLarge` is set, and the
+  widget says so instead of drawing half a scene.
+- `get_drawing` answers with the whole drawing already, so its payload is
+  `{ id, title, updatedAt, canWrite }` and the widget takes the elements out of
+  the answer's own JSON. Sending them twice would put one drawing on the wire
+  under two separate ceilings.
+
+The payload is built only for a client that advertises MCP Apps, or for one
+whose capabilities this endpoint never saw. That second case is the usual one
+here and it is why the gate leans that way: the endpoint is stateless, so a
+`tools/call` arrives on a server built for that request alone, with no memory of
+the `initialize` that named the client's capabilities — and a host given no
+drawing renders nothing, while a plain client given a payload merely ignores it.
+A client that does negotiate and does not ask for MCP Apps pays nothing: no
+scope lookup, and no read-back of the drawing a write just stored.
+
+A host that drops `_meta` costs the widget one `get_drawing` over the bridge and
+nothing else. That is also the path a rejected call ends on: the host owns every
+call the widget makes and can deny, drop, or time one out, so a refused save
+keeps the edit and offers a retry rather than leaving the header mid-save, and a
+refused load says so.
+
+`_meta.ui.csp` declares one resource domain, `https://esm.sh`, which is where
+the editor's fonts come from (`window.EXCALIDRAW_ASSET_PATH` is pinned to
+`https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/`, the same path the
+editor falls back to on its own). There are no connect domains: the widget never
+talks to the network, only to the host. The editor's chrome is cut to match
+rather than the policy widened to fit it — export, save-to-file, open, and the
+image tool are off through `UIOptions`, and the library button is hidden: they
+reach a file system the sandbox has none of, or fetch subsetted fonts and a wasm
+encoder from origins the policy does not name, and images are binary files
+`put_drawing` does not carry.
+
+`resources/read` answers about 5 MB, authenticated and uncached, whenever a host
+asks for the document. The document itself is built once per instance — it is a
+string literal in a module, and the module cache is the memoisation — and
+`scripts/build.ts` fails the build if it grows past 6 MB, so its size stays a
+decision rather than a drift. The transport answers it as an event stream
+(`content-type: text/event-stream`, no `content-length`) rather than one
+buffered body, so Vercel's buffered-response limit should not apply; that has
+been checked against the route and not against a real deployment or host.
 
 ## Documents
 
@@ -430,6 +515,14 @@ Phase 1 is useful on its own: curl against tRPC works the moment it lands.
   import from a CLI. Wire: `/api/trpc`, superjson, `httpBatchStreamLink`.
 - `excalidraw/excalidraw-mcp`: stateless streamable HTTP on Vercel with
   `mcp-handler`; two model-visible tools; normalization happens in the widget;
-  no auth; no commits since 2026-03; no LICENSE file.
+  no auth; no commits since 2026-03; no LICENSE file. Decided 2026-09-23 (#36):
+  with no LICENSE there is no grant to copy from, so nothing of it is reused —
+  not the widget, not its build output, and not the three adapter tools around
+  its checkpoint read/save/export. The preview widget is written here against
+  the MIT-licensed `@excalidraw/excalidraw` package the app already depends on,
+  and maps onto `drawings.get`/`drawings.put` directly, which is also what
+  makes an edit in the preview a real Excalidraw edit. The skeleton input
+  format stays compatible with it: a format an agent already knows is not
+  copied code.
 - Excalidraw+ exposes a paid API and MCP with the same skeleton input and a
   documented scene content schema; useful as a reference only.
