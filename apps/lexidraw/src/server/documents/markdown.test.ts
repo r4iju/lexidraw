@@ -74,7 +74,7 @@ const withNode = (type: string): SerializedEditorState =>
           children: [{ type: "text", version: 1, text: "hi" } as never],
         } as never,
         { type, version: 1 } as never,
-        { type: "excalidraw", version: 1 } as never,
+        { type: "hologram", version: 1 } as never,
       ],
     },
   }) as SerializedEditorState;
@@ -116,20 +116,22 @@ describe("editorStateToMarkdown", () => {
   });
 
   test("names every unsupported node type once, in document order", () => {
-    const state = withNode("slide");
+    // Every type the editor registers has a markdown form or a placeholder,
+    // so only types no editor knows about reach this path.
+    const state = withNode("phantom");
     expect(collectNodeTypes(state)).toEqual([
       "root",
       "paragraph",
       "text",
-      "slide",
-      "excalidraw",
+      "phantom",
+      "hologram",
     ]);
-    expect(unsupportedNodeTypes(state)).toEqual(["slide", "excalidraw"]);
+    expect(unsupportedNodeTypes(state)).toEqual(["phantom", "hologram"]);
     expect(() => editorStateToMarkdown(state)).toThrow(
       UnsupportedNodeTypesError,
     );
     expect(() => editorStateToMarkdown(state)).toThrow(
-      "Document contains node types without a markdown form yet: slide, excalidraw",
+      "Document contains node types without a markdown form yet: phantom, hologram",
     );
   });
 

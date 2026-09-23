@@ -13,16 +13,23 @@ import {
   type LexicalEditor,
 } from "lexical";
 import {
+  ARTICLE,
+  ArticleNode,
   ChartNode,
+  CommentNode,
   CORE_NODES,
   CORE_TRANSFORMERS,
   EquationNode,
+  ExcalidrawNode,
   FigmaNode,
   ImageNode,
   InlineImageNode,
+  MermaidNode,
   PageBreakNode,
   PollNode,
+  SlideNode,
   StickyNode,
+  ThreadNode,
   TweetNode,
   VideoNode,
   YouTubeNode,
@@ -122,6 +129,123 @@ describe("decorator node markdown", () => {
     );
   });
 
+  test("the heavy decorator nodes summarise their contents", () => {
+    const editor = editorWithCoreNodes();
+    editor.update(
+      () => {
+        $getRoot().append(
+          SlideNode.$createSlideNode({
+            slides: [
+              { id: "s1", elements: [] },
+              {
+                id: "s2",
+                elements: [],
+                slideMetadata: { storyboardTitle: "Why now" },
+              },
+              {
+                id: "s3",
+                elements: [],
+                slideMetadata: { storyboardTitle: "The ask" },
+              },
+            ],
+            currentSlideId: "s1",
+          }),
+          SlideNode.$createSlideNode({ slides: [], currentSlideId: null }),
+          $createParagraphNode().append(
+            MermaidNode.$createMermaidNode("\n\nflowchart LR\n  A --> B"),
+          ),
+          $createParagraphNode().append(
+            new CommentNode({
+              author: "ada",
+              content: "Tighten this paragraph",
+              deleted: false,
+              id: "c1",
+              timeStamp: 0,
+              type: "comment",
+            }),
+            new ThreadNode({
+              comments: [],
+              id: "t1",
+              quote: "the quoted text",
+              type: "thread",
+            }),
+          ),
+        );
+      },
+      { discrete: true },
+    );
+
+    expect(toMarkdown(editor)).toBe(
+      [
+        "<!-- lexidraw:slide-deck#1 3 slides: Why now / The ask -->",
+        "<!-- lexidraw:slide-deck#2 0 slides -->",
+        "<!-- lexidraw:mermaid#1 flowchart LR -->",
+        "<!-- lexidraw:comment#1 Tighten this paragraph --><!-- lexidraw:thread#1 the quoted text -->",
+      ].join("\n\n"),
+    );
+  });
+
+  test("an excalidraw placeholder counts elements in either stored shape", () => {
+    const editor = editorWithCoreNodes();
+    editor.update(
+      () => {
+        const scene = ExcalidrawNode.$createExcalidrawNode();
+        scene.setData(
+          JSON.stringify({
+            elements: [{ id: "a" }, { id: "b" }],
+            files: {},
+            appState: {},
+          }),
+        );
+        const legacy = ExcalidrawNode.$createExcalidrawNode();
+        legacy.setData(JSON.stringify([{ id: "a" }]));
+        const unparseable = ExcalidrawNode.$createExcalidrawNode();
+        unparseable.setData("not json");
+        $getRoot().append(
+          $createParagraphNode().append(scene),
+          $createParagraphNode().append(legacy),
+          $createParagraphNode().append(unparseable),
+          // The default data is the empty legacy array.
+          $createParagraphNode().append(ExcalidrawNode.$createExcalidrawNode()),
+        );
+      },
+      { discrete: true },
+    );
+
+    expect(toMarkdown(editor)).toBe(
+      [
+        "<!-- lexidraw:excalidraw#1 2 elements -->",
+        "<!-- lexidraw:excalidraw#2 1 elements -->",
+        "<!-- lexidraw:excalidraw#3 0 elements -->",
+        "<!-- lexidraw:excalidraw#4 0 elements -->",
+      ].join("\n\n"),
+    );
+  });
+
+  test("an article exports as markdown, not as a placeholder", () => {
+    const editor = editorWithCoreNodes();
+    editor.update(
+      () => {
+        $getRoot().append(
+          ArticleNode.$createArticleNode({
+            mode: "url",
+            url: "https://example.com/post",
+            distilled: {
+              title: "On splitting nodes",
+              contentHtml: "<p>First para.</p><p>Second para.</p>",
+            },
+          }),
+        );
+      },
+      { discrete: true },
+    );
+
+    expect(CORE_TRANSFORMERS).toContain(ARTICLE);
+    expect(toMarkdown(editor)).toBe(
+      "### On splitting nodes\n\n[Source](https://example.com/post)\n\nFirst para.\nSecond para.",
+    );
+  });
+
   test("a placeholder summary cannot close the comment early", () => {
     const editor = editorWithCoreNodes();
     editor.update(
@@ -191,6 +315,28 @@ describe("decorator node markdown", () => {
     });
   });
 
+  test("importJSON fills in the constructor defaults for missing fields", () => {
+    const editor = editorWithCoreNodes();
+    editor.update(
+      () => {
+        const drawing = ExcalidrawNode.importJSON({
+          type: "excalidraw",
+          version: 1,
+        } as never);
+        expect(drawing.getData()).toBe("[]");
+        expect(drawing.getWidth()).toBe("inherit");
+        expect(drawing.getHeight()).toBe("inherit");
+        const article = ArticleNode.importJSON({
+          type: "article",
+          version: 1,
+          data: { mode: "entity", entityId: "e1" },
+        } as never);
+        expect(article.exportJSON().format).toBe("");
+      },
+      { discrete: true },
+    );
+  });
+
   test("every node in the list is registered under its own type", () => {
     const editor = editorWithCoreNodes();
     for (const klass of [
@@ -205,6 +351,12 @@ describe("decorator node markdown", () => {
       StickyNode,
       PollNode,
       ChartNode,
+      SlideNode,
+      ExcalidrawNode,
+      MermaidNode,
+      ArticleNode,
+      CommentNode,
+      ThreadNode,
     ]) {
       expect(editor.hasNode(klass)).toBe(true);
     }

@@ -291,8 +291,8 @@ function getTableColumnsSize(table: TableNode) {
 
 /**
  * The full transformer list for an editor. `extra` holds transformers for
- * nodes this package does not know (the browser's decorator nodes); nested
- * conversions inside tables and collapsibles see the complete list.
+ * nodes this package does not know; nested conversions inside tables and
+ * collapsibles see the complete list.
  */
 export function createTransformers(extra: Transformer[] = []): Transformer[] {
   const all: Transformer[] = [];
