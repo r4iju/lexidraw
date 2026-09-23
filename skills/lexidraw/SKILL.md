@@ -89,12 +89,12 @@ reads stdin, so a heredoc works anywhere `--file` does.
 The rest of the surface:
 
 ```bash
-lexidraw doc list [--dir <id|path>] [--format json|table] [--page-all]
-lexidraw doc create --title T [--dir <id|path>] [--file f|--text s]
+lexidraw doc list [--dir <id>|--dir-path P] [--format json|table] [--page-all]
+lexidraw doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]
 lexidraw doc insert <id|--path P> (--file f|--text s) --at-block N --if-unmodified-since W
 lexidraw doc delete <id|--path P>
 lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]
-lexidraw dir create --title T [--dir <id|path>]
+lexidraw dir create --title T [--dir <id>|--dir-path P]
 ```
 
 `doc create` with a body starts the document at that markdown rather than after
@@ -102,15 +102,21 @@ the empty paragraph a new document carries.
 
 ## Addressing
 
-An entity is its id (a UUID), or `--path "Dir/Sub/Title"` walked through
-directory titles from the root. Exact title match first, case-insensitive only
-if nothing matched exactly. `--dir` takes either form; the shape decides.
+An entity is its id, or `--path "Dir/Sub/Title"` walked through directory
+titles from the root. Exact title match first, case-insensitive only if
+nothing matched exactly. A parent directory is `--dir <id>` or
+`--dir-path "Dir/Sub"`; the flag says which form it is, the value's shape is
+never guessed. A path splits on `/` with no escape, so a title containing `/`
+is addressed by id, and the `path` in a `doc get` frontmatter is a display
+label rather than something to feed back to `--path`.
 
 Several matches: a **read** takes the most recently updated and says which on
 stderr; a **write** fails `AMBIGUOUS_PATH` with the candidates as
-`{ id, title, updatedAt }`. `--nth N` picks one, counting from the most recent.
-On `doc insert` that flag belongs to `--after-heading`, so an ambiguous path
-there has to be addressed by id.
+`{ id, title, updatedAt }`. `--nth N` picks one, counting from the most recent,
+among the matches for the last segment of `--path`; an ambiguous directory
+segment, or a `--dir-path` segment, has to be addressed by id. On `doc insert`
+that flag belongs to `--after-heading`, so an ambiguous path there has to be
+addressed by id too.
 
 `--after-heading` matches a top-level heading trimmed, whitespace-collapsed,
 case-insensitively, inline markup ignored (`## Plan **B**` is matched by
@@ -181,6 +187,27 @@ usage errors exit 2.
 
 ## Drawings
 
-`drawing get|put|create` and `docs/drawing-format.md` (raw Excalidraw elements
-and the skeleton shorthand) land with issue #33; they are not in this binary
-yet. Until then a drawing is a placeholder line in its document.
+```bash
+lexidraw drawing get <id>                        # canonical Excalidraw elements
+lexidraw drawing create --title T [--file f|-] [--parent <dir id>]
+lexidraw drawing put <id> --file <f|-> --if-unmodified-since <iso|latest>
+```
+
+`put` replaces the whole element set, so read first and send everything back.
+The body is a JSON array mixing two shapes, both described in
+`docs/drawing-format.md` in the lexidraw repo (read it before writing a
+drawing that is more than boxes and arrows):
+
+- **Shorthand**, the format of the official Excalidraw MCP: a shape with
+  `label: { text }` gets a centred text element; an arrow with
+  `start: { id }` / `end: { id }` is bound to those shapes; a `frame` with
+  `children: [ids]` groups them; `stickynote` is a filled box with text.
+  Give every shorthand element an `id` so bindings and later edits can name
+  it. Geometry is `x`, `y`, `width`, `height`; look comes from
+  `backgroundColor`, `fillStyle`, `strokeColor`, `strokeWidth`, `roundness`,
+  `fontSize`, `fontFamily`.
+- **Canonical** elements, exactly as `drawing get` returns them. They are
+  validated and normalised by Excalidraw's restore, not stored byte for byte.
+
+Mermaid is rejected by name; at most 10,000 elements; keep the body under
+Vercel's 4.5 MB limit. Rendering to SVG or PNG lands with issue #34.
