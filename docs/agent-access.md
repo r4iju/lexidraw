@@ -123,14 +123,27 @@ loading tool schemas into the agent's context until they are needed.
     order) picks one. `atBlockIndex` counts top-level blocks from 0, and the
     block count itself means append.
   - `documents.replaceMarkdown(id, md, ifUnmodifiedSince)` — precondition
-    mandatory; CLI exposes it only as `doc put --replace`.
+    mandatory; CLI exposes it only as `doc put --replace`. The markdown
+    becomes the whole document: a placeholder the caller left in puts the
+    original node back from the stored revision, one the caller deleted
+    deletes that node, and the summary after `#N` is ignored, so an edited or
+    dropped summary still resolves. A placeholder for a block stands alone on
+    its own line the way the read wrote it; used inside a line of text it
+    fails with `BAD_REQUEST`, as do an unknown `TYPE#N` (the error lists the
+    placeholders the document has) and one used twice. An article's
+    placeholder keeps the node and drops the prose below it that the read
+    derived, block by block, up to the first block the caller changed: edited
+    prose stays as content of its own. The response reports `blocks`,
+    `restoredPlaceholders`, and `removedPlaceholders`.
 - Blocks without a markdown form (slides, excalidraw, mermaid, chart, poll,
   comment, sticky, ...) render as opaque placeholder comments,
   `<!-- lexidraw:TYPE#N summary -->`, where N is the node's position among
   nodes of that type in document order (node keys are not stable across
-  loads) and the summary is a hint for the reader, never parsed. On save, a
-  placeholder that still appears re-inserts the original node from the stored
-  document; a deleted placeholder deletes the node.
+  loads) and the summary is a hint for the reader, never parsed. An article is
+  the one node that carries both: its placeholder line comes first and the
+  prose it renders as follows. On save, a placeholder that still appears
+  re-inserts the original node from the stored document; a deleted placeholder
+  deletes the node.
 
 ## Drawings
 

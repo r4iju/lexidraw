@@ -6,6 +6,7 @@ import {
   parseEditorState,
   resolveInsertIndex,
 } from "./markdown";
+import { replaceStateFromMarkdown } from "./replace";
 
 /** A document as a write needs to see it, already checked for write access. */
 export type DocumentRevision = {
@@ -47,6 +48,15 @@ export type AppendResult = {
   id: string;
   updatedAt: Date;
   appendedBlocks: number;
+};
+
+export type ReplaceResult = {
+  id: string;
+  updatedAt: Date;
+  /** Top-level blocks the document now holds. */
+  blocks: number;
+  restoredPlaceholders: number;
+  removedPlaceholders: number;
 };
 
 /**
@@ -99,6 +109,48 @@ export async function insertMarkdownIntoDocument(
     current = reread;
     state = parseEditorState(current.elements);
   }
+}
+
+/**
+ * Rewrites `revision` to hold what `markdown` says and stores the result.
+ *
+ * The precondition is required rather than optional: a replace decides what
+ * every block of the document becomes, including which nodes without a
+ * markdown form survive, so it can only be resolved against the revision the
+ * caller read. Losing the compare-and-set is therefore a conflict, never a
+ * retry.
+ */
+export async function replaceMarkdownInDocument(
+  store: DocumentStore,
+  revision: DocumentRevision,
+  markdown: string,
+  ifUnmodifiedSince: string,
+): Promise<ReplaceResult> {
+  const stored = parseEditorState(revision.elements);
+  if (new Date(ifUnmodifiedSince).getTime() !== revision.updatedAt.getTime()) {
+    throw new StaleDocumentError(revision.updatedAt);
+  }
+  const { state, restoredPlaceholders, removedPlaceholders } =
+    replaceStateFromMarkdown(stored, markdown);
+
+  const written = await store.write(
+    revision.id,
+    JSON.stringify(state),
+    revision.updatedAt,
+  );
+  if (written) {
+    return {
+      ...written,
+      blocks: state.root.children.length,
+      restoredPlaceholders,
+      removedPlaceholders,
+    };
+  }
+  const reread = await store.read(revision.id);
+  if (!reread) {
+    throw new DocumentGoneError();
+  }
+  throw new StaleDocumentError(reread.updatedAt);
 }
 
 /** {@link insertMarkdownIntoDocument} at the end of the document. */

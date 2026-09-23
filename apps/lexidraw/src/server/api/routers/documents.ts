@@ -8,12 +8,18 @@ import {
   appendMarkdownToDocument,
   DocumentGoneError,
   insertMarkdownIntoDocument,
+  replaceMarkdownInDocument,
 } from "~/server/documents/write";
 import {
   drizzleDocumentStore,
   nextUpdatedAt,
 } from "~/server/documents/document-store";
 import { StaleDocumentError } from "~/server/documents/conflict";
+import {
+  DuplicatePlaceholderError,
+  PlaceholderPlacementError,
+  UnknownPlaceholderError,
+} from "~/server/documents/replace";
 import {
   AmbiguousHeadingError,
   BlockIndexOutOfRangeError,
@@ -62,7 +68,10 @@ function throwAsDocumentWriteError(error: unknown): never {
   if (
     error instanceof HeadingNotFoundError ||
     error instanceof AmbiguousHeadingError ||
-    error instanceof BlockIndexOutOfRangeError
+    error instanceof BlockIndexOutOfRangeError ||
+    error instanceof UnknownPlaceholderError ||
+    error instanceof DuplicatePlaceholderError ||
+    error instanceof PlaceholderPlacementError
   ) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -296,6 +305,47 @@ export const documentRouter = createTRPCRouter({
       )
       .execute();
   }),
+  /**
+   * Rewrites a whole document from markdown for agents and the CLI. Blocks
+   * with no markdown form travel as placeholder comments: one the caller left
+   * in puts the original node back, one the caller deleted deletes it, and
+   * the summary after `#N` is never read. A block placeholder has to stand
+   * alone on its own line, the way the read wrote it.
+   *
+   * `ifUnmodifiedSince` is mandatory: a replace decides the fate of every
+   * block, so it only makes sense against the revision the caller read.
+   */
+  replaceMarkdown: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        markdown: MarkdownBody,
+        ifUnmodifiedSince: z.iso.datetime(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (entity?.entityType !== "document") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
+      }
+      try {
+        return await replaceMarkdownInDocument(
+          drizzleDocumentStore(ctx.drizzle),
+          entity,
+          input.markdown,
+          input.ifUnmodifiedSince,
+        );
+      } catch (error) {
+        throwAsDocumentWriteError(error);
+      }
+    }),
   save: protectedProcedure
     .input(z.object({ id: z.string(), elements: z.string() }))
     .mutation(async ({ input, ctx }) => {

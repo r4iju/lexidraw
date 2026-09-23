@@ -222,7 +222,7 @@ describe("decorator node markdown", () => {
     );
   });
 
-  test("an article exports as markdown, not as a placeholder", () => {
+  test("an article exports as a placeholder followed by its prose", () => {
     const editor = editorWithCoreNodes();
     editor.update(
       () => {
@@ -235,6 +235,10 @@ describe("decorator node markdown", () => {
               contentHtml: "<p>First para.</p><p>Second para.</p>",
             },
           }),
+          ArticleNode.$createArticleNode({
+            mode: "entity",
+            entityId: "urls_1",
+          }),
         );
       },
       { discrete: true },
@@ -242,7 +246,14 @@ describe("decorator node markdown", () => {
 
     expect(CORE_TRANSFORMERS).toContain(ARTICLE);
     expect(toMarkdown(editor)).toBe(
-      "### On splitting nodes\n\n[Source](https://example.com/post)\n\nFirst para.\nSecond para.",
+      [
+        "<!-- lexidraw:article#1 On splitting nodes -->",
+        "### On splitting nodes",
+        "[Source](https://example.com/post)",
+        "First para.\nSecond para.",
+        "<!-- lexidraw:article#2 urls_1 -->",
+        "Article: urls_1",
+      ].join("\n\n"),
     );
   });
 
