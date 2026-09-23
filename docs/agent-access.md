@@ -111,9 +111,12 @@ loading tool schemas into the agent's context until they are needed.
   - `documents.replaceMarkdown(id, md, ifUnmodifiedSince)` — precondition
     mandatory; CLI exposes it only as `doc put --replace`.
 - Blocks without a markdown form (slides, excalidraw, mermaid, chart, poll,
-  comment, sticky, ...) render as opaque placeholder comments carrying the node
-  id. On save, a placeholder that still appears re-inserts the original node
-  from the stored document; a deleted placeholder deletes the node.
+  comment, sticky, ...) render as opaque placeholder comments,
+  `<!-- lexidraw:TYPE#N summary -->`, where N is the node's position among
+  nodes of that type in document order (node keys are not stable across
+  loads) and the summary is a hint for the reader, never parsed. On save, a
+  placeholder that still appears re-inserts the original node from the stored
+  document; a deleted placeholder deletes the node.
 
 ## Drawings
 

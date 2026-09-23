@@ -32,13 +32,13 @@ export default function ChartPlugin(): JSX.Element | null {
       editor.registerCommand(
         INSERT_CHART_COMMAND,
         (payload) => {
-          const chartNode = ChartNode.$createChartNode(
-            payload.type,
-            payload.data,
-            payload.config,
-            payload.width,
-            payload.height,
-          );
+          const chartNode = ChartNode.$createChartNode({
+            chartType: payload.type,
+            chartData: payload.data,
+            chartConfig: payload.config,
+            width: payload.width,
+            height: payload.height,
+          });
           editor.focus();
           editor.update(() => {
             const selection = editor

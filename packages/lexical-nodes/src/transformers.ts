@@ -33,6 +33,7 @@ import {
   $isTextNode,
   type LexicalNode,
 } from "lexical";
+import { DECORATOR_TRANSFORMERS } from "./decorator-transformers.js";
 import emojiList from "./emoji-list.js";
 import { CollapsibleContainerNode } from "./nodes/CollapsibleContainerNode.js";
 import { CollapsibleContentNode } from "./nodes/CollapsibleContentNode.js";
@@ -298,6 +299,8 @@ export function createTransformers(extra: Transformer[] = []): Transformer[] {
   const source: TransformerSource = () => all;
   all.push(
     ...createCollapsibleTransformers(source),
+    ...DECORATOR_TRANSFORMERS.element,
+    ...DECORATOR_TRANSFORMERS.textMatch,
     ...extra,
     createTableTransformer(source),
     HR,
