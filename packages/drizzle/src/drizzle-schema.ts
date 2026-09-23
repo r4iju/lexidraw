@@ -369,6 +369,36 @@ export const entityTags = sqliteTable(
   ],
 );
 
+export type ApiTokenScope = "read" | "write";
+
+// Personal access tokens: bearer credentials for agents and the CLI. Only the
+// SHA-256 of the token is stored; the plaintext is shown once at creation.
+export const apiTokens = sqliteTable(
+  "ApiTokens",
+  {
+    id: text("id")
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("tokenHash").notNull(),
+    scope: text("scope").$type<ApiTokenScope>().notNull(),
+    expiresAt: integer("expiresAt", { mode: "timestamp_ms" }),
+    lastUsedAt: integer("lastUsedAt", { mode: "timestamp_ms" }),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    revokedAt: integer("revokedAt", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("ApiToken_tokenHash_unique").on(table.tokenHash),
+    index("ApiToken_userId_idx").on(table.userId),
+  ],
+);
+
 export const sharedEntities = sqliteTable(
   "SharedEntities",
   {

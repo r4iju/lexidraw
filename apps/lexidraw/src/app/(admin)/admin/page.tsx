@@ -86,6 +86,19 @@ export default async function AdminDashboardPage() {
           </Button>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>API tokens</CardTitle>
+          <CardDescription>
+            Inspect and revoke personal access tokens
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/admin/tokens">Go to API tokens</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -6,13 +6,37 @@ import { authEffective } from "~/server/auth";
 import { drizzle, schema } from "@packages/drizzle";
 import { checkPermission } from "./check-permission";
 import { assertAdmin } from "./assert-admin";
+import {
+  readBearerApiToken,
+  tokenMayRun,
+  type RequestAuth,
+} from "~/server/auth/api-token-format";
+import { resolveApiToken } from "~/server/auth/api-tokens";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
+  const bearer = readBearerApiToken(opts.headers);
+  if (bearer) {
+    const resolved = await resolveApiToken(bearer);
+    if (!resolved) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Invalid, expired, or revoked API token",
+      });
+    }
+    return {
+      drizzle,
+      schema,
+      session: resolved.session,
+      auth: resolved.auth as RequestAuth,
+      ...opts,
+    };
+  }
   const session = await authEffective();
   return {
     drizzle,
     schema,
     session,
+    auth: { kind: "session" } as RequestAuth,
     ...opts,
   };
 };
@@ -33,9 +57,20 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
 
 export const createTRPCRouter = t.router;
 
-export const publicProcedure = t.procedure;
+// Every procedure starts here so token scope is enforced even on public ones.
+const scopedProcedure = t.procedure.use(({ ctx, type, next }) => {
+  if (!tokenMayRun(ctx.auth, type)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This API token has read scope; mutations require write scope",
+    });
+  }
+  return next();
+});
 
-export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+export const publicProcedure = scopedProcedure;
+
+export const protectedProcedure = scopedProcedure.use(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
@@ -47,13 +82,26 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   });
 });
 
-export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  await assertAdmin(ctx);
+/** For token management and admin work: a browser session, never a token. */
+export const sessionOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.auth.kind === "token") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This operation is not available to API tokens",
+    });
+  }
   return next();
 });
 
+export const adminProcedure = sessionOnlyProcedure.use(
+  async ({ ctx, next }) => {
+    await assertAdmin(ctx);
+    return next();
+  },
+);
+
 export const protectedProcedureWithPermission = (requiredPermission: string) =>
-  t.procedure.use(async ({ ctx, next }) => {
+  scopedProcedure.use(async ({ ctx, next }) => {
     await checkPermission(ctx, requiredPermission);
     return next();
   });
