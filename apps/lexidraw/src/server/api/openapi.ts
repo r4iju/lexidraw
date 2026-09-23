@@ -2,6 +2,7 @@ import { generateOpenApiDocument, type OpenAPIObject } from "trpc-to-openapi";
 
 import { API_ERROR_CODES } from "./error-codes";
 import { appRouter } from "./root";
+import type { HeadingCandidate } from "~/server/documents/markdown";
 
 type SchemaObject = NonNullable<
   NonNullable<OpenAPIObject["components"]>["schemas"]
@@ -11,8 +12,38 @@ const ERROR_SCHEMA_NAME = "ErrorResponse";
 const GENERATED_ERROR_REF_PREFIX = "#/components/schemas/error.";
 
 /**
+ * Keyed off the type the error actually carries, so renaming a field there
+ * fails this file rather than leaving the document describing the old one.
+ */
+const headingCandidateProperties = {
+  nth: {
+    type: "integer",
+    description: "1-based position among the matching headings.",
+  },
+  blockIndex: {
+    type: "integer",
+    description: "Position among the document's top-level blocks, from 0.",
+  },
+  tag: {
+    type: "string",
+    description: "The heading level as Lexical stores it, such as `h2`.",
+  },
+  text: { type: "string", description: "The heading's plain text." },
+} satisfies Record<keyof HeadingCandidate, SchemaObject>;
+
+const headingCandidateSchema: SchemaObject = {
+  type: "object",
+  title: "Heading candidate",
+  properties: headingCandidateProperties,
+  required: Object.keys(headingCandidateProperties),
+};
+
+/**
  * The body every failing REST call returns, as the transport builds it: the
- * TRPCError's message and code, plus the zod issues behind a 400.
+ * TRPCError's message and code, the zod issues behind a 400, and the `data`
+ * the error formatter attaches. `data` stays open because tRPC puts its own
+ * bookkeeping there; only the fields a client is meant to branch on are
+ * declared.
  */
 const errorResponseSchema: SchemaObject = {
   type: "object",
@@ -32,6 +63,25 @@ const errorResponseSchema: SchemaObject = {
         type: "object",
         properties: { message: { type: "string" } },
         required: ["message"],
+      },
+    },
+    data: {
+      type: "object",
+      description:
+        "Machine readable detail; each field is null on the errors that do not carry it.",
+      properties: {
+        currentUpdatedAt: {
+          type: ["string", "null"],
+          format: "date-time",
+          description:
+            "On a 409, the document's current `updatedAt`; re-read from it and retry with it as `ifUnmodifiedSince`.",
+        },
+        candidates: {
+          type: ["array", "null"],
+          items: headingCandidateSchema,
+          description:
+            "On a 400 from an ambiguous `afterHeading`, the headings it could have meant; pass one's `nth` to choose.",
+        },
       },
     },
   },
