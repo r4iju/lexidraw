@@ -25,16 +25,42 @@ export function portableJsonSchema<T>(schema: T): T {
   return rewrite(schema) as T;
 }
 
+/**
+ * The keywords whose value is data rather than a schema. A `default` or an
+ * `example` may legitimately be an object carrying a `type` key with a list
+ * under it — a drawing element, say — and rewriting that would change the
+ * document's data, not its constraints, so these are copied through untouched.
+ */
+const DATA_KEYWORDS: ReadonlySet<string> = new Set([
+  "const",
+  "default",
+  "enum",
+  "example",
+  "examples",
+]);
+
 function rewrite(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(rewrite);
   if (node === null || typeof node !== "object") return node;
+  // A node carrying both a list-valued `type` and an `anyOf` means both at
+  // once — no node does today — so writing the type union over `anyOf` would
+  // quietly drop half the constraint. `allOf` is the spelling that keeps them
+  // both, and every dialect reads it.
+  const conflicts = "anyOf" in node;
   const out: Record<string, unknown> = {};
+  const alsoRequired: unknown[] = [];
   for (const [key, value] of Object.entries(node)) {
     if (key === "type" && Array.isArray(value)) {
-      out.anyOf = value.map((member) => ({ type: member }));
+      const union = value.map((member) => ({ type: member }));
+      if (conflicts) alsoRequired.push({ anyOf: union });
+      else out.anyOf = union;
       continue;
     }
-    out[key] = rewrite(value);
+    out[key] = DATA_KEYWORDS.has(key) ? value : rewrite(value);
+  }
+  if (alsoRequired.length > 0) {
+    const existing = Array.isArray(out.allOf) ? out.allOf : [];
+    out.allOf = [...existing, ...alsoRequired];
   }
   return out;
 }

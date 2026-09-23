@@ -425,6 +425,30 @@ describe("the MCP endpoint", () => {
     expect(listed.value.map((row: Json) => row.id)).toContain(created.value.id);
   });
 
+  test("reads a null parentId as the root, as the router always has", async () => {
+    // The published schema says a plain optional string, which is what a
+    // strict client needs; an agent sending the null the REST path takes is
+    // not told its input is invalid over the spelling.
+    const withNull = await callTool(WRITE_TOKEN, "create_document", {
+      title: "At the root, explicitly",
+      parentId: null,
+    });
+    expect(withNull.isError).toBe(false);
+    expect(withNull.value.parentId).toBe(null);
+
+    const omitted = await callTool(WRITE_TOKEN, "create_document", {
+      title: "At the root, by omission",
+    });
+    expect(omitted.isError).toBe(false);
+    expect(omitted.value.parentId).toBe(null);
+
+    const drawn = await callTool(WRITE_TOKEN, "create_drawing", {
+      title: "Drawn at the root",
+      parentId: null,
+    });
+    expect(drawn.isError).toBe(false);
+  });
+
   test("refuses to file a document under something that is not a directory", async () => {
     const { value, isError } = await callTool(WRITE_TOKEN, "create_document", {
       title: "Misfiled",

@@ -35,6 +35,18 @@ export async function installServerRuntime(): Promise<
   LibSQLDatabase<typeof schema>
 > {
   mock.module("server-only", () => ({}));
+  // A procedure that writes an entity drops its cache tags, and Next carries a
+  // revalidation on the work store a request sets up — which a test process
+  // has none of, so the real `revalidateTag` throws and `entity-cache` lets
+  // that surface. A test that wants to see which tags a write asked for
+  // replaces this stub with one that records them.
+  mock.module("next/cache", () => ({
+    revalidateTag: () => {},
+    revalidatePath: () => {},
+    updateTag: () => {},
+    cacheTag: () => {},
+    cacheLife: () => {},
+  }));
   const installed = (globalThis as { db?: LibSQLDatabase<typeof schema> }).db;
   if (installed) return installed;
   const runtimeEnv = process.env as Record<string, string | undefined>;

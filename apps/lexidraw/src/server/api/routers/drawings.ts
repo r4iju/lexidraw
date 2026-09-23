@@ -31,7 +31,10 @@ import {
   DrawingElements,
   MERMAID_REJECTION,
 } from "~/server/drawings/skeleton-schema";
-import { revalidateEntities } from "../entity-cache";
+import {
+  revalidateEntities,
+  revalidateEntitiesAndParents,
+} from "../entity-cache";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 /** An element on the wire: canonical Excalidraw, so its fields are its own. */
@@ -411,7 +414,7 @@ export const drawingRouter = createTRPCRouter({
           message: `An entity with id "${input.id}" already exists`,
         });
       }
-      revalidateEntities(row.id, parentId);
+      await revalidateEntitiesAndParents(ctx.drizzle, row.id, parentId);
       return {
         id: row.id,
         updatedAt: row.updatedAt.toISOString(),

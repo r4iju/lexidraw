@@ -76,20 +76,28 @@ function refuse(
  * cut off mid-quote (`Unsupported content-type "text/plain`). The rule is its
  * rule — a body-carrying method must be `application/json` — so a request this
  * lets through is one the adapter would have let through too.
+ *
+ * Both answers come before authentication, so an anonymous caller learns which
+ * methods a path serves. That is deliberate: it is what the OpenAPI document
+ * at `/api/v1/openapi.json` already says to anyone who asks, and answering the
+ * method before the credentials keeps the refusal the same for every caller.
  */
 function transportRefusal(req: Request): Response | null {
   const path = new URL(req.url).pathname.slice(ENDPOINT.length) || "/";
   const allowed = methodsFor(path);
   if (allowed.size === 0) return null;
   const allow = [...allowed].sort().join(", ");
-  if (!allowed.has(req.method)) {
+  // Next serves HEAD through the exported GET, and a path that serves GET
+  // serves HEAD with it: the body is dropped, not refused.
+  const method = req.method === "HEAD" ? "GET" : req.method;
+  if (!allowed.has(method)) {
     return refuse(
       "METHOD_NOT_SUPPORTED",
       `${req.method} is not supported on ${path}; it serves ${allow}`,
       { allow },
     );
   }
-  if (req.method === "GET" || req.method === "DELETE") return null;
+  if (method === "GET" || method === "DELETE") return null;
   const contentType = req.headers.get("content-type");
   if (!contentType) {
     return refuse("UNSUPPORTED_MEDIA_TYPE", "Missing content-type header");

@@ -53,15 +53,18 @@ const ifUnmodifiedSince = z.iso
   );
 
 /**
- * The directory a create files its entity in. Optional rather than nullish:
- * the router takes null for the root, but zod publishes a nullable string as
- * `type: ["string", "null"]` and several MCP clients read that as a plain
- * string. Omitting it says the same thing, portably.
+ * The directory a create files its entity in. Published as a plain optional
+ * string: the router takes null for the root, but zod publishes a nullable
+ * string as `type: ["string", "null"]` and several MCP clients read that as a
+ * plain string. Omitting it says the same thing, portably.
+ *
+ * Null is still accepted and read as omitted — it is what the router, the REST
+ * path, and this tool's own earlier schema all take for "the root", and an
+ * agent that sends it should not be told its input is invalid over a spelling.
  */
 const parentId = z
-  .string()
-  .optional()
-  .describe("The directory to create it in; omitted means the root.");
+  .preprocess((value) => value ?? undefined, z.string().optional())
+  .describe("The directory to create it in; omitted or null means the root.");
 
 const entityTypes = z
   .array(z.enum(["document", "drawing", "directory", "url"]))

@@ -62,9 +62,10 @@ async function api(
 }
 
 beforeAll(async () => {
-  await db
-    .insert(schema.users)
-    .values([{ id: OWNER, name: "Owner", email: "rest-owner@example.test" }]);
+  await db.insert(schema.users).values([
+    { id: OWNER, name: "Owner", email: "rest-owner@example.test" },
+    { id: "rest_friend", name: "Friend", email: "rest-friend@example.test" },
+  ]);
   await db.insert(schema.apiTokens).values([
     {
       id: "tok_rest_write",
@@ -80,6 +81,7 @@ beforeAll(async () => {
       parentId: "rest_dir",
     }),
     row("rest_draw", "Sketch", "[]", "drawing", { parentId: "rest_dir" }),
+    row("rest_sub", "Nested", "{}", "directory", { parentId: "rest_dir" }),
   ]);
 });
 
@@ -151,6 +153,20 @@ describe("a wrong method on a live path", () => {
     const { response, body } = await api("GET", "/nothing-here");
     expect(response.status).toBe(404);
     expect(body.code).toBe("NOT_FOUND");
+  });
+
+  test("serves HEAD wherever it serves GET", async () => {
+    // Next answers HEAD with the exported GET, so the refusal sees a method
+    // the document never lists on its own.
+    const response = await GET(
+      new Request("http://lexidraw.test/api/v1/me", {
+        method: "HEAD",
+        headers: { authorization: `Bearer ${WRITE_TOKEN}` },
+      }),
+    );
+    // The adapter answers a HEAD with the headers and no body, as it did
+    // before the refusal existed; what matters is that it is not refused.
+    expect(response.status).toBe(204);
   });
 
   test("lets the method the path does serve through", async () => {
@@ -247,6 +263,40 @@ describe("a write over the API", () => {
     const { response } = await api("DELETE", "/entities/rest_doc_doomed");
     expect(response.status).toBe(200);
     expect(revalidated).toEqual(["entity:rest_doc_doomed", "entity:rest_dir"]);
+  });
+});
+
+describe("a write that changes a listing", () => {
+  test("drops the listing above the directory it landed in", async () => {
+    const { response } = await api("POST", "/entities", {
+      body: {
+        id: "rest_doc_nested",
+        title: "Filed two deep",
+        entityType: "document",
+        elements: JSON.stringify(EMPTY_DOCUMENT),
+        parentId: "rest_sub",
+      },
+    });
+    expect(response.status).toBe(200);
+    // The listing of `rest_dir` renders how many children `rest_sub` has.
+    expect(revalidated).toEqual([
+      "entity:rest_doc_nested",
+      "entity:rest_sub",
+      "entity:rest_dir",
+    ]);
+  });
+
+  test("drops the listing when a share changes, not just the entity", async () => {
+    const { response, body } = await api("POST", "/entities/rest_doc/shares", {
+      body: {
+        userEmail: "rest-friend@example.test",
+        accessLevel: "EDIT",
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    // The listing renders how many people an entity is shared with.
+    expect(revalidated).toEqual(["entity:rest_doc", "entity:rest_dir"]);
   });
 });
 
