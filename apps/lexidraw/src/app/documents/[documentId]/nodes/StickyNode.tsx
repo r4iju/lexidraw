@@ -1,140 +1,21 @@
-import type {
-  EditorConfig,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedEditor,
-  SerializedLexicalNode,
-  Spread,
-} from "lexical";
-
-import { $setSelection, createEditor, DecoratorNode } from "lexical";
+import { StickyNode as HeadlessStickyNode } from "@packages/lexical-nodes";
+import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
 import { createPortal } from "react-dom";
 
+export type {
+  SerializedStickyNode,
+  StickyNoteColor,
+} from "@packages/lexical-nodes";
+
 const StickyComponent = React.lazy(() => import("./StickyComponent"));
 
-type StickyNoteColor =
-  | "pink"
-  | "yellow"
-  | "green"
-  | "blue"
-  | "red"
-  | "orange"
-  | "purple"
-  | "gray";
-
-export type SerializedStickyNode = Spread<
-  {
-    xOffset: number;
-    yOffset: number;
-    color: StickyNoteColor;
-    caption: SerializedEditor;
-  },
-  SerializedLexicalNode
->;
-
-export class StickyNode extends DecoratorNode<React.JSX.Element> {
-  __x: number;
-  __y: number;
-  __color: StickyNoteColor;
-  __caption: LexicalEditor;
-
-  static getType(): string {
-    return "sticky";
-  }
-
-  static clone(node: StickyNode): StickyNode {
-    return new StickyNode(
-      node.__x,
-      node.__y,
-      node.__color,
-      node.__caption,
-      node.__key,
-    );
-  }
-  static importJSON(serializedNode: SerializedStickyNode): StickyNode {
-    const stickyNode = new StickyNode(
-      serializedNode.xOffset,
-      serializedNode.yOffset,
-      serializedNode.color,
-    );
-    const caption = serializedNode.caption;
-    const nestedEditor = stickyNode.__caption;
-    const editorState = nestedEditor.parseEditorState(caption.editorState);
-    if (!editorState.isEmpty()) {
-      nestedEditor.setEditorState(editorState);
-    }
-    return stickyNode;
-  }
-
-  constructor(
-    x: number,
-    y: number,
-    color:
-      | "pink"
-      | "yellow"
-      | "green"
-      | "blue"
-      | "red"
-      | "orange"
-      | "purple"
-      | "gray",
-    caption?: LexicalEditor,
-    key?: NodeKey,
-  ) {
-    super(key);
-    this.__x = x;
-    this.__y = y;
-    this.__caption = caption || createEditor();
-    this.__color = color;
-  }
-
-  exportJSON(): SerializedStickyNode {
-    return {
-      caption: this.__caption.toJSON(),
-      color: this.__color,
-      type: "sticky",
-      version: 1,
-      xOffset: this.__x,
-      yOffset: this.__y,
-    };
-  }
-
-  createDOM(_config: EditorConfig): HTMLElement {
-    const div = document.createElement("div");
-    div.style.display = "contents";
-    return div;
-  }
-
-  updateDOM(): false {
-    return false;
-  }
-
-  setPosition(x: number, y: number): void {
-    const writable = this.getWritable();
-    writable.__x = x;
-    writable.__y = y;
-    $setSelection(null);
-  }
-
-  toggleColor(): void {
-    const writable = this.getWritable();
-    const colors = [
-      "pink",
-      "yellow",
-      "green",
-      "blue",
-      "red",
-      "orange",
-      "purple",
-      "gray",
-    ];
-    const currentIndex = colors.indexOf(writable.__color);
-    const nextIndex = (currentIndex + 1) % colors.length;
-    writable.__color = colors[nextIndex] as StickyNoteColor;
-  }
+/** React half of the package's StickyNode; see ImageNode. */
+export class StickyNode extends HeadlessStickyNode {
+  static getType = HeadlessStickyNode.getType;
+  static clone = HeadlessStickyNode.clone;
+  static importJSON = HeadlessStickyNode.importJSON;
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return createPortal(
@@ -149,19 +30,5 @@ export class StickyNode extends DecoratorNode<React.JSX.Element> {
       </Suspense>,
       document.body,
     );
-  }
-
-  isIsolated(): true {
-    return true;
-  }
-
-  static $isStickyNode(
-    node: LexicalNode | null | undefined,
-  ): node is StickyNode {
-    return node instanceof StickyNode;
-  }
-
-  static $createStickyNode(xOffset: number, yOffset: number): StickyNode {
-    return new StickyNode(xOffset, yOffset, "yellow");
   }
 }

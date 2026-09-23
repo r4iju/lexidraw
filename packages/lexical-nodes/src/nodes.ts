@@ -7,19 +7,33 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import type { Klass, LexicalNode } from "lexical";
 import { AutocompleteNode } from "./nodes/AutocompleteNode.js";
+import { ChartNode } from "./nodes/ChartNode.js";
 import { CollapsibleContainerNode } from "./nodes/CollapsibleContainerNode.js";
 import { CollapsibleContentNode } from "./nodes/CollapsibleContentNode.js";
 import { CollapsibleTitleNode } from "./nodes/CollapsibleTitleNode.js";
+import { EquationNode } from "./nodes/EquationNode.js";
+import { FigmaNode } from "./nodes/FigmaNode.js";
+import { ImageNode } from "./nodes/ImageNode.js";
+import { InlineImageNode } from "./nodes/InlineImageNode.js";
 import { LayoutContainerNode } from "./nodes/LayoutContainerNode.js";
 import { LayoutItemNode } from "./nodes/LayoutItemNode.js";
+import { PageBreakNode } from "./nodes/PageBreakNode.js";
+import { PollNode } from "./nodes/PollNode.js";
+import { StickyNode } from "./nodes/StickyNode.js";
+import { TweetNode } from "./nodes/TweetNode.js";
+import { VideoNode } from "./nodes/VideoNode.js";
+import { YouTubeNode } from "./nodes/YouTubeNode.js";
 
 /**
- * The node classes the document editor registers that have no React
- * component. The browser editor registers these plus its decorator nodes;
- * the server's headless editor registers exactly these, so a document is
- * readable as markdown iff every node type it stores is in this list (or a
- * Lexical built-in). Nodes the editor does not register (emoji, keyword,
- * mention) are exported by the package but deliberately absent here.
+ * The node classes the document editor registers, minus the ones whose
+ * serialization still needs browser-only modules (slide, excalidraw,
+ * mermaid, article, comment, thread). The server's headless editor
+ * registers exactly these, so a document is readable as markdown iff every
+ * node type it stores is in this list (or a Lexical built-in). The browser
+ * editor registers these and then its React subclasses of the decorator
+ * nodes, which take over their types. Nodes the editor does not register
+ * (emoji, keyword, mention) are exported by the package but deliberately
+ * absent here.
  */
 export const CORE_NODES: Klass<LexicalNode>[] = [
   HeadingNode,
@@ -41,4 +55,15 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   CollapsibleTitleNode,
   LayoutContainerNode,
   LayoutItemNode,
+  ImageNode,
+  InlineImageNode,
+  VideoNode,
+  YouTubeNode,
+  TweetNode,
+  FigmaNode,
+  EquationNode,
+  PageBreakNode,
+  StickyNode,
+  PollNode,
+  ChartNode,
 ];

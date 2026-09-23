@@ -735,10 +735,10 @@ export default function DocumentEditor({
 
   const lexicalNodes: Klass<LexicalNode>[] = [
     ...CORE_NODES,
-    // Same "horizontalrule" type as the headless node in CORE_NODES. Lexical
-    // keeps the last class registered per type and instantiates it everywhere
-    // (importJSON, markdown import, $create), so listing the React subclass
-    // after the core set keeps the selectable decorator in the browser.
+    // The classes below share their types with headless nodes in CORE_NODES.
+    // Lexical keeps the last class registered per type and instantiates it
+    // everywhere (importJSON, markdown import, $create), so listing the React
+    // subclasses after the core set gives every node its component.
     HorizontalRuleNode,
     SlideNode,
     CommentNode,

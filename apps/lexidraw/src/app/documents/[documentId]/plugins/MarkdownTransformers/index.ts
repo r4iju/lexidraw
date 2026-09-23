@@ -1,58 +1,7 @@
-import type {
-  ElementTransformer,
-  TextMatchTransformer,
-  Transformer,
-} from "@lexical/markdown";
-import { $createTextNode, type LexicalNode } from "lexical";
+import type { ElementTransformer, Transformer } from "@lexical/markdown";
 import { createTransformers, htmlToPlainText } from "@packages/lexical-nodes";
-import { EquationNode } from "../../nodes/EquationNode";
-import { ImageNode } from "../../nodes/ImageNode/ImageNode";
-import { TweetNode } from "../../nodes/TweetNode";
+import { $createTextNode, type LexicalNode } from "lexical";
 import { ArticleNode } from "../../nodes/ArticleNode/ArticleNode";
-
-export const IMAGE: TextMatchTransformer = {
-  dependencies: [ImageNode],
-  export: (node) => {
-    if (!ImageNode.$isImageNode(node)) {
-      return null;
-    }
-
-    return `![${node.getAltText()}](${node.getSrc()})`;
-  },
-  importRegExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))/,
-  regExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
-  replace: (textNode, match) => {
-    const [, altText, src] = match;
-    const imageNode = ImageNode.$createImageNode({
-      altText: altText as string,
-      maxWidth: 800,
-      src: src as string,
-    });
-    textNode.replace(imageNode);
-  },
-  trigger: ")",
-  type: "text-match",
-};
-
-export const EQUATION: TextMatchTransformer = {
-  dependencies: [EquationNode],
-  export: (node) => {
-    if (!EquationNode.$isEquationNode(node)) {
-      return null;
-    }
-
-    return `$${node.getEquation()}$`;
-  },
-  importRegExp: /\$([^$]+?)\$/,
-  regExp: /\$([^$]+?)\$$/,
-  replace: (textNode, match) => {
-    const [, equation] = match;
-    const equationNode = EquationNode.$createEquationNode(equation, true);
-    textNode.replace(equationNode);
-  },
-  trigger: "$",
-  type: "text-match",
-};
 
 export const ARTICLE: ElementTransformer = {
   dependencies: [ArticleNode],
@@ -83,30 +32,8 @@ export const ARTICLE: ElementTransformer = {
   type: "element",
 };
 
-export const TWEET: ElementTransformer = {
-  dependencies: [TweetNode],
-  export: (node) => {
-    if (!TweetNode.$isTweetNode(node)) {
-      return null;
-    }
-
-    return `<tweet id="${node.getId()}" />`;
-  },
-  regExp: /<tweet id="([^"]+?)"\s?\/>\s?$/,
-  replace: (textNode, _1, match) => {
-    const [, id] = match;
-    if (!id) return;
-    const tweetNode = TweetNode.$createTweetNode(id);
-    textNode.replace(tweetNode);
-  },
-  type: "element",
-};
-
-// Decorator-node transformers stay here until their nodes move into the
-// package; the package supplies the rest and the nested-conversion wiring.
+// The article node still needs browser-only modules, so its transformer
+// stays here; the package supplies every other transformer.
 export const PLAYGROUND_TRANSFORMERS: Transformer[] = createTransformers([
   ARTICLE,
-  IMAGE,
-  EQUATION,
-  TWEET,
 ]);
