@@ -82,6 +82,12 @@ A directory listing is `GET /entities?parentId={directoryId}`; omitting
 Repeated query parameters (`tagNames`, `entityTypes`) may also be
 comma-separated, since a single repetition arrives as a bare string.
 
+A `parentId` on a create is resolved before the insert, by `POST /entities` as
+by `POST /drawings`: it has to be a directory the caller may write to, and
+anything else — a document, a directory of someone else's, nothing at all — is
+`NOT_FOUND`, so the foreign key never fails with the statement in its message
+and existence stays private.
+
 #### Error codes
 
 Every error body is `{ message, code, issues?, data? }`, and `code` is drawn from
@@ -214,8 +220,10 @@ next one, so a chain of writes never needs a read between them.
 
 - Live at `POST /api/mcp`, hosted inside the Next app with `mcp-handler` over
   `@modelcontextprotocol/server`: stateless streamable HTTP, no sessions, no
-  session id, no SSE fallback. Every request builds a server, answers one
-  JSON-RPC message, and drops it.
+  session id, no SSE. POST is the only method the route exports, so Next
+  answers the rest with a 405 before any of it runs, and subscriptions are
+  capped at zero rather than answered with a stream. Every request builds a
+  server, answers one JSON-RPC message, and drops it.
 - Auth is the same personal access token as `/api/v1`, through the same
   `createRestContext`, so a missing, unknown, expired, or revoked token is a
   401 carrying the REST error body (`{ message, code: "UNAUTHORIZED" }`)
@@ -246,11 +254,27 @@ document carries, so its answer is an id a write can address at once.
 
 A tool that succeeded answers with the procedure's output as JSON text. A tool
 that failed answers `isError: true` with the body `/api/v1` would have
-returned — `{ message, code, issues?, data? }`, the same `code` vocabulary —
-so an agent branches on `CONFLICT` and reads `data.currentUpdatedAt` or
-`data.candidates` the same way over either transport. The preconditions are
-REST's: `latest` is a CLI convention and does not exist server-side, so a
-write passes the `updatedAt` the previous read or write answered.
+returned — `{ message, code, issues?, data }`, the same `code` vocabulary — so
+an agent branches on `CONFLICT` and reads `data.currentUpdatedAt` or
+`data.candidates` the same way over either transport. `data` is always there
+with both keys, null when they do not apply, so reading one never means
+testing for it first; the `stack`, `zodError`, `httpStatus`, and `path` the
+REST adapter also puts on `data` describe this server and are not sent.
+The preconditions are REST's: `latest` is a CLI convention and does not exist
+server-side, so a write passes the `updatedAt` the previous read or write
+answered.
+
+Arguments a tool's own input schema refuses never reach a procedure, so they
+come back as the MCP protocol error they are — plain text naming the field —
+rather than as an API body. That boundary is not ours to move: a type error
+was always going to be answered by the transport. The tool schemas are the
+router's, so the two agree on what is refused, and everything a procedure
+itself rejects carries the body above.
+
+A read answers into a model's context, which cannot be paged through, so
+`get_document_markdown` and `get_drawing` refuse anything over 1 MB of text
+with `PAYLOAD_TOO_LARGE` rather than sending half of it. `/api/v1` and the
+CLI have no such ceiling; the message says so.
 
 MCP is not part of the OpenAPI document: it is a second transport over the
 same procedures, not a REST path.
@@ -261,6 +285,11 @@ Connecting Claude Code or Claude Desktop:
 claude mcp add --transport http lexidraw https://lexidraw.app/api/mcp \
   --header "Authorization: Bearer lxd_..."
 ```
+
+The header is the only way in: a 401 from this endpoint carries no
+`WWW-Authenticate`, so a client cannot discover an authorization server and
+negotiate OAuth, and one that tries reports that it needs credentials it
+cannot obtain. Mint the token at `/settings/tokens` and pass it as above.
 
 Remaining: the drawing preview widget as an MCP Apps resource (#36), which
 registers alongside the tools in `src/server/mcp/`.

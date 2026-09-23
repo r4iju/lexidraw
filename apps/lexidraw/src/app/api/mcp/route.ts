@@ -13,6 +13,10 @@ const SERVER_INFO = { name: "lexidraw", version: "1.0.0" };
  * personal access tokens as `/api/v1`. Nothing is remembered between requests:
  * the token is resolved, a server is built around a tRPC caller holding that
  * caller's context, and both are dropped when the response is written.
+ *
+ * POST only. A GET would open the stream a subscription needs, and there is
+ * nothing here to subscribe to, so Next answers the other methods with a 405
+ * before any of this runs.
  */
 async function handler(req: Request): Promise<Response> {
   let ctx: Awaited<ReturnType<typeof createRestContext>>;
@@ -30,9 +34,22 @@ async function handler(req: Request): Promise<Response> {
   const caller = appRouter.createCaller(ctx);
   const serve = createMcpHandler(
     (server) => registerLexidrawTools(server, caller),
-    { serverInfo: SERVER_INFO, instructions: MCP_INSTRUCTIONS },
+    {
+      serverInfo: SERVER_INFO,
+      instructions: MCP_INSTRUCTIONS,
+      // No SSE: a subscription is refused outright rather than answered with
+      // a stream this endpoint would never write to.
+      maxSubscriptions: 0,
+      // A transport failure never reaches a procedure, so `onError` on the
+      // caller cannot see it and this is the only place it survives.
+      onEvent: (event) => {
+        if (event.type === "ERROR") {
+          console.error("❌ MCP transport failed:", event.error);
+        }
+      },
+    },
   );
   return serve(req);
 }
 
-export { handler as GET, handler as POST, handler as DELETE };
+export { handler as POST };

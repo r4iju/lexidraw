@@ -9,6 +9,7 @@ import {
   type SQL,
 } from "@packages/drizzle";
 import { AccessLevel, PublicAccess } from "@packages/types";
+import { TRPCError } from "@trpc/server";
 
 type Db = typeof drizzle;
 
@@ -92,6 +93,30 @@ export async function findWritableEntity(db: Db, id: string, userId: string) {
       eq(schema.entities.publicAccess, PublicAccess.EDIT),
     ),
   );
+}
+
+/**
+ * The directory a new entity goes in, checked before the insert: the foreign
+ * key would otherwise fail with the statement in its message, and a parent the
+ * caller cannot write to is not theirs to file things under. A parent they
+ * cannot reach reads as missing, the way an unreachable entity does. `what`
+ * names the thing being created, so the message says what did not happen.
+ */
+export async function resolveParentDirectory(
+  db: Db,
+  parentId: string | null | undefined,
+  userId: string,
+  what: string,
+): Promise<string | null> {
+  if (parentId === null || parentId === undefined) return null;
+  const parent = await findWritableEntity(db, parentId, userId);
+  if (parent?.entityType !== "directory") {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: `No directory "${parentId}" to create the ${what} in`,
+    });
+  }
+  return parent.id;
 }
 
 /**

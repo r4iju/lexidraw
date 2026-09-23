@@ -17,7 +17,7 @@ import {
   findWritableDrawing,
   replaceDrawingElements,
 } from "~/server/drawings/store";
-import { findWritableEntity } from "~/server/entities/readable";
+import { resolveParentDirectory } from "~/server/entities/readable";
 import {
   type CanonicalElement,
   DrawingElements,
@@ -247,10 +247,11 @@ export const drawingRouter = createTRPCRouter({
     )
     .output(z.object({ id: z.string(), updatedAt: Iso }))
     .mutation(async ({ input, ctx }) => {
-      const parentId = await resolveParent(
+      const parentId = await resolveParentDirectory(
         ctx.drizzle,
         input.parentId,
         ctx.session.user.id,
+        "drawing",
       );
       const elements = await normalize(input);
       const now = new Date();
@@ -276,29 +277,6 @@ export const drawingRouter = createTRPCRouter({
       return { id: row.id, updatedAt: row.updatedAt.toISOString() };
     }),
 });
-
-/**
- * The directory the new drawing goes in, checked before the insert: the
- * foreign key would otherwise fail with the statement in its message, and a
- * parent the caller cannot write to is not theirs to file things under. A
- * parent they cannot reach reads as missing, the way an unreachable drawing
- * does.
- */
-async function resolveParent(
-  db: typeof drizzle,
-  parentId: string | null | undefined,
-  userId: string,
-): Promise<string | null> {
-  if (parentId === null || parentId === undefined) return null;
-  const parent = await findWritableEntity(db, parentId, userId);
-  if (parent?.entityType !== "directory") {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: `No directory "${parentId}" to create the drawing in`,
-    });
-  }
-  return parent.id;
-}
 
 /** The insert, with anything the database says about it kept server-side. */
 async function insertDrawing(

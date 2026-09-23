@@ -3,8 +3,14 @@ import { EMPTY_CONTENT } from "@packages/lexical-nodes";
 import { v4 as uuidV4 } from "uuid";
 import { z } from "zod";
 
+import { TRPCError } from "@trpc/server";
+
 import type { appRouter } from "~/server/api/root";
 import { apiErrorBody } from "~/server/api/error-body";
+import {
+  AfterHeading,
+  MarkdownBody,
+} from "~/server/api/routers/documents-schema";
 import { DrawingElements } from "~/server/drawings/skeleton-schema";
 
 /**
@@ -21,15 +27,17 @@ Addressing is by entity id. Find an id with list_entities (a directory listing; 
 
 Destructive document writes take a precondition: pass the updatedAt of your last read as ifUnmodifiedSince. There is no "latest" shorthand on the server — read the document, then pass the updatedAt it answered. Every write answers with the updatedAt it produced, which is the precondition for the next one, so a chain of writes needs no read between them.
 
-A failed tool answers with a JSON object carrying a stable "code": branch on that, never on the message. CONFLICT means the precondition no longer matches and data.currentUpdatedAt is the revision to re-read from. BAD_REQUEST from insert_markdown with data.candidates means the heading matched several times; pass one candidate's nth.`;
+A failed tool answers with a JSON object carrying a stable "code": branch on that, never on the message. CONFLICT means the precondition no longer matches and data.currentUpdatedAt is the revision to re-read from. BAD_REQUEST from insert_markdown with data.candidates means the heading matched several times; pass one candidate's nth. PAYLOAD_TOO_LARGE means the entity does not fit in an answer; read it with the lexidraw CLI. Arguments a tool's own schema refuses come back as a plain-text protocol error instead, naming the field.
+
+A read answers with the whole entity, so read a document once and write from what you read rather than re-reading between writes.`;
 
 const entityId = z
   .string()
   .describe("The entity id, as list_entities or search_entities reports it.");
 
-const markdownBody = z
-  .string()
-  .describe("The markdown to write. Must not be blank.");
+const markdownBody = MarkdownBody.describe(
+  "The markdown to write. Must not be blank.",
+);
 
 const ifUnmodifiedSince = z.iso
   .datetime()
@@ -74,6 +82,37 @@ async function call(run: () => Promise<unknown>) {
   } catch (error) {
     return failed(error);
   }
+}
+
+/**
+ * A tool answer lands in a model's context, where a whole entity may not fit
+ * and cannot be paged through. `/api/v1` has no such ceiling, because a CLI
+ * writes what it reads to a file, so this is the MCP layer's own.
+ */
+const MAX_READ_BYTES = 1_000_000;
+
+/**
+ * Like {@link call}, for the reads whose size the caller does not control. One
+ * too large is refused whole rather than truncated: half a document reads as a
+ * document, and an agent would go on to write the rest of it away.
+ */
+async function callRead(run: () => Promise<unknown>, instead: string) {
+  let text: string;
+  try {
+    text = JSON.stringify(await run(), null, 2);
+  } catch (error) {
+    return failed(error);
+  }
+  const bytes = Buffer.byteLength(text, "utf8");
+  if (bytes > MAX_READ_BYTES) {
+    return failed(
+      new TRPCError({
+        code: "PAYLOAD_TOO_LARGE",
+        message: `This answer is ${bytes} bytes, over the ${MAX_READ_BYTES} this endpoint will send. Read it with the lexidraw CLI or ${instead} instead.`,
+      }),
+    );
+  }
+  return { content: [{ type: "text" as const, text }] };
 }
 
 /**
@@ -178,11 +217,13 @@ export function registerLexidrawTools(
       annotations: { readOnlyHint: true },
     },
     (input) =>
-      call(() =>
-        caller.documents.getMarkdown({
-          id: input.id,
-          format: input.format ?? "markdown",
-        }),
+      callRead(
+        () =>
+          caller.documents.getMarkdown({
+            id: input.id,
+            format: input.format ?? "markdown",
+          }),
+        "GET /api/v1/documents/{id}/markdown",
       ),
   );
 
@@ -210,12 +251,7 @@ export function registerLexidrawTools(
       inputSchema: z.object({
         id: entityId,
         markdown: markdownBody,
-        afterHeading: z
-          .string()
-          .optional()
-          .describe(
-            "Insert after the first root-level heading whose plain text matches (trimmed, whitespace collapsed, case-insensitive). Pass exactly one of afterHeading or atBlockIndex.",
-          ),
+        afterHeading: AfterHeading.optional(),
         nth: z
           .number()
           .int()
@@ -262,7 +298,8 @@ export function registerLexidrawTools(
       inputSchema: z.object({ id: entityId }),
       annotations: { readOnlyHint: true },
     },
-    (input) => call(() => caller.drawings.get(input)),
+    (input) =>
+      callRead(() => caller.drawings.get(input), "GET /api/v1/drawings/{id}"),
   );
 
   server.registerTool(

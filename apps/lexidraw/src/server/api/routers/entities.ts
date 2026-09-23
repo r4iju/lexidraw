@@ -34,6 +34,7 @@ import {
   findOwnedEntity,
   findReadableEntity,
   findWritableEntity,
+  resolveParentDirectory,
 } from "~/server/entities/readable";
 import {
   accessLevelOut,
@@ -177,13 +178,20 @@ export const entityRouter = createTRPCRouter({
         tags: ["entities"],
         summary: "Create an entity; returns the existing one on a repeat",
         protect: true,
-        // A POST has no 404 by default, and 409 is this path's own.
-        errorResponses: [400, 401, 403, 409, 500],
+        // A POST has no 404 by default, and both the 404 a missing parent
+        // directory earns and the 409 on a taken id are this path's own.
+        errorResponses: [400, 401, 403, 404, 409, 500],
       },
     })
     .input(CreateEntity)
     .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
+      const parentId = await resolveParentDirectory(
+        ctx.drizzle,
+        input.parentId,
+        ctx.session.user.id,
+        input.entityType,
+      );
       const [created] = await ctx.drizzle
         .insert(schema.entities)
         .values({
@@ -196,7 +204,7 @@ export const entityRouter = createTRPCRouter({
           entityType: input.entityType,
           publicAccess: PublicAccess.PRIVATE,
           elements: input.elements,
-          parentId: input.parentId,
+          parentId,
           appState: JSON.stringify({}),
         })
         .onConflictDoNothing()

@@ -29,16 +29,22 @@ export function errorCauseData(cause: unknown): {
 }
 
 /**
- * The error body `/api/v1` answers with: `{ message, code, issues?, data? }`
+ * The error body `/api/v1` answers with: `{ message, code, issues?, data }`
  * with `code` drawn from {@link API_ERROR_STATUS}. REST gets this shape from
  * the OpenAPI adapter; transports that call the router directly, such as MCP,
  * build it here so an agent parses one error shape whichever way it came in.
+ *
+ * `data` is always there, and both of its keys with it, so a caller reads
+ * `data.currentUpdatedAt` to find out whether it has one rather than to find
+ * out whether the field exists. The adapter also puts `stack`, `zodError`,
+ * `httpStatus`, and `path` on `data`; those describe this server rather than
+ * what went wrong, and no client is meant to read them.
  */
 export type ApiErrorBody = {
   message: string;
   code: ApiErrorCode;
-  issues?: { message: string }[];
-  data?: Record<string, unknown>;
+  issues?: ZodError["issues"];
+  data: ReturnType<typeof errorCauseData>;
 };
 
 export function apiErrorBody(error: unknown): ApiErrorBody {
@@ -49,25 +55,21 @@ export function apiErrorBody(error: unknown): ApiErrorBody {
     trpc && trpc.code in API_ERROR_STATUS
       ? (trpc.code as ApiErrorCode)
       : "INTERNAL_SERVER_ERROR";
-  const internal = code === "INTERNAL_SERVER_ERROR";
-  const { currentUpdatedAt, candidates } = errorCauseData(trpc?.cause);
-  const data: Record<string, unknown> = {};
-  if (currentUpdatedAt !== null) data.currentUpdatedAt = currentUpdatedAt;
-  if (candidates !== null) data.candidates = candidates;
-  const issues =
-    trpc?.cause instanceof ZodError
-      ? trpc.cause.issues.map((issue) => ({
-          message: issue.path.length
-            ? `${issue.path.join(".")}: ${issue.message}`
-            : issue.message,
-        }))
-      : null;
+  // The pretty-printed ZodError is not a message anyone can act on, so the
+  // failure is named and `issues` carries the detail, field by field.
+  const invalidInput =
+    code === "BAD_REQUEST" && trpc?.cause instanceof ZodError;
   return {
     // A 500's message is logged, never returned: a driver error quotes the
     // failing SQL and its bound parameters.
-    message: internal ? "Internal server error" : (trpc?.message ?? ""),
+    message:
+      code === "INTERNAL_SERVER_ERROR"
+        ? "Internal server error"
+        : invalidInput
+          ? "Input validation failed"
+          : (trpc?.message ?? ""),
     code,
-    ...(issues ? { issues } : {}),
-    ...(Object.keys(data).length > 0 ? { data } : {}),
+    ...(invalidInput ? { issues: (trpc.cause as ZodError).issues } : {}),
+    data: errorCauseData(trpc?.cause),
   };
 }
