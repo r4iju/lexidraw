@@ -10,7 +10,6 @@ import { entityFrame } from "~/server/app-bar-account";
 import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 import DocumentEditor from "./document-editor-client";
-import { EMPTY_CONTENT } from "./initial-content";
 
 const APPLE_WEB_APP: Metadata["appleWebApp"] = {
   capable: true,
@@ -42,17 +41,12 @@ const Params = z.object({
 
 type Props = {
   params: Promise<z.infer<typeof Params>>;
-  searchParams: Promise<{
-    new?: "true";
-    parentId?: string;
-  }>;
 };
 
 export default async function DocumentPage(props: Props) {
   console.log("🔄 DocumentPage re-rendered");
   const param = await props.params;
   const { documentId } = Params.parse(param);
-  const { new: isNew, parentId } = await props.searchParams;
 
   // Guard against sourcemaps or invalid IDs hitting this route
   if (
@@ -68,17 +62,6 @@ export default async function DocumentPage(props: Props) {
   // REST path, MCP, the CLI — drops this entry instead of leaving a stale
   // document on screen until it expires.
   cacheTag(entityTag(documentId));
-
-  if (isNew === "true") {
-    await api.entities.create.mutate({
-      id: documentId,
-      title: "New document",
-      entityType: "document",
-      elements: JSON.stringify(EMPTY_CONTENT),
-      parentId: parentId ?? null,
-    });
-    return redirect(`/documents/${documentId}`);
-  }
 
   // A missing document, or one this caller may not read, is a 404.
   const document = await api.entities.load

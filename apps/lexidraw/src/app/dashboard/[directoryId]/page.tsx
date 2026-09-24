@@ -7,7 +7,6 @@ import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 import { Dashboard } from "../dashboard";
 import { DashboardSkeleton } from "../skeleton";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { appBarAccount } from "~/server/app-bar-account";
 import { resolveDashboardQuery } from "../dashboard-query";
@@ -22,21 +21,7 @@ type Props = {
 async function DashboardContent({ params, searchParams }: Props) {
   const account = await appBarAccount();
   const directoryId = (await params).directoryId;
-  const queryParams = await searchParams;
-  const query = await resolveDashboardQuery(queryParams);
-
-  if (queryParams.new === "true") {
-    const parentId =
-      typeof queryParams.parentId === "string" ? queryParams.parentId : null;
-    await api.entities.create.mutate({
-      id: directoryId,
-      title: "New folder",
-      elements: "{}",
-      entityType: "directory",
-      parentId: parentId,
-    });
-    return redirect(`/dashboard/${directoryId}`);
-  }
+  const query = await resolveDashboardQuery(await searchParams);
   const directory = await api.entities.getMetadata
     .query({ id: directoryId })
     .catch(notFoundOr);

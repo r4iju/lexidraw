@@ -25,6 +25,7 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 import { v4 as uuidV4 } from "uuid";
 import { replaceOwnTags } from "~/server/entities/tags";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
+import { entityText, snippetAround } from "~/lib/entity-text";
 import env from "@packages/env";
 import { put } from "@vercel/blob";
 import {
@@ -98,7 +99,10 @@ const entityListItem = z.object({
   childCount: z.number(),
 });
 
-/** What `search` returns: enough to render a hit and navigate to it. */
+/**
+ * What `search` returns: enough to render a hit, say where it is and why it
+ * matched, and navigate to it.
+ */
 const entitySearchResult = z.object({
   id: z.string(),
   title: z.string(),
@@ -107,7 +111,25 @@ const entitySearchResult = z.object({
   screenShotDark: z.string(),
   updatedAt: isoDate,
   parentId: z.string().nullable(),
+  /** The folder the entity is in; null at the top of Home. */
+  folderTitle: z.string().nullable(),
+  /** The text around a match in the content; null for a title or tag hit. */
+  snippet: z.string().nullable(),
 });
+
+/** The title of each distinct folder in `parentIds`, by id. */
+async function folderTitles(
+  db: typeof drizzle,
+  parentIds: (string | null)[],
+): Promise<Map<string, string>> {
+  const ids = [...new Set(parentIds)].filter((id): id is string => !!id);
+  if (ids.length === 0) return new Map();
+  const folders = await db
+    .select({ id: schema.entities.id, title: schema.entities.title })
+    .from(schema.entities)
+    .where(inArray(schema.entities.id, ids));
+  return new Map(folders.map((folder) => [folder.id, folder.title]));
+}
 
 /** The identity of an entity, as the write paths report it back. */
 const entitySummary = z.object({
@@ -245,9 +267,8 @@ export const entityRouter = createTRPCRouter({
         return created;
       }
 
-      // The id is taken. `/…?new=true` re-runs this on a refresh, so the
-      // owner gets their own entity back; anyone else learns only that the id
-      // is gone, never whose it is.
+      // The id is taken. A retried create gets the owner their own entity
+      // back; anyone else learns only that the id is gone, never whose it is.
       const existing = await findOwnedEntity(
         ctx.drizzle,
         input.id,
@@ -413,7 +434,17 @@ export const entityRouter = createTRPCRouter({
         .orderBy(desc(schema.entities.updatedAt))
         .limit(20);
 
-      return results;
+      const folders = await folderTitles(
+        ctx.drizzle,
+        results.map((result) => result.parentId),
+      );
+      return results.map((result) => ({
+        ...result,
+        folderTitle: result.parentId
+          ? (folders.get(result.parentId) ?? null)
+          : null,
+        snippet: null,
+      }));
     }),
   load: publicProcedure
     .meta({
@@ -1593,6 +1624,8 @@ export const entityRouter = createTRPCRouter({
           parentId: schema.entities.parentId,
           screenShotLight: schema.entities.screenShotLight,
           screenShotDark: schema.entities.screenShotDark,
+          elements: schema.entities.elements,
+          tagName: schema.tags.name,
         })
         .from(schema.entities)
         .leftJoin(
@@ -1634,9 +1667,36 @@ export const entityRouter = createTRPCRouter({
           ),
         )
         .orderBy(desc(schema.entities.updatedAt))
-        .limit(10);
+        .limit(50);
 
-      return results;
+      // The query matches the stored JSON, keys and all; a hit counts only
+      // when the words a person reads, or a tag, contain the query.
+      const query = input.query.trim().toLowerCase();
+      const hits = new Map<
+        string,
+        Omit<(typeof results)[number], "elements" | "tagName"> & {
+          snippet: string | null;
+        }
+      >();
+      for (const { elements, tagName, ...result } of results) {
+        const known = hits.get(result.id);
+        if (known?.snippet) continue;
+        const snippet = snippetAround(
+          entityText(result.entityType, elements),
+          query,
+        );
+        const taggedWith = tagName?.toLowerCase().includes(query) ?? false;
+        if (snippet || taggedWith) hits.set(result.id, { ...result, snippet });
+      }
+      const found = [...hits.values()].slice(0, 10);
+      const folders = await folderTitles(
+        ctx.drizzle,
+        found.map((hit) => hit.parentId),
+      );
+      return found.map((hit) => ({
+        ...hit,
+        folderTitle: hit.parentId ? (folders.get(hit.parentId) ?? null) : null,
+      }));
     }),
   /* --------------------------------------------------------------- */
   /* URL DISTILLATION                                                */

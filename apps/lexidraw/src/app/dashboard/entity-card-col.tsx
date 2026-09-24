@@ -1,25 +1,25 @@
 "use client";
 
-import Link from "next/link";
-import type { EntityType } from "@packages/types";
-import { cn } from "~/lib/utils";
-import { Button } from "~/components/ui/button";
-import { Card } from "~/components/ui/card";
-import { MoreActions } from "./_actions/more-actions";
-import { useThumbnailContent } from "./thumbnail-client";
 import { EllipsisIcon } from "lucide-react";
+import Link from "next/link";
+import { Button } from "~/components/ui/button";
+import { LocalTime } from "~/components/ui/local-time";
+import { entityTypeLabel } from "~/lib/entity-types";
+import { cn } from "~/lib/utils";
+import { MoreActions } from "./_actions/more-actions";
 import { TagTooltip } from "./entity-card-tag-tooltip";
 import {
   type EntityCardBaseProps,
   buildSearchParams,
-  formatEntityDate,
   getItemUrl,
 } from "./entity-card-utils";
+import { EntityThumbnail } from "./thumbnail-client";
 
 type Props = EntityCardBaseProps & {
   flex?: "flex-row" | "flex-col";
 };
 
+/** A file as a row in the list: picture, name, what it is, and when. */
 export function EntityCardCol({
   entity,
   sortBy = "updatedAt",
@@ -27,99 +27,89 @@ export function EntityCardCol({
   isOverlay = false,
   flex = "flex-col",
 }: Props) {
-  const searchParams = buildSearchParams({ flex, sortBy, sortOrder });
-  const { updatedOrCreated, dateString } = formatEntityDate(entity, sortBy);
-  const { thumbnail, ribbon } = useThumbnailContent({
-    entity,
-    size: "small",
-    roundedCorners: "left-only",
+  const href = getItemUrl({
+    id: entity.id,
+    entityType: entity.entityType,
+    searchParams: buildSearchParams({ flex, sortBy, sortOrder }),
   });
+  const time = (
+    <EntityTime
+      date={sortBy === "createdAt" ? entity.createdAt : entity.updatedAt}
+      created={sortBy === "createdAt"}
+    />
+  );
 
   return (
-    <Card
+    <div
       id={`entity-${entity.id}`}
       className={cn(
-        "relative grid grid-cols-[auto_1fr_auto] gap-4 rounded-lg p-0 items-center",
-        isOverlay && "cursor-grabbing bg-card bg-opacity-100",
+        "flex h-14 items-center gap-2 rounded-lg pr-1 pl-2 sm:pl-3",
+        isOverlay && "cursor-grabbing bg-card shadow-lg",
       )}
-      style={{
-        ...(isOverlay && {
-          transform: "translate3d(0, 0, 0)",
-        }),
-      }}
     >
-      {entity.archivedAt && (
-        <span className="absolute right-2 top-2 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-          Archived
-        </span>
-      )}
-
-      {/* thumbnail column */}
-      <div className="relative h-18.5 aspect-4/3 shrink-0 rounded-l-lg rounded-r-none">
-        <Link
-          href={getItemUrl({
-            id: entity.id,
-            entityType: entity.entityType as EntityType,
-            searchParams,
-          })}
-          className="block size-full rounded-l-lg rounded-r-none overflow-hidden"
-          draggable={false}
-        >
-          {thumbnail}
-        </Link>
-        {ribbon}
-      </div>
-
-      {/* title column - flexible */}
       <Link
-        href={getItemUrl({
-          id: entity.id,
-          entityType: entity.entityType as EntityType,
-          searchParams,
-        })}
-        className="min-w-0"
+        href={href}
+        draggable={false}
+        className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-md outline-offset-2"
       >
-        <span className="text-row font-medium line-clamp-2 select-none">
-          {entity.title}
+        <EntityThumbnail entity={entity} variant="row" />
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-row font-medium select-none">
+            {entity.title}
+          </span>
+          <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground">
+            <span>{entityTypeLabel(entity.entityType)}</span>
+            {entity.archivedAt && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>Archived</span>
+              </>
+            )}
+            <span aria-hidden="true" className="md:hidden">
+              ·
+            </span>
+            <span className="truncate md:hidden">{time}</span>
+          </span>
         </span>
       </Link>
 
-      {/* date + actions column - fixed width */}
-      <div className="flex justify-between items-center gap-4 px-4 py-4 max-w-[250px]">
-        <Link
-          href={getItemUrl({
-            id: entity.id,
-            entityType: entity.entityType as EntityType,
-            searchParams,
-          })}
-          className="hidden md:block"
-        >
-          <span
-            className={cn("text-sm text-muted-foreground", {
-              "line-clamp-2 max-w-24": flex === "flex-col",
-            })}
-          >
-            {/* Avoid text selection during drag */}
-            {updatedOrCreated}
-            {dateString}
-          </span>
-        </Link>
+      <span className="hidden w-28 shrink-0 whitespace-nowrap text-right text-caption text-muted-foreground md:block">
+        {time}
+      </span>
 
-        <div className="flex items-center gap-2 shrink-0">
+      <div className="flex shrink-0 items-center">
+        {entity.tags.length > 0 && (
           <TagTooltip entity={entity} className="hidden md:flex" />
-
-          {!isOverlay ? (
-            <MoreActions entity={entity} currentAccess={entity.publicAccess} />
-          ) : (
-            <Button size="icon" variant="ghost" disabled>
-              <EllipsisIcon className="size-5" />
-              <span className="sr-only">
-                {`More actions for ${entity.title}`}
-              </span>
-            </Button>
-          )}
-        </div>
+        )}
+        {isOverlay ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled
+            aria-label={`More actions for ${entity.title}`}
+          >
+            <EllipsisIcon className="size-5" />
+          </Button>
+        ) : (
+          <MoreActions entity={entity} currentAccess={entity.publicAccess} />
+        )}
       </div>
-    </Card>
+    </div>
+  );
+}
+
+/** When a file was last edited, or created when the list is sorted by that. */
+export function EntityTime({
+  date,
+  created,
+}: {
+  date: Date;
+  created: boolean;
+}) {
+  return (
+    <>
+      <span className="sr-only">{created ? "Created " : "Edited "}</span>
+      <LocalTime value={date} format="ago" />
+    </>
   );
 }

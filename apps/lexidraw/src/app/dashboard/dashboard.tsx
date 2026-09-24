@@ -1,23 +1,25 @@
+import { LayoutGrid, Rows3 } from "lucide-react";
 import Link from "next/link";
 import type { AppBarAccount } from "~/components/app-bar/account-menu";
+import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 import { api } from "~/trpc/server";
 import type { RouterOutputs } from "~/trpc/shared";
-import { cn } from "~/lib/utils";
-import { Button } from "~/components/ui/button";
 import { NewEntity } from "./_actions/new-entity";
-import { Drag } from "./drag";
-import { Drop } from "./drop";
-import { SortMenu } from "./sort-menu";
-import { LayoutGrid, Rows3 } from "lucide-react";
-import { DraggingContext } from "./dnd-context";
-import { EntityCardRow } from "./entity-card-row";
-import { EntityCardCol } from "./entity-card-col";
-import { replaceSearchParam } from "./utils";
-import { FilterByTags } from "./filter-by-tags";
-import { SearchBar } from "./search";
-import { PersistDashboardPrefsCookie } from "./persist-dashboard-prefs-cookie";
 import { CanonicalizeDashboardURL } from "./canonicalize-dashboard-url";
 import { DashboardAppBar } from "./dashboard-app-bar";
+import { FilterSortSheet, SheetField, StickyBar } from "./dashboard-bar";
+import { DraggingContext } from "./dnd-context";
+import { Drag } from "./drag";
+import { Drop } from "./drop";
+import { EmptyState } from "./empty-state";
+import { EntityCardCol } from "./entity-card-col";
+import { EntityCardRow } from "./entity-card-row";
+import { FilterByTags } from "./filter-by-tags";
+import { PersistDashboardPrefsCookie } from "./persist-dashboard-prefs-cookie";
+import { SearchBar, SearchButton } from "./search";
+import { SortMenu } from "./sort-menu";
+import { replaceSearchParam } from "./utils";
 import {
   type DashboardView,
   FilterHint,
@@ -34,6 +36,9 @@ type Props = {
   tags?: string;
   view: DashboardView;
 };
+
+// The app bar's gutter, so the title and the files line up under Home.
+const GUTTER = "w-full px-4 sm:px-6 lg:px-8";
 
 export async function Dashboard({
   account,
@@ -52,27 +57,55 @@ export async function Dashboard({
     view,
   });
   const pathname = `/dashboard/${directory?.id ?? ""}`;
-  const entities = await api.entities.list.query({
-    parentId: directory?.id,
-    sortBy,
-    sortOrder,
-    tagNames: tags ? tags.split(",").filter(Boolean) : [],
-    ...viewFilters(view),
-  });
+  const tagList = tags ? tags.split(",").filter(Boolean) : [];
+  const [entities, allTags] = await Promise.all([
+    api.entities.list.query({
+      parentId: directory?.id,
+      sortBy,
+      sortOrder,
+      tagNames: tagList,
+      ...viewFilters(view),
+    }),
+    api.entities.getUserTags.query(),
+  ]);
+  const parentId = directory?.id ?? null;
 
-  const allTags = await api.entities.getUserTags.query();
+  const layoutToggle = (
+    <div className="flex gap-2">
+      {(
+        [
+          ["flex-row", "Grid view", LayoutGrid],
+          ["flex-col", "List view", Rows3],
+        ] as const
+      ).map(([value, label, Icon]) => (
+        <Button
+          key={value}
+          variant={flex === value ? "on" : "outline"}
+          size="icon"
+          asChild
+        >
+          <Link
+            href={replaceSearchParam({
+              pathname,
+              prevParams: searchParams,
+              key: "flex",
+              value,
+            })}
+            aria-current={flex === value ? "true" : undefined}
+          >
+            <Icon />
+            <span className="sr-only">{label}</span>
+          </Link>
+        </Button>
+      ))}
+    </div>
+  );
 
   return (
     <DraggingContext sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
       <PersistDashboardPrefsCookie />
       <CanonicalizeDashboardURL
-        canonical={{
-          sortBy,
-          sortOrder,
-          flex,
-          tags,
-          view,
-        }}
+        canonical={{ sortBy, sortOrder, flex, tags, view }}
       />
       <DashboardAppBar
         account={account}
@@ -97,86 +130,92 @@ export async function Dashboard({
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-6 px-4 sm:px-6 lg:px-8"
+        className="flex min-h-0 w-full flex-1 flex-col overflow-auto"
       >
-        <nav
-          aria-label="Files and filters"
-          className="ui-toolbar flex flex-col py-2 gap-y-2"
-        >
-          <div className="flex justify-end items-center">
-            <NewEntity parentId={directory ? directory.id : null} />
-          </div>
-          <div className="flex flex-col-reverse md:flex-col-reverse items-stretch gap-2">
-            {/* but dont cannibalize the search the buttons */}
-            <SearchBar className="w-full" />
-            <div className="flex flex-wrap justify-end gap-x-2 gap-y-2 w-full md:w-auto md:self-end">
-              {/* filter by tags */}
+        <StickyBar>
+          <div
+            className={cn(
+              GUTTER,
+              "flex flex-col gap-2 py-3 transition-[padding] group-data-scrolled/bar:py-2",
+            )}
+          >
 
-              <FilterByTags options={allTags} />
-
-              <ViewFilter
-                view={view}
-                pathname={pathname}
-                searchParams={searchParams}
-              />
-
-              <div className="flex gap-2">
-                <Button
-                  variant={flex === "flex-row" ? "on" : "outline"}
-                  size="icon"
-                  asChild
-                >
-                  <Link
-                    href={replaceSearchParam({
-                      pathname,
-                      prevParams: searchParams,
-                      key: "flex",
-                      value: "flex-row",
-                    })}
-                    aria-current={flex === "flex-row" ? "true" : undefined}
-                  >
-                    <LayoutGrid />
-                    <span className="sr-only">Grid view</span>
-                  </Link>
-                </Button>
-                <Button
-                  variant={flex === "flex-col" ? "on" : "outline"}
-                  size="icon"
-                  asChild
-                >
-                  <Link
-                    href={replaceSearchParam({
-                      pathname,
-                      prevParams: searchParams,
-                      key: "flex",
-                      value: "flex-col",
-                    })}
-                    aria-current={flex === "flex-col" ? "true" : undefined}
-                  >
-                    <Rows3 />
-                    <span className="sr-only">List view</span>
-                  </Link>
-                </Button>
+            <div className="flex min-h-10 items-center gap-1 sm:gap-2">
+              <h1 className="min-w-0 flex-1 truncate text-title font-semibold transition-[font-size] max-md:group-data-scrolled/bar:text-lg">
+                {directory?.title || "Home"}
+              </h1>
+              <div className="flex items-center gap-1 md:hidden">
+                <SearchButton />
               </div>
-              <SortMenu />
+              <div className="lg:hidden">
+                <FilterSortSheet
+                  active={tagList.length + (view === "all" ? 0 : 1)}
+                >
+                  <SheetField label="Show">
+                    <ViewFilter
+                      view={view}
+                      pathname={pathname}
+                      searchParams={searchParams}
+                    />
+                  </SheetField>
+                  <SheetField label="Tags">
+                    <FilterByTags options={allTags} wide />
+                  </SheetField>
+                  <SheetField label="Layout">{layoutToggle}</SheetField>
+                  <SheetField label="Sort">
+                    <SortMenu className="justify-start" />
+                  </SheetField>
+                </FilterSortSheet>
+              </div>
+              <NewEntity parentId={parentId} compact />
             </div>
-          </div>
-          <FilterHint
-            view={view}
-            tags={tags}
-            pathname={pathname}
-            searchParams={searchParams}
-          />
-        </nav>
 
-        <div className="flex-1">
-          <section className="w-full">
             <div
+              role="toolbar"
+              aria-label="Files and filters"
+              className="hidden items-center gap-2 md:flex"
+            >
+              <SearchBar className="min-w-0 flex-1 lg:max-w-md" />
+              <div className="hidden flex-1 items-center justify-end gap-2 lg:flex">
+                <FilterByTags options={allTags} />
+                <ViewFilter
+                  view={view}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                />
+                {layoutToggle}
+                <SortMenu />
+              </div>
+            </div>
+
+            <FilterHint
+              view={view}
+              tags={tags}
+              pathname={pathname}
+              searchParams={searchParams}
+            />
+          </div>
+        </StickyBar>
+
+        <div className={cn(GUTTER, "flex-1 pb-8 pt-1")}>
+          {entities.length === 0 ? (
+            <EmptyState
+              inFolder={Boolean(directory)}
+              view={view}
+              tags={tags}
+              pathname={pathname}
+              searchParams={searchParams}
+              action={<NewEntity parentId={parentId} />}
+            />
+          ) : (
+            <section
+              aria-label="Files"
               className={cn(
-                "grid auto-rows-auto",
+                "grid",
                 flex === "flex-row" &&
-                  "gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
-                flex === "flex-col" && "gap-2 grid-cols-1",
+                  "grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4",
+                flex === "flex-col" &&
+                  "grid-cols-1 divide-y divide-border rounded-lg border border-border bg-card",
               )}
             >
               {entities.map((entity) => (
@@ -190,19 +229,21 @@ export async function Dashboard({
                         entity={entity}
                         flex={flex}
                         sortBy={sortBy}
+                        sortOrder={sortOrder}
                       />
                     ) : (
                       <EntityCardCol
                         entity={entity}
                         flex={flex}
                         sortBy={sortBy}
+                        sortOrder={sortOrder}
                       />
                     )}
                   </Drop>
                 </Drag>
               ))}
-            </div>
-          </section>
+            </section>
+          )}
         </div>
       </main>
     </DraggingContext>

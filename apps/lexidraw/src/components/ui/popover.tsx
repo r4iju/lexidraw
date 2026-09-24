@@ -57,6 +57,8 @@ const Popover = ({
 
 const PopoverTrigger = PopoverPrimitive.Trigger;
 
+const PopoverAnchor = PopoverPrimitive.Anchor;
+
 type PopoverContentProps = React.ComponentPropsWithRef<
   typeof PopoverPrimitive.Content
 >;
@@ -150,4 +152,4 @@ const PopoverContent = ({
 
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
-export { Popover, PopoverTrigger, PopoverContent };
+export { Popover, PopoverAnchor, PopoverTrigger, PopoverContent };

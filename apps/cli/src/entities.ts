@@ -15,10 +15,10 @@ export type Entity = {
 };
 
 /**
- * An empty document, the state `/documents/{id}?new=true` creates in the
- * browser (`EMPTY_CONTENT` in packages/lexical-nodes). Copied rather than
- * imported so the binary stays free of the editor's dependencies; the shape is
- * a root with one empty paragraph and nothing below it.
+ * An empty document, the state Home's New menu creates in the browser
+ * (`EMPTY_CONTENT` in packages/lexical-nodes). Copied rather than imported so
+ * the binary stays free of the editor's dependencies; the shape is a root with
+ * one empty paragraph and nothing below it.
  */
 const EMPTY_DOCUMENT = {
   root: {

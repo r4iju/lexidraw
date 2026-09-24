@@ -2,6 +2,7 @@
 
 import { format as formatDate, formatDistanceToNow } from "date-fns";
 import { useSyncExternalStore } from "react";
+import { timeAgo } from "~/lib/time-ago";
 
 /**
  * Each format pairs the reader's local form with a UTC form of the same
@@ -25,6 +26,15 @@ const FORMATS = {
   relative: {
     local: (date: Date) => formatDistanceToNow(date, { addSuffix: true }),
     utc: (iso: string) => iso.slice(0, 10),
+  },
+  /**
+   * "9 min ago", with the exact time on hover. The server's count can be a
+   * minute off the reader's by the time it hydrates, hence the suppressed
+   * warning below.
+   */
+  ago: {
+    local: (date: Date) => timeAgo(date),
+    utc: (iso: string) => timeAgo(new Date(iso)),
   },
 } as const;
 
@@ -63,8 +73,11 @@ export function LocalTime({
     <time
       dateTime={iso}
       title={
-        format === "relative" ? (exact ?? FORMATS.locale.utc(iso)) : undefined
+        format === "relative" || format === "ago"
+          ? (exact ?? FORMATS.locale.utc(iso))
+          : undefined
       }
+      suppressHydrationWarning={format === "ago"}
     >
       {local ?? FORMATS[format].utc(iso)}
     </time>

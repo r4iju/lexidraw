@@ -30,7 +30,7 @@ export async function GET(
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       html, body { margin:0; padding:0; }
-      body { background:${theme === "dark" ? "#0a0a0a" : "#ffffff"}; color:${theme === "dark" ? "#e5e7eb" : "#111827"}; }
+      body { background:${theme === "dark" ? "oklch(0.17 0.006 285)" : "#ffffff"}; color:${theme === "dark" ? "oklch(0.92 0.005 285)" : "#111827"}; }
       *, *::before, *::after { animation: none !important; transition: none !important; }
       #screenshot-root { width:${width}px; height:${height}px; overflow:hidden; }
       [data-sidebar], header, nav, footer { display:none !important; }

@@ -160,6 +160,8 @@ const DropdownMenuContent = ({
           props.onClickCapture?.(e);
           if (e.defaultPrevented) return;
           const el = e.target as HTMLElement | null;
+          // A link to a new tab leaves this page alone, so it opens as is.
+          if (el?.closest('a[target="_blank"]')) return;
           const linkEl = el?.closest<HTMLAnchorElement>("a[href]");
           const buttonEl = el?.closest<HTMLButtonElement>(
             "button[role='menuitem'], a[role='menuitem'], [data-navigate]",
@@ -183,6 +185,8 @@ const DropdownMenuContent = ({
           if (e.defaultPrevented) return;
           if (e.key === "Enter" || e.key === " ") {
             const el = e.target as HTMLElement | null;
+            // A link to a new tab leaves this page alone, so it opens as is.
+            if (el?.closest('a[target="_blank"]')) return;
             const linkEl = el?.closest<HTMLAnchorElement>("a[href]");
             const buttonEl = el?.closest<HTMLButtonElement>(
               "button[role='menuitem'], a[role='menuitem'], [data-navigate]",

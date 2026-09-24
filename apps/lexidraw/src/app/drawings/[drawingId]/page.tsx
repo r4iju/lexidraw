@@ -13,7 +13,7 @@ import type { Metadata } from "next";
 import { cacheTag, revalidatePath } from "next/cache";
 import DrawingBoardWithSave from "./drawing-board-wrapper";
 import ViewBoard from "./board-view-client";
-import { redirect, unstable_rethrow } from "next/navigation";
+import { unstable_rethrow } from "next/navigation";
 import { appBarAccount, entityFrame } from "~/server/app-bar-account";
 import { EntityAppBar } from "~/components/app-bar/entity-frame";
 import { AppBar } from "~/components/app-bar/app-bar";
@@ -34,39 +34,17 @@ const Params = z.object({
   drawingId: z.string(),
 });
 
-const SearchParams = z.object({
-  new: z.literal("true").optional(),
-  parentId: z.string().optional(),
-});
-
 type Props = {
   params: Promise<z.infer<typeof Params>>;
-  searchParams: Promise<{
-    new?: "true";
-    parentId?: string;
-  }>;
 };
 
 export default async function DrawingBoard(props: Props) {
-  const [param, search] = await Promise.all([props.params, props.searchParams]);
-  const { drawingId } = Params.parse(param);
-  const { new: isNew, parentId } = SearchParams.parse(search);
+  const { drawingId } = Params.parse(await props.params);
 
   // What this render is about, so a write to it anywhere — the browser, the
   // REST path, MCP, the CLI — drops this entry instead of leaving a stale
   // drawing on screen until it expires.
   cacheTag(entityTag(drawingId));
-
-  if (isNew === "true") {
-    await api.entities.create.mutate({
-      id: drawingId,
-      title: "New drawing",
-      elements: "[]",
-      entityType: "drawing",
-      parentId: parentId ?? null,
-    });
-    return redirect(`/drawings/${drawingId}`);
-  }
 
   try {
     const [drawing, iceServers, frame] = await Promise.all([

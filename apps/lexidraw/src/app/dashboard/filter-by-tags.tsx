@@ -22,9 +22,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type Props = {
   options: string[];
+  /** Full width with the chosen tags spelled out, as in the filter sheet. */
+  wide?: boolean;
 };
 
-export function FilterByTags({ options }: Props) {
+export function FilterByTags({ options, wide = false }: Props) {
   const [open, setOpen] = React.useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -32,10 +34,10 @@ export function FilterByTags({ options }: Props) {
 
   const selected = searchParams.get("tags")?.split(",").filter(Boolean) ?? [];
 
-  const placholderText = (() => {
+  const placeholderText = (() => {
     switch (selected.length) {
       case 0:
-        return "Filter by tags...";
+        return "Filter by tags…";
       case 1:
       case 2:
         // show selected tags
@@ -72,26 +74,22 @@ export function FilterByTags({ options }: Props) {
           aria-expanded={open}
           aria-label="Filter by tags"
           className={cn(
-            "relative h-10 w-10 p-0", // mobile
-            "md:w-[200px] md:justify-between md:flex md:p-2", // desktop
+            "h-10 justify-between gap-2 px-3 font-normal",
+            wide ? "w-full" : "w-50",
           )}
         >
-          {/* mobile icon */}
-          <TagsIcon className="size-6 md:hidden" />
-          {/* negative margin to offset the icon size, top right */}
-          <div className="md:hidden absolute -top-4 -right-2 flex items-center justify-center">
-            <span className="text-sm font-medium text-foreground bg-muted rounded-full ring-1 ring-offset-background ring-background px-2 py-1">
-              {selected.length}
-            </span>
-          </div>
-          {/* desktop */}
-          <span className="hidden w-full md:flex md:items-center md:justify-between">
-            {placholderText}
-            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+          <span className="flex min-w-0 items-center gap-2">
+            <TagsIcon className="size-4 shrink-0 opacity-70" />
+            <span className="truncate">{placeholderText}</span>
           </span>
+          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-[200px] p-0">
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[var(--radix-popover-trigger-width)] min-w-50 p-0"
+      >
         <Command>
           <CommandInput placeholder="Search tags…" />
           <CommandList>

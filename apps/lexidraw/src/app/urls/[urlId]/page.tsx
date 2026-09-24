@@ -2,7 +2,6 @@
 
 import type { Metadata } from "next";
 import { cacheTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { entityTag } from "~/server/api/entity-cache";
 import { auth } from "~/server/auth";
@@ -29,31 +28,14 @@ const Params = z.object({
 
 type Props = {
   params: Promise<z.infer<typeof Params>>;
-  searchParams: Promise<{
-    new?: "true";
-    parentId?: string;
-  }>;
 };
 
 export default async function UrlPage(props: Props) {
-  const [param, search] = await Promise.all([props.params, props.searchParams]);
-  const { urlId } = Params.parse(param);
-  const { new: isNew, parentId } = search ?? {};
+  const { urlId } = Params.parse(await props.params);
 
   // What this render is about, so a write to it over any transport drops this
   // entry rather than leaving a stale link on screen until it expires.
   cacheTag(entityTag(urlId));
-
-  if (isNew === "true") {
-    await api.entities.create.mutate({
-      id: urlId,
-      title: "New link",
-      entityType: "url",
-      elements: JSON.stringify({ url: "" }),
-      parentId: parentId ?? null,
-    });
-    return redirect(`/urls/${urlId}`);
-  }
 
   // A missing link, or one this caller may not read, is a 404.
   const entity = await api.entities.load.query({ id: urlId }).catch(notFoundOr);

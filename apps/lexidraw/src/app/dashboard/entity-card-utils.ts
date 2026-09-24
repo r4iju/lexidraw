@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 import type { EntityType } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { entityHref } from "~/lib/entity-types";
@@ -26,18 +25,6 @@ export function buildSearchParams({
     ...(sortBy ? { sortBy } : {}),
     ...(sortOrder ? { sortOrder } : {}),
   });
-}
-
-export function formatEntityDate(
-  entity: Entity,
-  sortBy: "updatedAt" | "createdAt" | "title" = "updatedAt",
-) {
-  const updatedOrCreated = sortBy === "createdAt" ? "Created " : "Updated ";
-  const dateString = formatDistanceToNow(
-    new Date(sortBy === "createdAt" ? entity.createdAt : entity.updatedAt),
-    { addSuffix: true },
-  );
-  return { updatedOrCreated, dateString };
 }
 
 export function getItemUrl({

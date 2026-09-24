@@ -10,9 +10,10 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { TooltipButton } from "~/components/ui/tooltip-button";
+import { cn } from "~/lib/utils";
 import { replaceSearchParam } from "./utils";
 
-export function SortMenu() {
+export function SortMenu({ className }: { className?: string }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -54,7 +55,7 @@ export function SortMenu() {
   })();
 
   return (
-    <div className="flex justify-end items-center gap-2">
+    <div className={cn("flex items-center justify-end gap-2", className)}>
       <Select onValueChange={handleSort} defaultValue={sortBy}>
         <SelectTrigger
           className="w-[fit-content] min-w-30"

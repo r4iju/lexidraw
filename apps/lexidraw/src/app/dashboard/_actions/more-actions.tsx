@@ -1,32 +1,11 @@
 "use client";
 
 import type { PublicAccess } from "@packages/types";
-import {
-  ArchiveIcon,
-  ArchiveRestoreIcon,
-  EllipsisIcon,
-  HeartIcon,
-  HeartOffIcon,
-  ImageIcon,
-  LinkIcon,
-  PencilIcon,
-  ShareIcon,
-  TagIcon,
-  TrashIcon,
-} from "lucide-react";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "~/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
+import { entityHref } from "~/lib/entity-types";
 import { ImageGenerationProvider } from "~/hooks/use-image-generation";
 import { ImageProvider } from "~/hooks/use-image-insertion";
 import { api } from "~/trpc/react";
@@ -34,6 +13,7 @@ import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
 import { copyEntityLink } from "./copy-link";
 import DeleteEntity from "./delete-entity";
+import { EntityMenu } from "./entity-menu";
 import ThumbnailModal from "./icon-modal";
 import RenameEntityModal from "./rename-modal";
 import ShareEntity from "./share-entity";
@@ -112,80 +92,20 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost">
-            <EllipsisIcon className="size-5" />
-            <span className="sr-only">{`More actions for ${entity.title}`}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          <DropdownMenuGroup>
-            <DropdownMenuItem
-              onSelect={() => setOpenDialog("share")}
-              className="justify-between"
-            >
-              Share…
-              <ShareIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => copyEntityLink(entity, currentAccess)}
-              className="justify-between"
-            >
-              Copy link
-              <LinkIcon />
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem
-              onSelect={() => setOpenDialog("rename")}
-              className="justify-between"
-            >
-              Rename…
-              <PencilIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setOpenDialog("tag")}
-              className="justify-between"
-            >
-              Edit tags…
-              <TagIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setOpenDialog("thumbnail")}
-              className="justify-between"
-            >
-              Change thumbnail…
-              <ImageIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={toggleFavorite}
-              className="justify-between"
-            >
-              {entity.favoritedAt
-                ? "Remove from favorites"
-                : "Add to favorites"}
-              {entity.favoritedAt ? <HeartOffIcon /> : <HeartIcon />}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setArchived(!entity.archivedAt)}
-              className="justify-between"
-            >
-              {entity.archivedAt ? "Unarchive" : "Archive"}
-              {entity.archivedAt ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => setOpenDialog("delete")}
-            className="justify-between text-destructive focus:text-destructive"
-          >
-            Delete…
-            <TrashIcon />
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <EntityMenu
+        title={entity.title}
+        href={entityHref(entity.entityType, entity.id)}
+        favorited={Boolean(entity.favoritedAt)}
+        archived={Boolean(entity.archivedAt)}
+        onShare={() => setOpenDialog("share")}
+        onCopyLink={() => copyEntityLink(entity, currentAccess)}
+        onRename={() => setOpenDialog("rename")}
+        onTags={() => setOpenDialog("tag")}
+        onThumbnail={() => setOpenDialog("thumbnail")}
+        onToggleFavorite={toggleFavorite}
+        onToggleArchive={() => setArchived(!entity.archivedAt)}
+        onDelete={() => setOpenDialog("delete")}
+      />
       {openDialog === "delete" && (
         <DeleteEntity entity={entity} isOpen onOpenChange={handleCloseDialog} />
       )}
