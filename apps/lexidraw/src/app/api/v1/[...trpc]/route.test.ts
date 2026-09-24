@@ -213,6 +213,42 @@ describe("an entity that is not there", () => {
   });
 });
 
+describe("a share that is not there", () => {
+  test("is not found when its access level is changed", async () => {
+    const { response, body } = await api(
+      "PATCH",
+      "/entities/rest_draw/shares/rest_friend",
+      { body: { accessLevel: "READ" } },
+    );
+    expect(response.status).toBe(404);
+    expect(body.code).toBe("NOT_FOUND");
+    expect(body.message).toBe("Share not found");
+  });
+
+  test("is not found when it is revoked", async () => {
+    const { response, body } = await api(
+      "DELETE",
+      "/entities/rest_draw/shares/rest_friend",
+    );
+    expect(response.status).toBe(404);
+    expect(body.code).toBe("NOT_FOUND");
+    expect(body.message).toBe("Share not found");
+  });
+
+  test("is what a revoke leaves, so repeating one is not found", async () => {
+    const path = "/entities/rest_sub/shares/rest_friend";
+    await api("POST", "/entities/rest_sub/shares", {
+      body: { userEmail: "rest-friend@example.test", accessLevel: "EDIT" },
+    });
+    const changed = await api("PATCH", path, { body: { accessLevel: "READ" } });
+    expect(changed.response.status).toBe(200);
+    const revoked = await api("DELETE", path);
+    expect(revoked.response.status).toBe(200);
+    const again = await api("DELETE", path);
+    expect(again.response.status).toBe(404);
+  });
+});
+
 describe("a write over the API", () => {
   test("drops the cached renders of the entity and its directory", async () => {
     const { response } = await api(

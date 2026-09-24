@@ -96,6 +96,11 @@ anything else — a document, a directory of someone else's, nothing at all — 
 `NOT_FOUND`, so the foreign key never fails with the statement in its message
 and existence stays private.
 
+`PATCH` and `DELETE /entities/{id}/shares/{userId}` answer `{ success, message }`
+only when they changed or removed a share that was there. A user who holds no
+share on the entity is `NOT_FOUND` ("Share not found"), so a revoke that answers
+success did revoke something, and repeating it is a 404.
+
 #### Error codes
 
 Every error body is `{ message, code, issues?, data? }`, and `code` is drawn from
