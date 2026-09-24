@@ -16,7 +16,6 @@
   ],
   "functions": {
     "app/api/render-html/route": {
-      "memory": 1024,
       "maxDuration": 30
     }
   }
