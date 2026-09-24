@@ -691,11 +691,11 @@ describe("drawing", () => {
     expect(JSON.parse(io.stderr()).message).toContain("--file");
   });
 
-  it("create posts the title and optional parent", async () => {
+  it("create posts the title and the directory --dir names", async () => {
     const io = fakeIo({ env: env({ LEXIDRAW_TOKEN: "lxd_good" }) });
     expect(
       await run(
-        ["drawing", "create", "--title", "Flow", "--parent", "dir-1"],
+        ["drawing", "create", "--title", "Flow", "--dir", "dir-1"],
         io.io,
       ),
     ).toBe(0);
