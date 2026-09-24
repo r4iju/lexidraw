@@ -1,16 +1,9 @@
-import Header from "~/sections/header";
-import Footer from "~/sections/footer";
+import { PageFrame } from "~/sections/page-frame";
 
 type Props = {
   children: React.ReactNode;
 };
 
 export default function DefaultLayout({ children }: Props) {
-  return (
-    <>
-      <Header />
-      {children}
-      <Footer />
-    </>
-  );
+  return <PageFrame>{children}</PageFrame>;
 }

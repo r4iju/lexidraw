@@ -1,15 +1,15 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import Image from "~/components/image/image";
+import { SITE_PREVIEW } from "~/lib/link-preview";
+import { cn } from "~/lib/utils";
+import { MarketingFrame } from "~/sections/marketing-frame";
 import { auth } from "~/server/auth";
-import Header from "~/sections/header";
-import Footer from "~/sections/footer";
-import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: { absolute: "Lexidraw" },
-  description:
-    "This is a demo of the excalidraw tool. It is a collaborative online drawing and diagramming tool.",
+  ...SITE_PREVIEW,
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
@@ -17,105 +17,109 @@ export const metadata: Metadata = {
   },
 };
 
+const FEATURES = [
+  {
+    title: "Docs that do more",
+    benefit: "Headings, tables, embeds and slides, all in one page.",
+    image: "document",
+    dark: true,
+    alt: "A Lexidraw document titled Launch plan, with a list of goals and a timeline table of weekly milestones and owners.",
+  },
+  {
+    title: "Sketch it out",
+    benefit: "Hand-drawn diagrams and wireframes on an open canvas.",
+    image: "drawing",
+    dark: false,
+    alt: "A hand-drawn sign-up flow in Lexidraw: landing page, sign up and a verified check, leading to Home or to resending the link.",
+  },
+  {
+    title: "Find it again",
+    benefit: "Folders, favorites and search through every word you wrote.",
+    image: "home",
+    dark: true,
+    alt: "Lexidraw's Home showing a Product launch folder, with previews of its documents, drawings and a subfolder.",
+  },
+] as const;
+
 export default async function LandingPage() {
   const session = await auth();
   return (
-    <>
-      <Header />
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="flex h-full flex-col overflow-auto pb-6"
-      >
-        {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
-        <section id="landing-about" className="w-full pt-12 md:pt-24 lg:pt-32">
-          <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
-            <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
-              <div className="flex flex-col gap-3">
-                <h1 className="lg:leading-tighter text-3xl font-brand sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
-                  Lexidraw
-                </h1>
-                <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-                  Collaborative online drawing and diagramming tool. Create
-                  documents wireframes, flowcharts, user interfaces, and more.
-                  All saved automatically and shareable with a link.
-                </p>
-                {!session?.user && (
-                  <Button asChild>
-                    <Link href="/signup">Sign up</Link>
-                  </Button>
-                )}
-                {session?.user && (
-                  <Button asChild>
-                    <Link href="/dashboard">Open Lexidraw</Link>
-                  </Button>
-                )}
-              </div>
-
-              <div>
-                <Image
-                  alt="A web application for drawing and diagramming"
-                  className="mx-auto aspect-4/3 border-border border overflow-hidden rounded-2xl object-cover"
-                  src="/images/homepage-banner.png"
-                  height={500}
-                  width={500}
-                />
-              </div>
+    <MarketingFrame>
+      <main id="main-content" tabIndex={-1} className="flex flex-col">
+        <section className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 pb-12 pt-16 text-center sm:px-6 md:pb-20 md:pt-24">
+          <h1 className="font-brand text-4xl text-balance sm:text-5xl md:text-6xl">
+            Write documents and sketch diagrams in one place.
+          </h1>
+          <p className="max-w-xl text-lg text-balance text-muted-foreground md:text-xl">
+            Rich text, slides and hand-drawn diagrams, shared with a link. Saved
+            as you go.
+          </p>
+          {session?.user ? (
+            <Button asChild size="lg">
+              <Link href="/dashboard">Open Lexidraw</Link>
+            </Button>
+          ) : (
+            <div className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-3">
+              <Button asChild size="lg">
+                <Link href="/signup">Get started, free</Link>
+              </Button>
+              <Link
+                href="/signin"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Sign in
+              </Link>
             </div>
-          </div>
+          )}
         </section>
-        {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
+
         <section
-          id="landing-projects"
-          className="w-full py-12 md:py-24 lg:py-32"
+          aria-label="What you can do"
+          className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 pb-20 sm:px-6 md:gap-24 md:pb-28 lg:px-8"
         >
-          <div className="container px-4 md:px-6">
-            <h2 className="text-center text-3xl font-brand sm:text-5xl">
-              Sample projects
-            </h2>
-            <div className="mx-auto mt-12 grid items-start gap-8 sm:max-w-4xl sm:grid-cols-2 md:gap-12 lg:max-w-5xl lg:grid-cols-3">
-              <div className="grid gap-1">
+          {FEATURES.map((feature, index) => (
+            <figure
+              key={feature.image}
+              className="grid items-center gap-6 md:grid-cols-12 md:gap-10"
+            >
+              <div
+                className={cn(
+                  "relative aspect-8/5 overflow-hidden rounded-xl border border-border bg-card shadow-sm md:col-span-8",
+                  index % 2 === 1 && "md:order-last",
+                )}
+              >
                 <Image
-                  alt="Project 1"
-                  className="mx-auto aspect-7/6 overflow-hidden border-border border rounded-2xl object-cover"
-                  height={350}
-                  width={350}
-                  src="/images/projects/project.png"
+                  src={`/images/landing/${feature.image}-light.webp`}
+                  alt={feature.alt}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 66vw"
+                  className={cn(
+                    "object-cover object-top-left",
+                    feature.dark && "dark:hidden",
+                  )}
                 />
-                <h3 className="text-lg font-brand">Quick sketches</h3>
-                <p className="text-sm text-muted-foreground">Quick sketches</p>
+                {feature.dark && (
+                  <Image
+                    src={`/images/landing/${feature.image}-dark.webp`}
+                    alt={feature.alt}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 66vw"
+                    className="hidden object-cover object-top-left dark:block"
+                  />
+                )}
               </div>
-              <div className="grid gap-1">
-                <Image
-                  alt="Project 2"
-                  className="mx-auto aspect-7/6 overflow-hidden border-border border rounded-2xl object-cover"
-                  height={350}
-                  width={350}
-                  src="/images/projects/project.png"
-                />
-                <h3 className="text-lg font-brand">Make wiregrams</h3>
-                <p className="text-sm text-muted-foreground">
-                  A brief description of Project 2.
+              <figcaption className="flex flex-col gap-2 md:col-span-4">
+                <h2 className="font-brand text-2xl md:text-3xl">
+                  {feature.title}
+                </h2>
+                <p className="text-lg text-muted-foreground">
+                  {feature.benefit}
                 </p>
-              </div>
-              <div className="grid gap-1">
-                <Image
-                  alt="Project 3"
-                  className="mx-auto aspect-7/6 overflow-hidden border-border border rounded-2xl object-cover"
-                  height={350}
-                  width={350}
-                  src="/images/projects/project.png"
-                />
-                <h3 className="text-lg font-brand">Make a product pitch</h3>
-                <p className="text-sm text-muted-foreground">
-                  A brief description of Project 3.
-                </p>
-              </div>
-            </div>
-          </div>
+              </figcaption>
+            </figure>
+          ))}
         </section>
       </main>
-      <Footer />
-    </>
+    </MarketingFrame>
   );
 }

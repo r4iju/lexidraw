@@ -1,22 +1,22 @@
-import Link from "next/link";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { Suspense } from "react";
 
-async function FooterContent() {
-  // Access headers first to satisfy Next.js 16 requirement before using new Date()
-  await headers();
-
+function FooterBody({ year }: { year?: number }) {
   return (
-    <footer className="flex w-full shrink-0 min-h-[var(--footer-height)] flex-col items-center gap-2 border-t border-border px-4 py-[var(--footer-py)] sm:flex-row md:px-6">
+    <footer className="mt-auto flex w-full shrink-0 flex-col items-center gap-2 border-t border-border px-4 py-[var(--footer-py)] sm:flex-row sm:items-baseline md:px-6">
       <p className="text-xs text-muted-foreground">
-        © {new Date().getFullYear()} Lexidraw. All rights reserved.
+        © {year ? `${year} ` : ""}Lexidraw
       </p>
-      <nav className="flex gap-4 sm:ml-auto sm:gap-6">
+      <nav
+        aria-label="Legal"
+        className="flex items-baseline gap-4 sm:ml-auto sm:gap-6"
+      >
         <Link
           className="text-xs underline-offset-4 hover:underline"
           href="/terms-of-service"
         >
-          Terms of Service
+          Terms
         </Link>
         <Link
           className="text-xs underline-offset-4 hover:underline"
@@ -29,32 +29,16 @@ async function FooterContent() {
   );
 }
 
+async function FooterWithYear() {
+  // A dynamic API first: the year is read per request, not baked into a build.
+  await headers();
+  return <FooterBody year={new Date().getFullYear()} />;
+}
+
 export default function Footer() {
   return (
-    <Suspense
-      fallback={
-        <footer className="flex w-full shrink-0 min-h-[var(--footer-height)] flex-col items-center gap-2 border-t border-border px-4 py-[var(--footer-py)] sm:flex-row md:px-6">
-          <p className="text-xs text-muted-foreground">
-            © Lexidraw. All rights reserved.
-          </p>
-          <nav className="flex gap-4 sm:ml-auto sm:gap-6">
-            <Link
-              className="text-xs underline-offset-4 hover:underline"
-              href="/terms-of-service"
-            >
-              Terms of Service
-            </Link>
-            <Link
-              className="text-xs underline-offset-4 hover:underline"
-              href="/privacy-policy"
-            >
-              Privacy
-            </Link>
-          </nav>
-        </footer>
-      }
-    >
-      <FooterContent />
+    <Suspense fallback={<FooterBody />}>
+      <FooterWithYear />
     </Suspense>
   );
 }

@@ -315,7 +315,8 @@
 
 /* The document page scrolls as a page, so floating UI, the table of contents
    and the caret share the window as their scroll root, and iOS keeps the caret
-   above the keyboard. Other pages keep the fixed-height body. */
+   above the keyboard. Pages read top to bottom (landing, legal, sign-in,
+   settings) scroll the same way. Other pages keep the fixed-height body. */
 body:has([data-scroll-root="page"]) {
   height: auto;
   min-height: var(--dynamic-viewport-height);

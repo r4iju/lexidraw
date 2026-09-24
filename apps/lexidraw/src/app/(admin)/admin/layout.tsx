@@ -1,12 +1,11 @@
 import { Suspense } from "react";
 import { assertAdminOrRedirect } from "~/server/admin";
-import Footer from "~/sections/footer";
 import Header from "~/sections/header";
 
 async function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   await assertAdminOrRedirect();
   return (
-    <div className="grid h-full min-h-0 max-w-[100dvw] overflow-hidden grid-rows-[minmax(var(--header-height),auto)_1fr_minmax(var(--footer-height),auto)]">
+    <div className="grid h-full min-h-0 max-w-[100dvw] overflow-hidden grid-rows-[minmax(var(--header-height),auto)_1fr]">
       <Header />
       <div
         id="main-content"
@@ -15,7 +14,6 @@ async function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       >
         <div className="mx-auto w-full max-w-6xl p-6">{children}</div>
       </div>
-      <Footer />
     </div>
   );
 }
@@ -28,7 +26,7 @@ export default function AdminLayout({
   return (
     <Suspense
       fallback={
-        <div className="grid h-full min-h-0 max-w-[100dvw] overflow-hidden grid-rows-[minmax(var(--header-height),auto)_1fr_minmax(var(--footer-height),auto)]">
+        <div className="grid h-full min-h-0 max-w-[100dvw] overflow-hidden grid-rows-[minmax(var(--header-height),auto)_1fr]">
           <div className="min-h-[var(--header-height)] border-b border-border" />
           <div
             id="main-content"
@@ -39,7 +37,6 @@ export default function AdminLayout({
               Loading…
             </div>
           </div>
-          <div className="min-h-[var(--footer-height)] border-t border-border" />
         </div>
       }
     >

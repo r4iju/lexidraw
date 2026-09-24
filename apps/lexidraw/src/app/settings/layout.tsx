@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import Footer from "~/sections/footer";
 import { AppBar, Crumb } from "~/components/app-bar/app-bar";
+import { PageFrame } from "~/sections/page-frame";
 import { appBarAccount } from "~/server/app-bar-account";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -22,12 +22,14 @@ async function SignedInAppBar() {
 
 export default function SettingsLayout({ children }: Props) {
   return (
-    <>
-      <Suspense fallback={<AppBar account={undefined} crumbs={crumbs} />}>
-        <SignedInAppBar />
-      </Suspense>
+    <PageFrame
+      bar={
+        <Suspense fallback={<AppBar account={undefined} crumbs={crumbs} />}>
+          <SignedInAppBar />
+        </Suspense>
+      }
+    >
       {children}
-      <Footer />
-    </>
+    </PageFrame>
   );
 }
