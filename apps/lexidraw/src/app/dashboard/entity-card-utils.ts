@@ -1,6 +1,7 @@
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 import type { EntityType } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
+import { entityHref } from "~/lib/entity-types";
 
 export type Entity = RouterOutputs["entities"]["list"][number];
 
@@ -48,18 +49,9 @@ export function getItemUrl({
   entityType: EntityType | string;
   searchParams: URLSearchParams;
 }) {
-  const t = String(entityType || "").toLowerCase();
-  switch (t) {
-    case "directory":
-      return `/dashboard/${id}?${searchParams.toString()}`;
-    case "drawing":
-      return `/drawings/${id}`;
-    case "document":
-      return `/documents/${id}`;
-    case "url":
-      return `/urls/${id}`;
-    default:
-      console.warn(`Unknown entity type: ${t}`);
-      return `/urls/${id}`;
-  }
+  const href = entityHref(entityType, id);
+  // A folder is Home filtered to it, so it keeps the view the reader is in.
+  return entityType === "directory"
+    ? `${href}?${searchParams.toString()}`
+    : href;
 }

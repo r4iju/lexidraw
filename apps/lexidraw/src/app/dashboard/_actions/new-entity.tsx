@@ -11,9 +11,10 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "~/components/ui/navigation-menu";
-import { Brush, File, FolderPlus, Link2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { EntityTypeIcon, entityTypeLabel } from "~/lib/entity-types";
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import CreateUrlModal from "./create-url-modal";
 
 type Props = {
@@ -33,41 +34,24 @@ export function NewEntity({ parentId }: Props) {
       case "directory":
         return `/dashboard/${uuidv4()}${query}`;
       case "url":
-        // We no longer navigate for URL; handled via modal
         return "#";
     }
   };
 
   const items: {
-    title: string;
-    icon: JSX.Element;
-    href: string;
+    type: "document" | "drawing" | "directory" | "url";
     description: string;
   }[] = [
     {
-      title: "Drawing",
-      icon: <Brush className="size-5" />,
-      href: newItem("drawing"),
-      description: "For creating visual content.",
+      type: "document",
+      description: "Write with headings, tables, embeds and slides.",
     },
     {
-      title: "Document",
-      icon: <File className="size-5" />,
-      href: newItem("document"),
-      description: "For creating rich text documents.",
+      type: "drawing",
+      description: "Sketch diagrams and wireframes on a canvas.",
     },
-    {
-      title: "Folder",
-      icon: <FolderPlus className="size-5" />,
-      href: newItem("directory"),
-      description: "Create a folder.",
-    },
-    {
-      title: "URL",
-      icon: <Link2 className="size-5" />,
-      href: newItem("url"),
-      description: "Bookmark a link for later.",
-    },
+    { type: "directory", description: "Group files together." },
+    { type: "url", description: "Save a web page to read or listen to later." },
   ];
 
   return (
@@ -80,15 +64,17 @@ export function NewEntity({ parentId }: Props) {
           </NavigationMenuTrigger>
           <NavigationMenuContent>
             <ul className="grid w-52 md:w-64 lg:w-72 gap-2 md:grid-cols-1 p-2">
-              {items.map((component) => (
+              {items.map(({ type, description }) => (
                 <ListItem
-                  key={component.title}
-                  title={component.title}
-                  description={component.description}
-                  href={component.href}
-                  icon={component.icon}
-                  onOpenCreateUrl={() => setIsCreateUrlOpen(true)}
-                ></ListItem>
+                  key={type}
+                  title={entityTypeLabel(type)}
+                  description={description}
+                  href={newItem(type)}
+                  icon={<EntityTypeIcon type={type} className="size-5" />}
+                  onOpenCreate={
+                    type === "url" ? () => setIsCreateUrlOpen(true) : undefined
+                  }
+                />
               ))}
             </ul>
           </NavigationMenuContent>
@@ -109,7 +95,8 @@ type ListItemProps = {
   description: string;
   icon: JSX.Element;
   href: string;
-  onOpenCreateUrl: () => void;
+  /** Opens a dialog in place of following the link. */
+  onOpenCreate?: () => void;
 };
 
 const ListItem = ({
@@ -118,7 +105,7 @@ const ListItem = ({
   description,
   icon,
   href,
-  onOpenCreateUrl,
+  onOpenCreate,
 }: ListItemProps) => (
   <li>
     <NavigationMenuLink asChild>
@@ -129,9 +116,9 @@ const ListItem = ({
           className,
         )}
         onClick={(e) => {
-          if (title === "URL") {
+          if (onOpenCreate) {
             e.preventDefault();
-            onOpenCreateUrl();
+            onOpenCreate();
           }
         }}
       >

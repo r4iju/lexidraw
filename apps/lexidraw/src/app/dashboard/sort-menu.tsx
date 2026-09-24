@@ -63,9 +63,9 @@ export function SortMenu() {
           <SelectValue placeholder="Sort by" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="updatedAt">Updated at</SelectItem>
-          <SelectItem value="createdAt">Created at</SelectItem>
-          <SelectItem value="title">Title</SelectItem>
+          <SelectItem value="updatedAt">Last edited</SelectItem>
+          <SelectItem value="createdAt">Date created</SelectItem>
+          <SelectItem value="title">Name</SelectItem>
         </SelectContent>
       </Select>
       {/* button to sort by order */}

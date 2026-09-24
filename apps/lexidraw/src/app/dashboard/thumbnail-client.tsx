@@ -1,15 +1,10 @@
 "use client";
 
-import { Folder, File, Brush, Newspaper } from "lucide-react";
+import { Folder } from "lucide-react";
+import { EntityTypeIcon, entityTypeLabel } from "~/lib/entity-types";
 import type { JSX } from "react";
 import Image from "next/image";
-import {
-  useDeferredValue,
-  useMemo,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useDeferredValue, useLayoutEffect, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -304,25 +299,13 @@ function FolderVisual({
 
 function TypeRibbon({
   variant,
-  icon,
   size,
 }: {
   variant: "document" | "drawing" | "url";
-  icon: JSX.Element;
   size: "small" | "large";
 }) {
-  const label = useMemo(() => {
-    switch (variant) {
-      case "document":
-        return "Doc";
-      case "drawing":
-        return "Drawing";
-      case "url":
-        return "Article";
-      default:
-        return "";
-    }
-  }, [variant]);
+  const label = entityTypeLabel(variant);
+  const icon = <EntityTypeIcon type={variant} className="size-4" />;
 
   if (size === "large") {
     // Corner tab that bleeds outside the right edge ~30%
@@ -412,18 +395,7 @@ function DocumentVisual({
     </div>
   );
 
-  const ribbon = (
-    <TypeRibbon
-      variant="document"
-      icon={
-        <File
-          className={cn(size === "large" ? "size-4" : "size-4")}
-          aria-hidden="true"
-        />
-      }
-      size={size}
-    />
-  );
+  const ribbon = <TypeRibbon variant="document" size={size} />;
 
   return { thumbnail, ribbon };
 }
@@ -491,18 +463,7 @@ function DrawingVisual({
     </div>
   );
 
-  const ribbon = (
-    <TypeRibbon
-      variant="drawing"
-      icon={
-        <Brush
-          className={cn(size === "large" ? "size-4" : "size-4")}
-          aria-hidden="true"
-        />
-      }
-      size={size}
-    />
-  );
+  const ribbon = <TypeRibbon variant="drawing" size={size} />;
 
   return { thumbnail, ribbon };
 }
@@ -561,18 +522,7 @@ function UrlVisual({
     </div>
   );
 
-  const ribbon = (
-    <TypeRibbon
-      variant="url"
-      icon={
-        <Newspaper
-          className={cn(size === "large" ? "size-4" : "size-4")}
-          aria-hidden="true"
-        />
-      }
-      size={size}
-    />
-  );
+  const ribbon = <TypeRibbon variant="url" size={size} />;
 
   return { thumbnail, ribbon };
 }

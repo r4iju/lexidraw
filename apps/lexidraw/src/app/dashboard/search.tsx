@@ -16,7 +16,12 @@ import {
   CommandItem,
   CommandList,
 } from "~/components/ui/command";
-import { Brush, File, Folder, Link2, Loader2, SearchIcon } from "lucide-react";
+import { Loader2, SearchIcon } from "lucide-react";
+import {
+  EntityTypeIcon,
+  entityHref,
+  entityTypeLabel,
+} from "~/lib/entity-types";
 import Image from "next/image";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
@@ -94,25 +99,6 @@ export function SearchBar({ className }: Props) {
     }
   }, [isLoading, currentCombinedResults, debouncedQuery]);
 
-  const toPath = ({
-    entityType,
-    entityId,
-  }: {
-    entityType: string;
-    entityId: string;
-  }) => {
-    switch (entityType) {
-      case "drawing":
-        return `/drawings/${entityId}`;
-      case "document":
-        return `/documents/${entityId}`;
-      case "url":
-        return `/urls/${entityId}`;
-      default:
-        return `/dashboard/${entityId}`;
-    }
-  };
-
   const toDateString = (date: Date) => {
     return formatDistanceToNow(date, { addSuffix: true });
   };
@@ -166,7 +152,7 @@ export function SearchBar({ className }: Props) {
             <Input
               ref={inputRef as RefObject<HTMLInputElement>}
               type="text"
-              placeholder="Search by title, content, or tags..."
+              placeholder="Search by name, text or tag…"
               value={query}
               onFocus={() => {
                 hasScrolledOnFocusRef.current = false;
@@ -208,9 +194,7 @@ export function SearchBar({ className }: Props) {
         <Command shouldFilter={false}>
           <CommandList>
             {/* Empty State: Show if not loading, query exists, but no results */}
-            <CommandEmpty>
-              No results found for "{debouncedQuery}".
-            </CommandEmpty>
+            <CommandEmpty>Nothing matches “{debouncedQuery}”.</CommandEmpty>
 
             {/* Results Group: Show if we have results to display */}
             {displayResults.length > 0 && (
@@ -218,10 +202,7 @@ export function SearchBar({ className }: Props) {
                 {displayResults.map((entity) => (
                   <Link
                     key={entity.id}
-                    href={toPath({
-                      entityType: entity.entityType,
-                      entityId: entity.id,
-                    })}
+                    href={entityHref(entity.entityType, entity.id)}
                   >
                     <CommandItem
                       value={entity.id}
@@ -255,18 +236,13 @@ export function SearchBar({ className }: Props) {
                           </span>
                         </div>
                       </div>
-                      {entity.entityType === "directory" && (
-                        <Folder className="h-4 w-4 shrink-0" />
-                      )}
-                      {entity.entityType === "drawing" && (
-                        <Brush className="h-4 w-4 shrink-0" />
-                      )}
-                      {entity.entityType === "document" && (
-                        <File className="h-4 w-4 shrink-0" />
-                      )}
-                      {entity.entityType === "url" && (
-                        <Link2 className="h-4 w-4 shrink-0" />
-                      )}
+                      <EntityTypeIcon
+                        type={entity.entityType}
+                        className="size-4 shrink-0"
+                      />
+                      <span className="sr-only">
+                        {entityTypeLabel(entity.entityType)}
+                      </span>
                     </CommandItem>
                   </Link>
                 ))}
