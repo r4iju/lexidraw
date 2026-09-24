@@ -5,6 +5,7 @@ import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { drizzle, schema, eq } from "@packages/drizzle";
 import { getSignInSchema } from "~/app/signin/schema";
 import { authorizeCredentials } from "~/server/auth/credentials";
+import { clientIp } from "~/server/auth/sign-in-rate-limit";
 import env from "@packages/env";
 import { cookies as nextCookies } from "next/headers";
 
@@ -195,10 +196,10 @@ const nextAuth = NextAuth({
         },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (credentials) => {
+      authorize: async (credentials, request) => {
         const SignInSchema = getSignInSchema();
         const { email, password } = SignInSchema.parse(credentials);
-        return authorizeCredentials(email, password);
+        return authorizeCredentials(email, password, clientIp(request.headers));
       },
     }),
   ],

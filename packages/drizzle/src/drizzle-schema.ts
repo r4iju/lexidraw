@@ -399,6 +399,18 @@ export const apiTokens = sqliteTable(
   ],
 );
 
+// Credential sign-in attempts per fixed window. The key is the SHA-256 of
+// `email:<address>` or `ip:<address>`, so no email or IP is stored.
+export const signInAttempts = sqliteTable(
+  "SignInAttempts",
+  {
+    key: text("key").primaryKey().notNull(),
+    windowStart: integer("windowStart", { mode: "timestamp_ms" }).notNull(),
+    count: integer("count").notNull(),
+  },
+  (table) => [index("SignInAttempt_windowStart_idx").on(table.windowStart)],
+);
+
 export const sharedEntities = sqliteTable(
   "SharedEntities",
   {
