@@ -74,11 +74,53 @@ $$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$$
 
 ---
 
+## Callouts and sections · 注記と折りたたみ
+
+> [!NOTE]
+> Useful information · 参考情報, even when skimming.
+
+> [!TIP] Faster export
+> Render at **375px** first; the phone view shows problems soonest.
+
+> [!IMPORTANT]
+> Key information users need to succeed · 重要.
+
+> [!WARNING]
+> Urgent info that needs immediate attention.
+>
+> - A second block inside the callout.
+
+> [!CAUTION]
+> Advises about risks or negative outcomes · 注意.
+
+<details open>
+<summary>Details · 詳細</summary>
+
+Expanded content · 開いた内容
+
+</details>
+
+<columns>
+<column>
+
+Left column · 左
+
+</column>
+<column>
+
+Right column · 右
+
+</column>
+<column>
+
+Third column · 三
+
+</column>
+</columns>
+
 ## Rich blocks · 図とメディア
 
 The following blocks come from kitchen-sink.blocks.json until they have Markdown forms.
-
-<!-- TODO #91: add all five GitHub callouts and replace the JSON collapsible with details/summary Markdown. -->
 
 ![Tall hero · 2000px](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAwIiBoZWlnaHQ9IjIwMDAiPjxyZWN0IHdpZHRoPSIxMDAwIiBoZWlnaHQ9IjIwMDAiIGZpbGw9IiNmMWY1ZjkiLz48Y2lyY2xlIGN4PSI1MDAiIGN5PSIxMDAwIiByPSIzMDAiIGZpbGw9IiMyNTYzZWIiLz48L3N2Zz4=)
 

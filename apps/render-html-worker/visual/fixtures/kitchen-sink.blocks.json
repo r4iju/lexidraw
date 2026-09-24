@@ -59,7 +59,9 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": ["fixture-thread"]
+        "ids": [
+          "fixture-thread"
+        ]
       }
     ],
     "direction": null,
@@ -185,152 +187,6 @@
     "indent": 0
   },
   {
-    "type": "layout-container",
-    "version": 1,
-    "children": [
-      {
-        "type": "layout-item",
-        "version": 1,
-        "children": [
-          {
-            "type": "paragraph",
-            "version": 1,
-            "children": [
-              {
-                "type": "text",
-                "version": 1,
-                "text": "Left column · 左",
-                "format": 0,
-                "detail": 0,
-                "mode": "normal",
-                "style": ""
-              }
-            ],
-            "direction": null,
-            "format": "",
-            "indent": 0
-          }
-        ],
-        "direction": null,
-        "format": "",
-        "indent": 0
-      },
-      {
-        "type": "layout-item",
-        "version": 1,
-        "children": [
-          {
-            "type": "paragraph",
-            "version": 1,
-            "children": [
-              {
-                "type": "text",
-                "version": 1,
-                "text": "Right column · 右",
-                "format": 0,
-                "detail": 0,
-                "mode": "normal",
-                "style": ""
-              }
-            ],
-            "direction": null,
-            "format": "",
-            "indent": 0
-          }
-        ],
-        "direction": null,
-        "format": "",
-        "indent": 0
-      },
-      {
-        "type": "layout-item",
-        "version": 1,
-        "children": [
-          {
-            "type": "paragraph",
-            "version": 1,
-            "children": [
-              {
-                "type": "text",
-                "version": 1,
-                "text": "Third column · 三",
-                "format": 0,
-                "detail": 0,
-                "mode": "normal",
-                "style": ""
-              }
-            ],
-            "direction": null,
-            "format": "",
-            "indent": 0
-          }
-        ],
-        "direction": null,
-        "format": "",
-        "indent": 0
-      }
-    ],
-    "direction": null,
-    "format": "",
-    "indent": 0,
-    "templateColumns": "1fr 1fr 1fr"
-  },
-  {
-    "type": "collapsible-container",
-    "version": 1,
-    "children": [
-      {
-        "type": "collapsible-title",
-        "version": 1,
-        "children": [
-          {
-            "type": "text",
-            "version": 1,
-            "text": "Details · 詳細",
-            "format": 0,
-            "detail": 0,
-            "mode": "normal",
-            "style": ""
-          }
-        ],
-        "direction": null,
-        "format": "",
-        "indent": 0
-      },
-      {
-        "type": "collapsible-content",
-        "version": 1,
-        "children": [
-          {
-            "type": "paragraph",
-            "version": 1,
-            "children": [
-              {
-                "type": "text",
-                "version": 1,
-                "text": "Expanded content · 開いた内容",
-                "format": 0,
-                "detail": 0,
-                "mode": "normal",
-                "style": ""
-              }
-            ],
-            "direction": null,
-            "format": "",
-            "indent": 0
-          }
-        ],
-        "direction": null,
-        "format": "",
-        "indent": 0
-      }
-    ],
-    "direction": null,
-    "format": "",
-    "indent": 0,
-    "open": true
-  },
-  {
     "type": "mermaid",
     "version": 1,
     "schema": "flowchart LR\n A[Start 開始] --> B[Done 完了]",
@@ -392,12 +248,17 @@
       {
         "text": "Rice · ご飯",
         "uid": "rice",
-        "votes": ["one", "two"]
+        "votes": [
+          "one",
+          "two"
+        ]
       },
       {
         "text": "Soup · スープ",
         "uid": "soup",
-        "votes": ["three"]
+        "votes": [
+          "three"
+        ]
       }
     ]
   },
@@ -530,7 +391,9 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": ["fixture-thread"]
+        "ids": [
+          "fixture-thread"
+        ]
       }
     ],
     "direction": null,

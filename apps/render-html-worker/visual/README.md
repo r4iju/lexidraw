@@ -22,13 +22,12 @@ Edit `fixtures/kitchen-sink.md` first when adding a visual case. Rich blocks
 without Markdown forms live in `fixtures/kitchen-sink.blocks.json`, appended
 after the Markdown import. The fixture contains headings 1–6, mixed Latin and
 Japanese prose, inline formatting, links, nested/ordered/check lists, quotes,
-code, aligned tables, equations, a rule, image and caption, inline image,
-columns, an open collapsible, Mermaid, chart, poll, drawing, slides, article,
+code, aligned tables, equations, the five GitHub callouts, an open
+`<details>` collapsible, three `<columns>`, a rule, image and caption, inline
+image, Mermaid, chart, poll, drawing, slides, article,
 page break, video, YouTube, tweet, Figma, sticky note, marked text, comment and
 thread. Comments/threads are intentionally invisible outside their panel.
-Autocomplete is transient editor state, not a document block. Callouts and
-Markdown details/summary are explicitly TODO #91; use the JSON collapsible
-until that ticket lands.
+Autocomplete is transient editor state, not a document block.
 
 Images are embedded SVGs and charts/drawings use fixed data. External embeds
 use deliberately unavailable fixture IDs; the tweet uses an empty ID so it
@@ -41,8 +40,9 @@ styling defects recorded in these baselines.
 
 Each render goes through the same `GET /documents/{id}/render` operation as the
 CLI and MCP, at 375/768/1280px in light/dark. PNGs retain 1:1 pixels, capped at
-6000px high to bound repository growth (currently all six fit without clipping).
-The six committed images total about **1.8 MB**. Pixelmatch ignores minor
+6000px high to bound repository growth (all six currently reach the cap, so
+the end of the fixture is not captured). The six committed images total about
+**2.9 MB**. Pixelmatch ignores minor
 antialiasing changes with a per-pixel threshold of 0.15 and permits at most
 0.5% differing pixels. A changed image size always fails. Actual images and
 failure diffs go in `.playwright-mcp/document-snapshots/`, never in the baseline
