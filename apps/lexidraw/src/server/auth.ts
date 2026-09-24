@@ -6,6 +6,7 @@ import { drizzle, schema, eq } from "@packages/drizzle";
 import { getSignInSchema } from "~/app/signin/schema";
 import { authorizeCredentials } from "~/server/auth/credentials";
 import { clientIp } from "~/server/auth/sign-in-rate-limit";
+import { sessionToken } from "~/server/auth/session-token";
 import env from "@packages/env";
 import { cookies as nextCookies } from "next/headers";
 
@@ -133,35 +134,7 @@ const nextAuth = NextAuth({
         },
       };
     },
-    jwt: async ({ token, user, trigger, session }) => {
-      // Add session to params if using update
-      // Initial sign in or user object available
-      if (user) {
-        // Explicitly type user to access custom fields safely
-        const typedUser = user as Session["user"];
-        token.config = typedUser.config;
-      }
-
-      // Handle session updates (e.g., after profile update)
-      if (trigger === "update" && session) {
-        console.log("[Auth] JWT update trigger fired with session:", session);
-        // Refetch the user from DB to get the latest config
-        // Note: Ensure session data passed via update() call includes the necessary fields
-        // or fetch fresh data here.
-        const dbUser = await drizzle.query.users.findFirst({
-          // Use token.sub (user id) for fetching, assuming email might not be unique or stable
-          where: (users, { eq }) => eq(users.id, token.sub as string),
-          columns: { config: true },
-        });
-        token.config = dbUser?.config; // Update token config from DB
-        // Propagate other potential updates from session if needed
-        token.name = session.user.name;
-        token.email = session.user.email;
-        token.picture = session.user.image;
-      }
-
-      return token;
-    },
+    jwt: (params) => sessionToken(drizzle, params),
     signIn: () => {
       return true;
     },

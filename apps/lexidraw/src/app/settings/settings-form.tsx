@@ -614,8 +614,10 @@ export function SettingsFormSection(props: Omit<Props, "onSave">) {
           });
           throw error;
         }
-        // The session carries the settings the AI routes read.
-        await update();
+        // The session carries the settings the AI routes read. Given data,
+        // however little, `update` has the server read them again; without,
+        // it only fetches the session as it was.
+        await update({});
         await utils.config.invalidate();
         toast.success("Settings saved.");
       }}
