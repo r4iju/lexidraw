@@ -1,23 +1,13 @@
-import Link from "next/link";
-import { Button } from "~/components/ui/button";
-import Footer from "~/sections/footer";
+import { NotFoundScreen } from "~/components/error-screen";
 import Header from "~/sections/header";
+import { auth } from "~/server/auth";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const session = await auth();
   return (
     <>
       <Header />
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="flex size-full min-h-[calc(100vh-56px-65px)] flex-col items-center justify-center gap-4"
-      >
-        <p className="text-lg">Sorry, that page doesn't seem to exist.</p>
-        <Button asChild>
-          <Link href={`/`}>Go home</Link>
-        </Button>
-      </main>
-      <Footer />
+      <NotFoundScreen signedIn={Boolean(session?.user)} />
     </>
   );
 }
