@@ -91,7 +91,6 @@ import { SlidePlugin } from "./plugins/SlidePlugin";
 import { SlideNode } from "./nodes/SlideNode/SlideNode";
 import { CommentNode } from "./nodes/CommentNode";
 import { ThreadNode } from "./nodes/ThreadNode";
-import { SessionUUIDProvider } from "./plugins/AutocompletePlugin/session-uuid-provider";
 import { DisableChecklistSpacebarPlugin } from "./plugins/list-spacebar-plugin";
 import {
   UnsavedChangesProvider,
@@ -634,9 +633,7 @@ function EditorHandler({
                             <CodeHighlightPlugin />
                             <TabIndentationPlugin />
                             {isEditable && autocomplete && signedIn && (
-                              <SessionUUIDProvider>
-                                <AutocompletePlugin />
-                              </SessionUUIDProvider>
+                              <AutocompletePlugin title={entity.title} />
                             )}
                             <AutoEmbedPlugin />
                             <AutoLinkPlugin />

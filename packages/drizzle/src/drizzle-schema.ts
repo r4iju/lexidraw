@@ -750,7 +750,11 @@ export const llmPolicies = sqliteTable(
       .notNull(),
     enforcedCaps: text("enforcedCaps", { mode: "json" })
       .$type<{
-        maxOutputTokensByProvider: { openai: number; google: number };
+        maxOutputTokensByProvider: {
+          openai: number;
+          google: number;
+          openrouter?: number;
+        };
       }>()
       .notNull(),
     extraConfig: text("extraConfig", { mode: "json" }).$type<

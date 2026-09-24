@@ -19,7 +19,8 @@ export const DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID = "gemini-2.5-flash-lite";
 // older GPT-5 naming that existed in this codebase previously.
 export const DEFAULT_OPENAI_CHAT_MODEL_ID = "gpt-5.2";
 export const DEFAULT_OPENAI_AGENT_MODEL_ID = "gpt-5.2";
-export const DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID = "gpt-5-nano";
+// Fastest to a first token with reasoning off, and keeps word spacing right.
+export const DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID = "gpt-5.4-nano";
 
 // --- Planner (tool selection) ---
 // We intentionally pin planner to small, fast models rather than the user's main chat model.

@@ -62,6 +62,7 @@ const env = createEnv({
     // Optional org/global LLM keys used as fallbacks when user-level keys are absent
     OPENAI_API_KEY: z.string().optional(),
     GOOGLE_API_KEY: z.string().optional(),
+    OPENROUTER_API_KEY: z.string().optional(),
     // Google Custom Search (required org-level for server-side proxy)
     GOOGLE_SEARCH_ENGINE_ID: z.string().min(1),
     // Kokoro sidecar (optional; used in local/dev or when configured)
@@ -148,6 +149,7 @@ const env = createEnv({
     MEDIA_DOWNLOADER_URL: process.env.MEDIA_DOWNLOADER_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
     KOKORO_URL: process.env.KOKORO_URL,
     KOKORO_BEARER: process.env.KOKORO_BEARER,
