@@ -1,11 +1,4 @@
 "use client";
-// React calls `subscribe` outside render and the formatters run inside
-// `getSnapshot`, so none of them may hold a compiler cache. With
-// `compilationMode: "all"`, a dev build gives every function in the module
-// one (`_c()`, for the hot-reload reset) even when nothing is memoized: the
-// page fails with "Invalid hook call", or the formatters clash with
-// LocalTime's own cache.
-"use no memo";
 
 import { format as formatDate } from "date-fns";
 import { useSyncExternalStore } from "react";
