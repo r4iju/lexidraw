@@ -28,7 +28,8 @@ import {
   exportToSvg,
   MainMenu,
 } from "@excalidraw/excalidraw";
-import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
+import Link from "next/link";
+import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 import { useOpenEntityContext } from "~/hooks/use-open-entity-sync";
 import type { SaveOutcome } from "~/lib/open-entity-sync";
 import { put } from "@vercel/blob/client";
@@ -280,7 +281,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           variant="ghost"
           className="w-full justify-start gap-2 h-8 py-0 px-3 cursor-pointer"
         >
-          <GuardedLink
+          <Link
             href="/dashboard"
             style={{
               textDecoration: "none",
@@ -292,7 +293,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
             {" "}
             <LayoutDashboardIcon size={14} strokeWidth={2} />
             Go to dashboard
-          </GuardedLink>
+          </Link>
         </Button>
       </CustomMenuItem>
       {canEdit && (

@@ -61,7 +61,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
-  const { markDirty, markPristine, registerSaveHold } = useUnsavedChanges();
+  const { markDirty, markPristine } = useUnsavedChanges();
   const { enabled: autoSaveEnabled } = useAutoSave();
   const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
 
@@ -99,8 +99,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     editor: syncedEditor,
     onSavesResumed,
   });
-  // Leaving must not save over a write the user has not answered.
-  useEffect(() => registerSaveHold(holdsSaves), [registerSaveHold, holdsSaves]);
 
   const applyUpdate = useCallback(
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {

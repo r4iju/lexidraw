@@ -24,10 +24,8 @@ import ImportMarkdownModal from "./ImportMarkdownModal";
 import type { RouterOutputs } from "~/trpc/shared";
 import { AccessLevel } from "@packages/types";
 import type { MarkdownInsertMode } from "../utils/markdown";
-import {
-  GuardedLink,
-  useUnsavedChanges,
-} from "../../../../hooks/use-unsaved-changes";
+import Link from "next/link";
+import { useUnsavedChanges } from "../../../../hooks/use-unsaved-changes";
 import { useAutoSave } from "../../../../hooks/use-auto-save";
 import { revalidate } from "../actions";
 import { useRouter } from "next/navigation";
@@ -261,7 +259,7 @@ export default function OptionsDropdown({
         <DropdownMenuContent align="start">
           <DropdownMenuGroup title="App">
             <DropdownMenuItem asChild>
-              <GuardedLink href="/dashboard">Go to dashboard</GuardedLink>
+              <Link href="/dashboard">Go to dashboard</Link>
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />

@@ -13,6 +13,7 @@ import Script from "next/script";
 import env from "@packages/env";
 import type { Metadata, Viewport } from "next";
 import LayoutListener from "./layout-listener";
+import LeaveGuardListener from "./leave-guard-listener";
 import ImpersonationBanner from "~/components/admin/impersonation-banner";
 import TRPCProviderWrapper from "./trpc-provider-wrapper";
 import { DashboardCacheInvalidator } from "~/components/dashboard-cache-invalidator";
@@ -64,6 +65,7 @@ export default async function RootLayout({ children }: Props) {
         )}
         style={{ scrollbarGutter: "stable", scrollbarWidth: "thin" }}
       >
+        <LeaveGuardListener />
         <SessionProvider>
           <Suspense fallback={<div className="min-h-[100vh]" />}>
             <TRPCProviderWrapper>

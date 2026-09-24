@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/shared";
 import type { AppState } from "@excalidraw/excalidraw/types";
@@ -29,17 +28,14 @@ export default function DrawingBoardWithSave({
   appState,
   iceServers,
 }: Props) {
-  const router = useRouter();
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const openDrawing = useOpenEntity(drawing, "drawing");
   const isDarkTheme = useIsDarkTheme();
 
-  const handleSaveAndLeave = () => {
-    if (!excalidrawApiRef.current) {
-      // If API is not available, just navigate (might be loading)
-      router.push("/dashboard");
-      return;
-    }
+  /** Saves on the way out of the editor; answers whether it landed. */
+  const saveBeforeLeaving = async () => {
+    // Nothing loaded, so nothing to lose.
+    if (!excalidrawApiRef.current) return true;
 
     const elements =
       excalidrawApiRef.current.getSceneElements() as ExcalidrawElement[];
@@ -47,37 +43,33 @@ export default function DrawingBoardWithSave({
 
     const TOAST_ID = `save-${drawing.id}`;
     toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
-
-    openDrawing.sync
-      .save({
+    try {
+      const outcome = await openDrawing.sync.save({
         appState: JSON.stringify({
           ...appState,
           openDialog: null,
           theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
         } satisfies AppState),
         elements: JSON.stringify(elements),
-      })
-      .then(
-        (outcome) => {
-          if (outcome === "dropped") {
-            toast.dismiss(TOAST_ID);
-            return;
-          }
-          toast.success("Saved", { id: TOAST_ID });
-          router.push("/dashboard");
-        },
-        (error: Error) => {
-          toast.error("Error saving", {
-            id: TOAST_ID,
-            description: error.message,
-          });
-        },
-      );
+      });
+      if (outcome === "dropped") {
+        toast.dismiss(TOAST_ID);
+        return false;
+      }
+      toast.success("Saved", { id: TOAST_ID });
+      return true;
+    } catch (error) {
+      toast.error("Error saving", {
+        id: TOAST_ID,
+        description: error instanceof Error ? error.message : undefined,
+      });
+      return false;
+    }
   };
 
   return (
     <OpenEntityContext value={openDrawing}>
-      <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
+      <UnsavedChangesProvider saveBeforeLeaving={saveBeforeLeaving}>
         <EditBoard
           revalidate={revalidate}
           drawing={drawing}

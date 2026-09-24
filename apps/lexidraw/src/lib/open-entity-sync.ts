@@ -215,6 +215,11 @@ export class OpenEntitySync {
     return this.conflict !== null;
   }
 
+  /** The editor holds edits the server does not store. */
+  hasLocalEdits(): boolean {
+    return this.editor?.hasLocalEdits() ?? false;
+  }
+
   /** The user chose the stored revision over their edits. */
   reload(): void {
     const stored = this.conflict;

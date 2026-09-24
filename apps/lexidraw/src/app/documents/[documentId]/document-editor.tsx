@@ -114,6 +114,7 @@ import {
   useOpenEntityContext,
   useOpenEntitySync,
 } from "~/hooks/use-open-entity-sync";
+import type { SyncedEditor } from "~/lib/open-entity-sync";
 import { useSyncedLexicalEditor } from "./use-synced-lexical-editor";
 import {
   LexicalImageProvider,
@@ -259,6 +260,18 @@ const ConditionalCommentInputBoxRenderer = () => {
   return null;
 };
 
+/**
+ * Whether the editor holds edits the server lacks; yes while it cannot tell,
+ * as when its edits are not tracked yet.
+ */
+function holdsLocalEdits(editor: SyncedEditor): boolean {
+  try {
+    return editor.hasLocalEdits();
+  } catch {
+    return true;
+  }
+}
+
 function EditorHandler({
   entity,
   iceServers,
@@ -296,8 +309,7 @@ function EditorHandler({
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(360);
   const sidebarRef = useRef<HTMLElement>(null);
 
-  const { markDirty, markPristine, dirty, registerSaveHold } =
-    useUnsavedChanges();
+  const { markDirty, markPristine, dirty } = useUnsavedChanges();
   const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
   const onSyncReplace = useCallback(
     (editorState: EditorState) => {
@@ -320,8 +332,6 @@ function EditorHandler({
     editor: printMode ? null : syncedEditor,
     onSavesResumed,
   });
-  // Leaving must not save over a write the user has not answered.
-  useEffect(() => registerSaveHold(holdsSaves), [registerSaveHold, holdsSaves]);
   const { defaultFontFamily } = useDocumentSettings();
   const { enabled: autoSaveEnabled } = useAutoSave({ enabled: !printMode });
 
@@ -385,7 +395,9 @@ function EditorHandler({
       return;
     }
     if (!autoSaveEnabled || holdsSaves()) {
-      markDirty();
+      // The first change after loading has nothing to compare with above.
+      if (holdsLocalEdits(syncedEditor)) markDirty();
+      else markPristine();
     }
     setEditorStateRef(editorState);
     debouncedSendUpdateRef.current(parsedState);
@@ -719,9 +731,9 @@ function EditorScaffold({
     editorStateRef,
     openDocument,
   });
-  const handleSaveAndLeave = printMode
-    ? () => {}
-    : saveAndExport.handleSaveAndLeave;
+  const saveBeforeLeaving = printMode
+    ? undefined
+    : saveAndExport.saveBeforeLeaving;
   const handleSave = printMode ? () => {} : saveAndExport.handleSave;
   const handleSilentSave = printMode
     ? () => {}
@@ -743,7 +755,7 @@ function EditorScaffold({
         }}
       >
         <OpenEntityContext value={openDocument}>
-          <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
+          <UnsavedChangesProvider saveBeforeLeaving={saveBeforeLeaving}>
             <SidebarManagerProvider>
               <EditorHandler
                 entity={entity}

@@ -4,6 +4,7 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { usePathname, useRouter } from "next/navigation";
 
+import { leaveThen } from "~/lib/leave-guard";
 import { cn } from "~/lib/utils";
 
 const PopoverContext = React.createContext<{
@@ -78,7 +79,7 @@ const PopoverContent = ({
       context.onOpenChange(false);
       // Wait for close animation to complete (~200ms) before navigating
       setTimeout(() => {
-        context.router.push(pathname);
+        leaveThen(() => context.router.push(pathname));
       }, 200);
     },
   );

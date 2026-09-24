@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
+import { leaveThen } from "~/lib/leave-guard";
 import { cn } from "~/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -135,7 +136,7 @@ const DropdownMenuContent = ({
       context.setOpen(false);
       // Wait for close animation to complete (~200ms) before navigating
       setTimeout(() => {
-        context.router.push(pathname);
+        leaveThen(() => context.router.push(pathname));
       }, 200);
     },
   );

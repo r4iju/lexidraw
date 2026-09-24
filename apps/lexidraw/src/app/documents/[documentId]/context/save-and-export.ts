@@ -1,4 +1,3 @@
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { OpenEntity } from "~/hooks/use-open-entity-sync";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -17,7 +16,6 @@ export function useSaveAndExportDocument({
   editorStateRef: RefObject<EditorState | undefined>;
   openDocument: OpenEntity;
 }) {
-  const router = useRouter();
   const { defaultFontFamily } = useDocumentSettings();
   const [isSaving, setIsSaving] = useState(false);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
@@ -43,34 +41,38 @@ export function useSaveAndExportDocument({
       );
   };
 
-  const handleSaveAndLeave = () => {
-    if (!editorStateRef.current) {
-      toast.error("No state to save");
-      return;
-    }
-
-    const TOAST_ID = `save-${entity.id}`;
-    toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
-    setIsSaving(true);
-    save(editorStateRef.current, {
-      onSuccess: () => {
-        toast.success("Saved", { id: TOAST_ID });
-        setIsSaving(false);
-        router.push("/dashboard");
-      },
-      onDropped: () => {
-        toast.dismiss(TOAST_ID);
-        setIsSaving(false);
-      },
-      onError: (error) => {
-        toast.error("Error saving", {
-          id: TOAST_ID,
-          description: error.message,
-        });
-        setIsSaving(false);
-      },
+  /** Saves on the way out of the editor; answers whether it landed. */
+  const saveBeforeLeaving = () =>
+    new Promise<boolean>((resolve) => {
+      if (!editorStateRef.current) {
+        toast.error("No state to save");
+        resolve(false);
+        return;
+      }
+      const TOAST_ID = `save-${entity.id}`;
+      toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
+      setIsSaving(true);
+      save(editorStateRef.current, {
+        onSuccess: () => {
+          toast.success("Saved", { id: TOAST_ID });
+          setIsSaving(false);
+          resolve(true);
+        },
+        onDropped: () => {
+          toast.dismiss(TOAST_ID);
+          setIsSaving(false);
+          resolve(false);
+        },
+        onError: (error) => {
+          toast.error("Error saving", {
+            id: TOAST_ID,
+            description: error.message,
+          });
+          setIsSaving(false);
+          resolve(false);
+        },
+      });
     });
-  };
 
   const handleSave = (onSaveSuccessCallback?: () => void) => {
     if (!editorStateRef.current) {
@@ -171,7 +173,7 @@ export function useSaveAndExportDocument({
   ]);
 
   return {
-    handleSaveAndLeave,
+    saveBeforeLeaving,
     handleSave,
     handleSilentSave,
     exportMarkdown,
