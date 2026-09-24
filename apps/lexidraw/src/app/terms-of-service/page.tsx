@@ -1,89 +1,77 @@
-import type { ServerRuntime } from "next";
+import type { Metadata } from "next/types";
+import { Contact, LegalPage, Operator } from "~/components/legal-page";
 
-export default function PrivacyPolicy() {
+export const metadata: Metadata = { title: "Lexidraw | Terms" };
+
+export default function TermsOfService() {
   return (
-    <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">
-      <main id="main-content" tabIndex={-1} className="flex-1">
-        {/** biome-ignore lint/correctness/useUniqueElementIds: static */}
-        <section
-          id="terms-of-service"
-          className="w-full pt-12 md:pt-24 lg:pt-32"
-        >
-          <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
-            <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
-              <div className="flex flex-col gap-3">
-                <h1 className="lg:leading-tighter text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
-                  Terms of Service
-                </h1>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Introduction
-                </h2>
-                <p>
-                  Welcome to this Lexidraw, a collaborative online drawing and
-                  diagramming tool. By accessing or using our service, you agree
-                  to be bound by these Terms of Service and any additional terms
-                  and conditions that are referenced herein or that otherwise
-                  may apply to specific sections of the Service, or to products
-                  and services that we make available to you through the
-                  Service. If you do not agree to all of these terms, do not use
-                  the service.
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Use of Service
-                </h2>
-                <p>
-                  This Lexidraw allows you to create, share, and collaborate on
-                  drawings and diagrams. You are responsible for your use of the
-                  service, for any content you create, and for any consequences
-                  thereof. The content you create and share must comply with all
-                  applicable laws and regulations. You should only provide
-                  content that you are comfortable sharing with others under
-                  these Terms.
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Intellectual Property Rights
-                </h2>
-                <p>
-                  All content uploaded remains your property. By creating
-                  content on this Lexidraw, you grant us a worldwide,
-                  non-exclusive, royalty-free license to host, store, use,
-                  display, reproduce, modify, and distribute your content solely
-                  for the purposes of operating, developing, providing, and
-                  using service.
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  User Conduct
-                </h2>
-                <p>
-                  You agree not to misuse the our service. For example, you must
-                  not:
-                  <li>
-                    Engage in any activity that violates any law or governmental
-                    regulation.
-                  </li>
-                  <li>Spread malware or viruses.</li>
-                  <li>
-                    Use the service to infringe the intellectual property rights
-                    of others.
-                  </li>
-                  <li>
-                    Harvest or otherwise collect information about others,
-                    including email addresses, without their consent.
-                  </li>
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Termination
-                </h2>
-                <p>
-                  We may suspend or terminate your access to the service at any
-                  time, without notice, for any reason, including but not
-                  limited to, a breach of these Terms.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
+    <LegalPage
+      title="Terms"
+      intro={
+        <>
+          These terms cover your use of Lexidraw, run by <Operator />. By using
+          Lexidraw you agree to them; if you don’t, please don’t use it.
+        </>
+      }
+    >
+      <section>
+        <h2>Your files are yours</h2>
+        <p>
+          You own what you create. You let us store, process and show it only to
+          run Lexidraw for you: showing it to the people you share it with,
+          drawing its thumbnail, and sending it to an AI or voice service when
+          you use those features.
+        </p>
+      </section>
+      <section>
+        <h2>Sharing</h2>
+        <p>
+          You decide who can open your files. A file set to “Anyone with the
+          link” opens for anyone who has the link, without signing in, so share
+          such links with care.
+        </p>
+      </section>
+      <section>
+        <h2>Using Lexidraw fairly</h2>
+        <p>Please don’t use Lexidraw to:</p>
+        <ul>
+          <li>break the law or help someone else break it,</li>
+          <li>spread malware, or attack Lexidraw or its users,</li>
+          <li>infringe someone else’s copyright or other rights,</li>
+          <li>
+            collect other people’s personal details without their consent.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>AI features</h2>
+        <p>
+          AI answers and suggestions can be wrong. Check anything that matters
+          before you rely on it.
+        </p>
+      </section>
+      <section>
+        <h2>No guarantees</h2>
+        <p>
+          Lexidraw is provided as it is, without warranties. Features can change
+          or stop, and it can be unavailable at times. Keep your own copies of
+          anything important: documents export to Markdown and PDF, drawings to
+          Excalidraw files.
+        </p>
+      </section>
+      <section>
+        <h2>Ending your use</h2>
+        <p>
+          You can stop using Lexidraw at any time. We may suspend an account
+          that breaks these terms.
+        </p>
+      </section>
+      <section>
+        <h2>Questions</h2>
+        <p>
+          To ask about these terms, <Contact />.
+        </p>
+      </section>
+    </LegalPage>
   );
 }

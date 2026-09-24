@@ -219,7 +219,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       elements: excalidrawApi.getSceneElements(),
       appState: excalidrawApi.getAppState(),
     }).catch((err: unknown) =>
-      toast.error("Couldn't save", {
+      toast.error("Couldn’t save the drawing. Try again.", {
         description: err instanceof Error ? err.message : undefined,
       }),
     );

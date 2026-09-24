@@ -41,10 +41,13 @@ export default function UrlOptionsDropdown({
   const [isTagOpen, setIsTagOpen] = useState(false);
   const { mutate: refresh, isPending } = api.entities.distillUrl.useMutation({
     onSuccess: async () => {
-      toast.success("Refreshed article");
+      toast.success(`Refreshed the text of “${entity.title}”.`);
       await revalidateUrl(entity.id);
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) =>
+      toast.error("Couldn’t read the page. Try again.", {
+        description: error.message,
+      }),
   });
 
   const handleRefresh = () => {
@@ -67,29 +70,31 @@ export default function UrlOptionsDropdown({
       <DropdownMenuContent align="start">
         <DropdownMenuGroup title="App">
           <DropdownMenuItem asChild>
-            <Link href="/dashboard">Go to dashboard</Link>
+            <Link href="/dashboard">Back to Home</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup title="Article">
+        <DropdownMenuGroup title="Link">
           <DropdownMenuItem onClick={handleRefresh} disabled={isPending}>
             {isPending ? (
               <LoaderCircleIcon className="mr-2 inline-block animate-spin" />
             ) : (
               <RefreshCwIcon className="mr-2 inline-block" />
             )}{" "}
-            Refresh
+            Refresh text
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
-            Rename
+            Rename…
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsTagOpen(true)}>
-            Edit tags
+            Edit tags…
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsDeleteOpen(true)}>
-            Delete
+            Delete…
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onChangeUrl}>Change URL</DropdownMenuItem>
+          <DropdownMenuItem onClick={onChangeUrl}>
+            Change link…
+          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
       <RenameEntityModal

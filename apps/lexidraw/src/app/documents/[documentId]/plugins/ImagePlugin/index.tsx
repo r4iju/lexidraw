@@ -60,7 +60,7 @@ export function InsertImageUriDialogBody({
 
   return (
     <>
-      <Label>Image URL</Label>
+      <Label>Image link</Label>
       <Input
         placeholder="https://picsum.photos/200/300.jpg"
         onChange={(e) => setSrc(e.target.value)}
@@ -407,7 +407,7 @@ export function InsertImageDialog({
     <>
       {!mode && (
         <div className="flex flex-col gap-2">
-          <Button onClick={() => setMode("url")}>URL</Button>
+          <Button onClick={() => setMode("url")}>Link</Button>
           <Button onClick={() => setMode("file")}>File</Button>
           <Button onClick={() => setMode("unsplash")}>Unsplash</Button>
           <Button

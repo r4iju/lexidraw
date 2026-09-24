@@ -71,7 +71,7 @@ export default async function SignInPage() {
         <CronsContent />
       </Suspense>
       <Button asChild variant="link">
-        <Link href="/dashboard">Go to my drawings</Link>
+        <Link href="/dashboard">Back to Home</Link>
       </Button>
     </main>
   );

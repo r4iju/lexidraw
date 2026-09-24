@@ -79,14 +79,18 @@ const TagEntityModal = (props: Props) => {
             await revalidateDashboard();
             router.refresh();
           }
-          toast.success("Saved!", {
-            description: `Updated tags: ${tags.join(", ") || "No tags"}`,
-          });
+          toast.success(
+            "title" in props.entity
+              ? `Updated the tags on “${props.entity.title}”.`
+              : "Updated the tags.",
+          );
           setIsLoading(false);
           onOpenChange(false);
         },
         onError: (error) => {
-          toast.error(error.message);
+          toast.error("Couldn’t update the tags. Try again.", {
+            description: error.message,
+          });
           setIsLoading(false);
         },
       },

@@ -52,23 +52,27 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
 
   const saveMutation = api.entities.save.useMutation({
     onSuccess: async () => {
-      toast.success("Saved link");
+      toast.success(`Saved “${entity.title}”.`);
       await utils.entities.load.invalidate({ id: entity.id });
       onOpenChange(false);
     },
     onError(error) {
-      toast.error("Failed to save", { description: error.message });
+      toast.error("Couldn’t save the link. Try again.", {
+        description: error.message,
+      });
     },
   });
 
   const distillMutation = api.entities.distillUrl.useMutation({
     async onSuccess() {
-      toast.success("Article distilled");
+      toast.success("Saved the link and its text.");
       await utils.entities.load.invalidate({ id: entity.id });
       onOpenChange(false);
     },
     onError(error) {
-      toast.error("Failed to distill", { description: error.message });
+      toast.error("Saved the link, but couldn’t read the page.", {
+        description: error.message,
+      });
     },
   });
 
@@ -87,7 +91,7 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
           {/* Title is managed programmatically on distill; hide in this modal */}
 
           <div className="grid gap-2">
-            <Label htmlFor={urlId}>URL</Label>
+            <Label htmlFor={urlId}>Web address</Label>
             <Input
               id={urlId}
               value={url}

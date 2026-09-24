@@ -340,10 +340,10 @@ export function ArticleBlock({
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove Article block?</DialogTitle>
+            <DialogTitle>Remove this link block?</DialogTitle>
             <DialogDescription>
-              This only removes the block from the document. Saved articles are
-              not deleted.
+              This only removes the block from the document. The saved link
+              stays in your files.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

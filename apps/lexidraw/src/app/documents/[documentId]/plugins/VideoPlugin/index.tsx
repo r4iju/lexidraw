@@ -120,10 +120,10 @@ function InsertVideoByUrlDialogBody({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="video-url-input">Video URL</Label>
+        <Label htmlFor="video-url-input">Video link</Label>
         <Input
           id={videoUrlInputId}
-          placeholder="Paste a video URL (YouTube, X, etc)"
+          placeholder="Paste a link to a video (YouTube, X and more)"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           required
@@ -165,7 +165,7 @@ export function InsertVideoDialog({
           Upload
         </TabsTrigger>
         <TabsTrigger className="flex-1" value="url">
-          By URL
+          From a link
         </TabsTrigger>
       </TabsList>
       <TabsContent value="upload" className="min-w-84">

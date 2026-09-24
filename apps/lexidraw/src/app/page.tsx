@@ -47,7 +47,7 @@ export default async function LandingPage() {
                 )}
                 {session?.user && (
                   <Button asChild>
-                    <Link href="/dashboard">My drawings</Link>
+                    <Link href="/dashboard">Open Lexidraw</Link>
                   </Button>
                 )}
               </div>

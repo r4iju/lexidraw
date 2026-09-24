@@ -1,102 +1,91 @@
-import type { ServerRuntime } from "next";
+import type { Metadata } from "next/types";
+import { Contact, LegalPage, Operator } from "~/components/legal-page";
 
-export default function TermsOfService() {
+export const metadata: Metadata = { title: "Lexidraw | Privacy" };
+
+const PROCESSORS = [
+  [
+    "Vercel",
+    "hosts Lexidraw, stores uploaded images and thumbnails, and counts page views",
+  ],
+  ["Turso", "hosts the database with your account, files and settings"],
+  [
+    "OpenAI and Google",
+    "run the AI and read-aloud features, when you use them",
+  ],
+  ["GitHub", "signs you in, if you choose Continue with GitHub"],
+  ["Unsplash", "finds images when you search for one"],
+  ["Bright Data", "fetches the web pages you save as links"],
+  ["Firebase", "connects people editing the same file at once"],
+  ["Cloudflare", "protects the services that turn pages into text and audio"],
+] as const;
+
+export default function PrivacyPolicy() {
   return (
-    <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">
-      <main id="main-content" tabIndex={-1} className="flex-1">
-        {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
-        <section id="privacy-policy" className="w-full pt-12 md:pt-24 lg:pt-32">
-          <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
-            <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
-              <div className="flex flex-col gap-3">
-                <h1 className="lg:leading-tighter text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
-                  Privacy Policy
-                </h1>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Introduction
-                </h2>
-                <p>
-                  Your privacy is important to us. This Privacy Policy explains
-                  how we collect, use, share, and protect information in
-                  relation to our service.
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Information We Collect
-                </h2>
-                <p>We collect the following types of information:</p>
-                <p>
-                  <ul>
-                    <li>
-                      Information you provide us directly: We ask for certain
-                      information such as your username, and email address when
-                      you use our service, if you correspond with us.
-                    </li>
-                    <li>
-                      Analytics information: We use analytics tools to help us
-                      measure traffic and usage trends for the service.
-                    </li>
-                  </ul>
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  How We Use Your Information
-                </h2>
-                <p>
-                  We use the information we collect to operate, maintain, and
-                  provide to you the features and functionality of the service,
-                  such as:
-                </p>
-                <p>
-                  <ul>
-                    <li>
-                      To allow you to create and share drawings and diagrams.
-                    </li>
-                    <li>
-                      To improve and test the effectiveness of the service.
-                    </li>
-                    <li>
-                      To monitor metrics such as total number of visitors,
-                      traffic, and demographic patterns.
-                    </li>
-                  </ul>
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Sharing of Your Information
-                </h2>
-                <p>
-                  We will not rent or sell your information to third parties
-                  outside [Service Name] without your consent, except as noted
-                  in this Policy.
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Your Choices About Your Information
-                </h2>
-                <p>
-                  You may update your account information and preferences at any
-                  time. You may also unsubscribe from email communications from
-                  us.
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  {"Children's Privacy"}
-                </h2>
-                <p>
-                  [Service Name] does not knowingly collect or solicit any
-                  information from anyone under the age of 13 or knowingly allow
-                  such persons to register for the service.
-                </p>
-                <h2 className="lg:leading-tighter text-xl font-bold tracking-tighter sm:text-4xl md:text-2xl ">
-                  Changes to Our Privacy Policy
-                </h2>
-                <p>
-                  We may modify or update this Privacy Policy from time to time,
-                  so please review it periodically. Your continued use of the
-                  service after any modification to this Privacy Policy will
-                  constitute your acceptance of such modification.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
+    <LegalPage
+      title="Privacy"
+      intro={
+        <>
+          This page says what Lexidraw, run by <Operator />, keeps about you and
+          why.
+        </>
+      }
+    >
+      <section>
+        <h2>What we keep</h2>
+        <ul>
+          <li>
+            Your account: your name, your email address, and your password,
+            stored only as a one-way hash. If you sign in with GitHub, we keep
+            the account id GitHub gives us instead of a password.
+          </li>
+          <li>
+            Your files: documents, drawings, folders, saved links, comments and
+            thumbnails, and who you’ve shared each one with.
+          </li>
+          <li>Your settings, and your API tokens, stored only as hashes.</li>
+          <li>
+            Page visits: the page, the page you came from, your browser, your IP
+            address and your approximate location (city, region and country).
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>How we use it</h2>
+        <p>
+          Only to run Lexidraw: to show you your files, to show your name to the
+          people you share with, to keep the service secure, and to see which
+          pages are used. When you use an AI or read-aloud feature, the text it
+          needs is sent to that service. We don’t sell your data or show you
+          ads.
+        </p>
+      </section>
+      <section>
+        <h2>Services that handle your data</h2>
+        <ul>
+          {PROCESSORS.map(([name, purpose]) => (
+            <li key={name}>
+              <strong className="font-medium">{name}</strong> {purpose}.
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section>
+        <h2>Your choices</h2>
+        <p>
+          You can change your name and email in Settings, and delete any file at
+          any time. To delete your account or get a copy of your data,{" "}
+          <Contact />.
+        </p>
+      </section>
+      <section>
+        <h2>Children</h2>
+        <p>Lexidraw isn’t meant for children under 13.</p>
+      </section>
+      <section>
+        <h2>Changes</h2>
+        <p>When this page changes, the date at the top changes with it.</p>
+      </section>
+    </LegalPage>
   );
 }

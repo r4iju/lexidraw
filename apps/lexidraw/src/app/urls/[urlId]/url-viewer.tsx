@@ -50,9 +50,9 @@ export default function UrlViewer({
 
       {!url ? (
         <div className="rounded-md border border-border p-6">
-          <div className="mb-2 text-lg font-medium">No article yet</div>
+          <div className="mb-2 text-lg font-medium">No page saved yet</div>
           <div className="text-muted-foreground mb-4">
-            Add a URL to distill and read it here.
+            Add a web address to save the page’s text and read it here.
           </div>
           <Button onClick={openEdit}>Add article</Button>
         </div>

@@ -57,7 +57,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const handleGenerate = async () => {
     const image = await generateImageData(generateQuery);
     if (!image) {
-      toast.error("Failed to generate image");
+      toast.error("Couldn’t generate an image. Try again.");
       return;
     }
     // create a blob from the image data
@@ -93,13 +93,13 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
 
     const res = await fetch(selectedThumbnail);
     if (!res.ok) {
-      toast.error("Failed to fetch image for upload");
+      toast.error("Couldn’t load that image. Pick another one.");
       return;
     }
     const blob = await res.blob();
 
     if (!allowedTypes.includes(blob.type as AllowedContentType)) {
-      toast.error("Invalid Image Type", {
+      toast.error("That image type isn’t supported", {
         description: `Unsupported type: ${blob.type || "unknown"}`,
       });
       return;
@@ -112,7 +112,9 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
       { entityId: entity.id, contentType: blob.type as AllowedContentType },
       {
         onError: (e) => {
-          toast.error("Unable to prepare upload", { description: e.message });
+          toast.error("Couldn’t upload the thumbnail. Try again.", {
+            description: e.message,
+          });
           setIsUploading(false);
         },
         onSuccess: async (tokens) => {
@@ -148,13 +150,15 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
               );
             });
 
-            toast.success("Thumbnail saved");
+            toast.success(`Changed the thumbnail of “${entity.title}”.`);
             await revalidateDashboard();
             router.refresh();
             onOpenChange(false);
           } catch (e) {
             console.error("Error uploading thumbnail in icon-modal.tsx", e);
-            toast.error("Upload failed", { description: (e as Error).message });
+            toast.error("Couldn’t upload the thumbnail. Try again.", {
+              description: (e as Error).message,
+            });
           } finally {
             setIsUploading(false);
           }

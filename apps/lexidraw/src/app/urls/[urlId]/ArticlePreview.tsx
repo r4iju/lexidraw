@@ -535,7 +535,7 @@ export default function ArticlePreview({
     );
   }, [hasAudio, isGenerating]);
 
-  if (!distilled || !distilled.contentHtml) {
+  if (!distilled?.contentHtml) {
     return null;
   }
 
@@ -763,7 +763,7 @@ export default function ArticlePreview({
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium mb-2">Article</div>
+                    <div className="text-sm font-medium mb-2">Page text</div>
                     <div className="grid grid-cols-2 gap-3">
                       {/* Article language removed; synced from TTS Language on save */}
                       <div>

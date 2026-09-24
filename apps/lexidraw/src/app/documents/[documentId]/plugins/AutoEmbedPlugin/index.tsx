@@ -73,7 +73,7 @@ export const useEmbedConfigs = () => {
   };
 
   const ArticleEmbedConfig: PlaygroundEmbedConfig = {
-    contentName: "Article",
+    contentName: "Saved link",
     exampleUrl: "https://example.com/news/article",
     icon: <FileText className="size-4" />,
     insertNode: async (editor: LexicalEditor, result: EmbedMatchResult) => {
@@ -375,7 +375,7 @@ export function AutoEmbedDialog({
       <div className="flex flex-col h-full min-w-0 max-w-full">
         <DialogHeader className="sticky top-0 z-10">
           <DialogTitle className="text-base md:text-lg">
-            Embed Article
+            Embed a link
           </DialogTitle>
         </DialogHeader>
         <div className="flex gap-2 mt-2 pb-4">
@@ -384,7 +384,7 @@ export function AutoEmbedDialog({
             size="sm"
             onClick={() => setTab("url")}
           >
-            From URL
+            Paste a link
           </Button>
           <Button
             variant={tab === "saved" ? "default" : "outline"}

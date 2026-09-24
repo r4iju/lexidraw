@@ -104,7 +104,7 @@ export default function ArticlePlugin(): React.JSX.Element | null {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Insert Article</DialogTitle>
+          <DialogTitle>Embed a link</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="flex gap-2">
@@ -113,7 +113,7 @@ export default function ArticlePlugin(): React.JSX.Element | null {
               size="sm"
               onClick={() => setTab("url")}
             >
-              From URL
+              Paste a link
             </Button>
             <Button
               variant={tab === "saved" ? "default" : "outline"}

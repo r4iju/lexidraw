@@ -31,12 +31,14 @@ const EntityTitle = ({ className, entity }: Props) => {
         onSuccess: async () => {
           await revalidateDashboard();
           router.refresh();
-          toast.success("Saved!", { description: newTitle });
+          toast.success(`Renamed to “${newTitle}”.`);
           setIsEditing(false);
           setIsLoading(false);
         },
         onError: (error) => {
-          toast.error(error.message);
+          toast.error(`Couldn’t rename “${entity.title}”. Try again.`, {
+            description: error.message,
+          });
           setIsEditing(false);
           setIsLoading(false);
         },

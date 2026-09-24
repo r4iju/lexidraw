@@ -45,7 +45,9 @@ export function EditableTitle({
         onError: (error) => {
           setShown(previous);
           document.title = tabTitle(previous);
-          toast.error("Couldn't rename", { description: error.message });
+          toast.error(`Couldn’t rename “${previous}”. Try again.`, {
+            description: error.message,
+          });
         },
       },
     );
