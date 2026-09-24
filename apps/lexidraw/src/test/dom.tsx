@@ -48,7 +48,9 @@ export function installDom(url = "https://app.test/") {
     element.releasePointerCapture ??= () => {};
     globals.IS_REACT_ACT_ENVIRONMENT = true;
   }
-  afterAll(() => {
+  afterAll(async () => {
+    // Radix hands focus back on a timer after closing; let those run first.
+    await new Promise((resolve) => setTimeout(resolve, 20));
     for (const key of shimmed) delete globals[key];
     for (const [key, value] of saved) globals[key] = value;
     delete globals.ResizeObserver;

@@ -33,7 +33,9 @@ beforeAll(async () => {
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   Modal = (await import("./ImportMarkdownModal")).default;
 });
-afterAll(() => {
+afterAll(async () => {
+  // A closed dialog hands focus back on a timer; let it run in this document.
+  await new Promise((resolve) => setTimeout(resolve, 20));
   for (const key of shimmed) delete globals[key];
   for (const [key, value] of saved) globals[key] = value;
   delete globals.ResizeObserver;
