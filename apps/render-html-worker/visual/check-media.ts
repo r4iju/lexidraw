@@ -197,6 +197,24 @@ export async function checkMedia(
     return paragraph && getComputedStyle(paragraph).breakAfter;
   });
   assert.equal(lead, "avoid", "A lead-in stays with its figure");
+  assert.deepEqual(
+    await page.$eval(".document-viewport", (viewport) => {
+      const tinted: string[] = [];
+      for (let e: Element | null = viewport; e; e = e.parentElement) {
+        const { backgroundColor } = getComputedStyle(e);
+        const canvas = document.createElement("canvas").getContext("2d");
+        if (!canvas) break;
+        canvas.fillStyle = backgroundColor;
+        canvas.fillRect(0, 0, 1, 1);
+        const [r, g, b, a] = canvas.getImageData(0, 0, 1, 1).data;
+        if (a !== 0 && (r !== 255 || g !== 255 || b !== 255))
+          tinted.push(`${e.tagName.toLowerCase()} ${backgroundColor}`);
+      }
+      return tinted;
+    }),
+    [],
+    "The paper is white behind the document",
+  );
   const print = await page.$eval('img[alt="Tall hero · 2000px"]', (e) => ({
     height: e.getBoundingClientRect().height,
     breakInside: getComputedStyle(e.closest(".document-figure") ?? e)

@@ -240,6 +240,13 @@
   --doc-highlight-red: oklch(0.93 0.04 27);
 }
 
+/* Paper is white; the screen's off-white page would print as a grey sheet. */
+@media print {
+  :root {
+    --background: oklch(1 0 0);
+  }
+}
+
 @media screen {
   .dark {
     --code-background: var(--surface-1);
