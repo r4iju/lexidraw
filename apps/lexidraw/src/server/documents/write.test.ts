@@ -110,6 +110,7 @@ describe("appendMarkdownToDocument", () => {
       id: "doc_1",
       updatedAt: SECOND,
       appendedBlocks: 2,
+      notes: [],
     });
     const children = storedState(db.stored()?.elements ?? "").root.children;
     expect(children.map((child) => child.type)).toEqual([
@@ -248,6 +249,7 @@ describe("insertMarkdownIntoDocument", () => {
       updatedAt: SECOND,
       insertedBlocks: 1,
       blockIndex: 3,
+      notes: [],
     });
     const children = storedState(db.stored()?.elements ?? "").root.children;
     expect(children.map((child) => child.type)).toEqual([
@@ -393,6 +395,7 @@ describe("replaceMarkdownInDocument", () => {
       blocks: 2,
       restoredPlaceholders: 1,
       removedPlaceholders: 0,
+      notes: [],
     });
     const children = storedState(db.stored()?.elements ?? "").root.children;
     expect(children.map((child) => child.type)).toEqual(["heading", "video"]);
@@ -491,5 +494,36 @@ describe("replaceMarkdownInDocument", () => {
         FIRST.toISOString(),
       ),
     ).rejects.toThrow(DocumentGoneError);
+  });
+});
+
+describe("interpretation notes", () => {
+  const WIDE = `| ${"abcdefg".split("").join(" | ")} |\n|${" --- |".repeat(7)}\n| ${"1234567".split("").join(" | ")} |`;
+
+  test("every write answers with how its markdown was read", async () => {
+    const appended = await appendMarkdownToDocument(
+      fakeStore(revision()).store,
+      revision(),
+      WIDE,
+    );
+    expect(appended.notes).toEqual([expect.stringContaining("7 columns")]);
+
+    const inserted = await insertMarkdownIntoDocument(
+      fakeStore(revision()).store,
+      revision(),
+      "> [!danger]\n> Hot.",
+      { kind: "atBlockIndex", index: 0 },
+    );
+    expect(inserted.notes).toEqual([
+      expect.stringContaining("[!danger] became a caution callout"),
+    ]);
+
+    const replaced = await replaceMarkdownInDocument(
+      fakeStore(filmed()).store,
+      filmed(),
+      `${WIDE}\n\n${KEEP_VIDEO}`,
+      FIRST.toISOString(),
+    );
+    expect(replaced.notes).toEqual([expect.stringContaining("7 columns")]);
   });
 });

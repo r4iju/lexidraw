@@ -37,12 +37,13 @@ import {
 } from "lexical";
 import { DECORATOR_TRANSFORMERS } from "./decorator-transformers.js";
 import emojiList from "./emoji-list.js";
-import { CollapsibleContainerNode } from "./nodes/CollapsibleContainerNode.js";
-import { CollapsibleContentNode } from "./nodes/CollapsibleContentNode.js";
-import { CollapsibleTitleNode } from "./nodes/CollapsibleTitleNode.js";
-
-/** Resolves the complete transformer list a nested conversion should use. */
-type TransformerSource = () => Transformer[];
+import {
+  createAdmonitionTransformer,
+  createCalloutTransformer,
+  createColumnsTransformer,
+  createDetailsTransformer,
+  type TransformerSource,
+} from "./block-transformers.js";
 
 export const HR: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
@@ -81,48 +82,6 @@ export const EMOJI: TextMatchTransformer = {
   trigger: ":",
   type: "text-match",
 };
-
-// Passthrough transformers for collapsible nodes so children serialize normally
-export function createCollapsibleTransformers(
-  transformers: TransformerSource,
-): [ElementTransformer, ElementTransformer, ElementTransformer] {
-  const title: ElementTransformer = {
-    dependencies: [CollapsibleTitleNode],
-    // The title holds inline children directly, which the block-level
-    // exporter skips, so its text is emitted as a bold line.
-    export: (node) => {
-      if (!CollapsibleTitleNode.$isCollapsibleTitleNode(node)) return null;
-      const text = node.getTextContent().trim();
-      return text ? `**${text}**` : "";
-    },
-    regExp: /^<collapsible-title>$/,
-    replace: () => {},
-    type: "element",
-  };
-  const content: ElementTransformer = {
-    dependencies: [CollapsibleContentNode],
-    export: (node) => {
-      return CollapsibleContentNode.$isCollapsibleContentNode(node)
-        ? $convertToMarkdownString(transformers(), node)
-        : null;
-    },
-    regExp: /^<collapsible-content>$/,
-    replace: () => {},
-    type: "element",
-  };
-  const container: ElementTransformer = {
-    dependencies: [CollapsibleContainerNode],
-    export: (node) => {
-      return CollapsibleContainerNode.$isCollapsibleContainerNode(node)
-        ? $convertToMarkdownString(transformers(), node)
-        : null;
-    },
-    regExp: /^<collapsible-container>$/,
-    replace: () => {},
-    type: "element",
-  };
-  return [title, content, container];
-}
 
 const TABLE_ROW_REG_EXP = /^(?:\|)(.+)(?:\|)\s?$/;
 const TABLE_ROW_DIVIDER_REG_EXP = /^(\|\s*:?-{3,}:?\s*)+\|\s*$/;
@@ -344,14 +303,18 @@ const DOCUMENT_CODE: MultilineElementTransformer = {
 
 /**
  * The full transformer list for an editor. `extra` holds transformers for
- * nodes this package does not know; nested conversions inside tables and
- * collapsibles see the complete list.
+ * nodes this package does not know; nested conversions inside tables,
+ * callouts, collapsibles and columns see the complete list.
  */
 export function createTransformers(extra: Transformer[] = []): Transformer[] {
   const all: Transformer[] = [];
   const source: TransformerSource = () => all;
   all.push(
-    ...createCollapsibleTransformers(source),
+    createCalloutTransformer(source),
+    createAdmonitionTransformer(source),
+    createDetailsTransformer(source),
+    createColumnsTransformer(source),
+    ...DECORATOR_TRANSFORMERS.multiline,
     ...DECORATOR_TRANSFORMERS.element,
     ...DECORATOR_TRANSFORMERS.textMatch,
     ...extra,

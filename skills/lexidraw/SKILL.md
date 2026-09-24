@@ -176,6 +176,99 @@ Placeholders matter on `doc put --replace`, which rebuilds the document from
 the markdown given. The response reports `blocks`, `restoredPlaceholders`, and
 `removedPlaceholders`.
 
+## Writing markdown
+
+What each construct becomes. A read writes the same form back, so a document
+read, edited and replaced keeps its structure.
+
+| markdown | becomes |
+| --- | --- |
+| `#` to `######` | headings; one `#` title, `##` sections |
+| `**bold**`, `*italic*`, `~~strike~~`, `==highlight==`, `` `code` `` | inline formatting |
+| `-`, `1.`, `- [ ]` / `- [x]` | bulleted, numbered and check lists; indent to nest |
+| `> text` | a quote |
+| `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | a callout of that kind, tinted in its colour; any text after the marker is its title, and every following `>` line is its body, which can hold any blocks |
+| `<details>` + `<summary>Title</summary>` … `</details>` | a collapsible section; `<details open>` starts open |
+| `<columns>` + one `<column>` … `</column>` each … `</columns>` | side-by-side columns of equal width, stacked on phones |
+| a GFM table (`\| a \| b \|` + `\| --- \| ---: \|`) | a table; alignment colons are kept |
+| ```` ```lang ```` fence | a code block with syntax highlighting |
+| `$x^2$` | inline math: the `$` hug the formula, no space inside and no digit after |
+| `$$x^2$$` on its own line, or `$$` lines around it | a block equation |
+| `![alt](src)` | an image; a `"title"` after the src is dropped, so write captions as text |
+| `---` | a horizontal rule |
+| `<tweet id="…" />` on its own line | an embedded post |
+
+- Leave a blank line between blocks, and inside `<details>` and `<column>`
+  around their content.
+- `$5 and $10` stays prose. Write `\$` only when a `$` would otherwise hug
+  text, as in `\$x$`.
+- Tables of four or more columns scroll sideways on phones; prefer fewer
+  columns, or a list.
+- Obsidian (`> [!info]`, `> [!danger]` …) and Docusaurus (`:::tip[Title]` …
+  `:::`) callouts import as the nearest of the five kinds, keeping the word as
+  the title. A read always writes the GitHub form.
+
+Every write answers with `notes`: the places it read the markdown one way when
+another was possible (an alias that became a callout, an image title that was
+dropped, a wide table). Read them, and change the next write if the
+interpretation was not what you meant. A markdown read reports `losses` (the
+CLI prints them to stderr as `note:` lines): what the document holds that
+markdown cannot say, such as uneven column widths, hand-set table widths,
+image sizes and text colours. A replace keeps column and table widths while
+the block keeps its position and column count, and drops the rest.
+
+A sample document that uses the common constructs:
+
+````markdown
+# Trip plan: Kyoto in autumn
+
+Three days, one base, no car. Costs are in yen; $5 and $10 stay prose.
+
+> [!TIP] Book early
+> Hotels near Kyoto Station fill up by **late September**.
+
+## Day by day
+
+<columns>
+<column>
+
+### Day 1
+
+- Fushimi Inari at dawn
+- Tofuku-ji for the maples
+
+</column>
+<column>
+
+### Day 2
+
+1. Arashiyama bamboo grove
+2. Tenryu-ji garden
+
+</column>
+</columns>
+
+| Item | Cost (¥) |
+| --- | ---: |
+| Rail pass | 29,650 |
+| Hotel, 3 nights | 45,000 |
+
+> [!WARNING]
+> Temples close at 16:30 in November.
+
+<details>
+<summary>Packing list</summary>
+
+- [ ] Walking shoes
+- [x] Rain jacket
+
+</details>
+
+The walking budget is $d = v \cdot t$ for each day:
+
+$$d = 4\,\text{km/h} \times 6\,\text{h}$$
+````
+
 ## Output and escape hatches
 
 Output is JSON on stdout unless a format says otherwise. `doc get` takes

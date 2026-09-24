@@ -143,11 +143,16 @@ async function get(context: Context, args: ParsedArgs): Promise<void> {
   });
   if (format === "json") return context.io.stdout(json(body));
 
-  const content = (body as { content?: unknown }).content;
+  const { content, losses } = body as { content?: unknown; losses?: unknown };
   if (typeof content !== "string") {
     throw new CliError("BAD_RESPONSE", "the document came back without text");
   }
   context.io.stdout(content.endsWith("\n") ? content : `${content}\n`);
+  // Beside the markdown rather than in it, so the output still writes back
+  // as it is.
+  if (Array.isArray(losses)) {
+    for (const loss of losses) context.io.stderr(`note: ${loss}\n`);
+  }
 }
 
 async function create(context: Context, args: ParsedArgs): Promise<void> {
@@ -182,12 +187,11 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
       body: { markdown, ifUnmodifiedSince: revisionOf(created) },
     }),
   );
-  context.io.stdout(
-    json({
-      ...created,
-      updatedAt: (written as { updatedAt?: unknown }).updatedAt,
-    }),
-  );
+  const { updatedAt, notes } = written as {
+    updatedAt?: unknown;
+    notes?: unknown;
+  };
+  context.io.stdout(json({ ...created, updatedAt, notes }));
 }
 
 async function append(context: Context, args: ParsedArgs): Promise<void> {

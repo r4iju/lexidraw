@@ -27,6 +27,8 @@ export type Row = {
   blocks: string[];
   /** Shared with the caller rather than theirs: readable, not deletable. */
   shared?: boolean;
+  /** What a markdown read says it left out. */
+  losses?: string[];
 };
 
 export type Seed = Partial<Row> & Pick<Row, "id" | "title" | "entityType">;
@@ -275,6 +277,7 @@ function read(row: Row, url: URL): Response {
       format === "raw"
         ? text
         : `---\nid: ${row.id}\ntitle: ${row.title}\n---\n\n${text}`,
+    losses: row.losses ?? [],
   });
 }
 
@@ -317,7 +320,16 @@ function write(
       : verb === "/insert"
         ? { insertedBlocks: added.length }
         : { blocks: added.length };
-  return Response.json({ id: row.id, updatedAt: row.updatedAt, ...counted });
+  // Enough of the server's interpretation notes to see them passed through.
+  const notes = added
+    .filter((block) => block.startsWith(":::"))
+    .map((block) => `${block.split("\n")[0]} became a callout`);
+  return Response.json({
+    id: row.id,
+    updatedAt: row.updatedAt,
+    ...counted,
+    notes,
+  });
 }
 
 function placement(row: Row, body: Record<string, unknown>): number | Response {

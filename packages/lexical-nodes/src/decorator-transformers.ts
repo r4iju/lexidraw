@@ -1,10 +1,12 @@
 import type {
   ElementTransformer,
+  MultilineElementTransformer,
   TextMatchTransformer,
 } from "@lexical/markdown";
 import { $dfs } from "@lexical/utils";
-import { $createTextNode, $isTextNode, type LexicalNode } from "lexical";
+import { $createParagraphNode, $isTextNode, type LexicalNode } from "lexical";
 import { htmlToPlainText } from "./html-to-text.js";
+import { reportMarkdownNote } from "./markdown-notes.js";
 import { ArticleNode } from "./nodes/ArticleNode.js";
 import { ChartNode } from "./nodes/ChartNode.js";
 import { CommentNode } from "./nodes/CommentNode.js";
@@ -23,6 +25,14 @@ import { TweetNode } from "./nodes/TweetNode.js";
 import { VideoNode } from "./nodes/VideoNode.js";
 import { YouTubeNode } from "./nodes/YouTubeNode.js";
 
+/**
+ * `![alt](src)`, with an optional `"title"` after the source. The title has
+ * nowhere to go yet, so it is reported rather than kept, and never read as
+ * part of the source.
+ */
+const IMAGE_PATTERN =
+  /!\[([^[\]]*)\]\(\s*(<[^>]*>|[^\s()]+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\s*\)/;
+
 export const IMAGE: TextMatchTransformer = {
   dependencies: [ImageNode],
   export: (node) => {
@@ -32,14 +42,21 @@ export const IMAGE: TextMatchTransformer = {
 
     return `![${node.getAltText()}](${node.getSrc()})`;
   },
-  importRegExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))/,
-  regExp: /!(?:\[([^[]*)\])(?:\(([^(]+)\))$/,
+  importRegExp: IMAGE_PATTERN,
+  regExp: new RegExp(`${IMAGE_PATTERN.source}$`),
   replace: (textNode, match) => {
-    const [, altText, src] = match;
+    const [, altText = "", rawSrc = "", doubleQuoted, singleQuoted] = match;
+    const src = rawSrc.replace(/^<(.*)>$/, "$1");
+    const title = doubleQuoted ?? singleQuoted;
+    if (title) {
+      reportMarkdownNote(
+        `The title "${title}" of image ${src} is not kept; put a caption in the text next to it`,
+      );
+    }
     const imageNode = ImageNode.$createImageNode({
-      altText: altText as string,
+      altText,
       maxWidth: 800,
-      src: src as string,
+      src,
     });
     textNode.replace(imageNode);
   },
@@ -47,17 +64,26 @@ export const IMAGE: TextMatchTransformer = {
   type: "text-match",
 };
 
+/**
+ * `$x$` is inline math only when the delimiters hug the formula: no space
+ * inside either edge, and no digit right after the closing one. That is the
+ * Pandoc rule, and it is what keeps "$5 and $10" prose. `$$` is never an
+ * inline delimiter; it marks a block equation.
+ */
+const INLINE_EQUATION = /(?<![\\$])\$(?![\s$])([^$\n]*?[^\s\\$])\$(?![\d$])/;
+
 export const EQUATION: TextMatchTransformer = {
   dependencies: [EquationNode],
   export: (node) => {
     if (!EquationNode.$isEquationNode(node)) {
       return null;
     }
-
-    return `$${node.getEquation()}$`;
+    const equation = node.getEquation();
+    if (node.__inline) return `$${equation}$`;
+    return equation.includes("\n") ? `$$\n${equation}\n$$` : `$$${equation}$$`;
   },
-  importRegExp: /\$([^$]+?)\$/,
-  regExp: /\$([^$]+?)\$$/,
+  importRegExp: INLINE_EQUATION,
+  regExp: new RegExp(`${INLINE_EQUATION.source}$`),
   replace: (textNode, match) => {
     const [, equation] = match;
     const equationNode = EquationNode.$createEquationNode(equation, true);
@@ -65,6 +91,57 @@ export const EQUATION: TextMatchTransformer = {
   },
   trigger: "$",
   type: "text-match",
+};
+
+/**
+ * Plain text that would read as inline math, such as an escaped `\$x$` or
+ * a `$` typed in the editor, is written with its `$` escaped, so the next
+ * import keeps it text. It has no markdown of its own to import.
+ */
+export const LITERAL_DOLLAR: TextMatchTransformer = {
+  dependencies: [],
+  export: (node, _exportChildren, exportFormat) => {
+    if (!$isTextNode(node) || node.hasFormat("code")) return null;
+    const text = node.getTextContent();
+    const math = new RegExp(INLINE_EQUATION.source, "g");
+    if (!math.test(text)) return null;
+    return exportFormat(node, text).replace(math, (found) => `\\${found}`);
+  },
+  regExp: /(?!)/,
+  type: "text-match",
+};
+
+/** `$$x$$` alone on its line: a block equation, in a paragraph of its own. */
+export const BLOCK_EQUATION: ElementTransformer = {
+  dependencies: [EquationNode],
+  export: () => null,
+  regExp: /^\$\$(?!\$)(.*?[^$])\$\$\s*$/,
+  replace: (parentNode, children, match, isImport) => {
+    if (!isImport) return false;
+    const [, equation = ""] = match;
+    const node = EquationNode.$createEquationNode(equation.trim(), false);
+    const [textNode] = children;
+    if (textNode) textNode.replace(node);
+    else parentNode.append(node);
+  },
+  type: "element",
+};
+
+/** `$$` on a line of its own opens a block equation that runs to the next. */
+export const BLOCK_EQUATION_FENCE: MultilineElementTransformer = {
+  dependencies: [EquationNode],
+  regExpEnd: /^\s*\$\$\s*$/,
+  regExpStart: /^\s*\$\$\s*$/,
+  replace: (rootNode, _children, _start, end, linesInBetween, isImport) => {
+    if (!isImport || !end || !linesInBetween) return false;
+    const equation = linesInBetween.join("\n").replace(/^\n+|\n+$/g, "");
+    rootNode.append(
+      $createParagraphNode().append(
+        EquationNode.$createEquationNode(equation, false),
+      ),
+    );
+  },
+  type: "multiline-element",
 };
 
 export const TWEET: ElementTransformer = {
@@ -77,11 +154,21 @@ export const TWEET: ElementTransformer = {
     return `<tweet id="${node.getId()}" />`;
   },
   regExp: /<tweet id="([^"]+?)"\s?\/>\s?$/,
-  replace: (textNode, _1, match) => {
+  replace: (parentNode, children, match) => {
     const [, id] = match;
-    if (!id) return;
+    if (!id) return false;
     const tweetNode = TweetNode.$createTweetNode(id);
-    textNode.replace(tweetNode);
+    // The importer cut the line as if the tag opened it; what came before
+    // the tag is prose, and stays a paragraph above the tweet.
+    const { input = "", index = 0 } = match as RegExpMatchArray;
+    const before = input.slice(0, index).trimEnd();
+    const [textNode] = children;
+    if (before && $isTextNode(textNode)) {
+      textNode.setTextContent(before);
+      parentNode.insertAfter(tweetNode);
+      return;
+    }
+    parentNode.replace(tweetNode);
   },
   type: "element",
 };
@@ -114,10 +201,14 @@ export const ARTICLE: ElementTransformer = {
     }
     return `${$placeholderLine(node, data.entityId ?? "")}\n\nArticle: ${data.entityId}`;
   },
-  // Minimal, no-op import behavior (we don't import articles from markdown)
+  // An article's placeholder is what brings it back; a bare tag is prose.
   regExp: /^<article\s+.*?>$/,
-  replace: (textNode) => {
-    textNode.replace($createTextNode("Article"));
+  replace: (_parent, children, match, isImport) => {
+    const [textNode] = children;
+    if (isImport && $isTextNode(textNode)) {
+      textNode.setTextContent(match[0] ?? "");
+    }
+    return false;
   },
   type: "element",
 };
@@ -310,6 +401,7 @@ export const PLACEHOLDER_INLINE: TextMatchTransformer = {
 };
 
 export const DECORATOR_TRANSFORMERS = {
-  element: [TWEET, ARTICLE, PLACEHOLDER_BLOCK],
-  textMatch: [IMAGE, EQUATION, PLACEHOLDER_INLINE],
+  multiline: [BLOCK_EQUATION_FENCE],
+  element: [TWEET, ARTICLE, PLACEHOLDER_BLOCK, BLOCK_EQUATION],
+  textMatch: [IMAGE, EQUATION, LITERAL_DOLLAR, PLACEHOLDER_INLINE],
 };

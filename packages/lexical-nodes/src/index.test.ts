@@ -8,6 +8,7 @@ import {
 } from "@lexical/markdown";
 import { $createParagraphNode, $createTextNode, $getRoot } from "lexical";
 import {
+  CalloutNode,
   CollapsibleContainerNode,
   CollapsibleContentNode,
   CollapsibleTitleNode,
@@ -15,6 +16,7 @@ import {
   CORE_TRANSFORMERS,
   createTransformers,
   HR,
+  LayoutContainerNode,
 } from "./index.js";
 
 describe("@packages/lexical-nodes", () => {
@@ -36,15 +38,17 @@ describe("@packages/lexical-nodes", () => {
     );
     expect(extraIndex).toBeGreaterThan(-1);
     expect(extraIndex).toBeLessThan(tableIndex);
-    // The default list has no extras, so the collapsible passthroughs come first.
+    // The block containers come first, so a line opening one is never read
+    // as the paragraph, quote or table it would otherwise start.
     expect(
-      CORE_TRANSFORMERS.slice(0, 3).map((t) =>
-        "dependencies" in t ? t.dependencies : [],
+      CORE_TRANSFORMERS.slice(0, 4).map((t) =>
+        "dependencies" in t ? t.dependencies[0] : undefined,
       ),
     ).toEqual([
-      [CollapsibleTitleNode],
-      [CollapsibleContentNode],
-      [CollapsibleContainerNode],
+      CalloutNode,
+      CalloutNode,
+      CollapsibleContainerNode,
+      LayoutContainerNode,
     ]);
   });
 
@@ -81,7 +85,7 @@ describe("@packages/lexical-nodes", () => {
     expect(rows(output)).toEqual(rows(input));
   });
 
-  test("exports a collapsible as its title line and body", () => {
+  test("exports a collapsible as details and summary", () => {
     const editor = createHeadlessEditor({
       nodes: CORE_NODES,
       onError: (error) => {
@@ -105,6 +109,8 @@ describe("@packages/lexical-nodes", () => {
       },
       { discrete: true },
     );
-    expect(markdown).toBe("**Details**\n\nHidden body");
+    expect(markdown).toBe(
+      "<details open>\n<summary>Details</summary>\n\nHidden body\n\n</details>",
+    );
   });
 });

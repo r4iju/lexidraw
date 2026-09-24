@@ -29,6 +29,7 @@ import {
   AmbiguousHeadingError,
   BlockIndexOutOfRangeError,
   editorStateToMarkdown,
+  markdownLosses,
   HeadingNotFoundError,
   InvalidDocumentContentError,
   parseEditorState,
@@ -109,7 +110,15 @@ const ONE_PLACEMENT = "pass exactly one of afterHeading or atBlockIndex";
  * What every markdown write answers with, beyond what it changed. `updatedAt`
  * is the revision the write produced, so it is the precondition for the next.
  */
-const writtenRevision = { id: z.string(), updatedAt: isoDate };
+const writtenRevision = {
+  id: z.string(),
+  updatedAt: isoDate,
+  notes: z
+    .array(z.string())
+    .describe(
+      "How the markdown was read, where the writer may have meant something else: callout aliases rewritten, dropped image titles, tables that will scroll on phones. Empty when nothing needs saying.",
+    ),
+};
 
 /**
  * The stored Lexical state, passed through as it is: `parseEditorState`
@@ -129,6 +138,13 @@ const markdownMeta = {
   tags: z.array(z.string()),
 };
 
+/** What a markdown read leaves out of the document it describes. */
+const losses = z
+  .array(z.string())
+  .describe(
+    "What this markdown leaves out of the stored document, and what a replace from it keeps or drops. Empty when the markdown carries everything.",
+  );
+
 /**
  * `format` decides what `content` is, so the two travel as one union rather
  * than as an object whose `content` is a string or an object either way.
@@ -138,11 +154,13 @@ const markdownRead = z.discriminatedUnion("format", [
     ...markdownMeta,
     format: z.literal("markdown"),
     content: z.string(),
+    losses,
   }),
   z.object({
     ...markdownMeta,
     format: z.literal("raw"),
     content: z.string(),
+    losses,
   }),
   z.object({
     ...markdownMeta,
@@ -241,6 +259,7 @@ export const documentRouter = createTRPCRouter({
           format: input.format,
           content:
             input.format === "raw" ? markdown : withFrontmatter(meta, markdown),
+          losses: markdownLosses(state),
         };
       } catch (error) {
         if (

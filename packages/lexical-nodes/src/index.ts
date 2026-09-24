@@ -1,6 +1,7 @@
 export * from "./nodes/DocumentCodeNode.js";
 export * from "./nodes/ArticleNode.js";
 export * from "./nodes/AutocompleteNode.js";
+export * from "./nodes/CalloutNode.js";
 export * from "./nodes/ChartNode.js";
 export * from "./nodes/CollapsibleContainerNode.js";
 export * from "./nodes/CollapsibleContentNode.js";
@@ -28,6 +29,7 @@ export * from "./nodes/YouTubeNode.js";
 export * from "./nodes.js";
 export * from "./transformers.js";
 export * from "./decorator-transformers.js";
+export * from "./markdown-notes.js";
 export * from "./html-to-text.js";
 export * from "./keyed-editor-state.js";
 export { default as emojiList } from "./emoji-list.js";

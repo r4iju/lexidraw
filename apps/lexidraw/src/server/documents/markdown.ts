@@ -3,7 +3,11 @@ import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
 } from "@lexical/markdown";
-import { CORE_NODES, CORE_TRANSFORMERS } from "@packages/lexical-nodes";
+import {
+  collectMarkdownNotes,
+  CORE_NODES,
+  CORE_TRANSFORMERS,
+} from "@packages/lexical-nodes";
 import {
   $getRoot,
   type SerializedEditorState,
@@ -109,19 +113,144 @@ export function editorStateToMarkdown(state: SerializedEditorState): string {
 
 /** The blocks markdown parses to, as a state whose root holds only them. */
 export function markdownToEditorState(markdown: string): SerializedEditorState {
+  return interpretMarkdown(markdown).state;
+}
+
+/**
+ * {@link markdownToEditorState}, with notes on how the markdown was read
+ * wherever the writer could have meant something else or will see something
+ * it may not expect.
+ */
+export function interpretMarkdown(markdown: string): {
+  state: SerializedEditorState;
+  notes: string[];
+} {
   const editor = createHeadlessEditor({
     nodes: CORE_NODES,
     onError: (error) => {
       throw error;
     },
   });
-  editor.update(
-    () => {
-      $convertFromMarkdownString(markdown, CORE_TRANSFORMERS);
-    },
-    { discrete: true },
+  const { notes } = collectMarkdownNotes(() =>
+    editor.update(
+      () => {
+        $convertFromMarkdownString(markdown, CORE_TRANSFORMERS);
+      },
+      { discrete: true },
+    ),
   );
-  return editor.getEditorState().toJSON();
+  const state = editor.getEditorState().toJSON();
+  return { state, notes: [...notes, ...layoutNotes(state)] };
+}
+
+type Walked = SerializedLexicalNode & { children?: Walked[] };
+
+function* walk(node: Walked): Generator<Walked> {
+  yield node;
+  for (const child of node.children ?? []) yield* walk(child);
+}
+
+/**
+ * A table this many columns wide or wider scrolls sideways on a 375px phone,
+ * where the column is 343px and each table column at least 30vw.
+ */
+const PHONE_TABLE_COLUMNS = 4;
+
+const columnCount = (table: Walked) =>
+  (table.children?.[0]?.children ?? []).reduce(
+    (count, cell) =>
+      count +
+      ("colSpan" in cell && typeof cell.colSpan === "number"
+        ? cell.colSpan
+        : 1),
+    0,
+  );
+
+function layoutNotes(state: SerializedEditorState): string[] {
+  const wide = [...walk(state.root as Walked)]
+    .filter((node) => node.type === "table")
+    .map(columnCount)
+    .filter((columns) => columns >= PHONE_TABLE_COLUMNS);
+  if (wide.length === 0) return [];
+  const fewest = Math.min(...wide);
+  const most = Math.max(...wide);
+  const span = fewest === most ? `${most}` : `${fewest} to ${most}`;
+  const tables =
+    wide.length === 1
+      ? `A table of ${span} columns scrolls`
+      : `${wide.length} tables of ${span} columns scroll`;
+  return [
+    `${tables} sideways on phones; fewer columns, or a list, read better there`,
+  ];
+}
+
+const plural = (count: number, one: string, many = `${one}s`) =>
+  `${count} ${count === 1 ? one : many}`;
+
+/**
+ * What the markdown form of `state` leaves out, so a reader knows what a
+ * replace from that markdown keeps, and what it drops.
+ */
+export function markdownLosses(state: SerializedEditorState): string[] {
+  let layouts = 0;
+  let tables = 0;
+  let images = 0;
+  let styledText = 0;
+  let marks = 0;
+  for (const node of walk(state.root as Walked)) {
+    const fields = node as Walked & Record<string, unknown>;
+    if (
+      node.type === "layout-container" &&
+      typeof fields.templateColumns === "string" &&
+      new Set(fields.templateColumns.trim().split(/\s+/)).size > 1
+    ) {
+      layouts++;
+    }
+    if (node.type === "table" && Array.isArray(fields.colWidths)) tables++;
+    if (
+      node.type === "image" &&
+      [fields.width, fields.height].some(
+        (size) => typeof size === "number" && size > 0,
+      )
+    ) {
+      images++;
+    }
+    if (
+      node.type === "text" &&
+      typeof fields.style === "string" &&
+      fields.style.trim() !== ""
+    ) {
+      styledText++;
+    }
+    if (node.type === "mark") marks++;
+  }
+  const losses: string[] = [];
+  if (layouts > 0) {
+    losses.push(
+      `${plural(layouts, "column layout")} ${layouts === 1 ? "has" : "have"} uneven widths, which <columns> does not carry; a replace keeps them while each layout keeps its position and column count`,
+    );
+  }
+  if (tables > 0) {
+    losses.push(
+      `${plural(tables, "table")} ${tables === 1 ? "has" : "have"} column widths set by hand, which markdown does not carry; a replace keeps them while each table keeps its position and column count`,
+    );
+  }
+  if (images > 0) {
+    losses.push(
+      `${plural(images, "image")} ${images === 1 ? "has a size" : "have sizes"} set by hand, which markdown does not carry; a replace resets ${images === 1 ? "it" : "them"} to fit the column`,
+    );
+  }
+  if (styledText > 0) {
+    losses.push(
+      `${plural(styledText, "run")} of text ${styledText === 1 ? "has" : "have"} a colour, font or size, which markdown does not carry; a replace drops it`,
+    );
+  }
+  if (marks > 0) {
+    losses.push(
+      `${plural(marks, "comment highlight")} ${marks === 1 ? "is" : "are"} not in markdown; a replace removes the highlight, not the comment`,
+    );
+  }
+  return losses;
 }
 
 /**

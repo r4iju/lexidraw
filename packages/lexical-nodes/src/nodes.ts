@@ -9,6 +9,7 @@ import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import type { Klass, LexicalNode } from "lexical";
 import { ArticleNode } from "./nodes/ArticleNode.js";
 import { AutocompleteNode } from "./nodes/AutocompleteNode.js";
+import { CalloutNode } from "./nodes/CalloutNode.js";
 import { ChartNode } from "./nodes/ChartNode.js";
 import { CollapsibleContainerNode } from "./nodes/CollapsibleContainerNode.js";
 import { CollapsibleContentNode } from "./nodes/CollapsibleContentNode.js";
@@ -55,6 +56,7 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   AutocompleteNode,
   LinkNode,
   AutoLinkNode,
+  CalloutNode,
   CollapsibleContainerNode,
   CollapsibleContentNode,
   CollapsibleTitleNode,

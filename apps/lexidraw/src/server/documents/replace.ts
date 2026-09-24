@@ -10,7 +10,7 @@ import {
 } from "lexical";
 import {
   editorStateToMarkdown,
-  markdownToEditorState,
+  interpretMarkdown,
   unsupportedNodeTypes,
   UnsupportedNodeTypesError,
 } from "./markdown";
@@ -71,9 +71,22 @@ export class PlaceholderPlacementError extends Error {
 
 type StoredPlaceholder = {
   node: SerializedLexicalNode;
-  /** Whether the node was a direct child of the root. */
+  /** Whether the node was a block of its own, a child of a block container. */
   blockLevel: boolean;
 };
+
+/**
+ * Nodes whose children are blocks, each exported on lines of its own, so a
+ * placeholder line inside one stands for a block just as it does at the top.
+ * Table cells and list items are left out: markdown has no way to put a
+ * block of its own in either.
+ */
+const BLOCK_CONTAINERS = new Set([
+  "root",
+  "layout-item",
+  "collapsible-content",
+  "callout",
+]);
 
 type SerializedTextNode = SerializedLexicalNode & {
   text: string;
@@ -119,7 +132,7 @@ function indexPlaceholders(
       index.set(`${node.type}#${ordinal}`, { node, blockLevel });
     }
     for (const child of childrenOf(node) ?? []) {
-      visit(child, false);
+      visit(child, BLOCK_CONTAINERS.has(node.type));
     }
   };
   for (const child of state.root.children) {
@@ -290,7 +303,7 @@ const withChildren = (
 function transformChildren(
   children: SerializedLexicalNode[],
   placeholders: StoredPlaceholders,
-  topLevel: boolean,
+  blockLevel: boolean,
 ): SerializedLexicalNode[] {
   const result: SerializedLexicalNode[] = [];
   for (const child of children) {
@@ -299,9 +312,10 @@ function transformChildren(
       result.push(child);
       continue;
     }
-    // Only a top-level line can stand in for a block. Deeper down, a lone
-    // placeholder goes through the inline path, which rejects a block one.
-    const ref = topLevel ? blockPlaceholderRef(child) : null;
+    // Only a line among blocks can stand in for a block. Anywhere else, a
+    // lone placeholder goes through the inline path, which rejects a block
+    // one.
+    const ref = blockLevel ? blockPlaceholderRef(child) : null;
     if (ref) {
       const { node, blockLevel } = placeholders.take(ref);
       // An inline node cannot be a block, so it goes back inside the
@@ -317,11 +331,62 @@ function transformChildren(
     const nested = childrenOf(child);
     result.push(
       nested
-        ? withChildren(child, transformChildren(nested, placeholders, false))
+        ? withChildren(
+            child,
+            transformChildren(
+              nested,
+              placeholders,
+              BLOCK_CONTAINERS.has(child.type),
+            ),
+          )
         : child,
     );
   }
   return result;
+}
+
+/** How many columns a table or column layout has. */
+function columnCount(node: SerializedLexicalNode): number | undefined {
+  if (node.type === "layout-container") return childrenOf(node)?.length;
+  return childrenOf(childrenOf(node)?.[0] ?? node)?.reduce(
+    (count, cell) =>
+      count +
+      ("colSpan" in cell && typeof cell.colSpan === "number"
+        ? cell.colSpan
+        : 1),
+    0,
+  );
+}
+
+/**
+ * Widths are set by a person dragging, and markdown has no way to carry them,
+ * so a table or column layout that keeps its place and its column count
+ * keeps the widths it had.
+ */
+function keepHandSetWidths(
+  child: SerializedLexicalNode,
+  previous: SerializedLexicalNode,
+): void {
+  if (
+    child.type !== previous.type ||
+    columnCount(child) !== columnCount(previous)
+  ) {
+    return;
+  }
+  if (
+    child.type === "table" &&
+    "colWidths" in previous &&
+    Array.isArray(previous.colWidths)
+  ) {
+    Object.assign(child, { colWidths: [...previous.colWidths] });
+  }
+  if (
+    child.type === "layout-container" &&
+    "templateColumns" in previous &&
+    typeof previous.templateColumns === "string"
+  ) {
+    Object.assign(child, { templateColumns: previous.templateColumns });
+  }
 }
 
 export type ReplacedState = {
@@ -330,6 +395,8 @@ export type ReplacedState = {
   restoredPlaceholders: number;
   /** Placeholders the markdown dropped, so nodes the replace deletes. */
   removedPlaceholders: number;
+  /** How the markdown was read; see {@link interpretMarkdown}. */
+  notes: string[];
 };
 
 /**
@@ -350,33 +417,18 @@ export function replaceStateFromMarkdown(
     throw new UnsupportedNodeTypesError(unsupported);
   }
   const placeholders = new StoredPlaceholders(stored);
-  const parsed = markdownToEditorState(
+  const { state: parsed, notes } = interpretMarkdown(
     stripArticleProse(markdown, placeholders),
   );
   const children = transformChildren(parsed.root.children, placeholders, true);
   children.forEach((child, index) => {
     const previous = stored.root.children[index];
-    if (child.type !== "table" || previous?.type !== "table") return;
-    const columnCount = (node: SerializedLexicalNode) =>
-      childrenOf(childrenOf(node)?.[0] ?? node)?.reduce(
-        (count, cell) =>
-          count +
-          ("colSpan" in cell && typeof cell.colSpan === "number"
-            ? cell.colSpan
-            : 1),
-        0,
-      );
-    if (
-      columnCount(child) === columnCount(previous) &&
-      "colWidths" in previous &&
-      Array.isArray(previous.colWidths)
-    ) {
-      Object.assign(child, { colWidths: [...previous.colWidths] });
-    }
+    if (previous) keepHandSetWidths(child, previous);
   });
   return {
     state: { ...stored, root: { ...stored.root, children } },
     restoredPlaceholders: placeholders.restored,
     removedPlaceholders: placeholders.removed,
+    notes,
   };
 }

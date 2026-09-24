@@ -41,7 +41,9 @@ Destructive document writes take a precondition: pass the updatedAt of your last
 
 A failed tool answers with a JSON object carrying a stable "code": branch on that, never on the message. CONFLICT means the precondition no longer matches and data.currentUpdatedAt is the revision to re-read from. BAD_REQUEST from insert_markdown with data.candidates means the heading matched several times; pass one candidate's nth. PAYLOAD_TOO_LARGE means the entity does not fit in an answer; read it with the lexidraw CLI. Arguments a tool's own schema refuses come back as a plain-text protocol error instead, naming the field.
 
-A read answers with the whole entity, so read a document once and write from what you read rather than re-reading between writes.`;
+A read answers with the whole entity, so read a document once and write from what you read rather than re-reading between writes.
+
+A markdown read lists in "losses" what the markdown cannot carry (hand-set column widths, text styles); a whole-document replace keeps those where a block keeps its place. Every write lists in "notes" how it read markdown it could have read another way, such as an alias that became a callout; read them and adjust the next write.`;
 
 const entityId = z
   .string()

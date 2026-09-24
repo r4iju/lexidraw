@@ -5,12 +5,18 @@ import { $createLinkNode } from "@lexical/link";
 import { $createHeadingNode } from "@lexical/rich-text";
 import {
   ArticleNode,
+  CalloutNode,
   ChartNode,
+  CollapsibleContainerNode,
+  CollapsibleContentNode,
+  CollapsibleTitleNode,
   CommentNode,
   CORE_NODES,
   ExcalidrawNode,
   FigmaNode,
   InlineImageNode,
+  LayoutContainerNode,
+  LayoutItemNode,
   MermaidNode,
   PageBreakNode,
   PLACEHOLDER_NODE_TYPES,
@@ -462,4 +468,68 @@ test("replace preserves dragged widths only at the same table position and colum
   const moved = replaceStateFromMarkdown(stored, `New block.\n\n${md}`);
   expect(moved.state.root.children[2]).toHaveProperty("colWidths", undefined);
   expect(stored.root.children[1]).toHaveProperty("colWidths", [210, 360]);
+});
+
+describe("replaceStateFromMarkdown keeps structure", () => {
+  const STRUCTURED = stateOf(() => {
+    const layout = LayoutContainerNode.$createLayoutContainerNode("1fr 3fr");
+    layout.append(
+      LayoutItemNode.$createLayoutItemNode().append(
+        $createParagraphNode().append($createTextNode("Left")),
+        VideoNode.$createVideoNode({ src: "https://example.com/clip.mp4" }),
+      ),
+      LayoutItemNode.$createLayoutItemNode().append(
+        $createParagraphNode().append($createTextNode("Right")),
+      ),
+    );
+    const details = CollapsibleContainerNode.$createCollapsibleContainerNode(
+      false,
+    ).append(
+      CollapsibleTitleNode.$createCollapsibleTitleNode().append(
+        $createTextNode("More"),
+      ),
+      CollapsibleContentNode.$createCollapsibleContentNode().append(
+        $createParagraphNode().append($createTextNode("Hidden body")),
+        YouTubeNode.$createYouTubeNode("dQw4w9WgXcQ"),
+      ),
+    );
+    const callout = CalloutNode.$createCalloutNode("tip", "Faster").append(
+      $createParagraphNode().append($createTextNode("Use the air fryer.")),
+    );
+    $getRoot().append(
+      $createHeadingNode("h1").append($createTextNode("Title")),
+      layout,
+      details,
+      callout,
+    );
+  });
+
+  test("read then replace leaves columns, collapsibles and callouts intact", () => {
+    const markdown = editorStateToMarkdown(STRUCTURED);
+    expect(markdown).toContain("<columns>");
+    expect(markdown).toContain("<details>");
+    expect(markdown).toContain("> [!TIP] Faster");
+
+    const { state, restoredPlaceholders, removedPlaceholders } =
+      replaceStateFromMarkdown(STRUCTURED, markdown);
+
+    expect(restoredPlaceholders).toBe(2);
+    expect(removedPlaceholders).toBe(0);
+    expect(JSON.stringify(state)).toBe(JSON.stringify(STRUCTURED));
+  });
+
+  test("column widths stay only at the same position and column count", () => {
+    const markdown = editorStateToMarkdown(STRUCTURED);
+    const edited = replaceStateFromMarkdown(
+      STRUCTURED,
+      markdown.replace("Right", "Right, edited"),
+    );
+    expect(edited.state.root.children[1]).toMatchObject({
+      templateColumns: "1fr 3fr",
+    });
+    const moved = replaceStateFromMarkdown(STRUCTURED, `Intro.\n\n${markdown}`);
+    expect(moved.state.root.children[2]).toMatchObject({
+      templateColumns: "1fr 1fr",
+    });
+  });
 });

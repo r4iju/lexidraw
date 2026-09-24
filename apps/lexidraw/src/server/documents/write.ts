@@ -2,7 +2,7 @@ import { StaleDocumentError } from "./conflict";
 import {
   type InsertPlacement,
   insertBlocks,
-  markdownToEditorState,
+  interpretMarkdown,
   parseEditorState,
   resolveInsertIndex,
 } from "./markdown";
@@ -42,12 +42,15 @@ export type InsertResult = {
   insertedBlocks: number;
   /** Where the first inserted block ended up among the root's children. */
   blockIndex: number;
+  /** How the markdown was read, for the writer to check against its intent. */
+  notes: string[];
 };
 
 export type AppendResult = {
   id: string;
   updatedAt: Date;
   appendedBlocks: number;
+  notes: string[];
 };
 
 export type ReplaceResult = {
@@ -57,6 +60,7 @@ export type ReplaceResult = {
   blocks: number;
   restoredPlaceholders: number;
   removedPlaceholders: number;
+  notes: string[];
 };
 
 /**
@@ -78,7 +82,8 @@ export async function insertMarkdownIntoDocument(
 ): Promise<InsertResult> {
   let current = revision;
   let state = parseEditorState(current.elements);
-  const blocks = markdownToEditorState(markdown).root.children;
+  const { state: parsed, notes } = interpretMarkdown(markdown);
+  const blocks = parsed.root.children;
   if (
     ifUnmodifiedSince !== undefined &&
     new Date(ifUnmodifiedSince).getTime() !== current.updatedAt.getTime()
@@ -97,7 +102,7 @@ export async function insertMarkdownIntoDocument(
       current.updatedAt,
     );
     if (written) {
-      return { ...written, insertedBlocks: blocks.length, blockIndex };
+      return { ...written, insertedBlocks: blocks.length, blockIndex, notes };
     }
     const reread = await store.read(current.id);
     if (!reread) {
@@ -133,7 +138,7 @@ export async function replaceMarkdownInDocument(
     throw new StaleDocumentError(revision.updatedAt, "Document");
   }
   const stored = parseEditorState(revision.elements);
-  const { state, restoredPlaceholders, removedPlaceholders } =
+  const { state, restoredPlaceholders, removedPlaceholders, notes } =
     replaceStateFromMarkdown(stored, markdown);
 
   const written = await store.write(
@@ -147,6 +152,7 @@ export async function replaceMarkdownInDocument(
       blocks: state.root.children.length,
       restoredPlaceholders,
       removedPlaceholders,
+      notes,
     };
   }
   const reread = await store.read(revision.id);
@@ -163,12 +169,13 @@ export async function appendMarkdownToDocument(
   markdown: string,
   ifUnmodifiedSince?: string,
 ): Promise<AppendResult> {
-  const { id, updatedAt, insertedBlocks } = await insertMarkdownIntoDocument(
-    store,
-    revision,
-    markdown,
-    { kind: "end" },
-    ifUnmodifiedSince,
-  );
-  return { id, updatedAt, appendedBlocks: insertedBlocks };
+  const { id, updatedAt, insertedBlocks, notes } =
+    await insertMarkdownIntoDocument(
+      store,
+      revision,
+      markdown,
+      { kind: "end" },
+      ifUnmodifiedSince,
+    );
+  return { id, updatedAt, appendedBlocks: insertedBlocks, notes };
 }

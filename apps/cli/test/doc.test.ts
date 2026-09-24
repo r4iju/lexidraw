@@ -109,6 +109,17 @@ describe("doc get", () => {
     });
   });
 
+  it("says what the markdown leaves out on stderr, keeping stdout writable", async () => {
+    const row = stub.rows.get("doc-plan");
+    if (row) row.losses = ["1 table has column widths set by hand"];
+    const out = io();
+    expect(
+      await run(["doc", "get", "doc-plan", "--format", "raw"], out.io),
+    ).toBe(0);
+    expect(out.stdout()).toBe("# Plan\n\nThe body.\n");
+    expect(out.stderr()).toBe("note: 1 table has column widths set by hand\n");
+  });
+
   it("rejects a format it cannot render", async () => {
     const out = io();
     expect(
@@ -149,6 +160,17 @@ describe("doc create", () => {
     expect(row?.blocks).toEqual(["# Fresh", "Hello."]);
     expect(created.updatedAt).toBe(row?.updatedAt as string);
     expect(stub.requests.at(-1)).toMatchObject({ method: "PUT" });
+  });
+
+  it("passes on how the server read the body", async () => {
+    const out = io();
+    expect(
+      await run(
+        ["doc", "create", "--title", "Fresh", "--text", ":::tip\nHi\n:::"],
+        out.io,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(out.stdout()).notes).toEqual([":::tip became a callout"]);
   });
 
   it("needs a title", async () => {
