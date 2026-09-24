@@ -2,7 +2,7 @@ import { one, parseArgs, type ParsedArgs } from "./args";
 import { json, type Context } from "./context";
 import { describe, usageError } from "./errors";
 import { expectOk, requestApi } from "./http";
-import { requireToken } from "./tokens";
+import { openSession } from "./session";
 
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
 
@@ -31,16 +31,9 @@ export async function apiCommand(
     throw usageError(`${verb} does not take a body; drop --json`);
   }
 
-  const { token } = requireToken(
-    context.profile,
-    context.io.env,
-    context.io.tokens,
-  );
-  const response = await requestApi({
-    baseUrl: context.profile.baseUrl,
+  const response = await requestApi(openSession(context), {
     method: verb,
     path: restPath(path),
-    token,
     query: parseQuery(args.values.query ?? []),
     body: await readBody(args),
   });

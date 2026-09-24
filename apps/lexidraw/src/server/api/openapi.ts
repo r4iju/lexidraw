@@ -115,6 +115,7 @@ function repointErrorRefs(node: unknown): void {
  * the paths a client calls.
  */
 const document = generateOpenApiDocument(appRouter, {
+  // The CLI sends a token only to a host whose document carries this title.
   title: "Lexidraw API",
   description:
     "REST access to Lexidraw documents and drawings. Authenticate with a personal access token created at /settings/tokens.",

@@ -2,7 +2,7 @@ import { one, parseArgs, rejectExtra } from "./args";
 import { json, type Context } from "./context";
 import { CliError, describe, usageError } from "./errors";
 import { expectOk, requestApi } from "./http";
-import { requireToken } from "./tokens";
+import { openSession } from "./session";
 
 const USAGE = `usage:
   lexidraw drawing get <id>
@@ -48,22 +48,16 @@ export async function drawingCommand(
 ): Promise<void> {
   const args = parseArgs(argv, FLAGS);
   const [verb, id] = args.positionals;
-  const { token } = requireToken(
-    context.profile,
-    context.io.env,
-    context.io.tokens,
-  );
+  const session = openSession(context);
   const request = async (
     method: string,
     path: string,
     body?: unknown,
     query?: readonly (readonly [string, string])[],
   ) => {
-    const response = await requestApi({
-      baseUrl: context.profile.baseUrl,
+    const response = await requestApi(session, {
       method,
       path,
-      token,
       body,
       query,
     });

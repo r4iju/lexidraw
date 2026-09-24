@@ -22,6 +22,7 @@ export type OpenApiOperation = {
 };
 
 export type OpenApiDocument = {
+  info?: { title?: string };
   paths?: Record<string, Record<string, OpenApiOperation>>;
   components?: unknown;
 };
@@ -64,20 +65,31 @@ export async function loadDocument(
 ): Promise<{ document: OpenApiDocument; cached: boolean }> {
   const file = cachePath(options.profile, options.env);
   if (!options.refresh) {
-    const cached = await readFresh(file, options.now ?? Date.now());
+    const cached = await readFresh(
+      file,
+      options.profile.origin,
+      options.now ?? Date.now(),
+    );
     if (cached) return { document: cached, cached: true };
   }
-  const response = await requestApi({
-    baseUrl: options.profile.baseUrl,
+  const response = await requestApi(options.profile.baseUrl, {
     method: "GET",
     path: "/openapi.json",
   });
   const document = expectOk(
     response,
     "fetching the OpenAPI document failed",
-  ) as OpenApiDocument;
+  ) as OpenApiDocument | null;
+  if (document === null || typeof document !== "object") {
+    throw new CliError(
+      "BAD_RESPONSE",
+      `${options.profile.baseUrl} answered its OpenAPI document with no object`,
+      { details: { status: response.status } },
+    );
+  }
   await mkdir(dirname(file), { recursive: true });
-  await Bun.write(file, JSON.stringify(document));
+  const entry: CacheEntry = { origin: options.profile.origin, document };
+  await Bun.write(file, JSON.stringify(entry));
   return { document, cached: false };
 }
 
@@ -100,8 +112,14 @@ export async function operationSchema(
   }
 }
 
+/** The cache vouches for a host before a token goes there, so an entry names
+ * the origin that served it: an older CLI's bare document, or one written for
+ * another origin under the same key, is refetched instead. */
+type CacheEntry = { origin: string; document: OpenApiDocument };
+
 async function readFresh(
   file: string,
+  origin: string,
   now: number,
 ): Promise<OpenApiDocument | null> {
   const info = await stat(file).catch(() => null);
@@ -110,7 +128,8 @@ async function readFresh(
   const age = now - info.mtimeMs;
   if (age < 0 || age > CACHE_TTL_MS) return null;
   try {
-    return JSON.parse(await Bun.file(file).text()) as OpenApiDocument;
+    const entry = JSON.parse(await Bun.file(file).text()) as CacheEntry | null;
+    return entry?.origin === origin ? entry.document : null;
   } catch {
     return null;
   }

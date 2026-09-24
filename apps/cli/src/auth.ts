@@ -3,6 +3,7 @@ import { json, type Context } from "./context";
 import { usageError } from "./errors";
 import { expectOk, requestApi } from "./http";
 import { keychainRefusal } from "./profile";
+import { type ApiSession, openSession } from "./session";
 import { requireToken } from "./tokens";
 
 /** `lxd_` plus base64url, as the server mints them. */
@@ -16,13 +17,8 @@ export type Me = {
 };
 
 /** The cheapest call that proves a token is live and says what it may do. */
-export async function fetchMe(baseUrl: string, token: string): Promise<Me> {
-  const response = await requestApi({
-    baseUrl,
-    method: "GET",
-    path: "/me",
-    token,
-  });
+export async function fetchMe(session: ApiSession): Promise<Me> {
+  const response = await requestApi(session, { method: "GET", path: "/me" });
   return expectOk(response, "the server rejected this token") as Me;
 }
 
@@ -49,7 +45,7 @@ export async function authLogin(
 
   // Validated before it is stored: a keychain entry that does not work is
   // worse than no entry at all.
-  const me = await fetchMe(context.profile.baseUrl, token);
+  const me = await fetchMe(openSession(context, token));
   context.io.tokens.set(context.profile.name, token);
   context.io.stdout(
     json({
@@ -74,7 +70,7 @@ export async function authStatus(
     context.io.env,
     context.io.tokens,
   );
-  const me = await fetchMe(baseUrl, token);
+  const me = await fetchMe(openSession(context, token));
   context.io.stdout(
     json({
       profile: name,

@@ -10,7 +10,8 @@ import { type Context, json } from "./context";
 import { createEntity, listEntities } from "./entities";
 import { CliError, describe, usageError } from "./errors";
 import { chooseFormat, entityTable, ndjson, rejectFormat } from "./format";
-import { type ApiSession, apiSession, callApi } from "./http";
+import { callApi } from "./http";
+import { type ApiSession, openSession } from "./session";
 import { dirSpec, resolveEntity, resolveOptional } from "./resolve";
 
 const VERBS = [
@@ -91,7 +92,7 @@ async function list(context: Context, args: ParsedArgs): Promise<void> {
   const format = chooseFormat(args, ["json", "table"], "json");
   if (pageAll) rejectFormat(args, "--page-all streams NDJSON; drop --format");
 
-  const session = apiSession(context);
+  const session = openSession(context);
   const parentId = await resolveOptional(context, session, {
     ...parent(args),
     kind: "directory",
@@ -107,7 +108,7 @@ async function list(context: Context, args: ParsedArgs): Promise<void> {
 
 async function get(context: Context, args: ParsedArgs): Promise<void> {
   const format = chooseFormat(args, ["md", "raw", "json"], "md");
-  const session = apiSession(context);
+  const session = openSession(context);
   const id = await resolveEntity(context, session, address(args, "read"));
   const body = await callApi(session, {
     method: "GET",
@@ -131,7 +132,7 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
     args.values.file !== undefined || args.values.text !== undefined;
   const markdown = wanted ? await body(context, args) : null;
 
-  const session = apiSession(context);
+  const session = openSession(context);
   const parentId = await resolveOptional(context, session, {
     ...parent(args),
     kind: "directory",
@@ -165,7 +166,7 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
 
 async function append(context: Context, args: ParsedArgs): Promise<void> {
   const markdown = await body(context, args);
-  const session = apiSession(context);
+  const session = openSession(context);
   const id = await resolveEntity(context, session, address(args, "write"));
   const since = await precondition(
     session,
@@ -198,7 +199,7 @@ async function insert(context: Context, args: ParsedArgs): Promise<void> {
       : { afterHeading, ...optionalNth(integer(args, "nth", 1)) };
   const given = required(args, "if-unmodified-since", "doc insert");
 
-  const session = apiSession(context);
+  const session = openSession(context);
   // `--nth` picks the heading here, so an ambiguous path has only the id left.
   const id = await resolveEntity(context, session, {
     ...address(args, "write"),
@@ -226,7 +227,7 @@ async function put(context: Context, args: ParsedArgs): Promise<void> {
   const markdown = await body(context, args);
   const given = required(args, "if-unmodified-since", "doc put");
 
-  const session = apiSession(context);
+  const session = openSession(context);
   const id = await resolveEntity(context, session, address(args, "write"));
   const since = await precondition(session, id, given);
   context.io.stdout(
@@ -241,7 +242,7 @@ async function put(context: Context, args: ParsedArgs): Promise<void> {
 }
 
 async function remove(context: Context, args: ParsedArgs): Promise<void> {
-  const session = apiSession(context);
+  const session = openSession(context);
   const target = address(args, "write");
   const id = await resolveEntity(context, session, target);
   // DELETE /entities/{id} takes any entity, a directory with everything under

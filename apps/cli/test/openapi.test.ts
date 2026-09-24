@@ -123,7 +123,7 @@ describe("cachePath", () => {
   it("is keyed by profile and by the origin the profile points at", () => {
     const env = { XDG_CACHE_HOME: "/tmp/c" };
     expect(cachePath(resolveProfile("prod", {}), env)).toBe(
-      "/tmp/c/lexidraw/prod/https-lexidraw.app/openapi.json",
+      "/tmp/c/lexidraw/prod/https-lexidraw.vercel.app/openapi.json",
     );
     expect(
       cachePath(
@@ -181,6 +181,43 @@ describe("loadDocument", () => {
       stub.stop();
     }
   });
+});
+
+describe("loadDocument's cache", () => {
+  // The cache vouches for a host before a token is sent there, so an entry
+  // counts only for the origin that served it.
+  for (const [name, entry] of [
+    ["one that names no origin", (_origin: string) => fixture],
+    [
+      "one another origin wrote",
+      (_origin: string) => ({
+        origin: "http://elsewhere.test",
+        document: fixture,
+      }),
+    ],
+  ] as const) {
+    it(`ignores ${name}`, async () => {
+      const stub = startStub(() => Response.json(fixture));
+      const cacheHome = await mkdtemp(join(tmpdir(), "lexidraw-cli-"));
+      const env = { XDG_CACHE_HOME: cacheHome };
+      const profile = resolveProfile("dev", { LEXIDRAW_URL: stub.baseUrl });
+      try {
+        await Bun.write(
+          cachePath(profile, env),
+          JSON.stringify(entry(profile.origin)),
+        );
+        expect(
+          await loadDocument({ profile, refresh: false, env }),
+        ).toMatchObject({ cached: false });
+        expect(stub.requests).toHaveLength(1);
+        expect(
+          await loadDocument({ profile, refresh: false, env }),
+        ).toMatchObject({ cached: true });
+      } finally {
+        stub.stop();
+      }
+    });
+  }
 });
 
 describe("operationSchema", () => {

@@ -2,7 +2,8 @@ import { parseArgs, rejectExtra } from "./args";
 import { type Context, json } from "./context";
 import { CliError, usageError } from "./errors";
 import { chooseFormat, entityTable } from "./format";
-import { apiSession, callApi } from "./http";
+import { callApi } from "./http";
+import { openSession } from "./session";
 
 export async function searchCommand(
   context: Context,
@@ -16,7 +17,7 @@ export async function searchCommand(
   rejectExtra(args, 1);
   const format = chooseFormat(args, ["json", "table"], "json");
 
-  const rows = await callApi(apiSession(context), {
+  const rows = await callApi(openSession(context), {
     method: "GET",
     path: "/entities/search",
     query: [["query", query]],

@@ -2,7 +2,7 @@ import type { Env } from "./env";
 import { usageError } from "./errors";
 
 export const PROFILES = {
-  prod: "https://lexidraw.app",
+  prod: "https://lexidraw.vercel.app",
   dev: "http://localhost:3025",
 } as const;
 
