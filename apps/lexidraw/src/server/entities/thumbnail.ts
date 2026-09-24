@@ -32,7 +32,7 @@ const BLOB_HOSTS = new Set(
  * URL, such as an image a document embeds, and replacing that must not delete
  * it.
  */
-export function isThumbnailOf(entityId: string, url: string): boolean {
+function isThumbnailOf(entityId: string, url: string): boolean {
   try {
     const { host, pathname } = new URL(url);
     return (

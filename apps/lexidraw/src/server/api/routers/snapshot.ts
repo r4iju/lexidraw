@@ -8,13 +8,8 @@ import {
   type GenerateClientTokenOptions,
 } from "@vercel/blob/client";
 import env from "@packages/env";
-import { revalidateEntities } from "~/server/api/entity-cache";
 import { findWritableEntity } from "~/server/entities/readable";
-import {
-  isThumbnailOf,
-  storeThumbnail,
-  thumbnailPathname,
-} from "~/server/entities/thumbnail";
+import { thumbnailPathname } from "~/server/entities/thumbnail";
 
 const THEME = {
   DARK: "dark",
@@ -156,7 +151,10 @@ export const snapshotRouter = createTRPCRouter({
       return url;
     }),
 
-  /** Step1 – hand the browser a client‑token */
+  /**
+   * A client token per theme, for the icon modal to upload a picture with; it
+   * then stores the URLs through `entities.update`.
+   */
   generateClientUploadTokens: publicProcedure
     .input(
       z.object({
@@ -213,41 +211,5 @@ export const snapshotRouter = createTRPCRouter({
       );
 
       return results;
-    }),
-
-  /** (Optional)  Step3 – save the final blob URL once the browser is done */
-  saveUploadedUrl: publicProcedure
-    .input(
-      z.object({
-        entityId: z.string(),
-        theme: z.enum([THEME.DARK, THEME.LIGHT]),
-        url: z.url(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const entity = await findWritableEntity(
-        ctx.drizzle,
-        input.entityId,
-        ctx.session?.user.id ?? "",
-      );
-      if (!entity)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Drawing not found",
-        });
-      if (!isThumbnailOf(input.entityId, input.url))
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Not an upload of this drawing's thumbnail",
-        });
-
-      await storeThumbnail(
-        ctx.drizzle,
-        input.entityId,
-        input.theme === THEME.DARK ? { dark: input.url } : { light: input.url },
-      );
-
-      // A thumbnail is what the listing shows of an entity.
-      revalidateEntities(input.entityId, entity.parentId);
     }),
 });

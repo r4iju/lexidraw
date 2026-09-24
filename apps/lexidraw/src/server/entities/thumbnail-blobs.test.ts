@@ -50,14 +50,13 @@ const { uploadBlobStep } = await import(
 );
 
 const OWNER = "thumbb_owner";
-const STRANGER = "thumbb_stranger";
 const EDITOR = "thumbb_editor";
 
-function contextOf(userId: string | null) {
+function contextOf(userId: string) {
   return {
     drizzle: db,
     schema,
-    session: userId ? { user: { id: userId } } : null,
+    session: { user: { id: userId } },
     auth: { kind: "session" },
     headers: new Headers(),
   } as never;
@@ -71,7 +70,6 @@ const owner = {
 beforeAll(async () => {
   await db.insert(schema.users).values([
     { id: OWNER, name: "Owner", email: "thumbb-owner@example.test" },
-    { id: STRANGER, name: "Stranger", email: "thumbb-stranger@example.test" },
     { id: EDITOR, name: "Editor", email: "thumbb-editor@example.test" },
   ]);
   await db.insert(schema.entities).values(
@@ -81,8 +79,6 @@ beforeAll(async () => {
       "thumbb_copy",
       "thumbb_image",
       "thumbb_flaky",
-      "thumbb_private",
-      "thumbb_saved",
     ].map((id) => ({
       id,
       title: id,
@@ -202,20 +198,6 @@ describe("naming an uploaded thumbnail", () => {
   });
 });
 
-describe("saving the URL of an uploaded thumbnail", () => {
-  test("is refused to anyone who may not edit the entity", async () => {
-    const url = `${HOST}/somewhere-else.svg`;
-    for (const userId of [null, STRANGER]) {
-      await expect(
-        snapshotRouter
-          .createCaller(contextOf(userId))
-          .saveUploadedUrl({ entityId: "thumbb_private", theme: "light", url }),
-      ).rejects.toThrow();
-    }
-    expect((await shotsOf("thumbb_private"))?.light).not.toBe(url);
-  });
-});
-
 describe("uploading a thumbnail", () => {
   test("is open to someone the entity is shared with for editing", async () => {
     await db.insert(schema.sharedEntities).values({
@@ -231,37 +213,5 @@ describe("uploading a thumbnail", () => {
         contentType: "image/png",
       });
     expect(tokens).toHaveLength(2);
-  });
-});
-
-describe("saving the URL of an uploaded thumbnail", () => {
-  test("stores a picture uploaded as the entity's thumbnail", async () => {
-    const icon = await uploadIcon("thumbb_saved");
-    await owner.snapshot.saveUploadedUrl({
-      entityId: "thumbb_saved",
-      theme: "light",
-      url: icon.light,
-    });
-    expect((await shotsOf("thumbb_saved"))?.light).toBe(icon.light);
-  });
-
-  test("refuses any other URL", async () => {
-    const icon = await uploadIcon("thumbb_icon");
-    const before = (await shotsOf("thumbb_saved"))?.dark;
-    const others = [
-      `${HOST}/somewhere-else.svg`,
-      icon.light,
-      `https://elsewhere.example${new URL(icon.light).pathname}`,
-    ];
-    for (const url of others) {
-      await expect(
-        owner.snapshot.saveUploadedUrl({
-          entityId: "thumbb_saved",
-          theme: "dark",
-          url,
-        }),
-      ).rejects.toThrow();
-    }
-    expect((await shotsOf("thumbb_saved"))?.dark).toBe(before);
   });
 });
