@@ -80,31 +80,13 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     this.__height = height;
   }
 
-  createDOM(config: EditorConfig): HTMLElement {
-    const span = document.createElement("span");
-    const theme = config.theme;
-    const className = theme.image;
-
-    span.style.width =
-      this.__width === "inherit" ? "inherit" : `${this.__width}px`;
-    span.style.height =
-      this.__height === "inherit" ? "inherit" : `${this.__height}px`;
-
-    if (className !== undefined) {
-      span.className = className;
-    }
-    return span;
+  createDOM(_config: EditorConfig): HTMLElement {
+    const element = document.createElement("div");
+    element.dataset.mediaType = "excalidraw";
+    return element;
   }
 
-  updateDOM(prev: ExcalidrawNode, dom: HTMLElement): boolean {
-    if (this.__width !== prev.__width) {
-      dom.style.width =
-        this.__width === "inherit" ? "inherit" : `${this.__width}px`;
-    }
-    if (this.__height !== prev.__height) {
-      dom.style.height =
-        this.__height === "inherit" ? "inherit" : `${this.__height}px`;
-    }
+  updateDOM(): false {
     return false;
   }
 

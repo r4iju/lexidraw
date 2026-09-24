@@ -39,8 +39,6 @@ import MentionsPlugin from "../../plugins/MentionsPlugin";
 import TreeViewPlugin from "../../plugins/TreeViewPlugin";
 import ImageResizer from "~/components/ui/image-resizer";
 import { ImageNode } from "./ImageNode";
-import NextImage from "next/image";
-import { ErrorBoundary } from "react-error-boundary";
 import { cn } from "~/lib/utils";
 import ImageCaption from "../common/ImageCaption";
 import { Button } from "~/components/ui/button";
@@ -50,76 +48,64 @@ import { UpdateImageDialog } from "./UpdateImageDialog";
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> =
   createCommand("RIGHT_CLICK_IMAGE_COMMAND");
 
-function BrokenImage(): React.JSX.Element {
-  return (
-    <div className="flex items-center justify-center w-full h-full opacity-50">
-      <NextImage
-        alt="Image is broken"
-        height={200}
-        width={200}
-        src="/images/image-broken.svg"
-        draggable="false"
-      />
-    </div>
-  );
-}
-
-type LazyImageProps = {
-  altText: string;
-  className: string | null;
-  height: "inherit" | number;
-  imageRef: { current: null | HTMLImageElement };
-  maxWidth: number;
-  src: string;
-  width: "inherit" | number;
-  onError: () => void;
-  onDoubleClick?: (e: React.MouseEvent) => void;
-};
-
 function LazyImage({
   altText,
-  className,
   imageRef,
   src,
   width,
   height,
-  onError,
+  focused,
   onDoubleClick,
-}: LazyImageProps): React.JSX.Element {
+}: {
+  altText: string;
+  imageRef: React.RefObject<HTMLImageElement | null>;
+  src: string;
+  width: "inherit" | number;
+  height: "inherit" | number;
+  focused: boolean;
+  onDoubleClick: (event: React.MouseEvent) => void;
+}) {
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
   return (
-    <ErrorBoundary
-      FallbackComponent={() => (
+    <>
+      {status !== "ready" && (
+        <div
+          role="img"
+          aria-label={altText}
+          aria-busy={status === "loading"}
+          className="media-placeholder"
+        >
+          {status === "error" && (
+            <img src="/images/image-broken.svg" alt="" width={32} height={32} />
+          )}
+          <span>
+            {status === "error" ? "Image unavailable" : "Loading image"}
+            {altText ? ` · ${altText}` : ""}
+          </span>
+        </div>
+      )}
+      {status !== "error" && (
         <img
           src={src}
           alt={altText}
-          className={className ?? undefined}
-          ref={imageRef as React.RefObject<HTMLImageElement>}
+          ref={imageRef}
           draggable={false}
+          className={cn("document-image", focused && "ring-2 ring-ring")}
           style={{
-            width: width === "inherit" ? "auto" : `${width}px`,
-            height: height === "inherit" ? "auto" : `${height}px`,
-            objectFit: "contain",
-            maxWidth: "100%",
+            display: status === "loading" ? "none" : undefined,
+            maxWidth:
+              typeof width === "number" ? `min(100%, ${width}px)` : "100%",
+            maxHeight:
+              typeof height === "number" ? `min(80vh, ${height}px)` : undefined,
           }}
+          onLoad={() => setStatus("ready")}
+          onError={() => setStatus("error")}
           onDoubleClick={onDoubleClick}
         />
       )}
-      onError={onError}
-    >
-      <img
-        src={src}
-        alt={altText}
-        style={{
-          width: typeof width === "number" ? `${width}px` : "auto",
-          height: typeof height === "number" ? `${height}px` : "auto",
-          objectFit: "contain",
-        }}
-        draggable={false}
-        className={cn("rounded-xs", className)}
-        ref={imageRef as React.RefObject<HTMLImageElement>}
-        onDoubleClick={onDoubleClick}
-      />
-    </ErrorBoundary>
+    </>
   );
 }
 
@@ -157,11 +143,12 @@ export default function ImageComponent({
   const isEditable = useLexicalEditable();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
   const activeEditorRef = useRef<LexicalEditor | null>(null);
-  const [isLoadError, setIsLoadError] = useState(false);
-  const [currentDimensions, setCurrentDimensions] = useState({
-    width,
-    height,
-  });
+  const [resizeDimensions, setCurrentDimensions] = useState<{
+    width: number | "inherit";
+    height: number | "inherit";
+  } | null>(null);
+  const currentDimensions =
+    isResizing && resizeDimensions ? resizeDimensions : { width, height };
   const nestedEditorContainerRef = useRef<HTMLDivElement>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -273,13 +260,6 @@ export default function ImageComponent({
     },
     [editor],
   );
-
-  useEffect(() => {
-    // keep state in sync with node updates unless the user is actively dragging
-    if (!isResizing) {
-      setCurrentDimensions({ width, height });
-    }
-  }, [width, height, isResizing]);
 
   useEffect(() => {
     let isMounted = true;
@@ -406,36 +386,31 @@ export default function ImageComponent({
   return (
     <Suspense fallback={null}>
       <div
-        className={cn("relative inline-block", {
+        className={cn("relative inline-block document-figure", {
           "cursor-move": draggable,
         })}
         draggable={draggable}
       >
-        {isLoadError ? (
-          <BrokenImage />
-        ) : (
-          <LazyImage
-            className={isFocused ? "ring-1 ring-muted-foreground" : null}
-            src={src}
-            altText={altText}
-            imageRef={imageRef}
-            width={currentDimensions.width}
-            height={currentDimensions.height}
-            maxWidth={maxWidth}
-            onError={() => setIsLoadError(true)}
-            onDoubleClick={(e) => {
-              // prevent double clicking from propagating to parent
-              e.stopPropagation();
-              setIsLightboxOpen(true);
-            }}
-          />
-        )}
+        <LazyImage
+          key={src}
+          focused={isFocused}
+          src={src}
+          altText={altText}
+          imageRef={imageRef}
+          width={currentDimensions.width}
+          height={currentDimensions.height}
+          onDoubleClick={(e) => {
+            // prevent double clicking from propagating to parent
+            e.stopPropagation();
+            setIsLightboxOpen(true);
+          }}
+        />
 
         {isEditable && (
           <Button
             ref={buttonRef}
             variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs print:hidden"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs print:hidden"
             onClick={() => setIsDialogOpen(true)}
           >
             Edit
@@ -470,7 +445,7 @@ export default function ImageComponent({
             maxWidth={maxWidth}
             onResizeStart={onResizeStart}
             onResizeEnd={onResizeEnd}
-            captionsEnabled={!isLoadError && captionsEnabled}
+            captionsEnabled={captionsEnabled}
             onDimensionsChange={onDimensionsChange}
           />
         )}

@@ -25,7 +25,13 @@ export default function FigmaComponent({
       nodeKey={nodeKey}
     >
       <iframe
-        className="print:hidden"
+        className="document-embed print:hidden"
+        style={{
+          width: "100%",
+          height: "auto",
+          aspectRatio: "16 / 9",
+          colorScheme: "normal",
+        }}
         title="Figma Embed"
         width="560"
         height="315"

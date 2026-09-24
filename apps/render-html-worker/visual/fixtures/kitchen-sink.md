@@ -65,3 +65,7 @@ $$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$$
 The following blocks come from kitchen-sink.blocks.json until they have Markdown forms.
 
 <!-- TODO #91: add all five GitHub callouts and replace the JSON collapsible with details/summary Markdown. -->
+
+![Tall hero · 2000px](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAwIiBoZWlnaHQ9IjIwMDAiPjxyZWN0IHdpZHRoPSIxMDAwIiBoZWlnaHQ9IjIwMDAiIGZpbGw9IiNmMWY1ZjkiLz48Y2lyY2xlIGN4PSI1MDAiIGN5PSIxMDAwIiByPSIzMDAiIGZpbGw9IiMyNTYzZWIiLz48L3N2Zz4=)
+
+![Missing landscape · 画像なし](http://localhost:3025/visual-missing-image.png)

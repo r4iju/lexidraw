@@ -92,33 +92,17 @@ export class MermaidNode extends DecoratorNode<unknown> {
     return MermaidNode.$createMermaidNode(node.schema, node.width, node.height);
   }
 
-  /** Create the outer “placeholder” element that will hold the React
-   *  portal.  We mirror what `ExcalidrawNode` does so resizing logic
-   *  continues to work unchanged. */
-  createDOM(config: EditorConfig): HTMLElement {
-    const span = document.createElement("span");
-    const cls = config.theme.image;
-
-    span.style.display = "inline-block";
-    span.style.width =
-      typeof this.__width === "number" ? `${this.__width}px` : "auto";
-    span.style.height =
-      typeof this.__height === "number" ? `${this.__height}px` : "auto";
-    if (cls) span.className = cls;
-    return span;
+  isInline(): false {
+    return false;
   }
 
-  /** Called when the node’s writable copy changed.  We update the size
-   *  and return false so Lexical keeps using the existing DOM element. */
-  updateDOM(prev: MermaidNode, dom: HTMLElement): boolean {
-    if (prev.__width !== this.__width) {
-      dom.style.width =
-        typeof this.__width === "number" ? `${this.__width}px` : "auto";
-    }
-    if (prev.__height !== this.__height) {
-      dom.style.height =
-        typeof this.__height === "number" ? `${this.__height}px` : "auto";
-    }
+  createDOM(_config: EditorConfig): HTMLElement {
+    const element = document.createElement("div");
+    element.dataset.mediaType = "mermaid";
+    return element;
+  }
+
+  updateDOM(): false {
     return false;
   }
 

@@ -145,7 +145,7 @@ export default function MermaidComponent({
   return (
     <>
       <div
-        className={cn("relative inline-block", {
+        className={cn("relative inline-block max-w-full", {
           "cursor-move":
             isFocused && !isResizing && $isNodeSelection(selection),
         })}
@@ -153,7 +153,6 @@ export default function MermaidComponent({
         draggable={isFocused && !isResizing && $isNodeSelection(selection)}
       >
         <MermaidImage
-          nodeKey={nodeKey}
           schema={schema}
           width={width}
           height={height}
@@ -167,7 +166,7 @@ export default function MermaidComponent({
           <Button
             ref={btnRef}
             variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs cursor-pointer print:hidden"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs cursor-pointer print:hidden"
             onClick={() => setModalOpen(true)}
           >
             Edit

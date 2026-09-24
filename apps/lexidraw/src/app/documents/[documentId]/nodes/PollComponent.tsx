@@ -73,18 +73,23 @@ function PollOptionComponent({
         />
       )}
 
-      <div className="relative flex flex-grow rounded-md border border-primary overflow-hidden">
+      <div className="relative flex flex-col min-w-0 flex-grow rounded-md border border-primary overflow-hidden">
+        <meter
+          aria-label={text}
+          min={0}
+          max={100}
+          value={totalVotes ? Math.round((votes / totalVotes) * 100) : 0}
+          className="sr-only"
+        />
         <div
-          className="absolute inset-y-0 left-0 bg-primary/10 transition-[width] duration-1000 ease-in-out"
+          aria-hidden="true"
+          className="absolute inset-y-0 left-0 bg-primary/10"
           style={{ width: `${votes === 0 ? 0 : (votes / totalVotes) * 100}%` }}
         />
-        <span className="pointer-events-none absolute right-4 top-1 text-xs text-primary z-10">
-          {votes > 0 && (votes === 1 ? "1 vote" : `${votes} votes`)}
-        </span>
         {isEditable ? (
           <Input
             className={cn(
-              "relative z-10 flex-1 border-0 bg-transparent p-2 font-semibold",
+              "relative z-10 min-w-0 flex-1 border-0 bg-transparent p-2 font-semibold print:hidden",
               "text-primary placeholder:text-muted-foreground placeholder:font-normal",
               "focus-visible:ring-0",
             )}
@@ -101,11 +106,19 @@ function PollOptionComponent({
             }
             placeholder={`Option ${index + 1}`}
           />
-        ) : (
-          <span className="relative z-10 flex-1 p-2 font-semibold text-primary">
-            {text}
-          </span>
-        )}
+        ) : null}
+        <span
+          className={cn(
+            "relative z-10 p-2 font-semibold text-primary",
+            isEditable && "hidden print:block",
+          )}
+        >
+          {text}
+        </span>
+        <span className="relative z-10 px-2 pb-2 text-xs text-primary">
+          {votes} {votes === 1 ? "vote" : "votes"} ·{" "}
+          {totalVotes ? Math.round((votes / totalVotes) * 100) : 0}%
+        </span>
       </div>
       {isEditable && (
         <Button
@@ -224,10 +237,11 @@ export default function PollComponent({
   return (
     <div
       className={cn(
-        "max-w-[600px] min-w-[400px] select-none rounded-lg",
+        "w-full max-w-[520px] min-w-0 mx-auto select-none rounded-lg",
         "border border-border bg-card p-6",
         { "outline-2 outline-ring": isFocused && isEditable },
       )}
+      data-poll=""
       ref={ref}
     >
       <h2 className="mb-4 text-center text-lg font-medium text-foreground">
@@ -247,6 +261,9 @@ export default function PollComponent({
           />
         );
       })}
+      <p className="text-sm text-muted-foreground">
+        {totalVotes} {totalVotes === 1 ? "vote" : "votes"} total
+      </p>
       {isEditable && (
         <div className="flex justify-center print:hidden">
           <Button onClick={addOption} size="sm">

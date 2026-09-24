@@ -46,6 +46,8 @@ type Modules = {
   useLexicalComposerContext: typeof import("@lexical/react/LexicalComposerContext").useLexicalComposerContext;
   editability: typeof import("./editability");
   nodes: Klass<LexicalNode>[];
+  chart: typeof import("./plugins/ChartPlugin");
+  mermaid: typeof import("./plugins/MermaidPlugin");
   tables: typeof import("./plugins/DocumentTablesPlugin");
   resizer: typeof import("./plugins/TableCellResizer");
   markdown: typeof import("~/server/documents/markdown");
@@ -78,6 +80,8 @@ beforeAll(async () => {
       await import("@lexical/react/LexicalComposerContext")
     ).useLexicalComposerContext,
     editability: await import("./editability"),
+    chart: await import("./plugins/ChartPlugin"),
+    mermaid: await import("./plugins/MermaidPlugin"),
     tables: await import("./plugins/DocumentTablesPlugin"),
     resizer: await import("./plugins/TableCellResizer"),
     markdown: await import("~/server/documents/markdown"),
@@ -89,6 +93,7 @@ beforeAll(async () => {
       ...CORE_NODES,
       (await import("./nodes/PageBreakNode")).PageBreakNode,
       (await import("./nodes/PollNode")).PollNode,
+      (await import("./nodes/TweetNode")).TweetNode,
       (await import("./nodes/StickyNode")).StickyNode,
     ],
   };
@@ -191,6 +196,8 @@ function Document({
       />
       <m.editability.EditabilityPlugin editable={editable} />
       <Capture />
+      <m.chart.default />
+      <m.mermaid.default />
       {tables && (
         <>
           <m.tables.DocumentTablesPlugin />
@@ -336,4 +343,89 @@ test("replacing markdown in the app keeps a person's column widths", async () =>
     "colWidths",
     [240, 480],
   );
+});
+
+test("reading a poll shows counts, percentages and total, including zero votes", async () => {
+  await mount(<Document state={BLOCKS} editable={false} />);
+  const text = dom.window.document.body.textContent;
+  expect(text).toContain("0 votes · 0%");
+  expect(text).toContain("1 vote · 100%");
+  expect(text).toContain("1 vote total");
+  expect(dom.window.document.querySelectorAll("meter").length).toBe(2);
+});
+
+for (const kind of ["chart", "mermaid"] as const) {
+  test(`inserting ${kind} after the current paragraph creates a separate block`, async () => {
+    const state = m.markdown.markdownToEditorState(
+      "Before insertion.\n\nFollowing paragraph.",
+    );
+    await mount(<Document state={JSON.stringify(state)} editable />);
+    if (!captured) throw new Error("Editor not mounted");
+    const editor = captured;
+    const { $getRoot, $isElementNode } = await import("lexical");
+    await act(async () => {
+      editor.update(
+        () => {
+          const first = $getRoot().getFirstChild();
+          if ($isElementNode(first)) first.selectStart();
+          if (kind === "chart")
+            editor.dispatchCommand(m.chart.INSERT_CHART_COMMAND, {});
+          else
+            editor.dispatchCommand(m.mermaid.INSERT_MERMAID_COMMAND, undefined);
+        },
+        { discrete: true },
+      );
+    });
+    const children = editor.getEditorState().toJSON().root.children;
+    expect(children.map((child) => child.type)).toEqual([
+      "paragraph",
+      kind,
+      "paragraph",
+    ]);
+    expect(
+      editor
+        .getEditorState()
+        .read(() => $getRoot().getFirstChild()?.getTextContent()),
+    ).toBe("Before insertion.");
+  });
+}
+
+test("a tweet requests a readable theme from its widget provider", async () => {
+  const widget = dom.window.document.createElement("iframe");
+  widget.title = "Tweet";
+  Object.assign(dom.window, {
+    twttr: {
+      widgets: {
+        createTweet: async (
+          _id: string,
+          container: HTMLElement,
+          options?: { theme: string },
+        ) => {
+          widget.setAttribute(
+            "aria-label",
+            options?.theme === "light" ? "Readable tweet" : "Missing theme",
+          );
+          container.append(widget);
+        },
+      },
+    },
+  });
+  await mount(
+    <Document
+      state={JSON.stringify({
+        root: {
+          ...EMPTY_ROOT,
+          children: [{ type: "tweet", version: 1, id: "123", format: "" }],
+        },
+      })}
+      editable={false}
+    />,
+  );
+  await act(async () => {
+    dom.window.document
+      .querySelector('script[src="https://platform.twitter.com/widgets.js"]')
+      ?.dispatchEvent(new dom.window.Event("load"));
+  });
+  expect(widget.getAttribute("aria-label")).toBe("Readable tweet");
+  delete (dom.window as unknown as { twttr?: unknown }).twttr;
 });

@@ -155,29 +155,17 @@ export class ChartNode extends DecoratorNode<unknown> {
     return node instanceof ChartNode;
   }
 
-  createDOM(config: EditorConfig): HTMLElement {
-    const span = document.createElement("span");
-    const cls = config.theme.image; // Re-use image class for selection outline
-
-    span.style.display = "inline-block";
-    // Prevent visual jump by setting initial size, will be overridden by ChartComponent
-    span.style.width =
-      typeof this.__width === "number" ? `${this.__width}px` : "300px";
-    span.style.height =
-      typeof this.__height === "number" ? `${this.__height}px` : "200px";
-    if (cls) span.className = cls;
-    return span;
+  isInline(): false {
+    return false;
   }
 
-  updateDOM(prev: ChartNode, dom: HTMLElement): boolean {
-    if (prev.__width !== this.__width) {
-      dom.style.width =
-        typeof this.__width === "number" ? `${this.__width}px` : "auto";
-    }
-    if (prev.__height !== this.__height) {
-      dom.style.height =
-        typeof this.__height === "number" ? `${this.__height}px` : "auto";
-    }
+  createDOM(_config: EditorConfig): HTMLElement {
+    const element = document.createElement("div");
+    element.dataset.mediaType = "chart";
+    return element;
+  }
+
+  updateDOM(): false {
     return false;
   }
 }

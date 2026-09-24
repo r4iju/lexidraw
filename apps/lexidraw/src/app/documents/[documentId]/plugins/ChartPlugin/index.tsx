@@ -1,5 +1,6 @@
 "use client";
 
+import { $insertMediaBlock } from "../../utils/insert-media-block";
 import type { JSX } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { mergeRegister } from "@lexical/utils";
@@ -39,15 +40,7 @@ export default function ChartPlugin(): JSX.Element | null {
             width: payload.width,
             height: payload.height,
           });
-          editor.focus();
-          editor.update(() => {
-            const selection = editor
-              .getEditorState()
-              .read(() => editor.getEditorState()._selection);
-            if (selection) {
-              selection.insertNodes([chartNode]);
-            }
-          });
+          $insertMediaBlock(chartNode);
           return true;
         },
         COMMAND_PRIORITY_EDITOR,

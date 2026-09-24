@@ -37,6 +37,24 @@
     "indent": 0
   },
   {
+    "type": "paragraph",
+    "version": 1,
+    "direction": null,
+    "format": "",
+    "indent": 0,
+    "children": [
+      {
+        "type": "text",
+        "version": 1,
+        "text": "The following figure shows the blue sky.",
+        "format": 0,
+        "detail": 0,
+        "mode": "normal",
+        "style": ""
+      }
+    ]
+  },
+  {
     "type": "image",
     "version": 1,
     "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iODAiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iODAiIGZpbGw9IiM3ZGQzZmMiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjQwIiByPSIyNCIgZmlsbD0iI2Y1OWUwYiIvPjwvc3ZnPg==",
@@ -193,12 +211,39 @@
         "direction": null,
         "format": "",
         "indent": 0
+      },
+      {
+        "type": "layout-item",
+        "version": 1,
+        "children": [
+          {
+            "type": "paragraph",
+            "version": 1,
+            "children": [
+              {
+                "type": "text",
+                "version": 1,
+                "text": "Third column · 三",
+                "format": 0,
+                "detail": 0,
+                "mode": "normal",
+                "style": ""
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0
       }
     ],
     "direction": null,
     "format": "",
     "indent": 0,
-    "templateColumns": "1fr 1fr"
+    "templateColumns": "1fr 1fr 1fr"
   },
   {
     "type": "collapsible-container",
@@ -259,8 +304,8 @@
     "type": "mermaid",
     "version": 1,
     "schema": "flowchart LR\n A[Start 開始] --> B[Done 完了]",
-    "width": 280,
-    "height": 100
+    "width": "inherit",
+    "height": "inherit"
   },
   {
     "type": "chart",
@@ -268,8 +313,8 @@
     "chartType": "bar",
     "chartData": "[{\"name\": \"\\u6771\\u4eac\", \"value\": 12}, {\"name\": \"Osaka\", \"value\": 8}]",
     "chartConfig": "{\"value\": {\"label\": \"Meals\", \"color\": \"chart-1\"}}",
-    "width": 280,
-    "height": 160
+    "width": "inherit",
+    "height": "inherit"
   },
   {
     "type": "poll",
@@ -279,12 +324,12 @@
       {
         "text": "Rice · ご飯",
         "uid": "rice",
-        "votes": []
+        "votes": ["one", "two"]
       },
       {
         "text": "Soup · スープ",
         "uid": "soup",
-        "votes": []
+        "votes": ["three"]
       }
     ]
   },
@@ -292,8 +337,8 @@
     "type": "excalidraw",
     "version": 1,
     "data": "{\"elements\": [{\"id\": \"box\", \"type\": \"rectangle\", \"x\": 0, \"y\": 0, \"width\": 160, \"height\": 70, \"angle\": 0, \"strokeColor\": \"#1e1e1e\", \"backgroundColor\": \"#a5d8ff\", \"fillStyle\": \"solid\", \"strokeWidth\": 2, \"strokeStyle\": \"solid\", \"roughness\": 0, \"opacity\": 100, \"groupIds\": [], \"frameId\": null, \"roundness\": null, \"seed\": 1, \"version\": 1, \"versionNonce\": 1, \"isDeleted\": false, \"boundElements\": null, \"updated\": 1, \"link\": null, \"locked\": false}], \"appState\": {}, \"files\": {}}",
-    "width": 240,
-    "height": 100
+    "width": "inherit",
+    "height": "inherit"
   },
   {
     "type": "slide-deck",
@@ -340,8 +385,8 @@
     "type": "video",
     "version": 1,
     "src": "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMWbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAkF0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAPAAAABkAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAG5bWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABZG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAASRzdGJsAAAAwHN0c2QAAAAAAAAAAQAAALBhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAPAAZABIAAAASAAAAAAAAAABFExhdmM2My4xLjEwMiBsaWJ4MjY0AAAAAAAAAAAAAAAAGP//AAAANmF2Y0MBZAAL/+EAGWdkAAus2UPP+fARAAADAAEAAAMAAg8UKZYBAAZo6+PLIsD9+PgAAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAF0gAAAAAAAAAGHN0dHMAAAAAAAAAAQAAAAEAAEAAAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAukAAAABAAAAFHN0Y28AAAAAAAAAAQAAA0YAAABhdWR0YQAAAFltZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAACxpbHN0AAAAJKl0b28AAAAcZGF0YQAAAAEAAAAATGF2ZjYzLjEuMTAyAAAACGZyZWUAAALxbWRhdAAAAq0GBf//qdxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjUgcjMyMjIgYjM1NjA1YSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjUgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0xIHJlZj0zIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDM6MHgxMTMgbWU9aGV4IHN1Ym1lPTcgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTEgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTIgdGhyZWFkcz0zIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MyBiX3B5cmFtaWQ9MiBiX2FkYXB0PTEgYl9iaWFzPTAgZGlyZWN0PTEgd2VpZ2h0Yj0xIG9wZW5fZ29wPTAgd2VpZ2h0cD0yIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAANGWIhAAV//73ye/Apuvb3rW/k89I/Cy3PsIqP25bE7VgX8hO3l1W9szlcUAAABLwDDuq/mE=",
-    "width": 240,
-    "height": 100,
+    "width": "inherit",
+    "height": "inherit",
     "showCaption": false,
     "captionsEnabled": false,
     "caption": {
@@ -379,8 +424,8 @@
     "version": 1,
     "videoID": "fixture-unavailable",
     "format": "",
-    "width": 240,
-    "height": 100
+    "width": "inherit",
+    "height": "inherit"
   },
   {
     "type": "tweet",
@@ -491,6 +536,23 @@
     "indent": 0,
     "direction": null,
     "children": []
+  },
+  {
+    "type": "chart",
+    "version": 1,
+    "chartType": "bar",
+    "chartData": "[]",
+    "chartConfig": "{}",
+    "width": "inherit",
+    "height": "inherit"
+  },
+  {
+    "type": "slide-deck",
+    "version": 1,
+    "data": {
+      "slides": [],
+      "currentSlideId": null
+    }
   },
   {
     "type": "paragraph",

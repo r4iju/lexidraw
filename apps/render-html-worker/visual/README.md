@@ -61,3 +61,11 @@ comparison and the 80% numeric threshold. Browser checks assert intrinsic
 widths, the 1024px limit, labelled keyboard scroll regions, the pinned phone
 column and cell-menu bounds/header toggles. The fixture explicitly clears saved
 column widths so every capture exercises a document before manual resizing.
+
+Media cases include a 2000px portrait image, a missing image with alt text,
+three columns, unsized diagrams/video/charts, voted polls, and empty charts
+and slides. Browser checks cover 375×812, 768×1024 and 1280×900 in both themes,
+plus a narrowed desktop container. They check media bounds and aspect ratios,
+centering, theme treatment, placeholders, poll results and print break rules.
+The suite saves a PDF from the dark editor and a CLI PDF; `pdftotext` (Poppler)
+is required to verify the CLI PDF includes its chart and poll results.

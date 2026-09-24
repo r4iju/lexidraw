@@ -10,7 +10,6 @@ import { type JSX, type RefObject, useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { Theme } from "@packages/types/enums";
-import { useIsDarkTheme } from "~/components/theme/theme-provider";
 
 type ImageType = "svg" | "canvas";
 
@@ -51,18 +50,21 @@ export default function ExcalidrawImage({
   children,
 }: Props): JSX.Element {
   const [url, setUrl] = useState<string | undefined>(undefined);
+  const [naturalWidth, setNaturalWidth] = useState<number>();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
-  const isDarkTheme = useIsDarkTheme();
-
+  // Excalidraw owns the SVG export; release its browser URL on replacement.
   useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | undefined;
     const setContent = async () => {
       const svg = await exportToSvg({
         elements,
         appState: {
           ...appState,
-          theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
-          exportWithDarkMode: isDarkTheme,
+          theme: Theme.LIGHT,
+          exportWithDarkMode: false,
+          exportBackground: false,
         },
         files,
         config: {
@@ -74,28 +76,40 @@ export default function ExcalidrawImage({
       const svgString = new XMLSerializer().serializeToString(svg);
       const blob = new Blob([svgString], { type: "image/svg+xml" });
 
-      svg.setAttribute("width", "100%");
-      svg.setAttribute("height", "100%");
-      svg.setAttribute("display", "block");
-
-      const tempUrl = URL.createObjectURL(blob);
-      setUrl(tempUrl);
+      if (cancelled) return;
+      objectUrl = URL.createObjectURL(blob);
+      setUrl(objectUrl);
     };
 
     setContent();
-  }, [elements, appState, isDarkTheme, files]);
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [elements, appState, files]);
 
   return (
-    <div className="relative inline-block" aria-busy={url === undefined}>
+    <div
+      className="relative inline-block max-w-full"
+      aria-busy={url === undefined}
+    >
       <img
         src={url}
+        onLoad={(event) => setNaturalWidth(event.currentTarget.naturalWidth)}
         alt="Excalidraw"
         style={{
-          width: width === "inherit" ? "inherit" : `${width}px`,
-          height: height === "inherit" ? "inherit" : `${height}px`,
-          objectFit: "fill",
+          width:
+            typeof width === "number"
+              ? width
+              : naturalWidth
+                ? naturalWidth * 1.25
+                : "auto",
+          height: "auto",
+          maxWidth: "100%",
+          maxHeight: typeof height === "number" ? height : undefined,
+          objectFit: "contain",
         }}
-        className={cn("rounded-xs", rootClassName)}
+        className={cn("document-diagram excalidraw-embed", rootClassName)}
         ref={imageContainerRef as RefObject<HTMLImageElement>}
         onDoubleClick={(e) => {
           e.stopPropagation();

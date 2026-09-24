@@ -246,6 +246,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const page = await (browser as Browser).newPage();
+      // Responsive media must settle in paper styles before readiness is checked.
+      await page.emulateMediaType("print");
       await page.setUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       );

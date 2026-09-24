@@ -299,3 +299,123 @@
     box-shadow: 6px 0 8px -6px var(--muted-foreground);
   }
 }
+
+.document-content p:has(> .editor-image):not(:has(> :not(.editor-image, br))) {
+  text-align: center;
+}
+.document-content .document-figure {
+  max-width: 100%;
+  vertical-align: middle;
+  text-align: start;
+}
+.document-content .document-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 80vh;
+  margin-inline: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+.media-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  font-size: 14px;
+}
+
+.document-content
+  > :is(
+    [data-media-type],
+    [data-lexical-decorator]:has(
+      iframe,
+      video,
+      .document-embed,
+      .chart-component,
+      .sticky-note-container
+    )
+  ) {
+  width: 100%;
+  max-width: var(--doc-measure);
+  text-align: center;
+}
+.document-content [data-media-type] {
+  max-width: 100%;
+  text-align: center;
+}
+.document-diagram {
+  display: block;
+  margin-inline: auto;
+}
+.document-embed {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  overflow: hidden;
+  color-scheme: normal;
+}
+.document-embed iframe {
+  max-width: 100%;
+  color-scheme: normal;
+}
+.document-content > figure[type="page-break"] {
+  width: 100%;
+}
+@container (max-width: 567px) {
+  .document-content [data-lexical-layout-container] {
+    /* The node stores a template for desktop; compact columns always stack. */
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+.document-content > [data-lexical-decorator]:has([data-poll]) {
+  width: 100%;
+  max-width: 520px;
+}
+
+.document-content {
+  position: relative;
+}
+.document-content[contenteditable="false"] .sticky-note-container {
+  position: static;
+  width: fit-content;
+  margin-inline: auto;
+}
+.sticky-note-container > div {
+  max-width: 100%;
+  min-height: 192px;
+  height: auto;
+  text-align: start;
+}
+@container (max-width: 567px) {
+  .document-content .sticky-note-container {
+    position: static;
+    width: fit-content;
+    margin-inline: auto;
+  }
+}
+
+@media screen {
+  .dark .document-diagram {
+    filter: invert(93%) hue-rotate(180deg);
+  }
+}
+
+.document-content > [data-lexical-decorator].slide-deck-container {
+  width: 100%;
+  max-width: var(--doc-measure);
+}
+
+.chart-component[data-empty="true"] {
+  min-height: 96px;
+  display: grid;
+}

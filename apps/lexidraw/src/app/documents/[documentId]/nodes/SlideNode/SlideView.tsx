@@ -93,17 +93,15 @@ const SlideView: React.FC<SlideViewProps> = ({ initialData, editor }) => {
   };
 
   if (!deckData || !deckData.slides || deckData.slides.length === 0) {
-    // console.log("[SlideView] Rendering: No slides to display.");
     return (
       <div
-        className="p-4 border border-dashed border-muted text-muted-foreground"
+        className="slide-empty-state p-4 border border-dashed border-muted text-muted-foreground"
         style={{
           width: "100%",
-          aspectRatio: `${DESIGN_WIDTH}/${DESIGN_HEIGHT}`,
-          minHeight: "100px",
+          minHeight: "96px",
         }}
       >
-        No slides to display.
+        Edit slides to add your first slide.
       </div>
     );
   }
@@ -118,8 +116,7 @@ const SlideView: React.FC<SlideViewProps> = ({ initialData, editor }) => {
         className="p-4 border border-dashed border-destructive text-destructive-foreground"
         style={{
           width: "100%",
-          aspectRatio: `${DESIGN_WIDTH}/${DESIGN_HEIGHT}`,
-          minHeight: "100px",
+          minHeight: "96px",
         }}
       >
         Slide data is missing for index {viewingSlideIndex}.

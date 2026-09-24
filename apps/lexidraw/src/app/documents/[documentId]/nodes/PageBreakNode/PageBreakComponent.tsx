@@ -87,8 +87,7 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
       className={cn(
         "relative block border-y border-muted border-dashed print:hidden",
         "bg-muted border-muted",
-        "w-[calc(100%+4rem)]",
-        "-ml-[2rem]",
+        "w-full",
         "my-[1rem]",
         "peer-[:has(+.page-break-handle)[data-selected='true']]:border-primary",
       )}
@@ -96,7 +95,7 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
       {/* scissors icon (old ::before) */}
       <ScissorsIcon
         className={cn(
-          "absolute left-[calc(2rem+12px)]",
+          "absolute left-3",
           "top-1/2 -translate-y-1/2 h-4 w-4 opacity-50",
           "peer-[:has(+.page-break-handle)[data-selected='true']]:opacity-100",
         )}

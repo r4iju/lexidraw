@@ -1,16 +1,10 @@
 "use client";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useEffect } from "react";
-import {
-  $isRootOrShadowRoot,
-  $insertNodes,
-  COMMAND_PRIORITY_EDITOR,
-  createCommand,
-} from "lexical";
-import { $createParagraphNode } from "lexical";
+import { COMMAND_PRIORITY_EDITOR, createCommand } from "lexical";
 
 import { MermaidNode } from "../../nodes/MermaidNode";
-import { $wrapNodeInElement } from "@lexical/utils";
+import { $insertMediaBlock } from "../../utils/insert-media-block";
 
 export const INSERT_MERMAID_COMMAND = createCommand("INSERT_MERMAID");
 
@@ -26,9 +20,7 @@ export default function MermaidPlugin() {
       INSERT_MERMAID_COMMAND,
       () => {
         const node = MermaidNode.$createMermaidNode();
-        $insertNodes([node]);
-        if ($isRootOrShadowRoot(node.getParentOrThrow()))
-          $wrapNodeInElement(node, $createParagraphNode).selectEnd();
+        $insertMediaBlock(node);
         return true;
       },
       COMMAND_PRIORITY_EDITOR,

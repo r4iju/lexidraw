@@ -2,6 +2,7 @@ import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlign
 import type { ElementFormatType, NodeKey } from "lexical";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTheme } from "next-themes";
 import { PrintedLink } from "./common/PrintedLink";
 
 const WIDGET_SCRIPT_URL = "https://platform.twitter.com/widgets.js";
@@ -30,14 +31,20 @@ export default function TweetComponent({
 }: TweetComponentProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  const { resolvedTheme, forcedTheme } = useTheme();
+  const theme = (forcedTheme ?? resolvedTheme) === "dark" ? "dark" : "light";
+  const widgetKey = `${tweetID}:${theme}`;
   const previousTweetIDRef = useRef<string>("");
   const [isTweetLoading, setIsTweetLoading] = useState(false);
   const [isTwitterScriptLoading, setIsTwitterScriptLoading] = useState(true);
 
   const createTweet = useCallback(async () => {
     try {
-      // @ts-expect-error Twitter is attached to the window.
-      await window.twttr.widgets.createTweet(tweetID, containerRef.current);
+      containerRef.current?.replaceChildren();
+      // @ts-expect-error Twitter installs its widget API on window.
+      await window.twttr.widgets.createTweet(tweetID, containerRef.current, {
+        theme,
+      });
 
       setIsTweetLoading(false);
       setIsTwitterScriptLoading(false);
@@ -50,10 +57,10 @@ export default function TweetComponent({
         onError(String(error));
       }
     }
-  }, [onError, onLoad, tweetID]);
+  }, [onError, onLoad, tweetID, theme]);
 
   useEffect(() => {
-    if (tweetID !== previousTweetIDRef.current) {
+    if (tweetID && widgetKey !== previousTweetIDRef.current) {
       setIsTweetLoading(true);
 
       if (isTwitterScriptLoading) {
@@ -70,10 +77,10 @@ export default function TweetComponent({
       }
 
       if (previousTweetIDRef) {
-        previousTweetIDRef.current = tweetID;
+        previousTweetIDRef.current = widgetKey;
       }
     }
-  }, [createTweet, isTwitterScriptLoading, onError, tweetID]);
+  }, [createTweet, isTwitterScriptLoading, onError, tweetID, widgetKey]);
 
   return (
     <BlockWithAlignableContents
@@ -81,10 +88,15 @@ export default function TweetComponent({
       format={format}
       nodeKey={nodeKey}
     >
-      <div className="print:hidden">
+      <div className="document-embed print:hidden">
         {isTweetLoading ? loadingComponent : null}
         <div
-          style={{ display: "inline-block", width: "550px" }}
+          style={{
+            width: "100%",
+            maxWidth: 550,
+            marginInline: "auto",
+            colorScheme: "normal",
+          }}
           ref={containerRef}
         />
       </div>

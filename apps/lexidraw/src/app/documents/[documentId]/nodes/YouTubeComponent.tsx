@@ -150,9 +150,9 @@ export default function YouTubeComponent({
   const containerStyles: React.CSSProperties = {
     position: "relative",
     width:
-      currentDimensions.width === "inherit"
-        ? undefined
-        : currentDimensions.width,
+      typeof currentDimensions.width === "number"
+        ? currentDimensions.width
+        : "100%",
     maxWidth: "100%", // allow shrinking on small screens
     aspectRatio: `${ratio}`,
   };
@@ -167,14 +167,14 @@ export default function YouTubeComponent({
       <div
         ref={containerRef}
         style={containerStyles}
-        className={cn("inline-block print:hidden", {
+        className={cn("document-embed mx-auto print:hidden", {
           "ring-primary ring-1": isEditable && (isSelected || isResizing),
         })}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         <iframe
-          style={{ width: "100%", height: "100%" }}
+          style={{ width: "100%", height: "100%", colorScheme: "normal" }}
           src={`https://www.youtube-nocookie.com/embed/${videoID}`}
           frameBorder="0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

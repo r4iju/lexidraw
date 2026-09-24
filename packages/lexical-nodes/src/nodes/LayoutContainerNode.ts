@@ -52,6 +52,7 @@ export class LayoutContainerNode extends ElementNode {
 
   createDOM(config: EditorConfig): HTMLElement {
     const dom = document.createElement("div");
+    dom.setAttribute("data-lexical-layout-container", "true");
     dom.style.gridTemplateColumns = this.__templateColumns;
     if (typeof config.theme.layoutContainer === "string") {
       addClassNamesToElement(dom, config.theme.layoutContainer);

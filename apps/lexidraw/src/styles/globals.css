@@ -43,6 +43,8 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  --color-media-overlay: var(--media-overlay);
+  --color-media-overlay-foreground: var(--media-overlay-foreground);
   --color-paper-ink: var(--paper-ink);
   --color-paper-white: var(--paper-white);
   --color-on: var(--on);
@@ -183,6 +185,8 @@
   --success: oklch(0.46 0.12 160);
   --warning: oklch(0.47 0.10 75);
   --info: oklch(0.48 0.14 250);
+  --media-overlay: oklch(0 0 0);
+  --media-overlay-foreground: oklch(1 0 0);
   --paper-ink: oklch(0.20 0.005 285);
   --paper-white: oklch(1 0 0);
   --syntax-keyword: var(--primary);

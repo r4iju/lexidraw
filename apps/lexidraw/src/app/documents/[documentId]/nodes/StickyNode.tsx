@@ -2,7 +2,6 @@ import { StickyNode as HeadlessStickyNode } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
-import { createPortal } from "react-dom";
 import { BlockLoading } from "./common/BlockLoading";
 
 export type {
@@ -19,7 +18,7 @@ export class StickyNode extends HeadlessStickyNode {
   static importJSON = HeadlessStickyNode.importJSON;
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
-    return createPortal(
+    return (
       <Suspense fallback={<BlockLoading />}>
         <StickyComponent
           color={this.__color}
@@ -28,8 +27,7 @@ export class StickyNode extends HeadlessStickyNode {
           nodeKey={this.getKey()}
           caption={this.__caption}
         />
-      </Suspense>,
-      document.body,
+      </Suspense>
     );
   }
 }

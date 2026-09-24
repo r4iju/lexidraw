@@ -233,9 +233,14 @@ export default function VideoComponent({
   };
 
   const videoStyle: React.CSSProperties = {
-    height: height === "inherit" ? undefined : height,
-    width: width === "inherit" ? undefined : width,
-    maxWidth: VIDEO_MAX_WIDTH,
+    height: "auto",
+    aspectRatio:
+      typeof width === "number" && typeof height === "number"
+        ? `${width} / ${height}`
+        : "16 / 9",
+    objectFit: "contain",
+    width: "100%",
+    maxWidth: "100%",
     display: "block",
   };
 
@@ -259,7 +264,12 @@ export default function VideoComponent({
     <Suspense fallback={null}>
       {/** biome-ignore lint/a11y/noStaticElementInteractions: video component is interactive */}
       <div
-        style={{ position: "relative", display: "inline-block" }}
+        style={{
+          position: "relative",
+          width: typeof width === "number" ? width : "100%",
+          maxWidth: "100%",
+          marginInline: "auto",
+        }}
         className={`${isFocused ? "outline-ring ring-primary" : ""}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

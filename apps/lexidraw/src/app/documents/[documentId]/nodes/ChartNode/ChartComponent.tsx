@@ -180,16 +180,22 @@ export default function ChartComponent({
   return (
     <>
       <div
-        className={cn("relative inline-block chart-component", {
+        className={cn("relative block max-w-full mx-auto chart-component", {
           "cursor-move":
             isFocused && !isResizing && $isNodeSelection(selection),
           "ring-1 ring-muted-foreground": isFocused || isResizing,
         })}
+        data-empty={parsedChartData.length === 0}
         ref={containerRef}
         draggable={isFocused && !isResizing && $isNodeSelection(selection)}
         style={{
-          width: typeof width === "number" ? `${width}px` : "auto",
-          height: typeof height === "number" ? `${height}px` : "auto",
+          width: typeof width === "number" ? width : "100%",
+          aspectRatio:
+            parsedChartData.length === 0
+              ? undefined
+              : typeof width === "number" && typeof height === "number"
+                ? `${width} / ${height}`
+                : "2 / 1",
         }}
       >
         <DynamicChartRenderer
@@ -204,7 +210,7 @@ export default function ChartComponent({
           <Button
             ref={btnRef}
             variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs cursor-pointer print:hidden"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs cursor-pointer print:hidden"
             onClick={() => setModalOpen(true)}
           >
             Edit

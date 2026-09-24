@@ -1,10 +1,7 @@
 "use client";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getNodeByKey } from "lexical";
 import mermaid from "mermaid";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
-import { MermaidNode } from ".";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 
 type Dimension = number | "inherit";
@@ -13,7 +10,6 @@ interface Props {
   schema: string;
   width: Dimension;
   height: Dimension;
-  nodeKey: string;
   className?: string;
 }
 
@@ -21,40 +17,46 @@ export default function MermaidImage({
   schema,
   width,
   height,
-  nodeKey,
   className,
 }: Props) {
-  const [editor] = useLexicalComposerContext();
   /** The rendered diagram's URL; undefined while rendering, null if it failed. */
   const [src, setSrc] = useState<string | null | undefined>(undefined);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [naturalWidth, setNaturalWidth] = useState<number>();
 
-  /* ─── render Mermaid to a blob URL ─── */
+  // Mermaid owns SVG rendering; release its browser URL on replacement.
   useEffect(() => {
     let cancelled = false;
+    let objectUrl: string | undefined;
     setSrc(undefined);
     (async () => {
       try {
-        mermaid.initialize({ startOnLoad: false });
+        mermaid.initialize({ startOnLoad: false, theme: "default" });
 
         const { svg } = await mermaid.render(
           `m${Math.random().toString(36).slice(2)}`,
           schema,
         );
 
-        const [, w, h] = svg.match(
-          /viewBox="[^"]+ (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)/,
-        ) as [string, string, string];
-        const fixedSvg = svg
-          .replace('width="100%"', `width="${w}"`)
-          .replace('height="100%"', `height="${h}"`);
+        const document = new DOMParser().parseFromString(svg, "image/svg+xml");
+        const element = document.documentElement;
+        const viewBox = element
+          .getAttribute("viewBox")
+          ?.trim()
+          .split(/\s+/)
+          .map(Number);
+        if (viewBox?.length !== 4 || !viewBox[2] || !viewBox[3])
+          throw new Error("Diagram has no dimensions");
+        element.setAttribute("width", String(viewBox[2]));
+        element.setAttribute("height", String(viewBox[3]));
+        const fixedSvg = new XMLSerializer().serializeToString(element);
 
         if (cancelled) return;
         const url = URL.createObjectURL(
           new Blob([fixedSvg], { type: "image/svg+xml" }),
         );
 
+        objectUrl = url;
         setSrc(url);
       } catch {
         if (!cancelled) setSrc(null);
@@ -62,34 +64,9 @@ export default function MermaidImage({
     })();
     return () => {
       cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [schema]);
-
-  function handleLoad() {
-    if (!imgRef.current) {
-      throw new Error("imgRef.current is null");
-    }
-
-    const { naturalWidth, naturalHeight } = imgRef.current;
-
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey);
-      if (!MermaidNode.$isMermaidNode(node)) return;
-
-      // only act while the node still says “inherit”
-      if (node.getWidth() !== "inherit" && node.getHeight() !== "inherit")
-        return;
-
-      /* ── clamp ──────────────────────────────────────────────── */
-      const root = editor.getRootElement();
-      const maxW = (root?.clientWidth ?? 600) - 40; // fallback for SSR
-      const scale = naturalWidth > maxW ? maxW / naturalWidth : 1;
-      const width = Math.round(naturalWidth * scale);
-      const height = Math.round(naturalHeight * scale);
-
-      node.setWidthAndHeight({ width, height });
-    });
-  }
 
   if (src === undefined) {
     return (
@@ -113,17 +90,24 @@ export default function MermaidImage({
   return (
     <>
       <img
-        ref={imgRef}
         src={src}
         alt="Mermaid diagram"
-        onLoad={handleLoad}
+        onLoad={(event) => setNaturalWidth(event.currentTarget.naturalWidth)}
         draggable={false}
-        className={cn("select-none object-contain block", className)}
+        className={cn(
+          "select-none object-contain block document-diagram",
+          className,
+        )}
         style={{
-          width: typeof width === "number" ? `${width}px` : "auto",
-          height: typeof height === "number" ? `${height}px` : "auto",
+          width:
+            typeof width === "number"
+              ? width
+              : naturalWidth
+                ? naturalWidth * 1.25
+                : "auto",
+          height: "auto",
           maxWidth: "100%",
-          maxHeight: "100%",
+          maxHeight: typeof height === "number" ? height : undefined,
         }}
         onDoubleClick={(e) => {
           e.stopPropagation();

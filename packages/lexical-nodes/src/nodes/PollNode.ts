@@ -146,8 +146,8 @@ export class PollNode extends DecoratorNode<unknown> {
   }
 
   createDOM(): HTMLElement {
-    const elem = document.createElement("span");
-    elem.style.display = "inline-block";
+    const elem = document.createElement("div");
+    elem.dataset.mediaType = "poll";
     return elem;
   }
 

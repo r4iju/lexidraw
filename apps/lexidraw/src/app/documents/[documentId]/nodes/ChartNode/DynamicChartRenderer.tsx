@@ -11,7 +11,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import {
   ChartContainer,
@@ -59,7 +58,7 @@ export default function DynamicChartRenderer({
   data,
   config: rawConfig,
   width: _width, // unused
-  height,
+  height: _height,
 }: DynamicChartRendererProps) {
   // attempt to find a suitable key for XAxis
   const getXAxisDataKey = () => {
@@ -137,7 +136,7 @@ export default function DynamicChartRenderer({
   };
 
   const chartConfig = getGeneratedChartConfig();
-  const containerHeight = typeof height === "number" ? height : 200;
+  const containerHeight = "100%";
 
   const message = useMemo(() => {
     switch (true) {
@@ -146,7 +145,7 @@ export default function DynamicChartRenderer({
       case !Array.isArray(data):
         return "Data is not an array";
       case data.length === 0:
-        return "Data is empty";
+        return "Edit chart to add data.";
       default:
         return "Unsupported chart data";
     }
@@ -173,6 +172,7 @@ export default function DynamicChartRenderer({
             <ShadcnChartLegend content={<ChartLegendContent />} />
             {Object.keys(chartConfig).map((key) => (
               <Bar
+                isAnimationActive={false}
                 key={key}
                 dataKey={key}
                 fill={`var(--color-${slugify(key)})`}
@@ -196,6 +196,7 @@ export default function DynamicChartRenderer({
             <ShadcnChartLegend content={<ChartLegendContent />} />
             {Object.keys(chartConfig).map((key) => (
               <Line
+                isAnimationActive={false}
                 key={key}
                 type="monotone"
                 dataKey={key}
@@ -226,6 +227,7 @@ export default function DynamicChartRenderer({
           <PieChart>
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             <Pie
+              isAnimationActive={false}
               data={data}
               dataKey={pieDataKey}
               nameKey={xAxisDataKey} // use detected xAxisDataKey for pie labels too
@@ -253,14 +255,13 @@ export default function DynamicChartRenderer({
       config={chartConfig}
       className="min-h-[50px] w-full" // min-h is important for responsiveness
       style={{
-        // width: typeof _width === "number" ? `${_width}px` : "100%", // handled by parent or resizer
-        height:
-          typeof height === "number" ? `${height}px` : `${containerHeight}px`,
+        position: "absolute",
+        inset: 0,
+        height: "100%",
+        aspectRatio: "auto",
       }}
     >
-      <ResponsiveContainer width="100%" height="100%">
-        {renderChart()}
-      </ResponsiveContainer>
+      {renderChart()}
     </ChartContainer>
   );
 }

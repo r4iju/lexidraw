@@ -58,12 +58,12 @@ export default function StickyComponent({
   });
 
   const positionSticky = useCallback((): void => {
-    const rootElementRect = positioningRef.current.rootElementRect;
-    const rectLeft = rootElementRect !== null ? rootElementRect.left : 0;
-    const rectTop = rootElementRect !== null ? rootElementRect.top : 0;
     if (stickyContainerRef.current) {
-      stickyContainerRef.current.style.top = `${rectTop + positioningRef.current.y}px`;
-      stickyContainerRef.current.style.left = `${rectLeft + positioningRef.current.x}px`;
+      const available =
+        stickyContainerRef.current.closest(".document-content")?.clientWidth ??
+        192;
+      stickyContainerRef.current.style.top = `${positioningRef.current.y}px`;
+      stickyContainerRef.current.style.left = `${Math.max(0, Math.min(positioningRef.current.x, available - 192))}px`;
     }
   }, []);
 
@@ -213,6 +213,8 @@ export default function StickyComponent({
           const stickyContainer = stickyContainerRef.current;
           if (
             !isEditable ||
+            (stickyContainer &&
+              getComputedStyle(stickyContainer).position === "static") ||
             stickyContainer == null ||
             event.button === 2 ||
             event.target !== stickyContainer.firstChild

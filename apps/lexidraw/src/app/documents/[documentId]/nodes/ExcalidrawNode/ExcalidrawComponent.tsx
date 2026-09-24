@@ -220,7 +220,7 @@ export default function ExcalidrawComponent({
       {elements.length > 0 && (
         <div
           ref={frameRef}
-          className={cn("relative inline-block", {
+          className={cn("relative inline-block max-w-full", {
             selected: isEditable && isSelected,
           })}
         >
@@ -260,7 +260,7 @@ export default function ExcalidrawComponent({
           {isEditable && (
             <Button
               variant="ghost"
-              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs print:hidden"
+              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs print:hidden"
               onClick={openModal}
             >
               Edit

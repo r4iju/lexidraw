@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
+import { checkMedia } from "./check-media";
 import { checkTables } from "./check-tables";
 import { checkTokens } from "./check-tokens";
 import { checkTypography, checkDocumentSettings } from "./check-typography";
@@ -93,12 +94,27 @@ try {
   const [page = await browser.newPage(), ...restored] = await browser.pages();
   for (const restoredPage of restored) await restoredPage.close();
   await checkTokens(page);
+  await checkMedia(page, fixtureId, output);
   await checkTables(page, fixtureId);
   await checkTypography(page, fixtureId);
   await checkDocumentSettings(page, fixtureId);
 } finally {
   await browser.close();
 }
+
+const pdfPath = resolve(output, "kitchen-sink.pdf");
+await cli("doc", "render", fixtureId, "--format", "pdf", "--out", pdfPath);
+const pdfText = Bun.spawn(["pdftotext", pdfPath, "-"], {
+  stdout: "pipe",
+  stderr: "pipe",
+});
+const text = await new Response(pdfText.stdout).text();
+if (
+  (await pdfText.exited) ||
+  !text.includes("Osaka") ||
+  !text.includes("3 votes total")
+)
+  throw new Error("PDF must include the chart and poll results");
 
 let failures = 0;
 let totalBytes = 0;

@@ -96,11 +96,66 @@
     max-width: 100%;
   }
 
-  /* Shorter than the shortest sheet (A4 landscape): a taller picture would
-     be pushed past a blank page and then cut in two anyway. */
-  img {
-    max-height: 170mm;
+  .document-content :is(img, .document-image, .document-diagram) {
+    max-height: 115mm !important;
     object-fit: contain;
+  }
+
+  .document-content
+    :is(
+      .document-figure,
+      [data-media-type],
+      .editor-equation,
+      [data-poll],
+      .chart-component,
+      .slide-view-outer-viewport,
+      .slide-deck-container
+    ),
+  .document-content p:has(.document-figure, .editor-equation) {
+    break-inside: avoid;
+  }
+
+  .document-content
+    p:has(
+      + :is(
+          figure,
+          .editor-image,
+          [data-media-type],
+          .document-table-region,
+          pre,
+          code,
+          .editor-equation
+        )
+    ),
+  .document-content p:has(+ p .document-figure, + p .editor-equation) {
+    break-after: avoid;
+  }
+
+  .document-content
+    :is(.chart-component[data-empty="true"], .slide-empty-state) {
+    min-height: 48px !important;
+  }
+  .document-content .slide-view-outer-viewport {
+    max-height: 115mm;
+  }
+  .document-content .slide-view-scaling-container {
+    position: absolute !important;
+  }
+  /* Recharts measures inside a zero-size overflow wrapper on screen. */
+  .document-content .recharts-responsive-container > div,
+  .document-content .recharts-wrapper {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .document-content [data-media-type="poll"] {
+    max-width: 520px;
+  }
+
+  .document-content .sticky-note-container {
+    position: static;
+    width: fit-content;
+    margin-inline: auto;
+    break-inside: avoid;
   }
 
   .document-table-region {
