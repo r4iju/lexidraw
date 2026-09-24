@@ -135,6 +135,9 @@ async function ownTagNames(
 const notFound = () =>
   new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
 
+const shareNotFound = () =>
+  new TRPCError({ code: "NOT_FOUND", message: "Share not found" });
+
 const sortByString = (sortOrder: "asc" | "desc", a: string, b: string) =>
   sortOrder === "asc" ? a.localeCompare(b) : b.localeCompare(a);
 
@@ -1358,7 +1361,7 @@ export const entityRouter = createTRPCRouter({
       );
       if (!entity) throw notFound();
 
-      await ctx.drizzle
+      const [changed] = await ctx.drizzle
         .update(schema.sharedEntities)
         .set({
           accessLevel: input.accessLevel,
@@ -1369,7 +1372,8 @@ export const entityRouter = createTRPCRouter({
             eq(schema.sharedEntities.userId, input.userId),
           ),
         )
-        .execute();
+        .returning({ userId: schema.sharedEntities.userId });
+      if (!changed) throw shareNotFound();
       revalidateEntities(input.id, entity.parentId);
       return { success: true, message: "Access level changed successfully" };
     }),
@@ -1393,7 +1397,7 @@ export const entityRouter = createTRPCRouter({
       );
       if (!entity) throw notFound();
 
-      await ctx.drizzle
+      const [removed] = await ctx.drizzle
         .delete(schema.sharedEntities)
         .where(
           and(
@@ -1401,7 +1405,8 @@ export const entityRouter = createTRPCRouter({
             eq(schema.sharedEntities.userId, input.userId),
           ),
         )
-        .execute();
+        .returning({ userId: schema.sharedEntities.userId });
+      if (!removed) throw shareNotFound();
       revalidateEntities(input.id, entity.parentId);
       return { success: true, message: "Entity unshared successfully" };
     }),

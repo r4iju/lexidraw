@@ -197,12 +197,15 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
         return { queryKey, previousData };
       },
-      onError(_err, _vars, context) {
+      onError(error, _vars, context) {
         if (!context) return;
         utils.entities.getSharedInfo.setData(
           context.queryKey,
           context.previousData,
         );
+        // A share another tab already revoked is NOT_FOUND; show what is left.
+        utils.entities.getSharedInfo.invalidate(context.queryKey);
+        toast.error("Error", { description: error.message });
       },
       onSuccess: async (_res, _vars, context) => {
         if (!context) return;
@@ -233,15 +236,14 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
         return { queryKey, previousData };
       },
-      onError(_err, _vars, context) {
+      onError(error, _vars, context) {
         if (!context) return;
         utils.entities.getSharedInfo.setData(
           context.queryKey,
           context.previousData,
         );
-        toast.error("Error", {
-          description: "Something went wrong",
-        });
+        utils.entities.getSharedInfo.invalidate(context.queryKey);
+        toast.error("Error", { description: error.message });
       },
       onSuccess: async (_res, _variables, context) => {
         if (!context) return;
