@@ -128,7 +128,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
         iceServers={iceServers}
         initialLlmConfig={initialLlmConfig}
         signedIn={false}
-        printMode={true}
+        renderMode="screenshot"
       />
     </div>
   );

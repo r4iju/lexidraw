@@ -1,5 +1,6 @@
 "use client";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -45,8 +46,10 @@ export default function MermaidComponent({
   /* refs & local state */
   const containerRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const isEditable = useLexicalEditable();
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
+  const isFocused = isEditable && isSelected;
   const [isResizing, setIsResizing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selection, setSelection] = useState<BaseSelection | null>(null);
@@ -144,10 +147,10 @@ export default function MermaidComponent({
       <div
         className={cn("relative inline-block", {
           "cursor-move":
-            isSelected && !isResizing && $isNodeSelection(selection),
+            isFocused && !isResizing && $isNodeSelection(selection),
         })}
         ref={containerRef}
-        draggable={isSelected && !isResizing && $isNodeSelection(selection)}
+        draggable={isFocused && !isResizing && $isNodeSelection(selection)}
       >
         <MermaidImage
           nodeKey={nodeKey}
@@ -157,21 +160,21 @@ export default function MermaidComponent({
           className={cn(
             typeof width === "number" && "w-full",
             typeof height === "number" && "h-full",
-            isSelected || isResizing ? "ring-1 ring-muted-foreground" : null,
+            isFocused || isResizing ? "ring-1 ring-muted-foreground" : null,
           )}
         />
+        {isEditable && (
+          <Button
+            ref={btnRef}
+            variant="ghost"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs cursor-pointer print:hidden"
+            onClick={() => setModalOpen(true)}
+          >
+            Edit
+          </Button>
+        )}
 
-        {/* small “Edit” pill, like the image plugin */}
-        <Button
-          ref={btnRef}
-          variant="ghost"
-          className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs cursor-pointer"
-          onClick={() => setModalOpen(true)}
-        >
-          Edit
-        </Button>
-
-        {(isSelected || isResizing) && (
+        {(isFocused || isResizing) && (
           <ImageResizer
             editor={editor}
             imageRef={containerRef as RefObject<HTMLDivElement>}

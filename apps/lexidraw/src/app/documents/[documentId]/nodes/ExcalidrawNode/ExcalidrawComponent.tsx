@@ -2,6 +2,7 @@ import type { ExcalidrawInitialElements } from "./ExcalidrawModal";
 import type { NodeKey } from "lexical";
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -20,6 +21,7 @@ import ImageResizer from "~/components/ui/image-resizer";
 import { ExcalidrawNode } from "./index";
 import ExcalidrawImage from "./ExcalidrawImage";
 import type { BinaryFiles, AppState } from "@excalidraw/excalidraw/types";
+import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import ExcalidrawModal from "./ExcalidrawModal";
 
@@ -37,9 +39,11 @@ export default function ExcalidrawComponent({
   height: number | "inherit";
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
-  const [isOpen, setIsOpen] = useState<boolean>(defaultOpen ?? false);
+  const isEditable = useLexicalEditable();
+  const [modalRequested, setIsOpen] = useState<boolean>(defaultOpen ?? false);
+  const isOpen = isEditable && modalRequested;
   const imageContainerRef = useRef<HTMLImageElement | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const captionButtonRef = useRef<HTMLButtonElement | null>(null);
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
@@ -63,28 +67,19 @@ export default function ExcalidrawComponent({
     [editor, isSelected, nodeKey],
   );
 
-  // Set editor to readOnly if excalidraw is open to prevent unwanted changes
-  useEffect(() => {
-    if (isOpen) {
-      editor.setEditable(false);
-    } else {
-      editor.setEditable(true);
-    }
-  }, [isOpen, editor]);
-
   useEffect(() => {
     return mergeRegister(
       editor.registerCommand(
         CLICK_COMMAND,
         (event: MouseEvent) => {
-          const buttonElem = buttonRef.current;
+          const frame = frameRef.current;
           const eventTarget = event.target;
 
           if (isResizing) {
             return true;
           }
 
-          if (buttonElem?.contains(eventTarget as Node)) {
+          if (frame?.contains(eventTarget as Node)) {
             if (!event.shiftKey) {
               clearSelection();
             }
@@ -217,24 +212,24 @@ export default function ExcalidrawComponent({
           onDelete={deleteNode}
           onClose={() => setIsOpen(false)}
           onSave={(els, aps, fls) => {
-            editor.setEditable(true);
             setData(els, aps, fls);
             setIsOpen(false);
           }}
         />
       )}
       {elements.length > 0 && (
-        <button
-          type="button"
-          ref={buttonRef}
-          className={cn("", { selected: isSelected })}
+        <div
+          ref={frameRef}
+          className={cn("relative inline-block", {
+            selected: isEditable && isSelected,
+          })}
         >
           <ExcalidrawImage
             imageContainerRef={
               imageContainerRef as React.RefObject<HTMLDivElement>
             }
             className={
-              isSelected || isResizing
+              (isEditable && isSelected) || isResizing
                 ? "ring-1 ring-muted-foreground"
                 : undefined
             }
@@ -244,7 +239,7 @@ export default function ExcalidrawComponent({
             width={width}
             height={height}
           >
-            {(isSelected || isResizing) && (
+            {((isEditable && isSelected) || isResizing) && (
               <ImageResizer
                 buttonRef={
                   captionButtonRef as React.RefObject<HTMLButtonElement>
@@ -262,16 +257,16 @@ export default function ExcalidrawComponent({
               />
             )}
           </ExcalidrawImage>
-          {isSelected && (
-            <button
-              type="button"
-              className="image-edit-button"
+          {isEditable && (
+            <Button
+              variant="ghost"
+              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs print:hidden"
               onClick={openModal}
             >
               Edit
-            </button>
+            </Button>
           )}
-        </button>
+        </div>
       )}
     </>
   );

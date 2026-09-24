@@ -25,13 +25,15 @@ export default function MermaidImage({
   className,
 }: Props) {
   const [editor] = useLexicalComposerContext();
-  const [src, setSrc] = useState<string>("");
+  /** The rendered diagram's URL; undefined while rendering, null if it failed. */
+  const [src, setSrc] = useState<string | null | undefined>(undefined);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   /* ─── render Mermaid to a blob URL ─── */
   useEffect(() => {
     let cancelled = false;
+    setSrc(undefined);
     (async () => {
       try {
         mermaid.initialize({ startOnLoad: false });
@@ -55,7 +57,7 @@ export default function MermaidImage({
 
         setSrc(url);
       } catch {
-        if (!cancelled) setSrc("");
+        if (!cancelled) setSrc(null);
       }
     })();
     return () => {
@@ -89,7 +91,18 @@ export default function MermaidImage({
     });
   }
 
-  if (!src) {
+  if (src === undefined) {
+    return (
+      <div
+        aria-busy="true"
+        className="inline-block bg-muted/20 text-muted-foreground text-xs p-2 rounded"
+      >
+        rendering diagram…
+      </div>
+    );
+  }
+
+  if (src === null) {
     return (
       <div className="inline-block bg-muted/20 text-muted-foreground text-xs p-2 rounded">
         failed to render diagram

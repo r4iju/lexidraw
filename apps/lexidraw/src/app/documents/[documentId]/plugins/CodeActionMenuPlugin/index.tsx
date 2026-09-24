@@ -2,6 +2,7 @@ import { $isCodeNode, CodeNode } from "@lexical/code";
 import { normalizeCodeLanguage } from "@lexical/code-shiki";
 import { getCodeLanguageFriendlyName } from "../code-language";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { $getNearestNodeFromDOMNode } from "lexical";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -19,6 +20,7 @@ type Position = {
 
 function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const [lang, setLang] = useState("");
   const [isShown, setShown] = useState<boolean>(false);
   const [shouldListenMouseMove, setShouldListenMouseMove] =
@@ -171,7 +173,7 @@ function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
         >
           <div className="text-xs">{codeFriendlyName}</div>
           <CopyButton editor={editor} getCodeDOMNode={getCodeDOMNode} />
-          {canBePrettier(normalizedLang) ? (
+          {isEditable && canBePrettier(normalizedLang) ? (
             <PrettierButton
               editor={editor}
               getCodeDOMNode={getCodeDOMNode}

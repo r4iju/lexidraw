@@ -12,6 +12,7 @@ import {
   AfterHeading,
   MarkdownBody,
 } from "~/server/api/routers/documents-schema";
+import { ORIENTATIONS, PAPER_SIZES } from "~/server/documents/render";
 import { DrawingElements } from "~/server/drawings/skeleton-schema";
 import {
   DRAWING_PREVIEW_TOOL_META,
@@ -276,6 +277,45 @@ export function registerLexidrawTools(
           }),
         "GET /api/v1/documents/{id}/markdown",
       ),
+  );
+
+  server.registerTool(
+    "get_document_pdf",
+    {
+      title: "Print a document to PDF",
+      description:
+        "A document printed to PDF, as the file itself: an embedded resource with mimeType application/pdf. It prints in light colours whatever the reader's theme, on A4 portrait unless paper or orientation say otherwise.",
+      inputSchema: z.object({
+        id: entityId,
+        paper: z.enum(PAPER_SIZES).optional(),
+        orientation: z.enum(ORIENTATIONS).optional(),
+      }),
+      annotations: { readOnlyHint: true },
+    },
+    async (input) => {
+      try {
+        const pdf = await caller.documents.render({
+          id: input.id,
+          format: "pdf",
+          paper: input.paper ?? "A4",
+          orientation: input.orientation ?? "portrait",
+        });
+        return {
+          content: [
+            {
+              type: "resource" as const,
+              resource: {
+                uri: `lexidraw://documents/${encodeURIComponent(pdf.id)}.pdf`,
+                mimeType: pdf.contentType,
+                blob: pdf.data,
+              },
+            },
+          ],
+        };
+      } catch (error) {
+        return failed(error);
+      }
+    },
   );
 
   server.registerTool(

@@ -7,7 +7,7 @@ import {
 } from "./args";
 import { json, type Context } from "./context";
 import { deleteEntity } from "./delete";
-import { CliError, describe, usageError } from "./errors";
+import { describe, usageError } from "./errors";
 import { callApi } from "./http";
 import {
   ADDRESS,
@@ -17,6 +17,7 @@ import {
   resolveEntity,
   resolveOptional,
 } from "./resolve";
+import { type Rendered, refuseBytesToTerminal, writeRender } from "./render";
 import { type ApiSession, openSession } from "./session";
 
 const USAGE = `usage:
@@ -46,14 +47,7 @@ const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
 const FORMATS = ["svg", "png"];
 
 /** The render envelope, as the OpenAPI document declares it. */
-type Render = {
-  format: string;
-  contentType: string;
-  encoding: string;
-  width: number;
-  height: number;
-  data: string;
-};
+type Render = Rendered & { width: number; height: number };
 
 export async function drawingCommand(
   context: Context,
@@ -159,12 +153,8 @@ async function render(context: Context, args: ParsedArgs): Promise<void> {
     throw usageError(`--format must be ${FORMATS.join(" or ")}`);
   }
   const out = one(args, "out");
-  // Raw PNG bytes down a terminal are noise the shell then has to be reset
-  // from, so the caller has to say where they go.
-  if (format === "png" && out === undefined && context.io.stdoutIsTty) {
-    throw usageError(
-      "drawing render --format png writes bytes: give --out <file>, or redirect stdout",
-    );
+  if (format === "png") {
+    refuseBytesToTerminal(context, out, "drawing render --format png");
   }
   const scale = one(args, "scale");
 
@@ -178,54 +168,16 @@ async function render(context: Context, args: ParsedArgs): Promise<void> {
       ...(scale === undefined ? [] : [["scale", scale] as const]),
     ],
   })) as Render;
-  return writeRender(context, rendered, out);
+  return writeRender(context, rendered, out, {
+    format: rendered.format,
+    contentType: rendered.contentType,
+    width: rendered.width,
+    height: rendered.height,
+  });
 }
 
 function drawingPath(id: string): string {
   return `/drawings/${encodeURIComponent(id)}`;
-}
-
-/**
- * The image, decoded from the envelope the REST path answers with. A PNG
- * arrives base64 encoded because that path is JSON only; see the procedure's
- * description in the OpenAPI document.
- */
-async function writeRender(
-  context: Context,
-  rendered: Render,
-  out: string | undefined,
-): Promise<void> {
-  if (typeof rendered.data !== "string") {
-    throw new CliError("BAD_RESPONSE", "the render carried no data");
-  }
-  const image =
-    rendered.encoding === "base64"
-      ? Buffer.from(rendered.data, "base64")
-      : rendered.data;
-  if (out === undefined) {
-    if (typeof image === "string") return context.io.stdout(image);
-    return context.io.stdoutBytes(image);
-  }
-  try {
-    await Bun.write(out, image);
-  } catch (cause) {
-    throw new CliError(
-      "WRITE_FAILED",
-      `--out ${out} could not be written: ${describe(cause)}`,
-    );
-  }
-  context.io.stdout(
-    json({
-      format: rendered.format,
-      contentType: rendered.contentType,
-      width: rendered.width,
-      height: rendered.height,
-      // What the file holds, not what the string counts: an SVG's characters
-      // are UTF-16 units here and UTF-8 bytes on disk.
-      bytes: Buffer.byteLength(image),
-      out,
-    }),
-  );
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { mergeRegister } from "@lexical/utils";
 import {
   $getNodeByKey,
@@ -29,8 +30,10 @@ export default function EquationComponent({
   nodeKey,
 }: EquationComponentProps): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const [equationValue, setEquationValue] = useState(equation);
-  const [showEquationEditor, setShowEquationEditor] = useState<boolean>(false);
+  const [editorRequested, setShowEquationEditor] = useState<boolean>(false);
+  const showEquationEditor = isEditable && editorRequested;
   const inputRef = useRef(null);
 
   const onHide = useCallback(

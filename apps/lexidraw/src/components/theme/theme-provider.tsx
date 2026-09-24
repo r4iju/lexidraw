@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   useTheme,
@@ -7,20 +8,38 @@ import {
   type ThemeProviderProps,
 } from "next-themes";
 
-export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
+/** Paper is white, so the page a PDF is printed from is light for everyone. */
+const PRINT_PAGE = /^\/documents\/[^/]+\/print$/;
+
+export function ThemeProvider({
+  children,
+  forcedTheme,
+  ...props
+}: ThemeProviderProps) {
+  // next-themes ignores a provider nested in another, so a page cannot force
+  // a theme of its own; the root one forces it for the page.
+  const pathname = usePathname();
+  return (
+    <NextThemesProvider
+      {...props}
+      forcedTheme={PRINT_PAGE.test(pathname ?? "") ? "light" : forcedTheme}
+    >
+      {children}
+    </NextThemesProvider>
+  );
 }
 
 export function useIsDarkTheme() {
-  const { theme, systemTheme } = useTheme();
+  const { theme, systemTheme, forcedTheme } = useTheme();
   const [isDarkTheme, setIsDarkTheme] = useState(false);
 
   useEffect(() => {
-    // Determines if the theme is set to dark or the system theme is dark when the theme is set to 'system'
+    // A page that forces a theme wins over the reader's.
+    const chosen = forcedTheme ?? theme;
     const isDark =
-      theme === "dark" || (theme === "system" && systemTheme === "dark");
+      chosen === "dark" || (chosen === "system" && systemTheme === "dark");
     setIsDarkTheme(isDark);
-  }, [theme, systemTheme]);
+  }, [forcedTheme, theme, systemTheme]);
 
   return isDarkTheme;
 }

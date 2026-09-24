@@ -23,7 +23,7 @@ export default function FontSize({
   className,
 }: {
   selectionFontSize: string;
-  disabled: boolean;
+  disabled?: boolean;
   editor: LexicalEditor;
   className?: string;
 }) {

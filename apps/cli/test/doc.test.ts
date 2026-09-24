@@ -504,3 +504,109 @@ describe("doc delete", () => {
     });
   });
 });
+
+describe("doc render", () => {
+  it("writes the PDF to --out and reports what it wrote", async () => {
+    const out = join(
+      await mkdtemp(join(tmpdir(), "lexidraw-doc-")),
+      "plan.pdf",
+    );
+    const run_ = io();
+    expect(
+      await run(
+        [
+          "doc",
+          "render",
+          "--path",
+          "Notes/Plan",
+          "--format",
+          "pdf",
+          "--out",
+          out,
+        ],
+        run_.io,
+      ),
+    ).toBe(0);
+    expect(await Bun.file(out).text()).toBe("%PDF doc-plan A4 portrait");
+    expect(JSON.parse(run_.stdout())).toMatchObject({
+      id: "doc-plan",
+      format: "pdf",
+      contentType: "application/pdf",
+      bytes: "%PDF doc-plan A4 portrait".length,
+      out,
+    });
+  });
+
+  it("prints on the paper and orientation asked for", async () => {
+    const out = io();
+    expect(
+      await run(
+        [
+          "doc",
+          "render",
+          "doc-plan",
+          "--format",
+          "pdf",
+          "--paper",
+          "Letter",
+          "--orientation",
+          "landscape",
+        ],
+        out.io,
+      ),
+    ).toBe(0);
+    expect(Buffer.from(out.stdoutBytes()).toString()).toBe(
+      "%PDF doc-plan Letter landscape",
+    );
+    expect(out.stdout()).toBe("");
+  });
+
+  it("refuses to write the PDF to a terminal, without a request", async () => {
+    const out = fakeIo({ env: stubEnv(stub), tty: true });
+    const before = stub.requests.length;
+    expect(
+      await run(["doc", "render", "doc-plan", "--format", "pdf"], out.io),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).message).toContain("--out");
+    expect(stub.requests).toHaveLength(before);
+  });
+
+  it("needs a format, and names the ones it has", async () => {
+    const out = io();
+    expect(await run(["doc", "render", "doc-plan"], out.io)).toBe(2);
+    expect(JSON.parse(out.stderr()).message).toBe(
+      "doc render needs --format pdf",
+    );
+  });
+
+  it("refuses paper it cannot print on, without a request", async () => {
+    const out = io();
+    const before = stub.requests.length;
+    expect(
+      await run(
+        ["doc", "render", "doc-plan", "--format", "pdf", "--paper", "A5"],
+        out.io,
+      ),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).message).toBe(
+      "--paper must be A4 or Letter",
+    );
+    expect(stub.requests).toHaveLength(before);
+  });
+
+  it("does not print a drawing", async () => {
+    stub.rows.set("drw-flow", {
+      id: "drw-flow",
+      title: "Flow",
+      entityType: "drawing",
+      parentId: "dir-notes",
+      updatedAt: new Date().toISOString(),
+      blocks: [],
+    });
+    const out = io();
+    expect(
+      await run(["doc", "render", "drw-flow", "--format", "pdf"], out.io),
+    ).toBe(1);
+    expect(JSON.parse(out.stderr()).code).toBe("NOT_FOUND");
+  });
+});

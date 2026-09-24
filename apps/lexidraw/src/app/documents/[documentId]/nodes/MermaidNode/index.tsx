@@ -1,6 +1,7 @@
 import { MermaidNode as HeadlessMermaidNode } from "@packages/lexical-nodes";
 import type { JSX } from "react";
 import React, { Suspense } from "react";
+import { BlockLoading } from "../common/BlockLoading";
 
 export type { SerializedMermaidNode } from "@packages/lexical-nodes";
 
@@ -14,7 +15,7 @@ export class MermaidNode extends HeadlessMermaidNode {
 
   decorate(): JSX.Element {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <MermaidComponent
           nodeKey={this.getKey()}
           schema={this.__schema}

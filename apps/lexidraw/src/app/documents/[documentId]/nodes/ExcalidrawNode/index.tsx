@@ -1,6 +1,7 @@
 import { ExcalidrawNode as HeadlessExcalidrawNode } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
+import { BlockLoading } from "../common/BlockLoading";
 
 export type { SerializedExcalidrawNode } from "@packages/lexical-nodes";
 
@@ -14,7 +15,7 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
 
   decorate(): React.JSX.Element {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <ExcalidrawComponent
           nodeKey={this.getKey()}
           data={this.__data}

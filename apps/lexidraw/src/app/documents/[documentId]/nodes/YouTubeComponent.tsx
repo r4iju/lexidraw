@@ -1,5 +1,6 @@
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -17,6 +18,7 @@ import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ImageResizer from "~/components/ui/image-resizer";
 import { cn } from "~/lib/utils";
+import { PrintedLink } from "./common/PrintedLink";
 import { YouTubeNode } from "./YouTubeNode";
 type YouTubeComponentProps = Readonly<{
   className: Readonly<{
@@ -41,6 +43,7 @@ export default function YouTubeComponent({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
 
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
@@ -146,7 +149,6 @@ export default function YouTubeComponent({
 
   const containerStyles: React.CSSProperties = {
     position: "relative",
-    display: "inline-block",
     width:
       currentDimensions.width === "inherit"
         ? undefined
@@ -165,7 +167,9 @@ export default function YouTubeComponent({
       <div
         ref={containerRef}
         style={containerStyles}
-        className={cn({ "ring-primary ring-1": isSelected || isResizing })}
+        className={cn("inline-block print:hidden", {
+          "ring-primary ring-1": isEditable && (isSelected || isResizing),
+        })}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -179,7 +183,7 @@ export default function YouTubeComponent({
           data-lexical-youtube-node-key={nodeKey}
         />
 
-        {(isHovered || isResizing) && (
+        {isEditable && (isHovered || isResizing) && (
           <ImageResizer
             editor={editor}
             imageRef={
@@ -198,6 +202,7 @@ export default function YouTubeComponent({
         {/* Hidden button used by ImageResizer to position Add Caption button (unused here) */}
         <button type="button" ref={buttonRef} style={{ display: "none" }} />
       </div>
+      <PrintedLink href={`https://www.youtube.com/watch?v=${videoID}`} />
     </BlockWithAlignableContents>
   );
 }

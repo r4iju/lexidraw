@@ -1,41 +1,27 @@
-/** biome-ignore-all lint/complexity/noImportantStyles: should be safe */
+/** biome-ignore-all lint/complexity/noImportantStyles: print overrides the screen layout's inline and utility styles */
 
+/* The paper size is whatever the print dialog, or the PDF export, chose. */
 @page {
-  size: A4;
-  margin: 14mm 14mm 16mm 14mm;
+  margin: 16mm 14mm;
 }
 
 @media print {
-  /* Hide all editor UI elements */
-  .no-print,
+  /* Editor chrome and dev overlays; the document is what prints. */
   [data-component-name="Toolbar"],
-  [data-component-name="TtsToolbar"],
-  [data-component-name="Sidebar"],
-  [data-component-name="CommentPlugin"],
-  [data-component-name="OptionsDropdown"],
-  [data-component-name="ModeToggle"],
-  [data-component-name="FloatingLinkEditor"],
-  [data-component-name="FloatingTextFormatToolbar"],
-  [data-component-name="ContextMenu"],
-  [data-component-name="LLMWidget"],
-  [data-component-name="AutocompletePlugin"],
-  [data-presence],
-  [data-presence-root],
-  .presence,
-  .cursor,
+  [data-component-name="CommentsPanel"],
+  [data-component-name="CommentUI"],
+  [data-component-name="CommentInputBox"],
   #nextjs-portal-root,
-  [data-nextjs-overlay],
-  [data-nextjs-error-overlay],
   [data-nextjs-toast],
-  [data-nextjs-dialog],
-  header,
-  nav,
-  aside,
-  .print-hidden {
+  [data-nextjs-dialog] {
     display: none !important;
   }
 
-  /* Ensure full-width content */
+  html {
+    /* next-themes sets the reader's scheme inline. */
+    color-scheme: light !important;
+  }
+
   body,
   html {
     margin: 0;
@@ -53,19 +39,21 @@
     overflow: visible !important;
   }
 
-  /* Remove height and overflow constraints that prevent pagination */
+  /* The screen layout scrolls inside fixed-height frames; paper paginates. */
   .print-container > *,
-  .print-container > * > * {
+  .print-container > * > *,
+  .page-frame,
+  .page-frame > *,
+  .page-frame > * > * {
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
     overflow: visible !important;
-    overflow-y: visible !important;
-    overflow-x: visible !important;
   }
 
-  /* Content editable specific fixes */
   [id^="lexical-content-"] {
+    /* The frame the editor draws around the page would rule every sheet. */
+    outline: none !important;
     min-height: 0 !important;
     height: auto !important;
     overflow: visible !important;
@@ -77,41 +65,6 @@
     overflow: visible !important;
   }
 
-  /* Remove overflow constraints on editor containers */
-  [class*="overflow"],
-  [class*="overflow-y-auto"],
-  [class*="overflow-hidden"] {
-    overflow: visible !important;
-  }
-
-  /* Remove borders from editor containers and UI elements */
-  [class*="border"],
-  [class*="border-x"],
-  [class*="border-y"],
-  [class*="border-t"],
-  [class*="border-r"],
-  [class*="border-b"],
-  [class*="border-l"],
-  [class*="border-border"] {
-    border: none !important;
-
-    border-width: 0 !important;
-  }
-
-  /* Page break controls */
-  .page-break {
-    break-before: page;
-  }
-
-  .page-break-after {
-    break-after: page;
-  }
-
-  .no-break {
-    break-inside: avoid;
-  }
-
-  /* Typography */
   h1,
   h2,
   h3,
@@ -119,93 +72,62 @@
   h5,
   h6 {
     break-after: avoid;
-    page-break-after: avoid;
   }
 
-  /* Figures and images */
   figure,
-  img,
-  .excalidraw-container {
+  img {
     break-inside: avoid;
-    page-break-inside: avoid;
     max-width: 100%;
   }
 
-  /* Tables */
+  /* Shorter than the shortest sheet (A4 landscape): a taller picture would
+     be pushed past a blank page and then cut in two anyway. */
+  img {
+    max-height: 170mm;
+    object-fit: contain;
+  }
+
   table {
     break-inside: avoid;
-    page-break-inside: avoid;
   }
 
   thead {
     display: table-header-group;
   }
 
-  tbody {
-    display: table-row-group;
-  }
-
-  /* Lists - allow breaks but maintain readability */
   ul,
   ol {
-    break-inside: auto;
-    page-break-inside: auto;
     orphans: 3;
     widows: 3;
   }
 
-  /* List items can break across pages */
   li {
     break-inside: avoid;
-    page-break-inside: avoid;
-    orphans: 2;
-    widows: 2;
   }
 
-  /* Collapsible containers - allow breaks across pages */
   [data-slot="accordion-item"] {
     break-inside: auto;
-    page-break-inside: auto;
     margin-bottom: 0.5rem;
   }
 
-  /* Keep collapsible title with at least some content */
   [data-slot="accordion-trigger"] {
     break-after: avoid;
-    page-break-after: avoid;
     gap: 0 !important;
   }
 
-  /* Hide chevron icon in collapsible titles */
-  [data-slot="accordion-trigger"] svg,
-  [data-slot="accordion-trigger"] > svg {
+  /* The chevron opens and closes a section; paper shows every section open. */
+  [data-slot="accordion-trigger"] svg {
     display: none !important;
   }
 
-  /* Auto-expand all collapsible content in print mode */
-  [data-slot="accordion-content"] {
-    break-inside: auto;
-    page-break-inside: auto;
-    overflow: visible !important;
-    height: auto !important;
-    min-height: auto !important;
-  }
-
-  /* Force expansion regardless of data-state (open/closed) */
-  [data-slot="accordion-content"][data-state="closed"],
-  [data-slot="accordion-item"][data-state="closed"]
-    [data-slot="accordion-content"] {
-    height: auto !important;
-    overflow: visible !important;
+  [data-slot="accordion-content"],
+  [data-slot="accordion-content"][data-state="closed"] {
     display: block !important;
-  }
-
-  /* Disable accordion animations in print mode */
-  [data-slot="accordion-content"] {
+    height: auto !important;
+    overflow: visible !important;
     animation: none !important;
   }
 
-  /* Code blocks */
   pre,
   code {
     break-inside: avoid;
@@ -213,28 +135,24 @@
     overflow-wrap: break-word;
   }
 
-  /* Prevent widows/orphans */
   p {
     orphans: 3;
     widows: 3;
   }
 
-  /* Ensure proper colors */
   * {
     print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
   }
 
-  /* Remove focus outlines */
   *:focus {
     outline: none !important;
   }
 }
 
-/* Screen preview styles (non-print media) */
+/* The print page previewed on screen, at the width of a sheet. */
 @media screen {
   .print-container {
-    max-width: 210mm; /* A4 width */
+    max-width: 210mm;
     margin: 0 auto;
     padding: 2rem;
     background: white;

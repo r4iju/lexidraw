@@ -45,8 +45,8 @@ loading tool schemas into the agent's context until they are needed.
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
-  tags, share, and directory listing — plus the four markdown procedures and
-  the drawing procedures, render included. Nothing further is planned. Admin,
+  tags, share, and directory listing — plus the four markdown procedures, a
+  document's PDF, and the drawing procedures, render included. Nothing further is planned. Admin,
   TTS, backups, snapshot, image generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
@@ -72,6 +72,7 @@ loading tool schemas into the agent's context until they are needed.
 | PUT    | `/documents/{id}/markdown`        | `documents.replaceMarkdown`  |
 | POST   | `/documents/{id}/markdown/append` | `documents.appendMarkdown`   |
 | POST   | `/documents/{id}/markdown/insert` | `documents.insertMarkdown`   |
+| GET    | `/documents/{id}/render`          | `documents.render`           |
 | GET    | `/drawings/{id}`                  | `drawings.get`               |
 | PUT    | `/drawings/{id}`                  | `drawings.put`               |
 | GET    | `/drawings/{id}/render`           | `drawings.render`            |
@@ -159,6 +160,8 @@ next one, so a chain of writes never needs a read between them.
     `doc append <id|--path P> (--file f|--text s)`,
     `doc insert ... (--after-heading H [--nth N] | --at-block N)`,
     `doc put ... --replace`, `doc delete <id|--path P>`; `--file -` is stdin
+  - `doc render <id|--path P> --format pdf [--paper A4|Letter]
+    [--orientation portrait|landscape] [--out <file>]`
   - `dir list [<id>|--path P]`,
     `dir create --title T [--dir <id>|--dir-path P]`
   - `search <query>`
@@ -230,8 +233,9 @@ next one, so a chain of writes never needs a read between them.
 - Live today: `doc`, `dir`, `search`, `drawing get|put|create|render|delete`, `auth
   login|status`, `api`, and
   `schema <command>|--list`, whose registry maps a command name to an
-  operationId in the cached document. `drawing render` writes the image to
-  `--out` or to stdout, and refuses to write PNG bytes to a terminal.
+  operationId in the cached document. `drawing render` and `doc render` write
+  the file to `--out` or to stdout, and refuse to write bytes (a PNG, a PDF)
+  to a terminal.
 - Skill: `skills/lexidraw/SKILL.md` in this repo. `bun run skills:install`
   builds and installs the binary, then symlinks `skills/lexidraw` to
   `~/.ai/skills/lexidraw`; it is idempotent, refuses to replace anything
@@ -267,12 +271,15 @@ next one, so a chain of writes never needs a read between them.
 | `append_markdown`       | `documents.appendMarkdown`  |
 | `insert_markdown`       | `documents.insertMarkdown`  |
 | `replace_markdown`      | `documents.replaceMarkdown` |
+| `get_document_pdf`      | `documents.render`          |
 | `get_drawing`           | `drawings.get`              |
 | `put_drawing`           | `drawings.put`              |
 | `create_drawing`        | `drawings.create`           |
 
 `create_document` is `entities.create` with the empty editor state a new
 document carries, so its answer is an id a write can address at once.
+`get_document_pdf` answers with the PDF as an embedded resource
+(`lexidraw://documents/{id}.pdf`, base64 `blob`) rather than as JSON text.
 
 A tool that succeeded answers with the procedure's output as JSON text. A tool
 that failed answers `isError: true` with the body `/api/v1` would have

@@ -86,7 +86,7 @@ export default function ExcalidrawImage({
   }, [elements, appState, isDarkTheme, files]);
 
   return (
-    <div className={`relative inline-block`}>
+    <div className="relative inline-block" aria-busy={url === undefined}>
       <img
         src={url}
         alt="Excalidraw"

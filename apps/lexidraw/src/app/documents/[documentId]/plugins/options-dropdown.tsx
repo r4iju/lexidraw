@@ -30,6 +30,21 @@ import { useAutoSave } from "../../../../hooks/use-auto-save";
 import { revalidate } from "../actions";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
+import { useSignedIn } from "../context/signed-in-context";
+
+type PdfPaper = "A4" | "Letter";
+type PdfOrientation = "portrait" | "landscape";
+
+const PDF_PAGES: {
+  label: string;
+  paper: PdfPaper;
+  orientation: PdfOrientation;
+}[] = [
+  { label: "A4 portrait", paper: "A4", orientation: "portrait" },
+  { label: "A4 landscape", paper: "A4", orientation: "landscape" },
+  { label: "Letter portrait", paper: "Letter", orientation: "portrait" },
+  { label: "Letter landscape", paper: "Letter", orientation: "landscape" },
+];
 
 type Props = {
   className?: string;
@@ -41,7 +56,6 @@ type Props = {
     RouterOutputs["entities"]["load"],
     "id" | "title" | "accessLevel"
   >;
-  printMode?: boolean;
 };
 
 export default function OptionsDropdown({
@@ -51,12 +65,12 @@ export default function OptionsDropdown({
   onExportMarkdown,
   onImportMarkdown,
   entity,
-  printMode = false,
 }: Props) {
   const router = useRouter();
   const { markPristine } = useUnsavedChanges();
+  const canEdit = entity.accessLevel === AccessLevel.EDIT;
   const { enabled: autoSaveEnabled, setEnabled: setAutoSaveEnabled } =
-    useAutoSave({ enabled: !printMode });
+    useAutoSave({ enabled: canEdit });
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isTagOpen, setIsTagOpen] = useState(false);
@@ -64,81 +78,57 @@ export default function OptionsDropdown({
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [modalMarkdown, setModalMarkdown] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canEdit = entity.accessLevel === AccessLevel.EDIT;
+  const signedIn = useSignedIn();
+  const utils = api.useUtils();
 
-  const exportPdf = api.documents.exportPdf.useMutation();
+  const handleExportPdf = useCallback(
+    async (paper: PdfPaper, orientation: PdfOrientation) => {
+      setIsExportingPdf(true);
+      const toastId = `pdf-export-${entity.id}-${Date.now()}`;
+      try {
+        toast.loading("Generating PDF...", { id: toastId });
+        const rendered = await utils.documents.render.fetch(
+          { id: entity.id, format: "pdf", paper, orientation },
+          // Each export prints the document as it is now.
+          { staleTime: 0, gcTime: 0 },
+        );
 
-  const handleExportPdf = useCallback(async () => {
-    setIsExportingPdf(true);
-    const toastId = `pdf-export-${entity.id}-${Date.now()}`;
-    try {
-      toast.loading("Generating PDF...", { id: toastId });
-      const result = await exportPdf.mutateAsync({
-        documentId: entity.id,
-      });
+        const sanitizedTitle = entity.title
+          ? entity.title
+              .replace(/[^a-z0-9_\-.\s]/gi, "_")
+              .replace(/\s+/g, "-")
+              .toLowerCase()
+              .substring(0, 60)
+              .replace(/^-+|-+$/g, "")
+          : "document";
+        const filename = `${sanitizedTitle || "document"}.pdf`;
 
-      const sanitizedTitle = entity.title
-        ? entity.title
-            .replace(/[^a-z0-9_\-.\s]/gi, "_")
-            .replace(/\s+/g, "-")
-            .toLowerCase()
-            .substring(0, 60)
-            .replace(/^-+|-+$/g, "")
-        : "document";
-      const filename = `${sanitizedTitle || "document"}.pdf`;
+        const bytes = Uint8Array.from(atob(rendered.data), (c) =>
+          c.charCodeAt(0),
+        );
+        const blob = new Blob([bytes], {
+          type: rendered.contentType,
+        });
 
-      toast.loading("Downloading PDF...", { id: toastId });
-      const response = await fetch(result.pdfUrl, {
-        method: "GET",
-        headers: {
-          Accept: "application/pdf",
-        },
-      });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        toast.success("PDF exported successfully", { id: toastId });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Error generating PDF";
+        toast.error(msg, { id: toastId });
+      } finally {
+        setIsExportingPdf(false);
       }
-
-      // Verify content-type
-      const contentType = response.headers.get("content-type");
-      if (contentType && !contentType.includes("application/pdf")) {
-        throw new Error(`Invalid content type: ${contentType}`);
-      }
-
-      const blob = await response.blob();
-
-      // Verify blob is actually PDF by checking first bytes
-      const arrayBuffer = await blob.slice(0, 4).arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const pdfMagic = [0x25, 0x50, 0x44, 0x46]; // "%PDF"
-      const isValidPdf =
-        bytes.length >= 4 &&
-        bytes[0] === pdfMagic[0] &&
-        bytes[1] === pdfMagic[1] &&
-        bytes[2] === pdfMagic[2] &&
-        bytes[3] === pdfMagic[3];
-
-      if (!isValidPdf) {
-        throw new Error("Response is not a valid PDF");
-      }
-
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(blobUrl);
-      document.body.removeChild(a);
-
-      toast.success("PDF exported successfully", { id: toastId });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error generating PDF";
-      toast.error(msg, { id: toastId });
-    } finally {
-      setIsExportingPdf(false);
-    }
-  }, [entity.id, entity.title, exportPdf]);
+    },
+    [entity.id, entity.title, utils],
+  );
 
   const handleDropdownSave = () => {
     if (isSavingDocument) return;
@@ -264,26 +254,26 @@ export default function OptionsDropdown({
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup title="Document">
-            <DropdownMenuItem
-              onClick={handleDropdownSave}
-              disabled={isSavingDocument}
-            >
-              Save
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(e) => e.preventDefault()}
-              className="flex items-center justify-between gap-2"
-            >
-              <span>Auto-save</span>
-              <Switch
-                size="sm"
-                checked={autoSaveEnabled}
-                onCheckedChange={setAutoSaveEnabled}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </DropdownMenuItem>
             {canEdit && (
               <>
+                <DropdownMenuItem
+                  onClick={handleDropdownSave}
+                  disabled={isSavingDocument}
+                >
+                  Save
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span>Auto-save</span>
+                  <Switch
+                    size="sm"
+                    checked={autoSaveEnabled}
+                    onCheckedChange={setAutoSaveEnabled}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
                   Rename
                 </DropdownMenuItem>
@@ -295,17 +285,21 @@ export default function OptionsDropdown({
                 </DropdownMenuItem>
               </>
             )}
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Import from file</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem
-                  onClick={handleMarkdownImportClick}
-                  disabled={!onImportMarkdown || !canEdit}
-                >
-                  Markdown (.md)
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            {canEdit && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  Import from file
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={handleMarkdownImportClick}
+                    disabled={!onImportMarkdown}
+                  >
+                    Markdown (.md)
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>Export to file</DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
@@ -315,23 +309,32 @@ export default function OptionsDropdown({
                 >
                   Markdown (.md)
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={handleExportPdf}
-                  disabled={isExportingPdf}
-                  className="flex items-center gap-2"
-                >
-                  {isExportingPdf ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating PDF...
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="h-4 w-4" />
+                {signedIn && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger
+                      disabled={isExportingPdf}
+                      className="flex items-center gap-2"
+                    >
+                      {isExportingPdf ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileDown className="h-4 w-4" />
+                      )}
                       PDF (.pdf)
-                    </>
-                  )}
-                </DropdownMenuItem>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {PDF_PAGES.map(({ label, paper, orientation }) => (
+                        <DropdownMenuItem
+                          key={label}
+                          disabled={isExportingPdf}
+                          onClick={() => handleExportPdf(paper, orientation)}
+                        >
+                          {label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           </DropdownMenuGroup>

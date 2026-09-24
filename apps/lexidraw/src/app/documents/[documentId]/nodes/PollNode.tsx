@@ -1,6 +1,7 @@
 import { PollNode as HeadlessPollNode } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
+import { BlockLoading } from "./common/BlockLoading";
 
 export type {
   Option,
@@ -18,7 +19,7 @@ export class PollNode extends HeadlessPollNode {
 
   decorate(): React.JSX.Element {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <PollComponent
           question={this.__question}
           options={this.__options}

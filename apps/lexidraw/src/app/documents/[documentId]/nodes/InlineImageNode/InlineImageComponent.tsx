@@ -3,6 +3,7 @@ import type { BaseSelection, LexicalEditor, NodeKey } from "lexical";
 
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -299,6 +300,7 @@ export default function InlineImageComponent({
     height,
   });
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
   const { historyState } = useSharedHistoryContext();
   const {
@@ -458,8 +460,8 @@ export default function InlineImageComponent({
     setSelected,
   ]);
 
-  const draggable = isSelected && $isNodeSelection(selection);
-  const isFocused = isSelected;
+  const draggable = isEditable && isSelected && $isNodeSelection(selection);
+  const isFocused = isEditable && isSelected;
 
   const onDimensionsChange = (dimensions: {
     width: number | "inherit";
@@ -513,17 +515,18 @@ export default function InlineImageComponent({
               setIsLightboxOpen(true);
             }}
           />
-          {/* "Edit" button on top */}
-          <Button
-            ref={buttonRef}
-            variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            Edit
-          </Button>
+          {isEditable && (
+            <Button
+              ref={buttonRef}
+              variant="ghost"
+              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs print:hidden"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              Edit
+            </Button>
+          )}
 
-          {isSelected && (
+          {isEditable && isSelected && (
             <ImageResizer
               imageRef={containerRef as React.RefObject<HTMLImageElement>}
               editor={editor}

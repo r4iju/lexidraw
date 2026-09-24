@@ -1,6 +1,7 @@
 import type { Option, Options } from "./PollNode";
 import { PollNode } from "./PollNode";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -49,6 +50,7 @@ function PollOptionComponent({
 }): React.JSX.Element {
   const userId = useUserIdOrGuestId();
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const checkboxRef = useRef(null);
   const votesArray = option.votes;
   const checkedIndex = votesArray.indexOf(userId);
@@ -58,16 +60,18 @@ function PollOptionComponent({
 
   return (
     <div className="flex items-center mb-2">
-      <Checkbox
-        ref={checkboxRef}
-        onCheckedChange={() => {
-          withPollNode((node) => {
-            node.toggleVote(option, userId);
-          });
-        }}
-        className="mr-2 size-6"
-        checked={checked}
-      />
+      {isEditable && (
+        <Checkbox
+          ref={checkboxRef}
+          onCheckedChange={() => {
+            withPollNode((node) => {
+              node.toggleVote(option, userId);
+            });
+          }}
+          className="mr-2 size-6 print:hidden"
+          checked={checked}
+        />
+      )}
 
       <div className="relative flex flex-grow rounded-md border border-primary overflow-hidden">
         <div
@@ -77,43 +81,51 @@ function PollOptionComponent({
         <span className="pointer-events-none absolute right-4 top-1 text-xs text-primary z-10">
           {votes > 0 && (votes === 1 ? "1 vote" : `${votes} votes`)}
         </span>
-        <Input
-          className={cn(
-            "relative z-10 flex-1 border-0 bg-transparent p-2 font-semibold",
-            "text-primary placeholder:text-muted-foreground placeholder:font-normal",
-            "focus-visible:ring-0",
-          )}
-          type="text"
-          value={text}
-          onKeyDownCapture={(e) => e.stopPropagation()}
-          onChange={(e) =>
-            editor.update(() => {
-              const n = $getNodeByKey(nodeKey);
-              if (PollNode.$isPollNode(n)) {
-                n.setOptionText(option, e.target.value);
-              }
-            })
-          }
-          placeholder={`Option ${index + 1}`}
-        />
-      </div>
-      <Button
-        disabled={options.length < 3}
-        size="icon"
-        className={cn(
-          "ml-2 size-7 shrink-0 rounded-sm",
-          "opacity-30 hover:opacity-100",
-          "disabled:pointer-events-none disabled:opacity-30",
+        {isEditable ? (
+          <Input
+            className={cn(
+              "relative z-10 flex-1 border-0 bg-transparent p-2 font-semibold",
+              "text-primary placeholder:text-muted-foreground placeholder:font-normal",
+              "focus-visible:ring-0",
+            )}
+            type="text"
+            value={text}
+            onKeyDownCapture={(e) => e.stopPropagation()}
+            onChange={(e) =>
+              editor.update(() => {
+                const n = $getNodeByKey(nodeKey);
+                if (PollNode.$isPollNode(n)) {
+                  n.setOptionText(option, e.target.value);
+                }
+              })
+            }
+            placeholder={`Option ${index + 1}`}
+          />
+        ) : (
+          <span className="relative z-10 flex-1 p-2 font-semibold text-primary">
+            {text}
+          </span>
         )}
-        aria-label="Remove"
-        onClick={() => {
-          withPollNode((node) => {
-            node.deleteOption(option);
-          });
-        }}
-      >
-        <TrashIcon className="size-4" />
-      </Button>
+      </div>
+      {isEditable && (
+        <Button
+          disabled={options.length < 3}
+          size="icon"
+          className={cn(
+            "ml-2 size-7 shrink-0 rounded-sm print:hidden",
+            "opacity-30 hover:opacity-100",
+            "disabled:pointer-events-none disabled:opacity-30",
+          )}
+          aria-label="Remove"
+          onClick={() => {
+            withPollNode((node) => {
+              node.deleteOption(option);
+            });
+          }}
+        >
+          <TrashIcon className="size-4" />
+        </Button>
+      )}
     </div>
   );
 }
@@ -128,6 +140,7 @@ export default function PollComponent({
   question: string;
 }): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const totalVotes = useMemo(() => getTotalVotes(options), [options]);
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
@@ -213,7 +226,7 @@ export default function PollComponent({
       className={cn(
         "max-w-[600px] min-w-[400px] select-none rounded-lg",
         "border border-border bg-card p-6",
-        { "outline-2 outline-ring": isFocused },
+        { "outline-2 outline-ring": isFocused && isEditable },
       )}
       ref={ref}
     >
@@ -234,11 +247,13 @@ export default function PollComponent({
           />
         );
       })}
-      <div className="flex justify-center">
-        <Button onClick={addOption} size="sm">
-          Add Option
-        </Button>
-      </div>
+      {isEditable && (
+        <div className="flex justify-center print:hidden">
+          <Button onClick={addOption} size="sm">
+            Add Option
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

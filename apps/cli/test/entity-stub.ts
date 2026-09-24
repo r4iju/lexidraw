@@ -112,6 +112,14 @@ export function startEntityStub(seeds: readonly Seed[] = []): EntityStub {
       }
     }
 
+    const printed = path.match(/^\/documents\/([^/]+)\/render$/);
+    if (printed) {
+      const row = rows.get(printed[1] as string);
+      if (row?.entityType !== "document") {
+        return fail(404, "NOT_FOUND", "Document not found");
+      }
+      return Response.json(printedPdf(row, url));
+    }
     const markdown = path.match(/^\/documents\/([^/]+)\/markdown(\/\w+)?$/);
     if (markdown) {
       const row = rows.get(markdown[1] as string);
@@ -194,6 +202,19 @@ function rendered(row: Row) {
     width: 1,
     height: 1,
     data: `<svg>${row.id}</svg>`,
+    updatedAt: row.updatedAt,
+  };
+}
+
+/** A stand-in PDF that names the document and the page it was printed on. */
+function printedPdf(row: Row, url: URL) {
+  const page = `${url.searchParams.get("paper") ?? "A4"} ${url.searchParams.get("orientation") ?? "portrait"}`;
+  return {
+    id: row.id,
+    format: "pdf",
+    contentType: "application/pdf",
+    encoding: "base64",
+    data: Buffer.from(`%PDF ${row.id} ${page}`).toString("base64"),
     updatedAt: row.updatedAt,
   };
 }

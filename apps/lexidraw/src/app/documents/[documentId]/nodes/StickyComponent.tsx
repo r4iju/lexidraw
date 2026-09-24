@@ -4,6 +4,7 @@ import type { JSX } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { calculateZoomLevel } from "@lexical/utils";
 import { $getNodeByKey } from "lexical";
@@ -45,6 +46,7 @@ export default function StickyComponent({
   y: number;
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const stickyContainerRef = useRef<null | HTMLDivElement>(null);
   const positioningRef = useRef<Positioning>({
     isDragging: false,
@@ -210,6 +212,7 @@ export default function StickyComponent({
         onPointerDown={(event) => {
           const stickyContainer = stickyContainerRef.current;
           if (
+            !isEditable ||
             stickyContainer == null ||
             event.button === 2 ||
             event.target !== stickyContainer.firstChild
@@ -232,26 +235,28 @@ export default function StickyComponent({
           }
         }}
       >
-        <div className="flex items-center justify-between gap-2 p-0">
-          <Button
-            onClick={handleColorChange}
-            variant="ghost"
-            size="icon"
-            aria-label="Change sticky note color"
-            title="Color"
-          >
-            <PaintbrushIcon className="size-4" />
-          </Button>
-          <Button
-            onClick={handleDelete}
-            size="icon"
-            variant="ghost"
-            aria-label="Delete sticky note"
-            title="Delete"
-          >
-            <TrashIcon className="size-4" />
-          </Button>
-        </div>
+        {isEditable && (
+          <div className="flex items-center justify-between gap-2 p-0 print:hidden">
+            <Button
+              onClick={handleColorChange}
+              variant="ghost"
+              size="icon"
+              aria-label="Change sticky note color"
+              title="Color"
+            >
+              <PaintbrushIcon className="size-4" />
+            </Button>
+            <Button
+              onClick={handleDelete}
+              size="icon"
+              variant="ghost"
+              aria-label="Delete sticky note"
+              title="Delete"
+            >
+              <TrashIcon className="size-4" />
+            </Button>
+          </div>
+        )}
         <div className="px-2">
           <LexicalNestedComposer initialEditor={caption}>
             <PlainTextPlugin

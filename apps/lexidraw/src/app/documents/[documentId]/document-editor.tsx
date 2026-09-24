@@ -96,6 +96,10 @@ import {
   useUnsavedChanges,
 } from "../../../hooks/use-unsaved-changes";
 import { TooltipProvider } from "~/components/ui/tooltip";
+import { Button } from "~/components/ui/button";
+import { BookOpenIcon, PencilIcon } from "lucide-react";
+import { EditabilityPlugin, mayEdit, type RenderMode } from "./editability";
+import RenderReadyPlugin from "./plugins/RenderReadyPlugin";
 import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
 import type { StoredLlmConfig } from "~/server/api/routers/config";
 import {
@@ -282,10 +286,13 @@ function EditorHandler({
   exportMarkdown,
   editorStateRef,
   setEditorStateRef,
-  printMode,
-}: ExtendedEditorProps & { printMode: boolean }) {
+  renderMode,
+}: ExtendedEditorProps & { renderMode: RenderMode }) {
+  const onScreen = renderMode === "view";
+  const canEdit = mayEdit(renderMode, entity.accessLevel);
+  const [reading, setReading] = useState(false);
   const canCollaborate =
-    !printMode &&
+    onScreen &&
     (entity.sharedWith.length > 0 ||
       entity.publicAccess !== PublicAccess.PRIVATE);
   const userId = useUserIdOrGuestId();
@@ -328,11 +335,11 @@ function EditorHandler({
   }, [dirty]);
   const openDocument = useOpenEntityContext();
   const { holdsSaves } = useOpenEntitySync(openDocument, {
-    editor: printMode ? null : syncedEditor,
+    editor: onScreen ? syncedEditor : null,
     onSavesResumed,
   });
   const { defaultFontFamily } = useDocumentSettings();
-  const { enabled: autoSaveEnabled } = useAutoSave({ enabled: !printMode });
+  const { enabled: autoSaveEnabled } = useAutoSave({ enabled: canEdit });
 
   const handleImportMarkdown = useCallback(
     (markdown: string, mode: MarkdownInsertMode) => {
@@ -394,6 +401,13 @@ function EditorHandler({
   ) => {
     // A collaborator's state: theirs to send and to save.
     if (tags.has(COLLABORATION_TAG)) return;
+    // Someone who cannot edit changes nothing worth keeping or sending: what
+    // moves here is a block measuring itself, or a poll vote, which saves on
+    // its own.
+    if (!canEdit) {
+      setEditorStateRef(editorState);
+      return;
+    }
     const parsedState = JSON.stringify(editorState);
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
@@ -508,6 +522,7 @@ function EditorHandler({
     if (!window.location.hash && scrollRef.current) {
       scrollRef.current.scrollTo({ top: 0, left: 0, behavior: "auto" });
     }
+    if (!editor.isEditable()) return;
     editor.update(() => {
       $getRoot().selectStart();
     });
@@ -525,6 +540,8 @@ function EditorHandler({
                     <LexicalImageProvider>
                       <CommentPluginProvider>
                         <SlidePlugin />
+                        <EditabilityPlugin editable={canEdit && !reading} />
+                        {!onScreen && <RenderReadyPlugin />}
                         <div
                           style={dynamicPageStyle}
                           className={cn(
@@ -538,8 +555,7 @@ function EditorHandler({
                             sawarabi.variable,
                           )}
                         >
-                          {/* toolbar (hidden in print mode) */}
-                          {!printMode && (
+                          {onScreen && (
                             <div
                               className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-card shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
                               data-component-name="Toolbar"
@@ -555,8 +571,22 @@ function EditorHandler({
                                   title: entity.title,
                                   accessLevel: entity.accessLevel,
                                 }}
-                                printMode={printMode}
                               />
+                              {canEdit && (
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="flex h-12 md:h-10 min-w-12 md:min-w-10"
+                                  aria-pressed={reading}
+                                  title={reading ? "Edit" : "Reading view"}
+                                  onClick={() => setReading((on) => !on)}
+                                >
+                                  {reading ? <PencilIcon /> : <BookOpenIcon />}
+                                  <span className="sr-only">
+                                    {reading ? "Edit" : "Reading view"}
+                                  </span>
+                                </Button>
+                              )}
                               <ShortcutsPlugin
                                 editor={editor}
                                 setIsLinkEditMode={setIsLinkEditMode}
@@ -575,12 +605,12 @@ function EditorHandler({
                             {/* editor */}
                             <div
                               ref={scrollRef}
-                              className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto bg-background border-x border-border"
+                              className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto bg-background border-x border-border print:border-0"
                             >
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />
                               <LayoutPlugin />
-                              <LLMWidget />
+                              {onScreen && <LLMWidget />}
                               <ListPlugin />
                               <ListMaxIndentLevelPlugin />
                               <CheckListPlugin />
@@ -591,7 +621,7 @@ function EditorHandler({
                               <PollPlugin />
                               <CodeHighlightPlugin />
                               <TabIndentationPlugin />
-                              {autocomplete && signedIn && (
+                              {isEditable && autocomplete && signedIn && (
                                 <SessionUUIDProvider>
                                   <AutocompletePlugin />
                                 </SessionUUIDProvider>
@@ -603,7 +633,7 @@ function EditorHandler({
                                 hasCellMerge
                                 hasCellBackgroundColor
                               />
-                              <TableCellResizer />
+                              {isEditable && <TableCellResizer />}
                               <ImagePlugin />
                               <InlineImagePlugin />
                               <VideoPlugin />
@@ -627,19 +657,22 @@ function EditorHandler({
                                     />
                                   </article>
                                 }
-                                placeholder={<Placeholder />}
+                                placeholder={(editable) =>
+                                  editable ? <Placeholder /> : null
+                                }
                                 ErrorBoundary={LexicalErrorBoundary}
                               />
                               <OnChangePlugin onChange={onChange} />
                               <HistoryPlugin />
-                              <AutoFocusPlugin />
-                              {/* plugins */}
+                              {isEditable && <AutoFocusPlugin />}
                               {floatingAnchorElem && (
+                                <CodeActionMenuPlugin
+                                  anchorElem={floatingAnchorElem}
+                                />
+                              )}
+                              {isEditable && floatingAnchorElem && (
                                 <>
                                   <DraggableBlockPlugin
-                                    anchorElem={floatingAnchorElem}
-                                  />
-                                  <CodeActionMenuPlugin
                                     anchorElem={floatingAnchorElem}
                                   />
                                   <FloatingLinkEditorPlugin
@@ -657,15 +690,15 @@ function EditorHandler({
                                   />
                                 </>
                               )}
-                              <ContextMenuPlugin />
+                              {isEditable && <ContextMenuPlugin />}
                             </div>
                             {/* A chat left open by an earlier sign-in stays shut. */}
-                            {!printMode &&
+                            {onScreen &&
                               activeSidebar &&
                               (signedIn || activeSidebar !== "llm") && (
                                 <SidebarWrapper
                                   ref={sidebarRef}
-                                  className="shadow-lg"
+                                  className="shadow-lg print:hidden"
                                   onClose={() => {
                                     setActiveSidebar(null);
                                   }}
@@ -689,7 +722,7 @@ function EditorHandler({
                               )}
                           </div>
 
-                          {!printMode && <ConditionalCommentInputBoxRenderer />}
+                          {onScreen && <ConditionalCommentInputBoxRenderer />}
                         </div>
                       </CommentPluginProvider>
                     </LexicalImageProvider>
@@ -717,7 +750,7 @@ type Props = {
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
   signedIn: boolean;
-  printMode?: boolean;
+  renderMode?: RenderMode;
 };
 
 function EditorScaffold({
@@ -727,7 +760,7 @@ function EditorScaffold({
   iceServers,
   initialLlmConfig,
   nodes,
-  printMode,
+  renderMode,
 }: {
   entity: RouterOutputs["entities"]["load"];
   editorStateRef: RefObject<EditorState | undefined>;
@@ -735,7 +768,7 @@ function EditorScaffold({
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
   nodes: Klass<LexicalNode>[];
-  printMode?: boolean;
+  renderMode: RenderMode;
 }) {
   const openDocument = useOpenEntity(entity, "document");
   const saveAndExport = useSaveAndExportDocument({
@@ -743,15 +776,12 @@ function EditorScaffold({
     editorStateRef,
     openDocument,
   });
-  const saveBeforeLeaving = printMode
-    ? undefined
-    : saveAndExport.saveBeforeLeaving;
-  const handleSave = printMode ? () => {} : saveAndExport.handleSave;
-  const handleSilentSave = printMode
-    ? () => {}
-    : saveAndExport.handleSilentSave;
-  const isUploading = printMode ? false : saveAndExport.isUploading;
-  const exportMarkdown = printMode ? () => {} : saveAndExport.exportMarkdown;
+  const canEdit = mayEdit(renderMode, entity.accessLevel);
+  const saveBeforeLeaving = canEdit
+    ? saveAndExport.saveBeforeLeaving
+    : undefined;
+  const handleSave = canEdit ? saveAndExport.handleSave : () => {};
+  const handleSilentSave = canEdit ? saveAndExport.handleSilentSave : () => {};
 
   return (
     <SettingsProvider>
@@ -764,6 +794,7 @@ function EditorScaffold({
           },
           nodes,
           theme,
+          editable: canEdit,
         }}
       >
         <OpenEntityContext value={openDocument}>
@@ -775,11 +806,11 @@ function EditorScaffold({
                 initialLlmConfig={initialLlmConfig}
                 handleSave={handleSave}
                 handleSilentSave={handleSilentSave}
-                isUploading={isUploading}
-                exportMarkdown={exportMarkdown}
+                isUploading={saveAndExport.isUploading}
+                exportMarkdown={saveAndExport.exportMarkdown}
                 editorStateRef={editorStateRef}
                 setEditorStateRef={setEditorStateRef}
-                printMode={printMode ?? false}
+                renderMode={renderMode}
               />
             </SidebarManagerProvider>
           </UnsavedChangesProvider>
@@ -794,7 +825,7 @@ export default function DocumentEditor({
   iceServers,
   initialLlmConfig,
   signedIn,
-  printMode,
+  renderMode = "view",
 }: Props) {
   console.log("🔄 DocumentEditor re-rendered");
 
@@ -847,7 +878,7 @@ export default function DocumentEditor({
           iceServers={iceServers}
           initialLlmConfig={initialLlmConfig}
           nodes={lexicalNodes}
-          printMode={printMode}
+          renderMode={renderMode}
         />
       </DocumentSettingsProvider>
     </SignedInProvider>

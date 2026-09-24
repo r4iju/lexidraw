@@ -418,254 +418,255 @@ export default function ToolbarPlugin({
         className,
       )}
     >
-      {/* Undo/Redo */}
-      <fieldset className="flex" aria-label="History actions">
-        <TooltipButton
-          onClick={() => {
-            activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
-          }}
-          className="w-10 md:w-8 h-12 md:h-10 rounded-r-none"
-          disabled={!canUndo || !isEditable}
-          title={IS_APPLE ? "Undo (⌘Z)" : "Undo (Ctrl+Z)"}
-          Icon={Undo}
-          ariaLabel="Undo"
-        />
-        <TooltipButton
-          onClick={() => {
-            activeEditor.dispatchCommand(REDO_COMMAND, undefined);
-          }}
-          className="w-10 md:w-8 h-12 md:h-10 rounded-l-none"
-          disabled={!canRedo || !isEditable}
-          title={IS_APPLE ? "Redo (⌘Y)" : "Redo (Ctrl+Y)"}
-          Icon={Redo}
-          ariaLabel="Redo"
-        />
-      </fieldset>
-
-      <Divider />
-
-      {blockType === "code" ? (
+      {/* Formatting and inserting: nothing to offer someone reading. */}
+      {isEditable && (
         <>
-          <CodeSelector
-            activeEditor={activeEditor}
-            selectedElementKey={selectedElementKey}
-            isEditable={isEditable}
-            codeLanguage={codeLanguage}
-          />
-          <Divider />
-        </>
-      ) : (
-        <>
-          <div className="flex gap-0 h-12 md:h-10">
-            <ElementFormatDropdown
-              disabled={!isEditable}
-              value={elementFormat}
-              editor={activeEditor}
-              isRTL={isRTL}
-              className="rounded-r-none border-r-0"
-            />
-            <BlockFormatDropDown
-              disabled={!isEditable}
-              blockType={blockType}
-              rootType={rootType}
-              editor={activeEditor}
-              className="rounded-none border-x-0"
-            />
-            <FontDropDown
-              disabled={!isEditable}
-              style={"font-family"}
-              value={fontFamily}
-              editor={activeEditor}
-              className="rounded-l-none border-l-0"
-            />
-          </div>
-          <Divider />
-          <fieldset
-            className="flex"
-            aria-label="Font style and basic formatting"
-          >
-            <FontSize
-              selectionFontSize={fontSize.slice(0, -2)}
-              editor={activeEditor}
-              disabled={!isEditable}
-              className=""
+          {/* Undo/Redo */}
+          <fieldset className="flex" aria-label="History actions">
+            <TooltipButton
+              onClick={() => {
+                activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
+              }}
+              className="w-10 md:w-8 h-12 md:h-10 rounded-r-none"
+              disabled={!canUndo}
+              title={IS_APPLE ? "Undo (⌘Z)" : "Undo (Ctrl+Z)"}
+              Icon={Undo}
+              ariaLabel="Undo"
             />
             <TooltipButton
               onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
+                activeEditor.dispatchCommand(REDO_COMMAND, undefined);
               }}
-              className={cn(
-                "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
-                { "bg-muted": isBold },
-              )}
-              disabled={!isEditable}
-              title={IS_APPLE ? "Bold (⌘B)" : "Bold (Ctrl+B)"}
-              Icon={Bold}
-              ariaLabel={`Format text as bold. Shortcut: ${IS_APPLE ? "⌘B" : "Ctrl+B"}`}
+              className="w-10 md:w-8 h-12 md:h-10 rounded-l-none"
+              disabled={!canRedo}
+              title={IS_APPLE ? "Redo (⌘Y)" : "Redo (Ctrl+Y)"}
+              Icon={Redo}
+              ariaLabel="Redo"
             />
-            <TooltipButton
-              onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
-              }}
-              className={cn(
-                "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
-                { "bg-muted": isItalic },
-              )}
-              disabled={!isEditable}
-              title={IS_APPLE ? "Italic (⌘I)" : "Italic (Ctrl+I)"}
-              Icon={Italic}
-              ariaLabel={`Format text as italics. Shortcut: ${IS_APPLE ? "⌘I" : "Ctrl+I"}`}
-            />
-            <TooltipButton
-              onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
-              }}
-              className={cn(
-                "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
-                { "bg-muted": isUnderline },
-              )}
-              disabled={!isEditable}
-              title={IS_APPLE ? "Underline (⌘U)" : "Underline (Ctrl+U)"}
-              Icon={Underline}
-              ariaLabel={`Format text to underlined. Shortcut: ${IS_APPLE ? "⌘U" : "Ctrl+U"}`}
-            />
-            {/* Text Color / Background Color */}
-            <div className="flex">
-              <ColorPickerButton
-                disabled={!isEditable}
-                buttonAriaLabel="Formatting text color"
-                color={fontColor}
-                onChange={onFontColorSelect}
-                title="Text color"
-                Icon={Baseline}
-                className="rounded-none border-x-0"
-              />
-              <ColorPickerButton
-                disabled={!isEditable}
-                buttonAriaLabel="Formatting background color"
-                color={bgColor}
-                onChange={onBgColorSelect}
-                title="Background color"
-                Icon={PaintBucket}
-                className="rounded-none border-x-0"
-              />
-            </div>
-            <Tooltip>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      disabled={!isEditable}
-                      aria-label="Formatting options for additional text styles"
-                      className="w-10 md:w-8 h-12 md:h-10 p-1 rounded-l-none rounded-r-md border-l-0"
-                    >
-                      <Ellipsis className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      activeEditor.dispatchCommand(
-                        FORMAT_TEXT_COMMAND,
-                        "strikethrough",
-                      );
-                    }}
-                    className={`item ${dropDownActiveClass(isStrikethrough)}`}
-                    title="Strikethrough"
-                    aria-label="Format text with a strikethrough"
-                  >
-                    <i className="icon strikethrough" />
-                    <span className="text">Strikethrough</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      activeEditor.dispatchCommand(
-                        FORMAT_TEXT_COMMAND,
-                        "subscript",
-                      );
-                    }}
-                    className={`item ${dropDownActiveClass(isSubscript)}`}
-                    title="Subscript"
-                    aria-label="Format text with a subscript"
-                  >
-                    <i className="icon subscript" />
-                    <span className="text">Subscript</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      activeEditor.dispatchCommand(
-                        FORMAT_TEXT_COMMAND,
-                        "superscript",
-                      );
-                    }}
-                    className={`item ${dropDownActiveClass(isSuperscript)}`}
-                    title="Superscript"
-                    aria-label="Format text with a superscript"
-                  >
-                    <i className="icon superscript" />
-                    <span className="text">Superscript</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={clearFormatting}
-                    className="item"
-                    title="Clear text formatting"
-                    aria-label="Clear all text formatting"
-                  >
-                    <i className="icon clear" />
-                    <span className="text">Clear Formatting</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </Tooltip>
           </fieldset>
+
           <Divider />
 
-          <div className="flex gap-0 h-12 md:h-10">
-            <InsertItem activeEditor={activeEditor} isEditable={isEditable} />
-            <TooltipButton
-              onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
-              }}
-              className={cn(
-                "w-10 md:w-8 h-12 md:h-10 border-x-0 rounded-none",
-                {
-                  "bg-muted": isCode,
-                },
-              )}
-              disabled={!isEditable}
-              title="Insert code block"
-              Icon={Code}
-              ariaLabel="Insert code block"
-            />
-            <TooltipButton
-              className={cn(
-                "w-10 md:w-8 h-12 md:h-10 border-l-0 rounded-l-none",
-                {
-                  "bg-muted": isLink,
-                },
-              )}
-              onClick={insertLink}
-              disabled={!isEditable}
-              title="Insert link"
-              Icon={Link}
-              ariaLabel="Insert link"
-            />
-          </div>
+          {blockType === "code" ? (
+            <>
+              <CodeSelector
+                activeEditor={activeEditor}
+                selectedElementKey={selectedElementKey}
+                isEditable={isEditable}
+                codeLanguage={codeLanguage}
+              />
+              <Divider />
+            </>
+          ) : (
+            <>
+              <div className="flex gap-0 h-12 md:h-10">
+                <ElementFormatDropdown
+                  value={elementFormat}
+                  editor={activeEditor}
+                  isRTL={isRTL}
+                  className="rounded-r-none border-r-0"
+                />
+                <BlockFormatDropDown
+                  blockType={blockType}
+                  rootType={rootType}
+                  editor={activeEditor}
+                  className="rounded-none border-x-0"
+                />
+                <FontDropDown
+                  style={"font-family"}
+                  value={fontFamily}
+                  editor={activeEditor}
+                  className="rounded-l-none border-l-0"
+                />
+              </div>
+              <Divider />
+              <fieldset
+                className="flex"
+                aria-label="Font style and basic formatting"
+              >
+                <FontSize
+                  selectionFontSize={fontSize.slice(0, -2)}
+                  editor={activeEditor}
+                  className=""
+                />
+                <TooltipButton
+                  onClick={() => {
+                    activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
+                  }}
+                  className={cn(
+                    "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
+                    { "bg-muted": isBold },
+                  )}
+                  title={IS_APPLE ? "Bold (⌘B)" : "Bold (Ctrl+B)"}
+                  Icon={Bold}
+                  ariaLabel={`Format text as bold. Shortcut: ${IS_APPLE ? "⌘B" : "Ctrl+B"}`}
+                />
+                <TooltipButton
+                  onClick={() => {
+                    activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
+                  }}
+                  className={cn(
+                    "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
+                    { "bg-muted": isItalic },
+                  )}
+                  title={IS_APPLE ? "Italic (⌘I)" : "Italic (Ctrl+I)"}
+                  Icon={Italic}
+                  ariaLabel={`Format text as italics. Shortcut: ${IS_APPLE ? "⌘I" : "Ctrl+I"}`}
+                />
+                <TooltipButton
+                  onClick={() => {
+                    activeEditor.dispatchCommand(
+                      FORMAT_TEXT_COMMAND,
+                      "underline",
+                    );
+                  }}
+                  className={cn(
+                    "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
+                    { "bg-muted": isUnderline },
+                  )}
+                  title={IS_APPLE ? "Underline (⌘U)" : "Underline (Ctrl+U)"}
+                  Icon={Underline}
+                  ariaLabel={`Format text to underlined. Shortcut: ${IS_APPLE ? "⌘U" : "Ctrl+U"}`}
+                />
+                {/* Text Color / Background Color */}
+                <div className="flex">
+                  <ColorPickerButton
+                    buttonAriaLabel="Formatting text color"
+                    color={fontColor}
+                    onChange={onFontColorSelect}
+                    title="Text color"
+                    Icon={Baseline}
+                    className="rounded-none border-x-0"
+                  />
+                  <ColorPickerButton
+                    buttonAriaLabel="Formatting background color"
+                    color={bgColor}
+                    onChange={onBgColorSelect}
+                    title="Background color"
+                    Icon={PaintBucket}
+                    className="rounded-none border-x-0"
+                  />
+                </div>
+                <Tooltip>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          aria-label="Formatting options for additional text styles"
+                          className="w-10 md:w-8 h-12 md:h-10 p-1 rounded-l-none rounded-r-md border-l-0"
+                        >
+                          <Ellipsis className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          activeEditor.dispatchCommand(
+                            FORMAT_TEXT_COMMAND,
+                            "strikethrough",
+                          );
+                        }}
+                        className={`item ${dropDownActiveClass(isStrikethrough)}`}
+                        title="Strikethrough"
+                        aria-label="Format text with a strikethrough"
+                      >
+                        <i className="icon strikethrough" />
+                        <span className="text">Strikethrough</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          activeEditor.dispatchCommand(
+                            FORMAT_TEXT_COMMAND,
+                            "subscript",
+                          );
+                        }}
+                        className={`item ${dropDownActiveClass(isSubscript)}`}
+                        title="Subscript"
+                        aria-label="Format text with a subscript"
+                      >
+                        <i className="icon subscript" />
+                        <span className="text">Subscript</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          activeEditor.dispatchCommand(
+                            FORMAT_TEXT_COMMAND,
+                            "superscript",
+                          );
+                        }}
+                        className={`item ${dropDownActiveClass(isSuperscript)}`}
+                        title="Superscript"
+                        aria-label="Format text with a superscript"
+                      >
+                        <i className="icon superscript" />
+                        <span className="text">Superscript</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={clearFormatting}
+                        className="item"
+                        title="Clear text formatting"
+                        aria-label="Clear all text formatting"
+                      >
+                        <i className="icon clear" />
+                        <span className="text">Clear Formatting</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </Tooltip>
+              </fieldset>
+              <Divider />
+
+              <div className="flex gap-0 h-12 md:h-10">
+                <InsertItem
+                  activeEditor={activeEditor}
+                  isEditable={isEditable}
+                />
+                <TooltipButton
+                  onClick={() => {
+                    activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
+                  }}
+                  className={cn(
+                    "w-10 md:w-8 h-12 md:h-10 border-x-0 rounded-none",
+                    {
+                      "bg-muted": isCode,
+                    },
+                  )}
+                  title="Insert code block"
+                  Icon={Code}
+                  ariaLabel="Insert code block"
+                />
+                <TooltipButton
+                  className={cn(
+                    "w-10 md:w-8 h-12 md:h-10 border-l-0 rounded-l-none",
+                    {
+                      "bg-muted": isLink,
+                    },
+                  )}
+                  onClick={insertLink}
+                  title="Insert link"
+                  Icon={Link}
+                  ariaLabel="Insert link"
+                />
+              </div>
+            </>
+          )}
+          <Divider />
         </>
       )}
-      <Divider />
 
       {/* AI Config / LLM Chat / Comments / TOC */}
       <fieldset className="flex" aria-label="AI and sidebar controls">
-        <LlmModelSelector className="rounded-r-none border-r-0" />
-        {signedIn && (
+        {/* The assistant writes into the document, so it goes with editing. */}
+        {isEditable && (
+          <LlmModelSelector className="rounded-r-none border-r-0" />
+        )}
+        {isEditable && signedIn && (
           <TooltipButton
             className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
               "bg-muted": activeSidebar === "llm",
             })}
-            disabled={!isEditable}
             onClick={() => toggleSidebar("llm")}
             ariaLabel="Toggle LLM Chat"
             title="AI Assistant"
@@ -673,10 +674,13 @@ export default function ToolbarPlugin({
           />
         )}
         <TooltipButton
-          className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
-            "bg-muted": activeSidebar === "comments",
-          })}
-          disabled={!isEditable}
+          className={cn(
+            "w-10 md:w-8 h-12 md:h-10",
+            isEditable
+              ? "rounded-none border-x-0"
+              : "rounded-r-none border-r-0",
+            { "bg-muted": activeSidebar === "comments" },
+          )}
           onClick={() => toggleSidebar("comments")}
           ariaLabel="Toggle Comments"
           title="Comments"
@@ -687,7 +691,6 @@ export default function ToolbarPlugin({
             "w-10 md:w-8 h-12 md:h-10 rounded-l-none rounded-r-md border-l-0",
             { "bg-muted": activeSidebar === "toc" },
           )}
-          disabled={!isEditable}
           onClick={() => toggleSidebar("toc")}
           ariaLabel="Toggle Table of Contents"
           title="Table of Contents"

@@ -9,6 +9,7 @@ import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -153,6 +154,7 @@ export default function ImageComponent({
     useLexicalNodeSelection(nodeKey);
   const [isResizing, setIsResizing] = useState(false);
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const [selection, setSelection] = useState<BaseSelection | null>(null);
   const activeEditorRef = useRef<LexicalEditor | null>(null);
   const [isLoadError, setIsLoadError] = useState(false);
@@ -388,8 +390,9 @@ export default function ImageComponent({
     settings: { showNestedEditorTreeView },
   } = useSettings();
 
-  const draggable = isSelected && $isNodeSelection(selection) && !isResizing;
-  const isFocused = isSelected || isResizing;
+  const draggable =
+    isEditable && isSelected && $isNodeSelection(selection) && !isResizing;
+  const isFocused = isEditable && (isSelected || isResizing);
 
   const handleHideCaption = () => {
     editor.update(() => {
@@ -428,11 +431,11 @@ export default function ImageComponent({
           />
         )}
 
-        {buttonRef && (
+        {isEditable && (
           <Button
             ref={buttonRef}
             variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs print:hidden"
             onClick={() => setIsDialogOpen(true)}
           >
             Edit

@@ -2,6 +2,7 @@
 
 import type { NodeKey } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useCallback, useMemo, useState } from "react";
 import type { ArticleNodeData, ArticleDistilled } from "@packages/types";
 import { Button } from "~/components/ui/button";
@@ -49,6 +50,7 @@ export function ArticleBlock({
   data: ArticleNodeData;
 }) {
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -242,7 +244,9 @@ export function ArticleBlock({
   if (data.mode === "entity" && entityQuery.isError) {
     return (
       <div className="border border-dashed border-border rounded-md p-3 text-muted-foreground">
-        Article not found. You can remove this block.
+        {isEditable
+          ? "Article not found. You can remove this block."
+          : "Article not found."}
       </div>
     );
   }
@@ -284,38 +288,42 @@ export function ArticleBlock({
               <span className="sr-only">Open article</span>
             </a>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={refresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className="size-4" />
-            <span className="sr-only">Refresh article</span>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={convertToText}
-            disabled={isConverting}
-          >
-            {isConverting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <StickyNote className="size-4" />
-            )}
-            <span className="ml-1">Convert</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsDeleteOpen(true)}
-            aria-label="Remove article block"
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          {isEditable && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={refresh}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className="size-4" />
+                <span className="sr-only">Refresh article</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={convertToText}
+                disabled={isConverting}
+              >
+                {isConverting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <StickyNote className="size-4" />
+                )}
+                <span className="ml-1">Convert</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDeleteOpen(true)}
+                aria-label="Remove article block"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
       <div

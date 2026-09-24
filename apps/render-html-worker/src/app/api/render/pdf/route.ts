@@ -122,7 +122,10 @@ async function ensurePageReady(page: Page, timeoutMs: number) {
   } catch {}
   try {
     // Wait for custom ready signal if present
-    await page.evaluate(() => {
+    // The page says when its blocks have finished drawing; one that never
+    // does is printed as it stands once half the time is gone.
+    const readyTimeoutMs = timeoutMs / 2;
+    await page.evaluate((readyTimeoutMs: number) => {
       const w = window as unknown as {
         __readyForPdf__?: boolean;
       };
@@ -136,9 +139,9 @@ async function ensurePageReady(page: Page, timeoutMs: number) {
           setTimeout(check, 100);
         };
         check();
-        setTimeout(() => resolve(), 2000); // timeout after 2s
+        setTimeout(() => resolve(), readyTimeoutMs);
       });
-    });
+    }, readyTimeoutMs);
   } catch {}
   try {
     await new Promise((r) => setTimeout(r, Math.min(300, timeoutMs / 50)));
@@ -309,7 +312,8 @@ export async function POST(req: NextRequest) {
         format,
         landscape: orientation === "landscape",
         printBackground: true,
-        preferCSSPageSize: true,
+        // The size asked for, not whatever the page's stylesheet names.
+        preferCSSPageSize: false,
         margin,
         headerTemplate,
         footerTemplate,

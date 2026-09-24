@@ -12,6 +12,7 @@ import { createEntity, listEntities } from "./entities";
 import { CliError, describe, usageError } from "./errors";
 import { chooseFormat, entityTable, ndjson, rejectFormat } from "./format";
 import { callApi } from "./http";
+import { type Rendered, refuseBytesToTerminal, writeRender } from "./render";
 import { type ApiSession, openSession } from "./session";
 import {
   ADDRESS,
@@ -29,6 +30,7 @@ const VERBS = [
   "append",
   "insert",
   "put",
+  "render",
   "delete",
 ] as const;
 
@@ -56,8 +58,16 @@ const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
     value: [...ADDRESS, "file", "text", "if-unmodified-since"],
     boolean: ["replace"],
   },
+  render: {
+    value: [...ADDRESS, "format", "paper", "orientation", "out"],
+    boolean: [],
+  },
   delete: { value: ADDRESS, boolean: [] },
 };
+
+const RENDER_FORMATS = ["pdf"];
+const PAPER_SIZES = ["A4", "Letter"];
+const ORIENTATIONS = ["portrait", "landscape"];
 
 export async function docCommand(
   context: Context,
@@ -83,6 +93,8 @@ export async function docCommand(
       return await insert(context, args);
     case "put":
       return await put(context, args);
+    case "render":
+      return await render(context, args);
     case "delete":
       return await deleteEntity(context, args, "document");
   }
@@ -287,6 +299,50 @@ function revisionOf(created: Record<string, unknown>): string {
     );
   }
   return updatedAt;
+}
+
+async function render(context: Context, args: ParsedArgs): Promise<void> {
+  const target = address(args, "document", "read");
+  const format = one(args, "format");
+  if (format === undefined || !RENDER_FORMATS.includes(format)) {
+    throw usageError(`doc render needs --format ${RENDER_FORMATS.join("|")}`);
+  }
+  const paper = choice(args, "paper", PAPER_SIZES);
+  const orientation = choice(args, "orientation", ORIENTATIONS);
+  const out = one(args, "out");
+  refuseBytesToTerminal(context, out, `doc render --format ${format}`);
+
+  const session = openSession(context);
+  const id = await resolveEntity(context, session, target);
+  const rendered = (await callApi(session, {
+    method: "GET",
+    path: `/documents/${encodeURIComponent(id)}/render`,
+    query: [
+      ["format", format],
+      ...(paper === undefined ? [] : [["paper", paper] as const]),
+      ...(orientation === undefined
+        ? []
+        : [["orientation", orientation] as const]),
+    ],
+  })) as Rendered & { id: string };
+  return writeRender(context, rendered, out, {
+    id: rendered.id,
+    format: rendered.format,
+    contentType: rendered.contentType,
+  });
+}
+
+/** A flag's value, when given, which must be one of `allowed`. */
+function choice(
+  args: ParsedArgs,
+  name: string,
+  allowed: readonly string[],
+): string | undefined {
+  const value = one(args, name);
+  if (value !== undefined && !allowed.includes(value)) {
+    throw usageError(`--${name} must be ${allowed.join(" or ")}`);
+  }
+  return value;
 }
 
 function markdownPath(id: string): string {

@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { beforeAll, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { PublicAccess } from "@packages/types";
 
@@ -241,6 +241,7 @@ describe("the MCP endpoint", () => {
       "create_document",
       "create_drawing",
       "get_document_markdown",
+      "get_document_pdf",
       "get_drawing",
       "insert_markdown",
       "list_entities",
@@ -627,5 +628,52 @@ describe("the MCP endpoint", () => {
     });
     expect(response.status).toBe(401);
     expect(body).toMatchObject({ code: "UNAUTHORIZED" });
+  });
+});
+
+describe("a document's PDF", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  test("comes back as a PDF file on a read-scope token", async () => {
+    const asked: Json[] = [];
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      asked.push(JSON.parse(String(init?.body)));
+      return new Response("%PDF-1.7 stand-in");
+    }) as typeof fetch;
+    const created = await callTool(WRITE_TOKEN, "create_document", {
+      title: "Printable",
+    });
+    const { body } = await rpc(READ_TOKEN, "tools/call", {
+      name: "get_document_pdf",
+      arguments: {
+        id: created.value.id,
+        paper: "Letter",
+        orientation: "landscape",
+      },
+    });
+    expect(body.result.isError).toBeUndefined();
+    const [file] = body.result.content as {
+      type: string;
+      resource: { uri: string; mimeType: string; blob: string };
+    }[];
+    expect(file?.type).toBe("resource");
+    expect(file?.resource.mimeType).toBe("application/pdf");
+    expect(Buffer.from(file?.resource.blob ?? "", "base64").toString()).toBe(
+      "%PDF-1.7 stand-in",
+    );
+    expect(asked).toMatchObject([
+      { format: "Letter", orientation: "landscape" },
+    ]);
+  });
+
+  test("is not found for a document out of reach", async () => {
+    const reached = await callTool(READ_TOKEN, "get_document_pdf", {
+      id: "doc_other",
+    });
+    expect(reached.isError).toBe(true);
+    expect(reached.value.code).toBe("NOT_FOUND");
   });
 });

@@ -1,6 +1,7 @@
 import { InlineImageNode as HeadlessInlineImageNode } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
+import { BlockLoading } from "../common/BlockLoading";
 
 export type {
   InlineImagePayload,
@@ -19,7 +20,7 @@ export class InlineImageNode extends HeadlessInlineImageNode {
 
   decorate(): React.JSX.Element {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <InlineImageComponent
           src={this.__src}
           altText={this.__altText}

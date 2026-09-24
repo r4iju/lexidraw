@@ -2,6 +2,7 @@ import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlign
 import type { ElementFormatType, NodeKey } from "lexical";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PrintedLink } from "./common/PrintedLink";
 
 const WIDGET_SCRIPT_URL = "https://platform.twitter.com/widgets.js";
 
@@ -80,11 +81,14 @@ export default function TweetComponent({
       format={format}
       nodeKey={nodeKey}
     >
-      {isTweetLoading ? loadingComponent : null}
-      <div
-        style={{ display: "inline-block", width: "550px" }}
-        ref={containerRef}
-      />
+      <div className="print:hidden">
+        {isTweetLoading ? loadingComponent : null}
+        <div
+          style={{ display: "inline-block", width: "550px" }}
+          ref={containerRef}
+        />
+      </div>
+      <PrintedLink href={`https://x.com/i/status/${tweetID}`} />
     </BlockWithAlignableContents>
   );
 }

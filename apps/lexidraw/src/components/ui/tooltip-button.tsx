@@ -9,7 +9,7 @@ import { cn } from "~/lib/utils";
 
 type TooltipButtonProps = {
   onClick: () => void;
-  disabled: boolean;
+  disabled?: boolean;
   title: string;
   Icon: LucideIcon;
   ariaLabel: string;

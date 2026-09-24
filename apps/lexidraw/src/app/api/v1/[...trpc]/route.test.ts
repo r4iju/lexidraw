@@ -1,5 +1,13 @@
 /// <reference types="bun" />
-import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  test,
+} from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { eq } from "drizzle-orm";
 import { PublicAccess } from "@packages/types";
@@ -447,5 +455,128 @@ describe("a drawing", () => {
     });
     expect(response.status).toBe(404);
     expect(body.code).toBe("NOT_FOUND");
+  });
+});
+
+describe("a document rendered to PDF", () => {
+  const READER = "rest_reader";
+  const READ_TOKEN = "lxd_rest_reader_read";
+  const STRANGER_TOKEN = "lxd_rest_stranger_read";
+
+  beforeAll(async () => {
+    await db.insert(schema.users).values([
+      { id: READER, name: "Reader", email: "rest-reader@example.test" },
+      {
+        id: "rest_stranger",
+        name: "Stranger",
+        email: "rest-stranger@example.test",
+      },
+    ]);
+    await db.insert(schema.apiTokens).values([
+      {
+        id: "tok_rest_reader",
+        userId: READER,
+        name: "read",
+        tokenHash: hashApiToken(READ_TOKEN),
+        scope: "read",
+      },
+      {
+        id: "tok_rest_stranger",
+        userId: "rest_stranger",
+        name: "read",
+        tokenHash: hashApiToken(STRANGER_TOKEN),
+        scope: "read",
+      },
+    ]);
+    await db
+      .insert(schema.entities)
+      .values(
+        row(
+          "rest_printed",
+          "Q3 <plan>",
+          JSON.stringify(EMPTY_DOCUMENT),
+          "document",
+        ),
+      );
+    await db.insert(schema.sharedEntities).values({
+      id: "share_rest_printed",
+      entityId: "rest_printed",
+      userId: READER,
+      accessLevel: "READ",
+    });
+  });
+
+  /** What the page renderer was asked for; it answers with a stand-in PDF. */
+  let rendered: Json[] = [];
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    rendered = [];
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      rendered.push(JSON.parse(String(init?.body)));
+      return new Response("%PDF-1.7 stand-in", {
+        headers: { "content-type": "application/pdf" },
+      });
+    }) as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  async function render(token: string, query: string) {
+    const response = await GET(
+      new Request(
+        `http://lexidraw.test/api/v1/documents/rest_printed/render?${query}`,
+        {
+          headers: { authorization: `Bearer ${token}`, host: "lexidraw.test" },
+        },
+      ),
+    );
+    return { response, body: (await response.json()) as Json };
+  }
+
+  test("reaches someone it is shared with to read, on a read-only token", async () => {
+    const { response, body } = await render(READ_TOKEN, "format=pdf");
+    expect(response.status).toBe(200);
+    expect(body.contentType).toBe("application/pdf");
+    expect(body.encoding).toBe("base64");
+    expect(Buffer.from(body.data, "base64").toString()).toBe(
+      "%PDF-1.7 stand-in",
+    );
+    expect(body.updatedAt).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+  test("prints the page the reader could open, for this document only", async () => {
+    await render(READ_TOKEN, "format=pdf");
+    const page = new URL(rendered[0]?.url);
+    expect(page.host).toBe("lexidraw.test");
+    expect(page.pathname).toBe("/documents/rest_printed/print");
+    const { verifyPrintToken } = await import("~/server/auth/print-token");
+    expect(
+      verifyPrintToken(page.searchParams.get("token") ?? ""),
+    ).toMatchObject({ entityId: "rest_printed", userId: READER });
+  });
+
+  test("is A4 portrait unless asked otherwise", async () => {
+    await render(READ_TOKEN, "format=pdf");
+    await render(READ_TOKEN, "format=pdf&paper=Letter&orientation=landscape");
+    expect(
+      rendered.map(({ format, orientation }) => [format, orientation]),
+    ).toEqual([
+      ["A4", "portrait"],
+      ["Letter", "landscape"],
+    ]);
+  });
+
+  test("heads each page with the title, as text rather than markup", async () => {
+    await render(READ_TOKEN, "format=pdf");
+    expect(rendered[0]?.headerTemplate).toContain("Q3 &lt;plan&gt;");
+    expect(rendered[0]?.headerTemplate).not.toContain("<plan>");
+  });
+
+  test("is not found for someone it is not shared with, who prints nothing", async () => {
+    const { response, body } = await render(STRANGER_TOKEN, "format=pdf");
+    expect(response.status).toBe(404);
+    expect(body.code).toBe("NOT_FOUND");
+    expect(rendered).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -18,6 +19,7 @@ import { PageBreakNode } from "./index";
 
 export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
 
@@ -75,11 +77,15 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
     }
   }, [editor, isSelected, nodeKey]);
 
+  // The node's own element carries the break, so a reader and paper get the
+  // break without the marker that shows an editor where it is.
+  if (!isEditable) return null;
+
   return (
     <figure
       data-node-type="page-break"
       className={cn(
-        "relative block border-y border-dashed",
+        "relative block border-y border-dashed print:hidden",
         "bg-muted border-muted",
         "w-[calc(100%+4rem)]",
         "-ml-[2rem]",

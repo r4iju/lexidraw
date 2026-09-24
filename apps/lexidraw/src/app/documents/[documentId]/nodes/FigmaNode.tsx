@@ -2,6 +2,7 @@ import { FigmaNode as HeadlessFigmaNode } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
+import { BlockLoading } from "./common/BlockLoading";
 
 export type { SerializedFigmaNode } from "@packages/lexical-nodes";
 
@@ -20,7 +21,7 @@ export class FigmaNode extends HeadlessFigmaNode {
       focus: embedBlockTheme.focus || "",
     };
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <FigmaComponent
           className={className}
           format={this.__format}

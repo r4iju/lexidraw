@@ -1,4 +1,5 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import {
   SlideNode as HeadlessSlideNode,
   type SlideDeckData,
@@ -66,6 +67,7 @@ function SlideNodeInner({
   initialData: SlideDeckData;
 }) {
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSelectionUI, setShowSelectionUI] = useState(false);
 
@@ -134,15 +136,16 @@ function SlideNodeInner({
       {/** biome-ignore lint/a11y/noStaticElementInteractions: slide node is interactive */}
       {/** biome-ignore lint/a11y/useKeyWithClickEvents: slide node is interactive */}
       <div
-        onDoubleClick={handleOpenModal}
-        onClick={handleSelect}
-        className={cn("cursor-pointer relative", {
-          "ring-1 ring-primary box-content": showSelectionUI,
+        onDoubleClick={isEditable ? handleOpenModal : undefined}
+        onClick={isEditable ? handleSelect : undefined}
+        className={cn("relative", {
+          "cursor-pointer": isEditable,
+          "ring-1 ring-primary box-content": isEditable && showSelectionUI,
         })}
       >
         <SlideView initialData={initialData} editor={editor} />
       </div>
-      {isModalOpen && (
+      {isEditable && isModalOpen && (
         <MetadataModalProvider>
           <SlideModal
             nodeKey={nodeKey}

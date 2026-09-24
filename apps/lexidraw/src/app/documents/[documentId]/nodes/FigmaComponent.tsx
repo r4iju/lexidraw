@@ -1,5 +1,6 @@
 import { BlockWithAlignableContents } from "@lexical/react/LexicalBlockWithAlignableContents";
 import type { ElementFormatType, NodeKey } from "lexical";
+import { PrintedLink } from "./common/PrintedLink";
 
 type FigmaComponentProps = Readonly<{
   className: Readonly<{
@@ -24,6 +25,7 @@ export default function FigmaComponent({
       nodeKey={nodeKey}
     >
       <iframe
+        className="print:hidden"
         title="Figma Embed"
         width="560"
         height="315"
@@ -31,6 +33,7 @@ export default function FigmaComponent({
         https://www.figma.com/file/${documentID}`}
         allowFullScreen={true}
       />
+      <PrintedLink href={`https://www.figma.com/file/${documentID}`} />
     </BlockWithAlignableContents>
   );
 }

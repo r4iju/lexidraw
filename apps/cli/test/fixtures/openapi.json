@@ -641,6 +641,11 @@
                   },
                   "parentId": {
                     "type": "string"
+                  },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
                   }
                 },
                 "required": ["elements"]
@@ -702,6 +707,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -795,6 +810,10 @@
                     "accessLevel": {
                       "type": "string",
                       "enum": ["READ", "EDIT"]
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -805,7 +824,8 @@
                     "elements",
                     "publicAccess",
                     "sharedWith",
-                    "accessLevel"
+                    "accessLevel",
+                    "updatedAt"
                   ],
                   "additionalProperties": false
                 }
@@ -2626,6 +2646,170 @@
           },
           "500": {
             "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/render": {
+      "get": {
+        "operationId": "documents-render",
+        "summary": "Render a document as a PDF",
+        "description": "Returns the file in the JSON body, base64-encoded in `data`. `paper` and `orientation` set the page; the document prints light whatever theme its reader uses. A PDF over 3 MB encoded is refused with 413, and 503 means this server has no page renderer to print with.",
+        "tags": ["documents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string",
+              "enum": ["pdf"]
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "paper",
+            "schema": {
+              "default": "A4",
+              "type": "string",
+              "enum": ["A4", "Letter"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "orientation",
+            "schema": {
+              "default": "portrait",
+              "type": "string",
+              "enum": ["portrait", "landscape"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": ["pdf"]
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "encoding": {
+                      "type": "string",
+                      "const": "base64"
+                    },
+                    "data": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "format",
+                    "contentType",
+                    "encoding",
+                    "data",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
             "content": {
               "application/json": {
                 "schema": {

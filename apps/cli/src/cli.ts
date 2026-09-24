@@ -30,6 +30,8 @@ const VALUE_FLAGS = [
   "if-unmodified-since",
   "out",
   "scale",
+  "paper",
+  "orientation",
 ];
 
 const USAGE = `lexidraw — Lexidraw from the terminal
@@ -45,6 +47,8 @@ Usage:
                       --if-unmodified-since W
   lexidraw doc put <id|--path P> --replace (--file f|--text s)
                    --if-unmodified-since W
+  lexidraw doc render <id|--path P> --format pdf [--paper A4|Letter]
+                      [--orientation portrait|landscape] [--out <file>]
   lexidraw doc delete <id|--path P>
   lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]
   lexidraw dir create --title T [--dir <id>|--dir-path P]
@@ -91,7 +95,7 @@ Environment:
                     address on the dev profile
   LEXIDRAW_TOKEN    token, taking precedence over the keychain
 
-Output is JSON on stdout, except for a render, which is the image itself;
+Output is JSON on stdout, except for a render, which is the file itself;
 errors are a JSON object on stderr with a stable \`code\` and a non-zero exit.
 `;
 

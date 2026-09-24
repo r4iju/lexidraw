@@ -19,6 +19,7 @@ export const COMMANDS: Record<string, string> = {
   "doc insert": "documents-insertMarkdown",
   "doc list": "entities-list",
   "doc put": "documents-replaceMarkdown",
+  "doc render": "documents-render",
   search: "entities-search",
 };
 

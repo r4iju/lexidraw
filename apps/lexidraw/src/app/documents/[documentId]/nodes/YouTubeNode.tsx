@@ -2,6 +2,7 @@ import { YouTubeNode as HeadlessYouTubeNode } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
+import { BlockLoading } from "./common/BlockLoading";
 
 export type { SerializedYouTubeNode } from "@packages/lexical-nodes";
 
@@ -20,7 +21,7 @@ export class YouTubeNode extends HeadlessYouTubeNode {
       focus: embedBlockTheme.focus || "",
     };
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <YouTubeComponent
           className={className}
           format={this.__format}

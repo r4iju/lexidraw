@@ -97,6 +97,8 @@ The rest of the surface:
 lexidraw doc list [--dir <id>|--dir-path P] [--format json|table] [--page-all]
 lexidraw doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]
 lexidraw doc insert <id|--path P> (--file f|--text s) --at-block N --if-unmodified-since W
+lexidraw doc render <id|--path P> --format pdf [--paper A4|Letter] \
+  [--orientation portrait|landscape] [--out <file>]
 lexidraw doc delete <id|--path P>
 lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]
 lexidraw dir create --title T [--dir <id>|--dir-path P]
@@ -104,6 +106,10 @@ lexidraw dir create --title T [--dir <id>|--dir-path P]
 
 `doc create` with a body starts the document at that markdown rather than after
 the empty paragraph a new document carries.
+
+`doc render` prints the document as the app does (light, with a title header
+on every page) and needs only read access. PDF bytes are refused on a
+terminal, so pass `--out`; a PDF that encodes to over 3 MB is refused.
 
 ## Addressing
 

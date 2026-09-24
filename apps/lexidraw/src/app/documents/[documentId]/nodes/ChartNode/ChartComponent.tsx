@@ -1,5 +1,6 @@
 "use client";
 
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -55,8 +56,10 @@ export default function ChartComponent({
 }: ChartComponentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const isEditable = useLexicalEditable();
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
+  const isFocused = isEditable && isSelected;
   const [isResizing, setIsResizing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selection, setSelection] = useState<BaseSelection | null>(null);
@@ -179,11 +182,11 @@ export default function ChartComponent({
       <div
         className={cn("relative inline-block chart-component", {
           "cursor-move":
-            isSelected && !isResizing && $isNodeSelection(selection),
-          "ring-1 ring-muted-foreground": isSelected || isResizing,
+            isFocused && !isResizing && $isNodeSelection(selection),
+          "ring-1 ring-muted-foreground": isFocused || isResizing,
         })}
         ref={containerRef}
-        draggable={isSelected && !isResizing && $isNodeSelection(selection)}
+        draggable={isFocused && !isResizing && $isNodeSelection(selection)}
         style={{
           width: typeof width === "number" ? `${width}px` : "auto",
           height: typeof height === "number" ? `${height}px` : "auto",
@@ -197,16 +200,18 @@ export default function ChartComponent({
           height={height}
         />
 
-        <Button
-          ref={btnRef}
-          variant="ghost"
-          className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs cursor-pointer"
-          onClick={() => setModalOpen(true)}
-        >
-          Edit
-        </Button>
+        {isEditable && (
+          <Button
+            ref={btnRef}
+            variant="ghost"
+            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs cursor-pointer print:hidden"
+            onClick={() => setModalOpen(true)}
+          >
+            Edit
+          </Button>
+        )}
 
-        {(isSelected || isResizing) && (
+        {(isFocused || isResizing) && (
           <ImageResizer // Re-using ImageResizer, might need adjustments for charts
             editor={editor}
             imageRef={containerRef as RefObject<HTMLDivElement>}

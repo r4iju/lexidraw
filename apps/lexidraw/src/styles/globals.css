@@ -2,7 +2,14 @@
 @import "tw-animate-css";
 @import "./print.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Dark is a screen theme: paper prints light whatever the reader chose. */
+@custom-variant dark {
+  @media screen {
+    &:is(.dark *) {
+      @slot;
+    }
+  }
+}
 
 /* ▼ NEW variants — one line each, note the semicolon at the end */
 @custom-variant details-open (&[open] &);
@@ -132,45 +139,47 @@
   --chart-5: 27 87% 67%;
 }
 
-.dark {
-  --background: oklch(0.16 0 260deg); /* #121217 */
-  --foreground: oklch(0.88 0 260deg); /* #E0E0E6 */
+@media screen {
+  .dark {
+    --background: oklch(0.16 0 260deg); /* #121217 */
+    --foreground: oklch(0.88 0 260deg); /* #E0E0E6 */
 
-  --surface-1: oklch(0.21 0 260deg); /* #1C1C22 */
-  --surface-2: oklch(0.27 0 260deg); /* #27272E */
+    --surface-1: oklch(0.21 0 260deg); /* #1C1C22 */
+    --surface-2: oklch(0.27 0 260deg); /* #27272E */
 
-  --card: var(--surface-1);
-  --card-foreground: var(--foreground);
+    --card: var(--surface-1);
+    --card-foreground: var(--foreground);
 
-  --popover: var(--surface-1);
-  --popover-foreground: var(--foreground);
+    --popover: var(--surface-1);
+    --popover-foreground: var(--foreground);
 
-  --text-inverted: oklch(0.98 0 260deg); /* #FCFCFF */
+    --text-inverted: oklch(0.98 0 260deg); /* #FCFCFF */
 
-  --primary: oklch(0.62 0.17 285deg); /* lavender-violet */
-  --primary-foreground: var(--text-inverted);
+    --primary: oklch(0.62 0.17 285deg); /* lavender-violet */
+    --primary-foreground: var(--text-inverted);
 
-  --secondary: oklch(0.37 0.04 240deg); /* subtle indigo */
-  --secondary-foreground: var(--foreground);
+    --secondary: oklch(0.37 0.04 240deg); /* subtle indigo */
+    --secondary-foreground: var(--foreground);
 
-  --muted: var(--surface-2);
-  --muted-foreground: oklch(0.68 0 260deg); /* #A3A3AD */
+    --muted: var(--surface-2);
+    --muted-foreground: oklch(0.68 0 260deg); /* #A3A3AD */
 
-  --accent: var(--primary);
-  --accent-foreground: var(--text-inverted);
+    --accent: var(--primary);
+    --accent-foreground: var(--text-inverted);
 
-  --destructive: oklch(0.55 0.18 27deg); /* warm red-orange */
-  --destructive-foreground: var(--text-inverted);
+    --destructive: oklch(0.55 0.18 27deg); /* warm red-orange */
+    --destructive-foreground: var(--text-inverted);
 
-  --border: oklch(0.33 0.01 260deg); /* #3F3F46 */
-  --input: var(--border);
-  --ring: var(--primary);
+    --border: oklch(0.33 0.01 260deg); /* #3F3F46 */
+    --input: var(--border);
+    --ring: var(--primary);
 
-  --chart-1: 220 70% 55%;
-  --chart-2: 160 60% 55%;
-  --chart-3: 30 80% 55%;
-  --chart-4: 280 65% 55%;
-  --chart-5: 340 75% 55%;
+    --chart-1: 220 70% 55%;
+    --chart-2: 160 60% 55%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 55%;
+    --chart-5: 340 75% 55%;
+  }
 }
 
 /* ensures iOS won't allow scrolling while dragging */

@@ -3,6 +3,7 @@ import katex from "katex";
 import type { DOMExportOutput } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
+import { BlockLoading } from "./common/BlockLoading";
 
 export type { SerializedEquationNode } from "@packages/lexical-nodes";
 
@@ -30,7 +31,7 @@ export class EquationNode extends HeadlessEquationNode {
 
   decorate(): React.JSX.Element {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <EquationComponent
           equation={this.__equation}
           inline={this.__inline}

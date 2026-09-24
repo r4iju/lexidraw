@@ -3,6 +3,7 @@ import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
 import { createPortal } from "react-dom";
+import { BlockLoading } from "./common/BlockLoading";
 
 export type {
   SerializedStickyNode,
@@ -19,7 +20,7 @@ export class StickyNode extends HeadlessStickyNode {
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return createPortal(
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <StickyComponent
           color={this.__color}
           x={this.__x}

@@ -42,8 +42,15 @@ import {
   findWritableEntity,
 } from "~/server/entities/readable";
 import { isoDate } from "../rest-schemas";
-import { start } from "workflow/api";
-import { generateDocumentPdfWorkflow } from "~/workflows/document-pdf-export/generate-document-pdf-workflow";
+import {
+  DOCUMENT_RENDER_FORMATS,
+  ORIENTATIONS,
+  PAPER_SIZES,
+  RendererUnavailableError,
+  RenderFailedError,
+  renderDocumentPdf,
+} from "~/server/documents/render";
+import { MAX_RENDER_BYTES } from "~/server/drawings/render";
 
 /**
  * How every markdown write reports the failures it shares with the others.
@@ -145,6 +152,7 @@ const markdownRead = z.discriminatedUnion("format", [
  */
 const READ_ERRORS = [400, 401, 404, 422, 500];
 const WRITE_ERRORS = [400, 401, 403, 404, 409, 422, 500];
+const RENDER_ERRORS = [400, 401, 404, 413, 500, 502, 503];
 
 export const documentRouter = createTRPCRouter({
   create: protectedProcedure
@@ -536,56 +544,93 @@ export const documentRouter = createTRPCRouter({
       );
       return deleted;
     }),
-  exportPdf: protectedProcedure
+  /**
+   * Prints a document to PDF for anyone who can read it, a read-only token
+   * included. Signed in only: the print is made on the caller's behalf.
+   */
+  render: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/documents/{id}/render",
+        tags: ["documents"],
+        summary: "Render a document as a PDF",
+        description: `Returns the file in the JSON body, base64-encoded in \`data\`. \`paper\` and \`orientation\` set the page; the document prints light whatever theme its reader uses. A PDF over ${MAX_RENDER_BYTES / 1_000_000} MB encoded is refused with 413, and 503 means this server has no page renderer to print with.`,
+        protect: true,
+        errorResponses: RENDER_ERRORS,
+      },
+    })
     .input(
       z.object({
-        documentId: z.string(),
-        format: z.enum(["A4", "Letter"]).optional(),
-        orientation: z.enum(["portrait", "landscape"]).optional(),
-        margin: z
-          .object({
-            top: z.string().optional(),
-            right: z.string().optional(),
-            bottom: z.string().optional(),
-            left: z.string().optional(),
-          })
-          .optional(),
+        id: z.string(),
+        format: z.enum(DOCUMENT_RENDER_FORMATS),
+        paper: z.enum(PAPER_SIZES).default("A4"),
+        orientation: z.enum(ORIENTATIONS).default("portrait"),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user.id;
-      if (!userId) {
-        throw new Error("Unauthorized");
+    .output(
+      z.object({
+        id: z.string(),
+        format: z.enum(DOCUMENT_RENDER_FORMATS),
+        contentType: z.string(),
+        encoding: z.literal("base64"),
+        data: z.string(),
+        /** The revision rendered, so a caller can tell one render from a later one. */
+        updatedAt: isoDate,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
+      if (entity?.entityType !== "document") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found",
+        });
       }
-
-      // Check document access
-      const document = await ctx.drizzle.query.entities.findFirst({
-        where: (doc, { eq, and }) =>
-          and(eq(doc.id, input.documentId), eq(doc.entityType, "document")),
-      });
-
-      if (!document) {
-        throw new Error("Document not found");
+      const proto = ctx.headers.get("x-forwarded-proto") ?? "http";
+      const host = ctx.headers.get("host");
+      let pdf: Uint8Array;
+      try {
+        pdf = await renderDocumentPdf({
+          appOrigin: `${proto}://${host}`,
+          documentId: entity.id,
+          userId,
+          title: entity.title,
+          options: { paper: input.paper, orientation: input.orientation },
+        });
+      } catch (error) {
+        if (error instanceof RendererUnavailableError) {
+          throw new TRPCError({
+            code: "SERVICE_UNAVAILABLE",
+            message: error.message,
+            cause: error,
+          });
+        }
+        if (error instanceof RenderFailedError) {
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message: "The PDF could not be rendered",
+            cause: error,
+          });
+        }
+        throw error;
       }
-
-      // Check if user owns the document
-      if (document.userId !== userId) {
-        throw new Error("Unauthorized");
+      const data = Buffer.from(pdf).toString("base64");
+      const bytes = Buffer.byteLength(data);
+      if (bytes > MAX_RENDER_BYTES) {
+        throw new TRPCError({
+          code: "PAYLOAD_TOO_LARGE",
+          message: `This PDF encodes to ${Math.round(bytes / 100_000) / 10} MB, over the ${MAX_RENDER_BYTES / 1_000_000} MB a response can carry`,
+        });
       }
-
-      // Start workflow (fire-and-forget) and await result
-      // For now, we await the workflow; can be made async if needed
-      const result = await start(generateDocumentPdfWorkflow, [
-        input.documentId,
-        userId,
-        {
-          format: input.format,
-          orientation: input.orientation,
-          margin: input.margin,
-        },
-      ]);
-      const returnValue = await result.returnValue;
-
-      return { pdfUrl: returnValue.pdfUrl };
+      return {
+        id: entity.id,
+        format: input.format,
+        contentType: "application/pdf",
+        encoding: "base64" as const,
+        data,
+        updatedAt: entity.updatedAt,
+      };
     }),
 });

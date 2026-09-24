@@ -4,6 +4,7 @@ import { Suspense, useRef, useState, useCallback, useEffect } from "react";
 import MentionsPlugin from "../../plugins/MentionsPlugin";
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { mergeRegister } from "@lexical/utils";
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
@@ -65,6 +66,7 @@ export default function VideoComponent({
   const nestedEditorContainerRef = useRef<HTMLDivElement>(null);
   const { historyState } = useSharedHistoryContext();
   const [editor] = useLexicalComposerContext();
+  const isEditable = useLexicalEditable();
   const {
     settings: { showNestedEditorTreeView },
   } = useSettings();
@@ -237,7 +239,7 @@ export default function VideoComponent({
     display: "block",
   };
 
-  const isFocused = isSelected || isResizing;
+  const isFocused = isEditable && (isSelected || isResizing);
 
   const handleApplyEditChanges = (newProps: {
     width: "inherit" | number;
@@ -262,11 +264,11 @@ export default function VideoComponent({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {isHovered && !isResizing && (
+        {isEditable && isHovered && !isResizing && (
           <Button
             variant="ghost"
             size="sm"
-            className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background/100"
+            className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background/100 print:hidden"
             onClick={() => setIsEditModalOpen(true)}
             onMouseDown={(e) => e.preventDefault()}
           >
@@ -310,21 +312,24 @@ export default function VideoComponent({
             </ImageCaption>
           </div>
         )}
-        {(isHovered || isResizing) && resizable && !isLoadError && (
-          <VideoResizer
-            editor={editor}
-            videoRef={videoRef}
-            buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
-            maxWidth={VIDEO_MAX_WIDTH}
-            onResizeStart={onResizeStart}
-            onResizeEnd={onResizeEnd}
-            showCaption={currentShowCaption || false}
-            setShowCaption={setShowVideoCaptionOnNode}
-            captionsEnabled={!!caption}
-            initialWidth={width}
-            initialHeight={height}
-          />
-        )}
+        {isEditable &&
+          (isHovered || isResizing) &&
+          resizable &&
+          !isLoadError && (
+            <VideoResizer
+              editor={editor}
+              videoRef={videoRef}
+              buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
+              maxWidth={VIDEO_MAX_WIDTH}
+              onResizeStart={onResizeStart}
+              onResizeEnd={onResizeEnd}
+              showCaption={currentShowCaption || false}
+              setShowCaption={setShowVideoCaptionOnNode}
+              captionsEnabled={!!caption}
+              initialWidth={width}
+              initialHeight={height}
+            />
+          )}
         <button type="button" ref={buttonRef} style={{ display: "none" }} />
       </div>
       {isEditModalOpen && (

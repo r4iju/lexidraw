@@ -2,6 +2,7 @@ import { TweetNode as HeadlessTweetNode } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
+import { BlockLoading } from "./common/BlockLoading";
 
 export type { SerializedTweetNode } from "@packages/lexical-nodes";
 
@@ -20,7 +21,7 @@ export class TweetNode extends HeadlessTweetNode {
       focus: embedBlockTheme.focus || "",
     };
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BlockLoading />}>
         <TweetComponent
           className={className}
           format={this.__format}

@@ -51,7 +51,7 @@ export function ElementFormatDropdown({
   editor: LexicalEditor;
   value: ElementFormatType;
   isRTL: boolean;
-  disabled: boolean;
+  disabled?: boolean;
   className?: string;
 }) {
   const SelectedIcon = getIconForAlignment(value);
