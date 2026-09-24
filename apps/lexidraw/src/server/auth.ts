@@ -152,7 +152,6 @@ const nextAuth = NextAuth({
           where: (users, { eq }) => eq(users.id, token.sub as string),
           columns: { config: true },
         });
-        console.log("[Auth] Fetched user for JWT update:", dbUser);
         token.config = dbUser?.config; // Update token config from DB
         // Propagate other potential updates from session if needed
         token.name = session.user.name;

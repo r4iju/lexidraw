@@ -10,6 +10,7 @@ import {
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
 import { eq, inArray } from "@packages/drizzle";
+import { errorCode } from "~/server/auth/error-code";
 import { hashPassword } from "~/server/auth/password";
 
 export const authRouter = createTRPCRouter({
@@ -25,7 +26,7 @@ export const authRouter = createTRPCRouter({
 
         return true;
       } catch (error) {
-        console.error(error);
+        console.error("[Auth] sign-up failed", { error: errorCode(error) });
         // don't tell why
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

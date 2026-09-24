@@ -1,13 +1,26 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
+import { randomBytes, scryptSync } from "node:crypto";
+import { legacyPasswordHash } from "~/test/legacy-password-hash";
 import { hashPassword, needsRehash, verifyPassword } from "./password";
 
 const PASSWORD = "Correct-Horse-Battery-9!";
 
-/** A stored value as sign-up wrote it before passwords were salted. */
-const legacyHash = (password: string) =>
-  createHash("sha256").update(password).digest("hex");
+/** A genuine scrypt hash of `password` in the stored format, at any cost. */
+function scryptHash(
+  password: string,
+  { N, r, p }: { N: number; r: number; p: number },
+  keyBytes = 32,
+) {
+  const salt = randomBytes(16);
+  const key = scryptSync(password, salt, keyBytes, {
+    N,
+    r,
+    p,
+    maxmem: 256 * N * r,
+  });
+  return `scrypt$${N}$${r}$${p}$${salt.toString("base64url")}$${key.toString("base64url")}`;
+}
 
 describe("password hashing", () => {
   test("stores a salted, self-describing scrypt hash that verifies", async () => {
@@ -22,26 +35,36 @@ describe("password hashing", () => {
   });
 
   test("verifies an unsalted SHA-256 hex digest and marks it for rehash", async () => {
-    const stored = legacyHash(PASSWORD);
+    const stored = legacyPasswordHash(PASSWORD);
 
     expect(await verifyPassword(PASSWORD, stored)).toBe(true);
     expect(await verifyPassword(`${PASSWORD}x`, stored)).toBe(false);
     expect(needsRehash(stored)).toBe(true);
   });
 
-  test("marks a scrypt hash made with weaker parameters for rehash", async () => {
-    const weaker = (await hashPassword(PASSWORD)).replace(
-      "scrypt$131072$",
-      "scrypt$16384$",
-    );
+  test("verifies a scrypt hash made with weaker parameters and marks it for rehash", async () => {
+    const weaker = scryptHash(PASSWORD, { N: 2 ** 10, r: 8, p: 1 });
+
+    expect(await verifyPassword(PASSWORD, weaker)).toBe(true);
     expect(needsRehash(weaker)).toBe(true);
+  });
+
+  test("refuses parameters above today's and keys of another length", async () => {
+    for (const stored of [
+      scryptHash(PASSWORD, { N: 2 ** 18, r: 2, p: 1 }),
+      scryptHash(PASSWORD, { N: 2 ** 10, r: 16, p: 1 }),
+      scryptHash(PASSWORD, { N: 2 ** 10, r: 8, p: 2 }),
+      scryptHash(PASSWORD, { N: 2 ** 10, r: 8, p: 1 }, 16),
+    ]) {
+      expect(await verifyPassword(PASSWORD, stored)).toBe(false);
+    }
   });
 
   test("refuses stored values it cannot read instead of throwing", async () => {
     for (const stored of [
       "",
       PASSWORD,
-      legacyHash(PASSWORD).toUpperCase(),
+      legacyPasswordHash(PASSWORD).toUpperCase(),
       "scrypt$131072$8$1$salt",
       "scrypt$abc$8$1$c2FsdHNhbHRzYWx0c2FsdA$aGFzaA",
     ]) {
