@@ -41,7 +41,7 @@ export default function InsertLayoutDialog({
   return (
     <>
       <Select onValueChange={(val) => setLayout(val as Layout)}>
-        <SelectTrigger className="w-[250px]">
+        <SelectTrigger className="w-[250px]" aria-label="Layout">
           <SelectValue placeholder="Select layout" />
         </SelectTrigger>
         <SelectContent>

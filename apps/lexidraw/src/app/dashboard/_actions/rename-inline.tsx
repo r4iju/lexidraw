@@ -66,7 +66,7 @@ const EntityTitle = ({ className, entity }: Props) => {
               className="px-2"
               variant="outline"
               onClick={() => setIsEditing(true)}
-              aria-label="Edit title"
+              aria-label={`Edit title of ${newTitle}`}
             >
               <Pencil1Icon className="w-4" />
             </Button>

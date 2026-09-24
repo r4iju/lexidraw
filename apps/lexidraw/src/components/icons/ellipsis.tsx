@@ -7,7 +7,7 @@ type Props = {
 export default function Ellipsis({ className }: Props) {
   return (
     <svg
-      aria-label="Ellipsis icon"
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"
@@ -19,7 +19,6 @@ export default function Ellipsis({ className }: Props) {
       strokeLinejoin="round"
       className={cn("lucide lucide-ellipsis", className)}
     >
-      <title>Ellipsis</title>
       <circle cx="12" cy="12" r="1" />
       <circle cx="19" cy="12" r="1" />
       <circle cx="5" cy="12" r="1" />

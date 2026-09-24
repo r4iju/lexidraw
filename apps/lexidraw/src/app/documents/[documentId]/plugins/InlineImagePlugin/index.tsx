@@ -111,7 +111,7 @@ export function InsertInlineImageDialog({
         name="position"
         onValueChange={(val) => setPosition(val as Position)}
       >
-        <SelectTrigger>
+        <SelectTrigger aria-label="Position">
           <SelectValue placeholder="Position" className="mb-1 w-[290px]">
             {position}
           </SelectValue>

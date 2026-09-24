@@ -38,11 +38,11 @@ export function LLMWidget() {
           <Button
             variant="outline"
             size="icon"
-            asChild
             onClick={() => setHidden(true)}
             className="h-6 w-6 p-1 cursor-pointer"
           >
-            <XIcon />
+            <XIcon className="size-4" />
+            <span className="sr-only">Dismiss error</span>
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">{error}</p>

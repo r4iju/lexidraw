@@ -222,6 +222,7 @@ export const MessageInput = () => {
                 className="hover:bg-background size-8 shrink-0"
               >
                 <XIcon className="size-4" />
+                <span className="sr-only">{`Remove ${file.name}`}</span>
               </Button>
             </div>
           ))}
@@ -269,18 +270,18 @@ export const MessageInput = () => {
             disabled={streaming}
           >
             <PaperclipIcon className="w-4 h-4" />
-            {width < 300 || width >= 500 ? (
-              <span className="ml-2">{"Files"}</span>
-            ) : null}
+            <span className={width < 300 || width >= 500 ? "ml-2" : "sr-only"}>
+              Files
+            </span>
           </Button>
           <Button
             type="submit"
             disabled={streaming || (!text.trim() && !files)}
           >
             <SendIcon className="w-4 h-4" />
-            {width < 300 || width >= 500 ? (
-              <span className="ml-2">{streaming ? "Sending..." : "Send"}</span>
-            ) : null}
+            <span className={width < 300 || width >= 500 ? "ml-2" : "sr-only"}>
+              {streaming ? "Sending..." : "Send"}
+            </span>
           </Button>
         </div>
       </form>

@@ -446,9 +446,15 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
       <div data-uid={element.id} className="relative size-full">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="absolute top-0 right-0 p-1 cursor-pointer z-10">
+            <button
+              type="button"
+              className="absolute top-0 right-0 p-1 cursor-pointer z-10"
+            >
               <EllipsisVerticalIcon className="h-4 w-4" />
-            </div>
+              <span className="sr-only">
+                {`More actions for ${element.kind}`}
+              </span>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem
@@ -1644,6 +1650,7 @@ export default function SlideDeckEditorComponent({
                     disabled={!currentSlide}
                   >
                     <InfoIcon className="size-5" />
+                    <span className="sr-only">Slide metadata</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Slide Page Metadata</TooltipContent>

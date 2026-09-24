@@ -281,6 +281,7 @@ export function ArticleBlock({
               className="inline-flex items-center justify-center rounded-md border border-border bg-background text-foreground hover:bg-accent h-8 px-2"
             >
               <ExternalLink className="size-4" />
+              <span className="sr-only">Open article</span>
             </a>
           ) : null}
           <Button
@@ -291,6 +292,7 @@ export function ArticleBlock({
             disabled={isRefreshing}
           >
             <RefreshCw className="size-4" />
+            <span className="sr-only">Refresh article</span>
           </Button>
           <Button
             type="button"

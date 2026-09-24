@@ -5,9 +5,8 @@ export default function YoutubeIcon({
   ...props
 }: SVGProps<SVGSVGElement>) {
   return (
-    // biome-ignore lint/a11y/noSvgWithoutTitle: todo: fix no svg without title
     <svg
-      aria-label="YouTube icon"
+      aria-hidden="true"
       {...props}
       xmlns="http://www.w3.org/2000/svg"
       width="24"
