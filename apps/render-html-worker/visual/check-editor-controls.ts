@@ -469,11 +469,13 @@ export async function checkEditorControls(
     "The drag handle is visible in dark mode",
   );
   assert(await page.$('button[aria-label="Insert a block below"]'));
+  // The window scrolls, and a clip is measured from the top of the page.
+  const scrolled = await page.evaluate(() => scrollY);
   await page.screenshot({
     path: resolve(output, "editor-controls-handle-1280-dark.png"),
     clip: {
       x: 0,
-      y: Math.max(0, target.top - 60),
+      y: Math.max(0, scrolled + target.top - 60),
       width: 1280,
       height: 200,
     },
