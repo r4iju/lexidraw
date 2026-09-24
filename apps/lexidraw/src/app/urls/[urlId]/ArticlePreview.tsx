@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useId } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
+import { LocalTime } from "~/components/ui/local-time";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import { cn } from "~/lib/utils";
@@ -571,9 +572,12 @@ export default function ArticlePreview({
             {distilled.byline ? `${distilled.byline} · ` : ""}
             {distilled.siteName || ""}
             {distilled.wordCount ? ` · ${distilled.wordCount} words` : ""}
-            {distilled.updatedAt
-              ? ` · ${new Date(distilled.updatedAt).toLocaleString()}`
-              : ""}
+            {distilled.updatedAt ? (
+              <>
+                {" · "}
+                <LocalTime value={distilled.updatedAt} />
+              </>
+            ) : null}
           </div>
         </div>
       </div>
