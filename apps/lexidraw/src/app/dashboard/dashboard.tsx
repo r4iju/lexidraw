@@ -139,7 +139,6 @@ export async function Dashboard({
               "flex flex-col gap-2 py-3 transition-[padding] group-data-scrolled/bar:py-2",
             )}
           >
-
             <div className="flex min-h-10 items-center gap-1 sm:gap-2">
               <h1 className="min-w-0 flex-1 truncate text-title font-semibold transition-[font-size] max-md:group-data-scrolled/bar:text-lg">
                 {directory?.title || "Home"}
