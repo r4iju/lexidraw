@@ -94,7 +94,9 @@ const RELOAD_WAIT_MS = 30_000;
 export class OpenEntitySync {
   private editor: SyncedEditor | null = null;
   private checking = false;
-  private savesInFlight = 0;
+  /** The saves on the wire, by the id `saveStarted` gave each. */
+  private inFlight = new Set<number>();
+  private lastSave = 0;
   /** Bumped by every save, so a check that straddles one is dropped. */
   private saveEpoch = 0;
   /** The last revision loaded, so asking again for it costs no download. */
@@ -107,7 +109,7 @@ export class OpenEntitySync {
   /** Cancels the wait of a reload chosen while a save was in flight. */
   private reloadWait: (() => void) | null = null;
   /** Saves still on the wire when a reload went ahead without them. */
-  private abandonedSaves = 0;
+  private abandoned = new Set<number>();
   /** When the entity was last found gone; null while it is there. */
   private goneAt: number | null = null;
 
@@ -124,7 +126,7 @@ export class OpenEntitySync {
   }
 
   async check(trigger: CheckTrigger = "poll"): Promise<void> {
-    if (this.checking || this.savesInFlight > 0 || !this.editor) return;
+    if (this.checking || this.inFlight.size > 0 || !this.editor) return;
     if (
       this.goneAt !== null &&
       trigger === "poll" &&
@@ -198,11 +200,13 @@ export class OpenEntitySync {
     if (!this.conflict || !this.editor) return;
     // A save on the wire decides what is stored; see `saveFailed` and
     // `saveSucceeded`.
-    if (this.savesInFlight > 0) {
+    if (this.inFlight.size > 0) {
       this.reloadWait ??= this.clock.after(RELOAD_WAIT_MS, () => {
         this.reloadWait = null;
-        // Whatever those saves answer later is older than what shows now.
-        this.abandonedSaves = this.savesInFlight;
+        // Whatever those saves answer later is older than what shows now,
+        // and checks need not wait for them any more.
+        for (const save of this.inFlight) this.abandoned.add(save);
+        this.inFlight.clear();
         this.applyReload();
       });
       return;
@@ -226,13 +230,16 @@ export class OpenEntitySync {
     this.notify({ kind: "resumed" });
   }
 
-  saveStarted(): void {
-    this.savesInFlight++;
+  /** A save went out; answers the id its answer is reported under. */
+  saveStarted(): number {
+    const save = ++this.lastSave;
+    this.inFlight.add(save);
     this.saveEpoch++;
+    return save;
   }
 
-  saveSucceeded(saved: StoredRevision, appState?: string): void {
-    if (this.saveSettled()) return;
+  saveSucceeded(save: number, saved: StoredRevision, appState?: string): void {
+    if (this.saveSettled(save)) return;
     // The stored content is the user's now: there is nothing to reload to.
     this.stopReloadWait();
     // Answers can arrive out of order; an older one says nothing new.
@@ -243,21 +250,20 @@ export class OpenEntitySync {
     this.settle();
   }
 
-  saveFailed(): void {
-    if (this.saveSettled()) return;
-    if (this.reloadWait && this.savesInFlight === 0) {
+  saveFailed(save: number): void {
+    if (this.saveSettled(save)) return;
+    if (this.reloadWait && this.inFlight.size === 0) {
       this.stopReloadWait();
       this.applyReload();
     }
   }
 
   /** Answers whether this save was abandoned, so its answer means nothing. */
-  private saveSettled(): boolean {
-    this.savesInFlight = Math.max(0, this.savesInFlight - 1);
+  private saveSettled(save: number): boolean {
     this.saveEpoch++;
-    if (this.abandonedSaves === 0) return false;
-    this.abandonedSaves--;
-    return true;
+    if (this.abandoned.delete(save)) return true;
+    this.inFlight.delete(save);
+    return false;
   }
 
   private stopReloadWait(): void {

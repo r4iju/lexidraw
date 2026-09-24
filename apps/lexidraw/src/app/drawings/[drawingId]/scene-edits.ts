@@ -77,3 +77,47 @@ export class SceneEdits {
     return scene !== this.baseline;
   }
 }
+
+/** What the user can touch a drawing with, from anywhere on the page. */
+const TOUCHES = ["keydown", "paste", "drop"] as const;
+/** What ends a press. */
+const RELEASES = ["pointerup", "pointercancel"] as const;
+
+/**
+ * Tells `scene` about the user's input anywhere on the page, not only the
+ * canvas: the library, the menus, and the dialogs change the scene too. A
+ * touch that edits nothing costs a question at most, and an edit without a
+ * touch would be replaced unasked. Answers a stop.
+ */
+export function watchPageInput(
+  page: Window,
+  scene: Pick<SceneEdits, "touched" | "pressed" | "released">,
+): () => void {
+  const touch = () => scene.touched();
+  const press = () => scene.pressed();
+  const release = () => scene.released();
+  // The window losing focus covers a release the page never saw. Not
+  // captured: a captured blur is every element's too, and pressing the canvas
+  // blurs whatever button had focus while the press goes on.
+  const leave = (event: Event) => {
+    if (event.target === page) scene.released();
+  };
+  page.addEventListener("pointerdown", press, { capture: true });
+  page.addEventListener("blur", leave);
+  for (const type of TOUCHES) {
+    page.addEventListener(type, touch, { capture: true });
+  }
+  for (const type of RELEASES) {
+    page.addEventListener(type, release, { capture: true });
+  }
+  return () => {
+    page.removeEventListener("pointerdown", press, { capture: true });
+    page.removeEventListener("blur", leave);
+    for (const type of TOUCHES) {
+      page.removeEventListener(type, touch, { capture: true });
+    }
+    for (const type of RELEASES) {
+      page.removeEventListener(type, release, { capture: true });
+    }
+  };
+}

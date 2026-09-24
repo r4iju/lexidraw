@@ -192,12 +192,12 @@ describe("an open editor and the entity stored under it", () => {
     const { srv, notices, sync } = setup(rev(1, "v1"), ed);
 
     // A check while the save is in flight looks at nothing.
-    sync.saveStarted();
+    const save = sync.saveStarted();
     srv.state.current = rev(2, "v1 edited");
     await sync.check();
     expect(srv.state.loads).toBe(0);
 
-    sync.saveSucceeded(rev(2, "v1 edited"));
+    sync.saveSucceeded(save, rev(2, "v1 edited"));
     ed.state.edited = true; // typed on after the save went out
     await sync.check();
     expect(notices).toEqual([]);
@@ -213,12 +213,12 @@ describe("an open editor and the entity stored under it", () => {
     await Promise.resolve();
     // The save commits server-side, the check reads it back, and only then
     // does the save's own answer arrive.
-    sync.saveStarted();
+    const save = sync.saveStarted();
     srv.state.current = rev(2, "v1 edited");
     ed.state.edited = true; // typed on after the save went out
     srv.state.pending?.();
     await checking;
-    sync.saveSucceeded(rev(2, "v1 edited"));
+    sync.saveSucceeded(save, rev(2, "v1 edited"));
 
     expect(notices).toEqual([]);
     expect(ed.state.replaced).toEqual([]);
@@ -240,9 +240,9 @@ describe("an open editor and the entity stored under it", () => {
     await sync.check();
     expect(sync.holdsSaves()).toBe(true);
     // Saving by hand is a choice: the stored content is theirs now.
-    sync.saveStarted();
+    const save = sync.saveStarted();
     srv.state.current = rev(4, "mine");
-    sync.saveSucceeded(rev(4, "mine"));
+    sync.saveSucceeded(save, rev(4, "mine"));
     expect(sync.holdsSaves()).toBe(false);
     expect(notices).toEqual([
       "conflict",
@@ -292,11 +292,11 @@ describe("an open editor and the entity stored under it", () => {
 
     srv.state.current = rev(2, "v2");
     await sync.check();
-    sync.saveStarted();
+    const save = sync.saveStarted();
     sync.reload();
     expect(ed.state.replaced).toEqual([]);
     // The save failed: v2 still stands over the edits, and the user chose it.
-    sync.saveFailed();
+    sync.saveFailed(save);
     expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2"]);
     expect(notices).toEqual(["conflict", "settled"]);
 
@@ -306,9 +306,9 @@ describe("an open editor and the entity stored under it", () => {
     const second = setup(rev(1, "v1"), ed2);
     second.srv.state.current = rev(2, "v2");
     await second.sync.check();
-    second.sync.saveStarted();
+    const secondSave = second.sync.saveStarted();
     second.sync.reload();
-    second.sync.saveSucceeded(rev(3, "mine"));
+    second.sync.saveSucceeded(secondSave, rev(3, "mine"));
     expect(ed2.state.replaced).toEqual([]);
     expect(second.notices).toEqual(["conflict", "settled"]);
   });
@@ -317,11 +317,11 @@ describe("an open editor and the entity stored under it", () => {
     const ed = editor("v1", true);
     const { srv, sync } = setup(rev(1, "v1"), ed);
 
-    sync.saveStarted();
-    sync.saveStarted();
+    const a = sync.saveStarted();
+    const b = sync.saveStarted();
     srv.state.current = rev(3, "b");
-    sync.saveSucceeded(rev(3, "b"));
-    sync.saveSucceeded(rev(2, "a"));
+    sync.saveSucceeded(b, rev(3, "b"));
+    sync.saveSucceeded(a, rev(2, "a"));
 
     await sync.check();
     expect(srv.state.loads).toBe(0);
@@ -352,7 +352,7 @@ describe("an open editor and the entity stored under it", () => {
 
     srv.state.current = rev(2, "v2");
     await sync.check();
-    sync.saveStarted();
+    const save = sync.saveStarted();
     sync.reload();
     expect(sync.holdsSaves()).toBe(true);
 
@@ -364,7 +364,7 @@ describe("an open editor and the entity stored under it", () => {
     // The save lands after all: the tab shows v2 over what is stored now,
     // so the next check has to bring it back, not take the save as shown.
     srv.state.current = rev(3, "mine");
-    sync.saveSucceeded(rev(3, "mine"));
+    sync.saveSucceeded(save, rev(3, "mine"));
     await sync.check();
     expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2", "mine"]);
     expect(notices).toEqual(["conflict", "settled", "reloaded"]);
@@ -395,5 +395,44 @@ describe("an open editor and the entity stored under it", () => {
     await sync.check("focus");
     expect(notices).toEqual(["gone", "back", "reloaded"]);
     expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v9"]);
+  });
+
+  test("a save that never answers stops no checks once the reload went ahead", async () => {
+    const ed = editor("v1", true);
+    const { srv, sync, time } = setup(rev(1, "v1"), ed);
+
+    srv.state.current = rev(2, "v2");
+    await sync.check();
+    sync.saveStarted(); // hangs for good
+    sync.reload();
+    time.advance(30_000);
+
+    srv.state.current = rev(3, "v3");
+    await sync.check();
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2", "v3"]);
+  });
+
+  test("a newer save answering before an abandoned one is taken, and the abandoned one's answer is not", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync, time } = setup(rev(1, "v1"), ed);
+
+    srv.state.current = rev(2, "v2");
+    await sync.check();
+    const abandoned = sync.saveStarted();
+    sync.reload();
+    time.advance(30_000);
+
+    // The user edits the reloaded v2, and autosave sends it.
+    ed.state.edited = true;
+    const newer = sync.saveStarted();
+    srv.state.current = rev(4, "b");
+    sync.saveSucceeded(newer, rev(4, "b"));
+    expect(ed.state.showing).toBe("b");
+
+    sync.saveSucceeded(abandoned, rev(3, "a"));
+    expect(ed.state.showing).toBe("b");
+    await sync.check();
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2"]);
+    expect(notices).toEqual(["conflict", "settled"]);
   });
 });

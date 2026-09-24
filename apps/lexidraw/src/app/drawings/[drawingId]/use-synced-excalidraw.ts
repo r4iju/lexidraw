@@ -8,7 +8,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { SyncedEditor } from "~/lib/open-entity-sync";
-import { SceneEdits, sceneKey } from "./scene-edits";
+import { SceneEdits, sceneKey, watchPageInput } from "./scene-edits";
 
 function parse(elements: string): ExcalidrawElement[] {
   // Stored elements are canonical: whatever wrote them ran them through
@@ -28,11 +28,6 @@ function sentAppState(appState: string | undefined): AppStateKey {
 }
 
 type AppStateKey = Parameters<typeof sceneKey>[1];
-
-/** What the user can touch a drawing with, from anywhere on the page. */
-const TOUCHES = ["keydown", "paste", "drop"] as const;
-/** What ends a press; a blur covers a release the page never saw. */
-const RELEASES = ["pointerup", "pointercancel", "blur"] as const;
 
 /**
  * An Excalidraw scene as `lib/open-entity-sync.ts` sees it, and whether a
@@ -61,28 +56,10 @@ export function useSyncedExcalidraw(
       sceneKey(excalidraw.getSceneElements(), excalidraw.getAppState()),
     );
     edits.current = scene;
-    // Anywhere, not only the canvas: the library, the menus, and the dialogs
-    // change the scene too. A touch that edits nothing costs a question at
-    // most, and an edit without a touch would be replaced unasked.
-    const touch = () => scene.touched();
-    const press = () => scene.pressed();
-    const release = () => scene.released();
-    window.addEventListener("pointerdown", press, { capture: true });
-    for (const type of TOUCHES) {
-      window.addEventListener(type, touch, { capture: true });
-    }
-    for (const type of RELEASES) {
-      window.addEventListener(type, release, { capture: true });
-    }
+    const stopWatching = watchPageInput(window, scene);
     return () => {
       if (edits.current === scene) edits.current = null;
-      window.removeEventListener("pointerdown", press, { capture: true });
-      for (const type of TOUCHES) {
-        window.removeEventListener(type, touch, { capture: true });
-      }
-      for (const type of RELEASES) {
-        window.removeEventListener(type, release, { capture: true });
-      }
+      stopWatching();
     };
   }, [excalidraw]);
 

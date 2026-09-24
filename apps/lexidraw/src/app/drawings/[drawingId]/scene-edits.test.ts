@@ -1,7 +1,8 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { SceneEdits, sceneKey } from "./scene-edits";
+import { JSDOM } from "jsdom";
+import { SceneEdits, sceneKey, watchPageInput } from "./scene-edits";
 
 /** A stored rectangle, as far as a scene key reads it. */
 const box = (version: number, more: Partial<ExcalidrawElement> = {}) =>
@@ -90,5 +91,50 @@ describe("which drawing changes are something to save", () => {
   test("a new background colour is", () => {
     const green = { ...view, viewBackgroundColor: "#b2f2bb" };
     expect(opened().changed(sceneKey([box(1)], green))).toBe(true);
+  });
+});
+
+// The page's own events, through a real DOM.
+describe("what the page tells a drawing about the user's input", () => {
+  function page() {
+    const { window } = new JSDOM(
+      "<!doctype html><button>tool</button><div tabindex='0'><canvas></canvas></div>",
+    );
+    const doc = window.document;
+    const pick = (selector: string) => {
+      const found = doc.querySelector(selector);
+      if (!found) throw new Error(selector);
+      return found;
+    };
+    const fire = (target: EventTarget, type: string, bubbles = true) =>
+      target.dispatchEvent(new window.Event(type, { bubbles }));
+    return { window, pick, fire };
+  }
+
+  test("focus leaving a button as the canvas is pressed does not end the press", () => {
+    const { window, pick, fire } = page();
+    const edits = new SceneEdits("a@1");
+    const stop = watchPageInput(window as unknown as Window, edits);
+
+    fire(pick("canvas"), "pointerdown");
+    // Pressing the canvas focuses its container, which blurs the tool button.
+    fire(pick("button"), "blur", false);
+    edits.replaced("r@1");
+
+    expect(edits.changed("r@2")).toBe(true);
+    stop();
+  });
+
+  test("the window losing focus ends the press", () => {
+    const { window, pick, fire } = page();
+    const edits = new SceneEdits("a@1");
+    const stop = watchPageInput(window as unknown as Window, edits);
+
+    fire(pick("canvas"), "pointerdown");
+    fire(window, "blur", false);
+    edits.replaced("r@1");
+
+    expect(edits.changed("r@2")).toBe(false);
+    stop();
   });
 });

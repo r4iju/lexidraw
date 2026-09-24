@@ -112,34 +112,35 @@ export function useOpenEntitySync({
   // External system: the query client's mutation cache.
   useEffect(() => {
     const saveKey = getMutationKey(api.entities.save);
+    // Each save's answer is reported under the id it went out with, so an
+    // answer the sync stopped waiting for is told apart from a newer one.
+    const saves = new Map<number, number>();
     return queryClient.getMutationCache().subscribe((event) => {
       if (event.type !== "updated") return;
-      if (!matchMutation({ mutationKey: saveKey }, event.mutation)) return;
-      const variables = SaveVariables.safeParse(event.mutation.state.variables);
+      const { mutation, action } = event;
+      if (!matchMutation({ mutationKey: saveKey }, mutation)) return;
+      const variables = SaveVariables.safeParse(mutation.state.variables);
       if (!variables.success || variables.data.id !== entity.id) return;
-      switch (event.action.type) {
-        case "pending":
-          sync.saveStarted();
-          break;
-        case "success": {
-          const result = SaveResult.safeParse(event.action.data);
-          if (!result.success) {
-            sync.saveFailed();
-            break;
-          }
-          sync.saveSucceeded(
-            {
-              updatedAt: result.data.updatedAt,
-              elements: variables.data.elements,
-            },
-            variables.data.appState ?? undefined,
-          );
-          break;
-        }
-        case "error":
-          sync.saveFailed();
-          break;
+      if (action.type === "pending") {
+        if (!saves.has(mutation.mutationId))
+          saves.set(mutation.mutationId, sync.saveStarted());
+        return;
       }
+      if (action.type !== "success" && action.type !== "error") return;
+      const save = saves.get(mutation.mutationId);
+      if (save === undefined) return;
+      saves.delete(mutation.mutationId);
+      const result =
+        action.type === "success" ? SaveResult.safeParse(action.data) : null;
+      if (!result?.success) {
+        sync.saveFailed(save);
+        return;
+      }
+      sync.saveSucceeded(
+        save,
+        { updatedAt: result.data.updatedAt, elements: variables.data.elements },
+        variables.data.appState ?? undefined,
+      );
     });
   }, [queryClient, sync, entity.id]);
 
