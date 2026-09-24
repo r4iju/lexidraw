@@ -133,7 +133,7 @@ export default function UrlEditor({ entity }: Props) {
             </div>
           </div>
 
-          <ArticlePreview entity={entity} />
+          <ArticlePreview entity={entity} canGenerateAudio />
         </div>
       </div>
     </div>

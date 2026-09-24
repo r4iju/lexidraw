@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { put } from "@vercel/blob/client";
@@ -47,7 +48,12 @@ export const ImageGenerationProvider = ({
 }) => {
   const { mutateAsync: generateUploadUrlAsync } =
     api.entities.generateUploadUrl.useMutation();
-  const { data: genStatus } = api.image.getAiGenerationStatus.useQuery();
+  // Generating an image needs an account; a visitor is never offered it.
+  const { status: sessionStatus } = useSession();
+  const { data: genStatus } = api.image.getAiGenerationStatus.useQuery(
+    undefined,
+    { enabled: sessionStatus === "authenticated" },
+  );
   const { mutateAsync: generateAiImage } =
     api.image.generateAiImage.useMutation();
   const [isLoading, setIsLoading] = useState(false);

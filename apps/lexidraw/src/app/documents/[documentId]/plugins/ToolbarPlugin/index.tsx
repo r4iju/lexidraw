@@ -87,6 +87,7 @@ import { CodeSelector } from "./code-selector";
 import { InsertItem } from "./insert-item";
 import { SettingsDropdown } from "./settings-dropdown";
 import { TtsToolbar } from "../TtsToolbar";
+import { useSession } from "next-auth/react";
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
@@ -96,6 +97,8 @@ export default function ToolbarPlugin({
   className?: string;
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
+  // Generating audio needs an account, so a visitor is not offered it.
+  const { status: sessionStatus } = useSession();
   const [activeEditor, setActiveEditor] = useState(editor);
   const [blockType, setBlockType] = useState<BlockType>("paragraph");
   const [rootType, setRootType] =
@@ -691,7 +694,7 @@ export default function ToolbarPlugin({
         />
       </fieldset>
 
-      <TtsToolbar />
+      {sessionStatus === "authenticated" && <TtsToolbar />}
 
       <Divider />
       <SettingsDropdown className="rounded-md" />
