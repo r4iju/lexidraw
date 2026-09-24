@@ -1,178 +1,126 @@
 import type { TableOfContentsEntry } from "@lexical/react/LexicalTableOfContentsPlugin";
-import type { HeadingTagType } from "@lexical/rich-text";
 import type { NodeKey } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type * as React from "react";
-import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
+import { outlineLevels } from "./outline";
 
-const FIXED_HEADER_HEIGHT = 70;
-const SCROLL_TOP_PADDING = 20;
-const ACTIVE_HEADING_ZONE_HEIGHT = 10;
-
-const SCROLL_TARGET_ZONE_TOP = FIXED_HEADER_HEIGHT + SCROLL_TOP_PADDING;
+/** Where reading happens: just under the page's sticky toolbar. */
+function readingLine(): number {
+  return (
+    Number.parseFloat(
+      getComputedStyle(document.documentElement).scrollPaddingTop,
+    ) || 0
+  );
+}
 
 function TableOfContentsList({
   tableOfContents,
 }: {
   tableOfContents: TableOfContentsEntry[];
 }): React.JSX.Element {
-  const [selectedKey, setSelectedKey] = useState("");
-  const selectedIndex = useRef(0);
   const [editor] = useLexicalComposerContext();
-
-  const scrollToNodeWithPadding = useCallback(
-    (key: NodeKey, currIndex: number) => {
-      editor.getEditorState().read(() => {
-        const domElement = editor.getElementByKey(key);
-        if (domElement !== null) {
-          const elementRect = domElement.getBoundingClientRect();
-          const absoluteElementTop = elementRect.top + window.scrollY;
-          const targetScrollPosition =
-            absoluteElementTop - FIXED_HEADER_HEIGHT - SCROLL_TOP_PADDING;
-
-          window.scrollTo({
-            top: Math.max(0, targetScrollPosition),
-            behavior: "smooth",
-          });
-
-          setSelectedKey(key);
-          selectedIndex.current = currIndex;
-        }
-      });
-    },
-    [editor],
+  const [current, setCurrent] = useState<NodeKey | null>(null);
+  // A heading jumped to stays current until the reader scrolls again, even
+  // when the end of the document keeps it from reaching the top.
+  const pinned = useRef<NodeKey | null>(null);
+  const levels = useMemo(
+    () => outlineLevels(tableOfContents.map(([, , tag]) => tag)),
+    [tableOfContents],
   );
 
-  const headingToPadding = useCallback((tag: HeadingTagType): number => {
-    switch (tag) {
-      case "h1":
-        return 0;
-      case "h2":
-        return 2; // Assuming Tailwind pl-2 = 0.5rem
-      case "h3":
-        return 4; // pl-4 = 1rem
-      case "h4":
-        return 6; // pl-6 = 1.5rem
-      case "h5":
-        return 8; // pl-8 = 2rem
-      case "h6":
-        return 10; // pl-10 = 2.5rem
-      default:
-        return 0;
-    }
-  }, []);
+  const jump = (key: NodeKey) => {
+    const heading = editor.getElementByKey(key);
+    if (!heading) return;
+    pinned.current = key;
+    setCurrent(key);
+    heading.scrollIntoView({
+      block: "start",
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+  };
 
+  // External system: the page's scroll position.
   useEffect(() => {
-    function scrollCallback() {
-      if (tableOfContents.length === 0) {
-        if (selectedKey !== "") {
-          setSelectedKey("");
-          selectedIndex.current = 0;
-        }
-        return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (pinned.current) return;
+      const line = readingLine() + 8;
+      let found = tableOfContents[0]?.[0] ?? null;
+      for (const [key] of tableOfContents) {
+        const top = editor.getElementByKey(key)?.getBoundingClientRect().top;
+        if (top === undefined) continue;
+        if (top > line) break;
+        found = key;
       }
-
-      let currentActiveIndex = -1;
-      const targetBottomLine =
-        SCROLL_TARGET_ZONE_TOP + ACTIVE_HEADING_ZONE_HEIGHT;
-
-      for (let i = 0; i < tableOfContents.length; i++) {
-        const entry = tableOfContents[i];
-        if (!entry) continue;
-        const [key] = entry;
-        const headingElement = editor.getElementByKey(key ?? "");
-        if (headingElement) {
-          const elementRect = headingElement.getBoundingClientRect();
-          if (elementRect && elementRect.top < targetBottomLine) {
-            currentActiveIndex = i;
-          } else {
-            break;
-          }
-        }
-      }
-
-      if (currentActiveIndex === -1 && tableOfContents.length > 0) {
-        currentActiveIndex = 0;
-      }
-
-      if (currentActiveIndex !== -1) {
-        const entry = tableOfContents[currentActiveIndex];
-        if (entry) {
-          const newKey = entry[0];
-          if (newKey !== selectedKey) {
-            setSelectedKey(newKey ?? "");
-            selectedIndex.current = currentActiveIndex;
-          }
-        } else {
-          console.error(
-            "TOC scroll logic error: Invalid index",
-            currentActiveIndex,
-            tableOfContents,
-          );
-          if (selectedKey !== "") {
-            setSelectedKey("");
-            selectedIndex.current = 0;
-          }
-        }
-      } else if (selectedKey !== "") {
-        setSelectedKey("");
-        selectedIndex.current = 0;
-      }
-    }
-
-    let timerId: ReturnType<typeof setTimeout>;
-
-    function debounceFunction(func: () => void, delay: number) {
-      clearTimeout(timerId);
-      timerId = setTimeout(func, delay);
-    }
-
-    function onScroll(): void {
-      debounceFunction(scrollCallback, 50); // 50ms debounce interval
-    }
-
-    document.addEventListener("scroll", onScroll, { passive: true });
-
-    scrollCallback();
-
-    return () => {
-      document.removeEventListener("scroll", onScroll);
-      clearTimeout(timerId);
+      setCurrent(found);
     };
-  }, [tableOfContents, editor, selectedKey]);
+    const onScroll = () => {
+      frame ||= requestAnimationFrame(measure);
+    };
+    const release = () => {
+      pinned.current = null;
+    };
+    const readerMoves = ["wheel", "touchstart", "keydown"] as const;
+    measure();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    for (const type of readerMoves)
+      window.addEventListener(type, release, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+      for (const type of readerMoves) window.removeEventListener(type, release);
+    };
+  }, [editor, tableOfContents]);
 
   return (
-    <div className="p-4">
+    <nav aria-label="Table of contents" className="py-3 pr-3">
       {tableOfContents.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic px-4 py-2">
-          No headings found.
+        <p className="px-4 text-sm text-muted-foreground">
+          Headings appear here as you add them.
         </p>
       ) : (
-        <ul className="space-y-1">
-          {tableOfContents.map(([key, text, tag], index) => (
-            <li
-              key={key}
-              className={`relative pl-${headingToPadding(tag)} pr-4`}
-            >
-              <Button
-                variant="link"
-                onClick={() => scrollToNodeWithPadding(key, index)}
-                className="p-0 text-foreground h-auto whitespace-normal text-left text-sm leading-snug hover:underline focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
-                title={text}
-              >
-                <span
-                  className={`${selectedKey === key ? "font-bold text-primary" : ""}`}
+        <ol className="flex flex-col">
+          {tableOfContents.map(([key, text], index) => {
+            const level = levels[index] ?? 0;
+            const isCurrent = key === current;
+            return (
+              <li key={key}>
+                <button
+                  type="button"
+                  title={text}
+                  aria-current={isCurrent ? "location" : undefined}
+                  onClick={() => jump(key)}
+                  style={{ "--level": level } as CSSProperties}
+                  className={cn(
+                    "block w-full truncate rounded-r-sm py-1 pr-2 pl-[calc(14px+var(--level)*14px)] text-left leading-5 transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+                    level === 0
+                      ? "text-sm font-semibold text-foreground"
+                      : "text-[13px] text-muted-foreground",
+                    isCurrent
+                      ? "border-l-2 border-primary text-primary hover:text-primary"
+                      : "border-l-2 border-transparent",
+                  )}
                 >
-                  {text.length > 35 ? `${text.substring(0, 35)}...` : text}
-                </span>
-              </Button>
-            </li>
-          ))}
-        </ul>
+                  <span>{text}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
       )}
-    </div>
+    </nav>
   );
 }
 
