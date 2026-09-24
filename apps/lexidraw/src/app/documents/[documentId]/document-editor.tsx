@@ -159,6 +159,7 @@ import { useMarkdownTools, type MarkdownInsertMode } from "./utils/markdown";
 import {
   DocumentSettingsProvider,
   useDocumentSettings,
+  useDocumentSettingsChange,
 } from "./context/document-settings-context";
 import { EditorRegistryProvider } from "./context/editors-context";
 import { SignedInProvider, useSignedIn } from "./context/signed-in-context";
@@ -405,6 +406,10 @@ function EditorHandler({
       debouncedAutoSaveRef.current = null;
     };
   }, [autoSaveEnabled]);
+
+  // A font or language chosen on its own saves like an edit to the text;
+  // without autosave it waits, marked unsaved, for the user to save.
+  useDocumentSettingsChange(() => debouncedAutoSaveRef.current?.());
 
   const saveNow = useCallback(() => {
     debouncedAutoSaveRef.current?.cancel();
