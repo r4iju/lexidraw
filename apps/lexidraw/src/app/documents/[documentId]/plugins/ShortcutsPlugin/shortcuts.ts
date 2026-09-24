@@ -1,9 +1,6 @@
 import { IS_APPLE } from "@lexical/utils";
 
 export function useShortcuts() {
-  // Compiled although it calls no hooks: the caller lists the returned
-  // functions as effect dependencies, so they need stable identities.
-  "use memo";
   const controlOrMeta = (metaKey: boolean, ctrlKey: boolean): boolean => {
     return IS_APPLE ? metaKey : ctrlKey;
   };

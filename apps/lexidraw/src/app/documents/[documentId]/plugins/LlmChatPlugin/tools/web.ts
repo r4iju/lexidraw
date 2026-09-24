@@ -33,9 +33,6 @@ export const WEB_TOOL_FORMATTERS: Record<
 };
 
 export function useWebTools() {
-  // Compiled although its hooks are called as members (`api.useUtils()`),
-  // which "infer" mode does not recognize: callers depend on stable tools.
-  "use memo";
   const utils = api.useUtils();
   const extractWebpageContentMutation =
     api.web.extractWebpageContent.useMutation();

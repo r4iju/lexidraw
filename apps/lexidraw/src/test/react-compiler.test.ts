@@ -9,6 +9,7 @@ import { reactCompiler } from "../../react-compiler";
 // Next compiles client code with its own bundled Babel; there are no types.
 const require = createRequire(import.meta.url);
 const babel = require("next/dist/compiled/babel/core");
+const { loadBindings } = require("next/dist/build/swc");
 const typescript = require.resolve(
   "next/dist/compiled/babel/preset-typescript",
 );
@@ -21,22 +22,32 @@ const RENDERED = /^(?:[A-Z]|use[A-Z0-9])/;
 // biome-ignore lint/suspicious/noExplicitAny: Babel's NodePath, untyped here
 type Path = any;
 
-function nameOf(fn: Path): string {
+const WRAPPERS = new Set(["memo", "forwardRef"]);
+
+/** A function's name, or null when it's an unnamed component. */
+function nameOf(fn: Path): string | null {
   if (fn.node.id) return fn.node.id.name;
   let parent = fn.parentPath;
+  let wrapped = false;
   // memo(forwardRef(function (props, ref) { ... }))
-  while (parent?.isCallExpression()) parent = parent.parentPath;
+  while (parent?.isCallExpression()) {
+    const { callee } = parent.node;
+    const name =
+      callee.type === "MemberExpression" ? callee.property.name : callee.name;
+    wrapped ||= WRAPPERS.has(name);
+    parent = parent.parentPath;
+  }
   if (parent?.isVariableDeclarator() && parent.node.id.type === "Identifier") {
     return parent.node.id.name;
   }
-  return "<anonymous>";
+  return wrapped ? null : "<anonymous>";
 }
 
 /**
  * Runs after the compiler and names every function it gave a memo cache:
  * `const $ = _c(n)`, where `_c` is `useMemoCache`, a hook.
  */
-function memoizedFunctions(found: string[]) {
+function memoizedFunctions(found: (string | null)[]) {
   return {
     visitor: {
       Program: {
@@ -78,11 +89,17 @@ describe("React Compiler", () => {
   // subscribe. That broke the editor's right-click menu in production.
   test(
     "memoizes components and hooks only",
-    () => {
+    async () => {
+      const { reactCompiler: swc } = await loadBindings();
+      // Next's own pre-check: a file without JSX or a `useX()` call never
+      // reaches the compiler, whatever its directives say.
+      const compilerRequired = (path: string): Promise<boolean> =>
+        swc.isReactCompilerRequired(path);
       const offenders: string[] = [];
       for (const file of new Glob("src/**/*.{ts,tsx}").scanSync(APP)) {
         if (file.endsWith(".d.ts") || file.includes(".test.")) continue;
-        const found: string[] = [];
+        if (!(await compilerRequired(`${APP}/${file}`))) continue;
+        const found: (string | null)[] = [];
         babel.transformSync(readFileSync(`${APP}/${file}`, "utf8"), {
           filename: file,
           babelrc: false,
@@ -96,7 +113,7 @@ describe("React Compiler", () => {
               require.resolve("babel-plugin-react-compiler"),
               {
                 ...reactCompiler,
-                // This compiles every file, unreachable ones included; `next
+                // Server and unreachable files pass through here too; `next
                 // build` is what fails on a compiler error in shipped code.
                 panicThreshold: "none",
                 // As `next dev` does: every compiled function gets a cache,
@@ -108,7 +125,7 @@ describe("React Compiler", () => {
           ],
         });
         for (const name of found) {
-          if (!RENDERED.test(name)) {
+          if (name !== null && !RENDERED.test(name)) {
             offenders.push(`${relative(APP, `${APP}/${file}`)}: ${name}`);
           }
         }

@@ -93,7 +93,7 @@ export function useThumbnailContent({
   if (entity.entityType === "directory") {
     const childCount = (entity as unknown as { childCount?: number })
       .childCount;
-    const result = FolderVisual({
+    const result = folderVisual({
       id: entity.id,
       title: entity.title,
       childCount,
@@ -211,7 +211,9 @@ export function ThumbnailFallback({
   );
 }
 
-function FolderVisual({
+// Called, not rendered, and only for folders: a component name would get it a
+// compiler cache, a hook the caller would then call conditionally.
+function folderVisual({
   id: _id,
   title,
   childCount,
