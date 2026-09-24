@@ -463,6 +463,7 @@ export function TtsToolbar({ className }: Props) {
                   className="absolute top-0 right-0"
                 >
                   <X className="h-4 w-4" />
+                  <span className="sr-only">Close audio settings</span>
                 </Button>
               </PopoverClose>
               <div className="grid grid-cols-2 gap-3">

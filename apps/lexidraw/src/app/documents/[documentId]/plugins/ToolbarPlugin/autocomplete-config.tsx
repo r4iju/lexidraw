@@ -118,7 +118,10 @@ export function AutocompleteConfig({ className }: { className?: string }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-[240px] p-0">
             <Command>
-              <CommandInput placeholder="Search model..." />
+              <CommandInput
+                placeholder="Search model..."
+                aria-label="Search models"
+              />
               <CommandList>
                 <CommandEmpty>No model found.</CommandEmpty>
                 <CommandGroup>

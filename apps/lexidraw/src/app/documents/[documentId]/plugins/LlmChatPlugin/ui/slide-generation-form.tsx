@@ -204,6 +204,7 @@ export const SlideGenerationForm: React.FC = () => {
                   disabled={isLoading}
                 >
                   <XIcon className="size-3.5" />
+                  <span className="sr-only">{`Remove ${file.name}`}</span>
                 </Button>
               </div>
             ))}
@@ -225,6 +226,7 @@ export const SlideGenerationForm: React.FC = () => {
             className="size-10"
           >
             <StopCircleIcon className="size-6" />
+            <span className="sr-only">Stop generating slides</span>
           </Button>
         )}
       </div>

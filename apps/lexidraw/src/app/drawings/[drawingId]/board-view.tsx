@@ -13,7 +13,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import { useOpenEntity, useOpenEntitySync } from "~/hooks/use-open-entity-sync";
 import { useSyncedExcalidraw } from "./use-synced-excalidraw";
 import type { RouterOutputs } from "~/trpc/shared";
 
@@ -36,9 +36,8 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const synced = useSyncedExcalidraw(excalidrawApi);
-  useOpenEntitySync({
-    entity: drawing,
-    noun: "drawing",
+  const openDrawing = useOpenEntity(drawing, "drawing");
+  useOpenEntitySync(openDrawing, {
     editor: renderOnly ? null : synced.editor,
   });
   const isDarkTheme = useIsDarkTheme();

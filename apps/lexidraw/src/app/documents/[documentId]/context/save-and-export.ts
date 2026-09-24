@@ -1,9 +1,6 @@
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { api } from "~/trpc/react";
+import type { OpenEntity } from "~/hooks/use-open-entity-sync";
 import type { RouterOutputs } from "~/trpc/shared";
-import type { TRPCClientErrorLike } from "@trpc/client";
-import type { AppRouter } from "~/server/api/root";
 import type { RefObject } from "react";
 import { useState, useCallback } from "react";
 import type { EditorState } from "lexical";
@@ -13,48 +10,69 @@ import { useMarkdownTools } from "../utils/markdown";
 export function useSaveAndExportDocument({
   entity,
   editorStateRef,
+  openDocument,
 }: {
   entity: RouterOutputs["entities"]["load"];
   editorStateRef: RefObject<EditorState | undefined>;
+  openDocument: OpenEntity;
 }) {
-  const router = useRouter();
-  const { mutate: save } = api.entities.save.useMutation();
   const { defaultFontFamily } = useDocumentSettings();
   const [isSaving, setIsSaving] = useState(false);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
-  const handleSaveAndLeave = () => {
-    if (!editorStateRef.current) {
-      toast.error("No state to save");
-      return;
-    }
-
-    const TOAST_ID = `save-${entity.id}`;
-    toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
-    setIsSaving(true);
-    save(
-      {
-        id: entity.id,
-        elements: JSON.stringify(editorStateRef.current),
+  /** Saves what the editor holds; see `OpenEntitySync.save`. */
+  const save = (
+    editorState: EditorState,
+    callbacks: {
+      onSuccess: () => void;
+      onDropped?: () => void;
+      onError: (error: Error) => void;
+    },
+  ) => {
+    openDocument.sync
+      .save({
+        elements: JSON.stringify(editorState),
         appState: JSON.stringify({ defaultFontFamily }),
-        entityType: "document",
-      },
-      {
-        onSuccess: async () => {
+      })
+      .then(
+        (outcome) =>
+          outcome === "saved" ? callbacks.onSuccess() : callbacks.onDropped?.(),
+        callbacks.onError,
+      );
+  };
+
+  /** Saves on the way out of the editor; answers whether it landed. */
+  const saveBeforeLeaving = () =>
+    new Promise<boolean>((resolve) => {
+      if (!editorStateRef.current) {
+        toast.error("No state to save");
+        resolve(false);
+        return;
+      }
+      const TOAST_ID = `save-${entity.id}`;
+      toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
+      setIsSaving(true);
+      save(editorStateRef.current, {
+        onSuccess: () => {
           toast.success("Saved", { id: TOAST_ID });
           setIsSaving(false);
-          router.push("/dashboard");
+          resolve(true);
         },
-        onError: (error: TRPCClientErrorLike<AppRouter>) => {
+        onDropped: () => {
+          toast.dismiss(TOAST_ID);
+          setIsSaving(false);
+          resolve(false);
+        },
+        onError: (error) => {
           toast.error("Error saving", {
             id: TOAST_ID,
             description: error.message,
           });
           setIsSaving(false);
+          resolve(false);
         },
-      },
-    );
-  };
+      });
+    });
 
   const handleSave = (onSaveSuccessCallback?: () => void) => {
     if (!editorStateRef.current) {
@@ -64,50 +82,38 @@ export function useSaveAndExportDocument({
     const TOAST_ID = `save-${entity.id}`;
     toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
     setIsSaving(true);
-    save(
-      {
-        id: entity.id,
-        elements: JSON.stringify(editorStateRef.current),
-        appState: JSON.stringify({ defaultFontFamily }),
-        entityType: "document",
+    save(editorStateRef.current, {
+      onSuccess: () => {
+        toast.success("Saved", { id: TOAST_ID });
+        setIsSaving(false);
+        onSaveSuccessCallback?.();
       },
-      {
-        onSuccess: async () => {
-          toast.success("Saved", { id: TOAST_ID });
-          setIsSaving(false);
-          onSaveSuccessCallback?.();
-        },
-        onError: (error) => {
-          toast.error("Error saving", {
-            id: TOAST_ID,
-            description: error.message,
-          });
-          setIsSaving(false);
-        },
+      onDropped: () => {
+        toast.dismiss(TOAST_ID);
+        setIsSaving(false);
       },
-    );
+      onError: (error) => {
+        toast.error("Error saving", {
+          id: TOAST_ID,
+          description: error.message,
+        });
+        setIsSaving(false);
+      },
+    });
   };
 
   const handleSilentSave = (onSaveSuccessCallback?: () => void) => {
     if (!editorStateRef.current) {
       return;
     }
-    save(
-      {
-        id: entity.id,
-        elements: JSON.stringify(editorStateRef.current),
-        appState: JSON.stringify({ defaultFontFamily }),
-        entityType: "document",
+    save(editorStateRef.current, {
+      onSuccess: () => {
+        onSaveSuccessCallback?.();
       },
-      {
-        onSuccess: async () => {
-          onSaveSuccessCallback?.();
-        },
-        onError: (error) => {
-          console.error("Auto-save failed:", error);
-        },
+      onError: (error) => {
+        console.error("Auto-save failed:", error);
       },
-    );
+    });
   };
 
   const sanitizeFilename = useCallback((name: string): string => {
@@ -167,7 +173,7 @@ export function useSaveAndExportDocument({
   ]);
 
   return {
-    handleSaveAndLeave,
+    saveBeforeLeaving,
     handleSave,
     handleSilentSave,
     exportMarkdown,

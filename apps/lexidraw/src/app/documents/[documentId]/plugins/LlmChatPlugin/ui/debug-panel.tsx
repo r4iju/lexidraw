@@ -258,7 +258,7 @@ export const DebugPanel: React.FC = () => {
         onValueChange={handleToolSelectionChange}
         value={selectedToolName}
       >
-        <SelectTrigger>
+        <SelectTrigger aria-label="Tool to debug">
           <SelectValue placeholder="Select a tool to debug" />
         </SelectTrigger>
         <SelectContent>

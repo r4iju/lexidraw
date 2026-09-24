@@ -44,7 +44,7 @@ import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
 import type { EditorState, Klass, LexicalNode } from "lexical";
-import { $getRoot } from "lexical";
+import { $getRoot, COLLABORATION_TAG } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
@@ -108,7 +108,13 @@ import {
   ImageGenerationProvider,
 } from "~/hooks/use-image-generation";
 import { useAutoSave } from "~/hooks/use-auto-save";
-import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import {
+  OpenEntityContext,
+  useOpenEntity,
+  useOpenEntityContext,
+  useOpenEntitySync,
+} from "~/hooks/use-open-entity-sync";
+import type { SyncedEditor } from "~/lib/open-entity-sync";
 import { useSyncedLexicalEditor } from "./use-synced-lexical-editor";
 import {
   LexicalImageProvider,
@@ -254,6 +260,18 @@ const ConditionalCommentInputBoxRenderer = () => {
   return null;
 };
 
+/**
+ * Whether the editor holds edits the server lacks; yes while it cannot tell,
+ * as when its edits are not tracked yet.
+ */
+function holdsLocalEdits(editor: SyncedEditor): boolean {
+  try {
+    return editor.hasLocalEdits();
+  } catch {
+    return true;
+  }
+}
+
 function EditorHandler({
   entity,
   iceServers,
@@ -272,7 +290,6 @@ function EditorHandler({
       entity.publicAccess !== PublicAccess.PRIVATE);
   const userId = useUserIdOrGuestId();
   const [isCollaborating, setIsCollaborating] = useState(false);
-  const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [editor] = useLexicalComposerContext();
   const { insertMarkdown } = useMarkdownTools();
 
@@ -291,8 +308,7 @@ function EditorHandler({
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(360);
   const sidebarRef = useRef<HTMLElement>(null);
 
-  const { markDirty, markPristine, dirty, registerSaveHold } =
-    useUnsavedChanges();
+  const { markDirty, markPristine, dirty } = useUnsavedChanges();
   const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
   const onSyncReplace = useCallback(
     (editorState: EditorState) => {
@@ -310,14 +326,11 @@ function EditorHandler({
     // they stay for the user to save.
     if (dirty.current) debouncedAutoSaveRef.current?.();
   }, [dirty]);
-  const { holdsSaves } = useOpenEntitySync({
-    entity,
-    noun: "document",
+  const openDocument = useOpenEntityContext();
+  const { holdsSaves } = useOpenEntitySync(openDocument, {
     editor: printMode ? null : syncedEditor,
     onSavesResumed,
   });
-  // Leaving must not save over a write the user has not answered.
-  useEffect(() => registerSaveHold(holdsSaves), [registerSaveHold, holdsSaves]);
   const { defaultFontFamily } = useDocumentSettings();
   const { enabled: autoSaveEnabled } = useAutoSave({ enabled: !printMode });
 
@@ -374,14 +387,21 @@ function EditorHandler({
     }
   }, [autoSaveEnabled, handleSilentSave, holdsSaves, markDirty, markPristine]);
 
-  const onChange = (editorState: EditorState) => {
-    if (isRemoteUpdate) return;
+  const onChange = (
+    editorState: EditorState,
+    _editor: unknown,
+    tags: Set<string>,
+  ) => {
+    // A collaborator's state: theirs to send and to save.
+    if (tags.has(COLLABORATION_TAG)) return;
     const parsedState = JSON.stringify(editorState);
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
     }
     if (!autoSaveEnabled || holdsSaves()) {
-      markDirty();
+      // The first change after loading has nothing to compare with above.
+      if (holdsLocalEdits(syncedEditor)) markDirty();
+      else markPristine();
     }
     setEditorStateRef(editorState);
     debouncedSendUpdateRef.current(parsedState);
@@ -393,17 +413,19 @@ function EditorHandler({
   const applyUpdate = useCallback(
     (message: MessageStructure) => {
       if (message.entityType === "document") {
-        setIsRemoteUpdate(true);
         const editorState = editor.parseEditorState(message.payload.elements);
         setEditorStateRef(editorState);
-        editor.setEditorState(editorState);
-        setIsRemoteUpdate(false);
+        editor.setEditorState(editorState, { tag: COLLABORATION_TAG });
       }
     },
     [editor, setEditorStateRef],
   );
 
-  const { sendMessage, initializeConnection } = useWebRtcService(
+  const {
+    sendMessage,
+    initializeConnection,
+    connected: peersConnected,
+  } = useWebRtcService(
     { drawingId: entity.id, userId, iceServers },
     {
       onMessage: applyUpdate,
@@ -423,6 +445,11 @@ function EditorHandler({
         });
     }
   }, [canCollaborate, initializeConnection, isCollaborating]);
+
+  // External system: the open document's sync, which lets peers' saves pass.
+  useEffect(() => {
+    openDocument.sync.setPeersConnected(peersConnected);
+  }, [openDocument, peersConnected]);
 
   useEffect(() => {
     if (defaultFontFamily) {
@@ -595,6 +622,7 @@ function EditorHandler({
                                   <article ref={onRef} className="relative">
                                     <ContentEditable
                                       id={`lexical-content-${entity.id}`}
+                                      aria-label="Document content"
                                       className="py-4 px-4 md:px-8 text-foreground outline-muted outline-2 outline-offset-12 min-h-[calc(100svh-4rem)]"
                                     />
                                   </article>
@@ -709,10 +737,15 @@ function EditorScaffold({
   nodes: Klass<LexicalNode>[];
   printMode?: boolean;
 }) {
-  const saveAndExport = useSaveAndExportDocument({ entity, editorStateRef });
-  const handleSaveAndLeave = printMode
-    ? () => {}
-    : saveAndExport.handleSaveAndLeave;
+  const openDocument = useOpenEntity(entity, "document");
+  const saveAndExport = useSaveAndExportDocument({
+    entity,
+    editorStateRef,
+    openDocument,
+  });
+  const saveBeforeLeaving = printMode
+    ? undefined
+    : saveAndExport.saveBeforeLeaving;
   const handleSave = printMode ? () => {} : saveAndExport.handleSave;
   const handleSilentSave = printMode
     ? () => {}
@@ -733,22 +766,24 @@ function EditorScaffold({
           theme,
         }}
       >
-        <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
-          <SidebarManagerProvider>
-            <EditorHandler
-              entity={entity}
-              iceServers={iceServers}
-              initialLlmConfig={initialLlmConfig}
-              handleSave={handleSave}
-              handleSilentSave={handleSilentSave}
-              isUploading={isUploading}
-              exportMarkdown={exportMarkdown}
-              editorStateRef={editorStateRef}
-              setEditorStateRef={setEditorStateRef}
-              printMode={printMode ?? false}
-            />
-          </SidebarManagerProvider>
-        </UnsavedChangesProvider>
+        <OpenEntityContext value={openDocument}>
+          <UnsavedChangesProvider saveBeforeLeaving={saveBeforeLeaving}>
+            <SidebarManagerProvider>
+              <EditorHandler
+                entity={entity}
+                iceServers={iceServers}
+                initialLlmConfig={initialLlmConfig}
+                handleSave={handleSave}
+                handleSilentSave={handleSilentSave}
+                isUploading={isUploading}
+                exportMarkdown={exportMarkdown}
+                editorStateRef={editorStateRef}
+                setEditorStateRef={setEditorStateRef}
+                printMode={printMode ?? false}
+              />
+            </SidebarManagerProvider>
+          </UnsavedChangesProvider>
+        </OpenEntityContext>
       </LexicalComposer>
     </SettingsProvider>
   );

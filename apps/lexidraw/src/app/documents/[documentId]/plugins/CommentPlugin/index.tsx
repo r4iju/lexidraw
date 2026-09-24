@@ -442,6 +442,7 @@ function CommentsComposer({
         disabled={!canSubmit}
       >
         <Send className="size-4" />
+        <span className="sr-only">Send reply</span>
       </Button>
     </div>
   );
@@ -519,6 +520,9 @@ function CommentsPanelListComment({
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
                     <Ellipsis className="size-4" />
+                    <span className="sr-only">
+                      {`More actions for comment by ${comment.author}`}
+                    </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
@@ -658,6 +662,7 @@ function CommentsPanelList({
                     }
                   }}
                   className="p-1 size-8"
+                  aria-expanded={isThreadActive}
                 >
                   <ChevronRight
                     className={cn(
@@ -667,6 +672,7 @@ function CommentsPanelList({
                       },
                     )}
                   />
+                  <span className="sr-only">Show thread</span>
                 </Button>
                 {/** biome-ignore lint/a11y/noStaticElementInteractions: fine */}
                 {/** biome-ignore lint/a11y/useKeyWithClickEvents: fine */}
@@ -687,6 +693,7 @@ function CommentsPanelList({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Ellipsis className="size-4" />
+                      <span className="sr-only">More actions for thread</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>

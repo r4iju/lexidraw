@@ -733,6 +733,7 @@ function TableCellActionMenuContainer({
               ref={menuRootRef}
             >
               <ChevronDown className="size-4" />
+              <span className="sr-only">Table cell actions</span>
             </Button>
           </DropdownMenuTrigger>
           {colorPickerModal}

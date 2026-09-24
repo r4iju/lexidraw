@@ -275,6 +275,7 @@ function FloatingLinkEditor({
           <Input
             ref={inputRef}
             value={editedLinkUrl}
+            aria-label="Link URL"
             className="w-full border border-ring focus-visible:ring-0 py-1 px-2 h-10"
             onChange={(event) => {
               setEditedLinkUrl(event.target.value);
@@ -295,6 +296,7 @@ function FloatingLinkEditor({
               }}
             >
               <XIcon className="w-4 h-4" />
+              <span className="sr-only">Cancel editing link</span>
             </Button>
 
             <Button
@@ -306,6 +308,7 @@ function FloatingLinkEditor({
               onClick={handleLinkSubmission}
             >
               <CheckIcon className="w-4 h-4" />
+              <span className="sr-only">Save link</span>
             </Button>
           </div>
         </div>
@@ -339,6 +342,7 @@ function FloatingLinkEditor({
               }}
             >
               <PencilIcon className="w-4 h-4" />
+              <span className="sr-only">Edit link</span>
             </Button>
             <Button
               variant="destructive"
@@ -351,6 +355,7 @@ function FloatingLinkEditor({
               }}
             >
               <TrashIcon className="w-4 h-4" />
+              <span className="sr-only">Remove link</span>
             </Button>
           </div>
         </div>

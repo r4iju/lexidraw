@@ -2,19 +2,19 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { put } from "@vercel/blob";
 import { PublicAccess } from "@packages/types";
-import { eq, schema } from "@packages/drizzle";
 import {
   generateClientTokenFromReadWriteToken,
   type GenerateClientTokenOptions,
 } from "@vercel/blob/client";
 import env from "@packages/env";
+import { revalidateEntities } from "~/server/api/entity-cache";
+import { findWritableEntity } from "~/server/entities/readable";
 import {
-  revalidateEntities,
-  revalidateEntitiesAndParents,
-} from "~/server/api/entity-cache";
-import { thumbnailColumns } from "~/server/entities/thumbnail";
+  isThumbnailOf,
+  storeThumbnail,
+  thumbnailPathname,
+} from "~/server/entities/thumbnail";
 
 const THEME = {
   DARK: "dark",
@@ -46,17 +46,6 @@ const genericSvgContent = `<?xml version="1.0" encoding="UTF-8"?>
 /* helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-const uploadSvg = async (
-  key: string,
-  data: Buffer,
-): Promise<string /* public url */> => {
-  const blob = await put(key, data, {
-    access: "public", // presigned URLs don’t exist – public is fine
-    contentType: "image/svg+xml",
-  }); // uses BLOB_READ_WRITE_TOKEN automatically:contentReference[oaicite:0]{index=0}
-  return blob.url; // immutable, globally‑cached URL
-};
-
 const fetchToBuffer = async (url: string): Promise<Buffer> => {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Fetch ${res.status}: ${url}`);
@@ -71,96 +60,6 @@ const fetchToString = async (url: string): Promise<string> =>
 /* ------------------------------------------------------------------ */
 
 export const snapshotRouter = createTRPCRouter({
-  /* -------------------------- CREATE -------------------------------- */
-  create: publicProcedure
-    .input(
-      z.object({
-        entityId: z.string(),
-        svg: z.string(),
-        theme: z.enum([THEME.DARK, THEME.LIGHT]),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const entity = await ctx.drizzle.query.entities.findFirst({
-        where: (drw, { eq }) => eq(drw.id, input.entityId),
-      });
-      if (!entity)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Drawing not found",
-        });
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyOneCanEdit)
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to save this drawing",
-        });
-
-      const key = `${input.entityId}-${input.theme}.svg`;
-      const url = await uploadSvg(key, Buffer.from(input.svg));
-
-      await ctx.drizzle
-        .update(schema.entities)
-        .set(
-          thumbnailColumns(
-            input.theme === THEME.DARK ? { dark: url } : { light: url },
-          ),
-        )
-        .where(eq(schema.entities.id, input.entityId))
-        .execute();
-
-      // A thumbnail is what the listing shows of an entity.
-      revalidateEntities(input.entityId, entity.parentId);
-    }),
-
-  /* -------------------------- UPDATE -------------------------------- */
-  update: publicProcedure
-    .input(
-      z.object({
-        entityId: z.string(),
-        svg: z.string(),
-        theme: z.enum([THEME.DARK, THEME.LIGHT]),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const entity = await ctx.drizzle.query.entities.findFirst({
-        where: (drw, { eq }) => eq(drw.id, input.entityId),
-      });
-      if (!entity)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Drawing not found",
-        });
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyOneCanEdit)
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to save this drawing",
-        });
-
-      const key = `${input.entityId}-${input.theme}.svg`;
-      const url = await uploadSvg(key, Buffer.from(input.svg));
-
-      await ctx.drizzle
-        .update(schema.entities)
-        .set(
-          thumbnailColumns(
-            input.theme === THEME.DARK ? { dark: url } : { light: url },
-          ),
-        )
-        .where(eq(schema.entities.id, input.entityId))
-        .execute();
-
-      // A thumbnail is what the listing shows of an entity.
-      revalidateEntities(input.entityId, entity.parentId);
-
-      return { url };
-    }),
-
   /* ----------------------- BINARY→BASE‑64 ------------------------- */
   getSvgData: publicProcedure
     .input(
@@ -273,21 +172,15 @@ export const snapshotRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { entityId, contentType } = input;
-      const entity = await ctx.drizzle.query.entities.findFirst({
-        where: (e, { eq }) => eq(e.id, entityId),
-      });
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        entityId,
+        ctx.session?.user.id ?? "",
+      );
       if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
-        });
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyoneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyoneCanEdit)
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Forbidden",
         });
 
       const ext = contentType.split("/")[1]?.replace(/\+.*$/, "");
@@ -302,7 +195,7 @@ export const snapshotRouter = createTRPCRouter({
       /* Produce one token per theme */
       const results = await Promise.all(
         themes.map(async (theme) => {
-          const pathname = `${entityId}-${theme}.${ext}`; // final blob path (immutable)
+          const pathname = thumbnailPathname(entityId, theme, ext);
           const token = await generateClientTokenFromReadWriteToken({
             token: env.BLOB_READ_WRITE_TOKEN,
             pathname,
@@ -313,19 +206,13 @@ export const snapshotRouter = createTRPCRouter({
               "image/webp",
               "image/avif",
             ],
-            allowOverwrite: true,
-            // Uncomment to let Vercel call you back when the file is fully stored
-            // onUploadCompleted: {
-            //   callbackUrl: `${env.NEXT_PUBLIC_SITE_URL}/api/blobCallback`,
-            //   // payload: JSON.stringify({ entityId, theme }),
-            // },
           } satisfies GenerateClientTokenOptions);
 
           return { theme, token, pathname };
         }),
       );
 
-      return results; // [{ theme:'dark', token:'vercel_blob_client_…', pathname:'123-dark.png' }, …]
+      return results;
     }),
 
   /** (Optional)  Step3 – save the final blob URL once the browser is done */
@@ -338,19 +225,29 @@ export const snapshotRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      await ctx.drizzle
-        .update(schema.entities)
-        .set(
-          thumbnailColumns(
-            input.theme === THEME.DARK
-              ? { dark: input.url }
-              : { light: input.url },
-          ),
-        )
-        .where(eq(schema.entities.id, input.entityId))
-        .execute();
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        input.entityId,
+        ctx.session?.user.id ?? "",
+      );
+      if (!entity)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Drawing not found",
+        });
+      if (!isThumbnailOf(input.entityId, input.url))
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Not an upload of this drawing's thumbnail",
+        });
 
-      // The parent comes from the row, because this step carries only the id.
-      await revalidateEntitiesAndParents(ctx.drizzle, input.entityId);
+      await storeThumbnail(
+        ctx.drizzle,
+        input.entityId,
+        input.theme === THEME.DARK ? { dark: input.url } : { light: input.url },
+      );
+
+      // A thumbnail is what the listing shows of an entity.
+      revalidateEntities(input.entityId, entity.parentId);
     }),
 });

@@ -1,6 +1,7 @@
 import { and, drizzle, eq, schema } from "@packages/drizzle";
 import { errorCode } from "./error-code";
 import { hashPassword, needsRehash, verifyPassword } from "./password";
+import { takeSignInAttempt } from "./sign-in-rate-limit";
 
 /**
  * Checked when there is no account or no password, so that a missing account
@@ -18,8 +19,28 @@ const NO_ACCOUNT_HASH =
  * is rewritten while the plaintext is at hand, so accounts move to the current
  * format without a reset. The rewrite only replaces the hash just verified, so
  * a concurrent change wins, and its failure never fails a correct sign-in.
+ *
+ * An attempt past the email or IP limit is refused like a wrong password
+ * before any scrypt runs, so a burst of attempts costs one write each. When
+ * the count cannot be taken the attempt goes ahead: the limit guards against
+ * abuse, and must not turn a counter outage into a sign-in outage.
  */
-export async function authorizeCredentials(email: string, password: string) {
+export async function authorizeCredentials(
+  email: string,
+  password: string,
+  clientIp: string | null,
+) {
+  const limit = await takeSignInAttempt(email, clientIp).catch((error) => {
+    console.error("[Auth] sign-in attempt not counted", {
+      error: errorCode(error),
+    });
+    return null;
+  });
+  if (limit) {
+    console.warn("[Auth] sign-in refused", { error: "RATE_LIMITED", limit });
+    return null;
+  }
+
   const dbUser = await drizzle.query.users.findFirst({
     where: (users, { eq }) => eq(users.email, email),
   });

@@ -30,6 +30,7 @@ export function SettingsDropdown({ className }: { className?: string }) {
           className={cn("flex gap-2 h-12 md:h-10", className)}
         >
           <SettingsIcon size={16} />
+          <span className="sr-only">Editor settings</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

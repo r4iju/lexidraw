@@ -7,6 +7,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  COLLABORATION_TAG,
   createEditor,
   HISTORY_MERGE_TAG,
   type LexicalEditor,
@@ -139,5 +140,24 @@ describe("which updates to an open document are the user's", () => {
     trackLexicalEdits(root).dispose();
     expect(root._listeners.update.size).toBe(0);
     expect(sticky._listeners.update.size).toBe(0);
+  });
+
+  test("a collaborator's state, applied live, is not this user's edit", () => {
+    const { root } = documentWithSticky();
+    const edits = trackLexicalEdits(root);
+    const peer = documentWithSticky().root;
+    type(peer, "theirs");
+    const theirs = JSON.stringify(peer.getEditorState());
+
+    root.setEditorState(root.parseEditorState(theirs), {
+      tag: COLLABORATION_TAG,
+    });
+    expect(edits.hasLocalEdits()).toBe(false);
+    expect(edits.shows(theirs)).toBe(true);
+
+    type(root, "mine");
+    expect(edits.hasLocalEdits()).toBe(true);
+    edits.dispose();
+    peer.setRootElement(null);
   });
 });

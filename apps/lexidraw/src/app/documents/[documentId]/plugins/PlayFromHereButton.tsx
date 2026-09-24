@@ -338,6 +338,7 @@ function DraggablePopoverContent({
                 className="absolute top-0 right-0 p-1 z-30"
               >
                 <X className="h-4 w-4" />
+                <span className="sr-only">Close player</span>
               </Button>
             </PopoverClose>
           </div>

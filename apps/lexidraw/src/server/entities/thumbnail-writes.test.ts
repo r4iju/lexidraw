@@ -8,6 +8,8 @@ import { installServerRuntime } from "~/test/server-runtime";
 const db = await installServerRuntime();
 const { entityRouter } = await import("~/server/api/routers/entities");
 const { snapshotRouter } = await import("~/server/api/routers/snapshot");
+const { thumbnailPathname } = await import("~/server/entities/thumbnail");
+const { default: env } = await import("@packages/env");
 
 const OWNER = "thumbw_owner";
 const BEFORE = new Date("2026-09-01T00:00:00.000Z");
@@ -46,8 +48,8 @@ async function thumbnailUpdatedAt(id: string) {
   return row?.at;
 }
 
-// Listings cache-bust a thumbnail on `thumbnailUpdatedAt` (see
-// `app/dashboard/thumbnail-src.ts`), and some writers reuse the blob path.
+// `list` hands `thumbnailUpdatedAt` to REST callers, so they can tell a new
+// picture from a revision of the content.
 describe("every write of a thumbnail says when it was stored", () => {
   test("a custom icon", async () => {
     await entityRouter.createCaller(context).update({
@@ -64,7 +66,7 @@ describe("every write of a thumbnail says when it was stored", () => {
     await snapshotRouter.createCaller(context).saveUploadedUrl({
       entityId: "thumbw_svg",
       theme: "light",
-      url: "https://blob.example/thumbw_svg-light.svg",
+      url: `${new URL(env.VERCEL_BLOB_STORAGE_HOST).origin}/${thumbnailPathname("thumbw_svg", "light", "svg")}`,
     });
     expect((await thumbnailUpdatedAt("thumbw_svg"))?.getTime()).toBeGreaterThan(
       BEFORE.getTime(),

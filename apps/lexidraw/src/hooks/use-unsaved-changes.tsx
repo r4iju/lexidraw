@@ -4,112 +4,95 @@ import {
   createContext,
   useCallback,
   useContext,
-  useLayoutEffect,
+  useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
-import useModal from "~/hooks/useModal";
-import Link from "next/link";
-import type { ComponentProps, ReactNode } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import { setLeaveGuard } from "~/lib/leave-guard";
 import { useAutoSave } from "./use-auto-save";
 import { leaveChoice } from "./leave-choice";
+import { OpenEntityContext } from "./use-open-entity-sync";
 
 type Ctx = {
   markDirty(): void;
   markPristine(): void;
   dirty: React.RefObject<boolean>;
-  router: ReturnType<typeof useRouterGuard>;
-  /**
-   * Tells leaving whether saves are held, like `useOpenEntitySync`'s
-   * `holdsSaves`; the answer unregisters it.
-   */
-  registerSaveHold(holdsSaves: () => boolean): () => void;
 };
 
 const UnsavedCtx = createContext<Ctx | null>(null);
 
+/** The question leaving puts, and how the user answers it. */
+type Question = {
+  savesHeld: boolean;
+  answer(choice: "leave" | "save" | "stay"): void;
+};
+
+/**
+ * Asks before the page leaves an editor with unsaved edits, or with a write
+ * made elsewhere still waiting for an answer; see `lib/leave-guard.ts` for
+ * the ways out it covers. Edits count as unsaved when the editor marked them
+ * dirty or when the open entity holds edits the server does not store.
+ * `saveBeforeLeaving` answers whether the save landed.
+ */
 export function UnsavedChangesProvider({
   children,
-  onSaveAndLeave,
+  saveBeforeLeaving,
 }: {
   children: ReactNode;
-  onSaveAndLeave?: () => void;
+  saveBeforeLeaving?: () => Promise<boolean>;
 }) {
   const dirty = useRef(false);
-  const skipNextPopConfirmRef = useRef(false);
-  const saveHold = useRef<(() => boolean) | null>(null);
-  const [modal, showModal] = useModal();
-  const { enabled: autoSaveEnabled } = useAutoSave();
+  const open = useContext(OpenEntityContext);
+  const { enabled: autoSave } = useAutoSave();
+  const [question, setQuestion] = useState<Question | null>(null);
 
-  const confirm = useCallback(async () => {
-    const savesHeld = saveHold.current?.() ?? false;
-    if (leaveChoice({ autoSave: autoSaveEnabled, savesHeld }) === "save") {
-      onSaveAndLeave?.();
-      return true;
-    }
+  // What leaving reads when it happens: a registration made anew for each
+  // would answer "stay" to a question it left open.
+  const latest = useRef({ autoSave, saveBeforeLeaving });
+  useEffect(() => {
+    latest.current = { autoSave, saveBeforeLeaving };
+  }, [autoSave, saveBeforeLeaving]);
 
-    return new Promise<boolean>((resolve) =>
-      showModal("Unsaved changes", (close) => (
-        <div className="flex flex-col gap-4">
-          <p>
-            {savesHeld
-              ? "This changed elsewhere since you opened it, and your edits here are not saved. Saving them will overwrite the other changes. Leave anyway?"
-              : "You have unsaved changes. Leave anyway?"}
-          </p>
-          <div className="flex gap-2 self-end">
-            <Button
-              variant="destructive"
-              onClick={() => {
-                close();
-                resolve(true);
-              }}
-            >
-              Leave
-            </Button>
-            {onSaveAndLeave && (
-              <Button
-                variant="default"
-                onClick={() => {
-                  close();
-                  onSaveAndLeave();
-                }}
-              >
-                Save and leave
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => {
-                close();
-                resolve(false);
-              }}
-            >
-              Stay
-            </Button>
-          </div>
-        </div>
-      )),
-    );
-  }, [showModal, onSaveAndLeave, autoSaveEnabled]);
-
-  useBeforeUnloadGuard(dirty);
-
-  const shouldSkipNextPop = useCallback(
-    () => skipNextPopConfirmRef.current,
-    [],
-  );
-  const clearSkipNextPop = useCallback(() => {
-    skipNextPopConfirmRef.current = false;
-  }, []);
-  const markNextPopAsConfirmed = useCallback(() => {
-    skipNextPopConfirmRef.current = true;
-  }, []);
-
-  usePopstateGuard(dirty, confirm, shouldSkipNextPop, clearSkipNextPop);
-
-  const guardedRouter = useRouterGuard(dirty, confirm, markNextPopAsConfirmed);
+  // External system: the app-wide leave guard.
+  useEffect(() => {
+    const choice = () =>
+      leaveChoice({
+        unsaved: dirty.current || (open?.sync.hasLocalEdits() ?? false),
+        autoSave: latest.current.autoSave,
+        savesHeld: open?.sync.holdsSaves() ?? false,
+      });
+    const save = () =>
+      latest.current.saveBeforeLeaving?.() ?? Promise.resolve(true);
+    return setLeaveGuard({
+      mustAsk: () => choice() !== "leave",
+      ask: async () => {
+        const decided = choice();
+        if (decided === "leave") return true;
+        if (decided === "save" && latest.current.saveBeforeLeaving)
+          return save();
+        const savesHeld = open?.sync.holdsSaves() ?? false;
+        const answered = await new Promise<"leave" | "save" | "stay">(
+          (answer) => setQuestion({ savesHeld, answer }),
+        );
+        setQuestion(null);
+        if (answered !== "save") return answered === "leave";
+        // Saving is the user's answer to the write elsewhere: theirs go.
+        if (savesHeld) open?.sync.keep();
+        return save();
+      },
+    });
+  }, [open]);
 
   const markDirty = useCallback(() => {
     dirty.current = true;
@@ -118,27 +101,49 @@ export function UnsavedChangesProvider({
     dirty.current = false;
   }, []);
 
-  const registerSaveHold = useCallback((holdsSaves: () => boolean) => {
-    saveHold.current = holdsSaves;
-    return () => {
-      if (saveHold.current === holdsSaves) saveHold.current = null;
-    };
-  }, []);
-
   const value = useMemo<Ctx>(
-    () => ({
-      markDirty,
-      markPristine,
-      dirty,
-      router: guardedRouter,
-      registerSaveHold,
-    }),
-    [guardedRouter, markDirty, markPristine, registerSaveHold],
+    () => ({ markDirty, markPristine, dirty }),
+    [markDirty, markPristine],
   );
 
   return (
     <UnsavedCtx.Provider value={value}>
-      {modal}
+      <Dialog
+        open={question !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) question?.answer("stay");
+        }}
+      >
+        <DialogContent className="min-w-80">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              {question?.savesHeld
+                ? "This changed elsewhere since you opened it, and your edits here are not saved. Saving them will overwrite the other changes. Leave anyway?"
+                : "You have unsaved changes. Leave anyway?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="destructive"
+              onClick={() => question?.answer("leave")}
+            >
+              Leave
+            </Button>
+            {saveBeforeLeaving && (
+              <Button
+                variant="default"
+                onClick={() => question?.answer("save")}
+              >
+                Save and leave
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => question?.answer("stay")}>
+              Stay
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {children}
     </UnsavedCtx.Provider>
   );
@@ -150,121 +155,4 @@ export function useUnsavedChanges() {
     throw new Error("useUnsavedChanges must be inside UnsavedChangesProvider");
   }
   return ctx;
-}
-
-function useBeforeUnloadGuard(dirty: React.RefObject<boolean>) {
-  useLayoutEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!dirty.current) return;
-      e.preventDefault();
-      return "";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, [dirty]);
-}
-
-function usePopstateGuard(
-  dirty: React.RefObject<boolean>,
-  confirm: () => Promise<boolean>,
-  shouldSkipNextPop: () => boolean,
-  clearSkipNextPop: () => void,
-) {
-  const router = useRouter();
-
-  useLayoutEffect(() => {
-    const isRestoringRef = { current: false } as { current: boolean };
-
-    const onPop = async (evt: PopStateEvent) => {
-      // If a programmatic back was already confirmed, let it proceed.
-      if (shouldSkipNextPop()) {
-        clearSkipNextPop();
-        return; // do not block; allow Next.js to handle normally
-      }
-
-      // Prevent Next.js from handling this pop; we'll decide what to do.
-      evt.stopImmediatePropagation();
-      evt.stopPropagation();
-
-      // If we're just restoring the previous state (history.go(1)), ignore.
-      if (isRestoringRef.current) {
-        isRestoringRef.current = false;
-        return;
-      }
-
-      const shouldLeave = !dirty.current || (await confirm());
-
-      // Always restore to the current entry first so a subsequent back
-      // navigates exactly one step (no extra dummy entries, no double back).
-      isRestoringRef.current = true;
-      history.go(1);
-
-      if (!shouldLeave) {
-        // User chose to stay; after history.go(1) we simply remain.
-        return;
-      }
-
-      // User chose to leave: remove our handler and go back exactly once.
-      window.removeEventListener("popstate", onPop, { capture: true });
-      // Defer to ensure the history restoration completes before going back.
-      setTimeout(() => router.back(), 0);
-    };
-
-    window.addEventListener("popstate", onPop, { capture: true });
-
-    return () => {
-      window.removeEventListener("popstate", onPop, { capture: true });
-    };
-  }, [dirty, confirm, router, shouldSkipNextPop, clearSkipNextPop]);
-}
-
-function useRouterGuard(
-  dirty: React.RefObject<boolean>,
-  confirm: () => Promise<boolean>,
-  markNextPopAsConfirmed: () => void,
-) {
-  const router = useRouter();
-
-  const guard = useCallback(
-    <T extends (...args: unknown[]) => unknown>(fn: T): T =>
-      (async (...args: unknown[]) => {
-        if (dirty.current && !(await confirm())) return; // blocked
-        if (fn === router.back) markNextPopAsConfirmed();
-        return fn(...args);
-      }) as unknown as T,
-    [dirty, confirm, router.back, markNextPopAsConfirmed],
-  );
-
-  return useMemo(
-    () => ({
-      ...router,
-      // @ts-expect-error: Next.js router method signatures are not compatible with (...args: unknown[]) => unknown
-      push: guard(router.push),
-      // @ts-expect-error: Next.js router method signatures are not compatible with (...args: unknown[]) => unknown
-      replace: guard(router.replace),
-      back: guard(router.back),
-      forward: guard(router.forward),
-      refresh: guard(router.refresh),
-    }),
-    [router, guard],
-  );
-}
-
-type GuardedLinkProps = ComponentProps<typeof Link>;
-
-export function GuardedLink({ onClick, ...props }: GuardedLinkProps) {
-  const {
-    router: { push },
-  } = useUnsavedChanges();
-
-  const handle: NonNullable<GuardedLinkProps["onClick"]> = (e) => {
-    e.preventDefault();
-    onClick?.(e);
-    push(props.href);
-  };
-
-  return <Link {...props} onClick={handle} style={props.style} />;
 }

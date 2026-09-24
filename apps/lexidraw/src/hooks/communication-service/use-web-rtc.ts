@@ -10,6 +10,10 @@ import type { WebRtcMessage, MessageStructure } from "@packages/types";
 import { toast } from "sonner";
 import env from "@packages/env";
 
+/**
+ * `connected` says whether any collaborator's channel is open, and follows
+ * them as they come and go.
+ */
 export function useWebRtcService(
   {
     drawingId,
@@ -17,7 +21,7 @@ export function useWebRtcService(
     iceServers,
   }: ICommunicationProps & { iceServers: RTCIceServer[] },
   { onMessage, onConnectionClose, onConnectionOpen }: ICommunicationOptions,
-): ICommunicationReturnType {
+): ICommunicationReturnType & { connected: boolean } {
   const shouldReconnectRef = useRef(true);
   const reconnectionAttemptsRef = useRef(0);
   const onConnectionCloseRef = useRef(onConnectionClose);
@@ -27,15 +31,23 @@ export function useWebRtcService(
   const dataChannels = useRef<Map<string, RTCDataChannel>>(new Map());
 
   const [peers, setPeers] = useState<string[]>([]);
-
-  const handleParticipantLeft = useCallback((clientId: string) => {
-    console.log("Participant left:", clientId);
-    localConnections.current.get(clientId)?.close();
-    localConnections.current.delete(clientId);
-    dataChannels.current.get(clientId)?.close();
-    dataChannels.current.delete(clientId);
-    setPeers(Array.from(localConnections.current.keys()));
+  const [connected, setConnected] = useState(false);
+  const channelsChanged = useCallback(() => {
+    setConnected(dataChannels.current.size > 0);
   }, []);
+
+  const handleParticipantLeft = useCallback(
+    (clientId: string) => {
+      console.log("Participant left:", clientId);
+      localConnections.current.get(clientId)?.close();
+      localConnections.current.delete(clientId);
+      dataChannels.current.get(clientId)?.close();
+      dataChannels.current.delete(clientId);
+      setPeers(Array.from(localConnections.current.keys()));
+      channelsChanged();
+    },
+    [channelsChanged],
+  );
 
   const setupPeerConnection = useCallback(
     (clientId: string) => {
@@ -66,6 +78,7 @@ export function useWebRtcService(
         if (dataChannels.current.has(clientId)) {
           dataChannels.current.delete(clientId);
         }
+        channelsChanged();
       };
       channel.onmessage = (event: MessageEvent<string>) => {
         onMessage(JSON.parse(event.data) as MessageStructure);
@@ -79,11 +92,13 @@ export function useWebRtcService(
         };
         receiveChannel.onclose = () => {
           console.log("receiveChannel closed");
-          if (dataChannels.current.has(clientId)) {
+          if (dataChannels.current.get(clientId) === receiveChannel) {
             dataChannels.current.delete(clientId);
           }
+          channelsChanged();
         };
         dataChannels.current.set(clientId, receiveChannel);
+        channelsChanged();
         onConnectionOpen();
       };
 
@@ -91,7 +106,14 @@ export function useWebRtcService(
       setPeers(Array.from(localConnections.current.keys()));
       return conn;
     },
-    [drawingId, userId, iceServers, onMessage, onConnectionOpen],
+    [
+      drawingId,
+      userId,
+      iceServers,
+      onMessage,
+      onConnectionOpen,
+      channelsChanged,
+    ],
   );
 
   const handleParticipantJoined = useCallback(
@@ -292,6 +314,7 @@ export function useWebRtcService(
       channel.close();
     }
     dataChannels.current = new Map();
+    setConnected(false);
     if (websocket.current) {
       websocket.current.close();
       websocket.current = null;
@@ -318,5 +341,11 @@ export function useWebRtcService(
     };
   }, [closeConnection]);
 
-  return { closeConnection, sendMessage, initializeConnection, peers };
+  return {
+    closeConnection,
+    sendMessage,
+    initializeConnection,
+    peers,
+    connected,
+  };
 }

@@ -1,11 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
-import type { TRPCClientErrorLike } from "@trpc/client";
-import type { AppRouter } from "~/server/api/root";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useRef } from "react";
@@ -13,6 +9,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
 import { UnsavedChangesProvider } from "~/hooks/use-unsaved-changes";
+import { OpenEntityContext, useOpenEntity } from "~/hooks/use-open-entity-sync";
 // Excalidraw touches `window` as it loads, so it must not render on the server.
 import EditBoard from "./board-edit-client";
 
@@ -31,17 +28,14 @@ export default function DrawingBoardWithSave({
   appState,
   iceServers,
 }: Props) {
-  const router = useRouter();
   const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
-  const { mutate: save } = api.entities.save.useMutation();
+  const openDrawing = useOpenEntity(drawing, "drawing");
   const isDarkTheme = useIsDarkTheme();
 
-  const handleSaveAndLeave = () => {
-    if (!excalidrawApiRef.current) {
-      // If API is not available, just navigate (might be loading)
-      router.push("/dashboard");
-      return;
-    }
+  /** Saves on the way out of the editor; answers whether it landed. */
+  const saveBeforeLeaving = async () => {
+    // Nothing loaded, so nothing to lose.
+    if (!excalidrawApiRef.current) return true;
 
     const elements =
       excalidrawApiRef.current.getSceneElements() as ExcalidrawElement[];
@@ -49,45 +43,44 @@ export default function DrawingBoardWithSave({
 
     const TOAST_ID = `save-${drawing.id}`;
     toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
-
-    save(
-      {
-        id: drawing.id,
-        entityType: "drawing",
+    try {
+      const outcome = await openDrawing.sync.save({
         appState: JSON.stringify({
           ...appState,
           openDialog: null,
           theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
         } satisfies AppState),
         elements: JSON.stringify(elements),
-      },
-      {
-        onSuccess: async () => {
-          toast.success("Saved", { id: TOAST_ID });
-          router.push("/dashboard");
-        },
-        onError: (error: TRPCClientErrorLike<AppRouter>) => {
-          toast.error("Error saving", {
-            id: TOAST_ID,
-            description: error.message,
-          });
-        },
-      },
-    );
+      });
+      if (outcome === "dropped") {
+        toast.dismiss(TOAST_ID);
+        return false;
+      }
+      toast.success("Saved", { id: TOAST_ID });
+      return true;
+    } catch (error) {
+      toast.error("Error saving", {
+        id: TOAST_ID,
+        description: error instanceof Error ? error.message : undefined,
+      });
+      return false;
+    }
   };
 
   return (
-    <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
-      <EditBoard
-        revalidate={revalidate}
-        drawing={drawing}
-        elements={elements}
-        appState={appState}
-        iceServers={iceServers}
-        onExcalidrawApiReady={(api) => {
-          excalidrawApiRef.current = api;
-        }}
-      />
-    </UnsavedChangesProvider>
+    <OpenEntityContext value={openDrawing}>
+      <UnsavedChangesProvider saveBeforeLeaving={saveBeforeLeaving}>
+        <EditBoard
+          revalidate={revalidate}
+          drawing={drawing}
+          elements={elements}
+          appState={appState}
+          iceServers={iceServers}
+          onExcalidrawApiReady={(api) => {
+            excalidrawApiRef.current = api;
+          }}
+        />
+      </UnsavedChangesProvider>
+    </OpenEntityContext>
   );
 }

@@ -13,9 +13,22 @@
  *   `elements`; a collaborator's edit arrives live before their save does);
  * - it changed and the editor has no edits of its own → show it, and say so;
  * - it changed under local edits → ask, and replace nothing until the user
- *   chooses. Autosave waits while the question stands, since a save would
+ *   chooses. Saves wait while the question stands, since a save would
  *   answer it. Keeping theirs is not asked again for the same content, and a
  *   question already asked is not worked out again by the next poll.
+ *
+ * The editor's own saves go through here too, one at a time, each carrying the
+ * revision the one before produced (see `save`). The server refuses a save
+ * whose revision has moved on, and that refusal is decided exactly like a check
+ * that found the move, so a write that lands between two keystrokes is asked
+ * about even before any poll sees it. A save whose answer never came may have
+ * been stored all the same, so finding its content stored is not a question.
+ *
+ * While collaborators are connected, their edits reach the editor live and
+ * each of them saves the same document: a save of theirs moves the revision
+ * without being a question, and the next save goes out over it. An editor
+ * with no edits of its own still shows what it stores, in case an edit of
+ * theirs never reached it live.
  *
  * An entity that goes away (deleted, or no longer shared) is said so once, and
  * asked about again only when the user comes back to the tab or after a while.
@@ -46,6 +59,15 @@ export interface SyncedEditor {
   saved(elements: string, appState?: string): void;
 }
 
+/** What a save stores: `appState` for the editors that keep one. */
+export type SaveContent = { elements: string; appState?: string };
+
+/**
+ * What became of a save: stored, by itself or by a later one sent in its
+ * place, or dropped because the user reloaded what was written elsewhere.
+ */
+export type SaveOutcome = "saved" | "dropped";
+
 export interface SyncSource {
   /**
    * The stored revision's `updatedAt`, without its content; null once the
@@ -53,6 +75,16 @@ export interface SyncSource {
    */
   updatedAt(): Promise<Date | null>;
   load(): Promise<StoredRevision>;
+  /**
+   * Stores `content` if the entity still carries `ifUnmodifiedSince`, and
+   * answers the `updatedAt` it carries then; answers null, storing nothing,
+   * when it has moved on. `signal` aborts once the answer is too late.
+   */
+  save(
+    content: SaveContent,
+    ifUnmodifiedSince: Date,
+    signal: AbortSignal,
+  ): Promise<Date | null>;
 }
 
 export type SyncNotice =
@@ -69,34 +101,35 @@ export type SyncNotice =
 /** A poll, or the user coming back to the tab. */
 export type CheckTrigger = "poll" | "focus";
 
-export type Clock = {
-  now(): number;
-  /** Runs `run` after `ms`; the answer cancels it. */
-  after(ms: number, run: () => void): () => void;
-};
+export type Clock = { now(): number };
 
-const realClock: Clock = {
-  now: () => Date.now(),
-  after: (ms, run) => {
-    const timer = setTimeout(run, ms);
-    return () => clearTimeout(timer);
-  },
-};
+const realClock: Clock = { now: () => Date.now() };
 
 /** How long polls leave a gone entity alone. */
 const GONE_POLL_MS = 5 * 60_000;
-/**
- * How long a reload the user chose waits for a save on the wire. A request
- * that never answers must not leave autosave held with no question showing.
- */
-const RELOAD_WAIT_MS = 30_000;
+
+/** How long a save waits for its answer before it counts as failed. */
+const SAVE_TIMEOUT_MS = 30_000;
+
+/** How many unanswered saves are remembered, in case one was stored. */
+const UNANSWERED_KEPT = 8;
+
+/** A save not sent yet, and everyone waiting for it or for one it replaced. */
+type QueuedSave = {
+  content: SaveContent;
+  waiters: {
+    resolve(outcome: SaveOutcome): void;
+    reject(error: unknown): void;
+  }[];
+};
 
 export class OpenEntitySync {
   private editor: SyncedEditor | null = null;
   private checking = false;
-  /** The saves on the wire, by the id `saveStarted` gave each. */
-  private inFlight = new Set<number>();
-  private lastSave = 0;
+  /** A save is on the wire, or its refusal is being decided. */
+  private sending = false;
+  /** The latest content asked to be saved and not sent yet. */
+  private queued: QueuedSave | null = null;
   /** Bumped by every save, so a check that straddles one is dropped. */
   private saveEpoch = 0;
   /** The last revision loaded, so asking again for it costs no download. */
@@ -106,18 +139,18 @@ export class OpenEntitySync {
   private asked: Date | null = null;
   /** The content the user chose to keep their edits over. */
   private kept: string | null = null;
-  /** Cancels the wait of a reload chosen while a save was in flight. */
-  private reloadWait: (() => void) | null = null;
-  /** Saves still on the wire when a reload went ahead without them. */
-  private abandoned = new Set<number>();
   /** When the entity was last found gone; null while it is there. */
   private goneAt: number | null = null;
+  /** Saves that failed with no answer since the last one answered. */
+  private unanswered: SaveContent[] = [];
+  private peersConnected = false;
 
   constructor(
     private held: StoredRevision,
     private readonly source: SyncSource,
     private readonly notify: (notice: SyncNotice) => void,
     private readonly clock: Clock = realClock,
+    private readonly saveTimeoutMs = SAVE_TIMEOUT_MS,
   ) {}
 
   /** The editor, once it can answer; checks wait for it. */
@@ -125,8 +158,23 @@ export class OpenEntitySync {
     this.editor = editor;
   }
 
+  /** Whether collaborators are connected to the editor, editing live. */
+  setPeersConnected(connected: boolean): void {
+    this.peersConnected = connected;
+  }
+
+  /**
+   * The editor is gone: saves waiting are dropped, and a save still on the
+   * wire answers its own waiters when it lands.
+   */
+  dispose(): void {
+    this.editor = null;
+    this.finishQueued("dropped");
+    this.conflict = null;
+  }
+
   async check(trigger: CheckTrigger = "poll"): Promise<void> {
-    if (this.checking || this.inFlight.size > 0 || !this.editor) return;
+    if (this.checking || this.sending || !this.editor) return;
     if (
       this.goneAt !== null &&
       trigger === "poll" &&
@@ -164,11 +212,25 @@ export class OpenEntitySync {
   private reconcile(stored: StoredRevision): void {
     const editor = this.editor;
     if (!editor) return;
-    if (
-      stored.elements === this.held.elements ||
-      editor.shows(stored.elements)
-    ) {
+    const unanswered = this.unanswered.find(
+      (content) => content.elements === stored.elements,
+    );
+    if (unanswered) {
+      this.unanswered = [];
       this.held = stored;
+      editor.saved(unanswered.elements, unanswered.appState);
+      this.settle();
+      return;
+    }
+    if (stored.elements === this.held.elements) {
+      this.held = stored;
+      this.settle();
+      return;
+    }
+    if (editor.shows(stored.elements)) {
+      this.held = stored;
+      // What the user sees is stored; a save queued before would take it back.
+      this.finishQueued("saved");
       this.settle();
       return;
     }
@@ -177,98 +239,147 @@ export class OpenEntitySync {
       // behind the stored revision, and the next check tries again.
       editor.replace(stored);
       this.held = stored;
+      this.finishQueued("dropped");
       this.settle();
-      this.notify({ kind: "reloaded" });
+      // Collaborators' edits arrive all the time; one missed live is no news.
+      if (!this.peersConnected) this.notify({ kind: "reloaded" });
+      return;
+    }
+    if (this.peersConnected) {
+      // The editor holds their edits, live, and its own on top; whatever is
+      // queued goes out over their save.
+      this.held = stored;
+      this.settle();
       return;
     }
     this.asked = stored.updatedAt;
-    if (this.kept === stored.elements) return;
+    if (this.kept === stored.elements) {
+      this.held = stored;
+      return;
+    }
     this.conflict = stored;
     this.notify({ kind: "conflict" });
   }
 
   /**
    * A question stands, and a save would answer it by overwriting what was
-   * written elsewhere. Saves the user asks for still go through.
+   * written elsewhere. Saves wait for the answer.
    */
   holdsSaves(): boolean {
     return this.conflict !== null;
   }
 
+  /** The editor holds edits the server does not store. */
+  hasLocalEdits(): boolean {
+    return this.editor?.hasLocalEdits() ?? false;
+  }
+
   /** The user chose the stored revision over their edits. */
   reload(): void {
-    if (!this.conflict || !this.editor) return;
-    // A save on the wire decides what is stored; see `saveFailed` and
-    // `saveSucceeded`.
-    if (this.inFlight.size > 0) {
-      this.reloadWait ??= this.clock.after(RELOAD_WAIT_MS, () => {
-        this.reloadWait = null;
-        // Whatever those saves answer later is older than what shows now,
-        // and checks need not wait for them any more.
-        for (const save of this.inFlight) this.abandoned.add(save);
-        this.inFlight.clear();
-        this.applyReload();
-      });
-      return;
-    }
-    this.applyReload();
-  }
-
-  private applyReload(): void {
     const stored = this.conflict;
     if (!stored || !this.editor) return;
+    // Nothing is on the wire: saves wait while a question stands, and one
+    // that was refused is what raised it.
     this.editor.replace(stored);
     this.held = stored;
+    this.finishQueued("dropped");
     this.settle();
   }
 
-  /** The user chose their edits; saving them will overwrite the stored ones. */
+  /** The user chose their edits: the next save overwrites the stored ones. */
   keep(): void {
-    if (!this.conflict) return;
-    this.kept = this.conflict.elements;
+    const stored = this.conflict;
+    if (!stored) return;
+    this.kept = stored.elements;
+    this.held = stored;
     this.settle();
     this.notify({ kind: "resumed" });
+    this.sendQueued();
   }
 
-  /** A save went out; answers the id its answer is reported under. */
-  saveStarted(): number {
-    const save = ++this.lastSave;
-    this.inFlight.add(save);
+  /**
+   * Saves `content` over the revision this editor holds.
+   *
+   * One save is on the wire at a time. A second one sent before the first
+   * answers would carry a revision the first is about to replace, so it waits,
+   * and only the latest of those waiting is sent: it holds everything the
+   * earlier ones did. A refused save waits for the question it raises, then
+   * goes out over the revision the user kept their edits over, or is dropped
+   * with the edits.
+   */
+  save(content: SaveContent): Promise<SaveOutcome> {
+    return new Promise((resolve, reject) => {
+      this.queued = {
+        content,
+        waiters: [...(this.queued?.waiters ?? []), { resolve, reject }],
+      };
+      this.sendQueued();
+    });
+  }
+
+  private sendQueued(): void {
+    const queued = this.queued;
+    if (!queued || this.sending || this.conflict) return;
+    this.queued = null;
+    this.sending = true;
     this.saveEpoch++;
-    return save;
+    this.send(queued).finally(() => {
+      this.sending = false;
+      this.saveEpoch++;
+      this.sendQueued();
+    });
   }
 
-  saveSucceeded(save: number, saved: StoredRevision, appState?: string): void {
-    if (this.saveSettled(save)) return;
-    // The stored content is the user's now: there is nothing to reload to.
-    this.stopReloadWait();
-    // Answers can arrive out of order; an older one says nothing new.
-    if (saved.updatedAt.getTime() > this.held.updatedAt.getTime()) {
-      this.held = saved;
-      this.editor?.saved(saved.elements, appState);
+  private async send(save: QueuedSave): Promise<void> {
+    let updatedAt: Date | null;
+    try {
+      const signal = AbortSignal.timeout(this.saveTimeoutMs);
+      updatedAt = await Promise.race([
+        this.source.save(save.content, this.held.updatedAt, signal),
+        aborted(signal),
+      ]);
+    } catch (error) {
+      // It may have been stored all the same, with its answer lost.
+      // Forgetting the oldest costs a question at worst, not an edit.
+      this.unanswered = [...this.unanswered, save.content].slice(
+        -UNANSWERED_KEPT,
+      );
+      for (const waiter of save.waiters) waiter.reject(error);
+      return;
     }
-    this.settle();
-  }
-
-  saveFailed(save: number): void {
-    if (this.saveSettled(save)) return;
-    if (this.reloadWait && this.inFlight.size === 0) {
-      this.stopReloadWait();
-      this.applyReload();
+    if (updatedAt) {
+      this.unanswered = [];
+      this.held = { updatedAt, elements: save.content.elements };
+      this.editor?.saved(save.content.elements, save.content.appState);
+      for (const waiter of save.waiters) waiter.resolve("saved");
+      return;
+    }
+    // Refused: this content, or anything newer asked for meanwhile, waits
+    // for what the stored revision decides.
+    this.queued = {
+      content: this.queued?.content ?? save.content,
+      waiters: [...save.waiters, ...(this.queued?.waiters ?? [])],
+    };
+    try {
+      const stored = await this.source.load();
+      this.lastLoaded = stored;
+      // Nobody is left to ask; sent again, it would be refused again.
+      if (!this.editor) this.finishQueued("dropped");
+      else this.reconcile(stored);
+    } catch (error) {
+      for (const waiter of this.takeQueued()) waiter.reject(error);
     }
   }
 
-  /** Answers whether this save was abandoned, so its answer means nothing. */
-  private saveSettled(save: number): boolean {
-    this.saveEpoch++;
-    if (this.abandoned.delete(save)) return true;
-    this.inFlight.delete(save);
-    return false;
+  /** Answers everyone waiting on a save that will not be sent. */
+  private finishQueued(outcome: SaveOutcome): void {
+    for (const waiter of this.takeQueued()) waiter.resolve(outcome);
   }
 
-  private stopReloadWait(): void {
-    this.reloadWait?.();
-    this.reloadWait = null;
+  private takeQueued(): QueuedSave["waiters"] {
+    const waiters = this.queued?.waiters ?? [];
+    this.queued = null;
+    return waiters;
   }
 
   private settle(): void {
@@ -276,6 +387,15 @@ export class OpenEntitySync {
     this.conflict = null;
     this.notify({ kind: "settled" });
   }
+}
+
+/** Rejects once `signal` aborts. */
+function aborted(signal: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => {
+    signal.addEventListener("abort", () => reject(signal.reason), {
+      once: true,
+    });
+  });
 }
 
 function sameTime(a: Date, b: Date): boolean {

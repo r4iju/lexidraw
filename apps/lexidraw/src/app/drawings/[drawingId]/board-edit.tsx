@@ -18,7 +18,6 @@ import type {
 import type { RouterOutputs } from "~/trpc/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
-import { api } from "~/trpc/react";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
@@ -27,7 +26,10 @@ import { Theme, type MessageStructure } from "@packages/types";
 import { DrawingBoardMenu } from "./dropdown";
 import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 import { useAutoSave } from "~/hooks/use-auto-save";
-import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import {
+  useOpenEntityContext,
+  useOpenEntitySync,
+} from "~/hooks/use-open-entity-sync";
 import { useSyncedExcalidraw } from "./use-synced-excalidraw";
 
 type Props = {
@@ -50,7 +52,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const userId = useUserIdOrGuestId();
   const [excalidrawApi, setExcalidrawApi] =
     useState<ExcalidrawImperativeAPI | null>(null);
-  const { mutate: save } = api.entities.save.useMutation();
+  const openDrawing = useOpenEntityContext();
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const canCollaborate = useMemo(() => {
     return drawing.publicAccess !== "PRIVATE" || drawing.sharedWith.length > 0;
@@ -59,7 +61,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
-  const { markDirty, markPristine, registerSaveHold } = useUnsavedChanges();
+  const { markDirty, markPristine } = useUnsavedChanges();
   const { enabled: autoSaveEnabled } = useAutoSave();
   const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
 
@@ -93,14 +95,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     const appState = excalidrawApi.getAppState();
     if (needsSave(elements, appState)) saveLater({ elements, appState });
   }, [excalidrawApi, needsSave]);
-  const { holdsSaves } = useOpenEntitySync({
-    entity: drawing,
-    noun: "drawing",
+  const { holdsSaves } = useOpenEntitySync(openDrawing, {
     editor: syncedEditor,
     onSavesResumed,
   });
-  // Leaving must not save over a write the user has not answered.
-  useEffect(() => registerSaveHold(holdsSaves), [registerSaveHold, holdsSaves]);
 
   const applyUpdate = useCallback(
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {
@@ -126,7 +124,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [applyUpdate],
   );
 
-  const { sendMessage, initializeConnection } = useWebRtcService(
+  const {
+    sendMessage,
+    initializeConnection,
+    connected: peersConnected,
+  } = useWebRtcService(
     {
       drawingId: drawing.id,
       userId,
@@ -184,25 +186,21 @@ const ExcalidrawWrapper: React.FC<Props> = ({
             markDirty();
             return;
           }
-          save(
-            {
-              id: drawing.id,
-              entityType: "drawing",
+          openDrawing.sync
+            .save({
               appState: JSON.stringify({
                 ...appState,
                 openDialog: null,
                 theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
               } satisfies AppState),
               elements: JSON.stringify(elements as ExcalidrawElement[]),
-            },
-            {
-              onSuccess: () => {
-                markPristine();
-                console.log("auto save success");
+            })
+            .then(
+              (outcome) => {
+                if (outcome === "saved") markPristine();
               },
-              onError: (err) => console.error("auto save failed: ", err),
-            },
-          );
+              (err: unknown) => console.error("auto save failed: ", err),
+            );
         },
         1000,
       );
@@ -211,12 +209,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     }
   }, [
     autoSaveEnabled,
-    drawing.id,
     isDarkTheme,
     holdsSaves,
     markDirty,
     markPristine,
-    save,
+    openDrawing,
   ]);
 
   const sendUpdateIfNeeded = useCallback(
@@ -340,6 +337,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         });
     }
   }, [isCollaborating, canCollaborate, initializeConnection]);
+
+  // External system: the open drawing's sync, which lets peers' saves pass.
+  useEffect(() => {
+    openDrawing.sync.setPeersConnected(peersConnected);
+  }, [openDrawing, peersConnected]);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>

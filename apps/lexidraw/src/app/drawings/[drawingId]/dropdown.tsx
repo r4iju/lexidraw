@@ -28,7 +28,10 @@ import {
   exportToSvg,
   MainMenu,
 } from "@excalidraw/excalidraw";
-import { GuardedLink, useUnsavedChanges } from "~/hooks/use-unsaved-changes";
+import Link from "next/link";
+import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
+import { useOpenEntityContext } from "~/hooks/use-open-entity-sync";
+import type { SaveOutcome } from "~/lib/open-entity-sync";
 import { put } from "@vercel/blob/client";
 import RenameEntityModal from "~/app/dashboard/_actions/rename-modal";
 import DeleteEntityModal from "~/app/dashboard/_actions/delete-entity";
@@ -47,7 +50,7 @@ type Props = {
 export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const router = useRouter();
   const isDarkTheme = useIsDarkTheme();
-  const { mutate: save } = api.entities.save.useMutation();
+  const openDrawing = useOpenEntityContext();
   const { mutate: generateTokens } =
     api.snapshot.generateClientUploadTokens.useMutation();
   const { mutate: saveUploadedUrl } =
@@ -78,27 +81,26 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
     const elements = excalidrawApi.getSceneElements() as ExcalidrawElement[];
     const appState: AppState = excalidrawApi.getAppState();
 
-    save(
-      {
-        id: drawing.id,
-        entityType: "drawing",
+    let outcome: SaveOutcome;
+    try {
+      outcome = await openDrawing.sync.save({
         appState: JSON.stringify({
           ...appState,
           openDialog: null,
           theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
         } satisfies AppState),
         elements: JSON.stringify(elements),
-      },
-      {
-        onSuccess: async () => {
-          markPristine();
-          toast.success("Saved!");
-          await exportDrawingAsSvg();
-        },
-        onError: (err) =>
-          toast.error("Something went wrong!", { description: err.message }),
-      },
-    );
+      });
+    } catch (err) {
+      toast.error("Something went wrong!", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+      return;
+    }
+    if (outcome === "dropped") return;
+    markPristine();
+    toast.success("Saved!");
+    await exportDrawingAsSvg();
   };
 
   const exportDrawingAsSvg = async () => {
@@ -279,7 +281,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
           variant="ghost"
           className="w-full justify-start gap-2 h-8 py-0 px-3 cursor-pointer"
         >
-          <GuardedLink
+          <Link
             href="/dashboard"
             style={{
               textDecoration: "none",
@@ -291,7 +293,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
             {" "}
             <LayoutDashboardIcon size={14} strokeWidth={2} />
             Go to dashboard
-          </GuardedLink>
+          </Link>
         </Button>
       </CustomMenuItem>
       {canEdit && (

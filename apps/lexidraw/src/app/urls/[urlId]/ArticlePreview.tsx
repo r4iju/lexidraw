@@ -576,6 +576,7 @@ export default function ArticlePreview({
               <PopoverTrigger asChild>
                 <Button size="icon" variant="outline">
                   <Settings className="size-4" />
+                  <span className="sr-only">Audio settings</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[380px]">

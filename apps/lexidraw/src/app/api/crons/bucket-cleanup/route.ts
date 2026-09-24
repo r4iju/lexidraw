@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { canRunCron } from "../cron-middleware";
 import { start } from "workflow/api";
+import { errorCode } from "~/server/auth/error-code";
+import { purgeExpiredSignInAttempts } from "~/server/auth/sign-in-rate-limit";
 import { cleanupOrphanedBlobsWorkflow } from "~/workflows/cleanup/cleanup-orphaned-blobs-workflow";
 
 export async function GET() {
@@ -9,6 +11,14 @@ export async function GET() {
   const canRun = await canRunCron();
   if (!canRun) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await purgeExpiredSignInAttempts();
+  } catch (error) {
+    console.error("[Vercel Blob Cleanup] Sign-in attempt purge failed", {
+      error: errorCode(error),
+    });
   }
 
   try {

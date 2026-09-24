@@ -114,6 +114,7 @@ export const SlideModal: React.FC<SlideModalProps> = ({
                     size="icon"
                   >
                     <InfoIcon className="size-5" />
+                    <span className="sr-only">Deck metadata</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Deck Metadata</TooltipContent>

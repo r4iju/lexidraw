@@ -33,6 +33,7 @@ export const Reset = () => {
           className="gap-2"
         >
           <RefreshCcw className="w-4 h-4" />
+          <span className="sr-only">Reset the chat</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>Reset the chat</TooltipContent>

@@ -1,5 +1,14 @@
 /// <reference types="bun" />
-import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  setSystemTime,
+  spyOn,
+  test,
+} from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { eq, sql } from "drizzle-orm";
 import { legacyPasswordHash } from "~/test/legacy-password-hash";
@@ -8,6 +17,8 @@ import { installServerRuntime } from "~/test/server-runtime";
 const db = await installServerRuntime();
 const { authorizeCredentials } = await import("./credentials");
 const password = await import("./password");
+const rateLimit = await import("./sign-in-rate-limit");
+const { SIGN_IN_LIMITS } = rateLimit;
 
 const PASSWORD = "Correct-Horse-Battery-9!";
 
@@ -27,27 +38,28 @@ async function storedPassword(id: string) {
   return row?.password;
 }
 
-/** Everything `console.error` printed, as it would appear in the log. */
-function captureErrors() {
-  const spy = spyOn(console, "error").mockImplementation(() => {});
+/** Everything `console[level]` printed, as it would appear in the log. */
+function captureLog(level: "error" | "warn") {
+  const spy = spyOn(console, level).mockImplementation(() => {});
   return () => spy.mock.calls.map((args) => Bun.inspect(args)).join("\n");
 }
 
 afterEach(() => {
   mock.restore();
+  setSystemTime();
 });
 
 describe("credentials sign-in", () => {
   test("a legacy SHA-256 user signs in and is moved to scrypt", async () => {
     const email = await seedUser("cred_legacy", legacyPasswordHash(PASSWORD));
 
-    const user = await authorizeCredentials(email, PASSWORD);
+    const user = await authorizeCredentials(email, PASSWORD, null);
 
     expect(user?.id).toBe("cred_legacy");
     expect(user).not.toHaveProperty("password");
     const upgraded = await storedPassword("cred_legacy");
     expect(upgraded).toStartWith("scrypt$");
-    expect((await authorizeCredentials(email, PASSWORD))?.id).toBe(
+    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
       "cred_legacy",
     );
   });
@@ -56,7 +68,7 @@ describe("credentials sign-in", () => {
     const legacy = legacyPasswordHash(PASSWORD);
     const email = await seedUser("cred_wrong", legacy);
 
-    expect(await authorizeCredentials(email, `${PASSWORD}x`)).toBeNull();
+    expect(await authorizeCredentials(email, `${PASSWORD}x`, null)).toBeNull();
     expect(await storedPassword("cred_wrong")).toBe(legacy);
   });
 
@@ -64,7 +76,7 @@ describe("credentials sign-in", () => {
     const current = await password.hashPassword(PASSWORD);
     const email = await seedUser("cred_current", current);
 
-    expect((await authorizeCredentials(email, PASSWORD))?.id).toBe(
+    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
       "cred_current",
     );
     expect(await storedPassword("cred_current")).toBe(current);
@@ -75,9 +87,9 @@ describe("credentials sign-in", () => {
     const verify = spyOn(password, "verifyPassword");
 
     expect(
-      await authorizeCredentials("nobody@example.test", PASSWORD),
+      await authorizeCredentials("nobody@example.test", PASSWORD, null),
     ).toBeNull();
-    expect(await authorizeCredentials(passwordless, PASSWORD)).toBeNull();
+    expect(await authorizeCredentials(passwordless, PASSWORD, null)).toBeNull();
 
     expect(verify).toHaveBeenCalledTimes(2);
     for (const [, stored] of verify.mock.calls) {
@@ -91,9 +103,9 @@ describe("credentials sign-in", () => {
     spyOn(password, "hashPassword").mockRejectedValue(
       new Error("Cannot allocate memory"),
     );
-    captureErrors();
+    captureLog("error");
 
-    expect((await authorizeCredentials(email, PASSWORD))?.id).toBe(
+    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
       "cred_hash_fail",
     );
     expect(await storedPassword("cred_hash_fail")).toBe(legacy);
@@ -107,14 +119,100 @@ describe("credentials sign-in", () => {
         WHEN OLD.id = 'cred_db_fail'
         BEGIN SELECT RAISE(ABORT, 'refused'); END`),
     );
-    const logged = captureErrors();
+    const logged = captureLog("error");
 
-    expect((await authorizeCredentials(email, PASSWORD))?.id).toBe(
+    expect((await authorizeCredentials(email, PASSWORD, null))?.id).toBe(
       "cred_db_fail",
     );
     expect(await storedPassword("cred_db_fail")).toBe(legacy);
     expect(logged()).toContain("cred_db_fail");
     expect(logged()).not.toContain(legacy);
     expect(logged()).not.toContain("scrypt$");
+  });
+});
+
+describe("credentials sign-in rate limit", () => {
+  beforeEach(() => {
+    setSystemTime(Date.UTC(2029, 0, 1));
+  });
+
+  test("past the per-email limit even the right password is refused before scrypt, logged by code only", async () => {
+    const email = await seedUser(
+      "cred_limit_email",
+      await password.hashPassword(PASSWORD),
+    );
+    const verify = spyOn(password, "verifyPassword").mockResolvedValue(false);
+    const logged = captureLog("warn");
+    const spellings = [email, email.toUpperCase(), `  ${email} `];
+
+    for (let i = 0; i < SIGN_IN_LIMITS.email.max; i++) {
+      const spelling = spellings[i % spellings.length] as string;
+      await authorizeCredentials(spelling, `${PASSWORD}x`, `198.51.100.${i}`);
+    }
+    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.email.max);
+    verify.mockRestore();
+    const verifyAfter = spyOn(password, "verifyPassword");
+
+    expect(
+      await authorizeCredentials(email, PASSWORD, "198.51.100.250"),
+    ).toBeNull();
+    expect(verifyAfter).not.toHaveBeenCalled();
+    expect(logged()).toContain("RATE_LIMITED");
+    expect(logged()).not.toContain("cred_limit_email");
+    expect(logged()).not.toContain("198.51.100");
+  });
+
+  test("a limiter that cannot count lets the sign-in through, logged by code only", async () => {
+    const email = await seedUser(
+      "cred_limit_down",
+      await password.hashPassword(PASSWORD),
+    );
+    spyOn(rateLimit, "takeSignInAttempt").mockRejectedValue(
+      new Error(`no such table: SignInAttempts (${email})`),
+    );
+    const logged = captureLog("error");
+
+    const user = await authorizeCredentials(email, PASSWORD, "192.0.2.1");
+
+    expect(user?.id).toBe("cred_limit_down");
+    expect(logged()).not.toContain(email);
+    expect(logged()).not.toContain("192.0.2.1");
+  });
+
+  test("past the per-IP limit every email from that IP is refused before scrypt, other IPs are not", async () => {
+    const verify = spyOn(password, "verifyPassword").mockResolvedValue(false);
+    const logged = captureLog("warn");
+    const ip = "203.0.113.7";
+
+    for (let i = 0; i < SIGN_IN_LIMITS.ip.max; i++) {
+      await authorizeCredentials(`limit_ip_${i}@example.test`, PASSWORD, ip);
+    }
+    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.ip.max);
+
+    const fresh = "limit_ip_fresh@example.test";
+    expect(await authorizeCredentials(fresh, PASSWORD, ip)).toBeNull();
+    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.ip.max);
+    expect(logged()).toContain("RATE_LIMITED");
+    expect(logged()).not.toContain(ip);
+
+    await authorizeCredentials(fresh, PASSWORD, "203.0.113.8");
+    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.ip.max + 1);
+  });
+
+  test("the next window lets attempts through again", async () => {
+    const verify = spyOn(password, "verifyPassword").mockResolvedValue(false);
+    captureLog("warn");
+    const email = "limit_window@example.test";
+    const start = Date.UTC(2030, 0, 1);
+
+    setSystemTime(start);
+    for (let i = 0; i <= SIGN_IN_LIMITS.email.max; i++) {
+      await authorizeCredentials(email, PASSWORD, null);
+    }
+    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.email.max);
+
+    setSystemTime(start + SIGN_IN_LIMITS.windowMs);
+    await authorizeCredentials(email, PASSWORD, null);
+    expect(verify).toHaveBeenCalledTimes(SIGN_IN_LIMITS.email.max + 1);
   });
 });
