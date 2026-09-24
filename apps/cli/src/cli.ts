@@ -59,6 +59,7 @@ Usage:
                           [--file <elements.json|->]
   lexidraw drawing render <id|--path P> [--format svg|png] [--scale 1-4]
                           [--out <file>]
+  lexidraw drawing delete <id|--path P>
   lexidraw schema <command> | lexidraw schema --list
 
 Addressing:

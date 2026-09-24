@@ -210,6 +210,7 @@ usage errors exit 2.
 lexidraw drawing get <id|--path P>   # { id, title, elements, appState, updatedAt }
 lexidraw drawing create --title T [--dir <id>|--dir-path P] [--file f|-]
 lexidraw drawing put <id|--path P> --file <f|-> --if-unmodified-since <iso|latest>
+lexidraw drawing delete <id|--path P>
 ```
 
 Paths and `--nth` work as under Addressing; a drawing's `--path` matches

@@ -7,6 +7,7 @@ import {
   rejectExtra,
 } from "./args";
 import { type Context, json } from "./context";
+import { deleteEntity } from "./delete";
 import { createEntity, listEntities } from "./entities";
 import { CliError, describe, usageError } from "./errors";
 import { chooseFormat, entityTable, ndjson, rejectFormat } from "./format";
@@ -83,7 +84,7 @@ export async function docCommand(
     case "put":
       return await put(context, args);
     case "delete":
-      return await remove(context, args);
+      return await deleteEntity(context, args, "document");
   }
 }
 
@@ -251,40 +252,6 @@ async function put(context: Context, args: ParsedArgs): Promise<void> {
         body: { markdown, ...since },
       }),
     ),
-  );
-}
-
-async function remove(context: Context, args: ParsedArgs): Promise<void> {
-  const session = openSession(context);
-  const target = address(args, "document", "write");
-  const id = await resolveEntity(context, session, target);
-  // DELETE /entities/{id} takes any entity, a directory with everything under
-  // it included, so an id is checked here; --path only ever matched documents.
-  if (target.id !== undefined) await requireDocument(session, id);
-  context.io.stdout(
-    json(
-      await callApi(session, {
-        method: "DELETE",
-        path: `/entities/${encodeURIComponent(id)}`,
-      }),
-    ),
-  );
-}
-
-/** What the entity with `id` is, where the path taken would not check. */
-async function requireDocument(session: ApiSession, id: string): Promise<void> {
-  const entity = await callApi(session, {
-    method: "GET",
-    path: `/entities/${encodeURIComponent(id)}`,
-  });
-  const entityType = (entity as { entityType?: unknown }).entityType;
-  if (entityType === "document") return;
-  throw new CliError(
-    "NOT_FOUND",
-    typeof entityType === "string"
-      ? `"${id}" is a ${entityType}, not a document`
-      : `"${id}" is not a document`,
-    { details: { id, entityType } },
   );
 }
 
