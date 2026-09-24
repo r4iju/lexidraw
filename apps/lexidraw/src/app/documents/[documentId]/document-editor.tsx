@@ -579,7 +579,10 @@ function EditorHandler({
                                 reader signed in keeps listening (#93). */}
                             <div
                               className={cn(
-                                "flex items-start justify-center gap-2 overflow-x-auto whitespace-nowrap border-b border-border py-2 pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))] md:pl-[max(--spacing(8),env(safe-area-inset-left))] md:pr-[max(--spacing(8),env(safe-area-inset-right))]",
+                                "flex items-center border-b border-border py-1",
+                                "pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]",
+                                "sm:pl-[max(--spacing(6),env(safe-area-inset-left))] sm:pr-[max(--spacing(6),env(safe-area-inset-right))]",
+                                "lg:pl-[max(--spacing(8),env(safe-area-inset-left))] lg:pr-[max(--spacing(8),env(safe-area-inset-right))]",
                                 !(canEdit && !reading) && !signedIn && "hidden",
                               )}
                             >
