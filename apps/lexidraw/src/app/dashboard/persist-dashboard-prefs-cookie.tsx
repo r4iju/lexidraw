@@ -19,8 +19,7 @@ export function PersistDashboardPrefsCookie() {
       "sortOrder",
       "flex",
       "tags",
-      "includeArchived",
-      "onlyFavorites",
+      "view",
     ] as const;
     const anyPresent = trackedKeys.some((k) => sp.has(k));
     if (!anyPresent) return;
@@ -32,11 +31,7 @@ export function PersistDashboardPrefsCookie() {
       partial.sortOrder = sp.get("sortOrder") ?? undefined;
     if (sp.has("flex")) partial.flex = sp.get("flex") ?? undefined;
     if (sp.has("tags")) partial.tags = sp.get("tags") ?? undefined;
-    if (sp.has("includeArchived"))
-      partial.includeArchived =
-        (sp.get("includeArchived") ?? "false") === "true";
-    if (sp.has("onlyFavorites"))
-      partial.onlyFavorites = (sp.get("onlyFavorites") ?? "false") === "true";
+    if (sp.has("view")) partial.view = sp.get("view") ?? undefined;
 
     try {
       // Merge with existing cookie data to avoid losing previously saved keys

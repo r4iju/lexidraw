@@ -8,7 +8,7 @@ import { NewEntity } from "./_actions/new-entity";
 import { Drag } from "./drag";
 import { Drop } from "./drop";
 import { SortMenu } from "./sort-menu";
-import { Archive, Heart, LayoutGrid, Rows3 } from "lucide-react";
+import { LayoutGrid, Rows3 } from "lucide-react";
 import { DraggingContext } from "./dnd-context";
 import { EntityCardRow } from "./entity-card-row";
 import { EntityCardCol } from "./entity-card-col";
@@ -18,6 +18,12 @@ import { SearchBar } from "./search";
 import { PersistDashboardPrefsCookie } from "./persist-dashboard-prefs-cookie";
 import { CanonicalizeDashboardURL } from "./canonicalize-dashboard-url";
 import { DashboardAppBar } from "./dashboard-app-bar";
+import {
+  type DashboardView,
+  FilterHint,
+  ViewFilter,
+  viewFilters,
+} from "./view-filter";
 
 type Props = {
   account: AppBarAccount | null;
@@ -26,8 +32,7 @@ type Props = {
   sortOrder: "asc" | "desc";
   flex: "flex-row" | "flex-col";
   tags?: string;
-  includeArchived?: boolean;
-  onlyFavorites?: boolean;
+  view: DashboardView;
 };
 
 export async function Dashboard({
@@ -37,24 +42,22 @@ export async function Dashboard({
   sortOrder,
   flex,
   tags,
-  includeArchived = false,
-  onlyFavorites = false,
+  view,
 }: Props) {
   const searchParams = new URLSearchParams({
     ...(flex ? { flex } : {}),
     ...(sortBy ? { sortBy } : {}),
     ...(sortOrder ? { sortOrder } : {}),
     ...(tags ? { tags } : {}),
-    ...(includeArchived ? { includeArchived: String(includeArchived) } : {}),
-    ...(onlyFavorites ? { onlyFavorites: String(onlyFavorites) } : {}),
+    view,
   });
+  const pathname = `/dashboard/${directory?.id ?? ""}`;
   const entities = await api.entities.list.query({
     parentId: directory?.id,
     sortBy,
     sortOrder,
     tagNames: tags ? tags.split(",").filter(Boolean) : [],
-    includeArchived,
-    onlyFavorites,
+    ...viewFilters(view),
   });
 
   const allTags = await api.entities.getUserTags.query();
@@ -68,8 +71,7 @@ export async function Dashboard({
           sortOrder,
           flex,
           tags,
-          includeArchived,
-          onlyFavorites,
+          view,
         }}
       />
       <DashboardAppBar
@@ -112,51 +114,11 @@ export async function Dashboard({
 
               <FilterByTags options={allTags} />
 
-              {/* favorites / archived toggles */}
-              <div className="flex gap-2">
-                <Button
-                  variant={onlyFavorites ? "on" : "outline"}
-                  size="icon"
-                  asChild
-                  className="md:min-w-20"
-                >
-                  <Link
-                    href={replaceSearchParam({
-                      pathname: `/dashboard/${directory?.id ?? ""}`,
-                      prevParams: searchParams,
-                      key: "onlyFavorites",
-                      value: onlyFavorites ? "false" : "true",
-                    })}
-                    aria-current={onlyFavorites ? "true" : undefined}
-                  >
-                    <Heart className="md:hidden" />
-                    <span className="sr-only md:not-sr-only md:block">
-                      Favorites
-                    </span>
-                  </Link>
-                </Button>
-                <Button
-                  variant={includeArchived ? "on" : "outline"}
-                  size="icon"
-                  asChild
-                  className="md:min-w-20"
-                >
-                  <Link
-                    href={replaceSearchParam({
-                      pathname: `/dashboard/${directory?.id ?? ""}`,
-                      prevParams: searchParams,
-                      key: "includeArchived",
-                      value: includeArchived ? "false" : "true",
-                    })}
-                    aria-current={includeArchived ? "true" : undefined}
-                  >
-                    <Archive className="md:hidden" />
-                    <span className="sr-only md:not-sr-only md:block">
-                      Archived
-                    </span>
-                  </Link>
-                </Button>
-              </div>
+              <ViewFilter
+                view={view}
+                pathname={pathname}
+                searchParams={searchParams}
+              />
 
               <div className="flex gap-2">
                 <Button
@@ -166,7 +128,7 @@ export async function Dashboard({
                 >
                   <Link
                     href={replaceSearchParam({
-                      pathname: `/dashboard/${directory?.id ?? ""}`,
+                      pathname,
                       prevParams: searchParams,
                       key: "flex",
                       value: "flex-row",
@@ -184,7 +146,7 @@ export async function Dashboard({
                 >
                   <Link
                     href={replaceSearchParam({
-                      pathname: `/dashboard/${directory?.id ?? ""}`,
+                      pathname,
                       prevParams: searchParams,
                       key: "flex",
                       value: "flex-col",
@@ -199,6 +161,12 @@ export async function Dashboard({
               <SortMenu />
             </div>
           </div>
+          <FilterHint
+            view={view}
+            tags={tags}
+            pathname={pathname}
+            searchParams={searchParams}
+          />
         </nav>
 
         <div className="flex-1">

@@ -8,97 +8,26 @@ import { notFoundOr } from "~/trpc/not-found";
 import { Dashboard } from "../dashboard";
 import { DashboardSkeleton } from "../skeleton";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import { z } from "zod";
 import type { Metadata } from "next";
 import { appBarAccount } from "~/server/app-bar-account";
-
-const SearchParams = z.object({
-  parentId: z.string().optional().nullable().default(null),
-  new: z.literal("true").optional(),
-  flex: z.enum(["flex-row", "flex-col"]).default("flex-col"),
-  sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
-  sortOrder: z.enum(["asc", "desc"]).default("desc"),
-  tags: z.string().optional(),
-  includeArchived: z.coerce.boolean().optional().default(false),
-  onlyFavorites: z.coerce.boolean().optional().default(false),
-});
-
-type SearchParams = z.infer<typeof SearchParams>;
-
-const CookiePrefsSchema = z.object({
-  sortBy: z.enum(["updatedAt", "createdAt", "title"]).optional(),
-  sortOrder: z.enum(["asc", "desc"]).optional(),
-  flex: z.enum(["flex-row", "flex-col"]).optional(),
-  tags: z.string().optional(),
-  includeArchived: z.boolean().optional(),
-  onlyFavorites: z.boolean().optional(),
-});
+import { resolveDashboardQuery } from "../dashboard-query";
 
 type Props = {
   params: Promise<{
     directoryId: string;
   }>;
-  searchParams: Promise<SearchParams>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 async function DashboardContent({ params, searchParams }: Props) {
   const account = await appBarAccount();
   const directoryId = (await params).directoryId;
   const queryParams = await searchParams;
+  const query = await resolveDashboardQuery(queryParams);
 
-  // Merge: cookie -> query -> defaults (no redirect here, keep redirect for 'new' only)
-  let merged: Record<string, unknown> = { ...queryParams };
-  try {
-    const cookieStore = await cookies();
-    const raw = cookieStore.get("ld_dash_prefs")?.value;
-    if (raw) {
-      const parsedJson = JSON.parse(decodeURIComponent(raw));
-      const cookieResult = CookiePrefsSchema.safeParse(parsedJson);
-      if (cookieResult.success) {
-        const c = cookieResult.data;
-        const q = queryParams as Record<string, unknown>;
-        const hasOwn = Object.prototype.hasOwnProperty;
-        const toBool = (v: unknown) =>
-          typeof v === "boolean" ? v : String(v) === "true";
-        const toStr = (v: unknown) => (v == null ? undefined : String(v));
-        merged = {
-          parentId: q.parentId ?? null,
-          new: q.new,
-          sortBy: hasOwn.call(q, "sortBy")
-            ? toStr(q.sortBy)
-            : (c.sortBy ?? "updatedAt"),
-          sortOrder: hasOwn.call(q, "sortOrder")
-            ? toStr(q.sortOrder)
-            : (c.sortOrder ?? "desc"),
-          flex: hasOwn.call(q, "flex") ? toStr(q.flex) : (c.flex ?? "flex-col"),
-          tags: hasOwn.call(q, "tags") ? toStr(q.tags) : c.tags,
-          includeArchived: hasOwn.call(q, "includeArchived")
-            ? toBool(q.includeArchived)
-            : (c.includeArchived ?? false),
-          onlyFavorites: hasOwn.call(q, "onlyFavorites")
-            ? toBool(q.onlyFavorites)
-            : (c.onlyFavorites ?? false),
-        };
-      }
-    }
-  } catch {
-    // ignore cookie errors; we'll rely on Zod defaults
-  }
-  const {
-    parentId,
-    new: isNew,
-    sortBy,
-    sortOrder,
-    flex,
-    tags,
-    includeArchived,
-    onlyFavorites,
-  } = SearchParams.parse(merged);
-
-  if (isNew) {
-    console.log("creating new directory");
-    console.log({ parentId });
+  if (queryParams.new === "true") {
+    const parentId =
+      typeof queryParams.parentId === "string" ? queryParams.parentId : null;
     await api.entities.create.mutate({
       id: directoryId,
       title: "New folder",
@@ -112,18 +41,7 @@ async function DashboardContent({ params, searchParams }: Props) {
     .query({ id: directoryId })
     .catch(notFoundOr);
 
-  return (
-    <Dashboard
-      account={account}
-      directory={directory}
-      sortBy={sortBy}
-      sortOrder={sortOrder}
-      flex={flex}
-      tags={tags}
-      includeArchived={includeArchived}
-      onlyFavorites={onlyFavorites}
-    />
-  );
+  return <Dashboard account={account} directory={directory} {...query} />;
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {

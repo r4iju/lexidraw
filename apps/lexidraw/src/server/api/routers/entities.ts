@@ -527,7 +527,7 @@ export const entityRouter = createTRPCRouter({
       }[] = await entityAncestors(ctx.drizzle, entity.parentId);
       ancestors.push({
         id: null,
-        title: "Root",
+        title: "Home",
         parentId: null,
       });
 
@@ -561,6 +561,7 @@ export const entityRouter = createTRPCRouter({
         sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
         includeArchived: queryBoolean.optional().default(false),
         onlyFavorites: queryBoolean.optional().default(false),
+        onlyArchived: queryBoolean.optional().default(false),
         entityTypes: stringList(
           z.enum(["document", "drawing", "directory", "url"]),
           "Entity types to include",
@@ -653,10 +654,12 @@ export const entityRouter = createTRPCRouter({
             input.onlyFavorites
               ? sql`${schema.userEntityPrefs.favoritedAt} is not null`
               : undefined,
-            // archived filter (exclude archived unless includeArchived=true)
-            input.includeArchived
-              ? undefined
-              : isNull(schema.userEntityPrefs.archivedAt),
+            // archived items are hidden unless asked for, or asked for alone
+            input.onlyArchived
+              ? sql`${schema.userEntityPrefs.archivedAt} is not null`
+              : input.includeArchived
+                ? undefined
+                : isNull(schema.userEntityPrefs.archivedAt),
             // Include the tag filter if tag names were provided
             tagFilteredEntityIds
               ? inArray(schema.entities.id, tagFilteredEntityIds)

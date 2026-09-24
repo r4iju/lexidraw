@@ -93,9 +93,13 @@ export function FilterByTags({ options }: Props) {
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={8} className="w-[200px] p-0">
         <Command>
-          <CommandInput placeholder="Search tags..." />
+          <CommandInput placeholder="Search tags…" />
           <CommandList>
-            <CommandEmpty>No tags found.</CommandEmpty>
+            <CommandEmpty>
+              {options.length === 0
+                ? "No tags yet. Add tags from a file’s ⋯ menu."
+                : "No tags match."}
+            </CommandEmpty>
             <CommandGroup>
               {options.map((tag) => (
                 <CommandItem

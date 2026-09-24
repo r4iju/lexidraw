@@ -8,8 +8,7 @@ type Canonical = {
   sortOrder: "asc" | "desc";
   flex: "flex-row" | "flex-col";
   tags?: string;
-  includeArchived?: boolean;
-  onlyFavorites?: boolean;
+  view: string;
 };
 
 export function CanonicalizeDashboardURL({
@@ -33,8 +32,7 @@ export function CanonicalizeDashboardURL({
     maybeSet("sortOrder", canonical.sortOrder);
     maybeSet("flex", canonical.flex);
     maybeSet("tags", canonical.tags);
-    maybeSet("includeArchived", canonical.includeArchived);
-    maybeSet("onlyFavorites", canonical.onlyFavorites);
+    maybeSet("view", canonical.view);
 
     const next = sp.toString();
     if (next !== current) {
