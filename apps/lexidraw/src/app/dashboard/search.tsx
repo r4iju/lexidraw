@@ -151,7 +151,7 @@ export function SearchButton() {
             e.preventDefault();
             inputRef.current?.focus();
           }}
-          className="left-0 top-0 flex h-dvh max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0 md:max-w-none [&>button:last-child]:hidden"
+          className="left-0 top-0 flex h-dvh max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 break-normal rounded-none p-0 md:max-w-none [&>button:last-child]:hidden"
         >
           <DialogTitle className="sr-only">Search files</DialogTitle>
           <div className="flex items-center gap-2 border-b border-border px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
