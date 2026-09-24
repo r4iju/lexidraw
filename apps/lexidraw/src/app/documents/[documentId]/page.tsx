@@ -5,6 +5,7 @@ import { cacheTag } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
 import { entityTag } from "~/server/api/entity-cache";
+import { auth } from "~/server/auth";
 import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 import DocumentEditor from "./document-editor-client";
@@ -63,14 +64,15 @@ export default async function DocumentPage(props: Props) {
     return redirect(`/documents/${documentId}`);
   }
 
-  // First, so a missing document is a 404 even for a visitor the calls
-  // below refuse.
+  // A missing document, or one this caller may not read, is a 404.
   const document = await api.entities.load
     .query({ id: documentId })
     .catch(notFoundOr);
-  const [iceServers, initialLlmConfig] = await Promise.all([
+  const [iceServers, initialLlmConfig, session] = await Promise.all([
     api.auth.iceServers.query(),
+    // A visitor without an account reads the defaults.
     api.config.getConfig.query(),
+    auth(),
   ]);
 
   try {
@@ -79,6 +81,7 @@ export default async function DocumentPage(props: Props) {
         entity={document}
         iceServers={iceServers}
         initialLlmConfig={initialLlmConfig}
+        signedIn={Boolean(session?.user)}
       />
     );
   } catch (error) {

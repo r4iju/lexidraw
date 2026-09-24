@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import {
+  type createTRPCContext,
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
 import env from "@packages/env";
@@ -169,6 +174,27 @@ const defaultArticles: z.infer<typeof ArticleConfigSchema> = {
   autoGenerateAudioOnImport: false,
 };
 
+/**
+ * The settings the caller has stored. A visitor reading a public document or
+ * link has no account and so nothing stored, which is the same as a new
+ * account: every settings read answers its defaults rather than refusing.
+ * The writes stay behind an account.
+ */
+async function storedConfig(
+  ctx: Pick<
+    Awaited<ReturnType<typeof createTRPCContext>>,
+    "drizzle" | "session"
+  >,
+) {
+  const userId = ctx.session?.user?.id;
+  if (!userId) return undefined;
+  const user = await ctx.drizzle.query.users.findFirst({
+    where: eq(schema.users.id, userId),
+    columns: { config: true },
+  });
+  return user?.config ?? undefined;
+}
+
 export const configRouter = createTRPCRouter({
   getAutocompleteModelOptions: protectedProcedure.query(async ({ ctx }) => {
     const [policy] = await ctx.drizzle
@@ -212,11 +238,8 @@ export const configRouter = createTRPCRouter({
   }),
 
   // --- Autocomplete (separate, minimal engine) ---
-  getAutocompleteConfig: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.drizzle.query.users.findFirst({
-      where: eq(schema.users.id, ctx.session.user.id),
-      columns: { config: true },
-    });
+  getAutocompleteConfig: publicProcedure.query(async ({ ctx }) => {
+    const config = await storedConfig(ctx);
     const defaults = {
       enabled: true,
       delayMs: 200,
@@ -227,27 +250,28 @@ export const configRouter = createTRPCRouter({
       reasoningEffort: "minimal" as const,
       verbosity: "low" as const,
     };
-    let cfg = (user?.config?.autocomplete ?? null) as
+    let cfg = (config?.autocomplete ?? null) as
       | (typeof defaults & Record<string, unknown>)
       | null;
 
     // Migration: seed from old llm.autocomplete if missing
     if (!cfg) {
-      const seed = user?.config?.llm?.autocomplete as
+      const seed = config?.llm?.autocomplete as
         | Partial<typeof defaults>
         | undefined;
-      if (seed) {
+      const userId = ctx.session?.user?.id;
+      if (seed && userId) {
         cfg = { ...defaults, ...seed } as typeof defaults &
           Record<string, unknown>;
         await ctx.drizzle
           .update(schema.users)
           .set({
             config: {
-              ...(user?.config ?? {}),
+              ...config,
               autocomplete: cfg,
             } as (typeof schema.users.$inferInsert)["config"],
           })
-          .where(eq(schema.users.id, ctx.session.user.id));
+          .where(eq(schema.users.id, userId));
       }
     }
 
@@ -292,16 +316,11 @@ export const configRouter = createTRPCRouter({
         .where(eq(schema.users.id, ctx.session.user.id));
       return next;
     }),
-  getConfig: protectedProcedure.query(
+  getConfig: publicProcedure.query(
     async ({ ctx }): Promise<StoredLlmConfig> => {
-      const user = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: {
-          config: true,
-        },
-      });
+      const config = await storedConfig(ctx);
 
-      const existingLlm = (user?.config?.llm ?? {}) as Partial<
+      const existingLlm = (config?.llm ?? {}) as Partial<
         z.infer<typeof LlmConfigSchema>
       >;
       const llmConfigUnnormalized = {
@@ -333,13 +352,9 @@ export const configRouter = createTRPCRouter({
   ),
 
   // --- Audio preferences ---
-  getAudioConfig: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.drizzle.query.users.findFirst({
-      where: eq(schema.users.id, ctx.session.user.id),
-      columns: { config: true },
-    });
-    const preferredPlaybackRate =
-      user?.config?.audio?.preferredPlaybackRate ?? 1;
+  getAudioConfig: publicProcedure.query(async ({ ctx }) => {
+    const config = await storedConfig(ctx);
+    const preferredPlaybackRate = config?.audio?.preferredPlaybackRate ?? 1;
     return { preferredPlaybackRate } as { preferredPlaybackRate: number };
   }),
 
@@ -375,12 +390,9 @@ export const configRouter = createTRPCRouter({
     }),
 
   // --- Auto-save preferences ---
-  getAutoSaveConfig: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.drizzle.query.users.findFirst({
-      where: eq(schema.users.id, ctx.session.user.id),
-      columns: { config: true },
-    });
-    const enabled = user?.config?.autoSave?.enabled ?? false;
+  getAutoSaveConfig: publicProcedure.query(async ({ ctx }) => {
+    const config = await storedConfig(ctx);
+    const enabled = config?.autoSave?.enabled ?? false;
     return { enabled } as { enabled: boolean };
   }),
 
@@ -619,6 +631,9 @@ export const configRouter = createTRPCRouter({
     }),
 
   // --- Rich TTS catalog merged with OpenAI/Google ---
+  // Not a settings read, so a visitor is refused: building it calls Google and
+  // the TTS sidecar with the app's credentials, and the sidecar answers with
+  // paths on its own disk.
   getTtsCatalog: protectedProcedure.query(async () => {
     const providers: TtsConfigProvider[] = [];
     const languages = new Set<string>();
@@ -794,12 +809,9 @@ export const configRouter = createTRPCRouter({
   }),
 
   // --- User TTS config ---
-  getTtsConfig: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.drizzle.query.users.findFirst({
-      where: eq(schema.users.id, ctx.session.user.id),
-      columns: { config: true },
-    });
-    const tts = { ...defaultTts, ...(user?.config?.tts ?? {}) };
+  getTtsConfig: publicProcedure.query(async ({ ctx }) => {
+    const config = await storedConfig(ctx);
+    const tts = { ...defaultTts, ...(config?.tts ?? {}) };
     return TtsConfigSchema.parse(tts);
   }),
   updateTtsConfig: protectedProcedure
@@ -818,12 +830,9 @@ export const configRouter = createTRPCRouter({
     }),
 
   // --- Article config ---
-  getArticleConfig: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.drizzle.query.users.findFirst({
-      where: eq(schema.users.id, ctx.session.user.id),
-      columns: { config: true },
-    });
-    const articles = { ...defaultArticles, ...(user?.config?.articles ?? {}) };
+  getArticleConfig: publicProcedure.query(async ({ ctx }) => {
+    const config = await storedConfig(ctx);
+    const articles = { ...defaultArticles, ...(config?.articles ?? {}) };
     return ArticleConfigSchema.parse(articles);
   }),
   updateArticleConfig: protectedProcedure

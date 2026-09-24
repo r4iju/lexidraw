@@ -9,6 +9,7 @@ import {
   useId,
 } from "react";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "~/components/ui/button";
 import { Slider } from "~/components/ui/slider";
 import {
@@ -65,6 +66,9 @@ export function AudioPlayer({
 }: Readonly<AudioPlayerProps>): React.ReactNode {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pathname = usePathname();
+  // Anyone can read the preferred rate (a visitor gets the default), but only
+  // an account has somewhere to keep a new one.
+  const { status: sessionStatus } = useSession();
   const lastPathRef = useRef(pathname);
   const prevSrcRef = useRef<string | undefined>(undefined);
 
@@ -621,7 +625,10 @@ export function AudioPlayer({
                       Math.max(minSpeed, Math.round(next * 100) / 100),
                     );
                     setRate(snapped);
-                    if (persistPreferredRate) {
+                    if (
+                      persistPreferredRate &&
+                      sessionStatus === "authenticated"
+                    ) {
                       console.log(
                         "[AudioPlayer] saving playback rate",
                         snapped,

@@ -12,14 +12,10 @@ import { PublicAccess } from "@packages/types";
 import { generateUUID } from "~/lib/utils";
 import z from "zod";
 
-async function assertCanAccessDocumentOrThrow(
-  userId: string | undefined,
+async function canReadDocument(
+  userId: string,
   documentId: string,
-): Promise<void> {
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
+): Promise<boolean> {
   const rows = await drizzle
     .select({ id: schema.entities.id })
     .from(schema.entities)
@@ -42,17 +38,13 @@ async function assertCanAccessDocumentOrThrow(
     .limit(1)
     .execute();
 
-  if (!rows[0]) {
-    throw new Error("Unauthorized");
-  }
+  return Boolean(rows[0]);
 }
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  } else {
-    console.log("[agent] authenticated");
+    return new Response("Unauthorized", { status: 401 });
   }
 
   const userId = session.user.id;
@@ -79,13 +71,10 @@ export async function POST(req: NextRequest) {
   } = parsed;
   console.log({ parsed });
 
-  // Authorize document access
-  try {
-    await assertCanAccessDocumentOrThrow(userId, documentId);
-    console.log("[agent] authorized");
-  } catch (error) {
-    console.error("[agent] unauthorized", error);
-    throw new Error("Unauthorized");
+  // Not found rather than forbidden, so the answer does not tell a stranger
+  // the document exists.
+  if (!(await canReadDocument(userId, documentId))) {
+    return new Response("Not found", { status: 404 });
   }
 
   // Get effective LLM config

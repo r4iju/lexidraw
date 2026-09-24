@@ -87,6 +87,7 @@ import { CodeSelector } from "./code-selector";
 import { InsertItem } from "./insert-item";
 import { SettingsDropdown } from "./settings-dropdown";
 import { TtsToolbar } from "../TtsToolbar";
+import { useSignedIn } from "../../context/signed-in-context";
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
@@ -96,6 +97,7 @@ export default function ToolbarPlugin({
   className?: string;
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
+  const signedIn = useSignedIn();
   const [activeEditor, setActiveEditor] = useState(editor);
   const [blockType, setBlockType] = useState<BlockType>("paragraph");
   const [rootType, setRootType] =
@@ -658,16 +660,18 @@ export default function ToolbarPlugin({
       {/* AI Config / LLM Chat / Comments / TOC */}
       <fieldset className="flex" aria-label="AI and sidebar controls">
         <LlmModelSelector className="rounded-r-none border-r-0" />
-        <TooltipButton
-          className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
-            "bg-muted": activeSidebar === "llm",
-          })}
-          disabled={!isEditable}
-          onClick={() => toggleSidebar("llm")}
-          ariaLabel="Toggle LLM Chat"
-          title="AI Assistant"
-          Icon={BotMessageSquare}
-        />
+        {signedIn && (
+          <TooltipButton
+            className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
+              "bg-muted": activeSidebar === "llm",
+            })}
+            disabled={!isEditable}
+            onClick={() => toggleSidebar("llm")}
+            ariaLabel="Toggle LLM Chat"
+            title="AI Assistant"
+            Icon={BotMessageSquare}
+          />
+        )}
         <TooltipButton
           className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
             "bg-muted": activeSidebar === "comments",
@@ -691,7 +695,7 @@ export default function ToolbarPlugin({
         />
       </fieldset>
 
-      <TtsToolbar />
+      {signedIn && <TtsToolbar />}
 
       <Divider />
       <SettingsDropdown className="rounded-md" />

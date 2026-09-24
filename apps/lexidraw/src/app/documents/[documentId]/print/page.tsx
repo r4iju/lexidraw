@@ -86,6 +86,7 @@ export default async function PrintDocumentPage(props: Props) {
         entity={entity}
         iceServers={iceServers}
         initialLlmConfig={initialLlmConfig}
+        signedIn={false}
         printMode
       />
     </div>

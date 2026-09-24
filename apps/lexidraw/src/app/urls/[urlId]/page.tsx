@@ -5,6 +5,7 @@ import { cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { entityTag } from "~/server/api/entity-cache";
+import { auth } from "~/server/auth";
 import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 
@@ -51,12 +52,14 @@ export default async function UrlPage(props: Props) {
     return redirect(`/urls/${urlId}`);
   }
 
-  // First, so a missing link is a 404 even for a visitor the calls
-  // below refuse.
+  // A missing link, or one this caller may not read, is a 404.
   const entity = await api.entities.load.query({ id: urlId }).catch(notFoundOr);
+  // A visitor to a public link can read and play it but not generate audio,
+  // which needs an account, and so has no use for the TTS catalog.
+  const signedIn = Boolean((await auth())?.user);
   const [audioConfig, ttsCatalog] = await Promise.all([
     api.config.getAudioConfig.query(),
-    api.config.getTtsCatalog.query(),
+    signedIn ? api.config.getTtsCatalog.query() : undefined,
   ]);
 
   const UrlViewer = (await import("./url-viewer")).default;
@@ -65,6 +68,7 @@ export default async function UrlPage(props: Props) {
       entity={entity}
       preferredPlaybackRate={audioConfig?.preferredPlaybackRate ?? 1}
       ttsConfig={ttsCatalog}
+      canGenerateAudio={signedIn}
     />
   );
 }

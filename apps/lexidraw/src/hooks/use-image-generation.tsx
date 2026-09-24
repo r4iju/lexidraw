@@ -40,14 +40,20 @@ const ImageGenerationContext =
 
 export const ImageGenerationProvider = ({
   entityId,
+  signedIn,
   children,
 }: {
   entityId: string;
+  /** Generating an image needs an account; a visitor is never offered it. */
+  signedIn: boolean;
   children: ReactNode;
 }) => {
   const { mutateAsync: generateUploadUrlAsync } =
     api.entities.generateUploadUrl.useMutation();
-  const { data: genStatus } = api.image.getAiGenerationStatus.useQuery();
+  const { data: genStatus } = api.image.getAiGenerationStatus.useQuery(
+    undefined,
+    { enabled: signedIn },
+  );
   const { mutateAsync: generateAiImage } =
     api.image.generateAiImage.useMutation();
   const [isLoading, setIsLoading] = useState(false);

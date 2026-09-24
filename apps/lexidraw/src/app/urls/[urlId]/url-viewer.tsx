@@ -12,12 +12,14 @@ type Props = {
   entity: RouterOutputs["entities"]["load"];
   preferredPlaybackRate?: number;
   ttsConfig?: import("~/server/api/routers/config").TtsConfigResult;
+  canGenerateAudio: boolean;
 };
 
 export default function UrlViewer({
   entity,
   preferredPlaybackRate,
   ttsConfig,
+  canGenerateAudio,
 }: Props) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [width, setWidth] = useState<"narrow" | "medium" | "wide">("medium");
@@ -62,6 +64,7 @@ export default function UrlViewer({
             entity={entity}
             preferredPlaybackRate={preferredPlaybackRate}
             ttsConfig={ttsConfig}
+            canGenerateAudio={canGenerateAudio}
           />
         </div>
       )}
