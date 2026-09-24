@@ -319,10 +319,10 @@ async function render(context: Context, args: ParsedArgs): Promise<void> {
   if (
     width !== undefined &&
     (!Number.isInteger(Number(width)) ||
-      Number(width) < 1 ||
+      Number(width) < 320 ||
       Number(width) > 4096)
   )
-    throw usageError("--width must be an integer between 1 and 4096");
+    throw usageError("--width must be an integer between 320 and 4096");
   const theme = choice(args, "theme", ["light", "dark"]);
   const paper = choice(args, "paper", PAPER_SIZES);
   const orientation = choice(args, "orientation", ORIENTATIONS);

@@ -14,7 +14,11 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import useModal from "~/hooks/useModal";
 import { useToolbarUtils } from "./utils";
-import { contentFonts, documentFont } from "~/lib/document-fonts";
+import {
+  contentFonts,
+  documentFont,
+  savedFontFamily,
+} from "~/lib/document-fonts";
 import { useDocumentSettings } from "../../context/document-settings-context";
 import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 
@@ -80,8 +84,7 @@ export function FontDropDown({
         const selection = $getSelection();
         if (selection !== null) {
           $patchStyleText(selection, {
-            [style]:
-              style === "font-family" ? documentFont(option).family : option,
+            [style]: style === "font-family" ? savedFontFamily(option) : option,
           });
         }
       });
@@ -331,7 +334,10 @@ function DefaultFontImportModal({
 
 function getFontLabel(value: string, options: [string, string][]) {
   const found = options.find(
-    ([val]) => val === value || documentFont(val).family === value,
+    ([val]) =>
+      val === value ||
+      savedFontFamily(val) === value ||
+      documentFont(val).family === value,
   );
   return found ? found[1].replace(/'/g, "") : value;
 }

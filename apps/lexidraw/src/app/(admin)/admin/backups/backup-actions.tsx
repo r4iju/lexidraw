@@ -76,7 +76,7 @@ export function BackupActions({ backupKey }: { backupKey: string }) {
               <Button variant="outline">Cancel</Button>
             </DialogClose>
             <Button
-              variant="destructive"
+              variant="destructive-confirm"
               onClick={handleDelete}
               disabled={isDeleting}
             >

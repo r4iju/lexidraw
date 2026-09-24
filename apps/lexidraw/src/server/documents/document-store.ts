@@ -21,7 +21,10 @@ export const nextUpdatedAt = () =>
  * The document table as a {@link DocumentStore}. Kept apart from the write
  * itself so the algorithm carries no database with it.
  */
-export function drizzleDocumentStore(db: Db): DocumentStore {
+export function drizzleDocumentStore(
+  db: Db,
+  afterWrite?: (row: typeof schema.entities.$inferSelect) => Promise<void>,
+): DocumentStore {
   return {
     async read(id) {
       const row = await db
@@ -50,11 +53,11 @@ export function drizzleDocumentStore(db: Db): DocumentStore {
             isNull(schema.entities.deletedAt),
           ),
         )
-        .returning({
-          id: schema.entities.id,
-          updatedAt: schema.entities.updatedAt,
-        });
-      return rows[0] ?? null;
+        .returning();
+      const row = rows[0];
+      if (!row) return null;
+      await afterWrite?.(row);
+      return { id: row.id, updatedAt: row.updatedAt };
     },
   };
 }

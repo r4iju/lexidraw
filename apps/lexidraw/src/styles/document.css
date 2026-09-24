@@ -8,7 +8,7 @@
   line-height: 1.6;
   color: var(--foreground);
   font-synthesis: none;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   padding: 16px var(--doc-gutter);
   min-height: calc(100svh - 4rem);
 }
@@ -20,78 +20,80 @@
   margin-inline: auto;
   margin-block: 0 var(--block-gap);
 }
-.document-content :is(p, li) {
+.document-content :is(p, li):not([data-lexical-decorator] *) {
   text-wrap: pretty;
   text-indent: 0;
 }
-.document-content p {
+.document-content p:not([data-lexical-decorator] *) {
   margin-block: 0 var(--block-gap);
   line-height: inherit;
 }
-.document-content :is(h1, h2, h3, h4, h5, h6) {
+.document-content :is(h1, h2, h3, h4, h5, h6):not([data-lexical-decorator] *) {
   color: var(--heading);
   font-weight: 600;
   text-wrap: balance;
   margin-block: var(--heading-before) var(--heading-after);
 }
-.document-content h1 {
+.document-content h1:not([data-lexical-decorator] *) {
   font-size: 1.875em;
   line-height: 1.25;
   letter-spacing: -0.015em;
   --heading-before: 1.6em;
   --heading-after: 0.4em;
 }
-.document-content h2 {
+.document-content h2:not([data-lexical-decorator] *) {
   font-size: 1.5em;
   line-height: 1.3;
   letter-spacing: -0.01em;
   --heading-before: 1.6em;
   --heading-after: 0.4em;
 }
-.document-content h3 {
+.document-content h3:not([data-lexical-decorator] *) {
   font-size: 1.25em;
   line-height: 1.4;
   --heading-before: 1.5em;
   --heading-after: 0.35em;
 }
-.document-content h4 {
+.document-content h4:not([data-lexical-decorator] *) {
   font-size: 1.0625em;
   line-height: 1.5;
   --heading-before: 1.5em;
   --heading-after: 0.25em;
 }
-.document-content h5 {
+.document-content h5:not([data-lexical-decorator] *) {
   font-size: 1em;
   line-height: 1.5;
   --heading-before: 1.25em;
   --heading-after: 0.25em;
 }
-.document-content h6 {
+.document-content h6:not([data-lexical-decorator] *) {
   font-size: 0.875em;
   line-height: 1.5;
   color: var(--muted-foreground);
   --heading-before: 1.25em;
   --heading-after: 0.25em;
 }
-.document-content > :first-child {
+.document-content > :first-child:not([data-lexical-decorator] *) {
   margin-block-start: 0;
 }
-.document-content :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+.document-content
+  :is(h1, h2, h3, h4, h5, h6)
+  + :is(h1, h2, h3, h4, h5, h6):not([data-lexical-decorator] *) {
   margin-block-start: calc(var(--heading-before) / 2);
 }
-.document-content :is(ul, ol) {
+.document-content :is(ul, ol):not([data-lexical-decorator] *) {
   padding-inline-start: 1.625em;
 }
-.document-content li {
+.document-content li:not([data-lexical-decorator] *) {
   margin-block: 0;
 }
-.document-content li + li {
+.document-content li + li:not([data-lexical-decorator] *) {
   margin-block-start: 0.25em;
 }
-.document-content li::marker {
+.document-content li:not([data-lexical-decorator] *)::marker {
   color: var(--muted-foreground);
 }
-.document-content li :is(ul, ol) {
+.document-content li :is(ul, ol):not([data-lexical-decorator] *) {
   margin-block: 0.25em 0;
 }
 .document-content hr {
@@ -127,12 +129,8 @@
   word-break: auto-phrase;
   font-feature-settings: "palt";
 }
-.document-content:is(:lang(ja), :lang(zh), :lang(ko)) :is(em, i, .italic) {
-  font-style: normal;
-  font-weight: 700;
-}
 @container (max-width: 639px) {
-  .document-content h1 {
+  .document-content h1:not([data-lexical-decorator] *) {
     font-size: 1.625em;
   }
 }
@@ -148,39 +146,60 @@
 }
 
 .document-typography {
-  --doc-cjk-sans: "Hiragino Sans", var(--font-noto);
-  --doc-cjk-serif: "Hiragino Mincho ProN", var(--font-serif-jp);
+  --font-mplus: "M PLUS Rounded 1c";
+  --font-noto: "Noto Sans JP";
+  --font-noto-sc: "Noto Sans SC";
+  --font-noto-tc: "Noto Sans TC";
+  --font-noto-kr: "Noto Sans KR";
+  --font-source-serif: "Source Serif 4";
+  --font-serif-jp: "Noto Serif JP";
+  --font-serif-sc: "Noto Serif SC";
+  --font-serif-tc: "Noto Serif TC";
+  --font-serif-kr: "Noto Serif KR";
+  --font-yusei: "Yusei Magic";
+  --font-kosugi: "Kosugi Maru";
+  --font-sawarabi: "Sawarabi Mincho";
+  --font-inter: "Inter";
+
+  --doc-cjk-sans:
+    "Hiragino Sans", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP";
+  --doc-cjk-serif:
+    "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", "Noto Serif JP";
   --doc-font-sans:
     ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
     "Segoe UI", Roboto, "Helvetica Neue", Arial, var(--doc-cjk-sans),
     sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --doc-font-serif:
-    Charter, var(--font-source-serif), Georgia, var(--doc-cjk-serif), serif;
+    Charter, "Source Serif 4", Georgia, var(--doc-cjk-serif), serif;
   --doc-font-mono:
     ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono",
     "Noto Sans Mono CJK JP", var(--doc-cjk-sans), monospace;
 }
 .document-typography:lang(zh),
 .document-content:lang(zh) {
-  --doc-cjk-sans: "PingFang SC", var(--font-noto-sc);
-  --doc-cjk-serif: "Songti SC", var(--font-serif-sc);
+  --doc-cjk-sans:
+    "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC";
+  --doc-cjk-serif: "Songti SC", SimSun, "Noto Serif CJK SC", "Noto Serif SC";
 }
 .document-typography:lang(zh-Hant),
 .document-content:lang(zh-Hant),
 .document-typography:lang(zh-TW),
 .document-content:lang(zh-TW) {
-  --doc-cjk-sans: "PingFang TC", var(--font-noto-tc);
-  --doc-cjk-serif: "Songti TC", var(--font-serif-tc);
+  --doc-cjk-sans:
+    "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Noto Sans TC";
+  --doc-cjk-serif: "Songti TC", PMingLiU, "Noto Serif CJK TC", "Noto Serif TC";
 }
 .document-typography:lang(ko),
 .document-content:lang(ko) {
-  --doc-cjk-sans: "Apple SD Gothic Neo", var(--font-noto-kr);
-  --doc-cjk-serif: var(--font-serif-kr);
+  --doc-cjk-sans:
+    "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR";
+  --doc-cjk-serif: Batang, "Noto Serif CJK KR", "Noto Serif KR";
 }
 
 .document-content > [data-lexical-decorator]:not(hr) {
   display: block;
   width: fit-content;
+  max-width: min(var(--doc-wide), 100%);
 }
 
 .document-content > .document-table-region {

@@ -305,7 +305,7 @@ export const DebugPanel: React.FC = () => {
       </Button>
 
       {error && (
-        <div className="p-2 text-sm text-destructive-foreground bg-destructive rounded-md">
+        <div className="p-2 text-sm bg-destructive-bg text-destructive rounded-md">
           <p className="font-semibold">Error:</p>
           <pre className="whitespace-pre-wrap break-all">{error}</pre>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { MenuIcon, LoaderCircleIcon } from "lucide-react";
+import { MenuIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -73,7 +73,12 @@ export default function UrlOptionsDropdown({
         <DropdownMenuSeparator />
         <DropdownMenuGroup title="Article">
           <DropdownMenuItem onClick={handleRefresh} disabled={isPending}>
-            <LoaderCircleIcon className="mr-2 inline-block" /> Refresh
+            {isPending ? (
+              <LoaderCircleIcon className="mr-2 inline-block animate-spin" />
+            ) : (
+              <RefreshCwIcon className="mr-2 inline-block" />
+            )}{" "}
+            Refresh
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
             Rename

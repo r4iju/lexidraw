@@ -527,7 +527,11 @@ describe("a document rendered to PDF", () => {
       new Request(
         `http://lexidraw.test/api/v1/documents/rest_printed/render?${query}`,
         {
-          headers: { authorization: `Bearer ${token}`, host: "lexidraw.test" },
+          headers: {
+            authorization: `Bearer ${token}`,
+            host: "attacker.test",
+            "x-forwarded-proto": "https",
+          },
         },
       ),
     );
@@ -548,7 +552,7 @@ describe("a document rendered to PDF", () => {
   test("prints the page the reader could open, for this document only", async () => {
     await render(READ_TOKEN, "format=pdf");
     const page = new URL(rendered[0]?.url);
-    expect(page.host).toBe("lexidraw.test");
+    expect(page.origin).toBe(new URL(process.env.NEXTAUTH_URL || "").origin);
     expect(page.pathname).toBe("/documents/rest_printed/print");
     const { verifyPrintToken } = await import("~/server/auth/print-token");
     expect(
@@ -578,7 +582,7 @@ describe("a document rendered to PDF", () => {
   });
 
   test("rejects invalid PNG widths before reaching the worker", async () => {
-    for (const width of ["0", "4097", "16000001", "375.5"]) {
+    for (const width of ["0", "1", "319", "4097", "16000001", "375.5"]) {
       expect(
         (await render(READ_TOKEN, `format=png&width=${width}`)).response.status,
       ).toBe(400);
@@ -614,6 +618,7 @@ describe("a document rendered to PDF", () => {
   test("heads each page with the title, as text rather than markup", async () => {
     await render(READ_TOKEN, "format=pdf");
     expect(rendered[0]?.headerTemplate).toContain("Q3 &lt;plan&gt;");
+    expect(rendered[0]?.headerTemplate).toContain("padding: 0 18mm");
     expect(rendered[0]?.headerTemplate).not.toContain("<plan>");
   });
 

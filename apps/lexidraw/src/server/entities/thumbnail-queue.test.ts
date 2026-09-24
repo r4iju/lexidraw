@@ -4,13 +4,15 @@ import { installServerRuntime } from "~/test/server-runtime";
 
 const db = await installServerRuntime();
 const started: unknown[][] = [];
+let launch: Promise<unknown> | undefined;
 mock.module("workflow/api", () => ({
   start: async (_workflow: unknown, args: unknown[]) => {
     started.push(args);
-    return {};
+    return launch ?? {};
   },
 }));
 const { appRouter } = await import("~/server/api/root");
+const { markdownToEditorState } = await import("~/server/documents/markdown");
 const caller = appRouter.createCaller({
   drizzle: db,
   schema,
@@ -80,8 +82,18 @@ test("document create, editor save and each markdown write queue a current thumb
       ifUnmodifiedSince: new Date(revision.updatedAt).toISOString(),
     }),
   );
-  await queued(id, () => caller.documents.save({ id, elements: empty }));
-  await queued(id, () => caller.entities.save({ id, elements: empty }));
+  await queued(id, () =>
+    caller.documents.save({
+      id,
+      elements: JSON.stringify(markdownToEditorState("Saved in the editor")),
+    }),
+  );
+  await queued(id, () =>
+    caller.entities.save({
+      id,
+      elements: JSON.stringify(markdownToEditorState("Saved again")),
+    }),
+  );
   const count = started.length;
   await expect(
     caller.documents.replaceMarkdown({
@@ -112,7 +124,9 @@ test("drawing create and put queue a thumbnail, directories do not", async () =>
   await queued(drawing.id, () =>
     caller.drawings.put({
       id: drawing.id,
-      elements: [],
+      elements: [
+        { id: "shape", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+      ],
       ifUnmodifiedSince: drawing.updatedAt,
     }),
   );
@@ -158,4 +172,46 @@ test("a slow thumbnail cannot replace the picture of a newer write", async () =>
   expect(listed?.thumbnailVersion).toBe(current?.thumbnailVersion);
   expect(listed?.screenShotLight).toBe("https://example.test/new-light.png");
   expect(listed?.thumbnailStatus).toBe("ready");
+});
+
+test("same-version saves preserve pending and processing jobs", async () => {
+  const id = "thumbq_duplicate";
+  await caller.documents.create({ id, title: "Duplicate", elements: empty });
+  const { eq } = await import("drizzle-orm");
+  for (const status of ["pending", "processing"] as const) {
+    await db
+      .update(schema.thumbnailJobs)
+      .set({ status, attempts: 2 })
+      .where(eq(schema.thumbnailJobs.entityId, id));
+    const before = started.length;
+    await caller.documents.save({ id, elements: empty });
+    expect(started).toHaveLength(before);
+    const job = await db.query.thumbnailJobs.findFirst({
+      where: eq(schema.thumbnailJobs.entityId, id),
+    });
+    expect(job?.status).toBe(status);
+    expect(job?.attempts).toBe(2);
+  }
+});
+
+test("writes finish while the workflow launcher is still pending", async () => {
+  let release!: () => void;
+  launch = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    const write = caller.documents.create({
+      id: "thumbq_slow",
+      title: "Slow launch",
+      elements: empty,
+    });
+    const result = await Promise.race([
+      write.then(() => "saved"),
+      Bun.sleep(300).then(() => "blocked"),
+    ]);
+    expect(result).toBe("saved");
+  } finally {
+    release();
+    launch = undefined;
+  }
 });

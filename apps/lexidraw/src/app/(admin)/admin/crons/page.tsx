@@ -62,7 +62,6 @@ async function CronsContent() {
 export default async function SignInPage() {
   return (
     <main
-      id="main-content"
       tabIndex={-1}
       className=" flex h-full flex-col items-center justify-center "
     >

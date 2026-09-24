@@ -150,8 +150,8 @@ export async function checkTypography(page: Page, fixtureId: string) {
     spacing: "0.32px",
     breaking: "strict",
     headingBreak: "auto-phrase",
-    italic: "normal",
-    weight: "700",
+    italic: "italic",
+    weight: "400",
   });
 
   const narrow = await page.$eval("#main-content", (main) => {
@@ -215,10 +215,14 @@ export async function checkDocumentSettings(page: Page, fixtureId: string) {
     throw new Error(`Missing ${text}`);
   }
   async function choose(face: string, lang: string) {
-    await page.click('[aria-label="Formatting options for font family"]');
+    await page
+      .locator('[aria-label="Formatting options for font family"]')
+      .click();
     await clickText(`Document: ${face}`, '[role="menuitem"]');
     await page.waitForSelector('[role="menu"]', { hidden: true });
-    await page.click('[aria-label="Formatting options for font family"]');
+    await page
+      .locator('[aria-label="Formatting options for font family"]')
+      .click();
     await clickText("Document language…", '[role="menuitem"]');
     await page.select("#document-language", lang);
     await clickText("Apply", "button");

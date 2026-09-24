@@ -178,7 +178,7 @@ export const documentRouter = createTRPCRouter({
         })
         .onConflictDoNothing()
         .returning();
-      for (const row of created) await queueThumbnail(ctx.drizzle, row.id);
+      for (const row of created) await queueThumbnail(ctx.drizzle, row);
       await revalidateEntitiesAndParents(
         ctx.drizzle,
         ...created.map((row) => row.id),
@@ -295,12 +295,13 @@ export const documentRouter = createTRPCRouter({
       }
       try {
         const written = await appendMarkdownToDocument(
-          drizzleDocumentStore(ctx.drizzle),
+          drizzleDocumentStore(ctx.drizzle, (row) =>
+            queueThumbnail(ctx.drizzle, row),
+          ),
           entity,
           input.markdown,
           input.ifUnmodifiedSince,
         );
-        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, entity.parentId);
         return written;
@@ -408,13 +409,14 @@ export const documentRouter = createTRPCRouter({
       }
       try {
         const written = await insertMarkdownIntoDocument(
-          drizzleDocumentStore(ctx.drizzle),
+          drizzleDocumentStore(ctx.drizzle, (row) =>
+            queueThumbnail(ctx.drizzle, row),
+          ),
           entity,
           input.markdown,
           input.placement,
           input.ifUnmodifiedSince,
         );
-        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, entity.parentId);
         return written;
@@ -484,12 +486,13 @@ export const documentRouter = createTRPCRouter({
       }
       try {
         const written = await replaceMarkdownInDocument(
-          drizzleDocumentStore(ctx.drizzle),
+          drizzleDocumentStore(ctx.drizzle, (row) =>
+            queueThumbnail(ctx.drizzle, row),
+          ),
           entity,
           input.markdown,
           input.ifUnmodifiedSince,
         );
-        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, entity.parentId);
         return written;
@@ -521,7 +524,7 @@ export const documentRouter = createTRPCRouter({
         })
         .where(eq(schema.entities.id, input.id))
         .returning();
-      await queueThumbnail(ctx.drizzle, input.id);
+      for (const row of saved) await queueThumbnail(ctx.drizzle, row);
       revalidateEntities(input.id, entity.parentId);
       return saved;
     }),
@@ -574,7 +577,7 @@ export const documentRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         format: z.enum(DOCUMENT_RENDER_FORMATS).default("png"),
-        width: z.number().int().min(1).max(MAX_DOCUMENT_WIDTH).default(1280),
+        width: z.number().int().min(320).max(MAX_DOCUMENT_WIDTH).default(1280),
         theme: z.enum(["light", "dark"]).default("light"),
         paper: z.enum(PAPER_SIZES).default("A4"),
         orientation: z.enum(ORIENTATIONS).default("portrait"),
@@ -600,12 +603,9 @@ export const documentRouter = createTRPCRouter({
           message: "Document not found",
         });
       }
-      const proto = ctx.headers.get("x-forwarded-proto") ?? "http";
-      const host = ctx.headers.get("host");
       let file: Uint8Array;
       try {
         file = await renderDocument({
-          appOrigin: `${proto}://${host}`,
           documentId: entity.id,
           userId,
           title: entity.title,

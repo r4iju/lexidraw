@@ -11,7 +11,7 @@ export function documentSettings(appState: string | null) {
   return documentSettingsSchema.parse(JSON.parse(appState || "{}"));
 }
 
-const bundledFonts: Record<string, string> = {
+const legacyFontVariables: Record<string, string> = {
   Fredoka: "--font-fredoka",
   Inter: "--font-inter",
   "Ubuntu Mono": "--font-ubuntu-mono",
@@ -54,11 +54,17 @@ export function documentFont(value?: string | null): {
       : normalized === "serif"
         ? "serif"
         : null;
-  if (readingFace) return { family: `var(--doc-font-${readingFace})` };
-  const bundled = Object.entries(bundledFonts).find(
-    ([family]) => family.toLowerCase() === normalized,
-  )?.[1];
-  if (bundled) return { family: `var(${bundled}), var(--doc-font-sans)` };
+  if (readingFace)
+    return {
+      family: `var(--doc-font-${readingFace})`,
+      ...(readingFace === "serif"
+        ? { href: "/api/fonts?family=Source%20Serif%204" }
+        : {}),
+    };
+  if (name === "Fredoka")
+    return { family: "var(--font-fredoka), var(--doc-font-sans)" };
+  if (name === "Ubuntu Mono")
+    return { family: "var(--font-ubuntu-mono), monospace" };
   // Font stacks and CSS variables already express their own fallback.
   if (name.includes(",") || name.startsWith("var(")) return { family: name };
   return {
@@ -97,7 +103,12 @@ export function documentLanguage(
   if (count(/\p{Script=Hangul}/gu) / letters > 0.2) return "ko";
   const kana = count(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
   const han = count(/\p{Script=Han}/gu);
-  if ((kana + han) / letters > 0.2) return kana ? "ja" : "zh-Hans";
+  if ((kana + han) / letters > 0.2) {
+    if (kana) return "ja";
+    if (/[們這說會體國學書讀與為後來時]/u.test(text)) return "zh-Hant";
+    if (/[们这说会体国学书读与为后来时档写]/u.test(text)) return "zh-Hans";
+    return undefined;
+  }
   return "en";
 }
 
@@ -112,10 +123,43 @@ export function contentFonts(elements: string | null) {
     for (const [key, child] of Object.entries(value)) {
       if (key === "style" && typeof child === "string") {
         const match = /(?:^|;)\s*font-family:\s*([^;]+)/i.exec(child);
-        if (match?.[1]) names.add(fontName(match[1].split(",")[0] || match[1]));
+        if (match?.[1]) {
+          const value = fontName(match[1].split(",")[0] || match[1]);
+          const legacy = Object.entries(legacyFontVariables).find(
+            ([, variable]) => value === `var(${variable})`,
+          )?.[0];
+          names.add(
+            legacy ||
+              value.replace(/^var\(--doc-font-(sans|serif|mono)\)$/, "$1"),
+          );
+        }
       } else if (typeof child === "object") visit(child);
     }
   }
   visit(JSON.parse(elements || "{}"));
   return [...names];
+}
+
+export function languageFont(lang: string | undefined, family: string) {
+  const region = lang?.startsWith("ja")
+    ? "JP"
+    : lang?.startsWith("ko")
+      ? "KR"
+      : /^(zh-Hant|zh-TW|zh-HK)/i.test(lang || "")
+        ? "TC"
+        : lang?.startsWith("zh")
+          ? "SC"
+          : null;
+  if (
+    !region ||
+    !/^(sans|sans-serif|system-ui|serif|mono|monospace)$/.test(family)
+  )
+    return undefined;
+  return `Noto ${family === "serif" ? "Serif" : "Sans"} ${region}`;
+}
+
+export function savedFontFamily(value: string) {
+  if (value === "sans") return "sans-serif";
+  if (value === "mono") return "monospace";
+  return value;
 }

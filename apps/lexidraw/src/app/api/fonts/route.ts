@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     "wght@400",
   ]) {
     const response = await fetch(
-      `https://fonts.googleapis.com/css2?family=${family}:${axes}&display=block`,
+      `https://fonts.googleapis.com/css2?family=${family}:${axes}&display=swap`,
       {
         headers: {
           "User-Agent":

@@ -470,7 +470,7 @@ function ShowDeleteCommentOrThreadDialog({
           Cancel
         </Button>
         <Button
-          variant="destructive"
+          variant="destructive-confirm"
           onClick={() => {
             deleteCommentOrThread(
               commentOrThread,

@@ -341,12 +341,13 @@ export const drawingRouter = createTRPCRouter({
       const elements = await normalize(input);
       try {
         const written = await replaceDrawingElements(
-          drizzleDocumentStore(ctx.drizzle),
+          drizzleDocumentStore(ctx.drizzle, (row) =>
+            queueThumbnail(ctx.drizzle, row),
+          ),
           drawing,
           elements,
           input.ifUnmodifiedSince,
         );
-        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, drawing.parentId);
         return { ...written, updatedAt: written.updatedAt.toISOString() };
@@ -416,7 +417,12 @@ export const drawingRouter = createTRPCRouter({
           message: `An entity with id "${input.id}" already exists`,
         });
       }
-      await queueThumbnail(ctx.drizzle, row.id);
+      await queueThumbnail(ctx.drizzle, {
+        ...row,
+        entityType: "drawing",
+        elements: JSON.stringify(elements),
+        appState: "{}",
+      });
       await revalidateEntitiesAndParents(ctx.drizzle, row.id, parentId);
       return {
         id: row.id,

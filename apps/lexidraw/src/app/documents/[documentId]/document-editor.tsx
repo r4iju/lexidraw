@@ -4,6 +4,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -283,6 +284,10 @@ function EditorHandler({
     onSavesResumed,
   });
   const { defaultFontFamily, lang } = useDocumentSettings();
+  const detectedLanguage = useMemo(
+    () => documentLanguage(entity.elements, lang),
+    [entity.elements, lang],
+  );
   const { enabled: autoSaveEnabled } = useAutoSave({ enabled: canEdit });
 
   const handleImportMarkdown = useCallback(
@@ -417,7 +422,10 @@ function EditorHandler({
 
   return (
     <FlashMessageContext>
-      <FontResources fonts={[defaultFontFamily || "sans"]} />
+      <FontResources
+        lang={detectedLanguage}
+        fonts={[defaultFontFamily || "sans"]}
+      />
       <EditorRegistryProvider>
         <ToolbarContext>
           <LLMProvider initialConfig={initialLlmConfig}>
@@ -426,7 +434,7 @@ function EditorHandler({
                 <ImageProvider>
                   <LexicalImageProvider>
                     <CommentPluginProvider>
-                      <DocumentFontsPlugin />
+                      <DocumentFontsPlugin lang={detectedLanguage} />
                       <SlidePlugin />
                       <EditabilityPlugin editable={canEdit && !reading} />
                       {!onScreen && <RenderReadyPlugin />}
@@ -531,10 +539,7 @@ function EditorHandler({
                                   <ContentEditable
                                     id={`lexical-content-${entity.id}`}
                                     aria-label="Document content"
-                                    lang={documentLanguage(
-                                      entity.elements,
-                                      lang,
-                                    )}
+                                    lang={detectedLanguage}
                                     style={{
                                       fontFamily:
                                         documentFont(defaultFontFamily).family,

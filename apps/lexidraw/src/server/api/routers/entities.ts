@@ -231,7 +231,11 @@ export const entityRouter = createTRPCRouter({
           updatedAt: schema.entities.updatedAt,
         });
       if (created) {
-        await queueThumbnail(ctx.drizzle, created.id);
+        await queueThumbnail(ctx.drizzle, {
+          ...created,
+          elements: input.elements,
+          appState: "{}",
+        });
         await revalidateEntitiesAndParents(
           ctx.drizzle,
           created.id,
@@ -329,7 +333,7 @@ export const entityRouter = createTRPCRouter({
                 ),
           ),
         )
-        .returning({ updatedAt: schema.entities.updatedAt });
+        .returning();
       if (!saved[0]) {
         const current = await drizzleDocumentStore(ctx.drizzle).read(input.id);
         if (!current) throw notFound();
@@ -344,7 +348,7 @@ export const entityRouter = createTRPCRouter({
         });
       }
       const entityUpdatedAt = saved[0].updatedAt;
-      await queueThumbnail(ctx.drizzle, input.id);
+      await queueThumbnail(ctx.drizzle, saved[0]);
 
       // Both directories, because `parentId` may have moved the entity out of
       // the one it was listed in, and the listings above them with it.

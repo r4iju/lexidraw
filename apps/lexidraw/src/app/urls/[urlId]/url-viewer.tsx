@@ -35,7 +35,11 @@ export default function UrlViewer({
   const openEdit = () => setIsEditOpen(true);
 
   return (
-    <div className="w-full relative overflow-y-auto">
+    <div
+      id="main-content"
+      tabIndex={-1}
+      className="w-full relative overflow-y-auto"
+    >
       <UrlHeader
         entity={entity}
         onChangeUrl={openEdit}

@@ -25,6 +25,7 @@ test("custom fonts request real italic and bold, with a normal-only fallback", a
     expect(urls[0]).toContain(
       "family=Open+Sans:ital,wght@0,400;0,700;1,400;1,700",
     );
+    expect(urls[0]).toContain("display=swap");
     expect(urls[1]).toContain("family=Open+Sans:wght@400;700");
     expect(await response.text()).toContain("@font-face");
   } finally {

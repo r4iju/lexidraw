@@ -10,7 +10,8 @@ import FormProvider from "~/components/hook-form";
 import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { getDefaults } from "@packages/lib";
-import { GitBranchIcon, LoaderCircleIcon } from "lucide-react";
+import { LoaderCircleIcon } from "lucide-react";
+import { GitHubMark } from "~/components/github-mark";
 import { cn } from "~/lib/utils";
 
 export default function SignInForm() {
@@ -76,7 +77,7 @@ export default function SignInForm() {
   return (
     <div>
       <Button onClick={handleGitHubSignin} className="w-full">
-        <GitBranchIcon className="mr-4 size-4" />
+        <GitHubMark className="mr-4 size-4" />
         Sign in with GitHub
       </Button>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>

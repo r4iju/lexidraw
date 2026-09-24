@@ -4,12 +4,23 @@ import {
   documentFont,
   documentLanguage,
   documentSettings,
+  languageFont,
 } from "~/lib/document-fonts";
 
-export function FontResources({ fonts }: { fonts: string[] }) {
-  return [...new Set(fonts)].map((name) => {
+export function FontResources({
+  fonts,
+  lang,
+}: {
+  fonts: string[];
+  lang?: string;
+}) {
+  const resources = fonts.flatMap((family) => {
+    const cjk = languageFont(lang, family);
+    return cjk ? [family, cjk] : [family];
+  });
+  return [...new Set(resources)].map((name) => {
     const font = documentFont(name);
-    // Old documents name bundled faces directly; map them without rewriting saved text.
+    // Keep semantic saved names while applying the document reading stacks.
     const aliases = /^[\p{L}\p{N} -]+$/u.test(name)
       ? [name, `'${name}'`, `"${name}"`]
           .flatMap((value) => [
@@ -20,9 +31,7 @@ export function FontResources({ fonts }: { fonts: string[] }) {
       : "";
     return (
       <span key={name} hidden>
-        {font.href && (
-          <link rel="stylesheet" href={font.href} precedence="document-font" />
-        )}
+        {font.href && <link rel="stylesheet" href={font.href} />}
         {aliases && (
           <style>{`${aliases} { font-family: ${font.family} !important; }`}</style>
         )}
@@ -40,6 +49,7 @@ export function DocumentTypography({
 }) {
   const settings = documentSettings(entity.appState);
   const font = documentFont(settings.defaultFontFamily);
+  const lang = documentLanguage(entity.elements, settings.lang);
   const style: CSSProperties & { "--doc-font": string } = {
     "--doc-font": font.family,
     fontFamily: font.family,
@@ -47,10 +57,11 @@ export function DocumentTypography({
   return (
     <div
       className="document-typography h-full min-h-0"
-      lang={documentLanguage(entity.elements, settings.lang)}
+      lang={lang}
       style={style}
     >
       <FontResources
+        lang={lang}
         fonts={[
           settings.defaultFontFamily || "sans",
           ...contentFonts(entity.elements),

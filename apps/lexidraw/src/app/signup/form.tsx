@@ -11,7 +11,8 @@ import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { toast } from "sonner";
 import { getDefaults } from "@packages/lib";
-import { GitBranchIcon, LoaderCircleIcon } from "lucide-react";
+import { LoaderCircleIcon } from "lucide-react";
+import { GitHubMark } from "~/components/github-mark";
 import { signIn } from "next-auth/react";
 import { cn } from "~/lib/utils";
 
@@ -54,7 +55,7 @@ export default function SignUpForm() {
   return (
     <div>
       <Button onClick={handleGitHubSignup} className="w-full">
-        <GitBranchIcon className="mr-4 size-4" />
+        <GitHubMark className="mr-4 size-4" />
         Sign in with GitHub
       </Button>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>

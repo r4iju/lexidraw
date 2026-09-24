@@ -50,7 +50,6 @@ function escapeHtml(text: string): string {
  * to the document and caller whose read access the route has checked.
  */
 export async function renderDocument(params: {
-  appOrigin: string;
   documentId: string;
   userId: string;
   title: string;
@@ -71,7 +70,11 @@ export async function renderDocument(params: {
     pdf
       ? `/documents/${encodeURIComponent(params.documentId)}/print`
       : `/screenshot/view/${encodeURIComponent(params.documentId)}`,
-    params.appOrigin,
+    new URL(
+      env.NEXTAUTH_URL.includes("://")
+        ? env.NEXTAUTH_URL
+        : `https://${env.NEXTAUTH_URL}`,
+    ).origin,
   );
   url.searchParams.set(pdf ? "token" : "st", token);
 
@@ -92,7 +95,7 @@ export async function renderDocument(params: {
                 bottom: "20mm",
                 left: "18mm",
               },
-              headerTemplate: `<div style="font-size: 8px; width: 100%; padding: 0 14mm; color: #666;">${escapeHtml(params.title)}</div>`,
+              headerTemplate: `<div style="font-size: 8px; width: 100%; padding: 0 18mm; color: #666;">${escapeHtml(params.title)}</div>`,
             }
           : {
               viewport: {
