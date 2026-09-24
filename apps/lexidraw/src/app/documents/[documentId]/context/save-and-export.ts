@@ -1,3 +1,4 @@
+import { documentSettings } from "~/lib/document-fonts";
 import { toast } from "sonner";
 import type { OpenEntity } from "~/hooks/use-open-entity-sync";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -16,7 +17,7 @@ export function useSaveAndExportDocument({
   editorStateRef: RefObject<EditorState | undefined>;
   openDocument: OpenEntity;
 }) {
-  const { defaultFontFamily } = useDocumentSettings();
+  const { defaultFontFamily, lang } = useDocumentSettings();
   const [isSaving, setIsSaving] = useState(false);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
@@ -32,7 +33,11 @@ export function useSaveAndExportDocument({
     openDocument.sync
       .save({
         elements: JSON.stringify(editorState),
-        appState: JSON.stringify({ defaultFontFamily }),
+        appState: JSON.stringify({
+          ...documentSettings(entity.appState),
+          defaultFontFamily,
+          lang,
+        }),
       })
       .then(
         (outcome) =>

@@ -38,7 +38,7 @@ styling defects recorded in these baselines.
 Each render goes through the same `GET /documents/{id}/render` operation as the
 CLI and MCP, at 375/768/1280px in light/dark. PNGs retain 1:1 pixels, capped at
 6000px high to bound repository growth (currently all six fit without clipping).
-The six committed images total about **1.4 MB**. Pixelmatch ignores minor
+The six committed images total about **1.8 MB**. Pixelmatch ignores minor
 antialiasing changes with a per-pixel threshold of 0.15 and permits at most
 0.5% differing pixels. A changed image size always fails. Actual images and
 failure diffs go in `.playwright-mcp/document-snapshots/`, never in the baseline
@@ -48,3 +48,10 @@ Chromium and installed fonts when comparing across machines.
 The suite also checks browser-rendered UI colours for text/input/switch contrast,
 neutral hover tokens, the UI font and ordered dark surfaces. The fixture pairs
 a highlight with a comment underline and uses chart token names in saved data.
+
+Typography checks use `~/.lexidraw-dev-account` for the first sign-in and reuse
+an ignored local browser profile in `.playwright-mcp/document-snapshots/browser`.
+They verify rendered sizes, the 704px prose / 1024px wide column, heading scale,
+CJK emphasis and breaking, print type, container responsiveness, unused font
+families, the toolbar size field, and font/language settings after save and
+reload. Only localhost:3025 is used.

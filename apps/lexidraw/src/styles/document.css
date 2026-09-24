@@ -1,0 +1,184 @@
+.document-content {
+  --doc-measure: 44rem;
+  --doc-wide: 64rem;
+  --block-gap: 0.75em;
+  --doc-gutter: clamp(16px, 5cqi, 48px);
+  font-family: var(--doc-font, var(--doc-font-sans));
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--foreground);
+  font-synthesis: none;
+  overflow-wrap: anywhere;
+  padding: 16px var(--doc-gutter);
+  min-height: calc(100svh - 4rem);
+}
+.document-viewport {
+  container-type: inline-size;
+}
+.document-content > * {
+  max-width: var(--doc-measure);
+  margin-inline: auto;
+  margin-block: 0 var(--block-gap);
+}
+.document-content :is(p, li) {
+  text-wrap: pretty;
+  text-indent: 0;
+}
+.document-content p {
+  margin-block: 0 var(--block-gap);
+  line-height: inherit;
+}
+.document-content :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--heading);
+  font-weight: 600;
+  text-wrap: balance;
+  margin-block: var(--heading-before) var(--heading-after);
+}
+.document-content h1 {
+  font-size: 1.875em;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  --heading-before: 1.6em;
+  --heading-after: 0.4em;
+}
+.document-content h2 {
+  font-size: 1.5em;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  --heading-before: 1.6em;
+  --heading-after: 0.4em;
+}
+.document-content h3 {
+  font-size: 1.25em;
+  line-height: 1.4;
+  --heading-before: 1.5em;
+  --heading-after: 0.35em;
+}
+.document-content h4 {
+  font-size: 1.0625em;
+  line-height: 1.5;
+  --heading-before: 1.5em;
+  --heading-after: 0.25em;
+}
+.document-content h5 {
+  font-size: 1em;
+  line-height: 1.5;
+  --heading-before: 1.25em;
+  --heading-after: 0.25em;
+}
+.document-content h6 {
+  font-size: 0.875em;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  --heading-before: 1.25em;
+  --heading-after: 0.25em;
+}
+.document-content > :first-child {
+  margin-block-start: 0;
+}
+.document-content :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+  margin-block-start: calc(var(--heading-before) / 2);
+}
+.document-content :is(ul, ol) {
+  padding-inline-start: 1.625em;
+}
+.document-content li {
+  margin-block: 0;
+}
+.document-content li + li {
+  margin-block-start: 0.25em;
+}
+.document-content li::marker {
+  color: var(--muted-foreground);
+}
+.document-content li :is(ul, ol) {
+  margin-block: 0.25em 0;
+}
+.document-content hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin-block: 2em;
+}
+.document-content
+  > :is(
+    table,
+    pre,
+    code,
+    [data-lexical-decorator]:not(hr),
+    [data-lexical-layout-container],
+    .document-wide
+  ),
+.document-content > p:has(> .editor-image) {
+  max-width: var(--doc-wide);
+}
+.document-content > .document-full {
+  max-width: none;
+}
+.document-content :is([data-lexical-layout-item], .document-column, td, th) {
+  min-width: 0;
+  container-type: inline-size;
+}
+.document-content:is(:lang(ja), :lang(zh)) {
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+  line-break: strict;
+}
+.document-content:is(:lang(ja), :lang(zh)) :is(h1, h2, h3, h4, h5, h6) {
+  word-break: auto-phrase;
+  font-feature-settings: "palt";
+}
+.document-content:is(:lang(ja), :lang(zh), :lang(ko)) :is(em, i, .italic) {
+  font-style: normal;
+  font-weight: 700;
+}
+@container (max-width: 639px) {
+  .document-content h1 {
+    font-size: 1.625em;
+  }
+}
+@container (max-width: 390px) {
+  .document-content {
+    --doc-gutter: 16px;
+  }
+}
+@container (min-width: 1280px) {
+  .document-content {
+    --doc-gutter: 96px;
+  }
+}
+
+.document-typography {
+  --doc-cjk-sans: "Hiragino Sans", var(--font-noto);
+  --doc-cjk-serif: "Hiragino Mincho ProN", var(--font-serif-jp);
+  --doc-font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, var(--doc-cjk-sans),
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --doc-font-serif:
+    Charter, var(--font-source-serif), Georgia, var(--doc-cjk-serif), serif;
+  --doc-font-mono:
+    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    "Noto Sans Mono CJK JP", var(--doc-cjk-sans), monospace;
+}
+.document-typography:lang(zh),
+.document-content:lang(zh) {
+  --doc-cjk-sans: "PingFang SC", var(--font-noto-sc);
+  --doc-cjk-serif: "Songti SC", var(--font-serif-sc);
+}
+.document-typography:lang(zh-Hant),
+.document-content:lang(zh-Hant),
+.document-typography:lang(zh-TW),
+.document-content:lang(zh-TW) {
+  --doc-cjk-sans: "PingFang TC", var(--font-noto-tc);
+  --doc-cjk-serif: "Songti TC", var(--font-serif-tc);
+}
+.document-typography:lang(ko),
+.document-content:lang(ko) {
+  --doc-cjk-sans: "Apple SD Gothic Neo", var(--font-noto-kr);
+  --doc-cjk-serif: var(--font-serif-kr);
+}
+
+.document-content > [data-lexical-decorator]:not(hr) {
+  display: block;
+  width: fit-content;
+}

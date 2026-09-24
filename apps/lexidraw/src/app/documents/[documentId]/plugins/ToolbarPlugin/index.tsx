@@ -48,6 +48,7 @@ import { ColorPickerButton } from "~/components/ui/color-picker";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { useSanitizeUrl } from "../../utils/url";
 import FontSize from "./font-size";
+import { useDocumentSettings } from "../../context/document-settings-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -107,10 +108,11 @@ export default function ToolbarPlugin({
   );
   const { dropDownActiveClass } = useToolbarUtils();
   const getSelectedNode = useGetSelectedNode();
-  const [fontSize, setFontSize] = useState<string>("15px");
+  const { defaultFontFamily } = useDocumentSettings();
+  const [fontSize, setFontSize] = useState<string>("16px");
   const [fontColor, setFontColor] = useState<string>("");
   const [bgColor, setBgColor] = useState<string>("");
-  const [fontFamily, setFontFamily] = useState<string>("Fredoka");
+  const [fontFamily, setFontFamily] = useState<string>("");
   const [elementFormat, setElementFormat] = useState<ElementFormatType>("left");
   const [isLink, setIsLink] = useState(false);
   const [isBold, setIsBold] = useState(false);
@@ -213,7 +215,7 @@ export default function ToolbarPlugin({
         $getSelectionStyleValueForProperty(selection, "background-color", ""),
       );
       setFontFamily(
-        $getSelectionStyleValueForProperty(selection, "font-family", "Fredoka"),
+        $getSelectionStyleValueForProperty(selection, "font-family", ""),
       );
       let matchingParent: LexicalNode | null = null;
       if ($isLinkNode(parent)) {
@@ -234,12 +236,20 @@ export default function ToolbarPlugin({
       );
     }
     if ($isRangeSelection(selection)) {
+      const anchorElement = activeEditor.getElementByKey(selection.anchor.key);
+      const renderedSize = anchorElement
+        ? getComputedStyle(anchorElement).fontSize
+        : "16px";
       setFontSize(
-        $getSelectionStyleValueForProperty(selection, "font-size", "15px"),
+        $getSelectionStyleValueForProperty(
+          selection,
+          "font-size",
+          renderedSize,
+        ),
       );
     } else if ($isTableSelection(selection)) {
       // Table selections don't carry inline font-size; keep/default
-      setFontSize("15px");
+      setFontSize("16px");
     }
   }, [activeEditor, getSelectedNode]);
 
@@ -474,7 +484,7 @@ export default function ToolbarPlugin({
                 />
                 <FontDropDown
                   style={"font-family"}
-                  value={fontFamily}
+                  value={fontFamily || defaultFontFamily || "sans"}
                   editor={activeEditor}
                   className="rounded-l-none border-l-0"
                 />

@@ -16,14 +16,8 @@ import { useDebounceValue } from "~/lib/client-utils";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Label } from "~/components/ui/label";
 import { Input } from "~/components/ui/input";
-import { Ubuntu_Mono } from "next/font/google";
+import { mono } from "~/lib/fonts";
 import { cn } from "~/lib/utils";
-
-const mono = Ubuntu_Mono({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  variable: "--font-mono",
-});
 
 type Props = {
   isOpen: boolean;

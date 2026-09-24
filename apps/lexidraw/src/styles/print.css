@@ -2,10 +2,25 @@
 
 /* The paper size is whatever the print dialog, or the PDF export, chose. */
 @page {
-  margin: 16mm 14mm;
+  margin: 18mm 18mm 20mm;
 }
 
 @media print {
+  .document-content {
+    --doc-measure: 100%;
+    --doc-wide: 100%;
+    font-size: 10.5pt;
+    line-height: 1.5 !important;
+    padding: 0;
+    letter-spacing: normal;
+  }
+  .document-content > * {
+    max-width: none;
+  }
+  .document-viewport {
+    container-type: normal;
+  }
+
   /* Editor chrome and dev overlays; the document is what prints. */
   [data-component-name="Toolbar"],
   [data-component-name="CommentsPanel"],
@@ -72,6 +87,7 @@
   h5,
   h6 {
     break-after: avoid;
+    break-inside: avoid;
   }
 
   figure,

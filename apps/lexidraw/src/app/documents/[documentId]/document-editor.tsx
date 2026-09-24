@@ -1,6 +1,5 @@
 "use client";
 
-import { z } from "zod";
 import {
   type RefObject,
   useCallback,
@@ -127,15 +126,12 @@ import {
 import VideoPlugin from "./plugins/VideoPlugin";
 import { VideoNode } from "./nodes/VideoNode/VideoNode";
 import {
-  Noto_Sans_JP,
-  Inter,
-  Ubuntu_Mono,
-  M_PLUS_Rounded_1c,
-  Yusei_Magic,
-  Kosugi_Maru,
-  Sawarabi_Mincho,
-} from "next/font/google";
-import { cn } from "~/lib/utils";
+  documentFont,
+  documentLanguage,
+  documentSettings,
+} from "~/lib/document-fonts";
+import { FontResources } from "./document-typography";
+import { DocumentFontsPlugin } from "./plugins/DocumentFontsPlugin";
 import { useSaveAndExportDocument } from "./context/save-and-export";
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 import { CommentInputBox } from "./plugins/CommentPlugin";
@@ -153,62 +149,6 @@ import { ChartNode } from "./nodes/ChartNode";
 import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 import ArticlePlugin from "./plugins/ArticlePlugin";
 import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-});
-
-const mono = Ubuntu_Mono({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  variable: "--font-mono",
-});
-
-const mplus = M_PLUS_Rounded_1c({
-  weight: ["400", "700"],
-  subsets: [
-    "latin",
-    "latin-ext",
-    "cyrillic",
-    "cyrillic-ext",
-    "greek",
-    "greek-ext",
-    "hebrew",
-    "vietnamese",
-  ],
-  variable: "--font-mplus",
-  display: "swap",
-});
-
-const noto = Noto_Sans_JP({
-  weight: ["400", "700"],
-  subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
-  variable: "--font-noto",
-  display: "swap",
-});
-
-const yusei = Yusei_Magic({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-yusei",
-  display: "swap",
-});
-
-const kosugi = Kosugi_Maru({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-kosugi",
-  display: "swap",
-});
-
-const sawarabi = Sawarabi_Mincho({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-sawarabi",
-  display: "swap",
-});
 
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
@@ -298,6 +238,11 @@ function EditorHandler({
   const userId = useUserIdOrGuestId();
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [editor] = useLexicalComposerContext();
+  // Metadata can change before Lexical emits its first content update.
+  useEffect(() => {
+    setEditorStateRef(editor.getEditorState());
+  }, [editor, setEditorStateRef]);
+
   const { insertMarkdown } = useMarkdownTools();
 
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
@@ -338,7 +283,7 @@ function EditorHandler({
     editor: onScreen ? syncedEditor : null,
     onSavesResumed,
   });
-  const { defaultFontFamily } = useDocumentSettings();
+  const { defaultFontFamily, lang } = useDocumentSettings();
   const { enabled: autoSaveEnabled } = useAutoSave({ enabled: canEdit });
 
   const handleImportMarkdown = useCallback(
@@ -352,12 +297,6 @@ function EditorHandler({
     },
     [editor, insertMarkdown],
   );
-  const [dynamicPageStyle, setDynamicPageStyle] = useState<React.CSSProperties>(
-    {},
-  );
-  const [previousDefaultFontFamily, setPreviousDefaultFontFamily] = useState<
-    string | null
-  >(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
@@ -465,57 +404,6 @@ function EditorHandler({
     openDocument.sync.setPeersConnected(peersConnected);
   }, [openDocument, peersConnected]);
 
-  useEffect(() => {
-    if (defaultFontFamily) {
-      if (
-        previousDefaultFontFamily &&
-        previousDefaultFontFamily !== defaultFontFamily
-      ) {
-        const oldFontSlug = previousDefaultFontFamily
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "-");
-        const oldLinkId = `google-font-link-doc-default-${oldFontSlug}`;
-        const oldLinkElement = document.getElementById(oldLinkId);
-        if (oldLinkElement) {
-          oldLinkElement.remove();
-        }
-      }
-
-      const fontSlug = defaultFontFamily
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "-");
-      const linkId = `google-font-link-doc-default-${fontSlug}`;
-
-      if (!document.getElementById(linkId)) {
-        const link = document.createElement("link");
-        link.id = linkId;
-        link.rel = "stylesheet";
-        link.href = `https://fonts.googleapis.com/css2?family=${defaultFontFamily.trim().replace(/\s+/g, "+")}:wght@400;700&display=swap`;
-        document.head.appendChild(link);
-      }
-      setDynamicPageStyle({
-        fontFamily: `'${defaultFontFamily.trim()}', sans-serif`,
-      });
-      setPreviousDefaultFontFamily(defaultFontFamily);
-    } else {
-      if (previousDefaultFontFamily) {
-        const oldFontSlug = previousDefaultFontFamily
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "-");
-        const oldLinkId = `google-font-link-doc-default-${oldFontSlug}`;
-        const oldLinkElement = document.getElementById(oldLinkId);
-        if (oldLinkElement) {
-          oldLinkElement.remove();
-        }
-      }
-      setDynamicPageStyle({});
-      setPreviousDefaultFontFamily(null);
-    }
-  }, [defaultFontFamily, previousDefaultFontFamily]);
-
   // Default viewport and caret to the top on initial open (unless deep-linked)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -530,6 +418,7 @@ function EditorHandler({
 
   return (
     <FlashMessageContext>
+      <FontResources fonts={[defaultFontFamily || "sans"]} />
       <EditorRegistryProvider>
         <TableContext>
           <ToolbarContext>
@@ -539,21 +428,11 @@ function EditorHandler({
                   <ImageProvider>
                     <LexicalImageProvider>
                       <CommentPluginProvider>
+                        <DocumentFontsPlugin />
                         <SlidePlugin />
                         <EditabilityPlugin editable={canEdit && !reading} />
                         {!onScreen && <RenderReadyPlugin />}
-                        <div
-                          className={cn(
-                            "page-frame z-0 flex flex-col h-screen overflow-hidden",
-                            inter.variable,
-                            mono.variable,
-                            mplus.variable,
-                            noto.variable,
-                            yusei.variable,
-                            kosugi.variable,
-                            sawarabi.variable,
-                          )}
-                        >
+                        <div className="page-frame z-0 flex flex-col h-screen overflow-hidden">
                           {onScreen && (
                             <div
                               className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
@@ -604,7 +483,7 @@ function EditorHandler({
                             {/* editor */}
                             <div
                               ref={scrollRef}
-                              className="min-w-0 min-h-0 flex-1 flex flex-col w-full max-w-(--breakpoint-lg) mx-auto overflow-y-auto bg-background border-x border-border print:border-0"
+                              className="min-w-0 min-h-0 flex-1 flex flex-col w-full overflow-y-auto bg-background"
                             >
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />
@@ -652,13 +531,21 @@ function EditorHandler({
                                     id="main-content"
                                     tabIndex={-1}
                                     ref={onRef}
-                                    className="relative"
+                                    className="relative document-viewport"
                                   >
                                     <ContentEditable
                                       id={`lexical-content-${entity.id}`}
                                       aria-label="Document content"
-                                      style={dynamicPageStyle}
-                                      className="font-fredoka text-base py-4 px-4 md:px-8 text-foreground outline-muted outline-2 outline-offset-12 min-h-[calc(100svh-4rem)]"
+                                      lang={documentLanguage(
+                                        entity.elements,
+                                        lang,
+                                      )}
+                                      style={{
+                                        fontFamily:
+                                          documentFont(defaultFontFamily)
+                                            .family,
+                                      }}
+                                      className="document-content document-typography"
                                     />
                                   </main>
                                 }
@@ -839,11 +726,7 @@ export default function DocumentEditor({
     editorStateRef.current = editorState;
   }, []);
 
-  const appStateSchema = z.object({
-    defaultFontFamily: z.string().optional().nullable(),
-  });
-
-  const appState = appStateSchema.parse(JSON.parse(entity.appState ?? "{}"));
+  const appState = documentSettings(entity.appState);
 
   const lexicalNodes: Klass<LexicalNode>[] = [
     ...CORE_NODES,
@@ -875,6 +758,7 @@ export default function DocumentEditor({
     <SignedInProvider value={signedIn}>
       <DocumentSettingsProvider
         initialDefaultFontFamily={appState.defaultFontFamily ?? null}
+        initialLang={appState.lang ?? null}
       >
         <EditorScaffold
           entity={entity}

@@ -18,7 +18,7 @@ import type {
   SlideStrategicMetadata,
 } from "./SlideNode";
 import { useMetadataModal } from "./MetadataModalContext";
-import { Ubuntu_Mono } from "next/font/google";
+import { mono } from "~/lib/fonts";
 
 interface SlideDeckMetadataModalProps {
   onSave: ({
@@ -29,12 +29,6 @@ interface SlideDeckMetadataModalProps {
     currentSlideId: string | null;
   }) => void;
 }
-
-const mono = Ubuntu_Mono({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  variable: "--font-mono",
-});
 
 export default function SlideDeckMetadataModal({
   onSave,

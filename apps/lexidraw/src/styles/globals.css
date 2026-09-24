@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./document.css";
 @import "./print.css";
 
 /* Dark is a screen theme: paper prints light whatever the reader chose. */
@@ -110,7 +111,7 @@
   --font-mplus: var(--font-mplus);
   --font-noto: var(--font-noto);
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace);
+  --font-mono: var(--font-ubuntu-mono, ui-monospace), "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   @keyframes accordion-down {
     from {

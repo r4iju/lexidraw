@@ -1,7 +1,6 @@
 import "~/styles/globals.css";
 
-import { Fredoka } from "next/font/google";
-import { Ubuntu_Mono } from "next/font/google";
+import { fontVariables } from "~/lib/fonts";
 import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { cn } from "~/lib/utils";
@@ -17,18 +16,6 @@ import LeaveGuardListener from "./leave-guard-listener";
 import ImpersonationBanner from "~/components/admin/impersonation-banner";
 import TRPCProviderWrapper from "./trpc-provider-wrapper";
 import { DashboardCacheInvalidator } from "~/components/dashboard-cache-invalidator";
-
-const fredoka = Fredoka({
-  subsets: ["latin"],
-  variable: "--font-fredoka",
-});
-
-const mono = Ubuntu_Mono({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 export const metadata = {
   title: "Lexidraw",
@@ -64,8 +51,7 @@ export default async function RootLayout({ children }: Props) {
       <body
         className={cn(
           "h-[var(--dynamic-viewport-height)] max-w-[100dvw] flex flex-col font-sans bg-background text-foreground antialiased overflow-y-hidden",
-          fredoka.variable,
-          mono.variable,
+          fontVariables,
         )}
         style={{ scrollbarGutter: "stable", scrollbarWidth: "thin" }}
       >

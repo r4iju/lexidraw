@@ -5,6 +5,7 @@ import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
 import { checkTokens } from "./check-tokens";
+import { checkTypography, checkDocumentSettings } from "./check-typography";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const here = fileURLToPath(new URL("./", import.meta.url));
@@ -16,12 +17,6 @@ if (process.env.CI)
     "Visual snapshots require the local dev stack; do not run in CI",
   );
 await mkdir(output, { recursive: true });
-const browser = await puppeteer.launch({ headless: true });
-try {
-  await checkTokens(await browser.newPage());
-} finally {
-  await browser.close();
-}
 
 async function cli(...args: string[]) {
   const child = Bun.spawn(
@@ -73,6 +68,7 @@ await writeFile(
   payload,
   JSON.stringify({
     elements: JSON.stringify(doc.content),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
     ifUnmodifiedSince: doc.updatedAt,
   }),
 );
@@ -83,6 +79,20 @@ await cli(
   "--json",
   await readFile(payload, "utf8"),
 );
+
+const browser = await puppeteer.launch({
+  headless: true,
+  userDataDir: resolve(output, "browser"),
+});
+try {
+  const [page = await browser.newPage(), ...restored] = await browser.pages();
+  for (const restoredPage of restored) await restoredPage.close();
+  await checkTokens(page);
+  await checkTypography(page, fixtureId);
+  await checkDocumentSettings(page, fixtureId);
+} finally {
+  await browser.close();
+}
 
 let failures = 0;
 let totalBytes = 0;

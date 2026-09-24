@@ -86,14 +86,7 @@ export const theme = {
   tableResizeRuler: "absolute top-0 h-full w-px bg-primary",
   tableSelection: "",
   tableSelected: "outline outline-2 outline-primary",
-  heading: {
-    h1: "text-3xl font-semibold leading-tight mt-8 mb-3 text-heading",
-    h2: "text-2xl font-semibold leading-tight mt-6 mb-2 text-heading",
-    h3: "text-xl font-semibold leading-snug mt-4 mb-2 text-heading",
-    h4: "text-lg font-semibold mt-4 mb-1.5 text-heading",
-    h5: "text-md font-semibold mt-3 mb-1 text-heading",
-    h6: "text-sm font-semibold mt-3 mb-1 text-heading",
-  },
+  heading: { h1: "", h2: "", h3: "", h4: "", h5: "", h6: "" },
   image: "editor-image",
   link: "inline-flex items-center font-medium text-primary hover:underline",
   list: {
@@ -107,7 +100,7 @@ export const theme = {
     checklist: "p-0 m-0 list-none",
 
     // Common <li> base styling
-    listitem: "ml-6 my-1 pl-2",
+    listitem: "",
 
     // Checklists:
     listitemUnchecked: `
@@ -168,14 +161,7 @@ export const theme = {
       listitem: "list-none before:hidden after:hidden",
     },
 
-    // Depth-based arrays. For numeric lists:
-    olDepth: [
-      "p-0 m-0 list-outside list-decimal", //   list-style-type: decimal;
-      "p-0 m-0 list-outside list-upper-alpha", //   list-style-type: upper-alpha;
-      "p-0 m-0 list-outside list-lower-alpha", //   list-style-type: lower-alpha;
-      "p-0 m-0 list-outside list-upper-roman", //   list-style-type: upper-roman;
-      "p-0 m-0 list-outside list-lower-roman", //   list-style-type: lower-roman;
-    ],
+    olDepth: ["list-decimal", "list-lower-alpha", "list-lower-roman"],
 
     ulDepth: [
       "list-disc", //   list-style-type: disc
@@ -185,8 +171,7 @@ export const theme = {
   },
 
   ltr: "text-left",
-  paragraph:
-    "m-0 relative mb-2 leading-relaxed text-foreground [&:last-child]:mb-0",
+  paragraph: "relative",
   placeholder:
     "text-muted top-4 left-3 absolute text-sm font-medium pointer-events-none inline-block",
   quote: `m-0 ml-5 border-l-4 border-border px-5 py-3 text-foreground`,
@@ -212,12 +197,11 @@ export const theme = {
     underline: "underline text-foreground",
     underlineStrikethrough: "underline line-through text-foreground",
   },
-  layoutContainer: "grid gap-2 my-2",
+  layoutContainer: "document-wide grid gap-2",
   // The dashed outline shows an editor where a column ends; a reader and
   // paper see the columns without it.
   layoutItem:
-    "border border-dashed border-muted p-2 [[aria-readonly=true]_&]:border-transparent print:border-transparent",
-  // codeBlock: "bg-muted font-mono block px-2 pl-13 py-2 leading-[1.53] text-[13px] my-2 overflow-x-auto relative tab-size-[2]",
+    "document-column border border-dashed border-muted p-2 [[aria-readonly=true]_&]:border-transparent print:border-transparent",
   codeGutter:
     "absolute bg-accent left-0 top-0 border-r border-muted px-2 text-muted-foreground whitespace-pre-wrap text-right min-w-[25px]",
 } satisfies EditorThemeClasses;

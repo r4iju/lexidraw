@@ -9,7 +9,7 @@ import { cn } from "~/lib/utils";
 
 const MIN_ALLOWED_FONT_SIZE = 8;
 const MAX_ALLOWED_FONT_SIZE = 72;
-const DEFAULT_FONT_SIZE = 15;
+const DEFAULT_FONT_SIZE = 16;
 
 enum updateFontSizeType {
   increment = 1,
@@ -204,9 +204,10 @@ export default function FontSize({
 
       <Input
         type="number"
+        aria-label="Font size"
         value={inputValue}
         disabled={disabled}
-        className="max-w-fit w-10 h-12 md:h-10 rounded-none focus-visible:ring-0 border-x-0 appearance-none text-center"
+        className="w-14 min-w-14 shrink-0 px-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none h-12 md:h-10 rounded-none focus-visible:ring-0 border-x-0 appearance-none text-center"
         min={MIN_ALLOWED_FONT_SIZE}
         max={MAX_ALLOWED_FONT_SIZE}
         onChange={(e) => setInputValue(e.target.value)}

@@ -2,7 +2,11 @@
 
 English and 日本語 share a paragraph: **bold 太字**, *italic*, ~~deleted~~, ==highlight==, `inline code`, and [a link](https://lexical.dev). This sentence checks wrapping and a comfortable reading rhythm on phones, tablets and wide screens. 東京でおいしい料理を作りましょう。
 
-## Heading two · 見出し
+A second paragraph shares the same block gap. Long prose remains a readable measure even when the page has room for wider media and tables. This paragraph is deliberately long enough to wrap onto several lines on a phone and to expose an overly wide reading column on desktop.
+
+*京都の秋、日本語の強調は傾けずに表示します。*
+
+## Heading two · 京都の秋をゆっくり歩くための見出し
 
 ### Heading three
 
@@ -14,9 +18,12 @@ English and 日本語 share a paragraph: **bold 太字**, *italic*, ~~deleted~~,
 
 - First bullet · 材料
     - Nested **strong** item
+        - Third level marker
 - Another item
 
 1. Prepare · 準備する
+    1. Nested step
+        1. Third level step
 2. Cook · 焼く
 
 - [x] Written · 完了

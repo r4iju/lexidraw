@@ -1,9 +1,11 @@
-"use client";
+import type { ComponentProps } from "react";
+import Editor from "./lazy-document-editor";
+import { DocumentTypography } from "./document-typography";
 
-import dynamic from "next/dynamic";
-
-const DocumentEditor = dynamic(() => import("./document-editor"), {
-  ssr: false,
-});
-
-export default DocumentEditor;
+export default function DocumentEditor(props: ComponentProps<typeof Editor>) {
+  return (
+    <DocumentTypography entity={props.entity}>
+      <Editor {...props} />
+    </DocumentTypography>
+  );
+}

@@ -87,10 +87,10 @@ export async function renderDocument(params: {
               format: params.options.paper,
               orientation: params.options.orientation,
               margin: {
-                top: "16mm",
-                right: "14mm",
-                bottom: "16mm",
-                left: "14mm",
+                top: "18mm",
+                right: "18mm",
+                bottom: "20mm",
+                left: "18mm",
               },
               headerTemplate: `<div style="font-size: 8px; width: 100%; padding: 0 14mm; color: #666;">${escapeHtml(params.title)}</div>`,
             }
