@@ -1,3 +1,4 @@
+import { $isTableNode } from "@lexical/table";
 import type { EditorState, LexicalEditor } from "lexical";
 import { useCallback } from "react";
 import {
@@ -54,6 +55,17 @@ export const useMarkdownTools = () => {
           }
 
           if (mode === "replace") {
+            const previous = root.getChildren();
+            nodesToInsert.forEach((node, index) => {
+              const original = previous[index];
+              if (
+                $isTableNode(node) &&
+                $isTableNode(original) &&
+                node.getColumnCount() === original.getColumnCount()
+              ) {
+                node.setColWidths(original.getColWidths());
+              }
+            });
             root.clear();
             for (const node of nodesToInsert) {
               root.append(node);

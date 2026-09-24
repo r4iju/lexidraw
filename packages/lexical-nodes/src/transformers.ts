@@ -1,3 +1,4 @@
+import { $createDocumentTable } from "./tables.js";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
@@ -17,8 +18,6 @@ import {
 } from "@lexical/extension";
 import {
   $createTableCellNode,
-  $createTableNode,
-  $createTableRowNode,
   $isTableCellNode,
   $isTableNode,
   $isTableRowNode,
@@ -122,9 +121,8 @@ export function createCollapsibleTransformers(
   return [title, content, container];
 }
 
-// Very primitive table setup
 const TABLE_ROW_REG_EXP = /^(?:\|)(.+)(?:\|)\s?$/;
-const TABLE_ROW_DIVIDER_REG_EXP = /^(\| ?:?-*:? ?)+\|\s?$/;
+const TABLE_ROW_DIVIDER_REG_EXP = /^(\|\s*:?-{3,}:?\s*)+\|\s*$/;
 
 export function createTableTransformer(
   transformers: TransformerSource,
@@ -144,7 +142,9 @@ export function createTableTransformer(
     if (!match?.[1]) {
       return null;
     }
-    return match[1].split("|").map((text) => $createTableCell(text));
+    return match[1]
+      .split(/(?<!\\)\|/)
+      .map((text) => $createTableCell(text.replace(/\\\|/g, "|")));
   };
 
   return {
@@ -155,32 +155,35 @@ export function createTableTransformer(
       }
 
       const output: string[] = [];
-
-      for (const row of node.getChildren()) {
-        const rowOutput = [];
-        if (!$isTableRowNode(row)) {
-          continue;
-        }
-
-        let isHeaderRow = false;
-        for (const cell of row.getChildren()) {
-          // It's TableCellNode so it's just to make flow happy
-          if ($isTableCellNode(cell)) {
-            rowOutput.push(
-              $convertToMarkdownString(transformers(), cell).replace(
-                /\n/g,
-                "\\n",
-              ),
-            );
-            if (cell.__headerState === TableCellHeaderStates.ROW) {
-              isHeaderRow = true;
-            }
-          }
-        }
-
-        output.push(`| ${rowOutput.join(" | ")} |`);
-        if (isHeaderRow) {
-          output.push(`| ${rowOutput.map((_) => "---").join(" | ")} |`);
+      for (const [index, row] of node.getChildren().entries()) {
+        if (!$isTableRowNode(row)) continue;
+        const cells = row.getChildren().filter($isTableCellNode);
+        output.push(
+          `| ${cells
+            .map((cell) =>
+              $convertToMarkdownString(transformers(), cell)
+                .replace(/\|/g, "\\|")
+                .replace(/\n/g, "\\n"),
+            )
+            .join(" | ")} |`,
+        );
+        if (index === 0) {
+          output.push(
+            `| ${cells
+              .map((cell) => {
+                switch (cell.getFormatType()) {
+                  case "left":
+                    return ":---";
+                  case "center":
+                    return ":---:";
+                  case "right":
+                    return "---:";
+                  default:
+                    return "---";
+                }
+              })
+              .join(" | ")} |`,
+          );
         }
       }
 
@@ -202,10 +205,20 @@ export function createTableTransformer(
         }
 
         // Add header state to row cells
-        for (const cell of lastRow.getChildren()) {
+        for (const [index, cell] of lastRow.getChildren().entries()) {
           if (!$isTableCellNode(cell)) {
             return;
           }
+          const delimiter = match[0]?.split("|")[index + 1]?.trim() ?? "";
+          cell.setFormat(
+            delimiter.startsWith(":")
+              ? delimiter.endsWith(":")
+                ? "center"
+                : "left"
+              : delimiter.endsWith(":")
+                ? "right"
+                : "",
+          );
           cell.setHeaderStyles(
             TableCellHeaderStates.ROW,
             TableCellHeaderStates.ROW,
@@ -255,26 +268,28 @@ export function createTableTransformer(
         sibling = previousSibling;
       }
 
-      const table = $createTableNode();
-
-      for (const cells of rows) {
-        const tableRow = $createTableRowNode();
-        table.append(tableRow);
-
+      const table = $createDocumentTable(rows.length, maxCells);
+      table.getChildren<TableRowNode>().forEach((tableRow, rowIndex) => {
+        const cells = rows[rowIndex] ?? [];
+        tableRow.clear();
         for (let i = 0; i < maxCells; i++) {
-          tableRow.append(
-            i < cells.length
-              ? (cells[i] as TableCellNode)
-              : $createTableCell(""),
-          );
+          tableRow.append(cells[i] ?? $createTableCell(""));
         }
-      }
+      });
 
       const previousSibling = parentNode.getPreviousSibling();
       if (
         $isTableNode(previousSibling) &&
         getTableColumnsSize(previousSibling) === maxCells
       ) {
+        const headerCells = previousSibling
+          .getFirstChild<TableRowNode>()
+          ?.getChildren<TableCellNode>();
+        for (const row of table.getChildren<TableRowNode>()) {
+          row.getChildren<TableCellNode>().forEach((cell, index) => {
+            cell.setFormat(headerCells?.[index]?.getFormatType() ?? "");
+          });
+        }
         previousSibling.append(...table.getChildren());
         parentNode.remove();
       } else {

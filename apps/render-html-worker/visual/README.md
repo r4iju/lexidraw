@@ -55,3 +55,9 @@ They verify rendered sizes, the 704px prose / 1024px wide column, heading scale,
 CJK emphasis and breaking, print type, container responsiveness, unused font
 families, the toolbar size field, and font/language settings after save and
 reload. Only localhost:3025 is used.
+
+Table cases cover key/value tokens, GFM alignment, a six-column mixed-language
+comparison and the 80% numeric threshold. Browser checks assert intrinsic
+widths, the 1024px limit, labelled keyboard scroll regions, the pinned phone
+column and cell-menu bounds/header toggles. The fixture explicitly clears saved
+column widths so every capture exercises a document before manual resizing.

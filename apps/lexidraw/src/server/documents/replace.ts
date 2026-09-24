@@ -354,6 +354,26 @@ export function replaceStateFromMarkdown(
     stripArticleProse(markdown, placeholders),
   );
   const children = transformChildren(parsed.root.children, placeholders, true);
+  children.forEach((child, index) => {
+    const previous = stored.root.children[index];
+    if (child.type !== "table" || previous?.type !== "table") return;
+    const columnCount = (node: SerializedLexicalNode) =>
+      childrenOf(childrenOf(node)?.[0] ?? node)?.reduce(
+        (count, cell) =>
+          count +
+          ("colSpan" in cell && typeof cell.colSpan === "number"
+            ? cell.colSpan
+            : 1),
+        0,
+      );
+    if (
+      columnCount(child) === columnCount(previous) &&
+      "colWidths" in previous &&
+      Array.isArray(previous.colWidths)
+    ) {
+      Object.assign(child, { colWidths: [...previous.colWidths] });
+    }
+  });
   return {
     state: { ...stored, root: { ...stored.root, children } },
     restoredPlaceholders: placeholders.restored,

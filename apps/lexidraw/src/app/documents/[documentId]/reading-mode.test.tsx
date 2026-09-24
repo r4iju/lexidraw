@@ -26,6 +26,8 @@ const replaced = [
   "navigator",
   "Event",
   "CustomEvent",
+  "AbortController",
+  "AbortSignal",
 ] as const;
 const saved = replaced.map((key) => [key, globals[key]] as const);
 let shimmed: string[] = [];
@@ -44,6 +46,11 @@ type Modules = {
   useLexicalComposerContext: typeof import("@lexical/react/LexicalComposerContext").useLexicalComposerContext;
   editability: typeof import("./editability");
   nodes: Klass<LexicalNode>[];
+  tables: typeof import("./plugins/DocumentTablesPlugin");
+  resizer: typeof import("./plugins/TableCellResizer");
+  markdown: typeof import("~/server/documents/markdown");
+  edits: typeof import("./lexical-edits");
+  markdownTools: typeof import("./utils/markdown");
 };
 let m: Modules;
 
@@ -71,6 +78,11 @@ beforeAll(async () => {
       await import("@lexical/react/LexicalComposerContext")
     ).useLexicalComposerContext,
     editability: await import("./editability"),
+    tables: await import("./plugins/DocumentTablesPlugin"),
+    resizer: await import("./plugins/TableCellResizer"),
+    markdown: await import("~/server/documents/markdown"),
+    edits: await import("./lexical-edits"),
+    markdownTools: await import("./utils/markdown"),
     // As the document editor registers them: the React halves after the core
     // set, so each type resolves to the class that has a component.
     nodes: [
@@ -141,14 +153,25 @@ const BLOCKS = JSON.stringify({
 });
 
 let captured: LexicalEditor | null = null;
+let markdownTools: ReturnType<Modules["markdownTools"]["useMarkdownTools"]>;
+
 function Capture() {
   const [editor] = m.useLexicalComposerContext();
   captured = editor;
+  markdownTools = m.markdownTools.useMarkdownTools();
   return null;
 }
 
 /** The document editor's frame around a stored state, as a reader or an editor opens it. */
-function Document({ state, editable }: { state: string; editable: boolean }) {
+function Document({
+  state,
+  editable,
+  tables = false,
+}: {
+  state: string;
+  editable: boolean;
+  tables?: boolean;
+}) {
   const { LexicalComposer, RichTextPlugin, ContentEditable } = m;
   return (
     <LexicalComposer
@@ -168,6 +191,12 @@ function Document({ state, editable }: { state: string; editable: boolean }) {
       />
       <m.editability.EditabilityPlugin editable={editable} />
       <Capture />
+      {tables && (
+        <>
+          <m.tables.DocumentTablesPlugin />
+          <m.resizer.default />
+        </>
+      )}
     </LexicalComposer>
   );
 }
@@ -272,4 +301,39 @@ describe("a document opened for editing", () => {
     await act(async () => root.render(<Document state={state} editable />));
     expect(contentEditable()).toBe("true");
   });
+});
+
+test("opening tables in the editor preserves the stored state and produces no local edit", async () => {
+  const state = JSON.stringify(
+    m.markdown.markdownToEditorState(
+      "| Name | Cost |\n| --- | --- |\n| claude-dev | 20% |",
+    ),
+  );
+  const root = await mount(<Document state={state} editable />);
+  if (!captured) throw new Error("Editor not mounted");
+  const edits = m.edits.trackLexicalEdits(captured);
+  await act(async () =>
+    root.render(<Document state={state} editable tables />),
+  );
+  expect(edits.hasLocalEdits()).toBe(false);
+  expect(JSON.stringify(captured.getEditorState().toJSON())).toBe(state);
+  edits.dispose();
+});
+
+test("replacing markdown in the app keeps a person's column widths", async () => {
+  const md = "| Name | Cost |\n| --- | --- |\n| claude-dev | 20% |";
+  const state = m.markdown.markdownToEditorState(md);
+  const table = state.root.children[0];
+  if (!table) throw new Error("Expected table");
+  Object.assign(table, { colWidths: [240, 480] });
+  await mount(<Document state={JSON.stringify(state)} editable />);
+  if (!captured) throw new Error("Editor not mounted");
+  const editor = captured;
+  await act(async () =>
+    markdownTools.insertMarkdown(editor, md.replace("20%", "30%"), "replace"),
+  );
+  expect(editor.getEditorState().toJSON().root.children[0]).toHaveProperty(
+    "colWidths",
+    [240, 480],
+  );
 });

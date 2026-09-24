@@ -41,6 +41,19 @@ console.log(greeting);
 | 鶏の唐揚げ | 20 min | ¥800 |
 | Vegetable soup | 15 min | $5 |
 
+| Key | Value |
+| --- | --- |
+| Owner | claude-dev |
+| Updated | 2026-09-24 |
+
+| Dish · 料理 | Method · 調理法 | Preparation | Cook time | Price | Rating |
+| --- | --- | :---: | --- | --- | --- |
+| 鶏の唐揚げ · Crispy chicken | Air fry until golden | Marinate overnight | 20 | ¥800 | 95% |
+| Vegetable soup · 野菜スープ | Simmer gently with stock | Chop seasonal vegetables | 15 | $5 | 80% |
+| Salmon · 鮭 | Roast with lemon and herbs | Pat dry before cooking | 12 | $12.50 | 90% |
+| Tofu · 豆腐 | Sear both sides in a pan | Drain and press thoroughly | 8 | ¥400 | 85% |
+| Rice · ご飯 | Steam with measured water | Rinse until water runs clear | Pending | ¥200 | 100% |
+
 Inline math $E=mc^2$ and a block:
 
 $$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$$

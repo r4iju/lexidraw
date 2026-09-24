@@ -13,7 +13,7 @@ import {
   getTableElement,
   TableNode,
 } from "@lexical/table";
-import { calculateZoomLevel, mergeRegister } from "@lexical/utils";
+import { calculateZoomLevel } from "@lexical/utils";
 import { $getNearestNodeFromDOMNode, isHTMLElement } from "lexical";
 import {
   type CSSProperties,
@@ -36,7 +36,7 @@ type PointerPosition = {
 type PointerDraggingDirection = "right" | "bottom";
 
 const MIN_ROW_HEIGHT = 33;
-const MIN_COLUMN_WIDTH = 92;
+const minimumColumnWidth = () => Math.min(120, window.innerWidth * 0.3);
 
 function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
   const targetRef = useRef<HTMLElement | null>(null);
@@ -63,29 +63,13 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
 
   useEffect(() => {
     const tableKeys = new Set<NodeKey>();
-    return mergeRegister(
-      editor.registerMutationListener(TableNode, (nodeMutations) => {
-        for (const [nodeKey, mutation] of nodeMutations) {
-          if (mutation === "destroyed") {
-            tableKeys.delete(nodeKey);
-          } else {
-            tableKeys.add(nodeKey);
-          }
-        }
-        setHasTable(tableKeys.size > 0);
-      }),
-      editor.registerNodeTransform(TableNode, (tableNode) => {
-        if (tableNode.getColWidths()) {
-          return tableNode;
-        }
-
-        const numColumns = tableNode.getColumnCount();
-        const columnWidth = MIN_COLUMN_WIDTH;
-
-        tableNode.setColWidths(Array(numColumns).fill(columnWidth));
-        return tableNode;
-      }),
-    );
+    return editor.registerMutationListener(TableNode, (nodeMutations) => {
+      for (const [nodeKey, mutation] of nodeMutations) {
+        if (mutation === "destroyed") tableKeys.delete(nodeKey);
+        else tableKeys.add(nodeKey);
+      }
+      setHasTable(tableKeys.size > 0);
+    });
   }, [editor]);
 
   useEffect(() => {
@@ -287,16 +271,35 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
             throw new Error("TableCellResizer: Table column not found.");
           }
 
-          const colWidths = tableNode.getColWidths();
-          if (!colWidths) {
-            return;
-          }
+          const tableElement = getTableElement(
+            tableNode,
+            editor.getElementByKey(tableNode.getKey()),
+          );
+          if (!tableElement || widthChange === 0) return;
+          const colWidths =
+            tableNode.getColWidths() ??
+            Array.from({ length: tableNode.getColumnCount() }, (_, index) => {
+              for (const row of tableMap) {
+                const entry = row[index];
+                if (entry?.cell.getColSpan() === 1) {
+                  return (
+                    editor
+                      .getElementByKey(entry.cell.getKey())
+                      ?.getBoundingClientRect().width ?? minimumColumnWidth()
+                  );
+                }
+              }
+              return (
+                tableElement.getBoundingClientRect().width /
+                tableNode.getColumnCount()
+              );
+            });
           const width = colWidths[columnIndex];
           if (width === undefined) {
             return;
           }
           const newColWidths = [...colWidths];
-          const newWidth = Math.max(width + widthChange, MIN_COLUMN_WIDTH);
+          const newWidth = Math.max(width + widthChange, minimumColumnWidth());
           newColWidths[columnIndex] = newWidth;
           tableNode.setColWidths(newColWidths);
         },

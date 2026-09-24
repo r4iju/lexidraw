@@ -103,7 +103,38 @@
     object-fit: contain;
   }
 
-  table {
+  .document-table-region {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    overflow: visible;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .document-table-region > table {
+    display: none;
+  }
+  .document-table-region > table[data-print-table] {
+    display: table;
+    table-layout: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 9pt;
+    break-inside: auto;
+    border-collapse: collapse;
+  }
+  .document-table-region .document-table tr > :is(td, th) {
+    min-width: 0;
+    width: auto !important;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    position: static;
+    word-break: normal;
+  }
+  .document-table tr {
     break-inside: avoid;
   }
 

@@ -63,14 +63,13 @@ export const theme = {
   mark: "bg-comment-mark text-foreground border-b-2 border-comment-border",
   markFocused: "bg-comment-mark border-comment-border",
   autocomplete: "text-muted-foreground",
-  table:
-    "border-collapse border-spacing-0 overflow-x-auto overflow-y-auto table-fixed w-max my-8 rounded-md",
+  table: "document-table",
+  tableScrollableWrapper: "document-table-region",
   tableAddColumns:
     "absolute top-0 right-[-25px] w-5 h-full bg-muted hover:bg-accent transition",
   tableAddRows:
     "absolute left-0 bottom-[-25px] h-5 w-[calc(100%-25px)] bg-muted hover:bg-accent transition",
-  tableCell:
-    "relative outline-hidden border border-border align-top text-start min-w-[75px] w-[75px] p-3 min-h-[40px]",
+  tableCell: "relative outline-hidden",
   tableCellHeader: "font-semibold",
   tableCellSelected: "bg-primary/10",
   tableCellPrimarySelected:

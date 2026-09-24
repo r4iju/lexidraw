@@ -22,7 +22,7 @@ import MarkdownShortcutPlugin from "./plugins/MarkdownShortcutPlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
-import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
+import { DocumentTablesPlugin } from "./plugins/DocumentTablesPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
 import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
 import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
@@ -50,7 +50,6 @@ import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import FloatingLinkEditorPlugin from "./plugins/FloatingTextFormatToolbarPlugin/FloatingLinkEditorPlugin";
 import AutoEmbedPlugin from "./plugins/AutoEmbedPlugin";
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
-import { TableContext } from "./plugins/TablePlugin";
 import TableCellResizer from "./plugins/TableCellResizer";
 import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
 import { ImageNode } from "./nodes/ImageNode/ImageNode";
@@ -420,210 +419,200 @@ function EditorHandler({
     <FlashMessageContext>
       <FontResources fonts={[defaultFontFamily || "sans"]} />
       <EditorRegistryProvider>
-        <TableContext>
-          <ToolbarContext>
-            <LLMProvider initialConfig={initialLlmConfig}>
-              <ImageGenerationProvider entityId={entity.id} signedIn={signedIn}>
-                <LexicalImageGenerationProvider>
-                  <ImageProvider>
-                    <LexicalImageProvider>
-                      <CommentPluginProvider>
-                        <DocumentFontsPlugin />
-                        <SlidePlugin />
-                        <EditabilityPlugin editable={canEdit && !reading} />
-                        {!onScreen && <RenderReadyPlugin />}
-                        <div className="page-frame z-0 flex flex-col h-screen overflow-hidden">
-                          {onScreen && (
-                            <div
-                              className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
-                              data-component-name="Toolbar"
-                            >
-                              <OptionsDropdown
+        <ToolbarContext>
+          <LLMProvider initialConfig={initialLlmConfig}>
+            <ImageGenerationProvider entityId={entity.id} signedIn={signedIn}>
+              <LexicalImageGenerationProvider>
+                <ImageProvider>
+                  <LexicalImageProvider>
+                    <CommentPluginProvider>
+                      <DocumentFontsPlugin />
+                      <SlidePlugin />
+                      <EditabilityPlugin editable={canEdit && !reading} />
+                      {!onScreen && <RenderReadyPlugin />}
+                      <div className="page-frame z-0 flex flex-col h-screen overflow-hidden">
+                        {onScreen && (
+                          <div
+                            className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
+                            data-component-name="Toolbar"
+                          >
+                            <OptionsDropdown
+                              className="flex h-12 md:h-10 min-w-12 md:min-w-10"
+                              onSaveDocument={handleSave}
+                              isSavingDocument={isUploading}
+                              onExportMarkdown={exportMarkdown}
+                              onImportMarkdown={handleImportMarkdown}
+                              entity={{
+                                id: entity.id,
+                                title: entity.title,
+                                accessLevel: entity.accessLevel,
+                              }}
+                            />
+                            {canEdit && (
+                              <Button
+                                variant="outline"
+                                size="icon"
                                 className="flex h-12 md:h-10 min-w-12 md:min-w-10"
-                                onSaveDocument={handleSave}
-                                isSavingDocument={isUploading}
-                                onExportMarkdown={exportMarkdown}
-                                onImportMarkdown={handleImportMarkdown}
-                                entity={{
-                                  id: entity.id,
-                                  title: entity.title,
-                                  accessLevel: entity.accessLevel,
-                                }}
-                              />
-                              {canEdit && (
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="flex h-12 md:h-10 min-w-12 md:min-w-10"
-                                  aria-pressed={reading}
-                                  title={reading ? "Edit" : "Reading view"}
-                                  onClick={() => setReading((on) => !on)}
-                                >
-                                  {reading ? <PencilIcon /> : <BookOpenIcon />}
-                                  <span className="sr-only">
-                                    {reading ? "Edit" : "Reading view"}
-                                  </span>
-                                </Button>
-                              )}
-                              <ShortcutsPlugin
-                                editor={editor}
+                                aria-pressed={reading}
+                                title={reading ? "Edit" : "Reading view"}
+                                onClick={() => setReading((on) => !on)}
+                              >
+                                {reading ? <PencilIcon /> : <BookOpenIcon />}
+                                <span className="sr-only">
+                                  {reading ? "Edit" : "Reading view"}
+                                </span>
+                              </Button>
+                            )}
+                            <ShortcutsPlugin
+                              editor={editor}
+                              setIsLinkEditMode={setIsLinkEditMode}
+                            />
+                            <TooltipProvider>
+                              <ToolbarPlugin
                                 setIsLinkEditMode={setIsLinkEditMode}
                               />
-                              <TooltipProvider>
-                                <ToolbarPlugin
-                                  setIsLinkEditMode={setIsLinkEditMode}
-                                />
-                              </TooltipProvider>
-                              <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
-                            </div>
-                          )}
+                            </TooltipProvider>
+                            <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
+                          </div>
+                        )}
 
-                          {/* editor + sidebar container */}
-                          <div className="flex flex-1 overflow-hidden bg-desk">
-                            {/* editor */}
-                            <div
-                              ref={scrollRef}
-                              className="min-w-0 min-h-0 flex-1 flex flex-col w-full overflow-y-auto bg-background"
-                            >
-                              <DisableChecklistSpacebarPlugin />
-                              <EmojiPickerPlugin />
-                              <LayoutPlugin />
-                              {onScreen && <LLMWidget />}
-                              <ListPlugin />
-                              <ListMaxIndentLevelPlugin />
-                              <CheckListPlugin />
-                              <MobileCheckListPlugin />
-                              <MarkdownShortcutPlugin />
-                              <PageBreakPlugin />
-                              <CollapsiblePlugin />
-                              <PollPlugin />
-                              <CodeHighlightPlugin />
-                              <TabIndentationPlugin />
-                              {isEditable && autocomplete && signedIn && (
-                                <SessionUUIDProvider>
-                                  <AutocompletePlugin />
-                                </SessionUUIDProvider>
-                              )}
-                              <AutoEmbedPlugin />
-                              <AutoLinkPlugin />
-                              <HorizontalRulePlugin />
-                              <TablePlugin
-                                hasCellMerge
-                                hasCellBackgroundColor
+                        {/* editor + sidebar container */}
+                        <div className="flex flex-1 overflow-hidden bg-desk">
+                          {/* editor */}
+                          <div
+                            ref={scrollRef}
+                            className="min-w-0 min-h-0 flex-1 flex flex-col w-full overflow-y-auto bg-background"
+                          >
+                            <DisableChecklistSpacebarPlugin />
+                            <EmojiPickerPlugin />
+                            <LayoutPlugin />
+                            {onScreen && <LLMWidget />}
+                            <ListPlugin />
+                            <ListMaxIndentLevelPlugin />
+                            <CheckListPlugin />
+                            <MobileCheckListPlugin />
+                            <MarkdownShortcutPlugin />
+                            <PageBreakPlugin />
+                            <CollapsiblePlugin />
+                            <PollPlugin />
+                            <CodeHighlightPlugin />
+                            <TabIndentationPlugin />
+                            {isEditable && autocomplete && signedIn && (
+                              <SessionUUIDProvider>
+                                <AutocompletePlugin />
+                              </SessionUUIDProvider>
+                            )}
+                            <AutoEmbedPlugin />
+                            <AutoLinkPlugin />
+                            <HorizontalRulePlugin />
+                            <DocumentTablesPlugin />
+                            {isEditable && <TableCellResizer />}
+                            <ImagePlugin />
+                            <InlineImagePlugin />
+                            <VideoPlugin />
+                            <LinkPlugin />
+                            <ClickableLinkPlugin disabled={isEditable} />
+                            <TwitterPlugin />
+                            <YouTubePlugin />
+                            <ExcalidrawPlugin />
+                            <MermaidPlugin />
+                            <ChartPlugin />
+                            <FigmaPlugin />
+                            <EquationsPlugin />
+                            <ArticlePlugin />
+                            <RichTextPlugin
+                              contentEditable={
+                                <main
+                                  id="main-content"
+                                  tabIndex={-1}
+                                  ref={onRef}
+                                  className="relative document-viewport"
+                                >
+                                  <ContentEditable
+                                    id={`lexical-content-${entity.id}`}
+                                    aria-label="Document content"
+                                    lang={documentLanguage(
+                                      entity.elements,
+                                      lang,
+                                    )}
+                                    style={{
+                                      fontFamily:
+                                        documentFont(defaultFontFamily).family,
+                                    }}
+                                    className="document-content document-typography"
+                                  />
+                                </main>
+                              }
+                              placeholder={(editable) =>
+                                editable ? <Placeholder /> : null
+                              }
+                              ErrorBoundary={LexicalErrorBoundary}
+                            />
+                            <OnChangePlugin onChange={onChange} />
+                            <HistoryPlugin />
+                            {isEditable && <AutoFocusPlugin />}
+                            {floatingAnchorElem && (
+                              <CodeActionMenuPlugin
+                                anchorElem={floatingAnchorElem}
                               />
-                              {isEditable && <TableCellResizer />}
-                              <ImagePlugin />
-                              <InlineImagePlugin />
-                              <VideoPlugin />
-                              <LinkPlugin />
-                              <ClickableLinkPlugin disabled={isEditable} />
-                              <TwitterPlugin />
-                              <YouTubePlugin />
-                              <ExcalidrawPlugin />
-                              <MermaidPlugin />
-                              <ChartPlugin />
-                              <FigmaPlugin />
-                              <EquationsPlugin />
-                              <ArticlePlugin />
-                              <RichTextPlugin
-                                contentEditable={
-                                  <main
-                                    id="main-content"
-                                    tabIndex={-1}
-                                    ref={onRef}
-                                    className="relative document-viewport"
-                                  >
-                                    <ContentEditable
-                                      id={`lexical-content-${entity.id}`}
-                                      aria-label="Document content"
-                                      lang={documentLanguage(
-                                        entity.elements,
-                                        lang,
-                                      )}
-                                      style={{
-                                        fontFamily:
-                                          documentFont(defaultFontFamily)
-                                            .family,
-                                      }}
-                                      className="document-content document-typography"
-                                    />
-                                  </main>
-                                }
-                                placeholder={(editable) =>
-                                  editable ? <Placeholder /> : null
-                                }
-                                ErrorBoundary={LexicalErrorBoundary}
-                              />
-                              <OnChangePlugin onChange={onChange} />
-                              <HistoryPlugin />
-                              {isEditable && <AutoFocusPlugin />}
-                              {floatingAnchorElem && (
-                                <CodeActionMenuPlugin
+                            )}
+                            {isEditable && floatingAnchorElem && (
+                              <>
+                                <DraggableBlockPlugin
                                   anchorElem={floatingAnchorElem}
                                 />
-                              )}
-                              {isEditable && floatingAnchorElem && (
-                                <>
-                                  <DraggableBlockPlugin
-                                    anchorElem={floatingAnchorElem}
-                                  />
-                                  <FloatingLinkEditorPlugin
-                                    anchorElem={floatingAnchorElem}
-                                    isLinkEditMode={isLinkEditMode}
-                                    setIsLinkEditMode={setIsLinkEditMode}
-                                  />
-                                  <TableActionMenuPlugin
-                                    anchorElem={floatingAnchorElem}
-                                    cellMerge={true}
-                                  />
-                                  <FloatingTextFormatToolbarPlugin
-                                    anchorElem={floatingAnchorElem}
-                                    setIsLinkEditMode={setIsLinkEditMode}
-                                  />
-                                </>
-                              )}
-                              {isEditable && <ContextMenuPlugin />}
-                            </div>
-                            {/* A chat left open by an earlier sign-in stays shut. */}
-                            {onScreen &&
-                              activeSidebar &&
-                              (signedIn || activeSidebar !== "llm") && (
-                                <SidebarWrapper
-                                  ref={sidebarRef}
-                                  className="print:hidden"
-                                  onClose={() => {
-                                    setActiveSidebar(null);
-                                  }}
-                                  title={getSidebarTitle(activeSidebar)}
-                                  initialWidth={currentSidebarWidth}
-                                  minWidth={200}
-                                  maxWidth={800}
-                                  onWidthChange={setCurrentSidebarWidth}
-                                >
-                                  {activeSidebar === "llm" && <LlmChatPlugin />}
-                                  {activeSidebar === "comments" && (
-                                    <CommentUI />
-                                  )}
-                                  {activeSidebar === "toc" && (
-                                    <TableOfContentsPlugin />
-                                  )}
-                                  {activeSidebar === "tree" && (
-                                    <TreeViewPlugin />
-                                  )}
-                                </SidebarWrapper>
-                              )}
+                                <FloatingLinkEditorPlugin
+                                  anchorElem={floatingAnchorElem}
+                                  isLinkEditMode={isLinkEditMode}
+                                  setIsLinkEditMode={setIsLinkEditMode}
+                                />
+                                <TableActionMenuPlugin
+                                  anchorElem={floatingAnchorElem}
+                                  cellMerge={true}
+                                />
+                                <FloatingTextFormatToolbarPlugin
+                                  anchorElem={floatingAnchorElem}
+                                  setIsLinkEditMode={setIsLinkEditMode}
+                                />
+                              </>
+                            )}
+                            {isEditable && <ContextMenuPlugin />}
                           </div>
-
-                          {onScreen && <ConditionalCommentInputBoxRenderer />}
+                          {/* A chat left open by an earlier sign-in stays shut. */}
+                          {onScreen &&
+                            activeSidebar &&
+                            (signedIn || activeSidebar !== "llm") && (
+                              <SidebarWrapper
+                                ref={sidebarRef}
+                                className="print:hidden"
+                                onClose={() => {
+                                  setActiveSidebar(null);
+                                }}
+                                title={getSidebarTitle(activeSidebar)}
+                                initialWidth={currentSidebarWidth}
+                                minWidth={200}
+                                maxWidth={800}
+                                onWidthChange={setCurrentSidebarWidth}
+                              >
+                                {activeSidebar === "llm" && <LlmChatPlugin />}
+                                {activeSidebar === "comments" && <CommentUI />}
+                                {activeSidebar === "toc" && (
+                                  <TableOfContentsPlugin />
+                                )}
+                                {activeSidebar === "tree" && <TreeViewPlugin />}
+                              </SidebarWrapper>
+                            )}
                         </div>
-                      </CommentPluginProvider>
-                    </LexicalImageProvider>
-                  </ImageProvider>
-                </LexicalImageGenerationProvider>
-              </ImageGenerationProvider>
-            </LLMProvider>
-          </ToolbarContext>
-        </TableContext>
+
+                        {onScreen && <ConditionalCommentInputBoxRenderer />}
+                      </div>
+                    </CommentPluginProvider>
+                  </LexicalImageProvider>
+                </ImageProvider>
+              </LexicalImageGenerationProvider>
+            </ImageGenerationProvider>
+          </LLMProvider>
+        </ToolbarContext>
       </EditorRegistryProvider>
     </FlashMessageContext>
   );

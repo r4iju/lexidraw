@@ -1,11 +1,7 @@
 import { tool } from "ai";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $createTableNode } from "@lexical/table";
-import { $createTableRowNode } from "@lexical/table";
-import { $createTableCellNode } from "@lexical/table";
-import { $createParagraphNode } from "lexical";
-import { $createTextNode } from "lexical";
+import { $createDocumentTable } from "@packages/lexical-nodes";
 import { InsertTableSchema } from "@packages/types";
 
 export const useTableTools = () => {
@@ -30,19 +26,7 @@ export const useTableTools = () => {
             columns: number;
           };
 
-          const newTable = $createTableNode();
-
-          for (let i = 0; i < rows; i++) {
-            const tableRow = $createTableRowNode();
-            for (let j = 0; j < columns; j++) {
-              const tableCell = $createTableCellNode();
-              const paragraph = $createParagraphNode();
-              paragraph.append($createTextNode("")); // Ensure cell is editable
-              tableCell.append(paragraph);
-              tableRow.append(tableCell);
-            }
-            newTable.append(tableRow);
-          }
+          const newTable = $createDocumentTable(rows, columns);
 
           $insertNodeAtResolvedPoint(resolution, newTable);
 

@@ -445,3 +445,21 @@ describe("replaceStateFromMarkdown with an article", () => {
     expect(editorStateToMarkdown(state)).toBe(markdown);
   });
 });
+
+test("replace preserves dragged widths only at the same table position and column count", () => {
+  const md = "Intro.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |";
+  const stored = markdownToEditorState(md);
+  const table = stored.root.children[1];
+  if (!table) throw new Error("Expected table");
+  Object.assign(table, { colWidths: [210, 360] });
+  const kept = replaceStateFromMarkdown(stored, md.replace("1 | 2", "3 | 4"));
+  expect(kept.state.root.children[1]).toHaveProperty("colWidths", [210, 360]);
+  const changed = replaceStateFromMarkdown(
+    stored,
+    "Intro.\n\n| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |",
+  );
+  expect(changed.state.root.children[1]).toHaveProperty("colWidths", undefined);
+  const moved = replaceStateFromMarkdown(stored, `New block.\n\n${md}`);
+  expect(moved.state.root.children[2]).toHaveProperty("colWidths", undefined);
+  expect(stored.root.children[1]).toHaveProperty("colWidths", [210, 360]);
+});

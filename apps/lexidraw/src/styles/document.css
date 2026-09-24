@@ -114,7 +114,7 @@
 .document-content > .document-full {
   max-width: none;
 }
-.document-content :is([data-lexical-layout-item], .document-column, td, th) {
+.document-content :is([data-lexical-layout-item], .document-column) {
   min-width: 0;
   container-type: inline-size;
 }
@@ -181,4 +181,121 @@
 .document-content > [data-lexical-decorator]:not(hr) {
   display: block;
   width: fit-content;
+}
+
+.document-content > .document-table-region {
+  width: fit-content;
+  min-width: min(var(--doc-measure), 100%);
+  max-width: min(var(--doc-wide), 100%);
+  margin-block: 1.75em;
+}
+.document-table-region {
+  overflow: auto;
+  max-width: 100%;
+  max-height: calc(100svh - 8rem);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  isolation: isolate;
+  overscroll-behavior-inline: contain;
+  background-image:
+    linear-gradient(
+      to right,
+      var(--table-shadow-left, transparent),
+      transparent
+    ),
+    linear-gradient(
+      to left,
+      var(--table-shadow-right, transparent),
+      transparent
+    );
+  background-position: left, right;
+  background-size: 10px 100%;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
+}
+.document-table {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+}
+.document-table :is(td, th) {
+  min-width: min(120px, 30vw);
+  padding: 8px 12px;
+  border-inline-end: 1px solid var(--border);
+  border-block-end: 1px solid var(--border);
+  vertical-align: top;
+  text-align: start;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
+}
+.document-table tr > :last-child {
+  border-inline-end: 0;
+}
+.document-table tr:last-child > * {
+  border-block-end: 0;
+}
+.document-table th {
+  background: var(--muted);
+  font-weight: 600;
+}
+.document-table > tr:first-of-type > th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.document-table :is(td, th)[data-numeric] {
+  text-align: right;
+}
+.document-table :is(td, th) > :last-child {
+  margin-block-end: 0;
+}
+.document-table[data-sized="true"] {
+  table-layout: fixed;
+}
+.document-table[data-print-table] {
+  display: none;
+}
+@media screen {
+  .document-table tr:hover > td {
+    background-color: var(--accent);
+  }
+  .document-content[contenteditable="true"] .document-table :is(td, th) {
+    padding-inline-end: 40px;
+  }
+}
+@media screen and (max-width: 639px) {
+  .document-table[data-pin-first="true"] tr > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: var(--card);
+  }
+  .document-table[data-pin-first="true"] tr > th:first-child {
+    z-index: 3;
+    background-color: var(--muted);
+  }
+}
+
+.document-table-region[data-scroll-left] {
+  --table-shadow-left: var(--muted-foreground);
+}
+.document-table-region[data-scroll-right] {
+  --table-shadow-right: var(--muted-foreground);
+}
+
+@media screen and (max-width: 639px) {
+  .document-table-region[data-scroll-left]
+    .document-table[data-pin-first="true"]
+    tr
+    > :first-child {
+    box-shadow: 6px 0 8px -6px var(--muted-foreground);
+  }
 }

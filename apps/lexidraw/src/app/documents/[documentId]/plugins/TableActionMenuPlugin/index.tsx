@@ -16,6 +16,7 @@ import {
   $isTableSelection,
   $unmergeCell,
   getTableObserverFromTableElement,
+  getTableElement,
   type HTMLTableElementWithWithTableSelectionState,
   TableCellHeaderStates,
   TableCellNode,
@@ -49,13 +50,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 
 type TableCellActionMenuProps = Readonly<{
-  contextRef: { current: null | HTMLElement };
   onClose: () => void;
-  setIsMenuOpen: (isOpen: boolean) => void;
   showColorPickerModal: (
     title: string,
     showModal: (onClose: () => void) => React.JSX.Element,
@@ -67,13 +68,10 @@ type TableCellActionMenuProps = Readonly<{
 function TableActionMenu({
   onClose,
   tableCellNode: _tableCellNode,
-  setIsMenuOpen,
-  contextRef,
   cellMerge,
   showColorPickerModal,
 }: TableCellActionMenuProps) {
   const [editor] = useLexicalComposerContext();
-  const dropDownRef = useRef<HTMLDivElement | null>(null);
   const [tableCellNode, updateTableCellNode] = useState(_tableCellNode);
   const [selectionCounts, updateSelectionCounts] = useState({
     columns: 1,
@@ -232,65 +230,14 @@ function TableActionMenu({
     });
   }, [computeSelectionCount, editor, $canUnmerge, isTableSelectionRectangular]);
 
-  useEffect(() => {
-    const menuButtonElement = contextRef.current;
-    const dropDownElement = dropDownRef.current;
-    const rootElement = editor.getRootElement();
-
-    if (
-      menuButtonElement != null &&
-      dropDownElement != null &&
-      rootElement != null
-    ) {
-      const rootEleRect = rootElement.getBoundingClientRect();
-      const menuButtonRect = menuButtonElement.getBoundingClientRect();
-      dropDownElement.style.opacity = "1";
-      const dropDownElementRect = dropDownElement.getBoundingClientRect();
-      const margin = 5;
-      let leftPosition = menuButtonRect.right + margin;
-      if (
-        leftPosition + dropDownElementRect.width > window.innerWidth ||
-        leftPosition + dropDownElementRect.width > rootEleRect.right
-      ) {
-        const position =
-          menuButtonRect.left - dropDownElementRect.width - margin;
-        leftPosition = (position < 0 ? margin : position) + window.pageXOffset;
-      }
-      dropDownElement.style.left = `${leftPosition + window.pageXOffset}px`;
-
-      let topPosition = menuButtonRect.top;
-      if (topPosition + dropDownElementRect.height > window.innerHeight) {
-        const position = menuButtonRect.bottom - dropDownElementRect.height;
-        topPosition = (position < 0 ? margin : position) + window.pageYOffset;
-      }
-      dropDownElement.style.top = `${topPosition + +window.pageYOffset}px`;
-    }
-  }, [contextRef, editor]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropDownRef.current != null &&
-        contextRef.current != null &&
-        !dropDownRef.current.contains(event.target as Node) &&
-        !contextRef.current.contains(event.target as Node)
-      ) {
-        setIsMenuOpen(false);
-      }
-    }
-
-    window.addEventListener("click", handleClickOutside);
-
-    return () => window.removeEventListener("click", handleClickOutside);
-  }, [setIsMenuOpen, contextRef]);
-
   const clearTableSelection = useCallback(() => {
     editor.update(() => {
       if (tableCellNode.isAttached()) {
         const tableNode = $getTableNodeFromLexicalNodeOrThrow(tableCellNode);
-        const tableElement = editor.getElementByKey(
-          tableNode.getKey(),
-        ) as HTMLTableElementWithWithTableSelectionState;
+        const tableElement = getTableElement(
+          tableNode,
+          editor.getElementByKey(tableNode.getKey()),
+        ) as HTMLTableElementWithWithTableSelectionState | null;
 
         if (!tableElement) {
           throw new Error("Expected to find tableElement in DOM");
@@ -520,9 +467,13 @@ function TableActionMenu({
     }
   }
 
-  return createPortal(
+  return (
     <DropdownMenuContent
-      ref={dropDownRef}
+      side="right"
+      align="start"
+      sideOffset={4}
+      collisionPadding={8}
+      className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto"
       onClick={(e) => {
         e.stopPropagation();
       }}
@@ -541,7 +492,6 @@ function TableActionMenu({
       >
         <span className="text">Background color</span>
       </DropdownMenuItem>
-      {/* <hr /> */}
       <DropdownMenuItem onClick={() => insertTableRowAtSelection(false)}>
         <span className="text">
           Insert{" "}
@@ -556,7 +506,7 @@ function TableActionMenu({
           below
         </span>
       </DropdownMenuItem>
-      <hr />
+      <DropdownMenuSeparator />
       <DropdownMenuItem onClick={() => insertTableColumnAtSelection(false)}>
         <span className="text">
           Insert{" "}
@@ -575,51 +525,54 @@ function TableActionMenu({
           right
         </span>
       </DropdownMenuItem>
-      <hr />
-      <DropdownMenuItem onClick={() => deleteTableColumnAtSelection()}>
-        <span className="text">Delete column</span>
+      <DropdownMenuSeparator />
+      <DropdownMenuCheckboxItem
+        checked={
+          (tableCellNode.__headerState & TableCellHeaderStates.ROW) !== 0
+        }
+        onCheckedChange={toggleTableRowIsHeader}
+      >
+        Header row
+      </DropdownMenuCheckboxItem>
+      <DropdownMenuCheckboxItem
+        checked={
+          (tableCellNode.__headerState & TableCellHeaderStates.COLUMN) !== 0
+        }
+        onCheckedChange={toggleTableColumnIsHeader}
+      >
+        Header column
+      </DropdownMenuCheckboxItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="text-destructive focus:text-destructive"
+        onClick={deleteTableColumnAtSelection}
+      >
+        Delete column
       </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => deleteTableRowAtSelection()}>
-        <span className="text">Delete row</span>
+      <DropdownMenuItem
+        className="text-destructive focus:text-destructive"
+        onClick={deleteTableRowAtSelection}
+      >
+        Delete row
       </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => deleteTableAtSelection()}>
-        <span className="text">Delete table</span>
+      <DropdownMenuItem
+        className="text-destructive focus:text-destructive"
+        onClick={deleteTableAtSelection}
+      >
+        Delete table
       </DropdownMenuItem>
-      <hr />
-      <DropdownMenuItem onClick={() => toggleTableRowIsHeader()}>
-        <span className="text">
-          {(tableCellNode.__headerState & TableCellHeaderStates.ROW) ===
-          TableCellHeaderStates.ROW
-            ? "Remove"
-            : "Add"}{" "}
-          row header
-        </span>
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => toggleTableColumnIsHeader()}>
-        <span className="text">
-          {(tableCellNode.__headerState & TableCellHeaderStates.COLUMN) ===
-          TableCellHeaderStates.COLUMN
-            ? "Remove"
-            : "Add"}{" "}
-          column header
-        </span>
-      </DropdownMenuItem>
-    </DropdownMenuContent>,
-    document.body,
+    </DropdownMenuContent>
   );
 }
 
 function TableCellActionMenuContainer({
-  anchorElem,
   cellMerge,
 }: {
-  anchorElem: HTMLElement;
   cellMerge: boolean;
 }): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
 
   const menuButtonRef = useRef<HTMLDivElement>(null);
-  const menuRootRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [tableCellNode, setTableMenuCellNode] = useState<TableCellNode | null>(
@@ -679,29 +632,37 @@ function TableCellActionMenuContainer({
     });
   });
 
+  // The selection lives in Lexical; its anchor moves with nested scroll regions.
   useEffect(() => {
-    const menuButtonDOM = menuButtonRef.current as HTMLDivElement | null;
-
-    if (menuButtonDOM != null && tableCellNode != null) {
-      const tableCellNodeDOM = editor.getElementByKey(tableCellNode.getKey());
-
-      if (tableCellNodeDOM != null) {
-        const tableCellRect = tableCellNodeDOM.getBoundingClientRect();
-        const menuRect = menuButtonDOM.getBoundingClientRect();
-        const anchorRect = anchorElem.getBoundingClientRect();
-
-        const top = tableCellRect.top - anchorRect.top + 4;
-        const left =
-          tableCellRect.right - menuRect.width - 10 - anchorRect.left;
-
-        menuButtonDOM.style.opacity = "1";
-        menuButtonDOM.style.transform = `translate(${left}px, ${top}px)`;
-      } else {
-        menuButtonDOM.style.opacity = "0";
-        menuButtonDOM.style.transform = "translate(-10000px, -10000px)";
-      }
-    }
-  }, [tableCellNode, editor, anchorElem]);
+    const position = () => {
+      const menu = menuButtonRef.current;
+      const cell =
+        tableCellNode && editor.getElementByKey(tableCellNode.getKey());
+      if (!menu || !cell) return;
+      const rect = cell.getBoundingClientRect();
+      const region = cell
+        .closest(".document-table-region")
+        ?.getBoundingClientRect();
+      const right = Math.min(
+        rect.right,
+        region?.right ?? innerWidth,
+        innerWidth - 8,
+      );
+      const top = Math.max(rect.top, region?.top ?? 0) + 8;
+      menu.style.visibility =
+        rect.bottom < 0 || top > innerHeight || right < 24
+          ? "hidden"
+          : "visible";
+      menu.style.transform = `translate(${right - 32}px, ${top}px)`;
+    };
+    position();
+    window.addEventListener("scroll", position, true);
+    window.addEventListener("resize", position);
+    return () => {
+      window.removeEventListener("scroll", position, true);
+      window.removeEventListener("resize", position);
+    };
+  }, [tableCellNode, editor]);
 
   const prevTableCellDOM = useRef(tableCellNode);
 
@@ -715,22 +676,19 @@ function TableCellActionMenuContainer({
 
   return (
     <div
-      className="absolute top-0 left-0 will-change-transform"
+      className="fixed top-0 left-0 z-30 will-change-transform"
       ref={menuButtonRef}
     >
       {tableCellNode != null && (
-        <DropdownMenu>
+        <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
+              aria-label="Table cell actions"
+              aria-expanded={isMenuOpen}
               variant="outline"
               size="icon"
               className="flex justify-center items-center border-0 size-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMenuOpen(!isMenuOpen);
-              }}
-              ref={menuRootRef}
             >
               <ChevronDown className="size-4" />
               <span className="sr-only">Table cell actions</span>
@@ -739,8 +697,6 @@ function TableCellActionMenuContainer({
           {colorPickerModal}
           {isMenuOpen && (
             <TableActionMenu
-              contextRef={menuRootRef}
-              setIsMenuOpen={setIsMenuOpen}
               onClose={() => setIsMenuOpen(false)}
               tableCellNode={tableCellNode}
               cellMerge={cellMerge}
@@ -754,7 +710,6 @@ function TableCellActionMenuContainer({
 }
 
 export default function TableActionMenuPlugin({
-  anchorElem = document.body,
   cellMerge = false,
 }: {
   anchorElem?: HTMLElement;
@@ -762,12 +717,7 @@ export default function TableActionMenuPlugin({
 }): null | ReactPortal {
   const isEditable = useLexicalEditable();
   return createPortal(
-    isEditable ? (
-      <TableCellActionMenuContainer
-        anchorElem={anchorElem}
-        cellMerge={cellMerge}
-      />
-    ) : null,
-    anchorElem,
+    isEditable ? <TableCellActionMenuContainer cellMerge={cellMerge} /> : null,
+    document.body,
   );
 }
