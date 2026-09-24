@@ -17,7 +17,8 @@ import { installServerRuntime } from "~/test/server-runtime";
 const db = await installServerRuntime();
 const { authorizeCredentials } = await import("./credentials");
 const password = await import("./password");
-const { SIGN_IN_LIMITS } = await import("./sign-in-rate-limit");
+const rateLimit = await import("./sign-in-rate-limit");
+const { SIGN_IN_LIMITS } = rateLimit;
 
 const PASSWORD = "Correct-Horse-Battery-9!";
 
@@ -159,6 +160,23 @@ describe("credentials sign-in rate limit", () => {
     expect(logged()).toContain("RATE_LIMITED");
     expect(logged()).not.toContain("cred_limit_email");
     expect(logged()).not.toContain("198.51.100");
+  });
+
+  test("a limiter that cannot count lets the sign-in through, logged by code only", async () => {
+    const email = await seedUser(
+      "cred_limit_down",
+      await password.hashPassword(PASSWORD),
+    );
+    spyOn(rateLimit, "takeSignInAttempt").mockRejectedValue(
+      new Error(`no such table: SignInAttempts (${email})`),
+    );
+    const logged = captureLog("error");
+
+    const user = await authorizeCredentials(email, PASSWORD, "192.0.2.1");
+
+    expect(user?.id).toBe("cred_limit_down");
+    expect(logged()).not.toContain(email);
+    expect(logged()).not.toContain("192.0.2.1");
   });
 
   test("past the per-IP limit every email from that IP is refused before scrypt, other IPs are not", async () => {

@@ -21,14 +21,21 @@ const NO_ACCOUNT_HASH =
  * a concurrent change wins, and its failure never fails a correct sign-in.
  *
  * An attempt past the email or IP limit is refused like a wrong password
- * before any scrypt runs, so a burst of attempts costs one write each.
+ * before any scrypt runs, so a burst of attempts costs one write each. When
+ * the count cannot be taken the attempt goes ahead: the limit guards against
+ * abuse, and must not turn a counter outage into a sign-in outage.
  */
 export async function authorizeCredentials(
   email: string,
   password: string,
   clientIp: string | null,
 ) {
-  const limit = await takeSignInAttempt(email, clientIp);
+  const limit = await takeSignInAttempt(email, clientIp).catch((error) => {
+    console.error("[Auth] sign-in attempt not counted", {
+      error: errorCode(error),
+    });
+    return null;
+  });
   if (limit) {
     console.warn("[Auth] sign-in refused", { error: "RATE_LIMITED", limit });
     return null;
