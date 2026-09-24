@@ -24,7 +24,8 @@
     "test": "bun dotenv -e .env.test -- turbo run test --continue",
     "test:ts": "bun dotenv -e .env.test -- turbo run test:ts --continue",
     "cli:install": "bun run --filter @apps/cli compile && mkdir -p \"$HOME/.ai/bin\" && install -m 755 apps/cli/dist/lexidraw \"$HOME/.ai/bin/lexidraw\"",
-    "skills:install": "bash scripts/install-skills.sh"
+    "skills:install": "bash scripts/install-skills.sh",
+    "test:visual": "bun apps/render-html-worker/visual/run.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

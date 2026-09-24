@@ -97,8 +97,8 @@ The rest of the surface:
 lexidraw doc list [--dir <id>|--dir-path P] [--format json|table] [--page-all]
 lexidraw doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]
 lexidraw doc insert <id|--path P> (--file f|--text s) --at-block N --if-unmodified-since W
-lexidraw doc render <id|--path P> --format pdf [--paper A4|Letter] \
-  [--orientation portrait|landscape] [--out <file>]
+lexidraw doc render <id|--path P> [--format png|pdf] [--width 1280] \
+  [--theme light|dark] [--paper A4|Letter] [--orientation portrait|landscape] [--out <file>]
 lexidraw doc delete <id|--path P>
 lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]
 lexidraw dir create --title T [--dir <id>|--dir-path P]
@@ -107,9 +107,19 @@ lexidraw dir create --title T [--dir <id>|--dir-path P]
 `doc create` with a body starts the document at that markdown rather than after
 the empty paragraph a new document carries.
 
-`doc render` prints the document as the app does (light, with a title header
-on every page) and needs only read access. PDF bytes are refused on a
-terminal, so pass `--out`; a PDF that encodes to over 3 MB is refused.
+`doc render` defaults to a PNG of the full document, at 1280px in light mode.
+Widths are integer pixels from 1 to 4096. Choose `--width 375 --theme dark --out phone.png` to check the mobile view.
+It needs only read access. PNGs are limited to 16 megapixels, and both formats
+to 3 MB base64; reduce the PNG width if the render is too large. Bytes are
+refused on a terminal, so pass `--out` or redirect stdout. REST uses
+`GET /documents/{id}/render?format=png&width=375&theme=dark`; MCP exposes the
+same operation as `get_document_image` (PNG) and `get_document_pdf` (PDF).
+
+`--format pdf` prints in light colours with a title header on every page.
+`--paper A4|Letter` and `--orientation portrait|landscape` apply to PDF;
+`--width` and `--theme` apply to PNG. Document creates, editor saves and
+markdown append/insert/replace, plus drawing creates and puts, queue fresh
+dashboard thumbnails asynchronously.
 
 ## Addressing
 

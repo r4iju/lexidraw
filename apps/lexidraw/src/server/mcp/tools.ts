@@ -12,7 +12,11 @@ import {
   AfterHeading,
   MarkdownBody,
 } from "~/server/api/routers/documents-schema";
-import { ORIENTATIONS, PAPER_SIZES } from "~/server/documents/render";
+import {
+  MAX_DOCUMENT_WIDTH,
+  ORIENTATIONS,
+  PAPER_SIZES,
+} from "~/server/documents/render";
 import { DrawingElements } from "~/server/drawings/skeleton-schema";
 import {
   DRAWING_PREVIEW_TOOL_META,
@@ -277,6 +281,40 @@ export function registerLexidrawTools(
           }),
         "GET /api/v1/documents/{id}/markdown",
       ),
+  );
+
+  server.registerTool(
+    "get_document_image",
+    {
+      title: "Render a document to PNG",
+      description:
+        "See a document at a chosen width and theme. Width 1–4096px; defaults to 1280px and light. Limited to 16 megapixels and 3 MB base64, like drawing render.",
+      inputSchema: z.object({
+        id: entityId,
+        width: z.number().int().min(1).max(MAX_DOCUMENT_WIDTH).optional(),
+        theme: z.enum(["light", "dark"]).optional(),
+      }),
+      annotations: { readOnlyHint: true },
+    },
+    async (input) => {
+      try {
+        const rendered = await caller.documents.render({
+          ...input,
+          format: "png",
+        });
+        return {
+          content: [
+            {
+              type: "image" as const,
+              mimeType: "image/png",
+              data: rendered.data,
+            },
+          ],
+        };
+      } catch (error) {
+        return failed(error);
+      }
+    },
   );
 
   server.registerTool(

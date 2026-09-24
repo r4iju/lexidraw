@@ -1,3 +1,4 @@
+import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import {
   revalidateEntities,
   revalidateEntitiesAndParents,
@@ -44,13 +45,17 @@ import {
 import { isoDate } from "../rest-schemas";
 import {
   DOCUMENT_RENDER_FORMATS,
+  MAX_DOCUMENT_WIDTH,
   ORIENTATIONS,
   PAPER_SIZES,
   RendererUnavailableError,
   RenderFailedError,
-  renderDocumentPdf,
+  renderDocument,
 } from "~/server/documents/render";
-import { MAX_RENDER_BYTES } from "~/server/drawings/render";
+import {
+  MAX_RENDER_BYTES,
+  RenderTooLargeError,
+} from "~/server/drawings/render";
 
 /**
  * How every markdown write reports the failures it shares with the others.
@@ -173,6 +178,7 @@ export const documentRouter = createTRPCRouter({
         })
         .onConflictDoNothing()
         .returning();
+      for (const row of created) await queueThumbnail(ctx.drizzle, row.id);
       await revalidateEntitiesAndParents(
         ctx.drizzle,
         ...created.map((row) => row.id),
@@ -294,6 +300,7 @@ export const documentRouter = createTRPCRouter({
           input.markdown,
           input.ifUnmodifiedSince,
         );
+        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, entity.parentId);
         return written;
@@ -407,6 +414,7 @@ export const documentRouter = createTRPCRouter({
           input.placement,
           input.ifUnmodifiedSince,
         );
+        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, entity.parentId);
         return written;
@@ -481,6 +489,7 @@ export const documentRouter = createTRPCRouter({
           input.markdown,
           input.ifUnmodifiedSince,
         );
+        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, entity.parentId);
         return written;
@@ -512,6 +521,7 @@ export const documentRouter = createTRPCRouter({
         })
         .where(eq(schema.entities.id, input.id))
         .returning();
+      await queueThumbnail(ctx.drizzle, input.id);
       revalidateEntities(input.id, entity.parentId);
       return saved;
     }),
@@ -545,8 +555,8 @@ export const documentRouter = createTRPCRouter({
       return deleted;
     }),
   /**
-   * Prints a document to PDF for anyone who can read it, a read-only token
-   * included. Signed in only: the print is made on the caller's behalf.
+   * Renders a document for anyone who can read it, a read-only token
+   * included. Signed in only: the render is made on the caller's behalf.
    */
   render: protectedProcedure
     .meta({
@@ -554,8 +564,8 @@ export const documentRouter = createTRPCRouter({
         method: "GET",
         path: "/documents/{id}/render",
         tags: ["documents"],
-        summary: "Render a document as a PDF",
-        description: `Returns the file in the JSON body, base64-encoded in \`data\`. \`paper\` and \`orientation\` set the page; the document prints light whatever theme its reader uses. A PDF over ${MAX_RENDER_BYTES / 1_000_000} MB encoded is refused with 413, and 503 means this server has no page renderer to print with.`,
+        summary: "Render a document as PNG or PDF",
+        description: `Returns the file in the JSON body, base64-encoded in \`data\`. PNG defaults to width 1280 and light theme; width and theme select its viewport. PNGs over 16 megapixels are refused. \`paper\` and \`orientation\` set the page; the document prints light whatever theme its reader uses. A file over ${MAX_RENDER_BYTES / 1_000_000} MB encoded is refused with 413, and 503 means this server has no page renderer to print with.`,
         protect: true,
         errorResponses: RENDER_ERRORS,
       },
@@ -563,7 +573,9 @@ export const documentRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        format: z.enum(DOCUMENT_RENDER_FORMATS),
+        format: z.enum(DOCUMENT_RENDER_FORMATS).default("png"),
+        width: z.number().int().min(1).max(MAX_DOCUMENT_WIDTH).default(1280),
+        theme: z.enum(["light", "dark"]).default("light"),
         paper: z.enum(PAPER_SIZES).default("A4"),
         orientation: z.enum(ORIENTATIONS).default("portrait"),
       }),
@@ -590,16 +602,29 @@ export const documentRouter = createTRPCRouter({
       }
       const proto = ctx.headers.get("x-forwarded-proto") ?? "http";
       const host = ctx.headers.get("host");
-      let pdf: Uint8Array;
+      let file: Uint8Array;
       try {
-        pdf = await renderDocumentPdf({
+        file = await renderDocument({
           appOrigin: `${proto}://${host}`,
           documentId: entity.id,
           userId,
           title: entity.title,
-          options: { paper: input.paper, orientation: input.orientation },
+          options:
+            input.format === "pdf"
+              ? {
+                  format: "pdf",
+                  paper: input.paper,
+                  orientation: input.orientation,
+                }
+              : { format: "png", width: input.width, theme: input.theme },
         });
       } catch (error) {
+        if (error instanceof RenderTooLargeError) {
+          throw new TRPCError({
+            code: "PAYLOAD_TOO_LARGE",
+            message: error.message,
+          });
+        }
         if (error instanceof RendererUnavailableError) {
           throw new TRPCError({
             code: "SERVICE_UNAVAILABLE",
@@ -610,24 +635,24 @@ export const documentRouter = createTRPCRouter({
         if (error instanceof RenderFailedError) {
           throw new TRPCError({
             code: "BAD_GATEWAY",
-            message: "The PDF could not be rendered",
+            message: "The document could not be rendered",
             cause: error,
           });
         }
         throw error;
       }
-      const data = Buffer.from(pdf).toString("base64");
+      const data = Buffer.from(file).toString("base64");
       const bytes = Buffer.byteLength(data);
       if (bytes > MAX_RENDER_BYTES) {
         throw new TRPCError({
           code: "PAYLOAD_TOO_LARGE",
-          message: `This PDF encodes to ${Math.round(bytes / 100_000) / 10} MB, over the ${MAX_RENDER_BYTES / 1_000_000} MB a response can carry`,
+          message: `This render encodes to ${Math.round(bytes / 100_000) / 10} MB, over the ${MAX_RENDER_BYTES / 1_000_000} MB a response can carry`,
         });
       }
       return {
         id: entity.id,
         format: input.format,
-        contentType: "application/pdf",
+        contentType: input.format === "pdf" ? "application/pdf" : "image/png",
         encoding: "base64" as const,
         data,
         updatedAt: entity.updatedAt,

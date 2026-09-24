@@ -571,12 +571,33 @@ describe("doc render", () => {
     expect(stub.requests).toHaveLength(before);
   });
 
-  it("needs a format, and names the ones it has", async () => {
-    const out = io();
-    expect(await run(["doc", "render", "doc-plan"], out.io)).toBe(2);
-    expect(JSON.parse(out.stderr()).message).toBe(
-      "doc render needs --format pdf",
+  it("defaults to PNG and writes the requested mobile dark render", async () => {
+    const output = join(
+      await mkdtemp(join(tmpdir(), "lexidraw-png-")),
+      "doc.png",
     );
+    const capture = io();
+    expect(
+      await run(
+        [
+          "doc",
+          "render",
+          "doc-plan",
+          "--width",
+          "375",
+          "--theme",
+          "dark",
+          "--out",
+          output,
+        ],
+        capture.io,
+      ),
+    ).toBe(0);
+    expect(await Bun.file(output).text()).toBe("PNG doc-plan 375 dark");
+    expect(JSON.parse(capture.stdout())).toMatchObject({
+      format: "png",
+      contentType: "image/png",
+    });
   });
 
   it("refuses paper it cannot print on, without a request", async () => {

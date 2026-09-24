@@ -1,3 +1,4 @@
+import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import { z } from "zod";
 import {
   revalidateEntities,
@@ -30,9 +31,6 @@ import {
   type GenerateClientTokenOptions,
 } from "@vercel/blob/client";
 import { headers } from "next/headers";
-import { start } from "workflow/api";
-import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
-import { computeThumbnailVersion } from "~/lib/thumbnail-version";
 import {
   drizzleDocumentStore,
   nextUpdatedAt,
@@ -233,6 +231,7 @@ export const entityRouter = createTRPCRouter({
           updatedAt: schema.entities.updatedAt,
         });
       if (created) {
+        await queueThumbnail(ctx.drizzle, created.id);
         await revalidateEntitiesAndParents(
           ctx.drizzle,
           created.id,
@@ -345,110 +344,7 @@ export const entityRouter = createTRPCRouter({
         });
       }
       const entityUpdatedAt = saved[0].updatedAt;
-
-      try {
-        console.log(
-          "[thumbnail][entities.save] entity_updated",
-          JSON.stringify({
-            entityId: input.id,
-            entityUpdatedAtISO: entityUpdatedAt.toISOString(),
-            entityUpdatedAtMs: entityUpdatedAt.getTime(),
-          }),
-        );
-      } catch {}
-
-      // Enqueue thumbnail job (deduped by entityId+version)
-      try {
-        // The thumbnail follows what is stored, which is the previous
-        // appState when this save did not carry one.
-        const version = computeThumbnailVersion(
-          input.elements,
-          appState === undefined ? entity.appState : appState,
-        );
-
-        const jobId = uuidV4();
-        const createdAt = new Date();
-
-        try {
-          console.log(
-            "[thumbnail][entities.save] job_init",
-            JSON.stringify({
-              entityId: input.id,
-              version,
-              attemptedJobId: jobId,
-              jobCreatedAtISO: createdAt.toISOString(),
-              jobCreatedAtMs: createdAt.getTime(),
-              entityUpdatedAtMs: entityUpdatedAt.getTime(),
-              diffMs_entityUpdate_to_jobCreate:
-                createdAt.getTime() - entityUpdatedAt.getTime(),
-            }),
-          );
-        } catch {}
-
-        // upsert job
-        await ctx.drizzle
-          .insert(ctx.schema.thumbnailJobs)
-          .values({
-            id: jobId,
-            entityId: input.id,
-            version,
-            status: "pending",
-            attempts: 0,
-            nextRunAt: createdAt,
-            createdAt,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [
-              ctx.schema.thumbnailJobs.entityId,
-              ctx.schema.thumbnailJobs.version,
-            ],
-            set: {
-              status: "pending",
-              updatedAt: new Date(),
-              nextRunAt: new Date(),
-              lastError: null,
-            },
-          })
-          .execute();
-
-        // Trigger workflow for thumbnail generation (fire-and-forget)
-        // Fetch the job ID after upsert to handle conflict case
-        const job = await ctx.drizzle.query.thumbnailJobs.findFirst({
-          where: (t) => and(eq(t.entityId, input.id), eq(t.version, version)),
-        });
-
-        if (job) {
-          try {
-            const persistedCreatedAt = new Date(
-              job.createdAt as unknown as number | string | Date,
-            );
-            const conflict = job.id !== jobId;
-            console.log(
-              "[thumbnail][entities.save] job_persisted",
-              JSON.stringify({
-                entityId: input.id,
-                version,
-                conflict,
-                attemptedJobId: jobId,
-                persistedJobId: job.id,
-                insertedCreatedAtISO: createdAt.toISOString(),
-                persistedCreatedAtISO: persistedCreatedAt.toISOString(),
-                diffMs_entityUpdate_to_persistedCreate:
-                  persistedCreatedAt.getTime() - entityUpdatedAt.getTime(),
-              }),
-            );
-          } catch {}
-          void start(generateThumbnailWorkflow, [
-            job.id,
-            job.entityId,
-            job.version,
-          ]);
-        }
-      } catch (e) {
-        console.error("enqueue_thumbnail_job_failed", e);
-        // swallow: saving the document should not fail due to queueing issues
-      }
+      await queueThumbnail(ctx.drizzle, input.id);
 
       // Both directories, because `parentId` may have moved the entity out of
       // the one it was listed in, and the listings above them with it.

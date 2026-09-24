@@ -1,0 +1,476 @@
+[
+  {
+    "type": "image",
+    "version": 1,
+    "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iODAiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iODAiIGZpbGw9IiM3ZGQzZmMiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjQwIiByPSIyNCIgZmlsbD0iI2Y1OWUwYiIvPjwvc3ZnPg==",
+    "altText": "Blue sky and sun",
+    "width": 240,
+    "height": 80,
+    "maxWidth": 600,
+    "showCaption": true,
+    "caption": {
+      "editorState": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "Caption · 図の説明",
+                  "format": 0,
+                  "detail": 0,
+                  "mode": "normal",
+                  "style": ""
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0
+        }
+      }
+    }
+  },
+  {
+    "type": "paragraph",
+    "version": 1,
+    "children": [
+      {
+        "type": "text",
+        "version": 1,
+        "text": "Inline image: ",
+        "format": 0,
+        "detail": 0,
+        "mode": "normal",
+        "style": ""
+      },
+      {
+        "type": "inline-image",
+        "version": 1,
+        "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iODAiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iODAiIGZpbGw9IiM3ZGQzZmMiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjQwIiByPSIyNCIgZmlsbD0iI2Y1OWUwYiIvPjwvc3ZnPg==",
+        "altText": "Inline sun",
+        "width": 80,
+        "height": 30,
+        "position": "left",
+        "showCaption": false,
+        "caption": {
+          "editorState": {
+            "root": {
+              "type": "root",
+              "version": 1,
+              "children": [
+                {
+                  "type": "paragraph",
+                  "version": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "version": 1,
+                      "text": "Inline caption",
+                      "format": 0,
+                      "detail": 0,
+                      "mode": "normal",
+                      "style": ""
+                    }
+                  ],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0
+            }
+          }
+        }
+      }
+    ],
+    "direction": null,
+    "format": "",
+    "indent": 0
+  },
+  {
+    "type": "layout-container",
+    "version": 1,
+    "children": [
+      {
+        "type": "layout-item",
+        "version": 1,
+        "children": [
+          {
+            "type": "paragraph",
+            "version": 1,
+            "children": [
+              {
+                "type": "text",
+                "version": 1,
+                "text": "Left column · 左",
+                "format": 0,
+                "detail": 0,
+                "mode": "normal",
+                "style": ""
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0
+      },
+      {
+        "type": "layout-item",
+        "version": 1,
+        "children": [
+          {
+            "type": "paragraph",
+            "version": 1,
+            "children": [
+              {
+                "type": "text",
+                "version": 1,
+                "text": "Right column · 右",
+                "format": 0,
+                "detail": 0,
+                "mode": "normal",
+                "style": ""
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0
+      }
+    ],
+    "direction": null,
+    "format": "",
+    "indent": 0,
+    "templateColumns": "1fr 1fr"
+  },
+  {
+    "type": "collapsible-container",
+    "version": 1,
+    "children": [
+      {
+        "type": "collapsible-title",
+        "version": 1,
+        "children": [
+          {
+            "type": "text",
+            "version": 1,
+            "text": "Details · 詳細",
+            "format": 0,
+            "detail": 0,
+            "mode": "normal",
+            "style": ""
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0
+      },
+      {
+        "type": "collapsible-content",
+        "version": 1,
+        "children": [
+          {
+            "type": "paragraph",
+            "version": 1,
+            "children": [
+              {
+                "type": "text",
+                "version": 1,
+                "text": "Expanded content · 開いた内容",
+                "format": 0,
+                "detail": 0,
+                "mode": "normal",
+                "style": ""
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0
+      }
+    ],
+    "direction": null,
+    "format": "",
+    "indent": 0,
+    "open": true
+  },
+  {
+    "type": "mermaid",
+    "version": 1,
+    "schema": "flowchart LR\n A[Start 開始] --> B[Done 完了]",
+    "width": 280,
+    "height": 100
+  },
+  {
+    "type": "chart",
+    "version": 1,
+    "chartType": "bar",
+    "chartData": "[{\"name\": \"\\u6771\\u4eac\", \"value\": 12}, {\"name\": \"Osaka\", \"value\": 8}]",
+    "chartConfig": "{\"value\": {\"label\": \"Meals\", \"color\": \"#2563eb\"}}",
+    "width": 280,
+    "height": 160
+  },
+  {
+    "type": "poll",
+    "version": 1,
+    "question": "Lunch · 昼ご飯?",
+    "options": [
+      {
+        "text": "Rice · ご飯",
+        "uid": "rice",
+        "votes": []
+      },
+      {
+        "text": "Soup · スープ",
+        "uid": "soup",
+        "votes": []
+      }
+    ]
+  },
+  {
+    "type": "excalidraw",
+    "version": 1,
+    "data": "{\"elements\": [{\"id\": \"box\", \"type\": \"rectangle\", \"x\": 0, \"y\": 0, \"width\": 160, \"height\": 70, \"angle\": 0, \"strokeColor\": \"#1e1e1e\", \"backgroundColor\": \"#a5d8ff\", \"fillStyle\": \"solid\", \"strokeWidth\": 2, \"strokeStyle\": \"solid\", \"roughness\": 0, \"opacity\": 100, \"groupIds\": [], \"frameId\": null, \"roundness\": null, \"seed\": 1, \"version\": 1, \"versionNonce\": 1, \"isDeleted\": false, \"boundElements\": null, \"updated\": 1, \"link\": null, \"locked\": false}], \"appState\": {}, \"files\": {}}",
+    "width": 240,
+    "height": 100
+  },
+  {
+    "type": "slide-deck",
+    "version": 1,
+    "data": {
+      "slides": [
+        {
+          "id": "fixture-slide",
+          "elements": [
+            {
+              "kind": "image",
+              "id": "fixture-slide-image",
+              "x": 20,
+              "y": 20,
+              "width": 240,
+              "height": 80,
+              "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iODAiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iODAiIGZpbGw9IiM3ZGQzZmMiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjQwIiByPSIyNCIgZmlsbD0iI2Y1OWUwYiIvPjwvc3ZnPg==",
+              "zIndex": 0
+            }
+          ]
+        }
+      ],
+      "currentSlideId": "fixture-slide"
+    }
+  },
+  {
+    "type": "article",
+    "version": 1,
+    "format": "",
+    "data": {
+      "mode": "url",
+      "url": "https://example.com/article",
+      "distilled": {
+        "title": "Article · 記事",
+        "contentHtml": "<p>Local article content. 保存された本文。</p>"
+      }
+    }
+  },
+  {
+    "type": "page-break",
+    "version": 1
+  },
+  {
+    "type": "video",
+    "version": 1,
+    "src": "data:video/mp4;base64,",
+    "width": 240,
+    "height": 100,
+    "showCaption": false,
+    "captionsEnabled": false,
+    "caption": {
+      "root": {
+        "type": "root",
+        "version": 1,
+        "children": [
+          {
+            "type": "paragraph",
+            "version": 1,
+            "children": [
+              {
+                "type": "text",
+                "version": 1,
+                "text": "Video · 動画",
+                "format": 0,
+                "detail": 0,
+                "mode": "normal",
+                "style": ""
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0
+      }
+    }
+  },
+  {
+    "type": "youtube",
+    "version": 1,
+    "videoID": "fixture-unavailable",
+    "format": "",
+    "width": 240,
+    "height": 100
+  },
+  {
+    "type": "tweet",
+    "version": 1,
+    "id": "fixture-unavailable",
+    "format": ""
+  },
+  {
+    "type": "figma",
+    "version": 1,
+    "documentID": "fixture-unavailable",
+    "format": "",
+    "width": 240,
+    "height": 100
+  },
+  {
+    "type": "sticky",
+    "version": 1,
+    "xOffset": 0,
+    "yOffset": 2700,
+    "color": "yellow",
+    "caption": {
+      "editorState": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "Sticky · 付箋",
+                  "format": 0,
+                  "detail": 0,
+                  "mode": "normal",
+                  "style": ""
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0
+        }
+      }
+    }
+  },
+  {
+    "type": "paragraph",
+    "version": 1,
+    "children": [
+      {
+        "type": "mark",
+        "version": 1,
+        "children": [
+          {
+            "type": "text",
+            "version": 1,
+            "text": "Commented text · コメント",
+            "format": 0,
+            "detail": 0,
+            "mode": "normal",
+            "style": ""
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "ids": ["fixture-thread"]
+      }
+    ],
+    "direction": null,
+    "format": "",
+    "indent": 0
+  },
+  {
+    "type": "comment",
+    "version": 1,
+    "comment": {
+      "author": "Reviewer",
+      "content": "Check Japanese spacing",
+      "deleted": false,
+      "id": "fixture-comment",
+      "timeStamp": 0,
+      "type": "comment"
+    },
+    "format": 0,
+    "indent": 0,
+    "direction": null,
+    "children": []
+  },
+  {
+    "type": "thread",
+    "version": 1,
+    "thread": {
+      "comments": [],
+      "id": "fixture-thread",
+      "quote": "Commented text",
+      "type": "thread"
+    },
+    "format": 0,
+    "indent": 0,
+    "direction": null,
+    "children": []
+  },
+  {
+    "type": "paragraph",
+    "version": 1,
+    "children": [
+      {
+        "type": "text",
+        "version": 1,
+        "text": "End of kitchen sink · おしまい",
+        "format": 0,
+        "detail": 0,
+        "mode": "normal",
+        "style": ""
+      }
+    ],
+    "direction": null,
+    "format": "",
+    "indent": 0
+  }
+]

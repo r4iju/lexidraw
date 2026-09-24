@@ -240,6 +240,7 @@ describe("the MCP endpoint", () => {
       "append_markdown",
       "create_document",
       "create_drawing",
+      "get_document_image",
       "get_document_markdown",
       "get_document_pdf",
       "get_drawing",
@@ -635,6 +636,25 @@ describe("a document's PDF", () => {
   const realFetch = globalThis.fetch;
   afterEach(() => {
     globalThis.fetch = realFetch;
+  });
+
+  test("returns a PNG image with the requested width and theme", async () => {
+    const asked: Json[] = [];
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      asked.push(JSON.parse(String(init?.body)));
+      return new Response("PNG stand-in");
+    }) as typeof fetch;
+    const { body } = await rpc(READ_TOKEN, "tools/call", {
+      name: "get_document_image",
+      arguments: { id: "doc_huge", width: 375, theme: "dark" },
+    });
+    expect(body.result.isError).toBeUndefined();
+    expect(body.result.content[0]).toEqual({
+      type: "image",
+      mimeType: "image/png",
+      data: Buffer.from("PNG stand-in").toString("base64"),
+    });
+    expect(asked[0]).toMatchObject({ viewport: { width: 375 }, theme: "dark" });
   });
 
   test("comes back as a PDF file on a read-scope token", async () => {

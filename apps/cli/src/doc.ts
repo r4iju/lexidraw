@@ -59,13 +59,21 @@ const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
     boolean: ["replace"],
   },
   render: {
-    value: [...ADDRESS, "format", "paper", "orientation", "out"],
+    value: [
+      ...ADDRESS,
+      "format",
+      "paper",
+      "orientation",
+      "width",
+      "theme",
+      "out",
+    ],
     boolean: [],
   },
   delete: { value: ADDRESS, boolean: [] },
 };
 
-const RENDER_FORMATS = ["pdf"];
+const RENDER_FORMATS = ["png", "pdf"];
 const PAPER_SIZES = ["A4", "Letter"];
 const ORIENTATIONS = ["portrait", "landscape"];
 
@@ -303,10 +311,19 @@ function revisionOf(created: Record<string, unknown>): string {
 
 async function render(context: Context, args: ParsedArgs): Promise<void> {
   const target = address(args, "document", "read");
-  const format = one(args, "format");
-  if (format === undefined || !RENDER_FORMATS.includes(format)) {
+  const format = one(args, "format") ?? "png";
+  if (!RENDER_FORMATS.includes(format)) {
     throw usageError(`doc render needs --format ${RENDER_FORMATS.join("|")}`);
   }
+  const width = one(args, "width");
+  if (
+    width !== undefined &&
+    (!Number.isInteger(Number(width)) ||
+      Number(width) < 1 ||
+      Number(width) > 4096)
+  )
+    throw usageError("--width must be an integer between 1 and 4096");
+  const theme = choice(args, "theme", ["light", "dark"]);
   const paper = choice(args, "paper", PAPER_SIZES);
   const orientation = choice(args, "orientation", ORIENTATIONS);
   const out = one(args, "out");
@@ -319,6 +336,8 @@ async function render(context: Context, args: ParsedArgs): Promise<void> {
     path: `/documents/${encodeURIComponent(id)}/render`,
     query: [
       ["format", format],
+      ...(width === undefined ? [] : [["width", width] as const]),
+      ...(theme === undefined ? [] : [["theme", theme] as const]),
       ...(paper === undefined ? [] : [["paper", paper] as const]),
       ...(orientation === undefined
         ? []

@@ -1,9 +1,15 @@
 import "server-only";
 
 import env from "@packages/env";
+import { createScreenshotToken } from "~/server/auth/screenshot-token";
+import {
+  MAX_RENDER_PIXELS,
+  RenderTooLargeError,
+} from "~/server/drawings/render";
 import { createPrintToken } from "~/server/auth/print-token";
 
-export const DOCUMENT_RENDER_FORMATS = ["pdf"] as const;
+export const MAX_DOCUMENT_WIDTH = 4096;
+export const DOCUMENT_RENDER_FORMATS = ["pdf", "png"] as const;
 export const PAPER_SIZES = ["A4", "Letter"] as const;
 export const ORIENTATIONS = ["portrait", "landscape"] as const;
 
@@ -12,22 +18,22 @@ export type PdfOptions = {
   orientation: (typeof ORIENTATIONS)[number];
 };
 
-/** No page renderer is configured, so there is nothing to print with. */
+/** No page renderer is configured. */
 export class RendererUnavailableError extends Error {
   constructor() {
-    super("PDF rendering is not configured on this server");
+    super("Document rendering is not configured on this server");
   }
 }
 
-/** The page renderer was reached and could not produce the PDF. */
+/** The page renderer was reached and could not produce the file. */
 export class RenderFailedError extends Error {}
 
-function rendererEndpoint(): string | null {
+function rendererEndpoint(format: "pdf" | "png"): string | null {
+  const path = format === "pdf" ? "/api/render/pdf" : "/api/screenshot";
   const base = env.HEADLESS_RENDER_URL?.replace(/\/+$/, "");
-  if (base) return `${base}/api/render/pdf`;
+  if (base) return `${base}${path}`;
   // The worker `turbo dev` runs next to the app.
-  if (env.NODE_ENV !== "production")
-    return "http://localhost:4025/api/render/pdf";
+  if (env.NODE_ENV !== "production") return `http://localhost:4025${path}`;
   return null;
 }
 
@@ -40,32 +46,34 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * Prints a document as the page renderer sees its print page, and returns the
- * PDF. `appOrigin` is where the renderer reaches that page: the origin the
- * request came in on, so the print is made by the deployment that was asked.
- * The page opens on a short-lived token for this document and `userId`, whose
- * access the caller has already checked.
+ * Renders the page on the deployment asked, with a short-lived token scoped
+ * to the document and caller whose read access the route has checked.
  */
-export async function renderDocumentPdf(params: {
+export async function renderDocument(params: {
   appOrigin: string;
   documentId: string;
   userId: string;
   title: string;
-  options: PdfOptions;
+  options:
+    | (PdfOptions & { format: "pdf" })
+    | { format: "png"; width: number; theme: "light" | "dark" };
 }): Promise<Uint8Array> {
-  const endpoint = rendererEndpoint();
+  const endpoint = rendererEndpoint(params.options.format);
   if (!endpoint || env.HEADLESS_RENDER_ENABLED === false) {
     throw new RendererUnavailableError();
   }
-  const token = createPrintToken({
+  const pdf = params.options.format === "pdf";
+  const token = (pdf ? createPrintToken : createScreenshotToken)({
     userId: params.userId,
     entityId: params.documentId,
   });
   const url = new URL(
-    `/documents/${encodeURIComponent(params.documentId)}/print`,
+    pdf
+      ? `/documents/${encodeURIComponent(params.documentId)}/print`
+      : `/screenshot/view/${encodeURIComponent(params.documentId)}`,
     params.appOrigin,
   );
-  url.searchParams.set("token", token);
+  url.searchParams.set(pdf ? "token" : "st", token);
 
   let response: Response;
   try {
@@ -74,10 +82,29 @@ export async function renderDocumentPdf(params: {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         url: url.toString(),
-        format: params.options.paper,
-        orientation: params.options.orientation,
-        margin: { top: "16mm", right: "14mm", bottom: "16mm", left: "14mm" },
-        headerTemplate: `<div style="font-size: 8px; width: 100%; padding: 0 14mm; color: #666;">${escapeHtml(params.title)}</div>`,
+        ...(params.options.format === "pdf"
+          ? {
+              format: params.options.paper,
+              orientation: params.options.orientation,
+              margin: {
+                top: "16mm",
+                right: "14mm",
+                bottom: "16mm",
+                left: "14mm",
+              },
+              headerTemplate: `<div style="font-size: 8px; width: 100%; padding: 0 14mm; color: #666;">${escapeHtml(params.title)}</div>`,
+            }
+          : {
+              viewport: {
+                width: params.options.width,
+                height: 900,
+                deviceScaleFactor: 1,
+              },
+              theme: params.options.theme,
+              image: { type: "png" },
+              waitForDocument: true,
+              maxPixels: MAX_RENDER_PIXELS,
+            }),
         waitUntil: "networkidle0",
         timeoutMs: 45_000,
       }),
@@ -87,6 +114,8 @@ export async function renderDocumentPdf(params: {
       cause: error,
     });
   }
+  if (response.status === 413)
+    throw new RenderTooLargeError(await response.text());
   if (!response.ok) {
     throw new RenderFailedError(
       `The page renderer answered ${response.status}: ${await response.text().catch(() => "")}`,

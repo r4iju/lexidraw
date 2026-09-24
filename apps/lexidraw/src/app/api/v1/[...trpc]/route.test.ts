@@ -556,6 +556,50 @@ describe("a document rendered to PDF", () => {
     ).toMatchObject({ entityId: "rest_printed", userId: READER });
   });
 
+  test("renders PNG at the requested width and theme through the same operation", async () => {
+    const { response, body } = await render(
+      READ_TOKEN,
+      "format=png&width=375&theme=dark",
+    );
+    expect(response.status).toBe(200);
+    expect(body.contentType).toBe("image/png");
+    expect(body.format).toBe("png");
+    expect(body.encoding).toBe("base64");
+    expect(rendered[0]).toMatchObject({
+      viewport: { width: 375, deviceScaleFactor: 1 },
+      theme: "dark",
+      image: { type: "png" },
+      waitForDocument: true,
+      maxPixels: 16_000_000,
+    });
+    expect(new URL(rendered[0]?.url).pathname).toBe(
+      "/screenshot/view/rest_printed",
+    );
+  });
+
+  test("rejects invalid PNG widths before reaching the worker", async () => {
+    for (const width of ["0", "4097", "16000001", "375.5"]) {
+      expect(
+        (await render(READ_TOKEN, `format=png&width=${width}`)).response.status,
+      ).toBe(400);
+    }
+    expect(rendered).toEqual([]);
+  });
+
+  test("reports a PNG exceeding the worker pixel limit as 413", async () => {
+    globalThis.fetch = (async (_url: string, _init?: RequestInit) =>
+      new Response("Image exceeds 16 megapixels", {
+        status: 413,
+      })) as typeof fetch;
+    expect((await render(READ_TOKEN, "format=png")).response.status).toBe(413);
+  });
+
+  test("refuses a PNG whose base64 response exceeds 3 MB", async () => {
+    globalThis.fetch = (async (_url: string, _init?: RequestInit) =>
+      new Response(new Uint8Array(2_250_001))) as typeof fetch;
+    expect((await render(READ_TOKEN, "format=png")).response.status).toBe(413);
+  });
+
   test("is A4 portrait unless asked otherwise", async () => {
     await render(READ_TOKEN, "format=pdf");
     await render(READ_TOKEN, "format=pdf&paper=Letter&orientation=landscape");

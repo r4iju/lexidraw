@@ -17,6 +17,7 @@ export async function updateEntityStep(
     entityId,
     { light: lightUrl, dark: darkUrl },
     { thumbnailStatus: "ready", thumbnailVersion: version },
+    version,
   );
 
   // A thumbnail is what a listing shows of an entity. This step runs on its

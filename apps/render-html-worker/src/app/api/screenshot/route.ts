@@ -200,6 +200,8 @@ async function waitForStableLayout(
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
+      waitForDocument?: boolean;
+      maxPixels?: number;
       url?: string;
       cookiesHeader?: string;
       selector?: string;
@@ -234,6 +236,18 @@ export async function POST(req: NextRequest) {
       height: 900,
       deviceScaleFactor: 1,
     };
+    if (
+      body.waitForDocument &&
+      (!Number.isInteger(vp.width) ||
+        vp.width < 1 ||
+        vp.width > 4096 ||
+        !Number.isInteger(vp.height) ||
+        vp.height < 1 ||
+        (vp.deviceScaleFactor ?? 1) !== 1 ||
+        vp.width * vp.height > 16_000_000)
+    ) {
+      return new NextResponse("Invalid document viewport", { status: 400 });
+    }
     const image = body?.image ?? { type: "webp", quality: 92 };
 
     // Launch Chromium
@@ -308,13 +322,21 @@ export async function POST(req: NextRequest) {
           return url;
         }
       })();
+      if (body.theme) {
+        await page.emulateMediaFeatures([
+          { name: "prefers-color-scheme", value: body.theme },
+        ]);
+        await page.evaluateOnNewDocument((theme) => {
+          localStorage.setItem("theme", theme);
+        }, body.theme);
+      }
       await page.goto(gotoUrl, { waitUntil, timeout: timeoutMs });
       // Hide cursors, presence, and Next.js overlays in the top document
       try {
         const hideCss = `*{cursor:none !important}
           [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
           [data-component-name='Toolbar'],
-          #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
+          nextjs-portal, #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
           [data-nextjs-toast], [data-nextjs-dialog] { display:none !important; }`;
         // Prefer addStyleTag for reliability across pages with CSP disabled for worker
         await page.addStyleTag({ content: hideCss });
@@ -345,7 +367,7 @@ export async function POST(req: NextRequest) {
               const hideCss = `*{cursor:none !important}
                 [data-cursor], [data-presence], [data-presence-root], .presence, .cursor,
                 [data-component-name='Toolbar'],
-                #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
+                nextjs-portal, #nextjs-portal-root, [data-nextjs-overlay], [data-nextjs-error-overlay],
                 [data-nextjs-toast], [data-nextjs-dialog] { display:none !important; }`;
               await frame.addStyleTag({ content: hideCss });
             } catch {}
@@ -364,6 +386,56 @@ export async function POST(req: NextRequest) {
             }, body.theme);
           }
         } catch {}
+      }
+      if (body.waitForDocument) {
+        await page.waitForFunction(
+          () =>
+            (window as Window & { __readyForPdf__?: boolean })
+              .__readyForPdf__ === true,
+          { timeout: timeoutMs },
+        );
+        await page.addStyleTag({
+          content:
+            "*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }",
+        });
+        const height = await page.evaluate(() => {
+          const article = document.querySelector<HTMLElement>(
+            "[id^='lexical-content-']",
+          );
+          if (!article) throw new Error("Document content not found");
+          // The editor still scrolls in an inner container; expand its ancestors
+          // so the screenshot includes every block, not just the first screen.
+          for (
+            let el: HTMLElement | null = article;
+            el;
+            el = el.parentElement
+          ) {
+            el.style.height = "auto";
+            el.style.maxHeight = "none";
+            el.style.overflow = "visible";
+            el.style.flexShrink = "0";
+          }
+          return Math.ceil(
+            article.getBoundingClientRect().bottom + window.scrollY,
+          );
+        });
+        const pixels = vp.width * height * (vp.deviceScaleFactor ?? 1) ** 2;
+        if (pixels > Math.min(body.maxPixels ?? 16_000_000, 16_000_000)) {
+          return new NextResponse(
+            "Document exceeds 16 megapixels; choose a smaller width",
+            { status: 413 },
+          );
+        }
+        const png = await page.screenshot({
+          type: "png",
+          clip: { x: 0, y: 0, width: vp.width, height },
+        });
+        if (Math.ceil(png.length / 3) * 4 > 3_000_000) {
+          return new NextResponse("PNG exceeds 3 MB encoded", { status: 413 });
+        }
+        return new NextResponse(new Uint8Array(png), {
+          headers: { "content-type": "image/png", "cache-control": "no-store" },
+        });
       }
       await ensurePageReady(page, timeoutMs);
       await waitForIframeAndContent(page, timeoutMs);

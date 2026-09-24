@@ -1,3 +1,4 @@
+import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import { PublicAccess } from "@packages/types";
 import { type drizzle, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
@@ -345,6 +346,7 @@ export const drawingRouter = createTRPCRouter({
           elements,
           input.ifUnmodifiedSince,
         );
+        await queueThumbnail(ctx.drizzle, input.id);
         // The parent too: a directory listing shows each child's updatedAt.
         revalidateEntities(input.id, drawing.parentId);
         return { ...written, updatedAt: written.updatedAt.toISOString() };
@@ -414,6 +416,7 @@ export const drawingRouter = createTRPCRouter({
           message: `An entity with id "${input.id}" already exists`,
         });
       }
+      await queueThumbnail(ctx.drizzle, row.id);
       await revalidateEntitiesAndParents(ctx.drizzle, row.id, parentId);
       return {
         id: row.id,

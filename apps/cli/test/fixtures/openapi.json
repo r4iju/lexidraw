@@ -2660,8 +2660,8 @@
     "/documents/{id}/render": {
       "get": {
         "operationId": "documents-render",
-        "summary": "Render a document as a PDF",
-        "description": "Returns the file in the JSON body, base64-encoded in `data`. `paper` and `orientation` set the page; the document prints light whatever theme its reader uses. A PDF over 3 MB encoded is refused with 413, and 503 means this server has no page renderer to print with.",
+        "summary": "Render a document as PNG or PDF",
+        "description": "Returns the file in the JSON body, base64-encoded in `data`. PNG defaults to width 1280 and light theme; width and theme select its viewport. PNGs over 16 megapixels are refused. `paper` and `orientation` set the page; the document prints light whatever theme its reader uses. A file over 3 MB encoded is refused with 413, and 503 means this server has no page renderer to print with.",
         "tags": ["documents"],
         "security": [
           {
@@ -2681,10 +2681,29 @@
             "in": "query",
             "name": "format",
             "schema": {
+              "default": "png",
               "type": "string",
-              "enum": ["pdf"]
-            },
-            "required": true
+              "enum": ["pdf", "png"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "width",
+            "schema": {
+              "default": 1280,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            }
+          },
+          {
+            "in": "query",
+            "name": "theme",
+            "schema": {
+              "default": "light",
+              "type": "string",
+              "enum": ["light", "dark"]
+            }
           },
           {
             "in": "query",
@@ -2718,7 +2737,7 @@
                     },
                     "format": {
                       "type": "string",
-                      "enum": ["pdf"]
+                      "enum": ["pdf", "png"]
                     },
                     "contentType": {
                       "type": "string"

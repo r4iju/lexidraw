@@ -25,6 +25,8 @@ describe("storing a rendered thumbnail", () => {
       publicAccess: PublicAccess.PRIVATE,
       createdAt: EDITED,
       updatedAt: EDITED,
+      thumbnailStatus: "pending",
+      thumbnailVersion: "v1",
     });
 
     await updateEntityStep("thumb_doc", "light.webp", "dark.webp", "v1");

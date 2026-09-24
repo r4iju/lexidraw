@@ -208,6 +208,17 @@ function rendered(row: Row) {
 
 /** A stand-in PDF that names the document and the page it was printed on. */
 function printedPdf(row: Row, url: URL) {
+  if (url.searchParams.get("format") === "png")
+    return {
+      id: row.id,
+      format: "png",
+      contentType: "image/png",
+      encoding: "base64",
+      data: Buffer.from(
+        `PNG ${row.id} ${url.searchParams.get("width")} ${url.searchParams.get("theme")}`,
+      ).toString("base64"),
+      updatedAt: row.updatedAt,
+    };
   const page = `${url.searchParams.get("paper") ?? "A4"} ${url.searchParams.get("orientation") ?? "portrait"}`;
   return {
     id: row.id,

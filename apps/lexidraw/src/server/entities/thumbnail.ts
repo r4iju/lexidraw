@@ -1,6 +1,6 @@
 import { del } from "@vercel/blob";
 import env from "@packages/env";
-import { type drizzle, eq, inArray, or, schema } from "@packages/drizzle";
+import { type drizzle, and, eq, inArray, or, schema } from "@packages/drizzle";
 
 type Db = typeof drizzle;
 type Shots = { light?: string; dark?: string };
@@ -53,6 +53,7 @@ export async function storeThumbnail(
   entityId: string,
   shots: Shots,
   columns: Partial<typeof schema.entities.$inferInsert> = {},
+  expectedVersion?: string,
 ): Promise<void> {
   const [before] = await db
     .select({
@@ -62,11 +63,21 @@ export async function storeThumbnail(
     .from(schema.entities)
     .where(eq(schema.entities.id, entityId));
 
-  await db
+  const stored = await db
     .update(schema.entities)
     .set({ ...columns, ...thumbnailColumns(shots) })
-    .where(eq(schema.entities.id, entityId))
-    .execute();
+    .where(
+      and(
+        eq(schema.entities.id, entityId),
+        expectedVersion === undefined
+          ? undefined
+          : eq(schema.entities.thumbnailVersion, expectedVersion),
+      ),
+    )
+    .returning({ id: schema.entities.id });
+  // An older workflow may finish after a newer one; its unused uploads are
+  // collected by the bucket cleanup, while the current thumbnail stays put.
+  if (stored.length === 0) return;
 
   const kept = new Set([shots.light, shots.dark]);
   const replaced = [
