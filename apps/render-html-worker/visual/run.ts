@@ -7,6 +7,7 @@ import puppeteer from "puppeteer";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
 import { checkMedia } from "./check-media";
+import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
 import { checkTokens } from "./check-tokens";
 import { checkTypography, checkDocumentSettings } from "./check-typography";
@@ -89,6 +90,9 @@ await cli(
   await readFile(payload, "utf8"),
 );
 
+// A throwaway empty document, for what a blank page offers.
+const empty = await cli("doc", "create", "--title", "Visual suite · empty");
+
 const browser = await puppeteer.launch({
   headless: true,
   userDataDir: resolve(output, "browser"),
@@ -104,8 +108,10 @@ try {
   await checkTables(page, fixtureId);
   await checkTypography(page, fixtureId);
   await checkDocumentSettings(page, fixtureId);
+  await checkPage(page, fixtureId, empty.id);
 } finally {
   await browser.close();
+  await cli("doc", "delete", empty.id);
 }
 
 const pdfPath = resolve(output, "kitchen-sink.pdf");

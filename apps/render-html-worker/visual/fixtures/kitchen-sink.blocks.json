@@ -420,7 +420,16 @@
     "type": "thread",
     "version": 1,
     "thread": {
-      "comments": [],
+      "comments": [
+        {
+          "author": "Editor",
+          "content": "Is this the right term? · 用語は正しい？",
+          "deleted": false,
+          "id": "fixture-thread-comment",
+          "timeStamp": 0,
+          "type": "comment"
+        }
+      ],
       "id": "fixture-thread",
       "quote": "Commented text",
       "type": "thread"

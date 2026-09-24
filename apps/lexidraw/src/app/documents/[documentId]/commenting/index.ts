@@ -21,11 +21,21 @@ export class CommentStore {
     return this._comments;
   }
 
+  /** Whether a thread, or a comment anywhere, already has this id. */
+  has(id: string): boolean {
+    return this._comments.some(
+      (item) =>
+        item.id === id ||
+        (item.type === "thread" && item.comments.some((c) => c.id === id)),
+    );
+  }
+
   addComment(
     commentOrThread: Comment | Thread,
     thread?: Thread,
     offset?: number,
   ): void {
+    if (this.has(commentOrThread.id)) return;
     const nextComments = Array.from(this._comments);
 
     if (thread !== undefined && commentOrThread.type === "comment") {
@@ -45,6 +55,14 @@ export class CommentStore {
       nextComments.splice(insertOffset, 0, commentOrThread);
     }
     this._comments = nextComments;
+    CommentStore.triggerOnChange(this);
+  }
+
+  /** Replaces the thread with the same id. */
+  updateThread(thread: Thread): void {
+    this._comments = this._comments.map((item) =>
+      item.type === "thread" && item.id === thread.id ? thread : item,
+    );
     CommentStore.triggerOnChange(this);
   }
 

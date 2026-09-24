@@ -5,13 +5,15 @@ import {
   type NodeKey,
   type SerializedLexicalNode,
 } from "lexical";
-import type { Comment, CommentNode } from "./CommentNode.js";
+import type { Comment } from "./CommentNode.js";
 
 export type Thread = {
   comments: Comment[];
   id: string;
   quote: string;
   type: "thread";
+  /** Settled: its range reads as plain text until the thread reopens. */
+  resolved?: boolean;
 };
 
 export type SerializedThreadNode = {
@@ -71,15 +73,14 @@ export class ThreadNode extends DecoratorNode<unknown> {
     this.__indent = indent;
   }
 
-  // This “append” just merges the child comment’s data into __thread
-  // (not actually storing a Lexical child).
-  append(commentNode: CommentNode): this {
-    const cmt = commentNode.__comment;
-    // Avoid duplicates
-    if (!this.__thread.comments.some((cc) => cc.id === cmt.id)) {
-      this.__thread.comments.push(cmt);
-    }
-    return this;
+  getThread(): Thread {
+    return this.getLatest().__thread;
+  }
+
+  setThread(thread: Thread): this {
+    const writable = this.getWritable();
+    writable.__thread = thread;
+    return writable;
   }
 
   exportJSON(): SerializedThreadNode {

@@ -34,8 +34,9 @@ export const theme = {
     url: "text-syntax-function",
     variable: "text-syntax-keyword",
   },
-  mark: "bg-comment-mark text-foreground border-b-2 border-comment-border",
-  markFocused: "bg-comment-mark border-comment-border",
+  // The comment plugin marks the range of the thread in focus, and of
+  // settled threads, through data-comment.
+  mark: "bg-comment-mark text-foreground border-b-2 border-comment-border data-[comment=active]:bg-comment-mark-active data-[comment=resolved]:bg-transparent data-[comment=resolved]:border-transparent",
   autocomplete: "text-muted-foreground",
   table: "document-table",
   tableScrollableWrapper: "document-table-region",

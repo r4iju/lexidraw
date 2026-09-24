@@ -38,7 +38,6 @@ import {
   createCommand,
   getDOMSelection,
   KEY_ESCAPE_COMMAND,
-  $setSelection,
 } from "lexical";
 import React, {
   type JSX,
@@ -50,7 +49,16 @@ import React, {
   createContext,
   useContext,
 } from "react";
-import { Trash, Send, ChevronRight } from "lucide-react";
+import {
+  CircleCheck,
+  Ellipsis,
+  EllipsisVertical,
+  MessageSquareText,
+  RotateCcw,
+  Send,
+  Trash2,
+} from "lucide-react";
+import { createPortal } from "react-dom";
 import {
   type Comment,
   type Comments,
@@ -71,9 +79,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import Ellipsis from "~/components/icons/ellipsis";
 import { useUserNameOrGuestName } from "~/hooks/use-user-name-or-guest-name";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
@@ -98,6 +106,7 @@ interface CommentPluginContextType {
     thing: Comment | Thread,
     parentThread?: Thread,
   ) => void;
+  resolveThread: (thread: Thread, resolved: boolean) => void;
   editor: LexicalEditor;
 }
 
@@ -256,10 +265,18 @@ export function CommentInputBox({
       );
       const boxElem = boxRef.current;
       if (!range || !boxElem) return;
+      // The box and the highlight sit on the page, so they scroll with it.
       const rect = range.getBoundingClientRect();
-      let left = rect.left + rect.width / 2 - 125; // 125 = half the box width
-      if (left < 10) left = 10;
-      const top = rect.bottom + 10 + window.pageYOffset;
+      const width = boxElem.offsetWidth;
+      const left =
+        Math.max(
+          8,
+          Math.min(
+            rect.left + rect.width / 2 - width / 2,
+            window.innerWidth - width - 8,
+          ),
+        ) + window.scrollX;
+      const top = rect.bottom + 10 + window.scrollY;
 
       requestAnimationFrame(() => {
         if (!boxRef.current) return;
@@ -279,8 +296,8 @@ export function CommentInputBox({
         }
         const span = elements[i];
         const style = `position:absolute;top:${
-          cRect?.top ?? 0 + window.pageYOffset
-        }px;left:${cRect?.left ?? 0}px;height:${cRect?.height ?? 0}px;width:${
+          (cRect?.top ?? 0) + window.scrollY
+        }px;left:${(cRect?.left ?? 0) + window.scrollX}px;height:${cRect?.height ?? 0}px;width:${
           cRect?.width ?? 0
         }px;background-color:var(--comment-mark);border-bottom:2px solid var(--comment-border);z-index:9999;pointer-events:none;`;
         if (span) {
@@ -339,10 +356,10 @@ export function CommentInputBox({
     submitAddComment(newThread, true, undefined, selectionRef.current || null);
   }, [canSubmit, mainEditor, content, author, submitAddComment]);
 
-  return (
+  return createPortal(
     <div
       data-component-name="CommentInputBox"
-      className="fixed w-64 min-h-20 left-0 top-0 elevation-overlay rounded-lg z-20 animate-in slide-in-from-right-5"
+      className="absolute w-64 min-h-20 left-0 top-0 elevation-overlay rounded-lg z-20 animate-in slide-in-from-right-5"
       ref={boxRef}
     >
       {/* arrow div */}
@@ -379,7 +396,8 @@ export function CommentInputBox({
           Comment
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -486,85 +504,27 @@ function ShowDeleteCommentOrThreadDialog({
   );
 }
 
-function CommentsPanelListComment({
-  comment,
-  thread,
-  deleteComment,
-  rtf,
-}: {
-  comment: Comment;
-  thread?: Thread;
-  deleteComment: (commentOrThread: Comment | Thread, thread?: Thread) => void;
-  rtf: Intl.RelativeTimeFormat;
-}) {
-  const seconds = Math.round(
-    (comment.timeStamp - (performance.timeOrigin + performance.now())) / 1000,
-  );
-  const minutes = Math.round(seconds / 60);
-  const safeMinutes = Number.isFinite(minutes) ? minutes : 0;
-
-  const [modal, showModal] = useModal();
-
-  return (
-    <li className="py-2 pl-2 pr-2 border-b border-border relative transition-all">
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span className="font-medium">{comment.author}</span>
-        <div className="flex items-center gap-2">
-          <span>
-            · {seconds > -10 ? "Just now" : rtf.format(safeMinutes, "minute")}
-          </span>
-          {!comment.deleted && (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Ellipsis className="size-4" />
-                    <span className="sr-only">
-                      {`More actions for comment by ${comment.author}`}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem
-                    className="flex items-center gap-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showModal("Delete Comment", (onClose) => (
-                        <ShowDeleteCommentOrThreadDialog
-                          commentOrThread={comment}
-                          deleteCommentOrThread={deleteComment}
-                          thread={thread}
-                          onClose={onClose}
-                        />
-                      ));
-                    }}
-                  >
-                    <Trash className="size-4" />
-                    Delete Comment
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {modal}
-            </>
-          )}
-        </div>
-      </div>
-      <p className={cn(comment.deleted && "text-muted opacity-60 italic")}>
-        {comment.content}
-      </p>
-    </li>
-  );
+/** When a comment was written, as a reader counts it. */
+function commentTime(
+  timeStamp: number,
+  now: number,
+  rtf: Intl.RelativeTimeFormat,
+): string {
+  const minutes = Math.round((timeStamp - now) / 60_000);
+  if (minutes > -1) return "Just now";
+  if (minutes > -60) return rtf.format(minutes, "minute");
+  const hours = Math.round(minutes / 60);
+  if (hours > -24) return rtf.format(hours, "hour");
+  const days = Math.round(hours / 24);
+  if (days > -7) return rtf.format(days, "day");
+  return new Date(timeStamp).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-function CommentsPanelList({
-  activeIDs,
-  comments,
-  deleteCommentOrThread,
-  submitAddComment,
-  markNodeMap,
-}: {
-  activeIDs: string[];
-  comments: Comments;
+type PanelActions = {
   deleteCommentOrThread: (
     commentOrThread: Comment | Thread,
     thread?: Thread,
@@ -574,13 +534,197 @@ function CommentsPanelList({
     isInlineComment: boolean,
     thread?: Thread,
   ) => void;
-  markNodeMap: Map<string, Set<NodeKey>>;
+  resolveThread: (thread: Thread, resolved: boolean) => void;
+};
+
+function CommentsPanelListComment({
+  comment,
+  thread,
+  deleteComment,
+  now,
+  rtf,
+}: {
+  comment: Comment;
+  thread?: Thread;
+  deleteComment: PanelActions["deleteCommentOrThread"];
+  now: number;
+  rtf: Intl.RelativeTimeFormat;
 }) {
-  const [editor] = useLexicalComposerContext();
-  const [, setCounter] = useState(0);
   const [modal, showModal] = useModal();
 
-  // For "Just now" -> "1 minute ago" updates every X seconds
+  return (
+    <li className="flex flex-col gap-0.5 py-2">
+      <div className="flex min-h-7 items-center gap-2 text-xs">
+        <span className="truncate font-medium text-foreground">
+          {comment.author}
+        </span>
+        <time
+          className="shrink-0 text-muted-foreground"
+          dateTime={new Date(comment.timeStamp).toISOString()}
+        >
+          {commentTime(comment.timeStamp, now, rtf)}
+        </time>
+        {!comment.deleted && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-auto size-7 text-muted-foreground"
+              >
+                <EllipsisVertical className="size-3.5" />
+                <span className="sr-only">
+                  {`Actions for the comment by ${comment.author}`}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="gap-2 text-destructive focus:text-destructive"
+                onSelect={() => {
+                  showModal("Delete comment", (onClose) => (
+                    <ShowDeleteCommentOrThreadDialog
+                      commentOrThread={comment}
+                      deleteCommentOrThread={deleteComment}
+                      thread={thread}
+                      onClose={onClose}
+                    />
+                  ));
+                }}
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+      <p
+        className={cn(
+          "whitespace-pre-wrap break-words text-sm",
+          comment.deleted && "italic text-muted-foreground",
+        )}
+      >
+        {comment.content}
+      </p>
+      {modal}
+    </li>
+  );
+}
+
+function CommentsPanelThread({
+  thread,
+  active,
+  onShow,
+  actions,
+  now,
+  rtf,
+}: {
+  thread: Thread;
+  active: boolean;
+  onShow: () => void;
+  actions: PanelActions;
+  now: number;
+  rtf: Intl.RelativeTimeFormat;
+}) {
+  const [modal, showModal] = useModal();
+
+  return (
+    <li>
+      <article
+        aria-label={`Comments on “${thread.quote}”`}
+        className={cn(
+          "rounded-lg bg-background px-3 pt-2 pb-1 transition-colors",
+          active ? "border border-comment-border" : "border border-border",
+        )}
+      >
+        <header className="flex items-start gap-1">
+          <button
+            type="button"
+            onClick={onShow}
+            title="Show in the document"
+            className="my-1 min-w-0 flex-1 border-l-2 border-comment-border pl-2 text-left text-xs text-muted-foreground line-clamp-2 break-words hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+          >
+            {thread.quote}
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                <Ellipsis className="size-4" />
+                <span className="sr-only">Thread actions</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="gap-2"
+                onSelect={() => actions.resolveThread(thread, !thread.resolved)}
+              >
+                {thread.resolved ? (
+                  <RotateCcw className="size-4" />
+                ) : (
+                  <CircleCheck className="size-4" />
+                )}
+                {thread.resolved ? "Reopen" : "Resolve"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 text-destructive focus:text-destructive"
+                onSelect={() => {
+                  showModal("Delete thread", (onClose) => (
+                    <ShowDeleteCommentOrThreadDialog
+                      commentOrThread={thread}
+                      deleteCommentOrThread={actions.deleteCommentOrThread}
+                      onClose={onClose}
+                      thread={thread}
+                    />
+                  ));
+                }}
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+        <ul className="divide-y divide-border">
+          {thread.comments.map((cmt) => (
+            <CommentsPanelListComment
+              key={cmt.id}
+              thread={thread}
+              comment={cmt}
+              deleteComment={actions.deleteCommentOrThread}
+              now={now}
+              rtf={rtf}
+            />
+          ))}
+        </ul>
+        {!thread.resolved && (
+          <CommentsComposer
+            submitAddComment={actions.submitAddComment}
+            thread={thread}
+            placeholder="Reply…"
+          />
+        )}
+      </article>
+      {modal}
+    </li>
+  );
+}
+
+function CommentsPanelList({
+  activeIDs,
+  comments,
+  markNodeMap,
+  actions,
+}: {
+  activeIDs: string[];
+  comments: Comments;
+  markNodeMap: Map<string, Set<NodeKey>>;
+  actions: PanelActions;
+}) {
+  const [editor] = useLexicalComposerContext();
+  const [now, setNow] = useState(() => Date.now());
+
   const rtf = useMemo(
     () =>
       new Intl.RelativeTimeFormat("en", {
@@ -590,213 +734,115 @@ function CommentsPanelList({
     [],
   );
 
+  // External system: the clock, so "Just now" ages.
   useEffect(() => {
-    const timer = setInterval(() => setCounter((c) => c + 1), 10000);
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
   }, []);
 
+  const showThread = (id: string) => {
+    const firstKey = markNodeMap.get(id)?.values().next().value;
+    if (!firstKey) return;
+    const activeElem = document.activeElement;
+    editor.update(
+      () => {
+        const maybeMark = $getNodeByKey<MarkNode>(firstKey);
+        if (maybeMark && $isMarkNode(maybeMark)) maybeMark.selectStart();
+      },
+      {
+        onUpdate() {
+          if (activeElem instanceof HTMLElement) activeElem.focus();
+          editor.getElementByKey(firstKey)?.scrollIntoView({
+            block: "center",
+            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "auto"
+              : "smooth",
+          });
+        },
+      },
+    );
+  };
+
+  const open = comments.filter(
+    (item) => item.type !== "thread" || !item.resolved,
+  );
+  const resolved = comments.filter(
+    (item): item is Thread => item.type === "thread" && Boolean(item.resolved),
+  );
+  const render = (item: Thread | Comment) =>
+    item.type === "thread" ? (
+      <CommentsPanelThread
+        key={item.id}
+        thread={item}
+        active={activeIDs.includes(item.id)}
+        onShow={() => showThread(item.id)}
+        actions={actions}
+        now={now}
+        rtf={rtf}
+      />
+    ) : (
+      <CommentsPanelListComment
+        key={item.id}
+        comment={item}
+        deleteComment={actions.deleteCommentOrThread}
+        now={now}
+        rtf={rtf}
+      />
+    );
+
   return (
-    <ul className="list-none w-full overflow-y-auto h-[calc(100%-45px)]">
-      {comments.map((commentOrThread) => {
-        const nodeId = commentOrThread.id;
-
-        if (commentOrThread.type === "thread") {
-          const thread = commentOrThread;
-          const isThreadActive = activeIDs.includes(nodeId);
-
-          // Modify deselect function
-          const deselect = () => {
-            editor.update(() => {
-              $setSelection(null); // Explicitly clear the selection
-            });
-          };
-
-          const handleClickThread = () => {
-            // Attempt to place selection on a mark with that ID
-            const markKeys = markNodeMap.get(nodeId);
-            if (!markKeys) return;
-
-            // Move selection to the start of the first key
-            const firstKey = Array.from(markKeys)[0];
-            if (!firstKey) return;
-
-            const activeElem = document.activeElement;
-            editor.update(
-              () => {
-                const maybeMark = $getNodeByKey<MarkNode>(firstKey);
-                if (maybeMark && $isMarkNode(maybeMark)) {
-                  maybeMark.selectStart();
-                }
-              },
-              {
-                onUpdate() {
-                  if (activeElem instanceof HTMLElement) {
-                    activeElem.focus();
-                  }
-                },
-              },
-            );
-          };
-
-          return (
-            // biome-ignore lint/a11y/useKeyWithClickEvents: thread is interactive
-            <li
-              key={nodeId}
-              onClick={handleClickThread}
-              className={cn(
-                "p-0 m-0 border-b border-border relative transition-all duration-100 ease-linear",
-                { "ring-1 ring-border": isThreadActive },
-              )}
-            >
-              <div className="flex items-center py-2 text-muted-foreground gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isThreadActive) {
-                      deselect();
-                    } else {
-                      handleClickThread();
-                    }
-                  }}
-                  className="p-1 size-8"
-                  aria-expanded={isThreadActive}
-                >
-                  <ChevronRight
-                    className={cn(
-                      "size-4 text-muted-foreground transition-transform",
-                      {
-                        "rotate-90": isThreadActive,
-                      },
-                    )}
-                  />
-                  <span className="sr-only">Show thread</span>
-                </Button>
-                {/** biome-ignore lint/a11y/noStaticElementInteractions: fine */}
-                {/** biome-ignore lint/a11y/useKeyWithClickEvents: fine */}
-                <div
-                  className="flex-1 min-w-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <span className="inline font-semibold leading-tight break-words text-sm line-clamp-2">
-                    {commentOrThread.quote}
-                  </span>
-                </div>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Ellipsis className="size-4" />
-                      <span className="sr-only">More actions for thread</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem
-                      className="flex items-center gap-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        showModal("Delete Thread", (onClose) => (
-                          <ShowDeleteCommentOrThreadDialog
-                            commentOrThread={commentOrThread}
-                            deleteCommentOrThread={deleteCommentOrThread}
-                            onClose={onClose}
-                            thread={commentOrThread}
-                          />
-                        ));
-                      }}
-                    >
-                      <Trash className="size-4" />
-                      Delete Thread
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              {isThreadActive && (
-                <div className="pl-6">
-                  <ul>
-                    {thread.comments.map((cmt) => (
-                      <CommentsPanelListComment
-                        key={cmt.id}
-                        thread={thread}
-                        comment={cmt}
-                        deleteComment={deleteCommentOrThread}
-                        rtf={rtf}
-                      />
-                    ))}
-                  </ul>
-
-                  <CommentsComposer
-                    submitAddComment={submitAddComment}
-                    thread={thread}
-                    placeholder="Reply to thread..."
-                  />
-                </div>
-              )}
-            </li>
-          );
-        } else {
-          return (
-            <CommentsPanelListComment
-              key={nodeId}
-              comment={commentOrThread}
-              deleteComment={deleteCommentOrThread}
-              rtf={rtf}
-            />
-          );
-        }
-      })}
-      {modal}
-    </ul>
+    <div className="flex flex-col gap-3 p-3">
+      <ul className="flex list-none flex-col gap-3">{open.map(render)}</ul>
+      {resolved.length > 0 && (
+        <details className="group">
+          <summary className="cursor-pointer select-none rounded-sm px-1 py-1.5 text-xs font-medium text-muted-foreground">
+            Resolved ({resolved.length})
+          </summary>
+          <ul className="mt-2 flex list-none flex-col gap-3 opacity-80">
+            {resolved.map(render)}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }
 
-// the side panel - now exported and frameless
 export function CommentsPanel({
   activeIDs,
   comments,
-  deleteCommentOrThread,
-  submitAddComment,
   markNodeMap,
+  actions,
 }: {
   activeIDs: string[];
   comments: Comments;
-  deleteCommentOrThread: (
-    commentOrThread: Comment | Thread,
-    thread?: Thread,
-  ) => void;
-  submitAddComment: (
-    commentOrThread: Comment | Thread,
-    isInlineComment: boolean,
-    thread?: Thread,
-  ) => void;
   markNodeMap: Map<string, Set<NodeKey>>;
+  actions: PanelActions;
 }) {
-  const isEmpty = comments.length === 0;
-
+  if (comments.length === 0) {
+    return (
+      <div
+        data-component-name="CommentsPanel"
+        className="flex flex-col items-center gap-3 px-6 pt-10 text-center text-sm text-muted-foreground"
+      >
+        <MessageSquareText className="size-6" aria-hidden />
+        <p className="text-balance">
+          Select text and press the comment button{" "}
+          <MessageSquareText
+            className="inline size-4 align-text-bottom"
+            aria-hidden
+          />{" "}
+          to start a thread.
+        </p>
+      </div>
+    );
+  }
   return (
-    <>
-      {isEmpty ? (
-        <div
-          data-component-name="CommentsPanel"
-          className="text-center text-sm text-muted-foreground pt-8"
-        >
-          No Comments
-        </div>
-      ) : (
-        <CommentsPanelList
-          activeIDs={activeIDs}
-          comments={comments}
-          deleteCommentOrThread={deleteCommentOrThread}
-          submitAddComment={submitAddComment}
-          markNodeMap={markNodeMap}
-        />
-      )}
-    </>
+    <CommentsPanelList
+      activeIDs={activeIDs}
+      comments={comments}
+      markNodeMap={markNodeMap}
+      actions={actions}
+    />
   );
 }
 
@@ -820,42 +866,44 @@ export function CommentPluginProvider({
     setShowCommentInput(false);
   }, [editor]);
 
+  /** Writes the store's copy of a thread into its node, so it saves. */
+  const $saveThread = useCallback(
+    (id: string) => {
+      const thread = commentStore
+        .getComments()
+        .find(
+          (item): item is Thread => item.type === "thread" && item.id === id,
+        );
+      for (const { node } of $dfs($getRoot())) {
+        if (ThreadNode.$isThreadNode(node) && node.getThread().id === id) {
+          if (thread) node.setThread(thread);
+          else node.remove();
+        }
+      }
+    },
+    [commentStore],
+  );
+
   const deleteCommentOrThread = useCallback(
     (thing: Comment | Thread, parentThread?: Thread) => {
       commentStore.deleteCommentOrThread(thing, parentThread);
-      // console.log("info about to be deleted", info); // Original console.log removed for brevity
-
-      if (thing.type === "comment") {
-        const commentId = thing.id;
-        editor.update(() => {
-          const root = $getRoot();
-          const dfsNodes = $dfs(root);
-          for (const { node } of dfsNodes) {
-            if (
-              CommentNode.$isCommentNode(node) &&
-              node.__comment.id === commentId
-            ) {
-              node.remove();
-            }
+      editor.update(() => {
+        if (parentThread) {
+          $saveThread(parentThread.id);
+          return;
+        }
+        for (const { node } of $dfs($getRoot())) {
+          if (
+            (CommentNode.$isCommentNode(node) &&
+              node.__comment.id === thing.id) ||
+            (ThreadNode.$isThreadNode(node) && node.getThread().id === thing.id)
+          ) {
+            node.remove();
           }
-        });
-      } else {
-        const threadId = thing.id;
-        editor.update(() => {
-          const root = $getRoot();
-          const dfsNodes = $dfs(root);
-          for (const { node } of dfsNodes) {
-            if (
-              ThreadNode.$isThreadNode(node) &&
-              node.__thread.id === threadId
-            ) {
-              node.remove();
-            }
-          }
-        });
-      }
+        }
+      });
 
-      const markNodeKeys = markNodeMap.get(thing.id);
+      const markNodeKeys = thing.type === "thread" && markNodeMap.get(thing.id);
       if (markNodeKeys) {
         setTimeout(() => {
           editor.update(() => {
@@ -872,7 +920,15 @@ export function CommentPluginProvider({
         }, 0);
       }
     },
-    [commentStore, markNodeMap, editor],
+    [commentStore, markNodeMap, editor, $saveThread],
+  );
+
+  const resolveThread = useCallback(
+    (thread: Thread, resolved: boolean) => {
+      commentStore.updateThread({ ...thread, resolved });
+      editor.update(() => $saveThread(thread.id));
+    },
+    [commentStore, editor, $saveThread],
   );
 
   const submitAddComment = useCallback(
@@ -885,30 +941,11 @@ export function CommentPluginProvider({
       commentStore.addComment(item, parentThread);
       editor.update(() => {
         if (item.type === "thread") {
-          const threadItem = item as Thread;
-          const threadNode = new ThreadNode(threadItem);
-          $getRoot().append(threadNode);
-          for (const cmt of threadItem.comments) {
-            const cnode = new CommentNode(cmt);
-            threadNode.append(cnode);
-          }
-        } else if (item.type === "comment") {
-          const commentNode = new CommentNode(item);
-          if (parentThread) {
-            const root = $getRoot();
-            const allNodes = $dfs(root);
-            for (const { node: maybeThread } of allNodes) {
-              if (
-                ThreadNode.$isThreadNode(maybeThread) &&
-                maybeThread.__thread.id === parentThread.id
-              ) {
-                maybeThread.append(commentNode);
-                break;
-              }
-            }
-          } else {
-            $getRoot().append(commentNode);
-          }
+          $getRoot().append(new ThreadNode(item));
+        } else if (parentThread) {
+          $saveThread(parentThread.id);
+        } else {
+          $getRoot().append(new CommentNode(item));
         }
       });
 
@@ -923,8 +960,38 @@ export function CommentPluginProvider({
         setShowCommentInput(false);
       }
     },
-    [commentStore, editor],
+    [commentStore, editor, $saveThread],
   );
+
+  // External system: the range elements Lexical renders. The thread in focus
+  // reads stronger, and a settled thread's range reads as plain text.
+  useEffect(() => {
+    const resolved = new Set(
+      comments.flatMap((item) =>
+        item.type === "thread" && item.resolved ? [item.id] : [],
+      ),
+    );
+    const paint = () => {
+      const idsByKey = new Map<NodeKey, string[]>();
+      for (const [id, keys] of markNodeMap) {
+        for (const key of keys)
+          idsByKey.set(key, [...(idsByKey.get(key) ?? []), id]);
+      }
+      for (const [key, ids] of idsByKey) {
+        const element = editor.getElementByKey(key);
+        if (!element) continue;
+        if (ids.some((id) => activeIDs.includes(id)))
+          element.dataset.comment = "active";
+        else if (ids.every((id) => resolved.has(id)))
+          element.dataset.comment = "resolved";
+        else delete element.dataset.comment;
+      }
+    };
+    paint();
+    return editor.registerMutationListener(MarkNode, paint, {
+      skipInitialization: true,
+    });
+  }, [editor, comments, activeIDs, markNodeMap]);
 
   useEffect(() => {
     const markKeysToIDs = new Map<NodeKey, string[]>();
@@ -1010,38 +1077,12 @@ export function CommentPluginProvider({
 
   useEffect(() => {
     editor.getEditorState().read(() => {
-      const knownIds = new Set(
-        commentStore
-          .getComments()
-          .flatMap((x) =>
-            x.type === "thread"
-              ? [x.id, ...x.comments.map((c) => c.id)]
-              : [x.id],
-          ),
-      );
-      const root = $getRoot();
-      const allNodes = $dfs(root);
-      for (const { node } of allNodes) {
-        if (
-          CommentNode.$isCommentNode(node) &&
-          !knownIds.has(node.__comment.id)
-        ) {
+      for (const { node } of $dfs($getRoot())) {
+        if (CommentNode.$isCommentNode(node)) {
           commentStore.addComment(node.__comment);
-          knownIds.add(node.__comment.id);
-        } else if (
-          ThreadNode.$isThreadNode(node) &&
-          !knownIds.has(node.__thread.id)
-        ) {
-          const thr = node.__thread;
-          // Ensure all comments within the thread are also processed
-          commentStore.addComment(thr); // Add thread first
-          knownIds.add(thr.id);
-          for (const cmt of thr.comments) {
-            if (!knownIds.has(cmt.id)) {
-              commentStore.addComment(cmt, thr); // Then add comments belonging to this thread
-              knownIds.add(cmt.id);
-            }
-          }
+        } else if (ThreadNode.$isThreadNode(node)) {
+          // A stored thread carries its comments.
+          commentStore.addComment(node.__thread);
         }
       }
     });
@@ -1060,6 +1101,7 @@ export function CommentPluginProvider({
           cancelAddComment,
           submitAddComment,
           deleteCommentOrThread,
+          resolveThread,
           editor,
         } satisfies CommentPluginContextType
       }
@@ -1076,16 +1118,20 @@ export function CommentUI(): JSX.Element {
     comments,
     markNodeMap,
     submitAddComment,
+    resolveThread,
   } = useCommentPlugin();
+  const actions = useMemo(
+    () => ({ deleteCommentOrThread, submitAddComment, resolveThread }),
+    [deleteCommentOrThread, submitAddComment, resolveThread],
+  );
 
   return (
-    <div className="h-full p-2" data-component-name="CommentUI">
+    <div data-component-name="CommentUI">
       <CommentsPanel
         activeIDs={activeIDs}
-        deleteCommentOrThread={deleteCommentOrThread}
         comments={comments}
-        submitAddComment={submitAddComment}
         markNodeMap={markNodeMap}
+        actions={actions}
       />
     </div>
   );
