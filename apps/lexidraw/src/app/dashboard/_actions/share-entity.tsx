@@ -25,6 +25,14 @@ import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { revalidateDashboard } from "../server-actions";
 
+/** The optimistic row's id: it has no share to change until the server answers. */
+const PENDING_SHARE_ID = "temp-id";
+
+type SharedInfoSnapshot = {
+  queryKey: { id: string };
+  previousData: RouterOutputs["entities"]["getSharedInfo"];
+};
+
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
   isOpen: boolean;
@@ -144,7 +152,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
         utils.entities.getSharedInfo.setData(queryKey, (oldData) => [
           ...(oldData || []),
           {
-            userId: "temp-id",
+            userId: PENDING_SHARE_ID,
             name: newShare.userEmail,
             accessLevel: newShare.accessLevel,
             entityId: newShare.id,
@@ -175,6 +183,25 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
     });
 
   /**
+   * A failed change or unshare restores the list, then refetches it: a share
+   * another tab already revoked is NOT_FOUND, and the list should show what is
+   * left, here and on the dashboard.
+   */
+  const rollBackShare = async (
+    error: { message: string },
+    context: SharedInfoSnapshot | undefined,
+  ) => {
+    toast.error("Error", { description: error.message });
+    if (!context) return;
+    utils.entities.getSharedInfo.setData(
+      context.queryKey,
+      context.previousData,
+    );
+    utils.entities.getSharedInfo.invalidate(context.queryKey);
+    await revalidateDashboard();
+  };
+
+  /**
    * -------------------------------------
    * MUTATION: CHANGE ACCESS LEVEL
    * -------------------------------------
@@ -197,16 +224,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
         return { queryKey, previousData };
       },
-      onError(error, _vars, context) {
-        if (!context) return;
-        utils.entities.getSharedInfo.setData(
-          context.queryKey,
-          context.previousData,
-        );
-        // A share another tab already revoked is NOT_FOUND; show what is left.
-        utils.entities.getSharedInfo.invalidate(context.queryKey);
-        toast.error("Error", { description: error.message });
-      },
+      onError: (error, _vars, context) => rollBackShare(error, context),
       onSuccess: async (_res, _vars, context) => {
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
@@ -236,15 +254,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
         return { queryKey, previousData };
       },
-      onError(error, _vars, context) {
-        if (!context) return;
-        utils.entities.getSharedInfo.setData(
-          context.queryKey,
-          context.previousData,
-        );
-        utils.entities.getSharedInfo.invalidate(context.queryKey);
-        toast.error("Error", { description: error.message });
-      },
+      onError: (error, _vars, context) => rollBackShare(error, context),
       onSuccess: async (_res, _variables, context) => {
         if (!context) return;
         utils.entities.getSharedInfo.invalidate(context.queryKey);
@@ -401,7 +411,10 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
-                          disabled={changeAccessLevelIsLoading}
+                          disabled={
+                            changeAccessLevelIsLoading ||
+                            sharedUser.userId === PENDING_SHARE_ID
+                          }
                           variant="outline"
                         >
                           {changeAccessLevelIsLoading && (
@@ -434,7 +447,10 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
                     <Button
                       variant="destructive"
-                      disabled={unshareIsLoading}
+                      disabled={
+                        unshareIsLoading ||
+                        sharedUser.userId === PENDING_SHARE_ID
+                      }
                       onClick={() => handleUnshare(sharedUser.userId)}
                     >
                       Unshare
