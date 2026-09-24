@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
 import { run } from "../src/cli";
-import { type EntityStub, startEntityStub, TOKEN } from "./entity-stub";
+import { type EntityStub, startEntityStub, stubEnv } from "./entity-stub";
 import { fakeIo } from "./helpers";
 
 let stub: EntityStub;
@@ -30,11 +30,7 @@ afterEach(() => {
 
 function io() {
   return fakeIo({
-    env: {
-      LEXIDRAW_PROFILE: "dev",
-      LEXIDRAW_URL: stub.baseUrl,
-      LEXIDRAW_TOKEN: TOKEN,
-    },
+    env: stubEnv(stub),
   });
 }
 

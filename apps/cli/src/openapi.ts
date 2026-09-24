@@ -22,6 +22,7 @@ export type OpenApiOperation = {
 };
 
 export type OpenApiDocument = {
+  info?: { title?: string };
   paths?: Record<string, Record<string, OpenApiOperation>>;
   components?: unknown;
 };
@@ -67,8 +68,7 @@ export async function loadDocument(
     const cached = await readFresh(file, options.now ?? Date.now());
     if (cached) return { document: cached, cached: true };
   }
-  const response = await requestApi({
-    baseUrl: options.profile.baseUrl,
+  const response = await requestApi(options.profile.baseUrl, {
     method: "GET",
     path: "/openapi.json",
   });

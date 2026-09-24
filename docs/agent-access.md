@@ -197,7 +197,7 @@ next one, so a chain of writes never needs a read between them.
   markdown above all, is a usage error before any call. `doc create` with a
   body is two calls, so a failure of the second carries `createdId`, the
   empty document the first left behind.
-- Profiles: `prod` (https://lexidraw.app, default) and `dev`
+- Profiles: `prod` (https://lexidraw.vercel.app, default) and `dev`
   (http://localhost:3025), chosen with `--profile` or `LEXIDRAW_PROFILE`;
   `LEXIDRAW_URL` overrides the base URL. Token lookup: `LEXIDRAW_TOKEN`, then
   the macOS keychain (service `cli/lexidraw`, account `<profile>`), like the
@@ -205,6 +205,9 @@ next one, so a chain of writes never needs a read between them.
   read and written only when `LEXIDRAW_URL` resolves to the profile's own
   origin, or to a loopback address on `dev`; pointed anywhere else the only
   token source is `LEXIDRAW_TOKEN` and `auth login` refuses to store one.
+  Whatever the source, no token is sent until the base URL has served an
+  OpenAPI document titled `Lexidraw API` (cached with the schema, 5 minutes);
+  anything else is `NOT_LEXIDRAW_SERVER` before the first authenticated call.
   `auth login` validates a token against `/me` before storing it; `auth
   status` reports the profile, base URL, token source, and scope.
 - Live today: `doc`, `dir`, `search`, `drawing get|put|create|render`, `auth
@@ -284,7 +287,7 @@ same procedures, not a REST path.
 Connecting Claude Code or Claude Desktop:
 
 ```sh
-claude mcp add --transport http lexidraw https://lexidraw.app/api/mcp \
+claude mcp add --transport http lexidraw https://lexidraw.vercel.app/api/mcp \
   --header "Authorization: Bearer lxd_..."
 ```
 

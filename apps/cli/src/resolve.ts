@@ -6,7 +6,7 @@ import {
   listEntities,
 } from "./entities";
 import { CliError, usageError } from "./errors";
-import type { ApiSession } from "./http";
+import type { ApiSession } from "./session";
 
 /**
  * Reads may guess when a title is not unique; writes may not, so they refuse

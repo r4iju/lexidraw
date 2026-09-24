@@ -385,6 +385,74 @@ describe("origin rule", () => {
   });
 });
 
+describe("server identity", () => {
+  const impostors: Record<string, Stub> = {};
+
+  beforeAll(() => {
+    // An unrelated site answers every path with its own HTML page.
+    impostors.html = startStub(
+      () =>
+        new Response("<!DOCTYPE html><html></html>", {
+          headers: { "content-type": "text/html" },
+        }),
+    );
+    impostors["another API"] = startStub((url) =>
+      url.pathname === "/api/v1/openapi.json"
+        ? Response.json({ ...fixture, info: { title: "Some API" } })
+        : Response.json({ userId: "someone-else" }),
+    );
+  });
+
+  afterAll(() => {
+    for (const impostor of Object.values(impostors)) impostor.stop();
+  });
+
+  const COMMANDS = [
+    ["auth", "status"],
+    ["api", "GET", "/me"],
+    ["doc", "list"],
+    ["dir", "list"],
+    ["search", "plan"],
+    ["drawing", "get", "abc"],
+  ];
+
+  for (const kind of ["html", "another API"]) {
+    for (const argv of COMMANDS) {
+      it(`${argv.join(" ")} sends no token to ${kind}`, async () => {
+        const impostor = impostors[kind] as Stub;
+        const io = fakeIo({
+          env: {
+            LEXIDRAW_PROFILE: "dev",
+            LEXIDRAW_URL: impostor.baseUrl,
+            LEXIDRAW_TOKEN: "lxd_good",
+            XDG_CACHE_HOME: await mkdtemp(join(tmpdir(), "lexidraw-cli-")),
+          },
+        });
+        expect(await run(argv, io.io)).toBe(1);
+        expect(JSON.parse(io.stderr()).code).toBe("NOT_LEXIDRAW_SERVER");
+        expect(impostor.requests.every(({ auth }) => auth === null)).toBe(true);
+      });
+    }
+
+    it(`auth login stores nothing and sends nothing to ${kind}`, async () => {
+      const impostor = impostors[kind] as Stub;
+      const io = fakeIo({
+        env: {
+          LEXIDRAW_PROFILE: "dev",
+          LEXIDRAW_URL: impostor.baseUrl,
+          XDG_CACHE_HOME: await mkdtemp(join(tmpdir(), "lexidraw-cli-")),
+        },
+      });
+      expect(await run(["auth", "login", "--token", "lxd_good"], io.io)).toBe(
+        1,
+      );
+      expect(JSON.parse(io.stderr()).code).toBe("NOT_LEXIDRAW_SERVER");
+      expect(io.stored.size).toBe(0);
+      expect(impostor.requests.every(({ auth }) => auth === null)).toBe(true);
+    });
+  }
+});
+
 describe("schema", () => {
   it("prints the operation behind a command", async () => {
     const io = fakeIo({ env: env() });

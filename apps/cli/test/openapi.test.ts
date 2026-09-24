@@ -123,7 +123,7 @@ describe("cachePath", () => {
   it("is keyed by profile and by the origin the profile points at", () => {
     const env = { XDG_CACHE_HOME: "/tmp/c" };
     expect(cachePath(resolveProfile("prod", {}), env)).toBe(
-      "/tmp/c/lexidraw/prod/https-lexidraw.app/openapi.json",
+      "/tmp/c/lexidraw/prod/https-lexidraw.vercel.app/openapi.json",
     );
     expect(
       cachePath(

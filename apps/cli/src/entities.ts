@@ -1,5 +1,6 @@
 import { CliError } from "./errors";
-import { type ApiSession, callApi } from "./http";
+import { callApi } from "./http";
+import type { ApiSession } from "./session";
 
 /** The two entity types the nouns address. */
 export type EntityKind = "document" | "directory";

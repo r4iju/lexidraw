@@ -1,19 +1,19 @@
-import type { Context } from "./context";
 import { CliError, describe } from "./errors";
-import { requireToken } from "./tokens";
+import type { ApiSession } from "./session";
 
 export const API_PREFIX = "/api/v1";
 
 export type ApiResponse = { status: number; body: unknown };
 
 export type RequestOptions = {
-  baseUrl: string;
   method: string;
   path: string;
-  token?: string | null;
   query?: readonly (readonly [string, string])[];
   body?: unknown;
 };
+
+/** A bare base URL is an anonymous call; only a session carries a token. */
+export type Target = string | ApiSession;
 
 const STATUS_CODES: Record<number, string> = {
   400: "BAD_REQUEST",
@@ -26,8 +26,8 @@ const STATUS_CODES: Record<number, string> = {
   500: "INTERNAL_SERVER_ERROR",
 };
 
-export function apiUrl(options: RequestOptions): string {
-  const url = new URL(`${options.baseUrl}${API_PREFIX}${options.path}`);
+export function apiUrl(baseUrl: string, options: RequestOptions): string {
+  const url = new URL(`${baseUrl}${API_PREFIX}${options.path}`);
   for (const [key, value] of options.query ?? []) {
     url.searchParams.append(key, value);
   }
@@ -35,11 +35,13 @@ export function apiUrl(options: RequestOptions): string {
 }
 
 export async function requestApi(
+  target: Target,
   options: RequestOptions,
 ): Promise<ApiResponse> {
-  const url = apiUrl(options);
+  const anonymous = typeof target === "string";
+  const url = apiUrl(anonymous ? target : target.baseUrl, options);
   const headers: Record<string, string> = { accept: "application/json" };
-  if (options.token) headers.authorization = `Bearer ${options.token}`;
+  if (!anonymous) headers.authorization = `Bearer ${target.token}`;
   if (options.body !== undefined) {
     headers["content-type"] = "application/json";
   }
@@ -70,23 +72,11 @@ export async function requestApi(
   }
 }
 
-/** Where a command sends its calls, with the token resolved once. */
-export type ApiSession = { baseUrl: string; token: string };
-
-export function apiSession(context: Context): ApiSession {
-  const { token } = requireToken(
-    context.profile,
-    context.io.env,
-    context.io.tokens,
-  );
-  return { baseUrl: context.profile.baseUrl, token };
-}
-
 export async function callApi(
   session: ApiSession,
-  options: Omit<RequestOptions, "baseUrl" | "token">,
+  options: RequestOptions,
 ): Promise<unknown> {
-  const response = await requestApi({ ...options, ...session });
+  const response = await requestApi(session, options);
   return expectOk(response, `${options.method} ${options.path} failed`);
 }
 

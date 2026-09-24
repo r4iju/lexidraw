@@ -7,7 +7,7 @@ describe("resolveProfile", () => {
     expect(resolveProfile(undefined, {})).toMatchObject({
       name: "prod",
       baseUrl: PROFILES.prod,
-      origin: "https://lexidraw.app",
+      origin: "https://lexidraw.vercel.app",
       keychainAllowed: true,
     });
   });
@@ -59,7 +59,7 @@ describe("resolveProfile", () => {
 describe("keychainAllowed", () => {
   it("is on for a profile pointed at its own host", () => {
     expect(
-      resolveProfile("prod", { LEXIDRAW_URL: "https://lexidraw.app/" })
+      resolveProfile("prod", { LEXIDRAW_URL: "https://lexidraw.vercel.app/" })
         .keychainAllowed,
     ).toBe(true);
   });

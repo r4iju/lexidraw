@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { run } from "../src/cli";
-import { type EntityStub, startEntityStub, TOKEN } from "./entity-stub";
+import { type EntityStub, startEntityStub, stubEnv } from "./entity-stub";
 import { fakeIo } from "./helpers";
 
 let stub: EntityStub;
@@ -29,11 +29,7 @@ afterEach(() => {
 
 function io(stdin?: string) {
   return fakeIo({
-    env: {
-      LEXIDRAW_PROFILE: "dev",
-      LEXIDRAW_URL: stub.baseUrl,
-      LEXIDRAW_TOKEN: TOKEN,
-    },
+    env: stubEnv(stub),
     stdin,
   });
 }

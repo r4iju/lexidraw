@@ -32,7 +32,7 @@ lexidraw auth status         # profile, base URL, token source, scope
 Tokens are minted at `/settings/tokens` in the app, with scope `read` or
 `write`, and shown once.
 
-Profiles: `prod` (https://lexidraw.app, the default) and `dev`
+Profiles: `prod` (https://lexidraw.vercel.app, the default) and `dev`
 (http://localhost:3025). Choose one with `--profile` or `LEXIDRAW_PROFILE`.
 
 - `LEXIDRAW_URL` overrides the base URL of the chosen profile.
@@ -59,7 +59,7 @@ lexidraw doc get --path "Projects/Release notes"
 # ---
 # id: "0b0f2c1e-..."
 # title: "Release notes"
-# path: "/Projects/Release notes"
+# path: "Projects/Release notes"
 # updatedAt: "2026-09-23T10:11:12.000Z"
 # tags: []
 # ---
@@ -198,6 +198,7 @@ usage errors exit 2.
 | `UNPROCESSABLE_CONTENT` | the document holds a node type this version cannot read or build | do not rewrite it; report the types the error names |
 | `PAYLOAD_TOO_LARGE` | the request body is over the 4.5 MB limit | send less, or split the write |
 | `TOO_MANY_REQUESTS` | rate limited | wait and retry |
+| `NOT_LEXIDRAW_SERVER` | the base URL does not serve the Lexidraw API; no token was sent | fix `LEXIDRAW_URL` or `--profile` |
 | `NETWORK` | the server could not be reached | check the base URL and that the server is up |
 | `BAD_RESPONSE` | the server answered with something the CLI could not parse | retry with `--refresh`; report it if it persists |
 | `INTERNAL`, `INTERNAL_SERVER_ERROR` | a bug on either side, details masked | report it with the command that failed |

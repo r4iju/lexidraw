@@ -1,4 +1,16 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import type { Env } from "../src/context";
 import { startStub, type Stub } from "./helpers";
+
+const openApi = await Bun.file(
+  join(import.meta.dir, "fixtures", "openapi.json"),
+).json();
+
+/** Shared by every stub: the cache is keyed by origin, and each stub has its own. */
+const cacheHome = await mkdtemp(join(tmpdir(), "lexidraw-entity-stub-"));
 
 /**
  * A stand-in for the entity and markdown REST paths: enough of the server's
@@ -50,6 +62,7 @@ export function startEntityStub(seeds: readonly Seed[] = []): EntityStub {
   }
 
   const stub = startStub(async (url, request) => {
+    if (url.pathname === "/api/v1/openapi.json") return Response.json(openApi);
     if (request.headers.get("authorization") !== `Bearer ${TOKEN}`) {
       return fail(
         401,
@@ -257,4 +270,14 @@ function fail(
   extra: Record<string, unknown> = {},
 ): Response {
   return Response.json({ message, code, ...extra }, { status });
+}
+
+/** The environment a command needs to reach `stub` with the stub's token. */
+export function stubEnv(stub: Stub): Env {
+  return {
+    LEXIDRAW_PROFILE: "dev",
+    LEXIDRAW_URL: stub.baseUrl,
+    LEXIDRAW_TOKEN: TOKEN,
+    XDG_CACHE_HOME: cacheHome,
+  };
 }
