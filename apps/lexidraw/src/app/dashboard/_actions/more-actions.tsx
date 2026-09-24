@@ -1,38 +1,43 @@
 "use client";
 
+import type { PublicAccess } from "@packages/types";
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  EllipsisIcon,
+  HeartIcon,
+  HeartOffIcon,
+  ImageIcon,
+  LinkIcon,
+  PencilIcon,
+  ShareIcon,
+  TagIcon,
+  TrashIcon,
+} from "lucide-react";
+import { usePathname } from "next/navigation";
+import * as React from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import {
-  EllipsisIcon,
-  LinkIcon,
-  PencilIcon,
-  ShareIcon,
-  TrashIcon,
-} from "lucide-react";
-import DeleteEntity from "./delete-entity";
-import { useState, useEffect } from "react";
-import * as React from "react";
-import ShareEntity from "./share-entity";
-import RenameEntityModal from "./rename-modal";
-import ThumbnailModal from "./icon-modal";
-import TagEntityModal from "./tag-modal";
-import { PublicAccess } from "@packages/types";
-import type { RouterOutputs } from "~/trpc/shared";
-import { TagIcon } from "lucide-react";
-import { ImageIcon } from "lucide-react";
 import { ImageGenerationProvider } from "~/hooks/use-image-generation";
 import { ImageProvider } from "~/hooks/use-image-insertion";
-import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { useSearchParams, usePathname } from "next/navigation";
-import { z } from "zod";
+import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
+import { copyEntityLink } from "./copy-link";
+import DeleteEntity from "./delete-entity";
+import ThumbnailModal from "./icon-modal";
+import RenameEntityModal from "./rename-modal";
+import ShareEntity from "./share-entity";
+import TagEntityModal from "./tag-modal";
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -62,32 +67,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
     prevPathnameRef.current = pathname;
   }, [pathname]);
 
-  const handleOpenDelete = () => setOpenDialog("delete");
-  const handleOpenShare = () => setOpenDialog("share");
-  const handleOpenRename = () => setOpenDialog("rename");
-  const handleOpenTag = () => setOpenDialog("tag");
-  const handleOpenThumbnail = () => setOpenDialog("thumbnail");
   const handleCloseDialog = () => setOpenDialog(null);
-
-  const copyPublicLink = async () => {
-    const url = `${window.location.origin}/${entity.entityType}s/${entity.id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copied to clipboard!");
-    } catch (err) {
-      toast.error("Failed to copy link to clipboard!", {
-        description: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
-  // mutations for favorite/archive
-  const searchParams = useSearchParams();
-  z.object({
-    sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
-    sortOrder: z.enum(["asc", "desc"]).default("desc"),
-    view: z.enum(["all", "favorites", "archived"]).default("all"),
-  }).parse(Object.fromEntries(searchParams.entries()));
 
   const { mutate: updatePrefs } = api.entities.updateUserPrefs.useMutation({
     onSuccess: async () => {
@@ -97,22 +77,38 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
 
   const toggleFavorite = () => {
     const isFavorited = Boolean(entity.favoritedAt);
-    updatePrefs({ entityId: entity.id, favorite: !isFavorited });
-    toast.success(
-      isFavorited ? "Removed from favorites" : "Added to favorites",
-    );
-  };
-  const toggleArchive = () => {
-    const isArchived = Boolean(entity.archivedAt);
     updatePrefs(
-      { entityId: entity.id, archive: !isArchived },
+      { entityId: entity.id, favorite: !isFavorited },
       {
-        onSuccess: () => {
-          toast.success(isArchived ? "Unarchived" : "Archived");
-        },
+        onSuccess: () =>
+          toast.success(
+            isFavorited
+              ? `Removed “${entity.title}” from favorites.`
+              : `Added “${entity.title}” to favorites.`,
+          ),
+        onError: () => toast.error("Couldn’t update favorites. Try again."),
       },
     );
   };
+
+  const setArchived = (archive: boolean) =>
+    updatePrefs(
+      { entityId: entity.id, archive },
+      {
+        onSuccess: () =>
+          archive
+            ? toast.success(`Archived “${entity.title}”.`, {
+                action: { label: "Undo", onClick: () => setArchived(false) },
+              })
+            : toast.success(`Moved “${entity.title}” back to Home.`),
+        onError: () =>
+          toast.error(
+            archive
+              ? `Couldn’t archive “${entity.title}”. Try again.`
+              : `Couldn’t restore “${entity.title}”. Try again.`,
+          ),
+      },
+    );
 
   return (
     <>
@@ -120,72 +116,74 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost">
             <EllipsisIcon className="size-5" />
-            <span className="sr-only">
-              {`More actions for ${entity.title}`}
-            </span>
+            <span className="sr-only">{`More actions for ${entity.title}`}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuGroup>
             <DropdownMenuItem
-              onSelect={toggleFavorite}
+              onSelect={() => setOpenDialog("share")}
               className="justify-between"
             >
-              {entity.favoritedAt ? "Unfavorite" : "Favorite"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={toggleArchive}
-              className="justify-between"
-            >
-              {entity.archivedAt ? "Unarchive" : "Archive"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={handleOpenDelete}
-              className="justify-between text-destructive focus:text-destructive"
-            >
-              Delete
-              <TrashIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={handleOpenShare}
-              className="justify-between"
-            >
-              Share {entity.entityType}
+              Share…
               <ShareIcon />
             </DropdownMenuItem>
             <DropdownMenuItem
-              onSelect={handleOpenTag}
-              className="justify-between"
-            >
-              Tag
-              <TagIcon className="size-4" />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={handleOpenRename}
-              className="justify-between"
-            >
-              Rename
-              <PencilIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={handleOpenThumbnail}
-              className="justify-between"
-            >
-              Thumbnail
-              <ImageIcon />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={copyPublicLink}
-              disabled={
-                currentAccess === PublicAccess.PRIVATE &&
-                entity.sharedWithCount === 0
-              }
+              onSelect={() => copyEntityLink(entity, currentAccess)}
               className="justify-between"
             >
               Copy link
               <LinkIcon />
             </DropdownMenuItem>
           </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              onSelect={() => setOpenDialog("rename")}
+              className="justify-between"
+            >
+              Rename…
+              <PencilIcon />
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => setOpenDialog("tag")}
+              className="justify-between"
+            >
+              Edit tags…
+              <TagIcon />
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => setOpenDialog("thumbnail")}
+              className="justify-between"
+            >
+              Change thumbnail…
+              <ImageIcon />
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={toggleFavorite}
+              className="justify-between"
+            >
+              {entity.favoritedAt
+                ? "Remove from favorites"
+                : "Add to favorites"}
+              {entity.favoritedAt ? <HeartOffIcon /> : <HeartIcon />}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => setArchived(!entity.archivedAt)}
+              className="justify-between"
+            >
+              {entity.archivedAt ? "Unarchive" : "Archive"}
+              {entity.archivedAt ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => setOpenDialog("delete")}
+            className="justify-between text-destructive focus:text-destructive"
+          >
+            Delete…
+            <TrashIcon />
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       {openDialog === "delete" && (

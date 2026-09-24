@@ -1,37 +1,19 @@
 "use client";
 
-import { PublicAccess, AccessLevel } from "@packages/types";
-import { ChevronDownIcon, LoaderCircleIcon } from "lucide-react";
+import { AccessLevel, type PublicAccess } from "@packages/types";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { Button } from "~/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
-import { Input } from "~/components/ui/input";
-import { useSearchParams } from "next/navigation";
-import { z } from "zod";
 import { revalidateDashboard } from "../server-actions";
+import { copyEntityLink } from "./copy-link";
+import { type SharePerson, SharePanel } from "./share-panel";
 
 /** The optimistic row's id: it has no share to change until the server answers. */
 const PENDING_SHARE_ID = "temp-id";
 
-type SharedInfoSnapshot = {
-  queryKey: { id: string };
-  previousData: RouterOutputs["entities"]["getSharedInfo"];
-};
+type SharedInfo = RouterOutputs["entities"]["getSharedInfo"];
 
 type Props = {
   entity: RouterOutputs["entities"]["list"][number];
@@ -39,435 +21,181 @@ type Props = {
   onOpenChange: (isOpen: boolean) => void;
 };
 
-const publicAccessLevelLabel = {
-  [PublicAccess.PRIVATE]: "No public link",
-  [PublicAccess.READ]: "Anyone with link can view",
-  [PublicAccess.EDIT]: "Anyone with link can edit",
-};
-
-const accessLevelLabel = {
-  [AccessLevel.EDIT]: "Edit",
-  [AccessLevel.READ]: "View",
-} as const;
-
 export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
   const utils = api.useUtils();
-  const searchParams = useSearchParams();
-  const { sortBy, sortOrder } = z
-    .object({
-      sortBy: z.enum(["updatedAt", "createdAt", "title"]).default("updatedAt"),
-      sortOrder: z.enum(["asc", "desc"]).default("desc"),
-    })
-    .parse(Object.fromEntries(searchParams.entries()));
+  const { data: session } = useSession();
+  const queryKey = { id: entity.id };
+  const [publicAccess, setPublicAccess] = useState(entity.publicAccess);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
-  const [shareWith, setShareWith] = useState<string>("");
-  const [accessLevel, setAccessLevel] = useState<AccessLevel>(AccessLevel.READ);
-  const [publicAccess, setPublicAccess] = useState<PublicAccess>(
-    entity.publicAccess as PublicAccess,
-  );
+  const { data: shares = [] } = api.entities.getSharedInfo.useQuery(queryKey, {
+    enabled: isOpen,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
 
-  /**
-   * -------------------------------------
-   * QUERY: GET SHARED USERS
-   * -------------------------------------
-   */
-  const { data: sharedWithUsers } = api.entities.getSharedInfo.useQuery(
-    { id: entity.id },
-    {
-      enabled: isOpen,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-    },
-  );
-
-  /**
-   * -------------------------------------
-   * MUTATION: PUBLIC SHARE
-   * -------------------------------------
-   */
-  const { mutate: publicShare, isPending: publicShareIsLoading } =
-    api.entities.update.useMutation({
-      async onMutate(newShare) {
-        // Cancel any ongoing fetches for the "list" query
-        const queryKey = {
-          parentId: entity.parentId ?? undefined,
-          sortBy,
-          sortOrder,
-        } as const;
-        await utils.entities.list.cancel(queryKey);
-
-        // Snapshot previous list for rollback
-        const previousData = utils.entities.list.getData(queryKey) ?? [];
-
-        // Optimistically update
-        utils.entities.list.setData(queryKey, (oldEntities) =>
-          oldEntities
-            ? oldEntities.map((item) =>
-                item.id === entity.id
-                  ? {
-                      ...item,
-                      publicAccess: newShare.publicAccess as PublicAccess,
-                    }
-                  : item,
-              )
-            : [],
-        );
-
-        return { queryKey, previousData };
-      },
-      onError(_error, _vars, context) {
-        // Rollback to previous data
-        if (!context) return;
-        utils.entities.list.setData(context.queryKey, context.previousData);
-      },
-      onSuccess: async (_res, _vars, context) => {
-        // Invalidate the list query to refetch fresh data
-        if (!context) return;
-        utils.entities.list.invalidate(context.queryKey);
-        await revalidateDashboard();
-      },
-    });
-
-  /**
-   * -------------------------------------
-   * MUTATION: SHARE WITH USER
-   * -------------------------------------
-   */
-  const { mutate: shareWithUser, isPending: shareWithIsLoading } =
-    api.entities.share.useMutation({
-      async onMutate(newShare) {
-        // Cancel any ongoing fetches for getSharedInfo
-        const queryKey = { id: newShare.id };
-        await utils.entities.getSharedInfo.cancel(queryKey);
-
-        // Snapshot previous data
-        const previousData =
-          utils.entities.getSharedInfo.getData(queryKey) ?? [];
-
-        // Clear the share input
-        const previousInput = shareWith.toString();
-        setShareWith("");
-
-        // Optimistically add the new user
-        utils.entities.getSharedInfo.setData(queryKey, (oldData) => [
-          ...(oldData || []),
-          {
-            userId: PENDING_SHARE_ID,
-            name: newShare.userEmail,
-            accessLevel: newShare.accessLevel,
-            entityId: newShare.id,
-            email: newShare.userEmail,
-          },
-        ]);
-
-        return { queryKey, previousData, previousInput };
-      },
-      onError(_error, _variables, context) {
-        // Rollback
-        if (!context) return;
-        utils.entities.getSharedInfo.setData(
-          context.queryKey,
-          context.previousData,
-        );
-        setShareWith(context.previousInput);
-        toast.error("Not found", {
-          description: "Are you sure that email is valid?",
-        });
-      },
-      onSuccess: async (_res, _variables, context) => {
-        // Invalidate to refetch fresh data
-        if (!context) return;
-        utils.entities.getSharedInfo.invalidate(context.queryKey);
-        await revalidateDashboard();
-      },
-    });
-
-  /**
-   * A failed change or unshare restores the list, then refetches it: a share
-   * another tab already revoked is NOT_FOUND, and the list should show what is
-   * left, here and on the dashboard.
-   */
-  const rollBackShare = async (
-    error: { message: string },
-    context: SharedInfoSnapshot | undefined,
-  ) => {
-    toast.error("Error", { description: error.message });
-    if (!context) return;
-    utils.entities.getSharedInfo.setData(
-      context.queryKey,
-      context.previousData,
-    );
-    utils.entities.getSharedInfo.invalidate(context.queryKey);
+  const refresh = async () => {
+    await utils.entities.getSharedInfo.invalidate(queryKey);
     await revalidateDashboard();
   };
 
-  /**
-   * -------------------------------------
-   * MUTATION: CHANGE ACCESS LEVEL
-   * -------------------------------------
-   */
-  const { mutate: changeAccessLevel, isPending: changeAccessLevelIsLoading } =
-    api.entities.changeAccessLevel.useMutation({
-      async onMutate({ id, userId, accessLevel }) {
-        const queryKey = { id };
-        await utils.entities.getSharedInfo.cancel(queryKey);
-
-        const previousData =
-          utils.entities.getSharedInfo.getData(queryKey) ?? [];
-
-        // Optimistically update this user's access level
-        utils.entities.getSharedInfo.setData(queryKey, (oldData) =>
-          oldData?.map((user) =>
-            user.userId === userId ? { ...user, accessLevel } : user,
-          ),
-        );
-
-        return { queryKey, previousData };
-      },
-      onError: (error, _vars, context) => rollBackShare(error, context),
-      onSuccess: async (_res, _vars, context) => {
-        if (!context) return;
-        utils.entities.getSharedInfo.invalidate(context.queryKey);
-        toast.success("Saved");
-        await revalidateDashboard();
-      },
-    });
-
-  /**
-   * -------------------------------------
-   * MUTATION: UNSHARE
-   * -------------------------------------
-   */
-  const { mutate: unshare, isPending: unshareIsLoading } =
-    api.entities.unShare.useMutation({
-      async onMutate({ id, userId }) {
-        const queryKey = { id };
-        await utils.entities.getSharedInfo.cancel(queryKey);
-
-        const previousData =
-          utils.entities.getSharedInfo.getData(queryKey) ?? [];
-
-        // Optimistically remove this user
-        utils.entities.getSharedInfo.setData(queryKey, (oldData) =>
-          oldData?.filter((user) => user.userId !== userId),
-        );
-
-        return { queryKey, previousData };
-      },
-      onError: (error, _vars, context) => rollBackShare(error, context),
-      onSuccess: async (_res, _variables, context) => {
-        if (!context) return;
-        utils.entities.getSharedInfo.invalidate(context.queryKey);
-        await revalidateDashboard();
-      },
-    });
-
-  /**
-   * -------------------------------------
-   * Handlers
-   * -------------------------------------
-   */
-  const handleShareWith = () => {
-    if (!shareWith) return;
-    shareWithUser({
-      id: entity.id,
-      userEmail: shareWith,
-      accessLevel,
-    });
+  /** Applies a change to the list at once, and hands back the list to restore. */
+  const optimistic = async (change: (rows: SharedInfo) => SharedInfo) => {
+    await utils.entities.getSharedInfo.cancel(queryKey);
+    const previous = utils.entities.getSharedInfo.getData(queryKey) ?? [];
+    utils.entities.getSharedInfo.setData(queryKey, change(previous));
+    return previous;
   };
 
-  const handleChangeAccessLevel = ({
-    userId,
-    accessLevel,
-  }: {
-    userId: string;
-    accessLevel: AccessLevel;
-  }) => {
-    changeAccessLevel({
-      id: entity.id,
-      userId,
-      accessLevel,
-    });
+  /**
+   * A failed change restores the list, then refetches it: a share another tab
+   * already revoked is NOT_FOUND, and the list should show what is left.
+   */
+  const rollBack = async (
+    message: string,
+    previous: SharedInfo | undefined,
+  ) => {
+    toast.error(message);
+    if (previous) utils.entities.getSharedInfo.setData(queryKey, previous);
+    await refresh();
   };
 
-  const handleUnshare = (userId: string) => {
-    unshare({ userId, id: entity.id });
-  };
+  const publicShare = api.entities.update.useMutation({
+    onSuccess: async () => {
+      await utils.entities.list.invalidate();
+      await revalidateDashboard();
+    },
+  });
 
-  const handleChangePublicAccess = (access: PublicAccess) => {
-    setPublicAccess(access);
-    publicShare({ id: entity.id, publicAccess: access });
+  const share = api.entities.share.useMutation({
+    onMutate: (input) => {
+      setInviteError(null);
+      return optimistic((rows) => [
+        ...rows,
+        {
+          entityId: input.id,
+          userId: PENDING_SHARE_ID,
+          name: null,
+          email: input.userEmail,
+          accessLevel: input.accessLevel,
+        },
+      ]);
+    },
+    onError: (error, input, previous) => {
+      if (previous) utils.entities.getSharedInfo.setData(queryKey, previous);
+      setInviteError(
+        error.data?.code === "NOT_FOUND"
+          ? `No Lexidraw account uses ${input.userEmail}. Ask them to sign up, then share again.`
+          : `Couldn’t share with ${input.userEmail}. Try again.`,
+      );
+    },
+    onSuccess: async (_result, input) => {
+      toast.success(
+        `${input.userEmail} can now ${input.accessLevel === AccessLevel.EDIT ? "edit" : "view"} “${entity.title}”.`,
+      );
+      await refresh();
+    },
+  });
+
+  const changeAccessLevel = api.entities.changeAccessLevel.useMutation({
+    onMutate: ({ userId, accessLevel }) =>
+      optimistic((rows) =>
+        rows.map((row) =>
+          row.userId === userId ? { ...row, accessLevel } : row,
+        ),
+      ),
+    onError: (_error, _input, previous) =>
+      rollBack("Couldn’t change their access. Try again.", previous),
+    onSuccess: async (_result, { userId, accessLevel }) => {
+      const person = shares.find((row) => row.userId === userId);
+      toast.success(
+        `${person?.name ?? person?.email ?? "They"} can now ${accessLevel === AccessLevel.EDIT ? "edit" : "view"} “${entity.title}”.`,
+      );
+      await refresh();
+    },
+  });
+
+  const unShare = api.entities.unShare.useMutation({
+    onMutate: ({ userId }) =>
+      optimistic((rows) => rows.filter((row) => row.userId !== userId)),
+    onError: (_error, _input, previous) =>
+      rollBack("Couldn’t remove their access. Try again.", previous),
+    onSuccess: refresh,
+  });
+
+  const isOwner = entity.userId === session?.user?.id;
+  const yourShare = shares.find((row) => row.userId === session?.user?.id);
+  const people: SharePerson[] = shares
+    .filter((row) => row.userId !== session?.user?.id)
+    .map((row) => ({
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      accessLevel: row.accessLevel,
+      pending: row.userId === PENDING_SHARE_ID,
+    }));
+
+  const remove = (userId: string) => {
+    const person = shares.find((row) => row.userId === userId);
+    if (!person) return;
+    const who = person.name ?? person.email ?? "They";
+    unShare.mutate(
+      { id: entity.id, userId },
+      {
+        onSuccess: () => {
+          toast.success(`Removed ${who}’s access to “${entity.title}”.`, {
+            action: person.email
+              ? {
+                  label: "Undo",
+                  onClick: () =>
+                    share.mutate({
+                      id: entity.id,
+                      userEmail: person.email as string,
+                      accessLevel: person.accessLevel,
+                    }),
+                }
+              : undefined,
+          });
+        },
+      },
+    );
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="min-w-[85vw] max-w-md md:min-w-96 md:max-w-lg"
-        aria-describedby={`dialog-description-${entity.id}`}
-      >
-        <DialogHeader>
-          <DialogTitle>Share {entity.entityType}</DialogTitle>
-        </DialogHeader>
-        <div id={`dialog-description-${entity.id}`} className="sr-only">
-          Share settings for {entity.entityType}. You can adjust public access,
-          share with specific users, or modify permissions for existing users.
-        </div>
-
-        <div className="flex flex-col gap-6 py-4">
-          {/* Public Link */}
-          <div className="gap-2">
-            <div className="text-md font-semibold">Public link</div>
-            <p>
-              Please select the type of public access you want to give to this{" "}
-              {entity.entityType}.
-            </p>
-            <div className="full-w flex justify-end">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    className="gap-2"
-                    variant="outline"
-                    disabled={publicShareIsLoading}
-                  >
-                    {publicShareIsLoading && (
-                      <LoaderCircleIcon className="mr-2 w-4 animate-spin" />
-                    )}
-                    {publicAccessLevelLabel[publicAccess as PublicAccess]}
-                    <ChevronDownIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56">
-                  {Object.entries(PublicAccess).map(([key, value]) => (
-                    <DropdownMenuItem
-                      key={key}
-                      onSelect={() => handleChangePublicAccess(value)}
-                    >
-                      {publicAccessLevelLabel[value]}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
-          {/* Share with Specific Users */}
-          <div className="gap-2">
-            <div className="text-md font-semibold">Specific Users</div>
-            <p>Share with individual users by entering their email address.</p>
-            <div className="flex w-full flex-col gap-y-2 space-x-2 pt-2">
-              <Input
-                className="w-full"
-                placeholder="Email"
-                type="email"
-                value={shareWith}
-                onChange={(e) => setShareWith(e.target.value)}
-              />
-              <div className="flex flex-row justify-end gap-x-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button className="gap-2" variant="outline">
-                      {accessLevelLabel[accessLevel]} <ChevronDownIcon />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56">
-                    {Object.entries(AccessLevel).map(([key, value]) => (
-                      <DropdownMenuItem
-                        key={key}
-                        onSelect={() => setAccessLevel(value)}
-                      >
-                        {accessLevelLabel[value]}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Button disabled={shareWithIsLoading} onClick={handleShareWith}>
-                  {shareWithIsLoading && (
-                    <LoaderCircleIcon className="mr-2 w-4 animate-spin" />
-                  )}
-                  Share
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Shared With */}
-          <div className="gap-2">
-            <div className="text-md font-semibold">Shared with</div>
-            <p>The following users have access to this {entity.entityType}.</p>
-            <div className="space-y-2">
-              {sharedWithUsers?.map((sharedUser) => (
-                <div
-                  key={sharedUser.userId}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                      {sharedUser.name ? sharedUser.name[0] : ""}
-                    </span>
-                    <span className="flex items-center">{sharedUser.name}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          disabled={
-                            changeAccessLevelIsLoading ||
-                            sharedUser.userId === PENDING_SHARE_ID
-                          }
-                          variant="outline"
-                        >
-                          {changeAccessLevelIsLoading && (
-                            <LoaderCircleIcon className="mr-2 w-4 animate-spin" />
-                          )}
-                          {
-                            accessLevelLabel[
-                              sharedUser.accessLevel as AccessLevel
-                            ]
-                          }
-                          <ChevronDownIcon />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {Object.entries(AccessLevel).map(([key, value]) => (
-                          <DropdownMenuItem
-                            key={key}
-                            onSelect={() =>
-                              handleChangeAccessLevel({
-                                userId: sharedUser.userId,
-                                accessLevel: value,
-                              })
-                            }
-                          >
-                            {accessLevelLabel[value]}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <Button
-                      variant="destructive"
-                      disabled={
-                        unshareIsLoading ||
-                        sharedUser.userId === PENDING_SHARE_ID
-                      }
-                      onClick={() => handleUnshare(sharedUser.userId)}
-                    >
-                      Unshare
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {/* progress bar, when removing a user */}
-              {unshareIsLoading && (
-                <div className="mt-2 h-4 w-full animate-in slide-in-from-bottom-1">
-                  <div className="h-full w-full animate-pulse rounded-sm bg-muted-foreground"></div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <SharePanel
+      open={isOpen}
+      onOpenChange={onOpenChange}
+      entity={entity}
+      you={{
+        name: session?.user?.name ?? null,
+        email: session?.user?.email ?? null,
+        role: isOwner ? "owner" : (yourShare?.accessLevel ?? AccessLevel.READ),
+      }}
+      people={people}
+      publicAccess={publicAccess}
+      onPublicAccessChange={(next) => {
+        const previous = publicAccess;
+        setPublicAccess(next);
+        publicShare.mutate(
+          { id: entity.id, publicAccess: next },
+          {
+            onError: () => {
+              setPublicAccess(previous);
+              toast.error("Couldn’t change who can open it. Try again.");
+            },
+          },
+        );
+      }}
+      onInvite={(email, accessLevel) =>
+        share.mutate({ id: entity.id, userEmail: email, accessLevel })
+      }
+      inviting={share.isPending}
+      inviteError={inviteError}
+      onRoleChange={(userId, accessLevel) =>
+        changeAccessLevel.mutate({ id: entity.id, userId, accessLevel })
+      }
+      onRemove={remove}
+      onCopyLink={() => copyEntityLink(entity, publicAccess as PublicAccess)}
+    />
   );
 }

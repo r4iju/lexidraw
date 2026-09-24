@@ -41,11 +41,11 @@ export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
             ? `/dashboard/${metadata.parentId}`
             : "/dashboard";
           router.replace(afterDeleteHref);
-          toast.success("Removed!");
+          toast.success(`Deleted “${entity.title}”.`);
           onOpenChange(false);
         },
         onError: (error) => {
-          toast.error("Something went wrong!", {
+          toast.error(`Couldn’t delete “${entity.title}”. Try again.`, {
             description: error.message,
           });
         },
@@ -55,12 +55,13 @@ export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-72 sm:max-w-md">
+      <DialogContent className="min-w-72 break-normal sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete {entity.title}</DialogTitle>
+          <DialogTitle className="pr-8 leading-snug">
+            Delete “{entity.title}”?
+          </DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this {entity.entityType}? This
-            action cannot be undone.
+            It’s removed for everyone it’s shared with. You can’t undo this.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
