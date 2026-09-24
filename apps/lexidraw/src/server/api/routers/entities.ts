@@ -40,6 +40,7 @@ import {
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
   entityAncestors,
+  readableTitles,
   findOwnedEntity,
   findReadableEntity,
   findReadableRevision,
@@ -111,25 +112,14 @@ const entitySearchResult = z.object({
   screenShotDark: z.string(),
   updatedAt: isoDate,
   parentId: z.string().nullable(),
-  /** The folder the entity is in; null at the top of Home. */
+  /**
+   * The folder the entity is in; null at the top of Home, or when the caller
+   * cannot open that folder.
+   */
   folderTitle: z.string().nullable(),
   /** The text around a match in the content; null for a title or tag hit. */
   snippet: z.string().nullable(),
 });
-
-/** The title of each distinct folder in `parentIds`, by id. */
-async function folderTitles(
-  db: typeof drizzle,
-  parentIds: (string | null)[],
-): Promise<Map<string, string>> {
-  const ids = [...new Set(parentIds)].filter((id): id is string => !!id);
-  if (ids.length === 0) return new Map();
-  const folders = await db
-    .select({ id: schema.entities.id, title: schema.entities.title })
-    .from(schema.entities)
-    .where(inArray(schema.entities.id, ids));
-  return new Map(folders.map((folder) => [folder.id, folder.title]));
-}
 
 /** The identity of an entity, as the write paths report it back. */
 const entitySummary = z.object({
@@ -434,9 +424,10 @@ export const entityRouter = createTRPCRouter({
         .orderBy(desc(schema.entities.updatedAt))
         .limit(20);
 
-      const folders = await folderTitles(
+      const folders = await readableTitles(
         ctx.drizzle,
         results.map((result) => result.parentId),
+        userId,
       );
       return results.map((result) => ({
         ...result,
@@ -1675,9 +1666,10 @@ export const entityRouter = createTRPCRouter({
         if (snippet || taggedWith) hits.set(result.id, { ...result, snippet });
       }
       const found = [...hits.values()].slice(0, 10);
-      const folders = await folderTitles(
+      const folders = await readableTitles(
         ctx.drizzle,
         found.map((hit) => hit.parentId),
+        userId,
       );
       return found.map((hit) => ({
         ...hit,
