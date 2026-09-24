@@ -267,7 +267,7 @@ function EditorHandler({
   }, [editor, setEditorStateRef]);
 
   const { insertMarkdown } = useMarkdownTools();
-  const rename = useRename(entity.id);
+  const rename = useRename(entity.id, entity.title);
 
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {

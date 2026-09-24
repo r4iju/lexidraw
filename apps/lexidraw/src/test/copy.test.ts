@@ -59,6 +59,14 @@ describe("copy", () => {
     ).toEqual([]);
   });
 
+  test("toasts say what happened to which file", () => {
+    expect(
+      findAll(
+        /\btoast\.\w+\(\s*(["'`])(?:Saved|Error saving|The title was not saved|Couldn't save)\1/g,
+      ),
+    ).toEqual([]);
+  });
+
   test("sign-in copy is sentence case", () => {
     expect(
       findAll(/["'`>]\s*(?:Sign In|Sign Out|Sign Up|Log In|Log Out)\s*["'`<]/g),

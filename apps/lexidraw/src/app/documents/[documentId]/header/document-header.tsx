@@ -456,17 +456,17 @@ type DocumentHeaderProps = {
  * Renames the document. The page's other views of the title, such as the
  * breadcrumb and the tab, come from the server, so they follow a refresh.
  */
-export function useRename(entityId: string) {
+export function useRename(entityId: string, title: string) {
   const router = useRouter();
   const update = api.entities.update.useMutation();
-  return (title: string, onFailure?: () => void) =>
+  return (next: string, onFailure?: () => void) =>
     update.mutate(
-      { id: entityId, title },
+      { id: entityId, title: next },
       {
         onSuccess: () => router.refresh(),
         onError: (error) => {
           onFailure?.();
-          toast.error("The title was not saved", {
+          toast.error(`Couldn’t rename “${title}”. Try again.`, {
             description: error.message,
           });
         },
@@ -491,7 +491,7 @@ export function DocumentHeader({
   const [header, updateHeader] = useDocumentHeader(editor);
   const outline = useOutline(editor, header.toc === true);
   useHiddenTitleHeading(editor, title);
-  const rename = useRename(entityId);
+  const rename = useRename(entityId, title);
   const [shownTitle, setShownTitle] = useState(title);
   const [addingSubtitle, setAddingSubtitle] = useState(false);
   const [addingProperty, setAddingProperty] = useState(false);

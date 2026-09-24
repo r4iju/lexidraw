@@ -65,7 +65,7 @@ export function useSaveAndExportDocument({
       toast.loading("Saving…", { id: TOAST_ID, duration: Infinity });
       save(editorStateRef.current, {
         onSuccess: () => {
-          toast.success("Saved", { id: TOAST_ID });
+          toast.success(`Saved “${entity.title}”.`, { id: TOAST_ID });
           resolve(true);
         },
         onDropped: () => {
@@ -73,7 +73,7 @@ export function useSaveAndExportDocument({
           resolve(false);
         },
         onError: (error) => {
-          toast.error("Error saving", {
+          toast.error(`Couldn’t save “${entity.title}”. Try again.`, {
             id: TOAST_ID,
             description: error.message,
           });
@@ -91,7 +91,7 @@ export function useSaveAndExportDocument({
         onSaveSuccessCallback?.(sent);
       },
       onError: (error) => {
-        toast.error("Couldn't save", {
+        toast.error(`Couldn’t save “${entity.title}”. Try again.`, {
           id: `save-${entity.id}`,
           description: error.message,
         });

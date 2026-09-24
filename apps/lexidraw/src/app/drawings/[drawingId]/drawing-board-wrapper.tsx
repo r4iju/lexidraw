@@ -64,10 +64,10 @@ export default function DrawingBoardWithSave({
         toast.dismiss(TOAST_ID);
         return false;
       }
-      toast.success("Saved", { id: TOAST_ID });
+      toast.success(`Saved “${drawing.title}”.`, { id: TOAST_ID });
       return true;
     } catch (error) {
-      toast.error("Error saving", {
+      toast.error(`Couldn’t save “${drawing.title}”. Try again.`, {
         id: TOAST_ID,
         description: error instanceof Error ? error.message : undefined,
       });
