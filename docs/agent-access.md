@@ -83,6 +83,13 @@ A directory listing is `GET /entities?parentId={directoryId}`; omitting
 Repeated query parameters (`tagNames`, `entityTypes`) may also be
 comma-separated, since a single repetition arrives as a bare string.
 
+`GET /tags` lists a caller's tag only when filtering by it finds something:
+the tag has to sit on an entity outside the trash that the caller owns or is
+still shared on. A delete only stamps `deletedAt` and an unshare leaves the
+former sharer's tag rows, so a restore or a new share brings the tag back. An
+archived entity still counts, since `GET /entities?includeArchived=true` lists
+it.
+
 A `parentId` on a create is resolved before the insert, by `POST /entities` as
 by `POST /drawings`: it has to be a directory the caller may write to, and
 anything else — a document, a directory of someone else's, nothing at all — is

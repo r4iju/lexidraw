@@ -11,6 +11,7 @@ import {
   and,
   desc,
   eq,
+  exists,
   isNull,
   ne,
   or,
@@ -825,28 +826,49 @@ export const entityRouter = createTRPCRouter({
         method: "GET",
         path: "/tags",
         tags: ["entities"],
-        summary: "List every tag the caller has used",
+        summary: "List the tags the caller has on entities they can still see",
         protect: true,
       },
     })
     .output(z.array(z.string()))
     .query(async ({ ctx }) => {
-      const tags = await ctx.drizzle
-        .select({
-          name: schema.tags.name,
-        })
+      const rows = await ctx.drizzle
+        .selectDistinct({ name: schema.tags.name })
         .from(schema.entityTags)
-        .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-        // also filter orphan tags (tags that are not associated with any entity  )
-        .where(and(eq(schema.entityTags.userId, ctx.session.user.id)))
+        .innerJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+        .innerJoin(
+          schema.entities,
+          eq(schema.entityTags.entityId, schema.entities.id),
+        )
+        .where(
+          and(
+            eq(schema.entityTags.userId, ctx.session.user.id),
+            // A tag is listed only if filtering by it finds something, so the
+            // entity has to be one `list` would show. A trashed entity keeps
+            // its tag rows so a restore brings them back, and an unshare
+            // leaves the former sharer's; archived entities still count, as
+            // `list` reaches them with `includeArchived`.
+            isNull(schema.entities.deletedAt),
+            or(
+              eq(schema.entities.userId, ctx.session.user.id),
+              exists(
+                ctx.drizzle
+                  .select({ id: schema.sharedEntities.id })
+                  .from(schema.sharedEntities)
+                  .where(
+                    and(
+                      eq(schema.sharedEntities.entityId, schema.entities.id),
+                      eq(schema.sharedEntities.userId, ctx.session.user.id),
+                    ),
+                  ),
+              ),
+            ),
+          ),
+        )
+        .orderBy(schema.tags.name)
         .execute();
 
-      return tags
-        .map((tag) => tag.name)
-        .filter(
-          (tag, index, self) => self.indexOf(tag) === index && tag !== null,
-        )
-        .sort() as string[];
+      return rows.map((row) => row.name);
     }),
   getEntityTags: protectedProcedure
     .meta({
