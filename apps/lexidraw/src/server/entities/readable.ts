@@ -31,10 +31,25 @@ const entityColumns = {
 export type ReachableEntity = Awaited<ReturnType<typeof findEntity>>;
 
 /**
- * The live entity with `id` when `reach` admits `userId`, otherwise null. The
- * share join is narrowed to `userId` first, so `sharedAccessLevel` describes
- * this caller's share and nobody else's.
+ * The share row joined in, narrowed to `userId` first, so `sharedAccessLevel`
+ * describes this caller's share and nobody else's.
  */
+function callersShare(userId: string): SQL | undefined {
+  return and(
+    eq(schema.sharedEntities.entityId, schema.entities.id),
+    eq(schema.sharedEntities.userId, userId),
+  );
+}
+
+function live(id: string, reach: SQL | undefined): SQL | undefined {
+  return and(
+    eq(schema.entities.id, id),
+    isNull(schema.entities.deletedAt),
+    reach,
+  );
+}
+
+/** The live entity with `id` when `reach` admits `userId`, otherwise null. */
 async function findEntity(
   db: Db,
   id: string,
@@ -44,19 +59,20 @@ async function findEntity(
   const rows = await db
     .select(entityColumns)
     .from(schema.entities)
-    .where(
-      and(eq(schema.entities.id, id), isNull(schema.entities.deletedAt), reach),
-    )
-    .leftJoin(
-      schema.sharedEntities,
-      and(
-        eq(schema.sharedEntities.entityId, schema.entities.id),
-        eq(schema.sharedEntities.userId, userId),
-      ),
-    )
+    .where(live(id, reach))
+    .leftJoin(schema.sharedEntities, callersShare(userId))
     .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
     .execute();
   return rows[0] ?? null;
+}
+
+/** Who may read an entity: its owner, a share, or anyone when it is not private. */
+function readableBy(userId: string): SQL | undefined {
+  return or(
+    eq(schema.entities.userId, userId),
+    eq(schema.sharedEntities.userId, userId),
+    ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
+  );
 }
 
 /**
@@ -64,16 +80,21 @@ async function findEntity(
  * or it is not private. `userId` is "" for anonymous callers.
  */
 export async function findReadableEntity(db: Db, id: string, userId: string) {
-  return findEntity(
-    db,
-    id,
-    userId,
-    or(
-      eq(schema.entities.userId, userId),
-      eq(schema.sharedEntities.userId, userId),
-      ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
-    ),
-  );
+  return findEntity(db, id, userId, readableBy(userId));
+}
+
+/**
+ * The readable entity's `updatedAt` alone, under the same rule, for a caller
+ * that asks often and only needs to know whether the entity moved.
+ */
+export async function findReadableRevision(db: Db, id: string, userId: string) {
+  const rows = await db
+    .select({ updatedAt: schema.entities.updatedAt })
+    .from(schema.entities)
+    .where(live(id, readableBy(userId)))
+    .leftJoin(schema.sharedEntities, callersShare(userId))
+    .execute();
+  return rows[0] ?? null;
 }
 
 /**

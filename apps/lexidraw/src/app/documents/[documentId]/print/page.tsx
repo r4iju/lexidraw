@@ -59,6 +59,7 @@ export default async function PrintDocumentPage(props: Props) {
         appState: schema.entities.appState,
         elements: schema.entities.elements,
         publicAccess: schema.entities.publicAccess,
+        updatedAt: schema.entities.updatedAt,
       })
       .from(schema.entities)
       .where(eq(schema.entities.id, documentId))
@@ -74,6 +75,7 @@ export default async function PrintDocumentPage(props: Props) {
     publicAccess: row.publicAccess as PublicAccess,
     sharedWith: [] as { userId: string; accessLevel: AccessLevel }[],
     accessLevel: AccessLevel.READ,
+    updatedAt: row.updatedAt,
   };
 
   const iceServers = await api.auth.iceServers.query();

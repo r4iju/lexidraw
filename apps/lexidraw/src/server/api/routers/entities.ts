@@ -38,9 +38,11 @@ import {
   entityAncestors,
   findOwnedEntity,
   findReadableEntity,
+  findReadableRevision,
   findWritableEntity,
   resolveParentDirectory,
 } from "~/server/entities/readable";
+import { thumbnailColumns } from "~/server/entities/thumbnail";
 import {
   accessLevelOut,
   entityTypeOut,
@@ -67,6 +69,8 @@ const loadOutput = z.object({
     z.object({ userId: z.string(), accessLevel: z.string() }),
   ),
   accessLevel: z.enum(AccessLevel),
+  // The revision the content is, so an open editor can tell when it moved.
+  updatedAt: isoDate,
 });
 
 /** What `list` returns: one row per entity the dashboard draws. */
@@ -517,7 +521,25 @@ export const entityRouter = createTRPCRouter({
           accessLevel: share.accessLevel,
         })),
         accessLevel,
+        updatedAt: entity.updatedAt,
       };
+    }),
+  /**
+   * The stored revision without its content: what an open editor polls to
+   * learn that the entity moved under it (`lib/open-entity-sync.ts`). Not a
+   * REST path; agents read `updatedAt` from the reads they already make.
+   */
+  revision: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ updatedAt: isoDate }))
+    .query(async ({ input, ctx }) => {
+      const revision = await findReadableRevision(
+        ctx.drizzle,
+        input.id,
+        ctx.session?.user?.id ?? "",
+      );
+      if (!revision) throw notFound();
+      return revision;
     }),
   getMetadata: publicProcedure
     .input(z.object({ id: z.string() }))
@@ -1152,11 +1174,12 @@ export const entityRouter = createTRPCRouter({
             ? { publicAccess: input.publicAccess }
             : {}),
           ...("parentId" in input ? { parentId: input.parentId } : {}),
-          ...("screenShotLight" in input
-            ? { screenShotLight: input.screenShotLight }
-            : {}),
-          ...("screenShotDark" in input
-            ? { screenShotDark: input.screenShotDark }
+          ...(input.screenShotLight !== undefined ||
+          input.screenShotDark !== undefined
+            ? thumbnailColumns({
+                light: input.screenShotLight,
+                dark: input.screenShotDark,
+              })
             : {}),
           updatedAt: new Date(),
         })
@@ -1282,9 +1305,7 @@ export const entityRouter = createTRPCRouter({
       await ctx.drizzle
         .update(schema.entities)
         .set({
-          screenShotLight: lightBlob.url,
-          screenShotDark: darkBlob.url,
-          updatedAt: new Date(),
+          ...thumbnailColumns({ light: lightBlob.url, dark: darkBlob.url }),
         })
         .where(eq(schema.entities.id, input.id))
         .execute();
@@ -1951,8 +1972,12 @@ export const entityRouter = createTRPCRouter({
       if (isDefaultTitle && distilled.title) {
         updates.title = distilled.title;
       }
-      if (screenShotLight) updates.screenShotLight = screenShotLight;
-      if (screenShotDark) updates.screenShotDark = screenShotDark;
+      if (screenShotLight || screenShotDark) {
+        Object.assign(
+          updates,
+          thumbnailColumns({ light: screenShotLight, dark: screenShotDark }),
+        );
+      }
 
       await ctx.drizzle
         .update(schema.entities)

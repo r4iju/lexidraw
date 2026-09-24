@@ -108,6 +108,8 @@ import {
   ImageGenerationProvider,
 } from "~/hooks/use-image-generation";
 import { useAutoSave } from "~/hooks/use-auto-save";
+import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import { useSyncedLexicalEditor } from "./use-synced-lexical-editor";
 import {
   LexicalImageProvider,
   ImageProvider,
@@ -289,7 +291,33 @@ function EditorHandler({
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(360);
   const sidebarRef = useRef<HTMLElement>(null);
 
-  const { markDirty, markPristine } = useUnsavedChanges();
+  const { markDirty, markPristine, dirty, registerSaveHold } =
+    useUnsavedChanges();
+  const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+  const onSyncReplace = useCallback(
+    (editorState: EditorState) => {
+      // A save still waiting would write the stored state back over whatever
+      // lands next.
+      debouncedAutoSaveRef.current?.cancel();
+      setEditorStateRef(editorState);
+      markPristine();
+    },
+    [setEditorStateRef, markPristine],
+  );
+  const syncedEditor = useSyncedLexicalEditor(editor, onSyncReplace);
+  const onSavesResumed = useCallback(() => {
+    // Autosave held the edits while the question stood; without autosave
+    // they stay for the user to save.
+    if (dirty.current) debouncedAutoSaveRef.current?.();
+  }, [dirty]);
+  const { holdsSaves } = useOpenEntitySync({
+    entity,
+    noun: "document",
+    editor: printMode ? null : syncedEditor,
+    onSavesResumed,
+  });
+  // Leaving must not save over a write the user has not answered.
+  useEffect(() => registerSaveHold(holdsSaves), [registerSaveHold, holdsSaves]);
   const { defaultFontFamily } = useDocumentSettings();
   const { enabled: autoSaveEnabled } = useAutoSave({ enabled: !printMode });
 
@@ -330,11 +358,13 @@ function EditorHandler({
     }, 100),
   );
 
-  const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
-
   useEffect(() => {
     if (autoSaveEnabled) {
       debouncedAutoSaveRef.current = debounce(() => {
+        if (holdsSaves()) {
+          markDirty();
+          return;
+        }
         handleSilentSave(() => {
           markPristine();
         });
@@ -342,7 +372,7 @@ function EditorHandler({
     } else {
       debouncedAutoSaveRef.current = null;
     }
-  }, [autoSaveEnabled, handleSilentSave, markPristine]);
+  }, [autoSaveEnabled, handleSilentSave, holdsSaves, markDirty, markPristine]);
 
   const onChange = (editorState: EditorState) => {
     if (isRemoteUpdate) return;
@@ -350,7 +380,7 @@ function EditorHandler({
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
     }
-    if (!autoSaveEnabled) {
+    if (!autoSaveEnabled || holdsSaves()) {
       markDirty();
     }
     setEditorStateRef(editorState);

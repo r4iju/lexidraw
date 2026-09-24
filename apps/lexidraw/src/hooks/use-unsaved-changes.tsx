@@ -14,12 +14,18 @@ import useModal from "~/hooks/useModal";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { useAutoSave } from "./use-auto-save";
+import { leaveChoice } from "./leave-choice";
 
 type Ctx = {
   markDirty(): void;
   markPristine(): void;
   dirty: React.RefObject<boolean>;
   router: ReturnType<typeof useRouterGuard>;
+  /**
+   * Tells leaving whether saves are held, like `useOpenEntitySync`'s
+   * `holdsSaves`; the answer unregisters it.
+   */
+  registerSaveHold(holdsSaves: () => boolean): () => void;
 };
 
 const UnsavedCtx = createContext<Ctx | null>(null);
@@ -33,23 +39,25 @@ export function UnsavedChangesProvider({
 }) {
   const dirty = useRef(false);
   const skipNextPopConfirmRef = useRef(false);
+  const saveHold = useRef<(() => boolean) | null>(null);
   const [modal, showModal] = useModal();
   const { enabled: autoSaveEnabled } = useAutoSave();
 
   const confirm = useCallback(async () => {
-    // If auto-save is enabled, automatically save and proceed
-    if (autoSaveEnabled) {
-      if (onSaveAndLeave) {
-        onSaveAndLeave();
-      }
+    const savesHeld = saveHold.current?.() ?? false;
+    if (leaveChoice({ autoSave: autoSaveEnabled, savesHeld }) === "save") {
+      onSaveAndLeave?.();
       return true;
     }
 
-    // Otherwise, show the modal
     return new Promise<boolean>((resolve) =>
       showModal("Unsaved changes", (close) => (
         <div className="flex flex-col gap-4">
-          <p>You have unsaved changes. Leave anyway?</p>
+          <p>
+            {savesHeld
+              ? "This changed elsewhere since you opened it, and your edits here are not saved. Saving them will overwrite the other changes. Leave anyway?"
+              : "You have unsaved changes. Leave anyway?"}
+          </p>
           <div className="flex gap-2 self-end">
             <Button
               variant="destructive"
@@ -110,14 +118,22 @@ export function UnsavedChangesProvider({
     dirty.current = false;
   }, []);
 
+  const registerSaveHold = useCallback((holdsSaves: () => boolean) => {
+    saveHold.current = holdsSaves;
+    return () => {
+      if (saveHold.current === holdsSaves) saveHold.current = null;
+    };
+  }, []);
+
   const value = useMemo<Ctx>(
     () => ({
       markDirty,
       markPristine,
       dirty,
       router: guardedRouter,
+      registerSaveHold,
     }),
-    [guardedRouter, markDirty, markPristine],
+    [guardedRouter, markDirty, markPristine, registerSaveHold],
   );
 
   return (

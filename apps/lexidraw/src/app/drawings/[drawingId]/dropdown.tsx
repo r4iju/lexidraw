@@ -5,7 +5,7 @@ import type {
   AppState,
   ExcalidrawImperativeAPI,
 } from "@excalidraw/excalidraw/types";
-import { type RefObject, useState } from "react";
+import { useState } from "react";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -41,7 +41,7 @@ import { useRouter } from "next/navigation";
 
 type Props = {
   drawing: RouterOutputs["entities"]["load"];
-  excalidrawApi: RefObject<ExcalidrawImperativeAPI>;
+  excalidrawApi: ExcalidrawImperativeAPI | null;
 };
 
 export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
@@ -64,20 +64,19 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   const CustomMenuItem = MainMenu.ItemCustom;
 
   const closeMenu = () => {
-    excalidrawApi.current?.updateScene({
-      elements: excalidrawApi.current?.getSceneElements(),
+    excalidrawApi?.updateScene({
+      elements: excalidrawApi?.getSceneElements(),
       appState: {
-        ...excalidrawApi.current?.getAppState(),
+        ...excalidrawApi?.getAppState(),
         openMenu: null,
       },
     });
   };
 
   const saveToBackend = async () => {
-    if (!excalidrawApi.current) return;
-    const elements =
-      excalidrawApi.current.getSceneElements() as ExcalidrawElement[];
-    const appState: AppState = excalidrawApi.current.getAppState();
+    if (!excalidrawApi) return;
+    const elements = excalidrawApi.getSceneElements() as ExcalidrawElement[];
+    const appState: AppState = excalidrawApi.getAppState();
 
     save(
       {
@@ -103,6 +102,7 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   };
 
   const exportDrawingAsSvg = async () => {
+    if (!excalidrawApi) return;
     setIsUploading(true);
 
     generateTokens(
@@ -117,9 +117,9 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
             await Promise.all(
               tokens.map(async ({ token, pathname, theme }) => {
                 const svg = await exportToSvg({
-                  elements: excalidrawApi.current.getSceneElements(),
+                  elements: excalidrawApi.getSceneElements(),
                   appState: {
-                    ...excalidrawApi.current.getAppState(),
+                    ...excalidrawApi.getAppState(),
                     theme,
                     exportWithDarkMode: theme === Theme.DARK,
                     exportBackground: true,
@@ -178,16 +178,16 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
         });
         return;
       }
-      excalidrawApi.current?.updateScene(scene);
+      excalidrawApi?.updateScene(scene);
       closeMenu();
     };
     input.click();
   };
 
   const handleExportAsExcalidrawFile = async () => {
-    if (!excalidrawApi.current) return;
-    const elements = excalidrawApi.current.getSceneElements();
-    const appState = excalidrawApi.current.getAppState();
+    if (!excalidrawApi) return;
+    const elements = excalidrawApi.getSceneElements();
+    const appState = excalidrawApi.getAppState();
     const data = JSON.stringify({
       type: "excalidraw",
       version: 2,
@@ -208,11 +208,11 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   };
 
   const handleExportAsPng = async () => {
-    if (!excalidrawApi.current) return;
+    if (!excalidrawApi) return;
     const blob = await exportToBlob({
-      elements: excalidrawApi.current.getSceneElements(),
+      elements: excalidrawApi.getSceneElements(),
       appState: {
-        ...excalidrawApi.current.getAppState(),
+        ...excalidrawApi.getAppState(),
         exportBackground: true,
         exportWithDarkMode: !!isDarkTheme,
       },
@@ -235,10 +235,10 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   };
 
   const handleExportAsSvg = async () => {
-    if (!excalidrawApi.current) return;
+    if (!excalidrawApi) return;
     const svg = await exportToSvg({
-      elements: excalidrawApi.current.getSceneElements(),
-      appState: excalidrawApi.current.getAppState(),
+      elements: excalidrawApi.getSceneElements(),
+      appState: excalidrawApi.getAppState(),
       files: null,
       exportPadding: 10,
     });
@@ -256,11 +256,11 @@ export const DrawingBoardMenu = ({ drawing, excalidrawApi }: Props) => {
   };
 
   const handleReset = () => {
-    if (!excalidrawApi.current) return;
-    excalidrawApi.current.updateScene({
+    if (!excalidrawApi) return;
+    excalidrawApi.updateScene({
       elements: [],
       appState: {
-        ...excalidrawApi.current.getAppState(),
+        ...excalidrawApi.getAppState(),
       },
     });
     closeMenu();
