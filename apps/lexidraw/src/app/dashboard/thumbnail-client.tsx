@@ -14,6 +14,7 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
+import { thumbnailSrc } from "./thumbnail-src";
 import type { RouterOutputs } from "~/trpc/shared";
 
 type RoundedCorners = "all" | "left-only" | "none";
@@ -74,12 +75,7 @@ export function useThumbnailContent({
       ? entity.screenShotDark
       : entity.screenShotLight;
     if (!base) return base;
-    const ver = String(
-      (entity as unknown as { updatedAt?: number | string }).updatedAt ?? "",
-    );
-    if (!ver) return base;
-    const sep = base.includes("?") ? "&" : "?";
-    return `${base}${sep}v=${ver}`;
+    return thumbnailSrc(base, entity);
   }, [
     deferredIsDarkTheme,
     entity.screenShotDark,

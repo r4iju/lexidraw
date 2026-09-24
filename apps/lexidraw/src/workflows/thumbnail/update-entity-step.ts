@@ -19,7 +19,8 @@ export async function updateEntityStep(
       thumbnailStatus: "ready",
       thumbnailUpdatedAt: new Date(),
       thumbnailVersion: version,
-      updatedAt: new Date(),
+      // Not `updatedAt`: that is the content's revision, which open editors
+      // and `ifUnmodifiedSince` compare against, and a picture of it is not one.
     })
     .where(eq(schema.entities.id, entityId))
     .execute();

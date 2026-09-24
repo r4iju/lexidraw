@@ -1,8 +1,9 @@
 "use client";
 
 import { matchMutation, useQueryClient } from "@tanstack/react-query";
+import { TRPCClientError } from "@trpc/client";
 import { getMutationKey } from "@trpc/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
@@ -34,11 +35,21 @@ type Props = {
  * Keeps an open editor on the stored entity; see `lib/open-entity-sync.ts`.
  * Every browser save goes through `entities.save`, so the editor's own saves
  * are read off the mutation cache rather than reported by each save site.
+ * Answers whether an autosave has to wait: see `OpenEntitySync.holdsSaves`.
  */
 export function useOpenEntitySync({ entity, noun, editor }: Props) {
   const utils = api.useUtils();
   const queryClient = useQueryClient();
   const [sync] = useState(() => createSync(entity, noun, utils));
+  const holdsSaves = useCallback(() => sync.holdsSaves(), [sync]);
+
+  // External system: the toaster, which outlives the editor.
+  useEffect(
+    () => () => {
+      toast.dismiss(toastId(entity.id));
+    },
+    [entity.id],
+  );
 
   // External systems: the tab's visibility and focus, and a timer.
   useEffect(() => {
@@ -92,6 +103,21 @@ export function useOpenEntitySync({ entity, noun, editor }: Props) {
       }
     });
   }, [queryClient, sync, entity.id]);
+
+  return { holdsSaves };
+}
+
+function toastId(id: string): string {
+  // Called from an effect's cleanup; see `fingerprint` in
+  // `use-synced-excalidraw.ts` for why it opts out of the compiler.
+  "use no memo";
+  return `open-entity-sync-${id}`;
+}
+
+/** A read the server refused because the entity is gone for this user. */
+function isNotFound(error: unknown): boolean {
+  "use no memo"; // called from a fetch's callback, as above
+  return error instanceof TRPCClientError && error.data?.code === "NOT_FOUND";
 }
 
 function createSync(
@@ -102,7 +128,7 @@ function createSync(
   // A factory for `useState`, not a render: see `fingerprint` in
   // `use-synced-excalidraw.ts` for why it opts out of the compiler.
   "use no memo";
-  const toastId = `open-entity-sync-${entity.id}`;
+  const id = toastId(entity.id);
   const announce = (notice: SyncNotice) => {
     switch (notice.kind) {
       case "reloaded":
@@ -112,7 +138,7 @@ function createSync(
         return;
       case "conflict":
         toast.warning(`This ${noun} changed elsewhere`, {
-          id: toastId,
+          id,
           duration: Number.POSITIVE_INFINITY,
           description: `Reload to see the new version and discard your unsaved edits here, or keep editing yours: saving them will overwrite the other changes.`,
           action: { label: "Reload", onClick: () => sync.reload() },
@@ -122,20 +148,25 @@ function createSync(
         });
         return;
       case "settled":
-        toast.dismiss(toastId);
+        toast.dismiss(id);
         return;
     }
   };
   const sync = new OpenEntitySync(
     { updatedAt: entity.updatedAt, elements: entity.elements },
     {
-      updatedAt: async () =>
-        (
-          await utils.entities.revision.fetch(
+      updatedAt: async () => {
+        try {
+          const revision = await utils.entities.revision.fetch(
             { id: entity.id },
             { staleTime: 0 },
-          )
-        ).updatedAt,
+          );
+          return revision.updatedAt;
+        } catch (error) {
+          if (isNotFound(error)) return null;
+          throw error;
+        }
+      },
       load: async () => {
         const stored = await utils.entities.load.fetch(
           { id: entity.id },

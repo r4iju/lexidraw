@@ -13,7 +13,8 @@
  *   `elements`; a collaborator's edit arrives live before their save does);
  * - it changed and the editor has no edits of its own → show it, and say so;
  * - it changed under local edits → ask, and replace nothing until the user
- *   chooses. Keeping theirs is not asked again for the same revision.
+ *   chooses. Autosave waits while the question stands, since a save would
+ *   answer it. Keeping theirs is not asked again for the same content.
  *
  * `updatedAt` is only the cheap question; `elements` is the answer, because
  * `updatedAt` moves for writes that do not change what the editor shows.
@@ -39,14 +40,17 @@ export interface SyncedEditor {
 }
 
 export interface SyncSource {
-  /** The stored revision's `updatedAt`, without its content. */
-  updatedAt(): Promise<Date>;
+  /**
+   * The stored revision's `updatedAt`, without its content; null once the
+   * entity is gone for this user, deleted or no longer shared.
+   */
+  updatedAt(): Promise<Date | null>;
   load(): Promise<StoredRevision>;
 }
 
 export type SyncNotice =
   | { kind: "reloaded" }
-  | { kind: "conflict"; revision: StoredRevision }
+  | { kind: "conflict" }
   /** A conflict announced earlier no longer stands. */
   | { kind: "settled" };
 
@@ -59,8 +63,11 @@ export class OpenEntitySync {
   /** The last revision loaded, so asking again for it costs no download. */
   private lastLoaded: StoredRevision | null = null;
   private conflict: StoredRevision | null = null;
-  /** The revision the user chose to keep their edits over. */
-  private kept: Date | null = null;
+  /** The content the user chose to keep their edits over. */
+  private kept: string | null = null;
+  /** The user chose to reload while a save was in flight. */
+  private reloadAfterSave = false;
+  private gone = false;
 
   constructor(
     private held: StoredRevision,
@@ -74,11 +81,16 @@ export class OpenEntitySync {
   }
 
   async check(): Promise<void> {
-    if (this.checking || this.savesInFlight > 0 || !this.editor) return;
+    if (this.gone || this.checking || this.savesInFlight > 0 || !this.editor)
+      return;
     this.checking = true;
     try {
       const epoch = this.saveEpoch;
       const updatedAt = await this.source.updatedAt();
+      if (!updatedAt) {
+        this.gone = true;
+        return;
+      }
       if (epoch !== this.saveEpoch || sameTime(updatedAt, this.held.updatedAt))
         return;
       const stored =
@@ -105,30 +117,46 @@ export class OpenEntitySync {
       return;
     }
     if (!editor.hasLocalEdits()) {
-      this.held = stored;
+      // Replaced before it is held: a replace that throws leaves the editor
+      // behind the stored revision, and the next check tries again.
       editor.replace(stored);
+      this.held = stored;
       this.settle();
       this.notify({ kind: "reloaded" });
       return;
     }
-    if (this.kept && sameTime(this.kept, stored.updatedAt)) return;
+    if (this.kept === stored.elements) return;
     this.conflict = stored;
-    this.notify({ kind: "conflict", revision: stored });
+    this.notify({ kind: "conflict" });
+  }
+
+  /**
+   * A question stands, and a save would answer it by overwriting what was
+   * written elsewhere. Saves the user asks for still go through.
+   */
+  holdsSaves(): boolean {
+    return this.conflict !== null;
   }
 
   /** The user chose the stored revision over their edits. */
   reload(): void {
     const stored = this.conflict;
     if (!stored || !this.editor) return;
-    this.held = stored;
+    // A save on the wire decides what is stored; see `saveFailed` and
+    // `saveSucceeded`.
+    if (this.savesInFlight > 0) {
+      this.reloadAfterSave = true;
+      return;
+    }
     this.editor.replace(stored);
+    this.held = stored;
     this.settle();
   }
 
   /** The user chose their edits; saving them will overwrite the stored ones. */
   keep(): void {
     if (!this.conflict) return;
-    this.kept = this.conflict.updatedAt;
+    this.kept = this.conflict.elements;
     this.settle();
   }
 
@@ -139,13 +167,22 @@ export class OpenEntitySync {
 
   saveSucceeded(saved: StoredRevision): void {
     this.saveSettled();
-    this.held = saved;
-    this.editor?.saved(saved.elements);
+    // The stored content is the user's now: there is nothing to reload to.
+    this.reloadAfterSave = false;
+    // Answers can arrive out of order; an older one says nothing new.
+    if (saved.updatedAt.getTime() > this.held.updatedAt.getTime()) {
+      this.held = saved;
+      this.editor?.saved(saved.elements);
+    }
     this.settle();
   }
 
   saveFailed(): void {
     this.saveSettled();
+    if (this.reloadAfterSave && this.savesInFlight === 0) {
+      this.reloadAfterSave = false;
+      this.reload();
+    }
   }
 
   private saveSettled(): void {

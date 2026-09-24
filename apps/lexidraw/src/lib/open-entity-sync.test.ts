@@ -15,7 +15,8 @@ const rev = (at: number, elements: string): StoredRevision => ({
 /** The server: the revision it stores now, and how often it was asked. */
 function server(initial: StoredRevision) {
   const state = {
-    current: initial,
+    current: initial as StoredRevision | null,
+    asked: 0,
     loads: 0,
     pending: null as null | (() => void),
   };
@@ -23,15 +24,17 @@ function server(initial: StoredRevision) {
     state,
     source: {
       updatedAt: async () => {
-        if (state.pending === null) return state.current.updatedAt;
+        state.asked++;
+        if (state.pending === null) return state.current?.updatedAt ?? null;
         // A request still on the wire: resolves when the test says so.
         await new Promise<void>((resolve) => {
           state.pending = resolve;
         });
-        return state.current.updatedAt;
+        return state.current?.updatedAt ?? null;
       },
       load: async () => {
         state.loads++;
+        if (!state.current) throw new Error("NOT_FOUND");
         return state.current;
       },
     },
@@ -40,11 +43,18 @@ function server(initial: StoredRevision) {
 
 /** An editor showing `showing`, with or without edits of its own on top. */
 function editor(showing: string, edited = false) {
-  const state = { showing, edited, replaced: [] as StoredRevision[] };
+  const state = {
+    showing,
+    edited,
+    replaced: [] as StoredRevision[],
+    /** Stored content this editor cannot parse, like a corrupt write. */
+    unparsable: null as string | null,
+  };
   const port: SyncedEditor = {
     shows: (elements) => !state.edited && elements === state.showing,
     hasLocalEdits: () => state.edited,
     replace: (revision) => {
+      if (revision.elements === state.unparsable) throw new SyntaxError("bad");
       state.replaced.push(revision);
       state.showing = revision.elements;
       state.edited = false;
@@ -176,18 +186,112 @@ describe("an open editor and the entity stored under it", () => {
     expect(ed.state.replaced).toEqual([]);
   });
 
-  test("the user's own save settles a standing conflict", async () => {
+  test("autosave waits while the question stands; a save the user makes answers it", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync } = setup(rev(1, "v1"), ed);
+    expect(sync.holdsSaves()).toBe(false);
+
+    srv.state.current = rev(2, "v2");
+    await sync.check();
+    // An autosave landing now would overwrite v2 before the user chose.
+    expect(sync.holdsSaves()).toBe(true);
+    sync.keep();
+    expect(sync.holdsSaves()).toBe(false);
+
+    srv.state.current = rev(3, "v3");
+    await sync.check();
+    expect(sync.holdsSaves()).toBe(true);
+    // Saving by hand is a choice: the stored content is theirs now.
+    sync.saveStarted();
+    srv.state.current = rev(4, "mine");
+    sync.saveSucceeded(rev(4, "mine"));
+    expect(sync.holdsSaves()).toBe(false);
+    expect(notices).toEqual(["conflict", "settled", "conflict", "settled"]);
+    sync.reload();
+    expect(ed.state.replaced).toEqual([]);
+  });
+
+  test("keeping edits over some content is not asked again when only updatedAt moves", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync } = setup(rev(1, "v1"), ed);
+
+    srv.state.current = rev(2, "v2");
+    await sync.check();
+    sync.keep();
+    // A thumbnail or a rename moves updatedAt over the same content.
+    srv.state.current = rev(3, "v2");
+    await sync.check();
+    expect(notices).toEqual(["conflict", "settled"]);
+
+    srv.state.current = rev(4, "v4");
+    await sync.check();
+    expect(notices).toEqual(["conflict", "settled", "conflict"]);
+  });
+
+  test("a replace that fails leaves the editor behind, so the next check tries again", async () => {
+    const ed = editor("v1");
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+
+    srv.state.current = rev(2, "v2");
+    ed.state.unparsable = "v2";
+    await expect(sync.check()).rejects.toThrow(SyntaxError);
+    expect(ed.state.replaced).toEqual([]);
+
+    ed.state.unparsable = null;
+    await sync.check();
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2"]);
+  });
+
+  test("a reload chosen while a save is in flight waits for the save", async () => {
     const ed = editor("v1", true);
     const { srv, notices, sync } = setup(rev(1, "v1"), ed);
 
     srv.state.current = rev(2, "v2");
     await sync.check();
     sync.saveStarted();
-    srv.state.current = rev(3, "mine");
-    sync.saveSucceeded(rev(3, "mine"));
-
-    expect(notices).toEqual(["conflict", "settled"]);
     sync.reload();
+    expect(ed.state.replaced).toEqual([]);
+    // The save failed: v2 still stands over the edits, and the user chose it.
+    sync.saveFailed();
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2"]);
+    expect(notices).toEqual(["conflict", "settled"]);
+
+    // Had it landed, the stored content would be the user's, and there would
+    // be nothing left to reload to.
+    const ed2 = editor("v1", true);
+    const second = setup(rev(1, "v1"), ed2);
+    second.srv.state.current = rev(2, "v2");
+    await second.sync.check();
+    second.sync.saveStarted();
+    second.sync.reload();
+    second.sync.saveSucceeded(rev(3, "mine"));
+    expect(ed2.state.replaced).toEqual([]);
+    expect(second.notices).toEqual(["conflict", "settled"]);
+  });
+
+  test("a save answered out of order does not move the held revision back", async () => {
+    const ed = editor("v1", true);
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+
+    sync.saveStarted();
+    sync.saveStarted();
+    srv.state.current = rev(3, "b");
+    sync.saveSucceeded(rev(3, "b"));
+    sync.saveSucceeded(rev(2, "a"));
+
+    await sync.check();
+    expect(srv.state.loads).toBe(0);
+  });
+
+  test("an entity that is gone is not asked about again", async () => {
+    const ed = editor("v1");
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+
+    srv.state.current = null;
+    await sync.check();
+    await sync.check();
+    await sync.check();
+    expect(srv.state.asked).toBe(1);
     expect(ed.state.replaced).toEqual([]);
   });
 });

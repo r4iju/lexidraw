@@ -48,7 +48,8 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 }) => {
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
-  const excalidrawApi = useRef<ExcalidrawImperativeAPI>(null);
+  const [excalidrawApi, setExcalidrawApi] =
+    useState<ExcalidrawImperativeAPI | null>(null);
   const { mutate: save } = api.entities.save.useMutation();
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const canCollaborate = useMemo(() => {
@@ -60,10 +61,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
   const { markDirty, markPristine } = useUnsavedChanges();
   const { enabled: autoSaveEnabled } = useAutoSave();
-  // The mounted editor, for what has to wait until there is one.
-  const [mountedApi, setMountedApi] = useState<ExcalidrawImperativeAPI | null>(
-    null,
-  );
+  const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   const updateElementsRef = useCallback(
     (currentElements: Map<string, ExcalidrawElement>) => {
@@ -74,26 +72,30 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   const onSyncReplace = useCallback(
     (elements: readonly ExcalidrawElement[]) => {
+      // The stored scene is what the editor shows now: a save still waiting
+      // would write it back over whatever lands next.
+      debouncedSaveRef.current?.cancel();
       updateElementsRef(new Map(elements.map((e) => [e.id, e])));
       markPristine();
     },
     [updateElementsRef, markPristine],
   );
-  const syncedEditor = useSyncedExcalidraw(mountedApi, onSyncReplace);
-  useOpenEntitySync({ entity: drawing, noun: "drawing", editor: syncedEditor });
+  const synced = useSyncedExcalidraw(excalidrawApi, onSyncReplace);
+  const { holdsSaves } = useOpenEntitySync({
+    entity: drawing,
+    noun: "drawing",
+    editor: synced.editor,
+  });
 
   const applyUpdate = useCallback(
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {
-      excalidrawApi.current?.updateScene({
-        elements,
-      });
+      if (!excalidrawApi) return;
+      excalidrawApi.updateScene({ elements });
       setIsRemoteUpdate(true);
-      if (excalidrawApi.current) {
-        const currentElements = excalidrawApi.current.getSceneElements();
-        updateElementsRef(new Map(currentElements.map((e) => [e.id, e])));
-      }
+      const currentElements = excalidrawApi.getSceneElements();
+      updateElementsRef(new Map(currentElements.map((e) => [e.id, e])));
     },
-    [updateElementsRef],
+    [excalidrawApi, updateElementsRef],
   );
 
   const handleMessage = useCallback(
@@ -159,12 +161,14 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     }, 100),
   );
 
-  const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
-
   useEffect(() => {
     if (autoSaveEnabled) {
       debouncedSaveRef.current = debounce(
         ({ elements, appState }: SendUpdateProps) => {
+          if (holdsSaves()) {
+            markDirty();
+            return;
+          }
           save(
             {
               id: drawing.id,
@@ -190,7 +194,15 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     } else {
       debouncedSaveRef.current = null;
     }
-  }, [autoSaveEnabled, drawing.id, isDarkTheme, markPristine, save]);
+  }, [
+    autoSaveEnabled,
+    drawing.id,
+    isDarkTheme,
+    holdsSaves,
+    markDirty,
+    markPristine,
+    save,
+  ]);
 
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
@@ -222,10 +234,18 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       state: AppState,
       _: BinaryFiles,
     ) => {
-      if (!autoSaveEnabled) {
+      if (!synced.needsSave(elements)) {
+        // Nothing the server lacks, like the scene a reload just showed or
+        // an edit undone: a save still waiting would only write back.
+        debouncedSaveRef.current?.cancel();
+        markPristine();
+      } else if (
+        !autoSaveEnabled ||
+        holdsSaves() ||
+        !debouncedSaveRef.current
+      ) {
         markDirty();
-      }
-      if (autoSaveEnabled && debouncedSaveRef.current) {
+      } else {
         debouncedSaveRef.current({ elements, appState: state });
       }
       if (isRemoteUpdate) {
@@ -245,7 +265,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       isRemoteUpdate,
       isCollaborating,
       sendUpdateIfNeeded,
+      synced,
+      holdsSaves,
       markDirty,
+      markPristine,
       autoSaveEnabled,
     ],
   );
@@ -284,10 +307,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   // switching dark-light mode
   useEffect(() => {
-    excalidrawApi.current?.updateScene({
+    excalidrawApi?.updateScene({
       appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
     });
-  }, [isDarkTheme]);
+  }, [excalidrawApi, isDarkTheme]);
 
   // trigger live collaboration on mount
   useEffect(() => {
@@ -308,8 +331,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       <Excalidraw
         {...options}
         excalidrawAPI={(api) => {
-          excalidrawApi.current = api;
-          setMountedApi(api);
+          setExcalidrawApi(api);
           onExcalidrawApiReady?.(api);
           console.log("excalidraw api set");
         }}
@@ -321,12 +343,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         )}
       >
         <MainMenu>
-          <DrawingBoardMenu
-            drawing={drawing}
-            excalidrawApi={
-              excalidrawApi as React.RefObject<ExcalidrawImperativeAPI>
-            }
-          />
+          <DrawingBoardMenu drawing={drawing} excalidrawApi={excalidrawApi} />
         </MainMenu>
       </Excalidraw>
     </div>

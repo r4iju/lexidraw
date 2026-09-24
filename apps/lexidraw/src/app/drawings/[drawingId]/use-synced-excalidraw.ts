@@ -3,8 +3,9 @@
 import { CaptureUpdateAction, restoreElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { SyncedEditor } from "~/lib/open-entity-sync";
+import { SceneEdits } from "./scene-edits";
 
 /**
  * Which elements a scene has, at which version. Excalidraw bumps an element's
@@ -28,52 +29,58 @@ function parse(elements: string): ExcalidrawElement[] {
   return JSON.parse(elements) as ExcalidrawElement[];
 }
 
+/** What the user can touch a drawing with, from anywhere on the page. */
+const TOUCHES = ["pointerdown", "keydown", "paste", "drop"] as const;
+
 /**
- * An Excalidraw scene as `lib/open-entity-sync.ts` sees it.
- *
- * Excalidraw has no notion of which changes the user made: loading a scene
- * and re-measuring its text once the fonts arrive bump versions too. So the
- * baseline follows the scene until the user first touches it — a pointer or a
- * key — and only a change after that is an edit. Touching without changing,
- * like panning, leaves the fingerprint where it was.
+ * An Excalidraw scene as `lib/open-entity-sync.ts` sees it, and whether a
+ * change to it is anything to save; see `scene-edits.ts`.
  */
 export function useSyncedExcalidraw(
   excalidraw: ExcalidrawImperativeAPI | null,
   onReplace?: (elements: readonly ExcalidrawElement[]) => void,
-): SyncedEditor | null {
-  const baseline = useRef("");
-  const touched = useRef(false);
+): {
+  editor: SyncedEditor | null;
+  /** For Excalidraw's `onChange`: the scene holds something to save. */
+  needsSave: (elements: readonly ExcalidrawElement[]) => boolean;
+} {
+  const edits = useRef<SceneEdits | null>(null);
 
   // External systems: the Excalidraw scene, and the user's input on the page.
   useEffect(() => {
     if (!excalidraw) return;
-    baseline.current = fingerprint(excalidraw.getSceneElements());
-    touched.current = false;
-    const touch = () => {
-      touched.current = true;
-    };
+    const scene = new SceneEdits(fingerprint(excalidraw.getSceneElements()));
+    edits.current = scene;
+    // Anywhere, not only the canvas: the library, the menus, and the dialogs
+    // change the scene too. A touch that edits nothing costs a question at
+    // most, and an edit without a touch would be replaced unasked.
+    const touch = () => scene.touched();
     const stopChange = excalidraw.onChange((elements) => {
-      if (!touched.current) baseline.current = fingerprint(elements);
+      scene.changed(fingerprint(elements));
     });
-    const stopPointer = excalidraw.onPointerDown(touch);
-    window.addEventListener("keydown", touch, { capture: true });
-    window.addEventListener("paste", touch, { capture: true });
-    window.addEventListener("drop", touch, { capture: true });
+    for (const type of TOUCHES) {
+      window.addEventListener(type, touch, { capture: true });
+    }
     return () => {
       stopChange();
-      stopPointer();
-      window.removeEventListener("keydown", touch, { capture: true });
-      window.removeEventListener("paste", touch, { capture: true });
-      window.removeEventListener("drop", touch, { capture: true });
+      for (const type of TOUCHES) {
+        window.removeEventListener(type, touch, { capture: true });
+      }
     };
   }, [excalidraw]);
 
-  return useMemo<SyncedEditor | null>(() => {
+  const needsSave = useCallback(
+    (elements: readonly ExcalidrawElement[]) =>
+      edits.current?.changed(fingerprint(elements)) ?? false,
+    [],
+  );
+
+  const editor = useMemo<SyncedEditor | null>(() => {
     if (!excalidraw) return null;
     const scene = () => fingerprint(excalidraw.getSceneElements());
     return {
       shows: (elements) => scene() === fingerprint(parse(elements)),
-      hasLocalEdits: () => scene() !== baseline.current,
+      hasLocalEdits: () => edits.current?.hasLocalEdits(scene()) ?? true,
       replace: ({ elements }) => {
         const next = restoreElements(parse(elements), null, {
           repairBindings: true,
@@ -84,13 +91,14 @@ export function useSyncedExcalidraw(
         });
         // Undo must not bring back what the reload replaced.
         excalidraw.history.clear();
-        baseline.current = scene();
-        touched.current = false;
+        edits.current?.replaced(scene());
         onReplace?.(excalidraw.getSceneElements());
       },
       saved: (elements) => {
-        baseline.current = fingerprint(parse(elements));
+        edits.current?.saved(fingerprint(parse(elements)));
       },
     };
   }, [excalidraw, onReplace]);
+
+  return { editor, needsSave };
 }

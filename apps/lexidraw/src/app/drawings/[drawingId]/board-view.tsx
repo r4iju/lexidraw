@@ -35,11 +35,11 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
 }) => {
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
-  const syncedEditor = useSyncedExcalidraw(excalidrawApi);
+  const synced = useSyncedExcalidraw(excalidrawApi);
   useOpenEntitySync({
     entity: drawing,
     noun: "drawing",
-    editor: renderOnly ? null : syncedEditor,
+    editor: renderOnly ? null : synced.editor,
   });
   const isDarkTheme = useIsDarkTheme();
 

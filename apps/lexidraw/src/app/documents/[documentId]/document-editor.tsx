@@ -292,15 +292,19 @@ function EditorHandler({
   const sidebarRef = useRef<HTMLElement>(null);
 
   const { markDirty, markPristine } = useUnsavedChanges();
+  const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
   const onSyncReplace = useCallback(
     (editorState: EditorState) => {
+      // A save still waiting would write the stored state back over whatever
+      // lands next.
+      debouncedAutoSaveRef.current?.cancel();
       setEditorStateRef(editorState);
       markPristine();
     },
     [setEditorStateRef, markPristine],
   );
   const syncedEditor = useSyncedLexicalEditor(editor, onSyncReplace);
-  useOpenEntitySync({
+  const { holdsSaves } = useOpenEntitySync({
     entity,
     noun: "document",
     editor: printMode ? null : syncedEditor,
@@ -345,11 +349,13 @@ function EditorHandler({
     }, 100),
   );
 
-  const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
-
   useEffect(() => {
     if (autoSaveEnabled) {
       debouncedAutoSaveRef.current = debounce(() => {
+        if (holdsSaves()) {
+          markDirty();
+          return;
+        }
         handleSilentSave(() => {
           markPristine();
         });
@@ -357,7 +363,7 @@ function EditorHandler({
     } else {
       debouncedAutoSaveRef.current = null;
     }
-  }, [autoSaveEnabled, handleSilentSave, markPristine]);
+  }, [autoSaveEnabled, handleSilentSave, holdsSaves, markDirty, markPristine]);
 
   const onChange = (editorState: EditorState) => {
     if (isRemoteUpdate) return;
@@ -365,7 +371,7 @@ function EditorHandler({
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
     }
-    if (!autoSaveEnabled) {
+    if (!autoSaveEnabled || holdsSaves()) {
       markDirty();
     }
     setEditorStateRef(editorState);
