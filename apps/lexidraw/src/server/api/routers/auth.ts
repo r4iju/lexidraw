@@ -10,30 +10,23 @@ import {
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
 import { eq, inArray } from "@packages/drizzle";
+import { errorCode } from "~/server/auth/error-code";
+import { hashPassword } from "~/server/auth/password";
 
 export const authRouter = createTRPCRouter({
   signUp: publicProcedure
     .input(getSignUpSchema())
     .mutation(async ({ ctx, input }) => {
       try {
-        // create user
-        const encoder = new TextEncoder();
-        const data = encoder.encode(input.password);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashedPassword = hashArray
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-
         await ctx.drizzle.insert(schema.users).values({
           email: input.email,
           name: input.name,
-          password: hashedPassword,
+          password: await hashPassword(input.password),
         });
 
         return true;
       } catch (error) {
-        console.error(error);
+        console.error("[Auth] sign-up failed", { error: errorCode(error) });
         // don't tell why
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

@@ -4,6 +4,7 @@ import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { drizzle, schema, eq } from "@packages/drizzle";
 import { getSignInSchema } from "~/app/signin/schema";
+import { authorizeCredentials } from "~/server/auth/credentials";
 import env from "@packages/env";
 import { cookies as nextCookies } from "next/headers";
 
@@ -149,8 +150,8 @@ const nextAuth = NextAuth({
         const dbUser = await drizzle.query.users.findFirst({
           // Use token.sub (user id) for fetching, assuming email might not be unique or stable
           where: (users, { eq }) => eq(users.id, token.sub as string),
+          columns: { config: true },
         });
-        console.log("[Auth] Fetched user for JWT update:", dbUser);
         token.config = dbUser?.config; // Update token config from DB
         // Propagate other potential updates from session if needed
         token.name = session.user.name;
@@ -196,26 +197,8 @@ const nextAuth = NextAuth({
       },
       authorize: async (credentials) => {
         const SignInSchema = getSignInSchema();
-        const parsedCredentials = SignInSchema.parse(credentials);
-
-        const dbUser = await drizzle.query.users.findFirst({
-          where: (users, { eq }) => eq(users.email, parsedCredentials.email),
-        });
-
-        if (!dbUser?.password) return null;
-        const encoder = new TextEncoder();
-        const data = encoder.encode(parsedCredentials.password);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashedSubmittedPassword = hashArray
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-        const isPasswordCorrect = hashedSubmittedPassword === dbUser.password;
-
-        if (!isPasswordCorrect) return null;
-
-        const { password: _password, ...user } = dbUser;
-        return user;
+        const { email, password } = SignInSchema.parse(credentials);
+        return authorizeCredentials(email, password);
       },
     }),
   ],
