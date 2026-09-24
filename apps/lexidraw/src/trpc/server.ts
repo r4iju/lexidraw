@@ -142,27 +142,25 @@ export const api = createTRPCClient<AppRouter>({
               observer.complete();
             })
             .catch((cause) => {
-              if (isNextControlFlow(cause)) {
-                observer.error(TRPCClientError.from(cause));
-                return;
+              if (!isNextControlFlow(cause)) {
+                console.error(`[tRPC] Error in procedure: ${op.path}`, {
+                  error: sanitizeForLog(cause),
+                  input: sanitizeForLog(op.input),
+                  stack:
+                    typeof cause === "object" &&
+                    cause &&
+                    "stack" in cause &&
+                    typeof (cause as { stack?: unknown }).stack === "string"
+                      ? sanitizeString(
+                          (cause as { stack?: string }).stack as string,
+                        )
+                      : undefined,
+                  cause:
+                    typeof cause === "object" && cause && "cause" in cause
+                      ? sanitizeForLog((cause as { cause?: unknown }).cause)
+                      : undefined,
+                });
               }
-              console.error(`[tRPC] Error in procedure: ${op.path}`, {
-                error: sanitizeForLog(cause),
-                input: sanitizeForLog(op.input),
-                stack:
-                  typeof cause === "object" &&
-                  cause &&
-                  "stack" in cause &&
-                  typeof (cause as { stack?: unknown }).stack === "string"
-                    ? sanitizeString(
-                        (cause as { stack?: string }).stack as string,
-                      )
-                    : undefined,
-                cause:
-                  typeof cause === "object" && cause && "cause" in cause
-                    ? sanitizeForLog((cause as { cause?: unknown }).cause)
-                    : undefined,
-              });
               observer.error(TRPCClientError.from(cause));
             });
 
