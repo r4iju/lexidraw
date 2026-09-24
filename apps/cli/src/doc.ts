@@ -12,7 +12,14 @@ import { CliError, describe, usageError } from "./errors";
 import { chooseFormat, entityTable, ndjson, rejectFormat } from "./format";
 import { callApi } from "./http";
 import { type ApiSession, openSession } from "./session";
-import { dirSpec, resolveEntity, resolveOptional } from "./resolve";
+import {
+  ADDRESS,
+  address,
+  PARENT,
+  parent,
+  resolveEntity,
+  resolveOptional,
+} from "./resolve";
 
 const VERBS = [
   "list",
@@ -23,12 +30,6 @@ const VERBS = [
   "put",
   "delete",
 ] as const;
-
-/** Every verb that addresses one document takes the same two forms. */
-const ADDRESS = ["path", "nth"];
-
-/** A parent directory, by id or by path, never guessed from one value. */
-const PARENT = ["dir", "dir-path"];
 
 const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
   list: { value: [...PARENT, "format"], boolean: ["page-all"] },
@@ -109,7 +110,11 @@ async function list(context: Context, args: ParsedArgs): Promise<void> {
 async function get(context: Context, args: ParsedArgs): Promise<void> {
   const format = chooseFormat(args, ["md", "raw", "json"], "md");
   const session = openSession(context);
-  const id = await resolveEntity(context, session, address(args, "read"));
+  const id = await resolveEntity(
+    context,
+    session,
+    address(args, "document", "read"),
+  );
   const body = await callApi(session, {
     method: "GET",
     path: markdownPath(id),
@@ -167,7 +172,11 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
 async function append(context: Context, args: ParsedArgs): Promise<void> {
   const markdown = await body(context, args);
   const session = openSession(context);
-  const id = await resolveEntity(context, session, address(args, "write"));
+  const id = await resolveEntity(
+    context,
+    session,
+    address(args, "document", "write"),
+  );
   const since = await precondition(
     session,
     id,
@@ -202,7 +211,7 @@ async function insert(context: Context, args: ParsedArgs): Promise<void> {
   const session = openSession(context);
   // `--nth` picks the heading here, so an ambiguous path has only the id left.
   const id = await resolveEntity(context, session, {
-    ...address(args, "write"),
+    ...address(args, "document", "write"),
     nth: undefined,
     hint: "address it by id (--nth picks the heading here)",
   });
@@ -228,7 +237,11 @@ async function put(context: Context, args: ParsedArgs): Promise<void> {
   const given = required(args, "if-unmodified-since", "doc put");
 
   const session = openSession(context);
-  const id = await resolveEntity(context, session, address(args, "write"));
+  const id = await resolveEntity(
+    context,
+    session,
+    address(args, "document", "write"),
+  );
   const since = await precondition(session, id, given);
   context.io.stdout(
     json(
@@ -243,7 +256,7 @@ async function put(context: Context, args: ParsedArgs): Promise<void> {
 
 async function remove(context: Context, args: ParsedArgs): Promise<void> {
   const session = openSession(context);
-  const target = address(args, "write");
+  const target = address(args, "document", "write");
   const id = await resolveEntity(context, session, target);
   // DELETE /entities/{id} takes any entity, a directory with everything under
   // it included, so an id is checked here; --path only ever matched documents.
@@ -256,25 +269,6 @@ async function remove(context: Context, args: ParsedArgs): Promise<void> {
       }),
     ),
   );
-}
-
-function address(args: ParsedArgs, access: "read" | "write") {
-  rejectExtra(args, 1);
-  return {
-    id: args.positionals[0],
-    path: one(args, "path"),
-    kind: "document" as const,
-    access,
-    nth: integer(args, "nth", 1),
-    // No doc verb that takes --path also names a directory, so a directory on
-    // the way to the document is only escaped by naming the document itself.
-    dirHint: "address the document by id",
-  };
-}
-
-/** The directory a listing or a create is aimed at. */
-function parent(args: ParsedArgs) {
-  return dirSpec(one(args, "dir"), one(args, "dir-path"));
 }
 
 /** What the entity with `id` is, where the path taken would not check. */

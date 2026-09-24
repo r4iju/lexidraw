@@ -2,8 +2,8 @@ import { CliError } from "./errors";
 import { callApi } from "./http";
 import type { ApiSession } from "./session";
 
-/** The two entity types the nouns address. */
-export type EntityKind = "document" | "directory";
+/** The entity types the nouns address. */
+export type EntityKind = "document" | "directory" | "drawing";
 
 /** What every listing carries and every command reads from a row. */
 export type Entity = {
@@ -86,7 +86,13 @@ export async function listEntities(
 
 export async function createEntity(
   session: ApiSession,
-  input: { title: string; kind: EntityKind; parentId: string | null },
+  input: {
+    title: string;
+    // A drawing is created by POST /drawings, which stores the elements and
+    // app state the editor opens one with; `{}` here would be neither.
+    kind: Exclude<EntityKind, "drawing">;
+    parentId: string | null;
+  },
 ): Promise<{ id: string; created: Record<string, unknown> }> {
   // The id is the caller's to choose, as it is in the browser, so a follow-up
   // write to the new entity needs no read.

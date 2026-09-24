@@ -207,10 +207,13 @@ usage errors exit 2.
 ## Drawings
 
 ```bash
-lexidraw drawing get <id>        # { id, title, elements, appState, updatedAt }
-lexidraw drawing create --title T [--file f|-] [--parent <dir id>]
-lexidraw drawing put <id> --file <f|-> --if-unmodified-since <iso|latest>
+lexidraw drawing get <id|--path P>   # { id, title, elements, appState, updatedAt }
+lexidraw drawing create --title T [--dir <id>|--dir-path P] [--file f|-]
+lexidraw drawing put <id|--path P> --file <f|-> --if-unmodified-since <iso|latest>
 ```
+
+Paths and `--nth` work as under Addressing; a drawing's `--path` matches
+drawings only.
 
 `put` replaces the whole element set and `--file` must hold a bare JSON
 array, so a round trip edits the `elements` of the read and carries its
@@ -243,7 +246,7 @@ Mermaid is rejected by name; at most 10,000 elements; keep the body under
 Vercel's 4.5 MB limit.
 
 ```bash
-lexidraw drawing render <id> [--format svg|png] [--scale 1-4] [--out <file>]
+lexidraw drawing render <id|--path P> [--format svg|png] [--scale 1-4] [--out <file>]
 ```
 
 `render` writes the image to `--out`, or to stdout (SVG as text; PNG bytes

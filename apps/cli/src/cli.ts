@@ -54,10 +54,13 @@ Usage:
   lexidraw auth login [--token lxd_...]
   lexidraw auth status
   lexidraw api <METHOD> <path> [--json <body>|@file] [--query k=v ...]
-  lexidraw drawing get <id>
-  lexidraw drawing put <id> --file <elements.json|-> --if-unmodified-since <iso|latest>
-  lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
-  lexidraw drawing render <id> [--format svg|png] [--scale 1-4] [--out <file>]
+  lexidraw drawing get <id|--path P>
+  lexidraw drawing put <id|--path P> --file <elements.json|->
+                       --if-unmodified-since <iso|latest>
+  lexidraw drawing create --title T [--dir <id>|--dir-path P]
+                          [--file <elements.json|->]
+  lexidraw drawing render <id|--path P> [--format svg|png] [--scale 1-4]
+                          [--out <file>]
   lexidraw schema <command> | lexidraw schema --list
 
 Addressing:

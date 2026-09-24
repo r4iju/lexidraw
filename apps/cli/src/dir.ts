@@ -11,13 +11,13 @@ import { createEntity, listEntities } from "./entities";
 import { usageError } from "./errors";
 import { chooseFormat, entityTable, ndjson, rejectFormat } from "./format";
 import { openSession } from "./session";
-import { dirSpec, resolveOptional } from "./resolve";
+import { PARENT, parent, resolveOptional } from "./resolve";
 
 const VERBS = ["list", "create"] as const;
 
 const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
   list: { value: ["path", "nth", "format"], boolean: ["page-all"] },
-  create: { value: ["title", "dir", "dir-path"], boolean: [] },
+  create: { value: ["title", ...PARENT], boolean: [] },
 };
 
 export async function dirCommand(
@@ -67,7 +67,7 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
 
   const session = openSession(context);
   const parentId = await resolveOptional(context, session, {
-    ...dirSpec(one(args, "dir"), one(args, "dir-path")),
+    ...parent(args),
     kind: "directory",
     access: "write",
   });

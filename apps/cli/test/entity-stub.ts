@@ -13,14 +13,14 @@ const openApi = await Bun.file(
 const cacheHome = await mkdtemp(join(tmpdir(), "lexidraw-entity-stub-"));
 
 /**
- * A stand-in for the entity and markdown REST paths: enough of the server's
+ * A stand-in for the entity, markdown and drawing REST paths: enough of the server's
  * behaviour — titles, parents, revisions, preconditions — that the commands
  * are driven end to end over HTTP.
  */
 export type Row = {
   id: string;
   title: string;
-  entityType: "document" | "directory";
+  entityType: "document" | "directory" | "drawing";
   parentId: string | null;
   updatedAt: string;
   /** Markdown blocks, for a document. */
@@ -120,6 +120,36 @@ export function startEntityStub(seeds: readonly Seed[] = []): EntityStub {
       }
       return write(row, markdown[2] ?? "", body, now);
     }
+    if (path === "/drawings" && request.method === "POST") {
+      const row: Row = {
+        id: crypto.randomUUID(),
+        title: String(body.title),
+        entityType: "drawing",
+        parentId: (body.parentId as string | null) ?? null,
+        updatedAt: now(),
+        blocks: [],
+      };
+      rows.set(row.id, row);
+      return Response.json({ id: row.id, updatedAt: row.updatedAt });
+    }
+    const drawing = path.match(/^\/drawings\/([^/]+)(\/render)?$/);
+    if (drawing) {
+      const row = rows.get(drawing[1] as string);
+      if (row?.entityType !== "drawing") {
+        return fail(404, "NOT_FOUND", "Drawing not found");
+      }
+      if (drawing[2]) return Response.json(rendered(row));
+      if (request.method === "GET") return Response.json(drawn(row));
+      if (body.ifUnmodifiedSince !== row.updatedAt) {
+        return fail(
+          409,
+          "CONFLICT",
+          `Drawing was modified at ${row.updatedAt}`,
+        );
+      }
+      row.updatedAt = now();
+      return Response.json({ id: row.id, updatedAt: row.updatedAt });
+    }
     return fail(404, "NOT_FOUND", `no stub for ${request.method} ${path}`);
   });
 
@@ -137,6 +167,30 @@ function loaded(row: Row) {
     publicAccess: "PRIVATE",
     sharedWith: [],
     accessLevel: "EDIT",
+  };
+}
+
+function drawn(row: Row) {
+  return {
+    id: row.id,
+    title: row.title,
+    elements: [],
+    appState: {},
+    updatedAt: row.updatedAt,
+  };
+}
+
+/** An SVG that names the drawing, so a test can tell which one was drawn. */
+function rendered(row: Row) {
+  return {
+    id: row.id,
+    format: "svg",
+    contentType: "image/svg+xml",
+    encoding: "utf-8",
+    width: 1,
+    height: 1,
+    data: `<svg>${row.id}</svg>`,
+    updatedAt: row.updatedAt,
   };
 }
 

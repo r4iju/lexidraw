@@ -1,14 +1,28 @@
-import { one, parseArgs, rejectExtra } from "./args";
+import {
+  type ArgSpec,
+  one,
+  parseArgs,
+  type ParsedArgs,
+  rejectExtra,
+} from "./args";
 import { json, type Context } from "./context";
 import { CliError, describe, usageError } from "./errors";
-import { expectOk, requestApi } from "./http";
-import { openSession } from "./session";
+import { callApi } from "./http";
+import {
+  ADDRESS,
+  address,
+  PARENT,
+  parent,
+  resolveEntity,
+  resolveOptional,
+} from "./resolve";
+import { type ApiSession, openSession } from "./session";
 
 const USAGE = `usage:
-  lexidraw drawing get <id>
-  lexidraw drawing put <id> --file <elements.json|-> --if-unmodified-since <iso|latest>
-  lexidraw drawing create --title <title> [--file <elements.json|->] [--parent <id>]
-  lexidraw drawing render <id> [--format svg|png] [--scale 1-4] [--out <file>]
+  lexidraw drawing get <id|--path P> [--nth N]
+  lexidraw drawing put <id|--path P> [--nth N] --file <elements.json|-> --if-unmodified-since <iso|latest>
+  lexidraw drawing create --title <title> [--file <elements.json|->] [--dir <id>|--dir-path P]
+  lexidraw drawing render <id|--path P> [--nth N] [--format svg|png] [--scale 1-4] [--out <file>]
 
 put replaces every element, so it states which revision it replaces: pass the
 updatedAt a get returned, or "latest" to read it again immediately before
@@ -17,18 +31,14 @@ writing.
 render writes the image to --out, or to stdout: the SVG as text, the PNG as
 bytes, which it refuses to write to a terminal.`;
 
-const FLAGS = {
-  value: [
-    "file",
-    "title",
-    "parent",
-    "if-unmodified-since",
-    "format",
-    "out",
-    "scale",
-  ],
-  boolean: [],
-} as const;
+const VERBS = ["get", "put", "create", "render"] as const;
+
+const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
+  get: { value: ADDRESS, boolean: [] },
+  put: { value: [...ADDRESS, "file", "if-unmodified-since"], boolean: [] },
+  create: { value: ["title", "file", ...PARENT], boolean: [] },
+  render: { value: [...ADDRESS, "format", "scale", "out"], boolean: [] },
+};
 
 const FORMATS = ["svg", "png"];
 
@@ -46,101 +56,128 @@ export async function drawingCommand(
   context: Context,
   argv: readonly string[],
 ): Promise<void> {
-  const args = parseArgs(argv, FLAGS);
-  const [verb, id] = args.positionals;
-  const session = openSession(context);
-  const request = async (
-    method: string,
-    path: string,
-    body?: unknown,
-    query?: readonly (readonly [string, string])[],
-  ) => {
-    const response = await requestApi(session, {
-      method,
-      path,
-      body,
-      query,
-    });
-    return expectOk(response, `${method} ${path} failed`);
-  };
-  const call = async (method: string, path: string, body?: unknown) => {
-    context.io.stdout(json(await request(method, path, body)));
-  };
-
+  const verb = VERBS.find((name) => name === argv[0]);
+  if (verb === undefined) throw usageError(USAGE);
+  const args = parseArgs(argv.slice(1), SPECS[verb]);
   switch (verb) {
-    case "get": {
-      rejectExtra(args, 2);
-      if (id === undefined) throw usageError(USAGE);
-      return call("GET", `/drawings/${encodeURIComponent(id)}`);
-    }
-    case "put": {
-      rejectExtra(args, 2);
-      if (id === undefined) throw usageError(USAGE);
-      const file = one(args, "file");
-      if (file === undefined) {
-        throw usageError("drawing put needs --file <elements.json|->");
-      }
-      const since = one(args, "if-unmodified-since");
-      if (since === undefined) {
-        throw usageError(
-          "drawing put needs --if-unmodified-since <iso|latest>",
-        );
-      }
-      const path = `/drawings/${encodeURIComponent(id)}`;
-      const elements = await readElements(context, file);
-      return call("PUT", path, {
-        id,
-        elements,
-        ifUnmodifiedSince:
-          since === "latest" ? await readUpdatedAt(request, path) : since,
-      });
-    }
-    case "create": {
-      rejectExtra(args, 1);
-      const title = one(args, "title");
-      if (title === undefined) {
-        throw usageError("drawing create needs --title <title>");
-      }
-      const file = one(args, "file");
-      const parentId = one(args, "parent");
-      return call("POST", "/drawings", {
-        title,
-        ...(file === undefined
-          ? {}
-          : { elements: await readElements(context, file) }),
-        ...(parentId === undefined ? {} : { parentId }),
-      });
-    }
-    case "render": {
-      rejectExtra(args, 2);
-      if (id === undefined) throw usageError(USAGE);
-      const format = one(args, "format") ?? "svg";
-      if (!FORMATS.includes(format)) {
-        throw usageError(`--format must be ${FORMATS.join(" or ")}`);
-      }
-      const out = one(args, "out");
-      // Raw PNG bytes down a terminal are noise the shell then has to be
-      // reset from, so the caller has to say where they go.
-      if (format === "png" && out === undefined && context.io.stdoutIsTty) {
-        throw usageError(
-          "drawing render --format png writes bytes: give --out <file>, or redirect stdout",
-        );
-      }
-      const scale = one(args, "scale");
-      const rendered = (await request(
-        "GET",
-        `/drawings/${encodeURIComponent(id)}/render`,
-        undefined,
-        [
-          ["format", format],
-          ...(scale === undefined ? [] : [["scale", scale] as const]),
-        ],
-      )) as Render;
-      return writeRender(context, rendered, out);
-    }
-    default:
-      throw usageError(USAGE);
+    case "get":
+      return await get(context, args);
+    case "put":
+      return await put(context, args);
+    case "create":
+      return await create(context, args);
+    case "render":
+      return await render(context, args);
   }
+}
+
+async function get(context: Context, args: ParsedArgs): Promise<void> {
+  const session = openSession(context);
+  const id = await resolveEntity(
+    context,
+    session,
+    address(args, "drawing", "read"),
+  );
+  context.io.stdout(
+    json(await callApi(session, { method: "GET", path: drawingPath(id) })),
+  );
+}
+
+async function put(context: Context, args: ParsedArgs): Promise<void> {
+  // PUT /drawings/{id} answers NOT_FOUND for any other entity type, so an id
+  // needs no check of its own here.
+  const target = address(args, "drawing", "write");
+  const file = one(args, "file");
+  if (file === undefined) {
+    throw usageError("drawing put needs --file <elements.json|->");
+  }
+  const since = one(args, "if-unmodified-since");
+  if (since === undefined) {
+    throw usageError("drawing put needs --if-unmodified-since <iso|latest>");
+  }
+  const elements = await readElements(context, file);
+
+  const session = openSession(context);
+  const id = await resolveEntity(context, session, target);
+  const path = drawingPath(id);
+  context.io.stdout(
+    json(
+      await callApi(session, {
+        method: "PUT",
+        path,
+        body: {
+          id,
+          elements,
+          ifUnmodifiedSince:
+            since === "latest" ? await readUpdatedAt(session, path) : since,
+        },
+      }),
+    ),
+  );
+}
+
+async function create(context: Context, args: ParsedArgs): Promise<void> {
+  rejectExtra(args, 0);
+  const title = one(args, "title");
+  if (title === undefined) {
+    throw usageError("drawing create needs --title <title>");
+  }
+  const file = one(args, "file");
+  const elements =
+    file === undefined ? undefined : await readElements(context, file);
+
+  const session = openSession(context);
+  const parentId = await resolveOptional(context, session, {
+    ...parent(args),
+    kind: "directory",
+    access: "write",
+  });
+  context.io.stdout(
+    json(
+      await callApi(session, {
+        method: "POST",
+        path: "/drawings",
+        body: {
+          title,
+          ...(elements === undefined ? {} : { elements }),
+          ...(parentId === null ? {} : { parentId }),
+        },
+      }),
+    ),
+  );
+}
+
+async function render(context: Context, args: ParsedArgs): Promise<void> {
+  const target = address(args, "drawing", "read");
+  const format = one(args, "format") ?? "svg";
+  if (!FORMATS.includes(format)) {
+    throw usageError(`--format must be ${FORMATS.join(" or ")}`);
+  }
+  const out = one(args, "out");
+  // Raw PNG bytes down a terminal are noise the shell then has to be reset
+  // from, so the caller has to say where they go.
+  if (format === "png" && out === undefined && context.io.stdoutIsTty) {
+    throw usageError(
+      "drawing render --format png writes bytes: give --out <file>, or redirect stdout",
+    );
+  }
+  const scale = one(args, "scale");
+
+  const session = openSession(context);
+  const id = await resolveEntity(context, session, target);
+  const rendered = (await callApi(session, {
+    method: "GET",
+    path: `${drawingPath(id)}/render`,
+    query: [
+      ["format", format],
+      ...(scale === undefined ? [] : [["scale", scale] as const]),
+    ],
+  })) as Render;
+  return writeRender(context, rendered, out);
+}
+
+function drawingPath(id: string): string {
+  return `/drawings/${encodeURIComponent(id)}`;
 }
 
 /**
@@ -192,10 +229,12 @@ async function writeRender(
  * lands between this read and the write is still refused by the server.
  */
 async function readUpdatedAt(
-  request: (method: string, path: string) => Promise<unknown>,
+  session: ApiSession,
   path: string,
 ): Promise<string> {
-  const drawing = (await request("GET", path)) as { updatedAt?: unknown };
+  const drawing = (await callApi(session, { method: "GET", path })) as {
+    updatedAt?: unknown;
+  };
   if (typeof drawing.updatedAt !== "string") {
     throw usageError(`${path} did not answer with an updatedAt to replace`);
   }

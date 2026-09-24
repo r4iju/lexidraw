@@ -162,7 +162,9 @@ next one, so a chain of writes never needs a read between them.
   - `dir list [<id>|--path P]`,
     `dir create --title T [--dir <id>|--dir-path P]`
   - `search <query>`
-  - `drawing get|put|create|render` and `share ...`, still to come
+  - `drawing get|put|render <id|--path P>`,
+    `drawing create --title T [--dir <id>|--dir-path P] [--file f]`
+  - `share ...`, still to come
   - `api <METHOD> <path> [--json ...]` raw escape hatch, only reaches
     procedures that have a REST path
   - `auth login|status`
