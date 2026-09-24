@@ -7,7 +7,7 @@ type LlmAuditEvent = {
     | "/api/llm/stream"
     | "/api/llm/generate"
     | "/api/llm/agent"
-    | "server/actions/autocomplete"
+    | "/api/autocomplete/stream"
     | "trpc/llm.generate"
     | "trpc/llm.plan";
   mode: "chat" | "agent" | "autocomplete";

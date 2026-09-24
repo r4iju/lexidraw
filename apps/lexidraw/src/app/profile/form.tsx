@@ -38,11 +38,9 @@ type PolicyType = {
 };
 
 function LLMSection({
-  mode,
   policy,
   prefix,
 }: {
-  mode: "chat" | "agent" | "autocomplete";
   policy: PolicyType | undefined;
   prefix: string;
 }) {
@@ -88,23 +86,6 @@ function LLMSection({
               : undefined
           }
         />
-        {mode === "autocomplete" && (
-          <>
-            <RHFSelect
-              name={`${prefix}.reasoningEffort`}
-              label="Reasoning Effort"
-            >
-              <SelectItem value="minimal">Minimal</SelectItem>
-              <SelectItem value="standard">Standard</SelectItem>
-              <SelectItem value="heavy">Heavy</SelectItem>
-            </RHFSelect>
-            <RHFSelect name={`${prefix}.verbosity`} label="Verbosity">
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-            </RHFSelect>
-          </>
-        )}
       </div>
     </div>
   );
@@ -232,19 +213,15 @@ export default function ProfileForm({ user }: Props) {
           </TabsContent>
 
           <TabsContent value="chat" className="space-y-4 py-4">
-            <LLMSection mode="chat" policy={chatPolicy} prefix="chat" />
+            <LLMSection policy={chatPolicy} prefix="chat" />
           </TabsContent>
 
           <TabsContent value="agent" className="space-y-4 py-4">
-            <LLMSection mode="agent" policy={agentPolicy} prefix="agent" />
+            <LLMSection policy={agentPolicy} prefix="agent" />
           </TabsContent>
 
           <TabsContent value="autocomplete" className="space-y-4 py-4">
-            <LLMSection
-              mode="autocomplete"
-              policy={autocompletePolicy}
-              prefix="autocomplete"
-            />
+            <LLMSection policy={autocompletePolicy} prefix="autocomplete" />
           </TabsContent>
 
           <TabsContent value="audio" className="space-y-4 py-4">

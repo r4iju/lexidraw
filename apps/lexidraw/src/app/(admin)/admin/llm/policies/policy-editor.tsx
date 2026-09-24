@@ -6,13 +6,6 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
 import { cn } from "~/lib/utils";
 
 type Policy = {
@@ -177,63 +170,6 @@ function ModeCard({
         ) : null}
       </div>
 
-      {policy.mode === "autocomplete" && (
-        <div className="grid gap-3 md:grid-cols-2 mt-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor={`${policy.mode}-reasoningEffort`}>
-              Reasoning Effort
-            </Label>
-            <Select
-              value={
-                (policy.extraConfig?.reasoningEffort as string) ?? "minimal"
-              }
-              onValueChange={(value) => {
-                onChange({
-                  ...policy,
-                  extraConfig: {
-                    ...policy.extraConfig,
-                    reasoningEffort: value,
-                  },
-                });
-              }}
-            >
-              <SelectTrigger id={`${policy.mode}-reasoningEffort`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="minimal">Minimal</SelectItem>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="heavy">Heavy</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor={`${policy.mode}-verbosity`}>Verbosity</Label>
-            <Select
-              value={(policy.extraConfig?.verbosity as string) ?? "low"}
-              onValueChange={(value) => {
-                onChange({
-                  ...policy,
-                  extraConfig: {
-                    ...policy.extraConfig,
-                    verbosity: value,
-                  },
-                });
-              }}
-            >
-              <SelectTrigger id={`${policy.mode}-verbosity`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center gap-2 mt-4">
         <Button
           onClick={() => {
@@ -316,14 +252,14 @@ export function PoliciesEditor({
         autocomplete: {
           mode: "autocomplete",
           provider: "openai",
-          modelId: "gpt-5-nano",
-          temperature: 0.3,
-          maxOutputTokens: 500,
-          allowedModels: [{ provider: "openai", modelId: "gpt-5-nano" }],
+          modelId: "gpt-5.4-nano",
+          temperature: 0.2,
+          maxOutputTokens: 64,
+          allowedModels: [{ provider: "openai", modelId: "gpt-5.4-nano" }],
           enforcedCaps: {
             maxOutputTokensByProvider: { openai: 32768, google: 65535 },
           },
-          extraConfig: { reasoningEffort: "minimal", verbosity: "low" },
+          extraConfig: undefined,
         },
         image: {
           mode: "image",
