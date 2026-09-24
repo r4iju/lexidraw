@@ -94,6 +94,7 @@
         "@modelcontextprotocol/ext-apps": "2.0.0",
         "@modelcontextprotocol/server": "2.0.0",
         "@mozilla/readability": "^0.6.0",
+        "@openrouter/ai-sdk-provider": "3.1.0",
         "@packages/drawing-widget": "workspace:*",
         "@packages/drizzle": "workspace:*",
         "@packages/env": "workspace:*",
@@ -1064,6 +1065,8 @@
     "@oclif/plugin-help": ["@oclif/plugin-help@6.3.0", "", { "dependencies": { "@oclif/core": "^4" } }, "sha512-cpSRv7tyHHFPv39HrV22eNmu8ylrwjmPvqdlNo3URp79+p5319p+a8PI/3ez6A6GZmjwBj1EWUdVz1aPUAsSmw=="],
 
     "@oclif/plugin-not-found": ["@oclif/plugin-not-found@3.3.0", "", { "dependencies": { "@inquirer/prompts": "^7.10.1", "@oclif/core": "^4.13.3", "ansis": "^3.17.0", "fast-levenshtein": "^3.0.0" } }, "sha512-GbdWJOmmBO3xmrVjDXeWG7tXl4vzeGZ+af9ztCfAmhOPEkd/+eeAAadzQPeZoygedqCvsdux3QLq9/MAxusPKg=="],
+
+    "@openrouter/ai-sdk-provider": ["@openrouter/ai-sdk-provider@3.1.0", "", { "peerDependencies": { "ai": "^7.0.0", "zod": "^3.25.76 || ^4.1.8" } }, "sha512-BQy1TA9fKrh47s9ivsO6FY5QimN7GUF0i8Qon3pkxQclEgShso0dClpcWn8OIyPLEZZPFaFKgI8TW4S/O0p0Dw=="],
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 

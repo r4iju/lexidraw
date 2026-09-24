@@ -1,41 +1,57 @@
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { streamText, type LanguageModel } from "ai";
 import env from "@packages/env";
+import { auth } from "~/server/auth";
+import { recordLlmAudit } from "~/server/audit/llm-audit";
+import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
+import {
+  AUTOCOMPLETE_SYSTEM,
+  MAX_SUGGESTION_TOKENS,
+  autocompletePrompt,
+  lowestReasoning,
+} from "~/server/llm/autocomplete";
+import { fragmentAt, stripFragment } from "~/server/llm/autocomplete-fragment";
+import { generateUUID } from "~/lib/utils";
 
 type Body = {
-  system?: string;
-  prompt?: string;
-  temperature?: number;
-  maxOutputTokens?: number;
-  modelId?: string;
+  title?: unknown;
+  before?: unknown;
+  after?: unknown;
+  entityId?: unknown;
 };
 
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+/**
+ * Streams the text to show after the cursor, as plain text. The prompt and
+ * model are decided here so the route cannot be used as a general LLM proxy.
+ */
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 });
   }
+  const userId = session.user.id;
 
-  let body: Body | null = null;
+  let body: Body;
   try {
     body = (await req.json()) as Body;
   } catch {
     return new Response("Invalid JSON", { status: 400 });
   }
-
-  const system = (body?.system ?? "").toString();
-  const prompt = (body?.prompt ?? "").toString();
-  if (!prompt) {
-    return new Response("Missing prompt", { status: 400 });
+  const before = text(body.before);
+  if (!before.trim()) {
+    return new Response("Missing text before the cursor", { status: 400 });
   }
 
   const ac = session.user.config?.autocomplete ?? {};
-  if ((ac as { enabled?: boolean }).enabled === false) {
+  if (ac.enabled === false) {
     return new Response(null, { status: 204 });
   }
 
-  // Get effective config from policies (with user overrides)
   const cfg = await getEffectiveLlmConfig({
     mode: "autocomplete",
     userConfig: {
@@ -44,162 +60,88 @@ export async function POST(req: NextRequest) {
         modelId: ac.modelId,
         temperature: ac.temperature,
         maxOutputTokens: ac.maxOutputTokens,
-        extraConfig:
-          ac.reasoningEffort || ac.verbosity
-            ? {
-                reasoningEffort: ac.reasoningEffort,
-                verbosity: ac.verbosity,
-              }
-            : undefined,
       },
     },
   });
 
-  const resolvedModelId = (body?.modelId || cfg.modelId).toString();
-  const resolvedTemperature =
-    typeof body?.temperature === "number" ? body?.temperature : cfg.temperature;
-  const resolvedMaxTokens =
-    typeof body?.maxOutputTokens === "number"
-      ? body?.maxOutputTokens
-      : cfg.maxOutputTokens;
-  const reasoningEffort =
-    (ac.reasoningEffort as "minimal" | "standard" | "heavy" | undefined) ||
-    (cfg.extraConfig?.reasoningEffort as
-      | "minimal"
-      | "standard"
-      | "heavy"
-      | undefined) ||
-    "minimal";
-  const verbosity =
-    (ac.verbosity as "low" | "medium" | "high" | undefined) ||
-    (cfg.extraConfig?.verbosity as "low" | "medium" | "high" | undefined) ||
-    "low";
-
-  const openaiApiKey = env.OPENAI_API_KEY;
-  if (!openaiApiKey) {
-    return new Response(
-      "Missing OpenAI API key. Please set OPENAI_API_KEY environment variable.",
-      { status: 400 },
+  let model: LanguageModel;
+  if (cfg.provider === "openai" && env.OPENAI_API_KEY) {
+    model = createOpenAI({ apiKey: env.OPENAI_API_KEY })(cfg.modelId);
+  } else if (cfg.provider === "openrouter" && env.OPENROUTER_API_KEY) {
+    model = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY }).chat(
+      cfg.modelId,
     );
+  } else if (cfg.provider === "google" && env.GOOGLE_API_KEY) {
+    model = createGoogleGenerativeAI({ apiKey: env.GOOGLE_API_KEY })(
+      cfg.modelId,
+    );
+  } else {
+    return new Response(`No API key for provider ${cfg.provider}`, {
+      status: 500,
+    });
   }
 
-  const upstreamController = new AbortController();
-  // Propagate client aborts to upstream OpenAI request
-  try {
-    req.signal.addEventListener("abort", () => {
-      upstreamController.abort();
-    });
-  } catch {}
-
-  const base = {
-    model: resolvedModelId,
-    input: [
-      { role: "developer", content: system },
-      { role: "user", content: [{ type: "input_text", text: prompt }] },
-    ],
-    reasoning: { effort: reasoningEffort },
-    text: { verbosity },
-    tool_choice: "none" as const,
-    parallel_tool_calls: false,
-    max_output_tokens: resolvedMaxTokens,
+  const maxOutputTokens = Math.min(cfg.maxOutputTokens, MAX_SUGGESTION_TOKENS);
+  const prompt = autocompletePrompt({
+    title: text(body.title),
+    before,
+    after: text(body.after),
+  });
+  const entityId = text(body.entityId) || null;
+  const startedAt = Date.now();
+  const audit = {
+    requestId: generateUUID(),
+    route: "/api/autocomplete/stream",
+    mode: "autocomplete",
+    userId,
+    entityId,
+    provider: cfg.provider,
+    modelId: cfg.modelId,
+    temperature: cfg.temperature,
+    maxOutputTokens,
     stream: true,
+    promptLen: prompt.length,
   } as const;
-  const withTemp = { ...base, temperature: resolvedTemperature } as const;
-  const withoutTemp = { ...base } as const;
 
-  if (process.env.NEXT_PUBLIC_LLM_DEBUG === "1") {
-    // Avoid logging prompt/system content in full
-    console.log("[autocomplete][sse]", {
-      model: withTemp.model,
-      temperature: (withTemp as { temperature?: number }).temperature,
-      max_output_tokens: withTemp.max_output_tokens,
-      reasoning: withTemp.reasoning,
-      text: withTemp.text,
-      tool_choice: withTemp.tool_choice,
-      parallel_tool_calls: withTemp.parallel_tool_calls,
-      sysLen: system.length,
-      promptLen: prompt.length,
-    });
-  }
-
-  try {
-    async function call(payload: unknown) {
-      return fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiApiKey}`,
+  const result = streamText({
+    model,
+    system: AUTOCOMPLETE_SYSTEM,
+    prompt,
+    temperature: cfg.temperature,
+    maxOutputTokens,
+    // A retried suggestion arrives after the user has typed past it.
+    maxRetries: 0,
+    providerOptions: lowestReasoning(cfg.provider, cfg.modelId),
+    abortSignal: req.signal,
+    onFinish: ({ totalUsage }) =>
+      recordLlmAudit({
+        ...audit,
+        timestampMs: Date.now(),
+        latencyMs: Date.now() - startedAt,
+        usage: {
+          promptTokens: totalUsage.inputTokens ?? 0,
+          completionTokens: totalUsage.outputTokens ?? 0,
+          totalTokens: totalUsage.totalTokens ?? 0,
         },
-        body: JSON.stringify(payload),
-        signal: upstreamController.signal,
-      });
-    }
-    let upstream = await call(withTemp);
-    if (!upstream.ok) {
-      try {
-        const err = await upstream.text();
-        if (err.includes("Unsupported parameter: 'temperature'")) {
-          upstream = await call(withoutTemp);
-        }
-      } catch {}
-    }
+      }).catch(() => {}),
+    onError: ({ error }) =>
+      recordLlmAudit({
+        ...audit,
+        timestampMs: Date.now(),
+        latencyMs: Date.now() - startedAt,
+        usage: null,
+        errorCode: "UpstreamError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }).catch(() => {}),
+  });
 
-    if (!upstream.ok || !upstream.body) {
-      let err = "OpenAI error";
-      try {
-        err = await upstream.text();
-      } catch {}
-      return new Response(err || "OpenAI error", {
-        status: upstream.status || 500,
-      });
-    }
-
-    // Pass-through SSE from upstream to client
-    const stream = new ReadableStream<Uint8Array>({
-      start: async (controller) => {
-        const body = upstream.body;
-        if (!body) {
-          controller.close();
-          return;
-        }
-        const reader = body.getReader();
-        const forward = async () => {
-          try {
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              if (value) controller.enqueue(value);
-            }
-          } catch {
-            // Ignore abort errors
-          } finally {
-            try {
-              controller.close();
-            } catch {}
-          }
-        };
-        forward();
-      },
-      cancel: () => {
-        try {
-          upstreamController.abort();
-        } catch {}
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-        // Next.js hints
-        "X-Accel-Buffering": "no",
-      },
-    });
-  } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") {
-      return new Response(null, { status: 499 });
-    }
-    return new Response("Upstream error", { status: 502 });
-  }
+  const suggestion = result.textStream
+    .pipeThrough(stripFragment(fragmentAt(before)))
+    .pipeThrough(new TextEncoderStream());
+  return new Response(suggestion, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
+  });
 }
