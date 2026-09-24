@@ -163,6 +163,8 @@ export async function POST(req: NextRequest) {
       };
       headerTemplate?: string;
       footerTemplate?: string;
+      /** False when the page's own `@page` rules draw the header and footer. */
+      displayHeaderFooter?: boolean;
       waitUntil?: WaitUntil;
       timeoutMs?: number;
     };
@@ -319,7 +321,11 @@ export async function POST(req: NextRequest) {
         margin,
         headerTemplate,
         footerTemplate,
-        displayHeaderFooter: true,
+        displayHeaderFooter: body?.displayHeaderFooter ?? true,
+        // Bookmarks from the headings, which Chrome builds from the tagged
+        // structure.
+        tagged: true,
+        outline: true,
       })) as Buffer;
 
       return new NextResponse(Buffer.from(pdfBuffer), {

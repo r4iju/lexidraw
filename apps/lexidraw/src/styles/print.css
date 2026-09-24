@@ -3,6 +3,25 @@
 /* The paper size is whatever the print dialog, or the PDF export, chose. */
 @page {
   margin: 18mm 18mm 20mm;
+  /* The print page names the document here; see running-header.ts. */
+  @top-left {
+    vertical-align: bottom;
+    padding-block-end: 6mm;
+    color: var(--muted-foreground);
+    font-size: 9pt;
+    font-family:
+      system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans CJK JP",
+      "Noto Sans JP", "Microsoft YaHei", sans-serif;
+  }
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    vertical-align: top;
+    padding-block-start: 6mm;
+    color: var(--muted-foreground);
+    font-size: 9pt;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @media print {
@@ -281,5 +300,82 @@
   .document-content [data-prose] a {
     color: inherit;
     text-decoration-color: currentColor;
+  }
+}
+
+/* The header, figures and notes on paper. */
+@media print {
+  .document-header {
+    --doc-measure: 100%;
+    --doc-wide: 100%;
+    padding: 0;
+    font-size: 10.5pt;
+  }
+  .document-header > * {
+    max-width: none;
+  }
+  .document-header-actions,
+  .document-header-action,
+  .document-figure-toolbar,
+  .footnote-preview,
+  .footnote-backref {
+    display: none !important;
+  }
+  .document-cover {
+    margin-block: 0 8mm;
+    break-inside: avoid;
+  }
+  .document-cover img {
+    max-height: 90mm;
+  }
+  .document-title {
+    font-size: 24pt;
+    break-after: avoid;
+  }
+  .document-subtitle {
+    font-size: 13pt;
+    margin-block: -0.25em 5mm;
+  }
+  /* A compact two-column table, whatever the width of the sheet. */
+  .document-properties {
+    display: table;
+    border-collapse: collapse;
+    margin: 0 0 6mm;
+    break-inside: avoid;
+  }
+  .document-property {
+    display: table-row;
+  }
+  .document-property :is(dt, dd) {
+    display: table-cell;
+    padding: 1mm 6mm 1mm 0;
+    border-block-end: 0.5pt solid var(--border);
+    font-size: 9pt;
+    line-height: 1.4;
+    vertical-align: baseline;
+  }
+  .document-contents {
+    margin-block: 0 8mm;
+    font-size: 10pt;
+    break-inside: avoid;
+  }
+  .document-contents li[data-level="h3"] {
+    font-size: 9.5pt;
+  }
+  .document-content > :is([data-figure-width], p:has(> [data-figure-width])) {
+    max-width: none;
+  }
+  .document-content > [data-lexical-decorator][data-figure-width="share"] {
+    max-width: calc(100% * var(--figure-share));
+  }
+  .document-caption {
+    break-before: avoid;
+  }
+  .document-content > .footnote {
+    break-inside: avoid;
+    font-size: 9pt;
+  }
+  .footnote-ref-link {
+    color: inherit;
   }
 }

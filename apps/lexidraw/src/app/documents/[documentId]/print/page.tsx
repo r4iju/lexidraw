@@ -1,5 +1,6 @@
 "use cache: private";
 
+import type { Metadata } from "next";
 import { cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { entityTag } from "~/server/api/entity-cache";
@@ -10,6 +11,7 @@ import { AccessLevel } from "@packages/types";
 import DocumentEditor from "../document-editor-client";
 import { api } from "~/trpc/server";
 import { INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER } from "~/server/llm/initial-llm-config";
+import { runningHeaderCss } from "~/lib/running-header";
 
 const Params = {
   parse: (params: { documentId: string }) => ({
@@ -21,6 +23,27 @@ type Props = {
   params: Promise<{ documentId: string }>;
   searchParams: Promise<{ token?: string }>;
 };
+
+/** The title a PDF made from this page carries in its metadata. */
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const [params, searchParams] = await Promise.all([
+    props.params,
+    props.searchParams,
+  ]);
+  const { documentId } = Params.parse(params);
+  cacheTag(entityTag(documentId));
+  const payload = searchParams.token
+    ? verifyPrintToken(searchParams.token)
+    : null;
+  if (payload?.entityId !== documentId) return {};
+  const row = (
+    await db
+      .select({ title: schema.entities.title })
+      .from(schema.entities)
+      .where(eq(schema.entities.id, documentId))
+  )[0];
+  return row ? { title: { absolute: row.title } } : {};
+}
 
 export default async function PrintDocumentPage(props: Props) {
   const [params, searchParams] = await Promise.all([
@@ -84,6 +107,7 @@ export default async function PrintDocumentPage(props: Props) {
 
   return (
     <div className="print-container">
+      <style>{runningHeaderCss(entity.title)}</style>
       <DocumentEditor
         entity={entity}
         iceServers={iceServers}
