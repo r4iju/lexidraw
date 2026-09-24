@@ -18,6 +18,10 @@ import { CommentNode } from "./nodes/CommentNode.js";
 import { EquationNode } from "./nodes/EquationNode.js";
 import { ExcalidrawNode } from "./nodes/ExcalidrawNode.js";
 import { FigmaNode } from "./nodes/FigmaNode.js";
+import {
+  FootnoteDefinitionNode,
+  FootnoteReferenceNode,
+} from "./nodes/FootnoteNode.js";
 import { ImageNode } from "./nodes/ImageNode.js";
 import { InlineImageNode } from "./nodes/InlineImageNode.js";
 import { LayoutContainerNode } from "./nodes/LayoutContainerNode.js";
@@ -79,4 +83,6 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   ArticleNode,
   CommentNode,
   ThreadNode,
+  FootnoteReferenceNode,
+  FootnoteDefinitionNode,
 ];

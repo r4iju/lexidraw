@@ -12,6 +12,7 @@ import {
   CollapsibleTitleNode,
   CommentNode,
   CORE_NODES,
+  documentHeaderOf,
   ExcalidrawNode,
   FigmaNode,
   InlineImageNode,
@@ -25,6 +26,7 @@ import {
   StickyNode,
   ThreadNode,
   VideoNode,
+  withDocumentHeader,
   YouTubeNode,
 } from "@packages/lexical-nodes";
 import {
@@ -35,9 +37,11 @@ import {
   type SerializedLexicalNode,
 } from "lexical";
 import {
+  documentMarkdown,
   editorStateToMarkdown,
   markdownToEditorState,
   UnsupportedNodeTypesError,
+  withFrontmatter,
 } from "./markdown";
 import {
   DuplicatePlaceholderError,
@@ -531,5 +535,181 @@ describe("replaceStateFromMarkdown keeps structure", () => {
     expect(moved.state.root.children[2]).toMatchObject({
       templateColumns: "1fr 1fr",
     });
+  });
+});
+
+const READ_META = {
+  id: "doc_1",
+  title: "Kyoto in Autumn",
+  path: "Travel/Kyoto in Autumn",
+  updatedAt: new Date("2026-09-23T10:00:00.000Z"),
+  tags: ["japan", "travel"],
+};
+
+const KYOTO = markdownToEditorState(
+  "## Getting there\n\nTake the Shinkansen[^1].\n\n- Tōfuku-ji\n- Eikan-dō\n\n[^1]: Nozomi is fastest.",
+);
+
+describe("replaceStateFromMarkdown and front matter", () => {
+  test("writing back exactly what a read returned leaves the document unchanged", () => {
+    const read = withFrontmatter(READ_META, editorStateToMarkdown(KYOTO));
+
+    const { state, notes } = replaceStateFromMarkdown(KYOTO, read, READ_META);
+
+    expect(state).toEqual(KYOTO);
+    expect(notes).toEqual([]);
+  });
+
+  test("a header, a language and a heading equal to the title survive a read and a write back", () => {
+    const header = {
+      subtitle: "Two days of maples",
+      cover: {
+        src: "https://example.com/maple.jpg",
+        alt: "Maples",
+        focus: "50% 30%",
+      },
+      properties: [
+        { key: "status", value: "draft" },
+        { key: "owner", value: "@ada" },
+      ],
+      toc: true,
+    };
+    const stored = withDocumentHeader(
+      markdownToEditorState(
+        `# Kyoto in Autumn\n\n${editorStateToMarkdown(KYOTO)}`,
+      ),
+      header,
+    );
+    const meta = { ...READ_META, lang: "en" };
+    const read = documentMarkdown(stored, meta);
+
+    expect(read).not.toContain("# Kyoto in Autumn");
+    const { state, fields } = replaceStateFromMarkdown(stored, read, meta);
+
+    expect(documentHeaderOf(state)).toEqual(header);
+    expect(fields).toEqual({
+      title: meta.title,
+      tags: meta.tags,
+      lang: "en",
+    });
+    expect(documentMarkdown(state, meta)).toBe(read);
+  });
+
+  test("front matter keys are the document's header and fields, never its content", () => {
+    const { state, fields, notes } = replaceStateFromMarkdown(
+      KYOTO,
+      [
+        "---",
+        'id: "doc_1"',
+        "title: Kyoto in Autumn",
+        "path: Travel/Kyoto in Autumn",
+        "updatedAt: 2026-09-23T10:00:00.000Z",
+        "tags: [japan]",
+        "subtitle: Two days of maples",
+        "cover: maple.jpg",
+        "lang: ja",
+        "toc: true",
+        "properties:",
+        "  status: draft",
+        "reviewer: '@ada'",
+        "---",
+        "",
+        "Body.",
+      ].join("\n"),
+      READ_META,
+    );
+
+    expect(types(state)).toEqual(["paragraph"]);
+    expect(documentHeaderOf(state)).toEqual({
+      subtitle: "Two days of maples",
+      cover: { src: "maple.jpg" },
+      properties: [
+        { key: "status", value: "draft" },
+        { key: "reviewer", value: "@ada" },
+      ],
+      toc: true,
+    });
+    expect(fields).toEqual({
+      title: "Kyoto in Autumn",
+      tags: ["japan"],
+      lang: "ja",
+    });
+    expect(notes).toEqual([
+      "Front matter set the tags, the subtitle, the cover, the language (ja), 2 properties (status, reviewer) and a contents list",
+    ]);
+  });
+
+  test("markdown without front matter leaves the header and the fields alone", () => {
+    const stored = withDocumentHeader(KYOTO, { subtitle: "Kept" });
+
+    const { state, fields } = replaceStateFromMarkdown(
+      stored,
+      "Only a body.",
+      READ_META,
+    );
+
+    expect(documentHeaderOf(state)).toEqual({ subtitle: "Kept" });
+    expect(fields).toEqual({});
+  });
+
+  test("front matter without header keys clears the header", () => {
+    const stored = withDocumentHeader(KYOTO, { subtitle: "Gone" });
+
+    const { state } = replaceStateFromMarkdown(
+      stored,
+      "---\ntitle: Kyoto in Autumn\n---\n\nBody.",
+      READ_META,
+    );
+
+    expect(documentHeaderOf(state)).toEqual({});
+  });
+});
+
+describe("replaceStateFromMarkdown and a leading heading", () => {
+  test("names an untitled document and is not kept as a heading", () => {
+    const { state, fields, notes } = replaceStateFromMarkdown(
+      KYOTO,
+      "# Kyoto in Autumn\n\nBody.",
+      { title: "Untitled" },
+    );
+
+    expect(types(state)).toEqual(["paragraph"]);
+    expect(fields).toEqual({ title: "Kyoto in Autumn" });
+    expect(notes).toEqual([
+      'The leading heading "Kyoto in Autumn" became the document title',
+    ]);
+  });
+
+  test("equal to the title shows once, as the title", () => {
+    const { state, fields } = replaceStateFromMarkdown(
+      KYOTO,
+      "# kyoto  in autumn\n\nBody.",
+      READ_META,
+    );
+
+    expect(types(state)).toEqual(["paragraph"]);
+    expect(fields).toEqual({});
+  });
+
+  test("different from the title stays a heading", () => {
+    const { state, fields } = replaceStateFromMarkdown(
+      KYOTO,
+      "# Day one\n\nBody.",
+      READ_META,
+    );
+
+    expect(types(state)).toEqual(["heading", "paragraph"]);
+    expect(fields).toEqual({});
+  });
+
+  test("equal to the title front matter sets is dropped", () => {
+    const { state, fields } = replaceStateFromMarkdown(
+      KYOTO,
+      "---\ntitle: Day one\n---\n\n# Day one\n\nBody.",
+      READ_META,
+    );
+
+    expect(types(state)).toEqual(["paragraph"]);
+    expect(fields).toMatchObject({ title: "Day one" });
   });
 });

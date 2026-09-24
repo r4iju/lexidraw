@@ -6,9 +6,11 @@ import {
   appendBlocks,
   BlockIndexOutOfRangeError,
   collectNodeTypes,
+  documentMarkdown,
   editorStateToMarkdown,
   HeadingNotFoundError,
   insertBlocks,
+  interpretDocumentMarkdown,
   interpretMarkdown,
   InvalidDocumentContentError,
   markdownLosses,
@@ -773,7 +775,6 @@ describe("interpretMarkdown", () => {
     expect(notes).toEqual([
       expect.stringContaining("[!danger] became a caution callout"),
       expect.stringContaining(":::tip became a tip callout"),
-      expect.stringContaining('title "Before 07:00"'),
       expect.stringContaining("7 columns"),
     ]);
   });
@@ -818,5 +819,203 @@ describe("markdownLosses", () => {
     const [image] = (paragraph as Node & { children: Node[] }).children;
     Object.assign(image as Node, { width: 320, height: 200 });
     expect(markdownLosses(state)).toEqual([expect.stringContaining("image")]);
+  });
+});
+
+const captionOf = (image: Node | undefined): string => {
+  const caption = image?.caption as
+    | { editorState?: { root?: Node } }
+    | undefined;
+  return image?.showCaption && caption?.editorState?.root
+    ? textOf(caption.editorState.root)
+    : "";
+};
+
+const figureOf = (node: Node | undefined) =>
+  (node?.$ as { figure?: unknown } | undefined)?.figure;
+
+describe("figures", () => {
+  test("a titled wide image is captioned by its title and exports unchanged", () => {
+    const markdown = '![Torii](t.jpg "Before 07:00"){.wide}';
+    const [paragraph] = blocksOf(markdown);
+    const image = paragraph?.children?.[0];
+
+    expect(image).toMatchObject({
+      type: "image",
+      src: "t.jpg",
+      altText: "Torii",
+    });
+    expect(captionOf(image)).toBe("Before 07:00");
+    expect(figureOf(image)).toEqual({ width: "wide" });
+    expect(roundTrip(markdown)).toBe(markdown);
+  });
+
+  test("an image alone in its paragraph is captioned by its alt text", () => {
+    const markdown = "![Torii at dawn](t.jpg)";
+    const image = blocksOf(markdown)[0]?.children?.[0];
+
+    expect(captionOf(image)).toBe("Torii at dawn");
+    expect(image).toMatchObject({ altText: "Torii at dawn" });
+    expect(roundTrip(markdown)).toBe(markdown);
+  });
+
+  test("alt text apart from the caption travels as an attribute", () => {
+    const image = blocksOf('![Before 07:00](t.jpg){alt="A torii"}')[0]
+      ?.children?.[0];
+
+    expect(captionOf(image)).toBe("Before 07:00");
+    expect(image).toMatchObject({ altText: "A torii" });
+    expect(roundTrip('![](t.jpg){alt="A torii"}')).toBe(
+      '![](t.jpg){alt="A torii"}',
+    );
+  });
+
+  test("an image inside a sentence is not a figure", () => {
+    const markdown = "See ![the gate](t.jpg) here.";
+    const image = blocksOf(markdown)[0]?.children?.[1];
+
+    expect(captionOf(image)).toBe("");
+    expect(roundTrip(markdown)).toBe(markdown);
+  });
+
+  test("a share of the column and the full width are figure widths", () => {
+    const half = blocksOf("![Map](map.png){width=50%}")[0]?.children?.[0];
+    const full = blocksOf("![Map](map.png){.full}")[0]?.children?.[0];
+
+    expect(figureOf(half)).toEqual({ width: "50%" });
+    expect(figureOf(full)).toEqual({ width: "full" });
+    expect(roundTrip("![Map](map.png){width=50%}")).toBe(
+      "![Map](map.png){width=50%}",
+    );
+    expect(roundTrip("![Map](map.png){.full}")).toBe("![Map](map.png){.full}");
+  });
+
+  test("an attribute an image cannot keep is noted", () => {
+    const { notes } = interpretMarkdown("![Map](map.png){#map .dark}");
+
+    expect(notes).toEqual([
+      "The image map.png attributes #map .dark are not kept; an image takes alt, .wide, .full and width=N%",
+    ]);
+  });
+});
+
+describe("footnotes", () => {
+  test("a footnote and its marker round-trip", () => {
+    const markdown = "Take the Shinkansen[^1].\n\n[^1]: Nozomi is fastest.";
+    const blocks = blocksOf(markdown);
+
+    expect(blocks.map((block) => block.type)).toEqual([
+      "paragraph",
+      "footnote-definition",
+    ]);
+    expect(blocks[0]?.children?.[1]).toMatchObject({
+      type: "footnote-reference",
+      label: "1",
+    });
+    expect(textOf(blocks[1] as Node)).toBe("Nozomi is fastest.");
+    expect(roundTrip(markdown)).toBe(markdown);
+  });
+
+  test("notes gather at the end in the order their markers appear", () => {
+    const blocks = blocksOf(
+      [
+        "[^b]: Second note.",
+        "First[^a] then[^b] and again[^a].",
+        "[^a]: First note.",
+        "Last paragraph.",
+      ].join("\n\n"),
+    );
+
+    expect(blocks.map((block) => block.type)).toEqual([
+      "paragraph",
+      "paragraph",
+      "footnote-definition",
+      "footnote-definition",
+    ]);
+    expect(blocks.slice(2).map((block) => block.label)).toEqual(["a", "b"]);
+  });
+
+  test("a marker without a note is noted", () => {
+    expect(interpretMarkdown("Claim[^x].").notes).toEqual([
+      "The footnote marker [^x] has no note [^x]: below it",
+    ]);
+  });
+});
+
+describe("documentMarkdown", () => {
+  const META = {
+    id: "doc_1",
+    title: "Kyoto in Autumn",
+    path: "Kyoto in Autumn",
+    updatedAt: new Date("2026-09-23T10:00:00.000Z"),
+    tags: ["travel"],
+    lang: "en",
+  };
+
+  test("front matter carries the header and the language, and the title shows once", () => {
+    const state = markdownToEditorState("# Kyoto in Autumn\n\nBody.");
+    const root = state.root as SerializedEditorState["root"] & {
+      $?: Record<string, unknown>;
+    };
+    root.$ = {
+      header: {
+        subtitle: "Two days",
+        cover: { src: "maple.jpg", alt: "Maples", focus: "50% 30%" },
+        toc: true,
+        properties: [
+          { key: "status", value: "draft" },
+          { key: "due date", value: "2026-10-01" },
+          { key: "yes", value: "@ada" },
+        ],
+      },
+    };
+
+    expect(documentMarkdown(state, META)).toBe(
+      [
+        "---",
+        'id: "doc_1"',
+        'title: "Kyoto in Autumn"',
+        'path: "Kyoto in Autumn"',
+        'updatedAt: "2026-09-23T10:00:00.000Z"',
+        'tags: ["travel"]',
+        'subtitle: "Two days"',
+        'cover: "maple.jpg"',
+        'cover_alt: "Maples"',
+        'cover_focus: "50% 30%"',
+        'lang: "en"',
+        "toc: true",
+        "properties:",
+        '  status: "draft"',
+        '  due date: "2026-10-01"',
+        '  "yes": "@ada"',
+        "---",
+        "",
+        "Body.",
+      ].join("\n"),
+    );
+  });
+
+  test("a leading heading that is not the title stays", () => {
+    const state = markdownToEditorState("# Day one\n\nBody.");
+
+    expect(documentMarkdown(state, { ...META, lang: null })).toEndWith(
+      "---\n\n# Day one\n\nBody.",
+    );
+  });
+});
+
+describe("interpretDocumentMarkdown", () => {
+  test("a leading --- block that is not YAML stays markdown", () => {
+    const { state, notes } = interpretDocumentMarkdown(
+      "---\nnot: [closed\n---\n\nBody.",
+      { title: "Notes", titleFromHeading: true },
+    );
+
+    expect(state.root.children.map((child) => child.type)).toContain(
+      "horizontalrule",
+    );
+    expect(notes).toEqual([
+      expect.stringContaining("The leading --- block is not YAML front matter"),
+    ]);
   });
 });

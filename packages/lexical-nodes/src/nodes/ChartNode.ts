@@ -7,6 +7,7 @@ import type {
   Spread,
 } from "lexical";
 import { $create, DecoratorNode } from "lexical";
+import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
 
 export type ChartType = "bar" | "line" | "pie";
 
@@ -110,17 +111,21 @@ export class ChartNode extends DecoratorNode<unknown> {
       chartConfig: this.__chartConfig,
       width: this.__width,
       height: this.__height,
+      ...nodeStateJSON(super.exportJSON()),
     };
   }
 
   static importJSON(node: SerializedChartNode): ChartNode {
-    return ChartNode.$createChartNode({
-      chartType: node.chartType,
-      chartData: node.chartData,
-      chartConfig: node.chartConfig,
-      width: node.width,
-      height: node.height,
-    });
+    return $importNodeState(
+      ChartNode.$createChartNode({
+        chartType: node.chartType,
+        chartData: node.chartData,
+        chartConfig: node.chartConfig,
+        width: node.width,
+        height: node.height,
+      }),
+      node,
+    );
   }
 
   static $createChartNode<T extends ChartNode>(
@@ -162,10 +167,12 @@ export class ChartNode extends DecoratorNode<unknown> {
   createDOM(_config: EditorConfig): HTMLElement {
     const element = document.createElement("div");
     element.dataset.mediaType = "chart";
+    figureDOM(this, element);
     return element;
   }
 
-  updateDOM(): false {
+  updateDOM(_prevNode: ChartNode, dom: HTMLElement): false {
+    figureDOM(this, dom);
     return false;
   }
 }

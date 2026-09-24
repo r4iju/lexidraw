@@ -54,7 +54,8 @@ to find, so read first and carry that value into the write. A worked example:
 lexidraw search "Release notes" --format table
 
 # 2. Read it. `doc get` defaults to markdown with YAML frontmatter carrying
-#    id, title, path, updatedAt, and tags.
+#    id, title, path, updatedAt and tags, then the header (see "Front matter").
+#    The title is shown above the content, so the body does not repeat it.
 lexidraw doc get --path "Projects/Release notes"
 # ---
 # id: "0b0f2c1e-..."
@@ -64,7 +65,7 @@ lexidraw doc get --path "Projects/Release notes"
 # tags: []
 # ---
 #
-# # Release notes
+# ## 0.4.1
 # ...
 
 # 3. Append. New trailing blocks at the end of the document, never
@@ -95,7 +96,7 @@ The rest of the surface:
 
 ```bash
 lexidraw doc list [--dir <id>|--dir-path P] [--format json|table] [--page-all]
-lexidraw doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]
+lexidraw doc create [--title T] [--dir <id>|--dir-path P] [--file f|--text s]
 lexidraw doc insert <id|--path P> (--file f|--text s) --at-block N --if-unmodified-since W
 lexidraw doc render <id|--path P> [--format png|pdf] [--width 1280] \
   [--theme light|dark] [--paper A4|Letter] [--orientation portrait|landscape] [--out <file>]
@@ -105,7 +106,9 @@ lexidraw dir create --title T [--dir <id>|--dir-path P]
 ```
 
 `doc create` with a body starts the document at that markdown rather than after
-the empty paragraph a new document carries.
+the empty paragraph a new document carries. Without `--title`, the body names
+the document: its front matter `title`, or else a leading `# Heading`, which
+then leaves the content. The answer's `title` is the one it got.
 
 `doc render` defaults to a PNG of the full document, at 1280px in light mode.
 Widths are integer pixels from 1 to 4096. Choose `--width 375 --theme dark --out phone.png` to check the mobile view.
@@ -115,7 +118,9 @@ refused on a terminal, so pass `--out` or redirect stdout. REST uses
 `GET /documents/{id}/render?format=png&width=375&theme=dark`; MCP exposes the
 same operation as `get_document_image` (PNG) and `get_document_pdf` (PDF).
 
-`--format pdf` prints in light colours with a title header on every page.
+`--format pdf` prints in light colours, with the title at the top of every
+page but the first, "n / total" at the bottom right, and bookmarks from the
+headings.
 `--paper A4|Letter` and `--orientation portrait|landscape` apply to PDF;
 `--width` and `--theme` apply to PNG. Document creates, editor saves and
 markdown append/insert/replace, plus drawing creates and puts, queue fresh
@@ -183,7 +188,7 @@ read, edited and replaced keeps its structure.
 
 | markdown | becomes |
 | --- | --- |
-| `#` to `######` | headings; one `#` title, `##` sections |
+| `#` to `######` | headings; the title is the document's own (see below), so start sections at `##` |
 | `**bold**`, `*italic*`, `~~strike~~`, `==highlight==`, `` `code` `` | inline formatting |
 | `-`, `1.`, `- [ ]` / `- [x]` | bulleted, numbered and check lists; indent to nest |
 | `> text` | a quote |
@@ -194,7 +199,10 @@ read, edited and replaced keeps its structure.
 | ```` ```lang ```` fence | a code block with syntax highlighting |
 | `$x^2$` | inline math: the `$` hug the formula, no space inside and no digit after |
 | `$$x^2$$` on its own line, or `$$` lines around it | a block equation |
-| `![alt](src)` | an image; a `"title"` after the src is dropped, so write captions as text |
+| `![Caption](src)` on its own line | an image with that caption; `![Caption](src){alt="Text for screen readers"}` adds alt text |
+| `![alt](src "Caption")` | an image whose alt and caption differ; inside a sentence the brackets are only alt |
+| `{.wide}`, `{.full}`, `{width=50%}` after an image | the wide column, the page width, or a share of the text column (10–99%); the text column is the default |
+| `text[^1]` and `[^1]: The note.` | a footnote; notes are numbered in the order their markers appear and gather at the end |
 | `---` | a horizontal rule |
 | `<tweet id="…" />` on its own line | an embedded post |
 
@@ -209,18 +217,55 @@ read, edited and replaced keeps its structure.
   the title. A read always writes the GitHub form.
 
 Every write answers with `notes`: the places it read the markdown one way when
-another was possible (an alias that became a callout, an image title that was
-dropped, a wide table). Read them, and change the next write if the
+another was possible (an alias that became a callout, an image attribute that
+was not kept, a footnote marker without its note, a wide table), and the
+front matter fields it applied. Read them, and change the next write if the
 interpretation was not what you meant. A markdown read reports `losses` (the
 CLI prints them to stderr as `note:` lines): what the document holds that
 markdown cannot say, such as uneven column widths, hand-set table widths,
 image sizes and text colours. A replace keeps column and table widths while
 the block keeps its position and column count, and drops the rest.
 
+### Title and front matter
+
+The document's title shows above the content and is not a heading. On a
+replace, or a write into an empty document, a leading `# X` becomes the title
+when the document is untitled, and is dropped when it repeats the title;
+anywhere else it stays a heading.
+
+A write reads a leading `---` YAML block as fields, never as content, and a
+read writes the same block back, so reading and replacing changes nothing:
+
+```yaml
+---
+title: Trip plan            # the document's title
+tags: [travel, kyoto]       # your tags on it
+subtitle: Three days, one base
+cover: https://example.com/maples.jpg
+cover_alt: Maples at Tofuku-ji
+cover_focus: 50% 30%        # the point the crop keeps in view
+lang: en                    # the document's language
+toc: true                   # a contents list of the ## and ### headings
+properties:                 # shown under the title; any other key lands here too
+  status: in progress       # drawn as a pill
+  owner: "@ada"             # @name is a mention
+  due: 2026-11-14           # an ISO date shows as a local date
+  source: https://example.com
+---
+```
+
+`id`, `path` and `updatedAt` are recognised and ignored. A key the block
+leaves out is cleared from the header; without a block, the header is kept.
+
 A sample document that uses the common constructs:
 
 ````markdown
-# Trip plan: Kyoto in autumn
+---
+title: "Trip plan: Kyoto in autumn"
+toc: true
+properties:
+  status: draft
+---
 
 Three days, one base, no car. Costs are in yen; $5 and $10 stay prose.
 

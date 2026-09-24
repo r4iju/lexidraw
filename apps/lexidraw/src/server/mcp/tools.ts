@@ -43,7 +43,9 @@ A failed tool answers with a JSON object carrying a stable "code": branch on tha
 
 A read answers with the whole entity, so read a document once and write from what you read rather than re-reading between writes.
 
-A markdown read lists in "losses" what the markdown cannot carry (hand-set column widths, text styles); a whole-document replace keeps those where a block keeps its place. Every write lists in "notes" how it read markdown it could have read another way, such as an alias that became a callout; read them and adjust the next write.`;
+A markdown read lists in "losses" what the markdown cannot carry (hand-set column widths, text styles); a whole-document replace keeps those where a block keeps its place. Every write lists in "notes" how it read markdown it could have read another way, such as an alias that became a callout; read them and adjust the next write.
+
+A document's title shows above its content and is not a heading, so start sections at ##. A leading YAML front matter block in a write sets fields, never content: title and tags, then subtitle, cover (with cover_alt and cover_focus), lang, toc: true for a contents list, and properties (a map; any other key joins it). id, path and updatedAt are ignored. A markdown read writes the same block back. On a replace or into an empty document, a leading "# X" becomes the title of an untitled document and is dropped when it repeats the title. Images take a caption as ![Caption](src) on their own line or ![alt](src "Caption"), and a width as {.wide}, {.full} or {width=50%} after them; footnotes are GFM, text[^1] with [^1]: The note.`;
 
 const entityId = z
   .string()
@@ -267,7 +269,7 @@ export function registerLexidrawTools(
     {
       title: "Read a document",
       description:
-        'A document as markdown. "markdown" carries YAML frontmatter with the id, title, path, updatedAt, and tags; "raw" drops the frontmatter; "json" answers the stored editor state. The updatedAt it reports is the ifUnmodifiedSince of your next write.',
+        'A document as markdown. "markdown" carries YAML frontmatter with the id, title, path, updatedAt and tags, then the header (subtitle, cover, lang, toc, properties); "raw" drops the frontmatter; "json" answers the stored editor state. The updatedAt it reports is the ifUnmodifiedSince of your next write.',
       inputSchema: z.object({
         id: entityId,
         format: z.enum(["markdown", "raw", "json"]).optional(),

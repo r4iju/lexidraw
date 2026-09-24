@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { SerializedEditorState } from "lexical";
 import {
   appendMarkdownToDocument,
+  type DocumentChange,
   DocumentGoneError,
   type DocumentRevision,
   type DocumentStore,
@@ -62,7 +63,7 @@ function fakeStore(
     async read(id) {
       return row && row.id === id ? { ...row } : null;
     },
-    async write(id, elements, expectedUpdatedAt) {
+    async write(id, change, expectedUpdatedAt) {
       onWrite?.(attempt++);
       if (
         !row ||
@@ -71,15 +72,18 @@ function fakeStore(
       ) {
         return null;
       }
-      row = { id, elements, updatedAt: SECOND };
+      changes.push(change);
+      row = { ...row, ...change, updatedAt: SECOND };
       return { id, updatedAt: row.updatedAt };
     },
   };
+  const changes: DocumentChange[] = [];
   return {
     store,
     stored: () => row,
+    changes,
     move: (elements: string, updatedAt: Date) => {
-      row = { id: revision.id, elements, updatedAt };
+      row = { ...revision, elements, updatedAt };
     },
     remove: () => {
       row = null;
@@ -89,8 +93,11 @@ function fakeStore(
 
 const revision = (): DocumentRevision => ({
   id: "doc_1",
+  title: "Notes",
   elements: DOCUMENT,
   updatedAt: FIRST,
+  appState: null,
+  tags: [],
 });
 
 const storedState = (elements: string): SerializedEditorState =>
@@ -108,6 +115,7 @@ describe("appendMarkdownToDocument", () => {
 
     expect(result).toEqual({
       id: "doc_1",
+      title: "Notes",
       updatedAt: SECOND,
       appendedBlocks: 2,
       notes: [],
@@ -226,8 +234,11 @@ const OUTLINE = JSON.stringify(
 
 const outline = (): DocumentRevision => ({
   id: "doc_1",
+  title: "Notes",
   elements: OUTLINE,
   updatedAt: FIRST,
+  appState: null,
+  tags: [],
 });
 
 const AFTER_NOTES = { kind: "afterHeading" as const, text: "notes" };
@@ -246,6 +257,7 @@ describe("insertMarkdownIntoDocument", () => {
 
     expect(result).toEqual({
       id: "doc_1",
+      title: "Notes",
       updatedAt: SECOND,
       insertedBlocks: 1,
       blockIndex: 3,
@@ -372,10 +384,13 @@ const KEEP_VIDEO = "<!-- lexidraw:video#1 a summary -->";
 
 const filmed = (): DocumentRevision => ({
   id: "doc_1",
+  title: "Notes",
   elements: JSON.stringify({
     root: { ...storedState(DOCUMENT).root, children: [VIDEO] },
   }),
   updatedAt: FIRST,
+  appState: null,
+  tags: [],
 });
 
 describe("replaceMarkdownInDocument", () => {
@@ -391,6 +406,7 @@ describe("replaceMarkdownInDocument", () => {
 
     expect(result).toEqual({
       id: "doc_1",
+      title: "Notes",
       updatedAt: SECOND,
       blocks: 2,
       restoredPlaceholders: 1,
@@ -525,5 +541,101 @@ describe("interpretation notes", () => {
       FIRST.toISOString(),
     );
     expect(replaced.notes).toEqual([expect.stringContaining("7 columns")]);
+  });
+});
+
+describe("front matter and the leading heading on a write", () => {
+  const FRONT_MATTER = [
+    "---",
+    "title: Kyoto in Autumn",
+    "tags: [travel, japan]",
+    "subtitle: Two days of maples",
+    "lang: ja",
+    "---",
+    "",
+    "Body.",
+  ].join("\n");
+
+  test("a replace stores the title, the tags and the language on the document", async () => {
+    const stored = {
+      ...filmed(),
+      appState: JSON.stringify({ defaultFontFamily: "Noto Serif" }),
+    };
+    const db = fakeStore(stored);
+
+    await replaceMarkdownInDocument(
+      db.store,
+      stored,
+      FRONT_MATTER,
+      FIRST.toISOString(),
+    );
+
+    const [change] = db.changes;
+    expect(change?.title).toBe("Kyoto in Autumn");
+    expect(change?.tags).toEqual(["travel", "japan"]);
+    expect(JSON.parse(change?.appState ?? "null")).toEqual({
+      defaultFontFamily: "Noto Serif",
+      lang: "ja",
+    });
+    const root = storedState(change?.elements ?? "").root as unknown as {
+      $?: unknown;
+    };
+    expect(root.$).toEqual({ header: { subtitle: "Two days of maples" } });
+  });
+
+  test("fields the front matter repeats unchanged are not written", async () => {
+    const stored = {
+      ...filmed(),
+      title: "Kyoto in Autumn",
+      tags: ["japan", "travel"],
+      appState: JSON.stringify({ lang: "ja" }),
+    };
+    const db = fakeStore(stored);
+
+    await replaceMarkdownInDocument(
+      db.store,
+      stored,
+      FRONT_MATTER,
+      FIRST.toISOString(),
+    );
+
+    expect(Object.keys(db.changes[0] ?? {})).toEqual(["elements"]);
+  });
+
+  test("a leading heading names an empty untitled document it is appended to", async () => {
+    const empty = {
+      ...revision(),
+      title: "Untitled",
+      elements: JSON.stringify({
+        root: { ...storedState(DOCUMENT).root, children: [] },
+      }),
+    };
+    const db = fakeStore(empty);
+
+    const result = await appendMarkdownToDocument(
+      db.store,
+      empty,
+      "# Kyoto in Autumn\n\nBody.",
+    );
+
+    expect(db.changes[0]?.title).toBe("Kyoto in Autumn");
+    expect(result.appendedBlocks).toBe(1);
+    expect(result.notes).toEqual([
+      'The leading heading "Kyoto in Autumn" became the document title',
+    ]);
+  });
+
+  test("a leading heading appended below content stays a heading", async () => {
+    const db = fakeStore({ ...revision(), title: "Untitled" });
+
+    await appendMarkdownToDocument(
+      db.store,
+      { ...revision(), title: "Untitled" },
+      "# Kyoto in Autumn\n\nBody.",
+    );
+
+    expect(db.changes[0]?.title).toBeUndefined();
+    const children = storedState(db.stored()?.elements ?? "").root.children;
+    expect(children.map((child) => child.type)).toContain("heading");
   });
 });

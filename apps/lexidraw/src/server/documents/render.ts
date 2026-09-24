@@ -37,14 +37,6 @@ function rendererEndpoint(format: "pdf" | "png"): string | null {
   return null;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /**
  * Renders the page on the deployment asked, with a short-lived token scoped
  * to the document and caller whose read access the route has checked.
@@ -52,7 +44,6 @@ function escapeHtml(text: string): string {
 export async function renderDocument(params: {
   documentId: string;
   userId: string;
-  title: string;
   options:
     | (PdfOptions & { format: "pdf" })
     | { format: "png"; width: number; theme: "light" | "dark" };
@@ -95,7 +86,9 @@ export async function renderDocument(params: {
                 bottom: "20mm",
                 left: "18mm",
               },
-              headerTemplate: `<div style="font-size: 8px; width: 100%; padding: 0 18mm; color: #666;">${escapeHtml(params.title)}</div>`,
+              // The print page's `@page` rules draw the running title and
+              // the sheet numbers.
+              displayHeaderFooter: false,
             }
           : {
               viewport: {

@@ -13,6 +13,7 @@ import {
   appendMarkdownToDocument,
   DocumentGoneError,
   insertMarkdownIntoDocument,
+  languageOf,
   replaceMarkdownInDocument,
 } from "~/server/documents/write";
 import {
@@ -34,8 +35,9 @@ import {
   InvalidDocumentContentError,
   parseEditorState,
   UnsupportedNodeTypesError,
-  withFrontmatter,
+  documentMarkdown,
 } from "~/server/documents/markdown";
+import { documentHeaderOf } from "@packages/lexical-nodes";
 import {
   entityPath,
   entityTagNames,
@@ -112,11 +114,16 @@ const ONE_PLACEMENT = "pass exactly one of afterHeading or atBlockIndex";
  */
 const writtenRevision = {
   id: z.string(),
+  title: z
+    .string()
+    .describe(
+      "The title after the write: front matter sets it, and so does a leading # heading on an untitled document.",
+    ),
   updatedAt: isoDate,
   notes: z
     .array(z.string())
     .describe(
-      "How the markdown was read, where the writer may have meant something else: callout aliases rewritten, dropped image titles, tables that will scroll on phones. Empty when nothing needs saying.",
+      "How the markdown was read, where the writer may have meant something else: what front matter set, a leading heading that became the title, callout aliases rewritten, image attributes not kept, footnote markers without a note, tables that will scroll on phones. Empty when nothing needs saying.",
     ),
 };
 
@@ -245,6 +252,7 @@ export const documentRouter = createTRPCRouter({
         updatedAt: entity.updatedAt,
         tags,
       };
+      const lang = languageOf(entity.appState);
       try {
         const state = parseEditorState(entity.elements);
         if (input.format === "json") {
@@ -253,13 +261,22 @@ export const documentRouter = createTRPCRouter({
           // object the output schema describes. Same value either way.
           return { ...meta, format: "json" as const, content: { ...state } };
         }
-        const markdown = editorStateToMarkdown(state);
+        const header = documentHeaderOf(state);
         return {
           ...meta,
           format: input.format,
           content:
-            input.format === "raw" ? markdown : withFrontmatter(meta, markdown),
-          losses: markdownLosses(state),
+            input.format === "raw"
+              ? editorStateToMarkdown(state, { title: entity.title })
+              : documentMarkdown(state, { ...meta, lang }),
+          losses: [
+            ...(input.format === "raw" && Object.keys(header).length > 0
+              ? [
+                  "The header (subtitle, cover, properties, contents list) is front matter, which raw leaves out; a replace from raw keeps it",
+                ]
+              : []),
+            ...markdownLosses(state),
+          ],
         };
       } catch (error) {
         if (
@@ -314,10 +331,13 @@ export const documentRouter = createTRPCRouter({
       }
       try {
         const written = await appendMarkdownToDocument(
-          drizzleDocumentStore(ctx.drizzle, (row) =>
+          drizzleDocumentStore(ctx.drizzle, ctx.session.user.id, (row) =>
             queueThumbnail(ctx.drizzle, row),
           ),
-          entity,
+          {
+            ...entity,
+            tags: await entityTagNames(ctx.drizzle, entity.id),
+          },
           input.markdown,
           input.ifUnmodifiedSince,
         );
@@ -428,10 +448,13 @@ export const documentRouter = createTRPCRouter({
       }
       try {
         const written = await insertMarkdownIntoDocument(
-          drizzleDocumentStore(ctx.drizzle, (row) =>
+          drizzleDocumentStore(ctx.drizzle, ctx.session.user.id, (row) =>
             queueThumbnail(ctx.drizzle, row),
           ),
-          entity,
+          {
+            ...entity,
+            tags: await entityTagNames(ctx.drizzle, entity.id),
+          },
           input.markdown,
           input.placement,
           input.ifUnmodifiedSince,
@@ -505,10 +528,13 @@ export const documentRouter = createTRPCRouter({
       }
       try {
         const written = await replaceMarkdownInDocument(
-          drizzleDocumentStore(ctx.drizzle, (row) =>
+          drizzleDocumentStore(ctx.drizzle, ctx.session.user.id, (row) =>
             queueThumbnail(ctx.drizzle, row),
           ),
-          entity,
+          {
+            ...entity,
+            tags: await entityTagNames(ctx.drizzle, entity.id),
+          },
           input.markdown,
           input.ifUnmodifiedSince,
         );
@@ -627,7 +653,6 @@ export const documentRouter = createTRPCRouter({
         file = await renderDocument({
           documentId: entity.id,
           userId,
-          title: entity.title,
           options:
             input.format === "pdf"
               ? {

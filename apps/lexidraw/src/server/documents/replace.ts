@@ -1,6 +1,8 @@
 import {
+  documentHeaderOf,
   PLACEHOLDER_NODE_TYPES,
   PLACEHOLDER_PATTERN,
+  withDocumentHeader,
 } from "@packages/lexical-nodes";
 import {
   IS_CODE,
@@ -9,10 +11,12 @@ import {
   type SerializedRootNode,
 } from "lexical";
 import {
+  type DocumentFields,
   editorStateToMarkdown,
-  interpretMarkdown,
+  interpretDocumentMarkdown,
   unsupportedNodeTypes,
   UnsupportedNodeTypesError,
+  type WriteTarget,
 } from "./markdown";
 
 /** What a placeholder names, such as `chart#2`. The summary is not part of it. */
@@ -395,8 +399,10 @@ export type ReplacedState = {
   restoredPlaceholders: number;
   /** Placeholders the markdown dropped, so nodes the replace deletes. */
   removedPlaceholders: number;
-  /** How the markdown was read; see {@link interpretMarkdown}. */
+  /** How the markdown was read; see {@link interpretDocumentMarkdown}. */
   notes: string[];
+  /** The entity fields the markdown sets. */
+  fields: DocumentFields;
 };
 
 /**
@@ -408,6 +414,7 @@ export type ReplacedState = {
 export function replaceStateFromMarkdown(
   stored: SerializedEditorState,
   markdown: string,
+  entity?: Omit<WriteTarget, "header" | "titleFromHeading">,
 ): ReplacedState {
   // A node type the editor cannot build has no placeholder either, so it
   // could only leave through this write unannounced. The read that would have
@@ -417,18 +424,29 @@ export function replaceStateFromMarkdown(
     throw new UnsupportedNodeTypesError(unsupported);
   }
   const placeholders = new StoredPlaceholders(stored);
-  const { state: parsed, notes } = interpretMarkdown(
-    stripArticleProse(markdown, placeholders),
-  );
+  // Without the entity there is no title for a leading heading to be.
+  const {
+    state: parsed,
+    notes,
+    fields,
+    header,
+  } = interpretDocumentMarkdown(stripArticleProse(markdown, placeholders), {
+    title: "",
+    ...entity,
+    header: documentHeaderOf(stored),
+    titleFromHeading: entity !== undefined,
+  });
   const children = transformChildren(parsed.root.children, placeholders, true);
   children.forEach((child, index) => {
     const previous = stored.root.children[index];
     if (previous) keepHandSetWidths(child, previous);
   });
+  const state = { ...stored, root: { ...stored.root, children } };
   return {
-    state: { ...stored, root: { ...stored.root, children } },
+    state: header ? withDocumentHeader(state, header) : state,
     restoredPlaceholders: placeholders.restored,
     removedPlaceholders: placeholders.removed,
     notes,
+    fields,
   };
 }

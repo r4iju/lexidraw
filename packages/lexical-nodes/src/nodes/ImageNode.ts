@@ -10,11 +10,13 @@ import type {
   LexicalNode,
   NodeKey,
   SerializedEditor,
+  SerializedEditorState,
   SerializedLexicalNode,
   Spread,
 } from "lexical";
 import {
   $create,
+  $getRoot,
   createEditor,
   DecoratorNode,
   LineBreakNode,
@@ -22,6 +24,7 @@ import {
   RootNode,
   TextNode,
 } from "lexical";
+import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
 import { EmojiNode } from "./EmojiNode.js";
 import { KeywordNode } from "./KeywordNode.js";
 
@@ -176,7 +179,7 @@ export class ImageNode extends DecoratorNode<unknown> {
     if (!editorState.isEmpty()) {
       nestedEditor.setEditorState(editorState);
     }
-    return node;
+    return $importNodeState(node, serializedNode);
   }
 
   exportDOM(): DOMExportOutput {
@@ -230,6 +233,7 @@ export class ImageNode extends DecoratorNode<unknown> {
       type: "image",
       version: 1,
       width: this.__width === "inherit" ? 0 : this.__width,
+      ...nodeStateJSON(super.exportJSON()),
     };
   }
 
@@ -259,6 +263,55 @@ export class ImageNode extends DecoratorNode<unknown> {
     return this.__showCaption;
   }
 
+  /** The caption as plain text, or "" when the image shows none. */
+  getCaptionText(): string {
+    if (!this.__showCaption) return "";
+    return this.__caption
+      .getEditorState()
+      .read(() => $getRoot().getTextContent())
+      .trim();
+  }
+
+  /** Shows `text` as the caption, or hides the caption when it is empty. */
+  setCaptionText(text: string): void {
+    const writable = this.getWritable();
+    writable.__showCaption = text !== "";
+    const paragraph = {
+      children: text
+        ? [
+            {
+              detail: 0,
+              format: 0,
+              mode: "normal",
+              style: "",
+              text,
+              type: "text",
+              version: 1,
+            },
+          ]
+        : [],
+      direction: null,
+      format: "",
+      indent: 0,
+      textFormat: 0,
+      textStyle: "",
+      type: "paragraph",
+      version: 1,
+    };
+    writable.__caption.setEditorState(
+      writable.__caption.parseEditorState({
+        root: {
+          children: [paragraph],
+          direction: null,
+          format: "",
+          indent: 0,
+          type: "root",
+          version: 1,
+        },
+      } as unknown as SerializedEditorState),
+    );
+  }
+
   update(payload: UpdateImagePayload): void {
     const writable = this.getWritable();
     const { altText, showCaption, width, height } = payload;
@@ -283,10 +336,12 @@ export class ImageNode extends DecoratorNode<unknown> {
     if (className !== undefined) {
       span.className = className;
     }
+    figureDOM(this, span);
     return span;
   }
 
-  updateDOM(): false {
+  updateDOM(_prevNode: ImageNode, dom: HTMLElement): false {
+    figureDOM(this, dom);
     return false;
   }
 

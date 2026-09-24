@@ -13,6 +13,7 @@ import type {
   Spread,
 } from "lexical";
 import { $create } from "lexical";
+import { $importNodeState, figureDOM } from "../figure.js";
 
 function $convertTweetElement(
   domNode: HTMLDivElement,
@@ -46,7 +47,7 @@ export class TweetNode extends DecoratorBlockNode {
   static importJSON(serializedNode: SerializedTweetNode): TweetNode {
     const node = TweetNode.$createTweetNode(serializedNode.id);
     node.setFormat(serializedNode.format);
-    return node;
+    return $importNodeState(node, serializedNode);
   }
 
   exportJSON(): SerializedTweetNode {
@@ -70,6 +71,18 @@ export class TweetNode extends DecoratorBlockNode {
         };
       },
     };
+  }
+
+  createDOM(): HTMLElement {
+    const element = super.createDOM();
+    figureDOM(this, element);
+    return element;
+  }
+
+  // The base class declares no parameters, though Lexical passes them.
+  updateDOM(_prevNode?: TweetNode, dom?: HTMLElement): false {
+    if (dom) figureDOM(this, dom);
+    return false;
   }
 
   exportDOM(): DOMExportOutput {

@@ -11,6 +11,7 @@ import type {
   Spread,
 } from "lexical";
 import { $create, DecoratorNode } from "lexical";
+import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
 
 type Dimension = number | "inherit";
 
@@ -53,7 +54,7 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     node.__data = serializedNode.data ?? "[]";
     node.__width = serializedNode.width ?? "inherit";
     node.__height = serializedNode.height ?? "inherit";
-    return node;
+    return $importNodeState(node, serializedNode);
   }
 
   exportJSON(): SerializedExcalidrawNode {
@@ -63,6 +64,7 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
       type: "excalidraw",
       version: 1,
       width: this.__width,
+      ...nodeStateJSON(super.exportJSON()),
     };
   }
 
@@ -83,10 +85,12 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
   createDOM(_config: EditorConfig): HTMLElement {
     const element = document.createElement("div");
     element.dataset.mediaType = "excalidraw";
+    figureDOM(this, element);
     return element;
   }
 
-  updateDOM(): false {
+  updateDOM(_prevNode: ExcalidrawNode, dom: HTMLElement): false {
+    figureDOM(this, dom);
     return false;
   }
 

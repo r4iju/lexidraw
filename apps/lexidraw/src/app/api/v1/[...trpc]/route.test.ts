@@ -615,11 +615,10 @@ describe("a document rendered to PDF", () => {
     ]);
   });
 
-  test("heads each page with the title, as text rather than markup", async () => {
+  test("leaves the running title and page numbers to the print page", async () => {
     await render(READ_TOKEN, "format=pdf");
-    expect(rendered[0]?.headerTemplate).toContain("Q3 &lt;plan&gt;");
-    expect(rendered[0]?.headerTemplate).toContain("padding: 0 18mm");
-    expect(rendered[0]?.headerTemplate).not.toContain("<plan>");
+    expect(rendered[0]?.displayHeaderFooter).toBe(false);
+    expect(rendered[0]).not.toHaveProperty("headerTemplate");
   });
 
   test("is not found for someone it is not shared with, who prints nothing", async () => {

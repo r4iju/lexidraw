@@ -39,8 +39,9 @@ const USAGE = `lexidraw — Lexidraw from the terminal
 Usage:
   lexidraw doc list [--dir <id>|--dir-path P] [--format json|table] [--page-all]
   lexidraw doc get <id|--path P> [--format md|raw|json]
-  lexidraw doc create --title T [--dir <id>|--dir-path P] [--file f|--text s]
-                      (a body replaces the new document's empty paragraph)
+  lexidraw doc create [--title T] [--dir <id>|--dir-path P] [--file f|--text s]
+                      (a body replaces the new document's empty paragraph;
+                      without --title its front matter or leading # names it)
   lexidraw doc append <id|--path P> (--file f|--text s) [--if-unmodified-since W]
   lexidraw doc insert <id|--path P> (--file f|--text s)
                       (--after-heading H [--nth N] | --at-block N)

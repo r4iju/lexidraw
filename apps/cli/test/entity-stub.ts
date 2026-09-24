@@ -312,6 +312,12 @@ function write(
   } else {
     row.blocks = added;
   }
+  // The server's rule for an untitled document: its leading `# X` names it.
+  const heading = /^# (.+)$/.exec(row.blocks[0] ?? "");
+  if (heading && row.title === "Untitled") {
+    row.title = heading[1] as string;
+    row.blocks = row.blocks.slice(1);
+  }
   row.updatedAt = now();
 
   const counted =
@@ -326,6 +332,7 @@ function write(
     .map((block) => `${block.split("\n")[0]} became a callout`);
   return Response.json({
     id: row.id,
+    title: row.title,
     updatedAt: row.updatedAt,
     ...counted,
     notes,

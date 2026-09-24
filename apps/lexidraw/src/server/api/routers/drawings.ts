@@ -341,7 +341,7 @@ export const drawingRouter = createTRPCRouter({
       const elements = await normalize(input);
       try {
         const written = await replaceDrawingElements(
-          drizzleDocumentStore(ctx.drizzle, (row) =>
+          drizzleDocumentStore(ctx.drizzle, ctx.session.user.id, (row) =>
             queueThumbnail(ctx.drizzle, row),
           ),
           drawing,

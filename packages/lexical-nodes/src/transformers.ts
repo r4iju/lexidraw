@@ -36,6 +36,10 @@ import {
   type LexicalNode,
 } from "lexical";
 import { DECORATOR_TRANSFORMERS } from "./decorator-transformers.js";
+import {
+  FOOTNOTE_DEFINITION,
+  FOOTNOTE_REFERENCE,
+} from "./footnote-transformers.js";
 import emojiList from "./emoji-list.js";
 import {
   createAdmonitionTransformer,
@@ -317,6 +321,8 @@ export function createTransformers(extra: Transformer[] = []): Transformer[] {
     ...DECORATOR_TRANSFORMERS.multiline,
     ...DECORATOR_TRANSFORMERS.element,
     ...DECORATOR_TRANSFORMERS.textMatch,
+    FOOTNOTE_DEFINITION,
+    FOOTNOTE_REFERENCE,
     ...extra,
     createTableTransformer(source),
     HR,

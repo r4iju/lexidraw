@@ -1,8 +1,11 @@
+import { documentHeaderOf, withDocumentHeader } from "@packages/lexical-nodes";
+import type { SerializedEditorState } from "lexical";
 import { StaleDocumentError } from "./conflict";
 import {
+  type DocumentFields,
   type InsertPlacement,
   insertBlocks,
-  interpretMarkdown,
+  interpretDocumentMarkdown,
   parseEditorState,
   resolveInsertIndex,
 } from "./markdown";
@@ -11,23 +14,96 @@ import { replaceStateFromMarkdown } from "./replace";
 /** A document as a write needs to see it, already checked for write access. */
 export type DocumentRevision = {
   id: string;
+  title: string;
   elements: string;
   updatedAt: Date;
+  /** The document settings, JSON, such as the chosen language. */
+  appState: string | null;
+  tags: string[];
+};
+
+/** What a write stores: always the content, the rest only when it changes. */
+export type DocumentChange = {
+  elements: string;
+  title?: string;
+  appState?: string;
+  /** The writer's tags on the document, replacing theirs. */
+  tags?: string[];
 };
 
 /**
- * The storage a write talks to. `write` is compare-and-set: it stores
- * `elements` only while the row still carries `expectedUpdatedAt`, and answers
+ * The storage a write talks to. `write` is compare-and-set: it stores the
+ * change only while the row still carries `expectedUpdatedAt`, and answers
  * null when another write got there first.
  */
 export type DocumentStore = {
   read(id: string): Promise<DocumentRevision | null>;
   write(
     id: string,
-    elements: string,
+    change: DocumentChange,
     expectedUpdatedAt: Date,
   ): Promise<{ id: string; updatedAt: Date } | null>;
 };
+
+function settingsOf(appState: string | null): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(appState ?? "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The language the document settings chose, or null to detect it. */
+export const languageOf = (appState: string | null) => {
+  const { lang } = settingsOf(appState);
+  return typeof lang === "string" ? lang : null;
+};
+
+/** The entity as a markdown write reads its front matter against. */
+export const writeTarget = (revision: DocumentRevision) => ({
+  id: revision.id,
+  title: revision.title,
+  tags: revision.tags,
+  lang: languageOf(revision.appState),
+});
+
+const sameTags = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((tag) => b.includes(tag));
+
+/** `state` stored together with whichever of `fields` differ from `revision`. */
+function documentChange(
+  revision: DocumentRevision,
+  state: SerializedEditorState,
+  fields: DocumentFields,
+): DocumentChange {
+  const change: DocumentChange = { elements: JSON.stringify(state) };
+  if (fields.title !== undefined && fields.title !== revision.title)
+    change.title = fields.title;
+  if (fields.tags !== undefined && !sameTags(fields.tags, revision.tags))
+    change.tags = fields.tags;
+  if (
+    fields.lang !== undefined &&
+    fields.lang !== languageOf(revision.appState)
+  ) {
+    change.appState = JSON.stringify({
+      ...settingsOf(revision.appState),
+      lang: fields.lang,
+    });
+  }
+  return change;
+}
+
+/** A document nothing has been written into yet. */
+const isEmpty = (state: SerializedEditorState) =>
+  state.root.children.every(
+    (child) =>
+      child.type === "paragraph" &&
+      (!("children" in child) ||
+        (Array.isArray(child.children) && child.children.length === 0)),
+  );
 
 export class DocumentGoneError extends Error {
   constructor() {
@@ -38,6 +114,8 @@ export class DocumentGoneError extends Error {
 
 export type InsertResult = {
   id: string;
+  /** The title after the write, which front matter or a heading may set. */
+  title: string;
   updatedAt: Date;
   insertedBlocks: number;
   /** Where the first inserted block ended up among the root's children. */
@@ -48,6 +126,8 @@ export type InsertResult = {
 
 export type AppendResult = {
   id: string;
+  /** The title after the write, which front matter or a heading may set. */
+  title: string;
   updatedAt: Date;
   appendedBlocks: number;
   notes: string[];
@@ -55,6 +135,8 @@ export type AppendResult = {
 
 export type ReplaceResult = {
   id: string;
+  /** The title after the write, which front matter or a heading may set. */
+  title: string;
   updatedAt: Date;
   /** Top-level blocks the document now holds. */
   blocks: number;
@@ -82,7 +164,16 @@ export async function insertMarkdownIntoDocument(
 ): Promise<InsertResult> {
   let current = revision;
   let state = parseEditorState(current.elements);
-  const { state: parsed, notes } = interpretMarkdown(markdown);
+  const {
+    state: parsed,
+    notes,
+    fields,
+    header,
+  } = interpretDocumentMarkdown(markdown, {
+    ...writeTarget(current),
+    header: documentHeaderOf(state),
+    titleFromHeading: isEmpty(state),
+  });
   const blocks = parsed.root.children;
   if (
     ifUnmodifiedSince !== undefined &&
@@ -96,13 +187,21 @@ export async function insertMarkdownIntoDocument(
     // stale read. Only a call without a precondition retries today, and the
     // only placement such a call carries is the append's `end`.
     const blockIndex = resolveInsertIndex(state, placement);
-    const written = await store.write(
-      current.id,
-      JSON.stringify(insertBlocks(state, blockIndex, blocks)),
-      current.updatedAt,
+    const inserted = insertBlocks(state, blockIndex, blocks);
+    const change = documentChange(
+      current,
+      header ? withDocumentHeader(inserted, header) : inserted,
+      fields,
     );
+    const written = await store.write(current.id, change, current.updatedAt);
     if (written) {
-      return { ...written, insertedBlocks: blocks.length, blockIndex, notes };
+      return {
+        ...written,
+        title: change.title ?? current.title,
+        insertedBlocks: blocks.length,
+        blockIndex,
+        notes,
+      };
     }
     const reread = await store.read(current.id);
     if (!reread) {
@@ -138,17 +237,15 @@ export async function replaceMarkdownInDocument(
     throw new StaleDocumentError(revision.updatedAt, "Document");
   }
   const stored = parseEditorState(revision.elements);
-  const { state, restoredPlaceholders, removedPlaceholders, notes } =
-    replaceStateFromMarkdown(stored, markdown);
+  const { state, restoredPlaceholders, removedPlaceholders, notes, fields } =
+    replaceStateFromMarkdown(stored, markdown, writeTarget(revision));
 
-  const written = await store.write(
-    revision.id,
-    JSON.stringify(state),
-    revision.updatedAt,
-  );
+  const change = documentChange(revision, state, fields);
+  const written = await store.write(revision.id, change, revision.updatedAt);
   if (written) {
     return {
       ...written,
+      title: change.title ?? revision.title,
       blocks: state.root.children.length,
       restoredPlaceholders,
       removedPlaceholders,
@@ -169,7 +266,7 @@ export async function appendMarkdownToDocument(
   markdown: string,
   ifUnmodifiedSince?: string,
 ): Promise<AppendResult> {
-  const { id, updatedAt, insertedBlocks, notes } =
+  const { id, title, updatedAt, insertedBlocks, notes } =
     await insertMarkdownIntoDocument(
       store,
       revision,
@@ -177,5 +274,5 @@ export async function appendMarkdownToDocument(
       { kind: "end" },
       ifUnmodifiedSince,
     );
-  return { id, updatedAt, appendedBlocks: insertedBlocks, notes };
+  return { id, title, updatedAt, appendedBlocks: insertedBlocks, notes };
 }

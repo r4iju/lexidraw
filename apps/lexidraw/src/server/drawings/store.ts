@@ -42,7 +42,7 @@ export const findWritableDrawing = async (db: Db, id: string, userId: string) =>
  */
 export async function replaceDrawingElements(
   store: DocumentStore,
-  revision: DocumentRevision,
+  revision: Pick<DocumentRevision, "id" | "updatedAt">,
   elements: readonly CanonicalElement[],
   ifUnmodifiedSince: string,
 ): Promise<{ id: string; updatedAt: Date; elementCount: number }> {
@@ -52,7 +52,7 @@ export async function replaceDrawingElements(
 
   const written = await store.write(
     revision.id,
-    JSON.stringify(elements),
+    { elements: JSON.stringify(elements) },
     revision.updatedAt,
   );
   if (written) return { ...written, elementCount: elements.length };

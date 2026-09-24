@@ -173,10 +173,26 @@ describe("doc create", () => {
     expect(JSON.parse(out.stdout()).notes).toEqual([":::tip became a callout"]);
   });
 
-  it("needs a title", async () => {
+  it("needs a title or a body to take one from", async () => {
     const out = io();
     expect(await run(["doc", "create"], out.io)).toBe(2);
     expect(JSON.parse(out.stderr()).message).toContain("--title");
+  });
+
+  it("without --title, reports the title the body gave the document", async () => {
+    const out = io();
+    expect(
+      await run(
+        ["doc", "create", "--text", "# Kyoto in Autumn\n\nMaples."],
+        out.io,
+      ),
+    ).toBe(0);
+    const created = JSON.parse(out.stdout());
+    expect(created.title).toBe("Kyoto in Autumn");
+    expect(stub.rows.get(created.id)).toMatchObject({
+      title: "Kyoto in Autumn",
+      blocks: ["Maples."],
+    });
   });
 
   it("refuses a blank body before it calls anything", async () => {

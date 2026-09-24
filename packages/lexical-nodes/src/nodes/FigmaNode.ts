@@ -10,6 +10,7 @@ import type {
   Spread,
 } from "lexical";
 import { $create } from "lexical";
+import { $importNodeState, figureDOM } from "../figure.js";
 
 export type SerializedFigmaNode = Spread<
   {
@@ -32,7 +33,7 @@ export class FigmaNode extends DecoratorBlockNode {
   static importJSON(serializedNode: SerializedFigmaNode): FigmaNode {
     const node = FigmaNode.$createFigmaNode(serializedNode.documentID);
     node.setFormat(serializedNode.format);
-    return node;
+    return $importNodeState(node, serializedNode);
   }
 
   exportJSON(): SerializedFigmaNode {
@@ -49,7 +50,15 @@ export class FigmaNode extends DecoratorBlockNode {
     this.__id = id;
   }
 
-  updateDOM(): false {
+  createDOM(): HTMLElement {
+    const element = super.createDOM();
+    figureDOM(this, element);
+    return element;
+  }
+
+  // The base class declares no parameters, though Lexical passes them.
+  updateDOM(_prevNode?: FigmaNode, dom?: HTMLElement): false {
+    if (dom) figureDOM(this, dom);
     return false;
   }
 

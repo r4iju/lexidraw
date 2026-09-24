@@ -4,9 +4,18 @@ import {
   $convertToMarkdownString,
 } from "@lexical/markdown";
 import {
+  $gatherFootnotes,
   collectMarkdownNotes,
   CORE_NODES,
   CORE_TRANSFORMERS,
+  type DocumentHeader,
+  documentHeaderOf,
+  type FrontMatter,
+  frontMatterNote,
+  isUntitled,
+  readFrontMatter,
+  sameTitle,
+  writeFrontMatter,
 } from "@packages/lexical-nodes";
 import {
   $getRoot,
@@ -89,8 +98,16 @@ export function unsupportedNodeTypes(state: SerializedEditorState): string[] {
  * Converts a stored document to markdown with the headless editor. Throws
  * UnsupportedNodeTypesError when the document holds node types the nodes
  * package does not register yet, so the caller can name them.
+ *
+ * With a `title`, a leading `# title` is left out: the document shows its
+ * title once, above the content, and a write reads it back from there.
  */
-export function editorStateToMarkdown(state: SerializedEditorState): string {
+export function editorStateToMarkdown(
+  stored: SerializedEditorState,
+  { title }: { title?: string } = {},
+): string {
+  const state =
+    title === undefined ? stored : withoutTitleHeading(stored, title);
   const unsupported = unsupportedNodeTypes(state);
   if (unsupported.length > 0) {
     throw new UnsupportedNodeTypesError(unsupported);
@@ -131,16 +148,155 @@ export function interpretMarkdown(markdown: string): {
       throw error;
     },
   });
+  let unmatched: string[] = [];
   const { notes } = collectMarkdownNotes(() =>
     editor.update(
       () => {
         $convertFromMarkdownString(markdown, CORE_TRANSFORMERS);
+        unmatched = $gatherFootnotes();
       },
       { discrete: true },
     ),
   );
   const state = editor.getEditorState().toJSON();
-  return { state, notes: [...notes, ...layoutNotes(state)] };
+  return {
+    state,
+    notes: [
+      ...notes,
+      ...unmatched.map(
+        (label) =>
+          `The footnote marker [^${label}] has no note [^${label}]: below it`,
+      ),
+      ...layoutNotes(state),
+    ],
+  };
+}
+
+/** The entity fields a write may change, as the markdown sets them. */
+export type DocumentFields = {
+  title?: string;
+  tags?: string[];
+  /** A language tag, or null for the language detected from the text. */
+  lang?: string | null;
+};
+
+/** What a write lands on, so the markdown can be read against it. */
+export type WriteTarget = {
+  id?: string;
+  title: string;
+  tags?: string[];
+  lang?: string | null;
+  header?: DocumentHeader;
+  /**
+   * Whether a leading `# X` may be the document's title: on a replace, or on
+   * a write into an empty document, where it could not be anything else.
+   */
+  titleFromHeading: boolean;
+};
+
+export type InterpretedDocument = {
+  state: SerializedEditorState;
+  notes: string[];
+  /** Only what the markdown sets; a field it leaves out is left as it is. */
+  fields: DocumentFields;
+  /** The header front matter describes, or undefined without front matter. */
+  header?: DocumentHeader;
+};
+
+const sameTags = (a: string[], b: string[]) =>
+  a.length === b.length &&
+  [...a].sort().every((tag, index) => tag === [...b].sort()[index]);
+
+/** The part of `frontMatter` that differs from what `target` already has. */
+function changedFrontMatter(
+  frontMatter: FrontMatter,
+  target: WriteTarget,
+): FrontMatter {
+  const current = target.header ?? {};
+  const header = Object.fromEntries(
+    Object.entries(frontMatter.header).filter(
+      ([key, value]) =>
+        JSON.stringify(value) !==
+        JSON.stringify(current[key as keyof DocumentHeader]),
+    ),
+  );
+  return {
+    title:
+      frontMatter.title !== undefined && frontMatter.title !== target.title
+        ? frontMatter.title
+        : undefined,
+    tags:
+      frontMatter.tags &&
+      !(target.tags && sameTags(frontMatter.tags, target.tags))
+        ? frontMatter.tags
+        : undefined,
+    lang: frontMatter.lang !== (target.lang ?? null) ? frontMatter.lang : null,
+    header,
+  };
+}
+
+/**
+ * {@link interpretMarkdown} for a whole write: a leading YAML block sets the
+ * entity's fields and the header rather than becoming content, and a leading
+ * `# X` becomes the title where it can only be the title.
+ */
+export function interpretDocumentMarkdown(
+  markdown: string,
+  target: WriteTarget,
+): InterpretedDocument {
+  const read = readFrontMatter(markdown);
+  const { state, notes } = interpretMarkdown(read.body);
+  const { frontMatter } = read;
+  const fields: DocumentFields = {};
+  const leading: string[] = [...read.notes];
+  if (frontMatter) {
+    if (frontMatter.id && target.id && frontMatter.id !== target.id) {
+      leading.push(
+        `The front matter id "${frontMatter.id}" is another document's; this write went to ${target.id}`,
+      );
+    }
+    if (frontMatter.title !== undefined) fields.title = frontMatter.title;
+    if (frontMatter.tags !== undefined) fields.tags = frontMatter.tags;
+    fields.lang = frontMatter.lang;
+    const note = frontMatterNote(changedFrontMatter(frontMatter, target));
+    if (note) leading.push(note);
+  }
+  const title = fields.title ?? target.title;
+  const [first, ...rest] = state.root.children;
+  const heading = first && isTitleHeading(first) ? nodeText(first).trim() : "";
+  const named =
+    target.titleFromHeading &&
+    heading !== "" &&
+    (isUntitled(title) || sameTitle(heading, title));
+  if (named && isUntitled(title)) {
+    fields.title = heading;
+    leading.push(`The leading heading "${heading}" became the document title`);
+  }
+  return {
+    state: named
+      ? { ...state, root: { ...state.root, children: rest } }
+      : state,
+    notes: [...leading, ...notes],
+    fields,
+    header: frontMatter?.header,
+  };
+}
+
+const isTitleHeading = (node: SerializedLexicalNode) =>
+  node.type === "heading" && "tag" in node && node.tag === "h1";
+
+/**
+ * `state` without a leading `# title`. Documents written before the title
+ * showed above the content often start with one.
+ */
+export function withoutTitleHeading(
+  state: SerializedEditorState,
+  title: string,
+): SerializedEditorState {
+  const [first, ...rest] = state.root.children;
+  if (!first || !isTitleHeading(first) || !sameTitle(nodeText(first), title))
+    return state;
+  return { ...state, root: { ...state.root, children: rest } };
 }
 
 type Walked = SerializedLexicalNode & { children?: Walked[] };
@@ -479,25 +635,25 @@ export type DocumentFrontmatter = {
   path: string;
   updatedAt: Date;
   tags: string[];
+  /** The language the document settings chose, if any. */
+  lang?: string | null;
+  header?: DocumentHeader;
 };
-
-// JSON string literals are valid YAML double-quoted scalars, so titles with
-// colons, quotes, or hashes survive.
-const yaml = (value: string) => JSON.stringify(value);
 
 export function withFrontmatter(
   meta: DocumentFrontmatter,
   markdown: string,
 ): string {
-  const lines = [
-    "---",
-    `id: ${yaml(meta.id)}`,
-    `title: ${yaml(meta.title)}`,
-    `path: ${yaml(meta.path)}`,
-    `updatedAt: ${yaml(meta.updatedAt.toISOString())}`,
-    `tags: [${meta.tags.map(yaml).join(", ")}]`,
-    "---",
-    "",
-  ];
-  return `${lines.join("\n")}\n${markdown}`;
+  return `${writeFrontMatter({ ...meta, header: meta.header ?? {} })}\n${markdown}`;
+}
+
+/** A document as a read returns it: front matter, then the body. */
+export function documentMarkdown(
+  state: SerializedEditorState,
+  meta: DocumentFrontmatter,
+): string {
+  return withFrontmatter(
+    { ...meta, header: documentHeaderOf(state) },
+    editorStateToMarkdown(state, { title: meta.title }),
+  );
 }

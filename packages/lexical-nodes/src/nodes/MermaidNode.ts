@@ -7,6 +7,7 @@ import type {
   Spread,
 } from "lexical";
 import { $create, DecoratorNode } from "lexical";
+import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
 
 /** Stored in the editor state */
 export type SerializedMermaidNode = Spread<
@@ -85,11 +86,15 @@ export class MermaidNode extends DecoratorNode<unknown> {
       schema: this.__schema,
       width: this.__width,
       height: this.__height,
+      ...nodeStateJSON(super.exportJSON()),
     };
   }
 
   static importJSON(node: SerializedMermaidNode): MermaidNode {
-    return MermaidNode.$createMermaidNode(node.schema, node.width, node.height);
+    return $importNodeState(
+      MermaidNode.$createMermaidNode(node.schema, node.width, node.height),
+      node,
+    );
   }
 
   isInline(): false {
@@ -99,10 +104,12 @@ export class MermaidNode extends DecoratorNode<unknown> {
   createDOM(_config: EditorConfig): HTMLElement {
     const element = document.createElement("div");
     element.dataset.mediaType = "mermaid";
+    figureDOM(this, element);
     return element;
   }
 
-  updateDOM(): false {
+  updateDOM(_prevNode: MermaidNode, dom: HTMLElement): false {
+    figureDOM(this, dom);
     return false;
   }
 

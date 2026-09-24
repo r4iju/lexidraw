@@ -18,6 +18,7 @@ import {
   createEditor,
   DecoratorNode,
 } from "lexical";
+import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
 
 const defaultInitialCaptionState = JSON.stringify({
   root: {
@@ -162,7 +163,7 @@ export class VideoNode extends DecoratorNode<unknown> {
         );
       }
     }
-    return node;
+    return $importNodeState(node, serializedNode);
   }
 
   exportDOM(): DOMExportOutput {
@@ -228,6 +229,7 @@ export class VideoNode extends DecoratorNode<unknown> {
       width: this.__width === "inherit" ? 0 : this.__width,
       showCaption: this.__showCaption,
       captionsEnabled: this.__captionsEnabled,
+      ...nodeStateJSON(super.exportJSON()),
     };
   }
 
@@ -291,14 +293,12 @@ export class VideoNode extends DecoratorNode<unknown> {
     if (className !== undefined) {
       div.className = className;
     }
+    figureDOM(this, div);
     return div;
   }
 
-  updateDOM(
-    _prevNode: VideoNode,
-    _dom: HTMLElement,
-    _config: EditorConfig,
-  ): boolean {
+  updateDOM(_prevNode: VideoNode, dom: HTMLElement): boolean {
+    figureDOM(this, dom);
     return false;
   }
 }

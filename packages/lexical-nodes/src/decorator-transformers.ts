@@ -5,6 +5,12 @@ import type {
 } from "@lexical/markdown";
 import { $dfs } from "@lexical/utils";
 import { $createParagraphNode, $isTextNode, type LexicalNode } from "lexical";
+import {
+  $getFigure,
+  $setFigure,
+  type FigureWidth,
+  parseFigureWidth,
+} from "./figure.js";
 import { htmlToPlainText } from "./html-to-text.js";
 import { reportMarkdownNote } from "./markdown-notes.js";
 import { ArticleNode } from "./nodes/ArticleNode.js";
@@ -26,12 +32,55 @@ import { VideoNode } from "./nodes/VideoNode.js";
 import { YouTubeNode } from "./nodes/YouTubeNode.js";
 
 /**
- * `![alt](src)`, with an optional `"title"` after the source. The title has
- * nowhere to go yet, so it is reported rather than kept, and never read as
- * part of the source.
+ * `![alt](src "title"){attributes}`. An image alone in its paragraph is a
+ * figure, captioned by its title or else by its alt text, as Pandoc reads
+ * it; `{alt="…"}` then gives the alt text separately. The attributes also
+ * carry the figure width: `{.wide}`, `{.full}` or `{width=50%}`.
  */
 const IMAGE_PATTERN =
-  /!\[([^[\]]*)\]\(\s*(<[^>]*>|[^\s()]+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\s*\)/;
+  /!\[([^[\]]*)\]\(\s*(<[^>]*>|[^\s()]+)(?:\s+(?:"((?:[^"\\]|\\.)*)"|'([^']*)'))?\s*\)(?:\{([^{}\n]*)\})?/;
+
+const ATTRIBUTE = /\.([\w-]+)|([\w-]+)=(?:"((?:[^"\\]|\\.)*)"|(\S+))|(\S+)/g;
+
+const unescapeQuoted = (text: string) => text.replace(/\\(.)/g, "$1");
+const escapeQuoted = (text: string) => text.replace(/["\\]/g, "\\$&");
+
+type ImageAttributes = { alt?: string; width?: FigureWidth };
+
+function readImageAttributes(source: string, src: string): ImageAttributes {
+  const attributes: ImageAttributes = {};
+  const ignored: string[] = [];
+  for (const [token, className, key, quoted, bare] of source.matchAll(
+    ATTRIBUTE,
+  )) {
+    const value = quoted !== undefined ? unescapeQuoted(quoted) : bare;
+    const width = parseFigureWidth(className ?? (key === "width" && value));
+    if (width) attributes.width = width;
+    else if (key === "alt" && value !== undefined) attributes.alt = value;
+    else ignored.push(token);
+  }
+  if (ignored.length > 0) {
+    reportMarkdownNote(
+      `The image ${src} attribute${ignored.length === 1 ? "" : "s"} ${ignored.join(" ")} ${ignored.length === 1 ? "is" : "are"} not kept; an image takes alt, .wide, .full and width=N%`,
+    );
+  }
+  return attributes;
+}
+
+const $isAlone = (node: LexicalNode) =>
+  !node.getPreviousSibling() && !node.getNextSibling();
+
+function imageAttributesMarkdown({ alt, width }: ImageAttributes): string {
+  const parts = [
+    ...(alt !== undefined ? [`alt="${escapeQuoted(alt)}"`] : []),
+    ...(width === "wide" || width === "full"
+      ? [`.${width}`]
+      : width
+        ? [`width=${width}`]
+        : []),
+  ];
+  return parts.length > 0 ? `{${parts.join(" ")}}` : "";
+}
 
 export const IMAGE: TextMatchTransformer = {
   dependencies: [ImageNode],
@@ -39,25 +88,37 @@ export const IMAGE: TextMatchTransformer = {
     if (!ImageNode.$isImageNode(node)) {
       return null;
     }
-
-    return `![${node.getAltText()}](${node.getSrc()})`;
+    const alt = node.getAltText();
+    const caption = node.getCaptionText();
+    const { width } = $getFigure(node);
+    const alone = $isAlone(node);
+    // Alone, the bracketed text is the caption, so alt text that differs
+    // from it, or stands without one, needs an attribute of its own.
+    const figure = alone && caption === "";
+    const bracketed = figure ? "" : alt;
+    const title = caption && !(alone && caption === alt) ? caption : "";
+    return `![${bracketed}](${node.getSrc()}${title ? ` "${escapeQuoted(title)}"` : ""})${imageAttributesMarkdown(
+      { alt: figure && alt ? alt : undefined, width },
+    )}`;
   },
   importRegExp: IMAGE_PATTERN,
   regExp: new RegExp(`${IMAGE_PATTERN.source}$`),
   replace: (textNode, match) => {
-    const [, altText = "", rawSrc = "", doubleQuoted, singleQuoted] = match;
+    const [, bracketed = "", rawSrc = "", doubleQuoted, singleQuoted, attrs] =
+      match;
     const src = rawSrc.replace(/^<(.*)>$/, "$1");
-    const title = doubleQuoted ?? singleQuoted;
-    if (title) {
-      reportMarkdownNote(
-        `The title "${title}" of image ${src} is not kept; put a caption in the text next to it`,
-      );
-    }
+    const title =
+      doubleQuoted !== undefined ? unescapeQuoted(doubleQuoted) : singleQuoted;
+    const attributes = attrs ? readImageAttributes(attrs, src) : {};
+    const alone = $isAlone(textNode);
+    const caption = title || (alone ? bracketed : "");
     const imageNode = ImageNode.$createImageNode({
-      altText,
+      altText: attributes.alt ?? bracketed,
       maxWidth: 800,
       src,
     });
+    if (caption) imageNode.setCaptionText(caption);
+    if (attributes.width) $setFigure(imageNode, { width: attributes.width });
     textNode.replace(imageNode);
   },
   trigger: ")",

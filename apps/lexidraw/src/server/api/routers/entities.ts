@@ -23,6 +23,7 @@ import {
 } from "@packages/drizzle";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { v4 as uuidV4 } from "uuid";
+import { replaceOwnTags } from "~/server/entities/tags";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
 import env from "@packages/env";
 import { put } from "@vercel/blob";
@@ -335,7 +336,10 @@ export const entityRouter = createTRPCRouter({
         )
         .returning();
       if (!saved[0]) {
-        const current = await drizzleDocumentStore(ctx.drizzle).read(input.id);
+        const current = await drizzleDocumentStore(
+          ctx.drizzle,
+          ctx.session?.user.id ?? "",
+        ).read(input.id);
         if (!current) throw notFound();
         const stale = new StaleDocumentError(
           current.updatedAt,
@@ -874,100 +878,7 @@ export const entityRouter = createTRPCRouter({
       const entity = await findWritableEntity(ctx.drizzle, input.id, userId);
       if (!entity) throw notFound();
 
-      // Tags are per user: another user's associations with this entity are
-      // neither read nor touched here.
-      const ownAssociations = and(
-        eq(schema.entityTags.entityId, input.id),
-        eq(schema.entityTags.userId, userId),
-      );
-
-      if (input.tagNames.length === 0) {
-        await ctx.drizzle
-          .delete(schema.entityTags)
-          .where(ownAssociations)
-          .execute();
-        revalidateEntities(input.id, entity.parentId);
-        return { id: input.id, tags: [] };
-      }
-
-      await ctx.drizzle.transaction(async (tx) => {
-        // new tags
-        await tx
-          .insert(schema.tags)
-          .values(
-            input.tagNames.map((tagName) => ({
-              id: uuidV4(),
-              name: tagName,
-            })),
-          )
-          .onConflictDoNothing()
-          .execute();
-
-        // get all tags
-        const allTags = await tx
-          .select({ id: schema.tags.id, name: schema.tags.name })
-          .from(schema.tags)
-          .where(inArray(schema.tags.name, input.tagNames))
-          .execute();
-
-        const tagNameToId = new Map<string, string>();
-        for (const tag of allTags) {
-          tagNameToId.set(tag.name, tag.id);
-        }
-
-        const newTagIds = input.tagNames.map((tagName) => {
-          const tagId = tagNameToId.get(tagName);
-          if (!tagId) {
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: `Failed to find tag ID for tag name: ${tagName}`,
-            });
-          }
-          return tagId;
-        });
-
-        // get current associations
-        const currentAssociations = await tx
-          .select({ tagId: schema.entityTags.tagId })
-          .from(schema.entityTags)
-          .where(ownAssociations)
-          .execute();
-        const currentTagIds = new Set(
-          currentAssociations.map((assoc) => assoc.tagId),
-        );
-
-        // calculate differences
-        const tagsToAdd = newTagIds.filter(
-          (tagId) => !currentTagIds.has(tagId),
-        );
-        const tagsToRemove = [...currentTagIds].filter(
-          (tagId) => !newTagIds.includes(tagId),
-        );
-
-        if (tagsToRemove.length > 0) {
-          await tx
-            .delete(schema.entityTags)
-            .where(
-              and(
-                ownAssociations,
-                inArray(schema.entityTags.tagId, tagsToRemove),
-              ),
-            )
-            .execute();
-        }
-        if (tagsToAdd.length > 0) {
-          await tx
-            .insert(schema.entityTags)
-            .values(
-              tagsToAdd.map((tagId) => ({
-                entityId: input.id,
-                tagId,
-                userId,
-              })),
-            )
-            .execute();
-        }
-      });
+      await replaceOwnTags(ctx.drizzle, input.id, userId, input.tagNames);
 
       // The parent too: a directory listing shows each child's tags.
       revalidateEntities(input.id, entity.parentId);

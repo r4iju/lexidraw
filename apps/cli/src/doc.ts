@@ -157,10 +157,13 @@ async function get(context: Context, args: ParsedArgs): Promise<void> {
 
 async function create(context: Context, args: ParsedArgs): Promise<void> {
   rejectExtra(args, 0);
-  const title = one(args, "title");
-  if (title === undefined) throw usageError("doc create needs --title");
   const wanted =
     args.values.file !== undefined || args.values.text !== undefined;
+  // Without --title the server names the document from the body's front
+  // matter or leading `# X`, which it does for an untitled document.
+  const title = one(args, "title") ?? (wanted ? "Untitled" : undefined);
+  if (title === undefined)
+    throw usageError("doc create needs --title, or a body to take it from");
   const markdown = wanted ? await body(context, args) : null;
 
   const session = openSession(context);
@@ -187,11 +190,23 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
       body: { markdown, ifUnmodifiedSince: revisionOf(created) },
     }),
   );
-  const { updatedAt, notes } = written as {
+  const {
+    title: writtenTitle,
+    updatedAt,
+    notes,
+  } = written as {
+    title?: unknown;
     updatedAt?: unknown;
     notes?: unknown;
   };
-  context.io.stdout(json({ ...created, updatedAt, notes }));
+  context.io.stdout(
+    json({
+      ...created,
+      ...(typeof writtenTitle === "string" ? { title: writtenTitle } : {}),
+      updatedAt,
+      notes,
+    }),
+  );
 }
 
 async function append(context: Context, args: ParsedArgs): Promise<void> {

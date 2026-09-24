@@ -13,6 +13,7 @@ import type {
   Spread,
 } from "lexical";
 import { $create } from "lexical";
+import { $importNodeState, figureDOM } from "../figure.js";
 
 export type SerializedYouTubeNode = Spread<
   {
@@ -64,7 +65,7 @@ export class YouTubeNode extends DecoratorBlockNode {
       serializedNode.height,
     );
     node.setFormat(serializedNode.format);
-    return node;
+    return $importNodeState(node, serializedNode);
   }
 
   exportJSON(): SerializedYouTubeNode {
@@ -128,7 +129,15 @@ export class YouTubeNode extends DecoratorBlockNode {
     };
   }
 
-  updateDOM(): false {
+  createDOM(): HTMLElement {
+    const element = super.createDOM();
+    figureDOM(this, element);
+    return element;
+  }
+
+  // The base class declares no parameters, though Lexical passes them.
+  updateDOM(_prevNode?: YouTubeNode, dom?: HTMLElement): false {
+    if (dom) figureDOM(this, dom);
     return false;
   }
 
