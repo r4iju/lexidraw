@@ -1,4 +1,5 @@
 ---
+title: Kitchen sink
 subtitle: Every block the editor draws, in both scripts · すべてのブロック
 cover: data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMTAwIiBoZWlnaHQ9IjkwMCI+PHJlY3Qgd2lkdGg9IjIxMDAiIGhlaWdodD0iOTAwIiBmaWxsPSIjZTBmMmZlIi8+PGNpcmNsZSBjeD0iMTA1MCIgY3k9IjQ1MCIgcj0iMzAwIiBmaWxsPSIjMGVhNWU5Ii8+PC9zdmc+
 cover_alt: A pale blue cover
