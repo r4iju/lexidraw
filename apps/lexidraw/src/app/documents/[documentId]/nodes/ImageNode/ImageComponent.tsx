@@ -5,7 +5,6 @@ import type {
   NodeKey,
 } from "lexical";
 
-import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
@@ -40,7 +39,7 @@ import TreeViewPlugin from "../../plugins/TreeViewPlugin";
 import ImageResizer from "~/components/ui/image-resizer";
 import { ImageNode } from "./ImageNode";
 import { cn } from "~/lib/utils";
-import ImageCaption from "../common/ImageCaption";
+import ImageCaption, { useCaptionJustShown } from "../common/ImageCaption";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { UpdateImageDialog } from "./UpdateImageDialog";
@@ -134,6 +133,7 @@ export default function ImageComponent({
   caption,
   captionsEnabled,
 }: ImageComponentProps): React.JSX.Element {
+  const captionJustShown = useCaptionJustShown(showCaption);
   const imageRef = useRef<HTMLImageElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isSelected, setSelected, clearSelection] =
@@ -422,9 +422,9 @@ export default function ImageComponent({
             containerRef={nestedEditorContainerRef}
             caption={caption}
             placeholder="Enter a caption..."
+            autoFocus={captionJustShown}
             onHideCaption={handleHideCaption}
           >
-            <AutoFocusPlugin />
             <MentionsPlugin />
             <LinkPlugin />
             <EmojisPlugin />

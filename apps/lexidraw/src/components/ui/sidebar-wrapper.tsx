@@ -24,6 +24,8 @@ interface SidebarWrapperProps {
   maxWidth?: number;
   children: React.ReactNode;
   onWidthChange?: (width: number) => void;
+  /** Whether the reader may drag its edge; otherwise it keeps initialWidth. */
+  resizable?: boolean;
 }
 
 interface SidebarSizeContextType {
@@ -53,6 +55,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
       minWidth = 200,
       maxWidth = 800,
       onWidthChange,
+      resizable = true,
     },
     ref: ForwardedRef<HTMLElement>,
   ) => {
@@ -228,13 +231,14 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
           componentSidebarRef.current = node;
         }}
         style={{ width: `${width}px` }}
+        // Pinned under the page's toolbar while the page scrolls beside it.
         className={cn(
-          "sticky top-0 h-full flex flex-col border-l border-border bg-card touch-none",
+          "sticky top-(--page-toolbar-height,0px) h-[calc(var(--dynamic-viewport-height)-var(--page-toolbar-height,0px))] shrink-0 flex flex-col border-l border-border bg-card touch-none pb-[env(safe-area-inset-bottom)]",
           className,
         )}
       >
         {/* Resize Handle */}
-        {!isMobile && (
+        {resizable && !isMobile && (
           // biome-ignore lint/a11y/useSemanticElements: todo: fix semantic elements
           <div
             onMouseDown={handleMouseDown}

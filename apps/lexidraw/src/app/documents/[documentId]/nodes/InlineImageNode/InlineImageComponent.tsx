@@ -1,7 +1,6 @@
 import type { Position, UpdateInlineImagePayload } from "./InlineImageNode";
 import type { BaseSelection, LexicalEditor, NodeKey } from "lexical";
 
-import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
@@ -54,7 +53,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import ImageResizer from "~/components/ui/image-resizer";
 import { Switch } from "~/components/ui/switch";
 import { SwitchThumb } from "@radix-ui/react-switch";
-import ImageCaption from "../common/ImageCaption";
+import ImageCaption, { useCaptionJustShown } from "../common/ImageCaption";
 import KeywordsPlugin from "../../plugins/KeywordsPlugin";
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
 import EmojisPlugin from "../../plugins/EmojisPlugin";
@@ -293,6 +292,7 @@ export default function InlineImageComponent({
   position: Position;
   captionsEnabled: boolean;
 }): React.JSX.Element {
+  const captionJustShown = useCaptionJustShown(showCaption);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [currentDimensions, setCurrentDimensions] = useState({
@@ -554,9 +554,9 @@ export default function InlineImageComponent({
               containerRef={nestedEditorContainerRef}
               caption={caption}
               placeholder="Enter a caption..."
+              autoFocus={captionJustShown}
               onHideCaption={handleHideCaption}
             >
-              <AutoFocusPlugin />
               <MentionsPlugin />
               <LinkPlugin />
               <EmojisPlugin />

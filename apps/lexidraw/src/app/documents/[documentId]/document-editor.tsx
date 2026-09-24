@@ -151,6 +151,8 @@ import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 import ArticlePlugin from "./plugins/ArticlePlugin";
 import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
 
+const SIDEBAR_WIDTH = 360;
+
 type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
@@ -258,7 +260,7 @@ function EditorHandler({
     useState<HTMLDivElement | null>(null);
 
   const { activeSidebar, setActiveSidebar } = useSidebarManager();
-  const [currentSidebarWidth, setCurrentSidebarWidth] = useState(360);
+  const [currentSidebarWidth, setCurrentSidebarWidth] = useState(SIDEBAR_WIDTH);
   const sidebarRef = useRef<HTMLElement>(null);
 
   const { markDirty, markPristine, dirty } = useUnsavedChanges();
@@ -302,7 +304,7 @@ function EditorHandler({
     },
     [editor, insertMarkdown],
   );
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
 
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
     if (_floatingAnchorElem !== null) {
@@ -411,15 +413,33 @@ function EditorHandler({
 
   // Default viewport and caret to the top on initial open (unless deep-linked)
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.location.hash && scrollRef.current) {
-      scrollRef.current.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    if (!window.location.hash) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     }
     if (!editor.isEditable()) return;
     editor.update(() => {
       $getRoot().selectStart();
     });
   }, [editor]);
+
+  // External system: the page's scroll root. Scrolling to a heading or a
+  // hash, and pinning the sidebar, land under the sticky toolbar.
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => {
+      root.style.setProperty(
+        "--page-toolbar-height",
+        `${toolbar.getBoundingClientRect().height}px`,
+      );
+    });
+    observer.observe(toolbar);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--page-toolbar-height");
+    };
+  }, []);
 
   return (
     <FlashMessageContext>
@@ -439,10 +459,15 @@ function EditorHandler({
                       <SlidePlugin />
                       <EditabilityPlugin editable={canEdit && !reading} />
                       {!onScreen && <RenderReadyPlugin />}
-                      <div className="page-frame z-0 flex flex-col h-screen overflow-hidden">
+                      {/* The page itself scrolls: see globals.css. */}
+                      <div
+                        data-scroll-root="page"
+                        className="page-frame flex min-h-dvh flex-col overflow-x-clip pb-[env(safe-area-inset-bottom)]"
+                      >
                         {onScreen && (
                           <div
-                            className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
+                            ref={toolbarRef}
+                            className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card flex items-start gap-2 overflow-x-auto whitespace-nowrap pt-[max(--spacing(2),env(safe-area-inset-top))] pb-2 pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))] md:pl-[max(--spacing(8),env(safe-area-inset-left))] md:pr-[max(--spacing(8),env(safe-area-inset-right))] justify-center border-b border-border"
                             data-component-name="Toolbar"
                           >
                             <OptionsDropdown
@@ -486,12 +511,9 @@ function EditorHandler({
                         )}
 
                         {/* editor + sidebar container */}
-                        <div className="flex flex-1 overflow-hidden bg-desk">
+                        <div className="flex flex-1 items-start bg-background">
                           {/* editor */}
-                          <div
-                            ref={scrollRef}
-                            className="min-w-0 min-h-0 flex-1 flex flex-col w-full overflow-y-auto bg-background"
-                          >
+                          <div className="min-w-0 flex-1 self-stretch flex flex-col">
                             <DisableChecklistSpacebarPlugin />
                             <EmojiPickerPlugin />
                             <LayoutPlugin />
@@ -536,22 +558,34 @@ function EditorHandler({
                                   id="main-content"
                                   tabIndex={-1}
                                   ref={onRef}
-                                  className="relative document-viewport"
+                                  className="relative document-viewport outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                                 >
                                   <ContentEditable
                                     id={`lexical-content-${entity.id}`}
                                     aria-label="Document content"
+                                    aria-placeholder={PLACEHOLDER}
+                                    placeholder={(editable) =>
+                                      editable ? (
+                                        <div
+                                          className="document-placeholder"
+                                          style={{
+                                            fontFamily:
+                                              documentFont(defaultFontFamily)
+                                                .family,
+                                          }}
+                                        >
+                                          <div>{PLACEHOLDER}</div>
+                                        </div>
+                                      ) : null
+                                    }
                                     lang={detectedLanguage}
                                     style={{
                                       fontFamily:
                                         documentFont(defaultFontFamily).family,
                                     }}
-                                    className="document-content document-typography"
+                                    className="document-content document-typography outline-none"
                                   />
                                 </main>
-                              }
-                              placeholder={(editable) =>
-                                editable ? <Placeholder /> : null
                               }
                               ErrorBoundary={LexicalErrorBoundary}
                             />
@@ -586,16 +620,28 @@ function EditorHandler({
                             activeSidebar &&
                             (signedIn || activeSidebar !== "llm") && (
                               <SidebarWrapper
+                                key={activeSidebar}
                                 ref={sidebarRef}
                                 className="print:hidden"
                                 onClose={() => {
                                   setActiveSidebar(null);
                                 }}
                                 title={getSidebarTitle(activeSidebar)}
-                                initialWidth={currentSidebarWidth}
+                                // Reading tools keep one width; the chat's
+                                // width is the reader's to choose.
+                                resizable={activeSidebar === "llm"}
+                                initialWidth={
+                                  activeSidebar === "llm"
+                                    ? currentSidebarWidth
+                                    : SIDEBAR_WIDTH
+                                }
                                 minWidth={200}
                                 maxWidth={800}
-                                onWidthChange={setCurrentSidebarWidth}
+                                onWidthChange={
+                                  activeSidebar === "llm"
+                                    ? setCurrentSidebarWidth
+                                    : undefined
+                                }
                               >
                                 {activeSidebar === "llm" && <LlmChatPlugin />}
                                 {activeSidebar === "comments" && <CommentUI />}
@@ -621,13 +667,7 @@ function EditorHandler({
   );
 }
 
-function Placeholder() {
-  return (
-    <div className="absolute top-4 left-4 text-muted-foreground select-none pointer-events-none">
-      Enter some rich text...
-    </div>
-  );
-}
+const PLACEHOLDER = "Start writing…";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];

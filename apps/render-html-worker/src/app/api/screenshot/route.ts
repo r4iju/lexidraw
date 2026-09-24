@@ -403,18 +403,6 @@ export async function POST(req: NextRequest) {
             "[id^='lexical-content-']",
           );
           if (!article) throw new Error("Document content not found");
-          // The editor still scrolls in an inner container; expand its ancestors
-          // so the screenshot includes every block, not just the first screen.
-          for (
-            let el: HTMLElement | null = article;
-            el;
-            el = el.parentElement
-          ) {
-            el.style.height = "auto";
-            el.style.maxHeight = "none";
-            el.style.overflow = "visible";
-            el.style.flexShrink = "0";
-          }
           return Math.ceil(
             article.getBoundingClientRect().bottom + window.scrollY,
           );

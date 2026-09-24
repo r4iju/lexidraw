@@ -33,9 +33,8 @@ import {
   KEY_ESCAPE_COMMAND,
 } from "lexical";
 
-import ImageCaption from "../common/ImageCaption";
+import ImageCaption, { useCaptionJustShown } from "../common/ImageCaption";
 import VideoResizer from "~/components/ui/video-resizer";
-import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 
 const VIDEO_MAX_WIDTH = 560;
 
@@ -78,6 +77,7 @@ export default function VideoComponent({
   const [isHovered, setIsHovered] = useState(false);
 
   const currentShowCaption = initialShowCaption;
+  const captionJustShown = useCaptionJustShown(currentShowCaption);
 
   console.log(
     `[VideoComponent ${nodeKey}] isSelected: ${isSelected}, isResizing: ${isResizing}`,
@@ -309,9 +309,9 @@ export default function VideoComponent({
               containerRef={nestedEditorContainerRef}
               caption={caption}
               placeholder="Enter a caption..."
+              autoFocus={captionJustShown}
               onHideCaption={handleHideCaption}
             >
-              <AutoFocusPlugin />
               <MentionsPlugin />
               <LinkPlugin />
               <EmojisPlugin />

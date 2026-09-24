@@ -1,6 +1,6 @@
 "use cache: private";
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cacheTag } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
@@ -18,6 +18,12 @@ export const metadata: Metadata = {
     statusBarStyle: "black",
     title: "Lexidraw",
   },
+};
+
+// The page extends under the notch and home indicator; the frame pads
+// itself by the safe areas.
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 const Params = z.object({

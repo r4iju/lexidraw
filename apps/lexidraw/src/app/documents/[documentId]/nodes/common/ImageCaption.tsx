@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { $getRoot, type LexicalEditor } from "lexical";
+import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
@@ -13,9 +14,26 @@ interface ImageCaptionProps {
   caption: LexicalEditor;
   placeholder: string;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  /** Take the caret, for a caption the writer has just switched on. */
+  autoFocus: boolean;
   /** Editing aids for the caption, mounted only while the document is editable. */
   children: React.ReactNode;
   onHideCaption: () => void;
+}
+
+/**
+ * Whether the caption was switched on since the media mounted. One that was
+ * already on when the document opened must leave the caret alone, or opening
+ * the document would scroll to it.
+ */
+export function useCaptionJustShown(shown: boolean): boolean {
+  const [previous, setPrevious] = useState(shown);
+  const [justShown, setJustShown] = useState(false);
+  if (shown !== previous) {
+    setPrevious(shown);
+    setJustShown(shown);
+  }
+  return justShown;
 }
 
 function isBlank(caption: LexicalEditor): boolean {
@@ -28,6 +46,7 @@ export default function ImageCaption({
   caption,
   placeholder,
   containerRef,
+  autoFocus,
   children,
   onHideCaption,
 }: ImageCaptionProps) {
@@ -77,6 +96,7 @@ export default function ImageCaption({
       className="absolute bottom-0 left-0 w-full z-10 [&_a]:cursor-pointer"
     >
       <LexicalNestedComposer initialEditor={caption}>
+        {isEditable && autoFocus && <AutoFocusPlugin />}
         {isEditable && children}
         <RichTextPlugin
           contentEditable={

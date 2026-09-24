@@ -38,6 +38,7 @@
   --color-highlight: var(--highlight);
   --color-comment-mark: var(--comment-mark);
   --color-comment-border: var(--comment-border);
+  --color-comment-mark-active: var(--comment-mark-active);
   --color-scrim: var(--scrim);
   --color-switch-thumb: var(--switch-thumb);
   --color-success: var(--success);
@@ -186,6 +187,7 @@
   --highlight: oklch(0.95 0.12 95);
   --comment-mark: oklch(0.92 0.04 250 / 0.6);
   --comment-border: oklch(0.52 0.12 250);
+  --comment-mark-active: oklch(0.84 0.09 250 / 0.8);
   --scrim: oklch(0 0 0 / 0.4);
   --switch-thumb: oklch(1 0 0);
   --success: oklch(0.46 0.12 160);
@@ -240,6 +242,7 @@
     --highlight: oklch(0.42 0.09 95);
     --comment-mark: oklch(0.40 0.08 250 / 0.6);
     --comment-border: oklch(0.70 0.12 250);
+    --comment-mark-active: oklch(0.50 0.12 250 / 0.8);
     --switch-thumb: var(--foreground);
     --success: oklch(0.75 0.13 160);
     --warning: oklch(0.78 0.12 85);
@@ -308,6 +311,18 @@
 @utility state-on {
   background-color: var(--on);
   color: var(--primary);
+}
+
+/* The document page scrolls as a page, so floating UI, the table of contents
+   and the caret share the window as their scroll root, and iOS keeps the caret
+   above the keyboard. Other pages keep the fixed-height body. */
+body:has([data-scroll-root="page"]) {
+  height: auto;
+  min-height: var(--dynamic-viewport-height);
+  overflow-y: visible;
+}
+html:has([data-scroll-root="page"]) {
+  scroll-padding-top: calc(var(--page-toolbar-height, 0px) + 16px);
 }
 
 /* ensures iOS won't allow scrolling while dragging */
