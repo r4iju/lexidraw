@@ -63,6 +63,7 @@ const TagsInput = React.forwardRef<HTMLInputElement, TagsInputProps>(
               onClick={() => onChange(value.filter((t) => t !== tag))}
             >
               <XIcon className="h-3 w-3" />
+              <span className="sr-only">{`Remove tag ${tag}`}</span>
             </Button>
           </Badge>
         ))}

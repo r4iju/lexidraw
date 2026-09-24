@@ -120,6 +120,9 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost">
             <DotsHorizontalIcon className="size-5" />
+            <span className="sr-only">
+              {`More actions for ${entity.title}`}
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">

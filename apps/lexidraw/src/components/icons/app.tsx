@@ -3,8 +3,8 @@ import type { SVGProps } from "react";
 export function AppIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      {...props}
       aria-label="App icon"
+      {...props}
       xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"

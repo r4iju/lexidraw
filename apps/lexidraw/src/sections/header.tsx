@@ -37,6 +37,7 @@ async function HeaderContent() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
                   <UserIcon className="h-[1.2rem] w-[1.2rem]" />
+                  <span className="sr-only">Account menu</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -72,6 +73,7 @@ export default function Header() {
               <li>
                 <Button variant="outline" size="icon" disabled>
                   <UserIcon className="h-[1.2rem] w-[1.2rem]" />
+                  <span className="sr-only">Account menu</span>
                 </Button>
               </li>
               <li className="flex items-center">
