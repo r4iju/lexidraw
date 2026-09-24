@@ -29,6 +29,16 @@ describe("notFoundOr", () => {
     ).toBe(true);
   });
 
+  it("answers for the procedure's own error, not one it wrapped", () => {
+    const error = TRPCClientError.from(
+      new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        cause: new TRPCError({ code: "NOT_FOUND" }),
+      }),
+    );
+    expect(thrownBy(() => notFoundOr(error))).toBe(error);
+  });
+
   it("lets any other failure through unchanged", () => {
     for (const error of [
       failed("UNAUTHORIZED"),

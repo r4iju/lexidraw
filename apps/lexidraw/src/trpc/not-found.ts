@@ -11,9 +11,10 @@ export function notFoundOr(error: unknown): never {
   throw error;
 }
 
+/** The procedure's own code: the first `TRPCError` under the client's wrapper. */
 function isNotFound(error: unknown): boolean {
   for (let e = error; e instanceof Error; e = e.cause) {
-    if (e instanceof TRPCError && e.code === "NOT_FOUND") return true;
+    if (e instanceof TRPCError) return e.code === "NOT_FOUND";
   }
   return false;
 }

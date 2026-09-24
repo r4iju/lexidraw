@@ -63,12 +63,15 @@ export default async function DocumentPage(props: Props) {
     return redirect(`/documents/${documentId}`);
   }
 
-  const [document, iceServers, initialLlmConfig] = await Promise.all([
-    api.entities.load.query({ id: documentId }).catch(notFoundOr),
+  // First, so a missing document is a 404 even for a visitor the calls
+  // below refuse.
+  const document = await api.entities.load
+    .query({ id: documentId })
+    .catch(notFoundOr);
+  const [iceServers, initialLlmConfig] = await Promise.all([
     api.auth.iceServers.query(),
     api.config.getConfig.query(),
   ]);
-  if (!document) throw new Error("Document not found");
 
   try {
     return (
