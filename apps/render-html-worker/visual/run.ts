@@ -10,6 +10,7 @@ import { checkFrame } from "./check-frame";
 import { checkMedia } from "./check-media";
 import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
+import { checkEditorControls } from "./check-editor-controls";
 import { checkTokens } from "./check-tokens";
 import { checkTypography, checkDocumentSettings } from "./check-typography";
 
@@ -157,6 +158,7 @@ try {
     emptyId: empty.id,
     drawingId: drawing.id,
   });
+  await checkEditorControls(page, fixtureId, output);
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);

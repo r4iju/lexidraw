@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import type { Page } from "puppeteer";
+import type { HTTPRequest, Page } from "puppeteer";
 import { appUrl } from "./app-url";
 
 export async function signInToDev(page: Page) {
@@ -216,15 +216,42 @@ export async function checkDocumentSettings(page: Page, fixtureId: string) {
     }
     throw new Error(`Missing ${text}`);
   }
+  const FONT =
+    '[role="toolbar"][aria-label="Formatting"] button[aria-label="Font"]';
   async function choose(face: string, lang: string) {
-    await page
-      .locator('[aria-label="Formatting options for font family"]')
-      .click();
-    await clickText(`Document: ${face}`, '[role="menuitem"]');
+    await page.locator(FONT).click();
+    // By keyboard, and inside the submenu: the font list above has faces of
+    // the same names, and the pointer opens neighbours on its way.
+    await page.$$eval('[role="menuitem"]', (items) =>
+      (
+        items.find((item) => item.textContent?.trim() === "Document font") as
+          | HTMLElement
+          | undefined
+      )?.focus(),
+    );
+    await page.keyboard.press("ArrowRight");
+    const faces = await (
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('[role="menuitem"]')]
+          .find((item) => item.textContent?.trim() === "Document font")
+          ?.getAttribute("aria-controls"),
+      )
+    ).jsonValue();
+    await page.waitForSelector(`[id="${faces}"]`);
+    const label = face[0]?.toUpperCase() + face.slice(1);
+    await page.$$eval(
+      `[id="${faces}"] [role="menuitemradio"]`,
+      (items, label) =>
+        (
+          items.find((item) => item.textContent?.trim() === label) as
+            | HTMLElement
+            | undefined
+        )?.focus(),
+      label,
+    );
+    await page.keyboard.press("Enter");
     await page.waitForSelector('[role="menu"]', { hidden: true });
-    await page
-      .locator('[aria-label="Formatting options for font family"]')
-      .click();
+    await page.locator(FONT).click();
     await clickText("Document language…", '[role="menuitem"]');
     await page.select("#document-language", lang);
     await clickText("Apply", "button");
@@ -240,6 +267,21 @@ export async function checkDocumentSettings(page: Page, fixtureId: string) {
     await saved;
     await page.waitForSelector('[data-save-status="saved"]');
   }
+  // Code highlighting rewrites the fixture's code blocks on load, and the
+  // autosave that follows still carries the settings from before; let it land.
+  await new Promise<void>((settled) => {
+    const quiet = () => {
+      page.off("request", onRequest);
+      settled();
+    };
+    let timer = setTimeout(quiet, 1500);
+    const onRequest = (request: HTTPRequest) => {
+      if (!request.url().includes("entities.save")) return;
+      clearTimeout(timer);
+      timer = setTimeout(quiet, 1500);
+    };
+    page.on("request", onRequest);
+  });
   await choose("serif", "ja");
   const response = await page.goto(`${appUrl}/documents/${fixtureId}`, {
     waitUntil: "networkidle2",
