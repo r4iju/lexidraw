@@ -157,7 +157,8 @@ export async function checkTypography(page: Page, fixtureId: string) {
 
   const narrow = await page.$eval("#main-content", (main) => {
     main.style.width = "600px";
-    const heading = main.querySelector("h1");
+    // The content's own heading; the title above it has its own scale.
+    const heading = main.querySelector('[id^="lexical-content-"] h1');
     if (!heading) throw new Error("Missing heading");
     const size = getComputedStyle(heading).fontSize;
     main.style.removeProperty("width");

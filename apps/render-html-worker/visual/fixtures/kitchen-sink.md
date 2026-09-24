@@ -1,3 +1,16 @@
+---
+subtitle: Every block the editor draws, in both scripts · すべてのブロック
+cover: data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMTAwIiBoZWlnaHQ9IjkwMCI+PHJlY3Qgd2lkdGg9IjIxMDAiIGhlaWdodD0iOTAwIiBmaWxsPSIjZTBmMmZlIi8+PGNpcmNsZSBjeD0iMTA1MCIgY3k9IjQ1MCIgcj0iMzAwIiBmaWxsPSIjMGVhNWU5Ii8+PC9zdmc+
+cover_alt: A pale blue cover
+toc: true
+properties:
+  status: in review
+  owner: "@ada"
+  reviewed: 2026-09-01
+  source: https://lexical.dev/docs/intro
+  note: Checked with @ben on a phone
+---
+
 # Kitchen sink · 表示の見本
 
 English and 日本語 share a paragraph: **bold 太字**, *italic*, ~~deleted~~, ==highlight==, `inline code`, and [a link](https://lexical.dev). This sentence checks wrapping and a comfortable reading rhythm on phones, tablets and wide screens. 東京でおいしい料理を作りましょう。
@@ -5,6 +18,12 @@ English and 日本語 share a paragraph: **bold 太字**, *italic*, ~~deleted~~,
 A second paragraph shares the same block gap. Long prose remains a readable measure even when the page has room for wider media and tables. This paragraph is deliberately long enough to wrap onto several lines on a phone and to expose an overly wide reading column on desktop.
 
 *京都の秋、日本語の強調は傾けずに表示します。*
+
+A footnote marker sits in the accent colour[^accent] and a second follows it[^second].
+
+![A wide figure · 横長の図](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAwIiBoZWlnaHQ9IjUwMCI+PHJlY3Qgd2lkdGg9IjE2MDAiIGhlaWdodD0iNTAwIiBmaWxsPSIjZmVmM2M3Ii8+PGNpcmNsZSBjeD0iODAwIiBjeT0iMjUwIiByPSIxNjYiIGZpbGw9IiNmNTllMGIiLz48L3N2Zz4= "A wide figure with its caption below · 図の説明"){.wide}
+
+![Half the column · 半分](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MDAiIGhlaWdodD0iNDAwIj48cmVjdCB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iI2RjZmNlNyIvPjxjaXJjbGUgY3g9IjMwMCIgY3k9IjIwMCIgcj0iMTMzIiBmaWxsPSIjMTZhMzRhIi8+PC9zdmc+){width=50%}
 
 ## Heading two · 京都の秋をゆっくり歩くための見出し
 
@@ -127,3 +146,6 @@ The following blocks come from kitchen-sink.blocks.json until they have Markdown
 ![Missing landscape · 画像なし](http://localhost:3025/visual-missing-image.png)
 
 Latin *italic title* and **bold *italic title*** stay distinct in Japanese documents.
+
+[^accent]: The note, with a way back to its marker · 脚注の本文。
+[^second]: A second note keeps its number in print.

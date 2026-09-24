@@ -59,9 +59,7 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": [
-          "fixture-thread"
-        ]
+        "ids": ["fixture-thread"]
       }
     ],
     "direction": null,
@@ -191,7 +189,13 @@
     "version": 1,
     "schema": "flowchart LR\n A[Start 開始] --> B[Done 完了]",
     "width": "inherit",
-    "height": "inherit"
+    "height": "inherit",
+    "$": {
+      "figure": {
+        "width": "wide",
+        "caption": "A diagram with a caption · 図の説明"
+      }
+    }
   },
   {
     "type": "chart",
@@ -248,17 +252,12 @@
       {
         "text": "Rice · ご飯",
         "uid": "rice",
-        "votes": [
-          "one",
-          "two"
-        ]
+        "votes": ["one", "two"]
       },
       {
         "text": "Soup · スープ",
         "uid": "soup",
-        "votes": [
-          "three"
-        ]
+        "votes": ["three"]
       }
     ]
   },
@@ -267,7 +266,12 @@
     "version": 1,
     "data": "{\"elements\": [{\"id\": \"box\", \"type\": \"rectangle\", \"x\": 0, \"y\": 0, \"width\": 160, \"height\": 70, \"angle\": 0, \"strokeColor\": \"#1e1e1e\", \"backgroundColor\": \"#a5d8ff\", \"fillStyle\": \"solid\", \"strokeWidth\": 2, \"strokeStyle\": \"solid\", \"roughness\": 0, \"opacity\": 100, \"groupIds\": [], \"frameId\": null, \"roundness\": null, \"seed\": 1, \"version\": 1, \"versionNonce\": 1, \"isDeleted\": false, \"boundElements\": null, \"updated\": 1, \"link\": null, \"locked\": false}], \"appState\": {}, \"files\": {}}",
     "width": "inherit",
-    "height": "inherit"
+    "height": "inherit",
+    "$": {
+      "figure": {
+        "width": "75%"
+      }
+    }
   },
   {
     "type": "slide-deck",
@@ -391,9 +395,7 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": [
-          "fixture-thread"
-        ]
+        "ids": ["fixture-thread"]
       }
     ],
     "direction": null,
