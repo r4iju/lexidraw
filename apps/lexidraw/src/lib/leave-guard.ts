@@ -18,25 +18,51 @@ export type LeaveGuard = {
   ask(): Promise<boolean>;
 };
 
-let guard: LeaveGuard | null = null;
+/** The page's guard, and whether a question of its is up. */
+type Registered = {
+  guard: LeaveGuard;
+  asking: boolean;
+  /** Answers "stay" once the page is gone, to a question it left open. */
+  gone: Promise<false>;
+};
+
+let registered: Registered | null = null;
 
 /** Registers the page's guard; answers its removal. */
-export function setLeaveGuard(next: LeaveGuard): () => void {
-  guard = next;
-  return () => {
-    if (guard === next) guard = null;
+export function setLeaveGuard(guard: LeaveGuard): () => void {
+  let leave = () => {};
+  const entry: Registered = {
+    guard,
+    asking: false,
+    gone: new Promise((resolve) => {
+      leave = () => resolve(false);
+    }),
   };
+  registered = entry;
+  return () => {
+    if (registered === entry) registered = null;
+    leave();
+  };
+}
+
+/** Asks `entry`'s guard; a page that goes away first answers "stay". */
+function askOf(entry: Registered): Promise<boolean> {
+  return Promise.race([entry.guard.ask(), entry.gone]);
 }
 
 /** Runs `navigate` once leaving is settled, for navigations the app starts. */
 export function leaveThen(navigate: () => void): void {
-  if (!guard?.mustAsk()) {
+  const entry = registered;
+  if (!entry?.guard.mustAsk()) {
     navigate();
     return;
   }
-  void guard.ask().then((go) => {
-    if (go) navigate();
-  });
+  void askOf(entry).then(
+    (go) => {
+      if (go) navigate();
+    },
+    () => {},
+  );
 }
 
 /**
@@ -47,21 +73,18 @@ export function installLeaveGuard(
   win: Window,
   push: (href: string) => void,
 ): () => void {
-  /** A question is up; another way out meanwhile is held, not asked again. */
-  let asking = false;
   /** Traversals this guard started, which pass or stop without asking. */
   let restoring = false;
   let leaving = false;
   /** Where the traversal a popstate reports started, where the browser says. */
-  let traversedFrom: number | null = null;
+  let traversedFrom: { index?: number; url?: string } | null = null;
 
   const onEntryChange = (event: Event) => {
     const { navigationType, from } = event as Event & {
       navigationType?: string;
-      from?: { index: number };
+      from?: { index?: number; url?: string };
     };
-    traversedFrom =
-      navigationType === "traverse" ? (from?.index ?? null) : null;
+    traversedFrom = navigationType === "traverse" ? (from ?? null) : null;
   };
 
   const onPopState = (event: PopStateEvent) => {
@@ -75,36 +98,37 @@ export function installLeaveGuard(
       event.stopImmediatePropagation();
       return;
     }
-    if (!asking && !guard?.mustAsk()) return;
+    const entry = registered;
+    if (!entry || withinPage(traversedFrom?.url, win)) return;
+    if (!entry.asking && !entry.guard.mustAsk()) return;
     event.stopImmediatePropagation();
-    const delta = traversalDelta(win, traversedFrom);
+    const delta = traversalDelta(win, traversedFrom?.index);
     restoring = true;
     win.history.go(-delta);
-    if (asking || !guard) return;
-    asking = true;
-    void guard.ask().then(
-      (go) => {
-        asking = false;
-        if (!go) return;
-        leaving = true;
-        win.history.go(delta);
-      },
-      () => {
-        asking = false;
-      },
-    );
+    // Another way out while the question is up is held, not asked again.
+    if (entry.asking) return;
+    entry.asking = true;
+    const done = () => {
+      entry.asking = false;
+    };
+    void askOf(entry).then((go) => {
+      done();
+      if (!go || registered !== entry) return;
+      leaving = true;
+      win.history.go(delta);
+    }, done);
   };
 
   const onClick = (event: MouseEvent) => {
     const href = inAppLink(event, win);
-    if (href === null || !guard?.mustAsk()) return;
+    if (href === null || !registered?.guard.mustAsk()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     leaveThen(() => push(href));
   };
 
   const onBeforeUnload = (event: BeforeUnloadEvent) => {
-    if (!guard?.mustAsk()) return;
+    if (!registered?.guard.mustAsk()) return;
     event.preventDefault();
     // Browsers that predate preventDefault here ask on a returnValue.
     event.returnValue = "";
@@ -134,12 +158,24 @@ function navigationOf(win: Window): EventTarget | null {
  * Without the Navigation API to say, it was a back: forward needs an entry
  * past this page, which leaving it already asked about.
  */
-function traversalDelta(win: Window, from: number | null): number {
+function traversalDelta(win: Window, from: number | undefined): number {
   const current = (
     win as { navigation?: { currentEntry?: { index: number } | null } }
   ).navigation?.currentEntry;
-  if (from === null || !current || current.index === from) return -1;
+  if (from === undefined || !current || current.index === from) return -1;
   return current.index - from;
+}
+
+/**
+ * A traversal from `from` stays on this page, as back from a jump to a
+ * heading does. Without the Navigation API to say where it came from, it is
+ * taken to leave.
+ */
+function withinPage(from: string | undefined, win: Window): boolean {
+  if (from === undefined) return false;
+  const before = new URL(from);
+  const now = new URL(win.location.href);
+  return before.pathname === now.pathname && before.search === now.search;
 }
 
 /**
@@ -165,6 +201,8 @@ function inAppLink(event: MouseEvent, win: Window): string | null {
     return null;
   if (link.closest("[contenteditable='true'], [contenteditable='']"))
     return null;
+  // Menus close before they navigate, and ask through `leaveThen` then.
+  if (link.closest("[data-asks-before-leaving]")) return null;
   const url = new URL(link.href, win.location.href);
   const here = new URL(win.location.href);
   if (url.origin !== here.origin) return null;

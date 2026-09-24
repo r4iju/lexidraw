@@ -44,7 +44,7 @@ import { theme } from "./themes/theme";
 import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
 import type { EditorState, Klass, LexicalNode } from "lexical";
-import { $getRoot } from "lexical";
+import { $getRoot, COLLABORATION_TAG } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
@@ -290,7 +290,6 @@ function EditorHandler({
       entity.publicAccess !== PublicAccess.PRIVATE);
   const userId = useUserIdOrGuestId();
   const [isCollaborating, setIsCollaborating] = useState(false);
-  const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const [editor] = useLexicalComposerContext();
   const { insertMarkdown } = useMarkdownTools();
 
@@ -388,8 +387,13 @@ function EditorHandler({
     }
   }, [autoSaveEnabled, handleSilentSave, holdsSaves, markDirty, markPristine]);
 
-  const onChange = (editorState: EditorState) => {
-    if (isRemoteUpdate) return;
+  const onChange = (
+    editorState: EditorState,
+    _editor: unknown,
+    tags: Set<string>,
+  ) => {
+    // A collaborator's state: theirs to send and to save.
+    if (tags.has(COLLABORATION_TAG)) return;
     const parsedState = JSON.stringify(editorState);
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
@@ -409,11 +413,9 @@ function EditorHandler({
   const applyUpdate = useCallback(
     (message: MessageStructure) => {
       if (message.entityType === "document") {
-        setIsRemoteUpdate(true);
         const editorState = editor.parseEditorState(message.payload.elements);
         setEditorStateRef(editorState);
-        editor.setEditorState(editorState);
-        setIsRemoteUpdate(false);
+        editor.setEditorState(editorState, { tag: COLLABORATION_TAG });
       }
     },
     [editor, setEditorStateRef],
@@ -439,6 +441,11 @@ function EditorHandler({
         });
     }
   }, [canCollaborate, initializeConnection, isCollaborating]);
+
+  // External system: the open document's sync, which lets peers' saves pass.
+  useEffect(() => {
+    openDocument.sync.setPeersConnected(isCollaborating);
+  }, [openDocument, isCollaborating]);
 
   useEffect(() => {
     if (defaultFontFamily) {

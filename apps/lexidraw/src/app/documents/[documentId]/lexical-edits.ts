@@ -7,6 +7,7 @@ import {
 import {
   $getNodeByKey,
   CLEAR_HISTORY_COMMAND,
+  COLLABORATION_TAG,
   type EditorState,
   HISTORY_MERGE_TAG,
   type LexicalEditor,
@@ -29,6 +30,9 @@ const CAPTIONED = [ImageNode, InlineImageNode, StickyNode, VideoNode];
  * save of it sends exactly its serialization. That is worked out only when
  * asked, not on every keystroke.
  *
+ * A collaborator's state arrives whole, tagged as collaboration, and replaces
+ * what the user made rather than adding to it.
+ *
  * Captions and sticky notes are editors of their own, nested in a node, and
  * the document serializes them with it; so an edit in one is an edit to the
  * whole document.
@@ -48,6 +52,8 @@ export function trackLexicalEdits(
   const stop = watch(root, (editor, update) => {
     if (editor === root) userState = update.editorState;
     serialized = null;
+    // A collaborator's state, applied live, is theirs, not this user's edit.
+    if (update.tags.has(COLLABORATION_TAG)) baseline = current();
   });
 
   return {

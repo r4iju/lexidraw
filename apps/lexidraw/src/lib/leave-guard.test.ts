@@ -22,9 +22,32 @@ function app() {
       <a id="tab" href="/dashboard" target="_blank">tab</a>
       <a id="out" href="https://elsewhere.test/">out</a>
       <div contenteditable="true"><a id="text" href="/dashboard">text</a></div>
+      <div data-asks-before-leaving><a id="menu" href="/dashboard">menu</a></div>
     </body>`,
     { url: "https://app.test/dashboard" },
   );
+  // The Navigation API, as far as the guard reads it: where a traversal came
+  // from, reported before its popstate.
+  const navigation = new window.EventTarget();
+  Object.assign(window, { navigation });
+  let shown = window.location.href;
+  window.addEventListener(
+    "popstate",
+    () => {
+      navigation.dispatchEvent(
+        Object.assign(new window.Event("currententrychange"), {
+          navigationType: "traverse",
+          from: { url: shown },
+        }),
+      );
+    },
+    { capture: true },
+  );
+  const pushState = window.history.pushState.bind(window.history);
+  window.history.pushState = (...args) => {
+    pushState(...args);
+    shown = window.location.href;
+  };
   const pushed: string[] = [];
   cleanups.push(
     installLeaveGuard(window as unknown as Window, (href) => pushed.push(href)),
@@ -40,6 +63,9 @@ function app() {
     clicked.push((event.target as Element).id),
   );
   window.history.pushState({}, "", "/documents/1");
+  window.addEventListener("popstate", () => {
+    shown = window.location.href;
+  });
 
   const click = (id: string, init: MouseEventInit = {}) => {
     const event = new window.MouseEvent("click", {
@@ -56,18 +82,17 @@ function app() {
 
 /** A guard with something to lose, whose question the test answers. */
 function asking() {
-  const state = { asked: 0, answer: (_go: boolean) => {} };
-  cleanups.push(
-    setLeaveGuard({
-      mustAsk: () => true,
-      ask: () => {
-        state.asked++;
-        return new Promise((resolve) => {
-          state.answer = resolve;
-        });
-      },
-    }),
-  );
+  const state = { asked: 0, answer: (_go: boolean) => {}, remove: () => {} };
+  state.remove = setLeaveGuard({
+    mustAsk: () => true,
+    ask: () => {
+      state.asked++;
+      return new Promise((resolve) => {
+        state.answer = resolve;
+      });
+    },
+  });
+  cleanups.push(state.remove);
   return state;
 }
 
@@ -115,8 +140,10 @@ describe("leaving a page that has something to lose", () => {
     click("out");
     click("in", { metaKey: true });
     click("text");
+    // A menu closes itself first, then asks through leaveThen.
+    click("menu");
     expect(question.asked).toBe(0);
-    expect(clicked).toEqual(["tab", "out", "in", "text"]);
+    expect(clicked).toEqual(["tab", "out", "in", "text", "menu"]);
     expect(pushed).toEqual([]);
   });
 
@@ -146,5 +173,36 @@ describe("leaving a page that has something to lose", () => {
     await settled();
     expect(clicked).toEqual(["in"]);
     expect(routed).toEqual(["/dashboard"]);
+  });
+
+  test("back from a jump within the page is not asked about", async () => {
+    const { window, routed } = app();
+    const question = asking();
+
+    window.history.pushState({}, "", "/documents/1#part-two");
+    window.history.back();
+    await settled();
+    expect(question.asked).toBe(0);
+    expect(routed).toEqual(["/documents/1"]);
+  });
+
+  test("a question its page went away without answering holds nothing back", async () => {
+    const { window, routed } = app();
+    const left = asking();
+    window.history.back();
+    await settled();
+    expect(left.asked).toBe(1);
+
+    // The page went away another way, as by a link, with the question open.
+    left.remove();
+    const next = asking();
+    window.history.back();
+    await settled();
+    expect(next.asked).toBe(1);
+
+    left.answer(true);
+    await settled();
+    expect(routed).toEqual([]);
+    expect(window.location.pathname).toBe("/documents/1");
   });
 });

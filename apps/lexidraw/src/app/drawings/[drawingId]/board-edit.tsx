@@ -334,6 +334,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     }
   }, [isCollaborating, canCollaborate, initializeConnection]);
 
+  // External system: the open drawing's sync, which lets peers' saves pass.
+  useEffect(() => {
+    openDrawing.sync.setPeersConnected(isCollaborating);
+  }, [openDrawing, isCollaborating]);
+
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <Excalidraw

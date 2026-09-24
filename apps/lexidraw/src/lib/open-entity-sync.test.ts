@@ -23,6 +23,8 @@ function server(initial: StoredRevision) {
     saves: [] as { elements: string; over: string | undefined }[],
     /** Answers to saves wait here while set, until the test lets one go. */
     held: null as null | (() => void)[],
+    /** Saves are stored, and their answers lost on the way back. */
+    lose: false,
   };
   const labelOf = (at: Date) =>
     `r${(at.getTime() - rev(0, "").updatedAt.getTime()) / 1000}`;
@@ -45,6 +47,7 @@ function server(initial: StoredRevision) {
               }
             : null;
         if (written) state.current = written;
+        if (state.lose) throw new Error("connection reset");
         // Stored, with the answer still on the wire.
         if (state.held) {
           const queue = state.held;
@@ -115,7 +118,11 @@ function clock() {
   };
 }
 
-function setup(held: StoredRevision, ed: ReturnType<typeof editor>) {
+function setup(
+  held: StoredRevision,
+  ed: ReturnType<typeof editor>,
+  saveTimeoutMs?: number,
+) {
   const srv = server(held);
   const time = clock();
   const notices: SyncNotice["kind"][] = [];
@@ -124,6 +131,7 @@ function setup(held: StoredRevision, ed: ReturnType<typeof editor>) {
     srv.source,
     (n) => notices.push(n.kind),
     { now: time.now },
+    saveTimeoutMs,
   );
   sync.attach(ed.port);
   return { srv, notices, sync, time };
@@ -429,5 +437,95 @@ describe("the editor's saves", () => {
       { elements: "mine", over: "r2" },
     ]);
     expect(notices).toEqual([]);
+  });
+
+  test("a save refused after its editor went away is dropped, not sent again", async () => {
+    const ed = editor("v1", true);
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+
+    // A write lands elsewhere, and the user leaves while the refusal of
+    // their save is on its way back.
+    srv.state.held = [];
+    srv.state.current = rev(5, "v2 from the API");
+    const saving = sync.save({ elements: "mine" });
+    await flush();
+    sync.attach(null);
+    srv.release();
+    await flush();
+    srv.release();
+    await flush();
+    expect(srv.state.saves).toHaveLength(1);
+    expect(await saving).toBe("dropped");
+  });
+
+  test("an editor that goes away answers every save still waiting", async () => {
+    const ed = editor("v1", true);
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+
+    srv.state.current = rev(2, "v2");
+    const refused = sync.save({ elements: "mine" });
+    await flush();
+    const typedOn = sync.save({ elements: "mine, and more" });
+    sync.dispose();
+    expect(await Promise.all([refused, typedOn])).toEqual([
+      "dropped",
+      "dropped",
+    ]);
+    expect(srv.state.saves).toHaveLength(1);
+  });
+
+  test("a save whose answer is lost is known again by its content, not asked about", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync } = setup(rev(1, "v1"), ed);
+
+    srv.state.lose = true;
+    await expect(sync.save({ elements: "a" })).rejects.toThrow();
+    srv.state.lose = false;
+    // Stored after all; the next save is refused over it, and is ours.
+    expect(await sync.save({ elements: "ab" })).toBe("saved");
+    expect(notices).toEqual([]);
+    expect(srv.state.saves).toEqual([
+      { elements: "a", over: "r1" },
+      { elements: "ab", over: "r1" },
+      { elements: "ab", over: "r2" },
+    ]);
+  });
+
+  test("a save that gets no answer gives up, and the saves after it go out", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync } = setup(rev(1, "v1"), ed, 20);
+
+    srv.state.held = [];
+    const outcome = (saving: Promise<unknown>) =>
+      saving.then(
+        () => "answered",
+        () => "gave up",
+      );
+    const hung = outcome(sync.save({ elements: "a" }));
+    const next = outcome(sync.save({ elements: "ab" }));
+    expect(await hung).toBe("gave up");
+    expect(await next).toBe("gave up");
+    srv.state.held = null;
+    expect(await sync.save({ elements: "abc" })).toBe("saved");
+    expect(srv.state.current?.elements).toBe("abc");
+    expect(notices).toEqual([]);
+  });
+
+  test("while collaborators are connected, their saves are not a question", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync } = setup(rev(1, "v1"), ed);
+    sync.setPeersConnected(true);
+
+    // A peer saved what both editors show live; this user typed on.
+    srv.state.current = rev(2, "v1, and theirs");
+    await sync.check();
+    expect(await sync.save({ elements: "v1, and theirs, and mine" })).toBe(
+      "saved",
+    );
+    srv.state.current = rev(7, "v1, and theirs, and more of theirs");
+    expect(await sync.save({ elements: "all of it" })).toBe("saved");
+    expect(notices).toEqual([]);
+    expect(ed.state.replaced).toEqual([]);
+    expect(srv.state.current?.elements).toBe("all of it");
   });
 });

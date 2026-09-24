@@ -70,6 +70,7 @@ export function useOpenEntity(
       // Dismissing a question keeps the user's edits; an editor going away
       // must not save them for it.
       open.resumers.clear();
+      open.sync.dispose();
       const ids = syncToastIds(entity.id);
       toast.dismiss(ids.conflict);
       toast.dismiss(ids.gone);
@@ -170,15 +171,18 @@ function createSync(
         );
         return { updatedAt: stored.updatedAt, elements: stored.elements };
       },
-      save: async ({ elements, appState }, ifUnmodifiedSince) => {
+      save: async ({ elements, appState }, ifUnmodifiedSince, signal) => {
         try {
-          const saved = await utils.client.entities.save.mutate({
-            id: entity.id,
-            entityType: noun,
-            elements,
-            appState,
-            ifUnmodifiedSince: ifUnmodifiedSince.toISOString(),
-          });
+          const saved = await utils.client.entities.save.mutate(
+            {
+              id: entity.id,
+              entityType: noun,
+              elements,
+              appState,
+              ifUnmodifiedSince: ifUnmodifiedSince.toISOString(),
+            },
+            { signal },
+          );
           return saved.updatedAt;
         } catch (error) {
           if (hasCode(error, "CONFLICT")) return null;
