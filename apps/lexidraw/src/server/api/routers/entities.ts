@@ -11,6 +11,7 @@ import {
   and,
   desc,
   eq,
+  exists,
   isNull,
   ne,
   or,
@@ -825,7 +826,7 @@ export const entityRouter = createTRPCRouter({
         method: "GET",
         path: "/tags",
         tags: ["entities"],
-        summary: "List the tags the caller has on entities outside the trash",
+        summary: "List the tags the caller has on entities they can still see",
         protect: true,
       },
     })
@@ -842,10 +843,26 @@ export const entityRouter = createTRPCRouter({
         .where(
           and(
             eq(schema.entityTags.userId, ctx.session.user.id),
-            // A trashed entity keeps its tag rows so a restore brings them
-            // back. Archived entities still count: `list` reaches them with
-            // `includeArchived`, so their tags have to stay filterable.
+            // A tag is listed only if filtering by it finds something, so the
+            // entity has to be one `list` would show. A trashed entity keeps
+            // its tag rows so a restore brings them back, and an unshare
+            // leaves the former sharer's; archived entities still count, as
+            // `list` reaches them with `includeArchived`.
             isNull(schema.entities.deletedAt),
+            or(
+              eq(schema.entities.userId, ctx.session.user.id),
+              exists(
+                ctx.drizzle
+                  .select({ id: schema.sharedEntities.id })
+                  .from(schema.sharedEntities)
+                  .where(
+                    and(
+                      eq(schema.sharedEntities.entityId, schema.entities.id),
+                      eq(schema.sharedEntities.userId, ctx.session.user.id),
+                    ),
+                  ),
+              ),
+            ),
           ),
         )
         .orderBy(schema.tags.name)

@@ -338,6 +338,34 @@ describe("the tag list", () => {
       .where(eq(schema.entities.id, "rest_doc_trashed_tag"));
     expect(await tags()).toContain("rest-only-in-trash");
   });
+
+  test("leaves out a tag on an entity the caller can no longer reach", async () => {
+    // What an unshare leaves behind: the friend's tag on an entity they no
+    // longer see, which a tag filter would answer with nothing.
+    const friendToken = "lxd_rest_friend_read";
+    await db.insert(schema.apiTokens).values({
+      id: "tok_rest_friend_read",
+      userId: "rest_friend",
+      name: "read",
+      tokenHash: hashApiToken(friendToken),
+      scope: "read",
+    });
+    await db
+      .insert(schema.tags)
+      .values({ id: "tag_rest_unreachable", name: "rest-unreachable" });
+    await db.insert(schema.entityTags).values({
+      entityId: "rest_draw",
+      tagId: "tag_rest_unreachable",
+      userId: "rest_friend",
+    });
+    const response = await GET(
+      new Request("http://lexidraw.test/api/v1/tags", {
+        headers: { authorization: `Bearer ${friendToken}` },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).not.toContain("rest-unreachable");
+  });
 });
 
 describe("a drawing", () => {
