@@ -26,7 +26,9 @@
  *
  * While collaborators are connected, their edits reach the editor live and
  * each of them saves the same document: a save of theirs moves the revision
- * without being a question, and the next save goes out over it.
+ * without being a question, and the next save goes out over it. An editor
+ * with no edits of its own still shows what it stores, in case an edit of
+ * theirs never reached it live.
  *
  * An entity that goes away (deleted, or no longer shared) is said so once, and
  * asked about again only when the user comes back to the tab or after a while.
@@ -232,13 +234,6 @@ export class OpenEntitySync {
       this.settle();
       return;
     }
-    if (this.peersConnected) {
-      // The editor shows what they saved and maybe more, live; whatever is
-      // queued goes out over it.
-      this.held = stored;
-      this.settle();
-      return;
-    }
     if (!editor.hasLocalEdits()) {
       // Replaced before it is held: a replace that throws leaves the editor
       // behind the stored revision, and the next check tries again.
@@ -246,7 +241,15 @@ export class OpenEntitySync {
       this.held = stored;
       this.finishQueued("dropped");
       this.settle();
-      this.notify({ kind: "reloaded" });
+      // Collaborators' edits arrive all the time; one missed live is no news.
+      if (!this.peersConnected) this.notify({ kind: "reloaded" });
+      return;
+    }
+    if (this.peersConnected) {
+      // The editor holds their edits, live, and its own on top; whatever is
+      // queued goes out over their save.
+      this.held = stored;
+      this.settle();
       return;
     }
     this.asked = stored.updatedAt;

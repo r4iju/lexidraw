@@ -421,7 +421,11 @@ function EditorHandler({
     [editor, setEditorStateRef],
   );
 
-  const { sendMessage, initializeConnection } = useWebRtcService(
+  const {
+    sendMessage,
+    initializeConnection,
+    connected: peersConnected,
+  } = useWebRtcService(
     { drawingId: entity.id, userId, iceServers },
     {
       onMessage: applyUpdate,
@@ -444,8 +448,8 @@ function EditorHandler({
 
   // External system: the open document's sync, which lets peers' saves pass.
   useEffect(() => {
-    openDocument.sync.setPeersConnected(isCollaborating);
-  }, [openDocument, isCollaborating]);
+    openDocument.sync.setPeersConnected(peersConnected);
+  }, [openDocument, peersConnected]);
 
   useEffect(() => {
     if (defaultFontFamily) {

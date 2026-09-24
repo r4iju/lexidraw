@@ -57,21 +57,30 @@ export function UnsavedChangesProvider({
   const { enabled: autoSave } = useAutoSave();
   const [question, setQuestion] = useState<Question | null>(null);
 
+  // What leaving reads when it happens: a registration made anew for each
+  // would answer "stay" to a question it left open.
+  const latest = useRef({ autoSave, saveBeforeLeaving });
+  useEffect(() => {
+    latest.current = { autoSave, saveBeforeLeaving };
+  }, [autoSave, saveBeforeLeaving]);
+
   // External system: the app-wide leave guard.
   useEffect(() => {
     const choice = () =>
       leaveChoice({
         unsaved: dirty.current || (open?.sync.hasLocalEdits() ?? false),
-        autoSave,
+        autoSave: latest.current.autoSave,
         savesHeld: open?.sync.holdsSaves() ?? false,
       });
-    const save = () => saveBeforeLeaving?.() ?? Promise.resolve(true);
+    const save = () =>
+      latest.current.saveBeforeLeaving?.() ?? Promise.resolve(true);
     return setLeaveGuard({
       mustAsk: () => choice() !== "leave",
       ask: async () => {
         const decided = choice();
         if (decided === "leave") return true;
-        if (decided === "save" && saveBeforeLeaving) return save();
+        if (decided === "save" && latest.current.saveBeforeLeaving)
+          return save();
         const savesHeld = open?.sync.holdsSaves() ?? false;
         const answered = await new Promise<"leave" | "save" | "stay">(
           (answer) => setQuestion({ savesHeld, answer }),
@@ -83,7 +92,7 @@ export function UnsavedChangesProvider({
         return save();
       },
     });
-  }, [open, autoSave, saveBeforeLeaving]);
+  }, [open]);
 
   const markDirty = useCallback(() => {
     dirty.current = true;

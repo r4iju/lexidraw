@@ -124,7 +124,11 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     [applyUpdate],
   );
 
-  const { sendMessage, initializeConnection } = useWebRtcService(
+  const {
+    sendMessage,
+    initializeConnection,
+    connected: peersConnected,
+  } = useWebRtcService(
     {
       drawingId: drawing.id,
       userId,
@@ -336,8 +340,8 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 
   // External system: the open drawing's sync, which lets peers' saves pass.
   useEffect(() => {
-    openDrawing.sync.setPeersConnected(isCollaborating);
-  }, [openDrawing, isCollaborating]);
+    openDrawing.sync.setPeersConnected(peersConnected);
+  }, [openDrawing, peersConnected]);
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>

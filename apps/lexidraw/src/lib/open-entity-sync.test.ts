@@ -523,9 +523,24 @@ describe("the editor's saves", () => {
       "saved",
     );
     srv.state.current = rev(7, "v1, and theirs, and more of theirs");
+    ed.state.edited = true;
     expect(await sync.save({ elements: "all of it" })).toBe("saved");
     expect(notices).toEqual([]);
     expect(ed.state.replaced).toEqual([]);
     expect(srv.state.current?.elements).toBe("all of it");
+  });
+
+  test("while collaborators are connected, an editor with no edits of its own still shows what it missed", async () => {
+    const ed = editor("v1");
+    const { srv, notices, sync } = setup(rev(1, "v1"), ed);
+    sync.setPeersConnected(true);
+
+    // A peer's edit that never reached this editor live, saved.
+    srv.state.current = rev(2, "v1, and theirs");
+    await sync.check();
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual([
+      "v1, and theirs",
+    ]);
+    expect(notices).toEqual([]);
   });
 });
