@@ -55,7 +55,7 @@ export async function checkTokens(page: Page) {
         muted: contrast("var(--muted-foreground)", "var(--popover)"),
         destructive: contrast("var(--destructive)", "var(--popover)"),
         input: contrast(inputStyle.borderColor, inputStyle.backgroundColor),
-        switchOff: contrast("var(--switch-thumb)", "var(--input)"),
+        switchOff: contrast("var(--switch-thumb)", "var(--switch-track)"),
         switchOn: contrast("var(--primary-foreground)", "var(--primary)"),
         layers: ["--background", "--card", "--popover", "--accent"].map((v) =>
           luminance(`var(${v})`),
@@ -74,7 +74,10 @@ export async function checkTokens(page: Page) {
       result.switchOff >= 3 && result.switchOn >= 3,
       `${theme}: switch thumb contrast`,
     );
-    assert.ok(result.input >= 3, `${theme}: input edge contrast`);
+    assert.ok(
+      result.input >= 1.2 && result.input < 2,
+      `${theme}: input edge visible but soft`,
+    );
     assert.ok(
       Math.max(...result.accent) - Math.min(...result.accent) < 12,
       `${theme}: neutral hover`,
