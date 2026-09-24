@@ -37,6 +37,7 @@ import {
   DialogTitle,
   DialogClose,
 } from "~/components/ui/dialog";
+import { LocalTime } from "~/components/ui/local-time";
 
 export function ArticleBlock({
   className,
@@ -263,7 +264,12 @@ export function ArticleBlock({
             {byline ? `${byline} · ` : ""}
             {siteName || ""}
             {wordCount ? ` · ${wordCount} words` : ""}
-            {updatedAt ? ` · ${new Date(updatedAt).toLocaleString()}` : ""}
+            {updatedAt ? (
+              <>
+                {" · "}
+                <LocalTime value={updatedAt} />
+              </>
+            ) : null}
           </div>
         </div>
         <div className="flex shrink-0 gap-1">

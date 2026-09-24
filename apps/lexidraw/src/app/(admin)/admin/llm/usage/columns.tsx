@@ -3,6 +3,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { AdminTableFeatures } from "~/components/admin/data-table/features";
 import { DataTableColumnHeader } from "~/components/admin/data-table/column-header";
+import { LocalTime } from "~/components/ui/local-time";
 
 export type UsageRow = {
   id: string;
@@ -29,7 +30,9 @@ export const usageColumns: ColumnDef<AdminTableFeatures, UsageRow>[] = [
       <DataTableColumnHeader column={column} title="Time" />
     ),
     cell: ({ row }) => (
-      <div>{new Date(row.original.createdAt).toLocaleString()}</div>
+      <div>
+        <LocalTime value={row.original.createdAt} />
+      </div>
     ),
     sortFn: "basic",
   },

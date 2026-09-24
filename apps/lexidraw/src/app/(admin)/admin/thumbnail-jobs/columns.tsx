@@ -2,10 +2,10 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import type { AdminTableFeatures } from "~/components/admin/data-table/features";
-import { format } from "date-fns";
 import Link from "next/link";
 import { RowActions } from "./row-actions";
 import { DataTableColumnHeader } from "~/components/admin/data-table/column-header";
+import { LocalTime } from "~/components/ui/local-time";
 
 export type ThumbnailJobRow = {
   id: string;
@@ -24,10 +24,9 @@ function truncate(str: string, length: number): string {
   return `${str.slice(0, length)}...`;
 }
 
-function formatDate(date: Date | number | null | undefined): string {
+function formatDate(date: Date | number | null | undefined) {
   if (!date) return "-";
-  const dateObj = date instanceof Date ? date : new Date(date);
-  return format(dateObj, "yyyy-MM-dd HH:mm:ss");
+  return <LocalTime value={date} format="datetime" />;
 }
 
 function getStatusColor(status: string): string {
