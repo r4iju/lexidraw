@@ -45,6 +45,7 @@ import {
   findReadableEntity,
   findReadableRevision,
   findWritableEntity,
+  resolveMoveDestination,
   resolveParentDirectory,
 } from "~/server/entities/readable";
 import { storeThumbnail, thumbnailPathname } from "~/server/entities/thumbnail";
@@ -300,6 +301,15 @@ export const entityRouter = createTRPCRouter({
         ctx.session?.user.id ?? "",
       );
       if (!entity) throw notFound();
+      const parentId =
+        input.parentId === undefined || input.parentId === entity.parentId
+          ? undefined
+          : await resolveMoveDestination(
+              ctx.drizzle,
+              entity,
+              input.parentId,
+              ctx.session?.user.id ?? "",
+            );
 
       // Omitting appState leaves the stored one alone; only an explicit null
       // clears it.
@@ -324,7 +334,7 @@ export const entityRouter = createTRPCRouter({
           title: input.title,
           ...(appState !== undefined ? { appState } : {}),
           elements: input.elements,
-          ...(input.parentId ? { parentId: input.parentId } : {}),
+          ...(parentId !== undefined ? { parentId } : {}),
           // Strictly increasing, so a compare-and-set caller can tell this save
           // apart from its own; see nextUpdatedAt.
           updatedAt: nextUpdatedAt(),
@@ -1019,12 +1029,25 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
+      // Checked only when it changes, so a caller echoing the parent back
+      // with a rename is not asked whether they may write into it.
+      const moving =
+        input.parentId !== undefined && input.parentId !== entity.parentId;
       const columns = {
         ...("title" in input ? { title: input.title } : {}),
         ...("publicAccess" in input
           ? { publicAccess: input.publicAccess }
           : {}),
-        ...("parentId" in input ? { parentId: input.parentId } : {}),
+        ...(moving
+          ? {
+              parentId: await resolveMoveDestination(
+                ctx.drizzle,
+                entity,
+                input.parentId ?? null,
+                userId,
+              ),
+            }
+          : {}),
         updatedAt: new Date(),
       };
       // Awaited: a REST caller reads the entity back the moment this returns.

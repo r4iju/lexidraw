@@ -117,6 +117,12 @@ export async function findWritableEntity(db: Db, id: string, userId: string) {
   );
 }
 
+/** The directory `id` when `userId` may write into it, otherwise null. */
+async function findWritableDirectory(db: Db, id: string, userId: string) {
+  const found = await findWritableEntity(db, id, userId);
+  return found?.entityType === "directory" ? found : null;
+}
+
 /**
  * The directory a new entity goes in, checked before the insert: the foreign
  * key would otherwise fail with the statement in its message, and a parent the
@@ -131,11 +137,46 @@ export async function resolveParentDirectory(
   what: string,
 ): Promise<string | null> {
   if (parentId === null || parentId === undefined) return null;
-  const parent = await findWritableEntity(db, parentId, userId);
-  if (parent?.entityType !== "directory") {
+  const parent = await findWritableDirectory(db, parentId, userId);
+  if (!parent) {
     throw new TRPCError({
       code: "NOT_FOUND",
       message: `No directory "${parentId}" to create the ${what} in`,
+    });
+  }
+  return parent.id;
+}
+
+/**
+ * The directory `entity` moves to for `userId`, checked before the update:
+ * the top of Home, or a directory the caller may write into, under the same
+ * rule a create follows. Someone moving a file they do not own also needs its
+ * owner to be able to write there, so an editor cannot file someone's work
+ * where its owner would lose it. A directory never goes inside itself or one
+ * below it, which would take the whole branch out of every listing.
+ */
+export async function resolveMoveDestination(
+  db: Db,
+  entity: { id: string; entityType: string; ownerId: string | null },
+  parentId: string | null,
+  userId: string,
+): Promise<string | null> {
+  if (parentId === null) return null;
+  const parent = await findWritableDirectory(db, parentId, userId);
+  const ownerCanWrite =
+    entity.ownerId === userId ||
+    (await findWritableDirectory(db, parentId, entity.ownerId ?? "")) !== null;
+  if (!parent || !ownerCanWrite) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: `No directory "${parentId}" to move the ${entity.entityType} into`,
+    });
+  }
+  const above = await parentChain(db, parent.id);
+  if (above.some((link) => link.id === entity.id)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "A directory cannot move into itself or a directory inside it",
     });
   }
   return parent.id;
@@ -157,6 +198,26 @@ export type EntityAncestor = {
   title: string;
   parentId: string | null;
 };
+
+/** `id` and the entities above it, nearest first, whoever may read them. */
+async function parentChain(
+  db: Db,
+  id: string | null,
+): Promise<{ id: string; parentId: string | null }[]> {
+  const chain: { id: string; parentId: string | null }[] = [];
+  let currentId = id;
+  for (let depth = 0; currentId && depth < MAX_PATH_DEPTH; depth++) {
+    const parent = await db
+      .select({ id: schema.entities.id, parentId: schema.entities.parentId })
+      .from(schema.entities)
+      .where(eq(schema.entities.id, currentId))
+      .get();
+    if (!parent) break;
+    chain.push(parent);
+    currentId = parent.parentId;
+  }
+  return chain;
+}
 
 /**
  * The title of each of `ids` that `userId` may read, by id. The rest are left
@@ -195,18 +256,7 @@ export async function entityAncestors(
   parentId: string | null,
   userId: string,
 ): Promise<EntityAncestor[]> {
-  const chain: { id: string; parentId: string | null }[] = [];
-  let currentId = parentId;
-  for (let depth = 0; currentId && depth < MAX_PATH_DEPTH; depth++) {
-    const parent = await db
-      .select({ id: schema.entities.id, parentId: schema.entities.parentId })
-      .from(schema.entities)
-      .where(eq(schema.entities.id, currentId))
-      .get();
-    if (!parent) break;
-    chain.push(parent);
-    currentId = parent.parentId;
-  }
+  const chain = await parentChain(db, parentId);
   const titles = await readableTitles(
     db,
     chain.map((link) => link.id),
