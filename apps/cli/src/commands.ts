@@ -6,6 +6,7 @@
 export const COMMANDS: Record<string, string> = {
   "auth status": "auth-me",
   "drawing create": "drawings-create",
+  "drawing delete": "entities-delete",
   "drawing get": "drawings-get",
   "drawing put": "drawings-put",
   "drawing render": "drawings-render",

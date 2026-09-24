@@ -471,14 +471,27 @@ describe("doc delete", () => {
     expect(stub.rows.has("doc-plan")).toBe(false);
   });
 
-  it("refuses an id that names a directory", async () => {
-    const out = io();
-    expect(await run(["doc", "delete", "dir-notes"], out.io)).toBe(1);
-    expect(JSON.parse(out.stderr())).toMatchObject({
-      code: "NOT_FOUND",
-      entityType: "directory",
+  it("refuses an id that names a directory or a drawing", async () => {
+    stub.rows.set("drw-flow", {
+      id: "drw-flow",
+      title: "Flow",
+      entityType: "drawing",
+      parentId: "dir-notes",
+      updatedAt: new Date().toISOString(),
+      blocks: [],
     });
-    expect(stub.rows.has("dir-notes")).toBe(true);
+    for (const [id, entityType] of [
+      ["dir-notes", "directory"],
+      ["drw-flow", "drawing"],
+    ] as const) {
+      const out = io();
+      expect(await run(["doc", "delete", id], out.io)).toBe(1);
+      expect(JSON.parse(out.stderr())).toMatchObject({
+        code: "NOT_FOUND",
+        entityType,
+      });
+      expect(stub.rows.has(id)).toBe(true);
+    }
     expect(stub.requests.every((call) => call.method !== "DELETE")).toBe(true);
   });
 

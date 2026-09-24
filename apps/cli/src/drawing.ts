@@ -6,6 +6,7 @@ import {
   rejectExtra,
 } from "./args";
 import { json, type Context } from "./context";
+import { deleteEntity } from "./delete";
 import { CliError, describe, usageError } from "./errors";
 import { callApi } from "./http";
 import {
@@ -23,6 +24,7 @@ const USAGE = `usage:
   lexidraw drawing put <id|--path P> [--nth N] --file <elements.json|-> --if-unmodified-since <iso|latest>
   lexidraw drawing create --title <title> [--dir <id>|--dir-path P] [--file <elements.json|->]
   lexidraw drawing render <id|--path P> [--nth N] [--format svg|png] [--scale 1-4] [--out <file>]
+  lexidraw drawing delete <id|--path P> [--nth N]
 
 put replaces every element, so it states which revision it replaces: pass the
 updatedAt a get returned, or "latest" to read it again immediately before
@@ -31,13 +33,14 @@ writing.
 render writes the image to --out, or to stdout: the SVG as text, the PNG as
 bytes, which it refuses to write to a terminal.`;
 
-const VERBS = ["get", "put", "create", "render"] as const;
+const VERBS = ["get", "put", "create", "render", "delete"] as const;
 
 const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
   get: { value: ADDRESS, boolean: [] },
   put: { value: [...ADDRESS, "file", "if-unmodified-since"], boolean: [] },
   create: { value: ["title", "file", ...PARENT], boolean: [] },
   render: { value: [...ADDRESS, "format", "scale", "out"], boolean: [] },
+  delete: { value: ADDRESS, boolean: [] },
 };
 
 const FORMATS = ["svg", "png"];
@@ -68,6 +71,8 @@ export async function drawingCommand(
       return await create(context, args);
     case "render":
       return await render(context, args);
+    case "delete":
+      return await deleteEntity(context, args, "drawing");
   }
 }
 
