@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { cache } from "react";
 import { appRouter, type AppRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
+import { isNextControlFlow } from "./next-control-flow";
 /**
  * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
  * handling a tRPC call from a React Server Component.
@@ -141,23 +142,25 @@ export const api = createTRPCClient<AppRouter>({
               observer.complete();
             })
             .catch((cause) => {
-              console.error(`[tRPC] Error in procedure: ${op.path}`, {
-                error: sanitizeForLog(cause),
-                input: sanitizeForLog(op.input),
-                stack:
-                  typeof cause === "object" &&
-                  cause &&
-                  "stack" in cause &&
-                  typeof (cause as { stack?: unknown }).stack === "string"
-                    ? sanitizeString(
-                        (cause as { stack?: string }).stack as string,
-                      )
-                    : undefined,
-                cause:
-                  typeof cause === "object" && cause && "cause" in cause
-                    ? sanitizeForLog((cause as { cause?: unknown }).cause)
-                    : undefined,
-              });
+              if (!isNextControlFlow(cause)) {
+                console.error(`[tRPC] Error in procedure: ${op.path}`, {
+                  error: sanitizeForLog(cause),
+                  input: sanitizeForLog(op.input),
+                  stack:
+                    typeof cause === "object" &&
+                    cause &&
+                    "stack" in cause &&
+                    typeof (cause as { stack?: unknown }).stack === "string"
+                      ? sanitizeString(
+                          (cause as { stack?: string }).stack as string,
+                        )
+                      : undefined,
+                  cause:
+                    typeof cause === "object" && cause && "cause" in cause
+                      ? sanitizeForLog((cause as { cause?: unknown }).cause)
+                      : undefined,
+                });
+              }
               observer.error(TRPCClientError.from(cause));
             });
 
