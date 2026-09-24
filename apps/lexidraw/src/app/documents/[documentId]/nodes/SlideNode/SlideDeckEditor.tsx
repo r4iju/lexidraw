@@ -136,7 +136,6 @@ import { StickyNode } from "../StickyNode";
 import PageBreakPlugin from "../../plugins/PageBreakPlugin";
 import MermaidPlugin from "../../plugins/MermaidPlugin";
 import AutocompletePlugin from "../../plugins/AutocompletePlugin";
-import { SessionUUIDProvider } from "../../plugins/AutocompletePlugin/session-uuid-provider";
 import {
   useLexicalTransformation,
   useEditorRegistry,
@@ -557,9 +556,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
                 onBoxContentChange(element.id, editorState)
               }
             />
-            <SessionUUIDProvider>
-              <AutocompletePlugin />
-            </SessionUUIDProvider>
+            <AutocompletePlugin />
             <PageBreakPlugin />
             <MermaidPlugin />
             <HistoryPlugin externalHistoryState={historyState} />

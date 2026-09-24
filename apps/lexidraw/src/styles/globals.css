@@ -368,6 +368,18 @@ html .excalidraw.excalidraw {
   pointer-events: none;
 }
 
+/* Autocomplete ghost text: drawn after the caret's text, never in the document. */
+[data-suggestion]::after {
+  content: attr(data-suggestion);
+  @apply text-muted-foreground;
+  font-weight: normal;
+  font-style: normal;
+  text-decoration: none;
+  white-space: pre-wrap;
+  pointer-events: none;
+  user-select: none;
+}
+
 hr {
   border: none;
   border-top-width: 1px;

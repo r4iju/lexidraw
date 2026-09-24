@@ -11,6 +11,7 @@ export const EnforcedCapsSchema = z.object({
   maxOutputTokensByProvider: z.object({
     openai: z.number().int().positive(),
     google: z.number().int().positive(),
+    openrouter: z.number().int().positive().optional(),
   }),
 });
 
