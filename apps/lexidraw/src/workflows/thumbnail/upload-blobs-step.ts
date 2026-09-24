@@ -9,14 +9,15 @@ export async function uploadBlobStep(
   entityId: string,
   theme: "light" | "dark",
   data: Uint8Array,
+  format: "webp" | "png",
 ): Promise<string> {
   "use step";
 
-  const pathname = thumbnailPathname(entityId, theme, "webp");
+  const pathname = thumbnailPathname(entityId, theme, format);
   try {
     const { url } = await put(pathname, new Blob([new Uint8Array(data)]), {
       access: "public",
-      contentType: "image/webp",
+      contentType: `image/${format}`,
       token: env.BLOB_READ_WRITE_TOKEN,
     });
     return url;

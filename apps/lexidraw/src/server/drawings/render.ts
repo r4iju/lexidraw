@@ -96,6 +96,58 @@ export async function renderDrawing(
   return toPng(svg.svg, scale);
 }
 
+/** A thumbnail's size in CSS pixels, the one every card lays out. */
+export const THUMBNAIL_SIZE = { width: 640, height: 480 } as const;
+
+/** Raster pixels per CSS pixel, for screens that have two. */
+const THUMBNAIL_SCALE = 2;
+
+/** CSS pixels kept clear around the drawing. */
+const THUMBNAIL_MARGIN = 24;
+
+/** How the editor turns its canvas dark, and so how a dark thumbnail does. */
+const DARK_CANVAS_FILTER = "invert(93%) hue-rotate(180deg)";
+
+const COLOUR = /^(#[0-9a-f]{3,8}|[a-z]+)$/i;
+
+/**
+ * The drawing as its thumbnail: the whole scene, fitted inside a canvas of
+ * {@link THUMBNAIL_SIZE} and centred on it, drawn in the editor's light or
+ * dark canvas. A drawing smaller than the canvas is shown at its own size, as
+ * the editor's zoom to fit does, rather than blown up.
+ */
+export async function renderDrawingThumbnail(
+  elements: readonly CanonicalElement[],
+  options: { theme: "light" | "dark"; background?: string | null },
+): Promise<{ width: number; height: number; png: Uint8Array }> {
+  const canvas =
+    options.background && COLOUR.test(options.background)
+      ? options.background
+      : DEFAULT_BACKGROUND;
+  const drawing = await toSvg(elements, canvas);
+  const { width, height } = THUMBNAIL_SIZE;
+  const zoom = Math.min(
+    1,
+    (width - 2 * THUMBNAIL_MARGIN) / (drawing.width || 1),
+    (height - 2 * THUMBNAIL_MARGIN) / (drawing.height || 1),
+  );
+  const [w, h] = [drawing.width * zoom, drawing.height * zoom];
+  const placed = drawing.svg.replace(
+    /^<svg\b([^>]*)>/,
+    (_, attributes: string) =>
+      `<svg${attributes.replace(/\s(?:width|height|x|y)="[^"]*"/g, "")} x="${(width - w) / 2}" y="${(height - h) / 2}" width="${w}" height="${h}">`,
+  );
+  const filter =
+    options.theme === "dark" ? ` filter="${DARK_CANVAS_FILTER}"` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><g${filter}><rect width="${width}" height="${height}" fill="${canvas}"/>${placed}</g></svg>`;
+  const {
+    png,
+    width: pixelWidth,
+    height: pixelHeight,
+  } = await toPng(svg, THUMBNAIL_SCALE);
+  return { width: pixelWidth, height: pixelHeight, png };
+}
+
 async function toSvg(
   elements: readonly CanonicalElement[],
   background: string | null | undefined,

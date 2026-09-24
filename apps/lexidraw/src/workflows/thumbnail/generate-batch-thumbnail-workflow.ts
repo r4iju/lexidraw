@@ -10,6 +10,7 @@ import { updateEntityStep } from "./update-entity-step";
 import { markJobDoneStep } from "./mark-job-done-step";
 import { updateJobStatusStep } from "./update-job-status-step";
 import { createScreenshotTokenStep } from "./create-screenshot-token-step";
+import { renderDrawingThumbnailStep } from "./render-drawing-thumbnail-step";
 import env from "@packages/env";
 
 export interface BatchThumbnailJob {
@@ -118,12 +119,42 @@ async function processSingleJob(
   // Mark job as processing
   await updateJobStatusStep(job.jobId, "processing", 0);
 
-  // Use screenshot approach for both drawings and documents
-  // For drawings: We cannot use @excalidraw/excalidraw's exportToBlob API because it requires browser APIs
-  // (window, DOM) that don't exist in Node.js server environments. Workflow steps run server-side,
-  // so we must use a headless browser service to render the drawing and capture a screenshot.
-  // This approach is consistent with how we handle documents and ensures server-side compatibility.
-  // Build screenshot URL
+  const isDrawing = validation.entityType === "drawing";
+  const [light, dark] = isDrawing
+    ? await Promise.all([
+        renderDrawingThumbnailStep(
+          validation.elements,
+          validation.appState,
+          "light",
+        ),
+        renderDrawingThumbnailStep(
+          validation.elements,
+          validation.appState,
+          "dark",
+        ),
+      ])
+    : await screenshotDocument(validation);
+  const format = isDrawing ? "png" : "webp";
+
+  const [lightUrl, darkUrl] = await Promise.all([
+    uploadBlobStep(validation.entityId, "light", light, format),
+    uploadBlobStep(validation.entityId, "dark", dark, format),
+  ]);
+
+  // Update entity with thumbnail URLs
+  await updateEntityStep(validation.entityId, lightUrl, darkUrl, job.version);
+
+  // Mark job as done
+  await markJobDoneStep(job.jobId);
+
+  return { lightUrl, darkUrl };
+}
+
+/** A document's light and dark screenshots, taken by the render worker. */
+async function screenshotDocument(validation: {
+  userId: string;
+  entityId: string;
+}): Promise<[Uint8Array, Uint8Array]> {
   // Prefer explicit origin if available; otherwise derive from VERCEL_URL or strip /api/auth from NEXTAUTH_URL
   const explicitOrigin =
     (env as unknown as { APP_ORIGIN?: string }).APP_ORIGIN ||
@@ -142,30 +173,11 @@ async function processSingleJob(
     validation.entityId,
     3 * 60_000,
   );
-  const targetW = 640;
-  const targetH = 480;
-  const screenshotPath =
-    validation.entityType === "drawing" ? "drawings" : "documents";
-  const basePageUrl = `${appBase}/screenshot/${screenshotPath}/${encodeURIComponent(
+  const basePageUrl = `${appBase}/screenshot/documents/${encodeURIComponent(
     validation.entityId,
-  )}?st=${encodeURIComponent(token)}&width=${targetW}&height=${targetH}`;
-
-  // Render screenshots for both themes in parallel
-  const [light, dark] = await Promise.all([
+  )}?st=${encodeURIComponent(token)}&width=640&height=480`;
+  return Promise.all([
     renderScreenshotStep(`${basePageUrl}&theme=light`, "light"),
     renderScreenshotStep(`${basePageUrl}&theme=dark`, "dark"),
   ]);
-
-  const [lightUrl, darkUrl] = await Promise.all([
-    uploadBlobStep(validation.entityId, "light", light),
-    uploadBlobStep(validation.entityId, "dark", dark),
-  ]);
-
-  // Update entity with thumbnail URLs
-  await updateEntityStep(validation.entityId, lightUrl, darkUrl, job.version);
-
-  // Mark job as done
-  await markJobDoneStep(job.jobId);
-
-  return { lightUrl, darkUrl };
 }

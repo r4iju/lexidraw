@@ -23,8 +23,6 @@ type Props = {
   drawing: RouterOutputs["entities"]["load"];
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
-  /** A one-off render, like a thumbnail capture, that never follows writes. */
-  renderOnly?: boolean;
 };
 
 const ExcalidrawViewWrapper: React.FC<Props> = ({
@@ -32,15 +30,12 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
   appState,
   elements,
   revalidate,
-  renderOnly = false,
 }) => {
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const synced = useSyncedExcalidraw(excalidrawApi);
   const openDrawing = useOpenEntity(drawing, "drawing");
-  useOpenEntitySync(openDrawing, {
-    editor: renderOnly ? null : synced.editor,
-  });
+  useOpenEntitySync(openDrawing, { editor: synced.editor });
   const isDarkTheme = useIsDarkTheme();
 
   const options = {
@@ -75,7 +70,7 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
     // isCollaborating: true,
   } satisfies ExcalidrawProps;
 
-  useFitOnOpen(renderOnly ? null : excalidrawApi);
+  useFitOnOpen(excalidrawApi);
 
   useEffect(() => {
     return () => {

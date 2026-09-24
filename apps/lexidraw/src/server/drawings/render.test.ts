@@ -318,6 +318,79 @@ describe("font families", () => {
   });
 });
 
+describe("thumbnail", () => {
+  // Far from the origin, where a screenshot of the editor at its default
+  // scroll shows nothing but the canvas.
+  const FAR = DRAWING.map((element) =>
+    "x" in element
+      ? { ...element, x: element.x + 2400, y: element.y + 1800 }
+      : element,
+  );
+  const thumbnail = async (theme: "light" | "dark") => {
+    const rendered = renderElements(FAR, `thumbnail-${theme}`, {
+      name: `thumbnail-${theme}.png`,
+    });
+    return { rendered, image: decode(await Bun.file(rendered.file).bytes()) };
+  };
+
+  it("is the whole drawing, centred on a canvas of one size", async () => {
+    const { rendered, image } = await thumbnail("light");
+    expect([rendered.width, rendered.height]).toEqual([1280, 960]);
+    const ink = inkBounds(image);
+    expect(ink).not.toBeNull();
+    if (!ink) return;
+    // The drawing is 3:1 wide, so it spans the width with room either side,
+    // and sits in the middle of the height.
+    expect(ink.left).toBeGreaterThan(0);
+    expect(ink.right).toBeLessThan(image.width - 1);
+    expect(ink.right - ink.left).toBeGreaterThan(image.width * 0.6);
+    expect(
+      Math.abs((ink.top + ink.bottom) / 2 - image.height / 2),
+    ).toBeLessThan(image.height * 0.05);
+  });
+
+  it("is on the light canvas in light, and the dark one in dark", async () => {
+    const light = (await thumbnail("light")).image;
+    const dark = (await thumbnail("dark")).image;
+    expect(pixel(light, 2, 2)).toEqual([255, 255, 255]);
+    for (const channel of pixel(dark, 2, 2)) expect(channel).toBeLessThan(40);
+    // Nothing but canvas along the bottom edge: no menu or toolbar.
+    for (const image of [light, dark]) {
+      const corner = pixel(image, 2, 2);
+      for (let x = 0; x < image.width; x += 7) {
+        expect(pixel(image, x, image.height - 30)).toEqual(corner);
+      }
+    }
+  });
+});
+
+function pixel(image: Image, x: number, y: number): number[] {
+  const at = (y * image.width + x) * 4;
+  return [...image.pixels.subarray(at, at + 3)];
+}
+
+/** The box around every pixel that differs from the top-left corner. */
+function inkBounds(image: Image) {
+  const background = pixel(image, 0, 0).join();
+  let bounds: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  } | null = null;
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      if (pixel(image, x, y).join() === background) continue;
+      bounds = bounds ?? { left: x, right: x, top: y, bottom: y };
+      bounds.left = Math.min(bounds.left, x);
+      bounds.right = Math.max(bounds.right, x);
+      bounds.top = Math.min(bounds.top, y);
+      bounds.bottom = Math.max(bounds.bottom, y);
+    }
+  }
+  return bounds;
+}
+
 type Image = { width: number; height: number; pixels: Uint8Array };
 
 /**

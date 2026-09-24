@@ -10,6 +10,7 @@ import { updateEntityStep } from "./update-entity-step";
 import { markJobDoneStep } from "./mark-job-done-step";
 import { updateJobStatusStep } from "./update-job-status-step";
 import { createScreenshotTokenStep } from "./create-screenshot-token-step";
+import { renderDrawingThumbnailStep } from "./render-drawing-thumbnail-step";
 import env from "@packages/env";
 
 export async function generateThumbnailWorkflow(
@@ -33,64 +34,17 @@ export async function generateThumbnailWorkflow(
 
   let light: Uint8Array;
   let dark: Uint8Array;
+  let format: "webp" | "png";
 
   if (validation.entityType === "drawing") {
-    // Use screenshot approach for drawings (same as documents)
-    // We cannot use @excalidraw/excalidraw's exportToBlob API because it requires browser APIs
-    // (window, DOM) that don't exist in Node.js server environments. Workflow steps run server-side,
-    // so we must use a headless browser service to render the drawing and capture a screenshot.
-    // This approach is consistent with how we handle documents and ensures server-side compatibility.
-    console.log("[thumbnail][wf] rendering drawing screenshots", {
-      jobId,
-      entityId: validation.entityId,
-    });
-
-    // Build screenshot URL
-    // Prefer explicit origin if available; otherwise derive from VERCEL_URL or strip /api/auth from NEXTAUTH_URL
-    const explicitOrigin =
-      (env as unknown as { APP_ORIGIN?: string }).APP_ORIGIN ||
-      (env as unknown as { NEXT_PUBLIC_APP_URL?: string }).NEXT_PUBLIC_APP_URL;
-    const derivedFromVercel = env.VERCEL_URL
-      ? `https://${env.VERCEL_URL}`
-      : null;
-    const derivedFromNextAuth = env.NEXTAUTH_URL
-      ? env.NEXTAUTH_URL.replace(/\/?api\/auth\/?$/, "")
-      : null;
-    const appBase =
-      explicitOrigin ||
-      derivedFromVercel ||
-      derivedFromNextAuth ||
-      "http://localhost:3000";
-    const token = await createScreenshotTokenStep(
-      validation.userId,
-      validation.entityId,
-      3 * 60_000,
-    );
-    const targetW = 640;
-    const targetH = 480;
-    const basePageUrl = `${appBase}/screenshot/drawings/${encodeURIComponent(
-      validation.entityId,
-    )}?st=${encodeURIComponent(token)}&width=${targetW}&height=${targetH}`;
-
-    console.log("[thumbnail][wf] rendering screenshots", {
-      jobId,
-      entityId: validation.entityId,
-      basePageUrl,
-    });
-
-    // Render screenshots for both themes in parallel
+    const { elements, appState } = validation;
     [light, dark] = await Promise.all([
-      renderScreenshotStep(`${basePageUrl}&theme=light`, "light"),
-      renderScreenshotStep(`${basePageUrl}&theme=dark`, "dark"),
+      renderDrawingThumbnailStep(elements, appState, "light"),
+      renderDrawingThumbnailStep(elements, appState, "dark"),
     ]);
-
-    console.log("[thumbnail][wf] screenshots rendered", {
-      jobId,
-      lightBytes: light.byteLength,
-      darkBytes: dark.byteLength,
-    });
+    format = "png";
   } else {
-    // Use screenshot approach for documents
+    format = "webp";
     // Build screenshot URL
     // Prefer explicit origin if available; otherwise derive from VERCEL_URL or strip /api/auth from NEXTAUTH_URL
     const explicitOrigin =
@@ -138,8 +92,8 @@ export async function generateThumbnailWorkflow(
   }
 
   const [lightUrl, darkUrl] = await Promise.all([
-    uploadBlobStep(validation.entityId, "light", light),
-    uploadBlobStep(validation.entityId, "dark", dark),
+    uploadBlobStep(validation.entityId, "light", light, format),
+    uploadBlobStep(validation.entityId, "dark", dark, format),
   ]);
 
   console.log("[thumbnail][wf] blobs uploaded", {

@@ -8,11 +8,16 @@
  * runs, and only a process that does nothing else can say whether any of it
  * stayed behind.
  *
- * Usage: render-drawing.ts <elements json> <out file> <svg|png> [scale]
+ * Usage: render-drawing.ts <elements json> <out file>
+ *        <svg|png|thumbnail-light|thumbnail-dark> [scale]
  */
 import { normalizeDrawingElements } from "~/server/drawings/normalize";
 import { drawingTools } from "~/server/drawings/converter";
-import { renderDrawing, type RenderFormat } from "~/server/drawings/render";
+import {
+  renderDrawing,
+  renderDrawingThumbnail,
+  type RenderFormat,
+} from "~/server/drawings/render";
 import { DrawingElements } from "~/server/drawings/skeleton-schema";
 
 const WATCHED = [
@@ -34,10 +39,20 @@ const elements = await normalizeDrawingElements(
   DrawingElements.parse(JSON.parse(payload as string)),
   drawingTools,
 );
-const rendered = await renderDrawing(elements, {
-  format: format as RenderFormat,
-  scale: scale === undefined ? undefined : Number(scale),
-});
+const theme = format?.match(/^thumbnail-(light|dark)$/)?.[1] as
+  | "light"
+  | "dark"
+  | undefined;
+const rendered = theme
+  ? {
+      format: "png" as const,
+      contentType: "image/png",
+      ...(await renderDrawingThumbnail(elements, { theme })),
+    }
+  : await renderDrawing(elements, {
+      format: format as RenderFormat,
+      scale: scale === undefined ? undefined : Number(scale),
+    });
 await Bun.write(
   out as string,
   rendered.format === "svg" ? rendered.svg : rendered.png,

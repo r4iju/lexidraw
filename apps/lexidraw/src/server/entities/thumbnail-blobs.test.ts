@@ -189,8 +189,8 @@ describe("naming an uploaded thumbnail", () => {
       await uploadIcon("thumbb_icon"),
     ].flatMap((icon) => [icon.light, icon.dark]);
     // A retried step uploads the same picture again.
-    await uploadBlobStep("thumbb_icon", "light", new Uint8Array([1]));
-    await uploadBlobStep("thumbb_icon", "light", new Uint8Array([1]));
+    await uploadBlobStep("thumbb_icon", "light", new Uint8Array([1]), "webp");
+    await uploadBlobStep("thumbb_icon", "light", new Uint8Array([1]), "webp");
 
     expect(new Set(icons).size).toBe(4);
     expect(new Set(uploadedPaths).size).toBe(2);
