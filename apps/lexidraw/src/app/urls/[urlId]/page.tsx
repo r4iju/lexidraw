@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
+import { notFoundOr } from "~/trpc/not-found";
 
 export const metadata: Metadata = {
   title: "Lexidraw | url",
@@ -50,12 +51,13 @@ export default async function UrlPage(props: Props) {
     return redirect(`/urls/${urlId}`);
   }
 
-  const [entity, audioConfig, ttsCatalog] = await Promise.all([
-    api.entities.load.query({ id: urlId }),
+  // First, so a missing link is a 404 even for a visitor the calls
+  // below refuse.
+  const entity = await api.entities.load.query({ id: urlId }).catch(notFoundOr);
+  const [audioConfig, ttsCatalog] = await Promise.all([
     api.config.getAudioConfig.query(),
     api.config.getTtsCatalog.query(),
   ]);
-  if (!entity) throw new Error("URL entity not found");
 
   const UrlViewer = (await import("./url-viewer")).default;
   return (
