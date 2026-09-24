@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { LocalTime } from "~/components/ui/local-time";
 
 type TokenRow = RouterOutputs["tokens"]["list"][number];
 type Scope = "read" | "write";
@@ -42,8 +43,8 @@ const EXPIRY_OPTIONS = [
   { value: "never", label: "No expiry" },
 ] as const;
 
-function formatDate(value: Date | null): string {
-  return value ? value.toLocaleString() : "—";
+function formatDate(value: Date | null) {
+  return value ? <LocalTime value={value} /> : "—";
 }
 
 function tokenStatus(row: TokenRow): "active" | "revoked" | "expired" {

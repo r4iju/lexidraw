@@ -2,7 +2,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { AdminTableFeatures } from "~/components/admin/data-table/features";
 import { Badge } from "~/components/ui/badge";
-import { format } from "date-fns";
+import { LocalTime } from "~/components/ui/local-time";
 import { RowActions } from "./row-actions";
 
 export type UserRow = {
@@ -53,14 +53,18 @@ export const userColumns: ColumnDef<AdminTableFeatures, UserRow>[] = [
     accessorKey: "lastActive",
     header: "Last Active",
     cell: ({ row }) =>
-      row.original.lastActive
-        ? format(row.original.lastActive, "yyyy-MM-dd")
-        : "—",
+      row.original.lastActive ? (
+        <LocalTime value={row.original.lastActive} format="date" />
+      ) : (
+        "—"
+      ),
   },
   {
     accessorKey: "createdAt",
     header: "Created",
-    cell: ({ row }) => format(row.original.createdAt, "yyyy-MM-dd"),
+    cell: ({ row }) => (
+      <LocalTime value={row.original.createdAt} format="date" />
+    ),
   },
   {
     id: "actions",

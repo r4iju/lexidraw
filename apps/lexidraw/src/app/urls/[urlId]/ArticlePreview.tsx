@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useId } from "react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { Button } from "~/components/ui/button";
 import { LocalTime } from "~/components/ui/local-time";
+import { parseLinkElements } from "./link-elements";
 import ArticleAudioPlayer from "~/components/audio/ArticleAudioPlayer";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import { cn } from "~/lib/utils";
@@ -50,33 +51,10 @@ export default function ArticlePreview({
   ttsConfig,
   canGenerateAudio,
 }: Props) {
-  const distilled = useMemo(() => {
-    try {
-      const parsed = JSON.parse(entity.elements ?? "{}") as {
-        distilled?: {
-          title?: string;
-          byline?: string | null;
-          siteName?: string | null;
-          wordCount?: number | null;
-          updatedAt?: string;
-          contentHtml?: string;
-        };
-        url?: string;
-      };
-      return parsed.distilled;
-    } catch {
-      return undefined;
-    }
-  }, [entity.elements]);
-
-  const sourceUrl = useMemo(() => {
-    try {
-      const parsed = JSON.parse(entity.elements ?? "{}") as { url?: string };
-      return parsed.url ?? "";
-    } catch {
-      return "";
-    }
-  }, [entity.elements]);
+  const { distilled, url: sourceUrl } = useMemo(
+    () => parseLinkElements(entity.elements),
+    [entity.elements],
+  );
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [segments, setSegments] = useState<TtsSegment[]>([]);

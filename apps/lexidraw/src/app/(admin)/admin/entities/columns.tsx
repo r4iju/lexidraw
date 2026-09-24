@@ -1,8 +1,8 @@
 "use client";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { AdminTableFeatures } from "~/components/admin/data-table/features";
-import { format } from "date-fns";
 import { RowActions } from "./row-actions";
+import { LocalTime } from "~/components/ui/local-time";
 
 export type EntityRow = {
   id: string;
@@ -25,7 +25,9 @@ export const entityColumns: ColumnDef<AdminTableFeatures, EntityRow>[] = [
   {
     accessorKey: "createdAt",
     header: "Created",
-    cell: ({ row }) => format(row.original.createdAt, "yyyy-MM-dd"),
+    cell: ({ row }) => (
+      <LocalTime value={row.original.createdAt} format="date" />
+    ),
   },
   {
     id: "actions",

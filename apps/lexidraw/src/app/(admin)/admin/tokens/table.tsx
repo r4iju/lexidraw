@@ -13,11 +13,12 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { LocalTime } from "~/components/ui/local-time";
 
 type Row = RouterOutputs["adminTokens"]["list"][number];
 
-function formatDate(value: Date | null): string {
-  return value ? value.toLocaleString() : "—";
+function formatDate(value: Date | null) {
+  return value ? <LocalTime value={value} /> : "—";
 }
 
 function status(row: Row): "active" | "revoked" | "expired" {
