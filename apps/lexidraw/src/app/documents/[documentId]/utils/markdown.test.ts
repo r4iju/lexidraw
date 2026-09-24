@@ -8,6 +8,7 @@ import {
   CORE_TRANSFORMERS,
 } from "@packages/lexical-nodes";
 import { $getRoot } from "lexical";
+import { interpretDocumentMarkdown } from "~/server/documents/markdown";
 import { $insertMarkdown, type MarkdownImport } from "./markdown";
 
 function importInto(
@@ -15,6 +16,7 @@ function importInto(
   markdown: string,
   mode: "start" | "end" | "replace",
   title: string,
+  lang: string | null = null,
 ) {
   const editor = createHeadlessEditor({
     nodes: CORE_NODES,
@@ -26,7 +28,7 @@ function importInto(
   editor.update(
     () => {
       if (existing) $insertMarkdown(existing, "replace", { title: "Notes" });
-      result = $insertMarkdown(markdown, mode, { title });
+      result = $insertMarkdown(markdown, mode, { title, lang });
     },
     { discrete: true },
   );
@@ -106,5 +108,38 @@ describe("importing markdown in the editor", () => {
       "Kyoto",
     );
     expect(markdown).toBe("New[^1].\n\nExisting.\n\n[^1]: A note.");
+  });
+
+  test("front matter sets the tags and language, as an import through the API does", () => {
+    const markdown =
+      "---\ntitle: Kyoto\ntags: [travel, japan]\nlang: ja\n---\n\n紅葉。";
+    const { result } = importInto("", markdown, "replace", "Untitled");
+    expect(result).toEqual({
+      title: "Kyoto",
+      tags: ["travel", "japan"],
+      lang: "ja",
+    });
+    expect(result).toEqual(
+      interpretDocumentMarkdown(markdown, {
+        title: "Untitled",
+        titleFromHeading: true,
+      }).fields,
+    );
+  });
+
+  test("front matter without a language goes back to detecting it", () => {
+    const { result } = importInto(
+      "",
+      "---\nsubtitle: Two days\n---\n\nBody",
+      "replace",
+      "Kyoto",
+      "ja",
+    );
+    expect(result).toEqual({ lang: null });
+  });
+
+  test("markdown without front matter leaves the tags and language alone", () => {
+    const { result } = importInto("", "Body", "replace", "Kyoto", "ja");
+    expect(result).toEqual({});
   });
 });

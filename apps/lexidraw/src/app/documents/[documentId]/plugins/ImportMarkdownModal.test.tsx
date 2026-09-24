@@ -42,7 +42,10 @@ afterAll(async () => {
   delete globals.IS_REACT_ACT_ENVIRONMENT;
 });
 
-async function open(onConfirm: (mode: string) => void = () => {}) {
+async function open(
+  onConfirm: (mode: string) => void = () => {},
+  markdown = "# Hello\n\n> [!TIP]\n> A callout.",
+) {
   const container = document.createElement("div");
   document.body.append(container);
   let root: Root | undefined;
@@ -52,7 +55,7 @@ async function open(onConfirm: (mode: string) => void = () => {}) {
       <Modal
         isOpen
         onOpenChange={() => {}}
-        markdown={"# Hello\n\n> [!TIP]\n> A callout."}
+        markdown={markdown}
         onConfirm={onConfirm}
         canEdit
       />,
@@ -107,6 +110,18 @@ describe("Import Markdown dialog", () => {
     expect(
       document.querySelector("[data-callout-kind=tip]")?.textContent,
     ).toContain("A callout.");
+    await dialog.unmount();
+  });
+
+  test("the preview shows the content, not the front matter", async () => {
+    const dialog = await open(
+      undefined,
+      "---\ntags: [travel]\nlang: ja\n---\n\nMaples.",
+    );
+    const preview = document.querySelector("[aria-label=Preview]");
+    expect(preview?.textContent).toContain("Maples.");
+    expect(preview?.textContent).not.toContain("travel");
+    expect(preview?.querySelector("hr")).toBeNull();
     await dialog.unmount();
   });
 });

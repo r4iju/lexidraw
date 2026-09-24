@@ -75,7 +75,7 @@ import { FlashMessageContext } from "./context/flash-message-context";
 import { LLMProvider } from "./context/llm-context";
 import ContextMenuPlugin from "./plugins/ContextMenuPlugin";
 import TableOfContentsPlugin from "./plugins/TableOfContentsPlugin";
-import { DocumentHeader, useRename } from "./header/document-header";
+import { DocumentHeader, useRename, useRetag } from "./header/document-header";
 import { LLMWidget } from "./plugins/AutocompletePlugin/LLMWidget";
 import { ToolbarContext } from "./context/toolbar-context";
 import ListMaxIndentLevelPlugin from "./plugins/ListMaxIndentLevelPlugin";
@@ -268,6 +268,7 @@ function EditorHandler({
 
   const { insertMarkdown } = useMarkdownTools();
   const rename = useRename(entity.id, entity.title);
+  const retag = useRetag(entity.id, entity.title);
 
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {
@@ -310,7 +311,7 @@ function EditorHandler({
     editor: onScreen ? syncedEditor : null,
     onSavesResumed,
   });
-  const { defaultFontFamily, lang } = useDocumentSettings();
+  const { defaultFontFamily, lang, setLang } = useDocumentSettings();
   const detectedLanguage = useMemo(
     () => documentLanguage(entity.elements, lang),
     [entity.elements, lang],
@@ -322,14 +323,30 @@ function EditorHandler({
       try {
         const imported = insertMarkdown(editor, markdown, mode, {
           title: entity.title,
+          lang,
         });
         if (imported.title) rename(imported.title);
+        if (imported.tags) retag(imported.tags);
+        if (imported.lang !== undefined) {
+          // Saved with the content, like a language chosen in the toolbar.
+          setLang(imported.lang);
+          markDirty();
+        }
       } catch (error) {
         console.error("[handleImportMarkdown] import error:", error);
         throw error;
       }
     },
-    [editor, insertMarkdown, entity.title, rename],
+    [
+      editor,
+      insertMarkdown,
+      entity.title,
+      lang,
+      rename,
+      retag,
+      setLang,
+      markDirty,
+    ],
   );
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 

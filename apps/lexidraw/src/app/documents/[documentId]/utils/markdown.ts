@@ -9,7 +9,8 @@ import { $isHeadingNode } from "@lexical/rich-text";
 import {
   $gatherFootnotes,
   $setDocumentHeader,
-  isUntitled,
+  type DocumentFields,
+  markdownFields,
   readFrontMatter,
   sameTitle,
 } from "@packages/lexical-nodes";
@@ -18,22 +19,29 @@ import { PLAYGROUND_TRANSFORMERS } from "../plugins/MarkdownTransformers";
 
 export type MarkdownInsertMode = "start" | "end" | "replace";
 
-/** What an import asks of the document beyond its content. */
-export type MarkdownImport = {
-  /** The title the markdown gives the document, when it differs. */
-  title?: string;
+/**
+ * What an import changes on the document beyond its content: the title, tags
+ * and language, each only when it differs from what the document has.
+ */
+export type MarkdownImport = DocumentFields;
+
+/** The document an import lands in, as far as the import reads it. */
+export type ImportTarget = {
+  title: string;
+  /** The language chosen for the document, or null when it is detected. */
+  lang?: string | null;
 };
 
 /**
  * Puts `markdown` into the document the way a write through the API would:
- * front matter becomes the header, a leading `# X` names a document nobody
- * has named (or is dropped when it repeats the title) when it can only be
- * the title, and the notes gather at the end.
+ * front matter becomes the header, the tags and the language, a leading
+ * `# X` names a document nobody has named (or is dropped when it repeats the
+ * title) when it can only be the title, and the notes gather at the end.
  */
 export function $insertMarkdown(
   markdown: string,
   mode: MarkdownInsertMode,
-  document: { title: string },
+  document: ImportTarget,
 ): MarkdownImport {
   const root = $getRoot();
   const { frontMatter, body } = readFrontMatter(markdown);
@@ -41,21 +49,17 @@ export function $insertMarkdown(
   const holder = $createParagraphNode();
   $convertFromMarkdownString(body, PLAYGROUND_TRANSFORMERS, holder);
   const nodes = holder.getChildren();
-  const result: MarkdownImport = {};
-  const title = frontMatter?.title ?? document.title;
-  if (frontMatter?.title && !sameTitle(frontMatter.title, document.title))
-    result.title = frontMatter.title;
 
   const [first] = nodes;
   const heading =
     $isHeadingNode(first) && first.getTag() === "h1"
       ? first.getTextContent().trim()
       : "";
-  const mayName = mode === "replace" || root.isEmpty();
-  if (mayName && heading && (isUntitled(title) || sameTitle(heading, title))) {
-    nodes.shift();
-    if (isUntitled(title)) result.title = heading;
-  }
+  const { fields, titleHeading } = markdownFields(frontMatter, heading, {
+    title: document.title,
+    titleFromHeading: mode === "replace" || root.isEmpty(),
+  });
+  if (titleHeading) nodes.shift();
 
   if (mode === "replace") {
     const previous = root.getChildren();
@@ -78,7 +82,14 @@ export function $insertMarkdown(
   }
   if (frontMatter) $setDocumentHeader(frontMatter.header);
   $gatherFootnotes();
-  return result;
+
+  const changes: MarkdownImport = {};
+  if (fields.title && !sameTitle(fields.title, document.title))
+    changes.title = fields.title;
+  if (fields.tags) changes.tags = fields.tags;
+  if (fields.lang !== undefined && fields.lang !== (document.lang ?? null))
+    changes.lang = fields.lang;
+  return changes;
 }
 
 export const useMarkdownTools = () => {
@@ -105,7 +116,7 @@ export const useMarkdownTools = () => {
       editor: LexicalEditor,
       markdown: string,
       mode: MarkdownInsertMode,
-      document: { title: string },
+      document: ImportTarget,
     ): MarkdownImport => {
       let result: MarkdownImport = {};
       editor.update(

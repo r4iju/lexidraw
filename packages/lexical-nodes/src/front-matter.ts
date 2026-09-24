@@ -2,7 +2,9 @@ import { parseDocument } from "yaml";
 import {
   type DocumentHeader,
   type DocumentProperty,
+  isUntitled,
   normalizeDocumentHeader,
+  sameTitle,
 } from "./document-header.js";
 
 /**
@@ -192,6 +194,51 @@ export function readFrontMatter(markdown: string): ReadFrontMatter {
     body: markdown.slice(match[0].length).replace(/^(?:[ \t]*\r?\n)+/, ""),
     notes,
   };
+}
+
+/** The entity fields a write may change, as the markdown sets them. */
+export type DocumentFields = {
+  title?: string;
+  tags?: string[];
+  /** A language tag, or null for the language detected from the text. */
+  lang?: string | null;
+};
+
+export type MarkdownFields = {
+  /** Only what the markdown sets; a field it leaves out is left as it is. */
+  fields: DocumentFields;
+  /** Whether the leading heading is the title, so it is not content too. */
+  titleHeading: boolean;
+  /** Whether that heading gave a document nobody had named its title. */
+  namedByHeading: boolean;
+};
+
+/**
+ * What markdown written into a document sets on it, the same for an import
+ * in the editor and a write through the API: the title, tags and language
+ * its front matter gives, and, where a leading `# X` can only be the title
+ * (`titleFromHeading`: on a replace, or into an empty document), the title
+ * that heading gives a document nobody has named.
+ */
+export function markdownFields(
+  frontMatter: FrontMatter | null,
+  heading: string,
+  target: { title: string; titleFromHeading: boolean },
+): MarkdownFields {
+  const fields: DocumentFields = {};
+  if (frontMatter) {
+    if (frontMatter.title !== undefined) fields.title = frontMatter.title;
+    if (frontMatter.tags !== undefined) fields.tags = frontMatter.tags;
+    fields.lang = frontMatter.lang;
+  }
+  const title = fields.title ?? target.title;
+  const titleHeading =
+    target.titleFromHeading &&
+    heading !== "" &&
+    (isUntitled(title) || sameTitle(heading, title));
+  const namedByHeading = titleHeading && isUntitled(title);
+  if (namedByHeading) fields.title = heading;
+  return { fields, titleHeading, namedByHeading };
 }
 
 const list = (items: string[]) =>

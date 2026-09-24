@@ -8,11 +8,12 @@ import {
   collectMarkdownNotes,
   CORE_NODES,
   CORE_TRANSFORMERS,
+  type DocumentFields,
   type DocumentHeader,
   documentHeaderOf,
   type FrontMatter,
   frontMatterNote,
-  isUntitled,
+  markdownFields,
   readFrontMatter,
   sameTitle,
   writeFrontMatter,
@@ -172,13 +173,7 @@ export function interpretMarkdown(markdown: string): {
   };
 }
 
-/** The entity fields a write may change, as the markdown sets them. */
-export type DocumentFields = {
-  title?: string;
-  tags?: string[];
-  /** A language tag, or null for the language detected from the text. */
-  lang?: string | null;
-};
+export type { DocumentFields };
 
 /** What a write lands on, so the markdown can be read against it. */
 export type WriteTarget = {
@@ -247,7 +242,6 @@ export function interpretDocumentMarkdown(
   const read = readFrontMatter(markdown);
   const { state, notes } = interpretMarkdown(read.body);
   const { frontMatter } = read;
-  const fields: DocumentFields = {};
   const leading: string[] = [...read.notes];
   if (frontMatter) {
     if (frontMatter.id && target.id && frontMatter.id !== target.id) {
@@ -255,25 +249,20 @@ export function interpretDocumentMarkdown(
         `The front matter id "${frontMatter.id}" is another document's; this write went to ${target.id}`,
       );
     }
-    if (frontMatter.title !== undefined) fields.title = frontMatter.title;
-    if (frontMatter.tags !== undefined) fields.tags = frontMatter.tags;
-    fields.lang = frontMatter.lang;
     const note = frontMatterNote(changedFrontMatter(frontMatter, target));
     if (note) leading.push(note);
   }
-  const title = fields.title ?? target.title;
   const [first, ...rest] = state.root.children;
   const heading = first && isTitleHeading(first) ? nodeText(first).trim() : "";
-  const named =
-    target.titleFromHeading &&
-    heading !== "" &&
-    (isUntitled(title) || sameTitle(heading, title));
-  if (named && isUntitled(title)) {
-    fields.title = heading;
+  const { fields, titleHeading, namedByHeading } = markdownFields(
+    frontMatter,
+    heading,
+    target,
+  );
+  if (namedByHeading)
     leading.push(`The leading heading "${heading}" became the document title`);
-  }
   return {
-    state: named
+    state: titleHeading
       ? { ...state, root: { ...state.root, children: rest } }
       : state,
     notes: [...leading, ...notes],

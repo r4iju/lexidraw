@@ -474,6 +474,24 @@ export function useRename(entityId: string, title: string) {
     );
 }
 
+/** Replaces the document's tags with `names`, as markdown front matter does. */
+export function useRetag(entityId: string, title: string) {
+  const router = useRouter();
+  const update = api.entities.updateEntityTags.useMutation();
+  return (names: string[]) =>
+    update.mutate(
+      { id: entityId, tagNames: names },
+      {
+        onSuccess: () => router.refresh(),
+        onError: (error) => {
+          toast.error(`Couldn’t tag “${title}”. Try again.`, {
+            description: error.message,
+          });
+        },
+      },
+    );
+}
+
 /**
  * Cover, title, subtitle, properties and contents, above the content and in
  * the same column. The title is the document's own; the rest lives on the

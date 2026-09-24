@@ -16,7 +16,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { $convertFromMarkdownString } from "@lexical/markdown";
-import { CORE_NODES } from "@packages/lexical-nodes";
+import { CORE_NODES, readFrontMatter } from "@packages/lexical-nodes";
 import { theme } from "../themes/theme";
 import { PLAYGROUND_TRANSFORMERS } from "./MarkdownTransformers";
 import type { MarkdownInsertMode } from "../utils/markdown";
@@ -76,8 +76,12 @@ export default function ImportMarkdownModal({
               onError: (error) => {
                 console.error("Lexical error in preview:", error);
               },
+              // Front matter sets the document's fields, so it is not shown.
               editorState: () =>
-                $convertFromMarkdownString(markdown, PLAYGROUND_TRANSFORMERS),
+                $convertFromMarkdownString(
+                  readFrontMatter(markdown).body,
+                  PLAYGROUND_TRANSFORMERS,
+                ),
               nodes: CORE_NODES,
             }}
           >
