@@ -1,5 +1,6 @@
 import type { Context } from "./context";
 import { CliError } from "./errors";
+import { API_PREFIX } from "./http";
 import { loadDocument } from "./openapi";
 import { requireToken } from "./tokens";
 
@@ -47,10 +48,13 @@ async function verifyServer(context: Context): Promise<void> {
   } catch (error) {
     if (!(error instanceof CliError)) throw error;
     if (error.code === "REDIRECT") {
+      const target = redirectBase(context, error.details.location);
       throw notLexidraw(
         context,
         `redirects to ${error.details.location}`,
-        "Point LEXIDRAW_URL at the server itself.",
+        target
+          ? `Point LEXIDRAW_URL at ${target}.`
+          : "Point LEXIDRAW_URL at the server itself.",
       );
     }
     // Lexidraw serves the document at that path, as JSON, to anyone; a 5xx
@@ -77,4 +81,16 @@ function notLexidraw(context: Context, why: string, hint: string): CliError {
     `${profile.origin} ${why}; no token was sent. ${hint}`,
     { details: { profile: profile.name, baseUrl: profile.baseUrl } },
   );
+}
+
+const OPENAPI_PATH = `${API_PREFIX}/openapi.json`;
+
+/** The base URL a redirect of the OpenAPI document points at, when it points
+ * at another document path rather than a login page or the like. */
+function redirectBase(context: Context, location: unknown): string | null {
+  if (typeof location !== "string") return null;
+  const from = `${context.profile.baseUrl}${OPENAPI_PATH}`;
+  const url = URL.parse(location, from);
+  if (!url?.href.endsWith(OPENAPI_PATH) || url.search) return null;
+  return url.href.slice(0, -OPENAPI_PATH.length);
 }

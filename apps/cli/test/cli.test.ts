@@ -481,7 +481,9 @@ describe("server identity", () => {
       env: await impostorEnv(impostor, { LEXIDRAW_TOKEN: "lxd_good" }),
     });
     await run(["auth", "status"], io.io);
-    expect(JSON.parse(io.stderr()).message).toContain(stub.baseUrl);
+    expect(JSON.parse(io.stderr()).message).toContain(
+      `Point LEXIDRAW_URL at ${stub.baseUrl}.`,
+    );
   });
 
   it("reports a server error as one, not as the wrong host", async () => {
