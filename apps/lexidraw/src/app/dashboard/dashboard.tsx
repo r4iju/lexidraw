@@ -136,9 +136,12 @@ export async function Dashboard({
                       key: "onlyFavorites",
                       value: onlyFavorites ? "false" : "true",
                     })}
+                    aria-current={onlyFavorites ? "true" : undefined}
                   >
                     <Heart className="md:hidden" />
-                    <span className="hidden md:block">Favorites</span>
+                    <span className="sr-only md:not-sr-only md:block">
+                      Favorites
+                    </span>
                   </Link>
                 </Button>
                 <Button
@@ -154,9 +157,12 @@ export async function Dashboard({
                       key: "includeArchived",
                       value: includeArchived ? "false" : "true",
                     })}
+                    aria-current={includeArchived ? "true" : undefined}
                   >
                     <Archive className="md:hidden" />
-                    <span className="hidden md:block">Archived</span>
+                    <span className="sr-only md:not-sr-only md:block">
+                      Archived
+                    </span>
                   </Link>
                 </Button>
               </div>
@@ -174,8 +180,10 @@ export async function Dashboard({
                       key: "flex",
                       value: "flex-row",
                     })}
+                    aria-current={flex === "flex-row" ? "true" : undefined}
                   >
                     <LayoutGrid />
+                    <span className="sr-only">Grid view</span>
                   </Link>
                 </Button>
                 <Button
@@ -190,8 +198,10 @@ export async function Dashboard({
                       key: "flex",
                       value: "flex-col",
                     })}
+                    aria-current={flex === "flex-col" ? "true" : undefined}
                   >
                     <Rows3 />
+                    <span className="sr-only">List view</span>
                   </Link>
                 </Button>
               </div>

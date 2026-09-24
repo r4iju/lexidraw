@@ -35,6 +35,7 @@ export const TagTooltip = ({
             className={cn(className, "items-center justify-center")}
           >
             <TagsIcon className="size-5" />
+            <span className="sr-only">{`Tags for ${entity.title}`}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent className="flex flex-col">

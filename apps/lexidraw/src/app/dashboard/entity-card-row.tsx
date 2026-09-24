@@ -78,6 +78,9 @@ export function EntityCardRow({
           ) : (
             <Button size="icon" variant="ghost" disabled>
               <DotsHorizontalIcon className="size-5" />
+              <span className="sr-only">
+                {`More actions for ${entity.title}`}
+              </span>
             </Button>
           )}
         </div>

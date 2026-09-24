@@ -20,6 +20,7 @@ export function Drag({ entity, children, flex }: DragProps) {
   // dragging should not start on simple clicks.
 
   return (
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: `attributes` spreads dnd-kit's role="button" and tabIndex, which the rule cannot see.
     <div
       ref={setNodeRef}
       {...attributes}
@@ -29,6 +30,8 @@ export function Drag({ entity, children, flex }: DragProps) {
         isDragging && "opacity-50",
       )}
       aria-describedby={undefined}
+      // What dragging does, rather than a name read from the whole card.
+      aria-label={`Move ${entity.title}`}
     >
       {children}
     </div>

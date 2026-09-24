@@ -56,7 +56,10 @@ export function SortMenu() {
   return (
     <div className="flex justify-end items-center gap-2">
       <Select onValueChange={handleSort} defaultValue={sortBy}>
-        <SelectTrigger className="w-[fit-content] min-w-30">
+        <SelectTrigger
+          className="w-[fit-content] min-w-30"
+          aria-label="Sort by"
+        >
           <SelectValue placeholder="Sort by" />
         </SelectTrigger>
         <SelectContent>

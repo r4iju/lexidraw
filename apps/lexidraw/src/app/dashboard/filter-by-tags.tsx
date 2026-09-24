@@ -70,6 +70,7 @@ export function FilterByTags({ options }: Props) {
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label="Filter by tags"
           className={cn(
             "relative h-10 w-10 p-0", // mobile
             "md:w-[200px] md:justify-between md:flex md:p-2", // desktop

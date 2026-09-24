@@ -76,6 +76,7 @@ const EntityTitle = ({ className, entity }: Props) => {
           <>
             <Input
               autoFocus
+              aria-label="Title"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               className=" text-lg font-semibold px-0 border-none focus-visible:ring-transparent"
@@ -85,6 +86,7 @@ const EntityTitle = ({ className, entity }: Props) => {
               variant="outline"
               disabled={isLoading}
               onClick={handleSave}
+              aria-label="Save title"
             >
               {!isLoading && <CheckIcon className="w-4" />}
               {isLoading && <ReloadIcon className="animate-spin w-4" />}
@@ -97,6 +99,7 @@ const EntityTitle = ({ className, entity }: Props) => {
                 setIsEditing(false);
                 setNewTitle(entity.title);
               }}
+              aria-label="Cancel renaming"
             >
               <Cross1Icon className="w-4" />
             </Button>
