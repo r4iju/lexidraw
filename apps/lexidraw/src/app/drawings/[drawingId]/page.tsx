@@ -7,12 +7,13 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { AccessLevel } from "@packages/types";
 import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
+import { notFoundOr } from "~/trpc/not-found";
 import { Button } from "~/components/ui/button";
 import type { Metadata } from "next";
 import { cacheTag, revalidatePath } from "next/cache";
 import DrawingBoardWithSave from "./drawing-board-wrapper";
 import ViewBoard from "./board-view-client";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Lexidraw | drawing",
@@ -62,7 +63,9 @@ export default async function DrawingBoard(props: Props) {
   }
 
   try {
-    const drawing = await api.entities.load.query({ id: drawingId });
+    const drawing = await api.entities.load
+      .query({ id: drawingId })
+      .catch(notFoundOr);
     const iceServers = await api.auth.iceServers.query();
 
     const revalidate = async () => {
@@ -113,6 +116,8 @@ export default async function DrawingBoard(props: Props) {
       </div>
     );
   } catch (error) {
+    // The 404 for a missing drawing is Next's to render, not a failure.
+    unstable_rethrow(error);
     console.error(error);
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-4">

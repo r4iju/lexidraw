@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { cacheTag } from "next/cache";
 import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
+import { notFoundOr } from "~/trpc/not-found";
 import { Dashboard } from "../dashboard";
 import { DashboardSkeleton } from "../skeleton";
 import { redirect } from "next/navigation";
@@ -104,7 +105,9 @@ async function DashboardContent({ params, searchParams }: Props) {
     });
     return redirect(`/dashboard/${directoryId}`);
   }
-  const directory = await api.entities.getMetadata.query({ id: directoryId });
+  const directory = await api.entities.getMetadata
+    .query({ id: directoryId })
+    .catch(notFoundOr);
 
   return (
     <Dashboard

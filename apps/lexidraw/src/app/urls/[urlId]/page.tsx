@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { entityTag } from "~/server/api/entity-cache";
 import { api } from "~/trpc/server";
+import { notFoundOr } from "~/trpc/not-found";
 
 export const metadata: Metadata = {
   title: "Lexidraw | url",
@@ -51,7 +52,7 @@ export default async function UrlPage(props: Props) {
   }
 
   const [entity, audioConfig, ttsCatalog] = await Promise.all([
-    api.entities.load.query({ id: urlId }),
+    api.entities.load.query({ id: urlId }).catch(notFoundOr),
     api.config.getAudioConfig.query(),
     api.config.getTtsCatalog.query(),
   ]);
