@@ -2,6 +2,7 @@ import {
   and,
   type drizzle,
   eq,
+  inArray,
   isNull,
   ne,
   or,
@@ -157,36 +158,76 @@ export type EntityAncestor = {
   parentId: string | null;
 };
 
-/** Ancestors of the entity whose parent is `parentId`, nearest first. */
+/**
+ * The title of each of `ids` that `userId` may read, by id. The rest are left
+ * out: a folder someone else keeps above a file they shared is theirs, and so
+ * is its name.
+ */
+export async function readableTitles(
+  db: Db,
+  ids: Iterable<string | null>,
+  userId: string,
+): Promise<Map<string, string>> {
+  const wanted = [...new Set(ids)].filter((id): id is string => !!id);
+  if (wanted.length === 0) return new Map();
+  const rows = await db
+    .selectDistinct({ id: schema.entities.id, title: schema.entities.title })
+    .from(schema.entities)
+    .where(
+      and(
+        inArray(schema.entities.id, wanted),
+        isNull(schema.entities.deletedAt),
+        readableBy(userId),
+      ),
+    )
+    .leftJoin(schema.sharedEntities, callersShare(userId))
+    .execute();
+  return new Map(rows.map((row) => [row.id, row.title]));
+}
+
+/**
+ * The folders above the entity whose parent is `parentId` that `userId` may
+ * read, nearest first. The walk goes through the ones they may not, so a
+ * readable folder higher up still shows.
+ */
 export async function entityAncestors(
   db: Db,
   parentId: string | null,
+  userId: string,
 ): Promise<EntityAncestor[]> {
-  const ancestors: EntityAncestor[] = [];
+  const chain: { id: string; parentId: string | null }[] = [];
   let currentId = parentId;
   for (let depth = 0; currentId && depth < MAX_PATH_DEPTH; depth++) {
     const parent = await db
-      .select({
-        id: schema.entities.id,
-        title: schema.entities.title,
-        parentId: schema.entities.parentId,
-      })
+      .select({ id: schema.entities.id, parentId: schema.entities.parentId })
       .from(schema.entities)
       .where(eq(schema.entities.id, currentId))
       .get();
     if (!parent) break;
-    ancestors.push(parent);
+    chain.push(parent);
     currentId = parent.parentId;
   }
-  return ancestors;
+  const titles = await readableTitles(
+    db,
+    chain.map((link) => link.id),
+    userId,
+  );
+  return chain.flatMap((link) => {
+    const title = titles.get(link.id);
+    return title === undefined ? [] : [{ ...link, title }];
+  });
 }
 
-/** Ancestor directory titles and the entity's own title, joined with "/". */
+/**
+ * The titles of the folders above the entity that `userId` may read, and the
+ * entity's own title, joined with "/".
+ */
 export async function entityPath(
   db: Db,
   entity: { title: string; parentId: string | null },
+  userId: string,
 ): Promise<string> {
-  const ancestors = await entityAncestors(db, entity.parentId);
+  const ancestors = await entityAncestors(db, entity.parentId, userId);
   return [...ancestors.reverse().map((a) => a.title), entity.title].join("/");
 }
 

@@ -11,7 +11,7 @@ export type EntityFrame = {
   account: AppBarAccount | null;
   isOwner: boolean;
   parentId: string | null;
-  /** The folders it sits in, from the top down, without Home. */
+  /** The folders above it the viewer can open, from the top down, without Home. */
   ancestors: { id: string; title: string }[];
 };
 

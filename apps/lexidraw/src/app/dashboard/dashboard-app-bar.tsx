@@ -8,7 +8,7 @@ import { Drop } from "./drop";
 type Folder = {
   id: string;
   title: string;
-  /** From the top down, without Home; empty for someone else's folder. */
+  /** The ones above it the viewer can open, from the top down, without Home. */
   ancestors: { id: string; title: string }[];
   canRename: boolean;
 };

@@ -18,9 +18,9 @@ export async function appBarAccount(): Promise<AppBarAccount | null> {
 }
 
 /**
- * What the app bar over an open entity shows besides its title. Only its
- * owner sees the folders it sits in and may share it: the folders are theirs,
- * and so is who else may open it.
+ * What the app bar over an open entity shows besides its title: the folders
+ * above it that the viewer can open, and, to its owner, where it sits and who
+ * else may open it.
  */
 export async function entityFrame(id: string): Promise<EntityFrame> {
   const [account, entity] = await Promise.all([
@@ -32,10 +32,9 @@ export async function entityFrame(id: string): Promise<EntityFrame> {
     account,
     isOwner,
     parentId: isOwner ? (entity?.parentId ?? null) : null,
-    ancestors: isOwner
-      ? (entity?.ancestors ?? []).flatMap((ancestor) =>
-          ancestor.id ? [{ id: ancestor.id, title: ancestor.title }] : [],
-        )
-      : [],
+    ancestors: (entity?.ancestors ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
   };
 }

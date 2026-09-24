@@ -512,7 +512,6 @@ export const entityRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id ?? "";
 
-      // 1. fetch the current entity
       const entities = await ctx.drizzle
         .select({
           id: schema.entities.id,
@@ -554,25 +553,12 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
-      // 2. ancestors nearest first, then the virtual root
-      const ancestors: {
-        id: string | null;
-        title: string;
-        parentId: string | null;
-      }[] = await entityAncestors(ctx.drizzle, entity.parentId);
-      ancestors.push({
-        id: null,
-        title: "Home",
-        parentId: null,
-      });
-
-      // root->child order, so reverse
-      ancestors.reverse();
-
-      return {
-        ...entity,
-        ancestors,
-      };
+      const ancestors = await entityAncestors(
+        ctx.drizzle,
+        entity.parentId,
+        userId,
+      );
+      return { ...entity, ancestors: ancestors.reverse() };
     }),
   list: protectedProcedure
     .meta({

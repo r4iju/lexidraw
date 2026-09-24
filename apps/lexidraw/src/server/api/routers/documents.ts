@@ -139,7 +139,7 @@ const editorState = z.looseObject({
 const markdownMeta = {
   id: z.string(),
   title: z.string(),
-  /** Ancestor directory titles and the title, joined with "/". */
+  /** The folders above it the caller can open, then its title, joined with "/". */
   path: z.string(),
   updatedAt: isoDate,
   tags: z.array(z.string()),
@@ -242,7 +242,7 @@ export const documentRouter = createTRPCRouter({
         });
       }
       const [path, tags] = await Promise.all([
-        entityPath(ctx.drizzle, entity),
+        entityPath(ctx.drizzle, entity, userId),
         entityTagNames(ctx.drizzle, entity.id),
       ]);
       const meta = {

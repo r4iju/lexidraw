@@ -115,15 +115,10 @@ export async function Dashboard({
             id: directory.id,
             title: directory.title,
             canRename: directory.ownerId === account?.id,
-            // Someone else's folders above one they were shared are theirs.
-            ancestors:
-              directory.ownerId === account?.id
-                ? directory.ancestors.flatMap((ancestor) =>
-                    ancestor.id
-                      ? [{ id: ancestor.id, title: ancestor.title }]
-                      : [],
-                  )
-                : [],
+            ancestors: directory.ancestors.map(({ id, title }) => ({
+              id,
+              title,
+            })),
           }
         }
       />
