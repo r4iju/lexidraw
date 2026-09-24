@@ -227,7 +227,7 @@ next one, so a chain of writes never needs a read between them.
   own code.
   `auth login` validates a token against `/me` before storing it; `auth
   status` reports the profile, base URL, token source, and scope.
-- Live today: `doc`, `dir`, `search`, `drawing get|put|create|render`, `auth
+- Live today: `doc`, `dir`, `search`, `drawing get|put|create|render|delete`, `auth
   login|status`, `api`, and
   `schema <command>|--list`, whose registry maps a command name to an
   operationId in the cached document. `drawing render` writes the image to

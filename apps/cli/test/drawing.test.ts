@@ -38,6 +38,14 @@ beforeEach(() => {
       entityType: "drawing",
       parentId: "dir-notes",
     },
+    // Shared with the caller, who can read it but not delete it.
+    {
+      id: "drw-shared",
+      title: "Theirs",
+      entityType: "drawing",
+      parentId: "dir-notes",
+      shared: true,
+    },
   ]);
 });
 
@@ -331,6 +339,32 @@ describe("drawing delete", () => {
       expect(stub.rows.has(id)).toBe(true);
     }
     expect(deletes()).toEqual([]);
+  });
+
+  it("deletes the one --nth picks among drawings sharing a path", async () => {
+    const out = io();
+    expect(
+      await run(
+        ["drawing", "delete", "--path", "Notes/Twin", "--nth", "2"],
+        out.io,
+      ),
+    ).toBe(0);
+    expect(stub.rows.has("drw-old")).toBe(false);
+    expect(stub.rows.has("drw-new")).toBe(true);
+  });
+
+  it("says a drawing it found is not the caller's to delete", async () => {
+    for (const argv of [["drw-shared"], ["--path", "Notes/Theirs"]]) {
+      const out = io();
+      expect(await run(["drawing", "delete", ...argv], out.io)).toBe(1);
+      expect(JSON.parse(out.stderr())).toMatchObject({
+        code: "NOT_FOUND",
+        message:
+          '"drw-shared" was not deleted: only its owner can move it to the trash',
+        id: "drw-shared",
+      });
+    }
+    expect(stub.rows.has("drw-shared")).toBe(true);
   });
 
   it("will not pick among drawings sharing a path", async () => {

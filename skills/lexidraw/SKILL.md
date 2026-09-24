@@ -192,7 +192,7 @@ usage errors exit 2.
 | `FORBIDDEN` | a `read`-scope token tried to write, or the entity is shared without edit rights | use a `write`-scope token; ask the owner for edit access |
 | `UNKNOWN_COMMAND` | no such command for `schema` | `lexidraw schema --list` |
 | `AMBIGUOUS_PATH` | a write path matched several entities | pick one from `candidates` with `--nth N` or its id |
-| `NOT_FOUND` | no match for a segment, or `--nth` past the end | check the path; the error names the segment and parent |
+| `NOT_FOUND` | no match for a segment, or `--nth` past the end; from a delete, an entity shared with you rather than yours | check the path; the error names the segment and parent. Only the owner can delete |
 | `BAD_REQUEST` | invalid input: an ambiguous or unmatched `--after-heading`, `--at-block` out of range, a misplaced placeholder, a malformed drawing element (`issues` names the path) | with `data.candidates`, pass its `nth`; otherwise fix the input the message names |
 | `CONFLICT` | the document moved since the read | re-read from `data.currentUpdatedAt` and redo the edit |
 | `UNPROCESSABLE_CONTENT` | the document holds a node type this version cannot read or build | do not rewrite it; report the types the error names |
@@ -214,7 +214,8 @@ lexidraw drawing delete <id|--path P>
 ```
 
 Paths and `--nth` work as under Addressing; a drawing's `--path` matches
-drawings only.
+drawings only. `delete`, like `doc delete`, moves the entity to the trash
+and only its owner can do it.
 
 `put` replaces the whole element set and `--file` must hold a bare JSON
 array, so a round trip edits the `elements` of the read and carries its

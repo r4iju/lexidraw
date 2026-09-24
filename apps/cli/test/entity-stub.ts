@@ -25,6 +25,8 @@ export type Row = {
   updatedAt: string;
   /** Markdown blocks, for a document. */
   blocks: string[];
+  /** Shared with the caller rather than theirs: readable, not deletable. */
+  shared?: boolean;
 };
 
 export type Seed = Partial<Row> & Pick<Row, "id" | "title" | "entityType">;
@@ -103,6 +105,8 @@ export function startEntityStub(seeds: readonly Seed[] = []): EntityStub {
       if (!row) return fail(404, "NOT_FOUND", "Drawing not found");
       if (request.method === "GET") return Response.json(loaded(row));
       if (request.method === "DELETE") {
+        // The server's delete finds only the caller's own entities.
+        if (row.shared) return fail(404, "NOT_FOUND", "Entity not found");
         rows.delete(row.id);
         return Response.json({ id: row.id });
       }

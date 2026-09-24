@@ -24,7 +24,7 @@ const USAGE = `usage:
   lexidraw drawing put <id|--path P> [--nth N] --file <elements.json|-> --if-unmodified-since <iso|latest>
   lexidraw drawing create --title <title> [--dir <id>|--dir-path P] [--file <elements.json|->]
   lexidraw drawing render <id|--path P> [--nth N] [--format svg|png] [--scale 1-4] [--out <file>]
-  lexidraw drawing delete <id|--path P>
+  lexidraw drawing delete <id|--path P> [--nth N]
 
 put replaces every element, so it states which revision it replaces: pass the
 updatedAt a get returned, or "latest" to read it again immediately before
