@@ -32,16 +32,10 @@ export function entityTag(id: string): string {
 
 /**
  * `revalidateTag` carries the revalidation on the work store the request set
- * up, so it throws where there is no request (`E263`) and where the caller is
- * a render or a cached function (`E7`, `E181`). Only the second pair is
- * expected here, and only from the `?new=true` create the editor pages run
- * inside their own `use cache` scope: that render redirects to an entity no
- * cache entry mentions yet, so there is nothing to drop. `E263` means a write
- * really did fail to revalidate and is left to surface.
+ * up, so it throws where there is no request (`E263`). Only the writers that
+ * run outside one tolerate that; anything else is a write that really did
+ * fail to revalidate, and is left to surface.
  */
-const RENDER_REFUSALS: ReadonlySet<string> = new Set(["E7", "E181"]);
-
-/** The refusal a writer with no request around it earns; see above. */
 const NO_REQUEST = "E263";
 
 function nextErrorCode(error: unknown): string | undefined {
@@ -79,7 +73,7 @@ function revalidate(
 export function revalidateEntities(
   ...ids: readonly (string | null | undefined)[]
 ): void {
-  revalidate(ids, RENDER_REFUSALS);
+  revalidate(ids, new Set());
 }
 
 /**
@@ -92,7 +86,7 @@ export function revalidateEntities(
 export function revalidateEntitiesOutsideRequest(
   ...ids: readonly (string | null | undefined)[]
 ): void {
-  revalidate(ids, new Set([...RENDER_REFUSALS, NO_REQUEST]));
+  revalidate(ids, new Set([NO_REQUEST]));
 }
 
 /**

@@ -76,11 +76,11 @@ describe("revalidateEntities", () => {
     expect(asked).toEqual([entityTag("a"), entityTag("b")]);
   });
 
-  test("tolerates the refusal a render earns", () => {
+  test("lets a write made during a render surface: no writer runs in one", () => {
     refusal = nextError("E7", 'used "revalidateTag" during render');
-    expect(() => revalidateEntities("a")).not.toThrow();
+    expect(() => revalidateEntities("a")).toThrow("during render");
     refusal = nextError("E181", 'used "revalidateTag" inside a "use cache"');
-    expect(() => revalidateEntities("a")).not.toThrow();
+    expect(() => revalidateEntities("a")).toThrow('inside a "use cache"');
   });
 
   test("lets a write that really failed to revalidate surface", () => {
@@ -98,6 +98,13 @@ describe("revalidateEntitiesOutsideRequest", () => {
   test("tolerates having no request to carry the revalidation", () => {
     refusal = nextError("E263", "Invariant: static generation store missing");
     expect(() => revalidateEntitiesOutsideRequest("a")).not.toThrow();
+  });
+
+  test("lets a write made during a render surface", () => {
+    refusal = nextError("E181", 'used "revalidateTag" inside a "use cache"');
+    expect(() => revalidateEntitiesOutsideRequest("a")).toThrow(
+      'inside a "use cache"',
+    );
   });
 
   test("still lets a real failure surface", () => {
