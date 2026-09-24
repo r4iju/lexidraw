@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
+import { eq } from "drizzle-orm";
 import { PublicAccess } from "@packages/types";
 
 import { hashApiToken } from "~/server/auth/api-token-format";
@@ -297,6 +298,45 @@ describe("a write that changes a listing", () => {
     expect(body.success).toBe(true);
     // The listing renders how many people an entity is shared with.
     expect(revalidated).toEqual(["entity:rest_doc", "entity:rest_dir"]);
+  });
+});
+
+describe("the tag list", () => {
+  const tags = async () => (await api("GET", "/tags")).body as string[];
+
+  test("leaves out a tag whose only entity is in the trash, until it is restored", async () => {
+    const created = await api("POST", "/entities", {
+      body: {
+        id: "rest_doc_trashed_tag",
+        title: "Tagged then trashed",
+        entityType: "document",
+        elements: JSON.stringify(EMPTY_DOCUMENT),
+        parentId: null,
+      },
+    });
+    expect(created.response.status).toBe(200);
+    for (const [id, tag] of [
+      ["rest_doc_trashed_tag", "rest-only-in-trash"],
+      ["rest_doc", "rest-still-live"],
+    ]) {
+      const tagged = await api("PUT", `/entities/${id}/tags`, {
+        body: { tagNames: [tag] },
+      });
+      expect(tagged.response.status).toBe(200);
+    }
+    expect(await tags()).toContain("rest-only-in-trash");
+
+    const deleted = await api("DELETE", "/entities/rest_doc_trashed_tag");
+    expect(deleted.response.status).toBe(200);
+    expect(await tags()).not.toContain("rest-only-in-trash");
+    expect(await tags()).toContain("rest-still-live");
+
+    // Nothing publishes a restore yet; clearing the stamp is all one would do.
+    await db
+      .update(schema.entities)
+      .set({ deletedAt: null })
+      .where(eq(schema.entities.id, "rest_doc_trashed_tag"));
+    expect(await tags()).toContain("rest-only-in-trash");
   });
 });
 

@@ -1220,7 +1220,7 @@
     "/tags": {
       "get": {
         "operationId": "entities-getUserTags",
-        "summary": "List every tag the caller has used",
+        "summary": "List the tags the caller has on entities outside the trash",
         "tags": ["entities"],
         "security": [
           {

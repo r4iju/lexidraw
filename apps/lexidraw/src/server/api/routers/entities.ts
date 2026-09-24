@@ -825,28 +825,33 @@ export const entityRouter = createTRPCRouter({
         method: "GET",
         path: "/tags",
         tags: ["entities"],
-        summary: "List every tag the caller has used",
+        summary: "List the tags the caller has on entities outside the trash",
         protect: true,
       },
     })
     .output(z.array(z.string()))
     .query(async ({ ctx }) => {
-      const tags = await ctx.drizzle
-        .select({
-          name: schema.tags.name,
-        })
+      const rows = await ctx.drizzle
+        .selectDistinct({ name: schema.tags.name })
         .from(schema.entityTags)
-        .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-        // also filter orphan tags (tags that are not associated with any entity  )
-        .where(and(eq(schema.entityTags.userId, ctx.session.user.id)))
+        .innerJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+        .innerJoin(
+          schema.entities,
+          eq(schema.entityTags.entityId, schema.entities.id),
+        )
+        .where(
+          and(
+            eq(schema.entityTags.userId, ctx.session.user.id),
+            // A trashed entity keeps its tag rows so a restore brings them
+            // back. Archived entities still count: `list` reaches them with
+            // `includeArchived`, so their tags have to stay filterable.
+            isNull(schema.entities.deletedAt),
+          ),
+        )
+        .orderBy(schema.tags.name)
         .execute();
 
-      return tags
-        .map((tag) => tag.name)
-        .filter(
-          (tag, index, self) => self.indexOf(tag) === index && tag !== null,
-        )
-        .sort() as string[];
+      return rows.map((row) => row.name);
     }),
   getEntityTags: protectedProcedure
     .meta({
