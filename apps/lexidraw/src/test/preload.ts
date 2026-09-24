@@ -1,4 +1,5 @@
 /// <reference types="bun" />
+import { afterEach } from "bun:test";
 import { JSDOM } from "jsdom";
 
 /**
@@ -24,3 +25,12 @@ for (const [key, value] of saved) {
   if (value === undefined) delete globals[key];
   else globals[key] = value;
 }
+
+/**
+ * Radix's focus scope sends its unmount event on a timer. Letting pending
+ * timers run after every test, in every file, fires it while that file's
+ * document is still installed; left for later, it can fire once the file has
+ * put the real globals back, when jsdom refuses the event and the suite fails
+ * with an unhandled error.
+ */
+afterEach(() => new Promise((resolve) => setTimeout(resolve, 0)));
