@@ -135,6 +135,7 @@ import {
   useDocumentSettings,
 } from "./context/document-settings-context";
 import { EditorRegistryProvider } from "./context/editors-context";
+import { SignedInProvider, useSignedIn } from "./context/signed-in-context";
 import ChartPlugin from "./plugins/ChartPlugin";
 import { ChartNode } from "./nodes/ChartNode";
 import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
@@ -279,6 +280,7 @@ function EditorHandler({
   } = useSettings();
 
   const isEditable = useLexicalEditable();
+  const signedIn = useSignedIn();
 
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null);
@@ -460,7 +462,7 @@ function EditorHandler({
         <TableContext>
           <ToolbarContext>
             <LLMProvider initialConfig={initialLlmConfig}>
-              <ImageGenerationProvider entityId={entity.id}>
+              <ImageGenerationProvider entityId={entity.id} signedIn={signedIn}>
                 <LexicalImageGenerationProvider>
                   <ImageProvider>
                     <LexicalImageProvider>
@@ -532,7 +534,7 @@ function EditorHandler({
                               <PollPlugin />
                               <CodeHighlightPlugin />
                               <TabIndentationPlugin />
-                              {autocomplete && (
+                              {autocomplete && signedIn && (
                                 <SessionUUIDProvider>
                                   <AutocompletePlugin />
                                 </SessionUUIDProvider>
@@ -599,27 +601,34 @@ function EditorHandler({
                               )}
                               <ContextMenuPlugin />
                             </div>
-                            {!printMode && activeSidebar && (
-                              <SidebarWrapper
-                                ref={sidebarRef}
-                                className="shadow-lg"
-                                onClose={() => {
-                                  setActiveSidebar(null);
-                                }}
-                                title={getSidebarTitle(activeSidebar)}
-                                initialWidth={currentSidebarWidth}
-                                minWidth={200}
-                                maxWidth={800}
-                                onWidthChange={setCurrentSidebarWidth}
-                              >
-                                {activeSidebar === "llm" && <LlmChatPlugin />}
-                                {activeSidebar === "comments" && <CommentUI />}
-                                {activeSidebar === "toc" && (
-                                  <TableOfContentsPlugin />
-                                )}
-                                {activeSidebar === "tree" && <TreeViewPlugin />}
-                              </SidebarWrapper>
-                            )}
+                            {/* A chat left open by an earlier sign-in stays shut. */}
+                            {!printMode &&
+                              activeSidebar &&
+                              (signedIn || activeSidebar !== "llm") && (
+                                <SidebarWrapper
+                                  ref={sidebarRef}
+                                  className="shadow-lg"
+                                  onClose={() => {
+                                    setActiveSidebar(null);
+                                  }}
+                                  title={getSidebarTitle(activeSidebar)}
+                                  initialWidth={currentSidebarWidth}
+                                  minWidth={200}
+                                  maxWidth={800}
+                                  onWidthChange={setCurrentSidebarWidth}
+                                >
+                                  {activeSidebar === "llm" && <LlmChatPlugin />}
+                                  {activeSidebar === "comments" && (
+                                    <CommentUI />
+                                  )}
+                                  {activeSidebar === "toc" && (
+                                    <TableOfContentsPlugin />
+                                  )}
+                                  {activeSidebar === "tree" && (
+                                    <TreeViewPlugin />
+                                  )}
+                                </SidebarWrapper>
+                              )}
                           </div>
 
                           {!printMode && <ConditionalCommentInputBoxRenderer />}
@@ -649,6 +658,7 @@ type Props = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
+  signedIn: boolean;
   printMode?: boolean;
 };
 
@@ -718,6 +728,7 @@ export default function DocumentEditor({
   entity,
   iceServers,
   initialLlmConfig,
+  signedIn,
   printMode,
 }: Props) {
   console.log("🔄 DocumentEditor re-rendered");
@@ -760,18 +771,20 @@ export default function DocumentEditor({
   ];
 
   return (
-    <DocumentSettingsProvider
-      initialDefaultFontFamily={appState.defaultFontFamily ?? null}
-    >
-      <EditorScaffold
-        entity={entity}
-        editorStateRef={editorStateRef}
-        setEditorStateRef={setEditorStateRef}
-        iceServers={iceServers}
-        initialLlmConfig={initialLlmConfig}
-        nodes={lexicalNodes}
-        printMode={printMode}
-      />
-    </DocumentSettingsProvider>
+    <SignedInProvider value={signedIn}>
+      <DocumentSettingsProvider
+        initialDefaultFontFamily={appState.defaultFontFamily ?? null}
+      >
+        <EditorScaffold
+          entity={entity}
+          editorStateRef={editorStateRef}
+          setEditorStateRef={setEditorStateRef}
+          iceServers={iceServers}
+          initialLlmConfig={initialLlmConfig}
+          nodes={lexicalNodes}
+          printMode={printMode}
+        />
+      </DocumentSettingsProvider>
+    </SignedInProvider>
   );
 }

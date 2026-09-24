@@ -206,7 +206,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
         />
       )}
       {openDialog === "thumbnail" && (
-        <ImageGenerationProvider entityId={entity.id}>
+        <ImageGenerationProvider entityId={entity.id} signedIn>
           <ImageProvider>
             <ThumbnailModal
               entity={entity}

@@ -52,8 +52,7 @@ export default async function UrlPage(props: Props) {
     return redirect(`/urls/${urlId}`);
   }
 
-  // First, so a missing link is a 404 even for a visitor the calls
-  // below refuse.
+  // A missing link, or one this caller may not read, is a 404.
   const entity = await api.entities.load.query({ id: urlId }).catch(notFoundOr);
   // A visitor to a public link can read and play it but not generate audio,
   // which needs an account, and so has no use for the TTS catalog.

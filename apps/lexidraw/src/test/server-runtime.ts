@@ -54,6 +54,19 @@ export async function installServerRuntime(): Promise<
   // `bun test` sets NODE_ENV itself; a plain `bun` run of a harness does not.
   runtimeEnv.NODE_ENV ??= "test";
 
+  const db = await createTestDatabase();
+  (globalThis as { db?: LibSQLDatabase<typeof schema> }).db = db;
+  return db;
+}
+
+/**
+ * An empty in-memory database with every table of the schema. For a test that
+ * hands the database to a procedure itself, through the context of
+ * `createCaller`, and needs to know every row in it.
+ */
+export async function createTestDatabase(): Promise<
+  LibSQLDatabase<typeof schema>
+> {
   const client = createClient({ url: ":memory:" });
   const db = drizzle(client, { schema });
   const statements = await generateSQLiteMigration(
@@ -61,7 +74,5 @@ export async function installServerRuntime(): Promise<
     await generateSQLiteDrizzleJson(schema as never),
   );
   for (const statement of statements) await client.execute(statement);
-
-  (globalThis as { db?: LibSQLDatabase<typeof schema> }).db = db;
   return db;
 }

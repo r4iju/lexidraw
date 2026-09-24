@@ -86,8 +86,13 @@ export default function ArticlePreview({
 
   // Fetch per-user defaults
   const utils = api.useUtils();
-  const ttsQuery = api.config.getTtsConfig.useQuery();
-  const articleQuery = api.config.getArticleConfig.useQuery();
+  // Only generating audio uses them.
+  const ttsQuery = api.config.getTtsConfig.useQuery(undefined, {
+    enabled: canGenerateAudio,
+  });
+  const articleQuery = api.config.getArticleConfig.useQuery(undefined, {
+    enabled: canGenerateAudio,
+  });
   const updateTts = api.config.updateTtsConfig.useMutation({
     onSuccess: () => utils.config.getTtsConfig.invalidate(),
   });

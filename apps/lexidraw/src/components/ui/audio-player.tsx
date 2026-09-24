@@ -58,7 +58,7 @@ export function AudioPlayer({
   initialVolume = 1,
   initialPlaybackRate = 1,
   autoPlay = false,
-  persistPreferredRate: wantsPersistedRate = true,
+  persistPreferredRate = true,
   className,
   onPlay,
   onPause,
@@ -66,10 +66,9 @@ export function AudioPlayer({
 }: Readonly<AudioPlayerProps>): React.ReactNode {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pathname = usePathname();
-  // A visitor to a public link has no account to keep a rate in.
+  // Anyone can read the preferred rate (a visitor gets the default), but only
+  // an account has somewhere to keep a new one.
   const { status: sessionStatus } = useSession();
-  const persistPreferredRate =
-    wantsPersistedRate && sessionStatus === "authenticated";
   const lastPathRef = useRef(pathname);
   const prevSrcRef = useRef<string | undefined>(undefined);
 
@@ -626,7 +625,10 @@ export function AudioPlayer({
                       Math.max(minSpeed, Math.round(next * 100) / 100),
                     );
                     setRate(snapped);
-                    if (persistPreferredRate) {
+                    if (
+                      persistPreferredRate &&
+                      sessionStatus === "authenticated"
+                    ) {
                       console.log(
                         "[AudioPlayer] saving playback rate",
                         snapped,
