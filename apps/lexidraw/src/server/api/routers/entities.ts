@@ -33,7 +33,11 @@ import { headers } from "next/headers";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "~/workflows/thumbnail/generate-thumbnail-workflow";
 import { computeThumbnailVersion } from "~/lib/thumbnail-version";
-import { nextUpdatedAt } from "~/server/documents/document-store";
+import {
+  drizzleDocumentStore,
+  nextUpdatedAt,
+} from "~/server/documents/document-store";
+import { StaleDocumentError } from "~/server/documents/conflict";
 import {
   entityAncestors,
   findOwnedEntity,
@@ -268,6 +272,8 @@ export const entityRouter = createTRPCRouter({
         tags: ["entities"],
         summary: "Replace the stored content of an entity",
         protect: true,
+        // The 409 is the precondition's.
+        errorResponses: [400, 401, 403, 404, 409, 500],
       },
     })
     .input(SaveEntity)
@@ -311,9 +317,34 @@ export const entityRouter = createTRPCRouter({
           // and ensure the UPDATE has at least one column always
           thumbnailStatus: "pending",
         })
-        .where(eq(schema.entities.id, input.id))
+        .where(
+          and(
+            eq(schema.entities.id, input.id),
+            isNull(schema.entities.deletedAt),
+            // The same compare-and-set as the document and drawing writes.
+            input.ifUnmodifiedSince === undefined
+              ? undefined
+              : eq(
+                  schema.entities.updatedAt,
+                  new Date(input.ifUnmodifiedSince),
+                ),
+          ),
+        )
         .returning({ updatedAt: schema.entities.updatedAt });
-      const entityUpdatedAt = saved[0]?.updatedAt ?? new Date();
+      if (!saved[0]) {
+        const current = await drizzleDocumentStore(ctx.drizzle).read(input.id);
+        if (!current) throw notFound();
+        const stale = new StaleDocumentError(
+          current.updatedAt,
+          entity.entityType === "drawing" ? "Drawing" : "Document",
+        );
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: stale.message,
+          cause: stale,
+        });
+      }
+      const entityUpdatedAt = saved[0].updatedAt;
 
       try {
         console.log(

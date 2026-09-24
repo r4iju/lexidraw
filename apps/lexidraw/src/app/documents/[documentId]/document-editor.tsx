@@ -108,7 +108,12 @@ import {
   ImageGenerationProvider,
 } from "~/hooks/use-image-generation";
 import { useAutoSave } from "~/hooks/use-auto-save";
-import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import {
+  OpenEntityContext,
+  useOpenEntity,
+  useOpenEntityContext,
+  useOpenEntitySync,
+} from "~/hooks/use-open-entity-sync";
 import { useSyncedLexicalEditor } from "./use-synced-lexical-editor";
 import {
   LexicalImageProvider,
@@ -310,9 +315,8 @@ function EditorHandler({
     // they stay for the user to save.
     if (dirty.current) debouncedAutoSaveRef.current?.();
   }, [dirty]);
-  const { holdsSaves } = useOpenEntitySync({
-    entity,
-    noun: "document",
+  const openDocument = useOpenEntityContext();
+  const { holdsSaves } = useOpenEntitySync(openDocument, {
     editor: printMode ? null : syncedEditor,
     onSavesResumed,
   });
@@ -709,7 +713,12 @@ function EditorScaffold({
   nodes: Klass<LexicalNode>[];
   printMode?: boolean;
 }) {
-  const saveAndExport = useSaveAndExportDocument({ entity, editorStateRef });
+  const openDocument = useOpenEntity(entity, "document");
+  const saveAndExport = useSaveAndExportDocument({
+    entity,
+    editorStateRef,
+    openDocument,
+  });
   const handleSaveAndLeave = printMode
     ? () => {}
     : saveAndExport.handleSaveAndLeave;
@@ -733,22 +742,24 @@ function EditorScaffold({
           theme,
         }}
       >
-        <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
-          <SidebarManagerProvider>
-            <EditorHandler
-              entity={entity}
-              iceServers={iceServers}
-              initialLlmConfig={initialLlmConfig}
-              handleSave={handleSave}
-              handleSilentSave={handleSilentSave}
-              isUploading={isUploading}
-              exportMarkdown={exportMarkdown}
-              editorStateRef={editorStateRef}
-              setEditorStateRef={setEditorStateRef}
-              printMode={printMode ?? false}
-            />
-          </SidebarManagerProvider>
-        </UnsavedChangesProvider>
+        <OpenEntityContext value={openDocument}>
+          <UnsavedChangesProvider onSaveAndLeave={handleSaveAndLeave}>
+            <SidebarManagerProvider>
+              <EditorHandler
+                entity={entity}
+                iceServers={iceServers}
+                initialLlmConfig={initialLlmConfig}
+                handleSave={handleSave}
+                handleSilentSave={handleSilentSave}
+                isUploading={isUploading}
+                exportMarkdown={exportMarkdown}
+                editorStateRef={editorStateRef}
+                setEditorStateRef={setEditorStateRef}
+                printMode={printMode ?? false}
+              />
+            </SidebarManagerProvider>
+          </UnsavedChangesProvider>
+        </OpenEntityContext>
       </LexicalComposer>
     </SettingsProvider>
   );

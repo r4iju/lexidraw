@@ -20,6 +20,12 @@ export const SaveEntity = z.object({
   // entity, so a REST caller does not have to look it up to send one.
   entityType: z.enum(["drawing", "document", "directory", "url"]).optional(),
   parentId: z.string().optional(),
+  /**
+   * The `updatedAt` of the revision this content was made over. A save that
+   * no longer matches it is refused with CONFLICT instead of overwriting what
+   * was written since.
+   */
+  ifUnmodifiedSince: z.iso.datetime().optional(),
 });
 
 export type SaveEntity = z.infer<typeof SaveEntity>;

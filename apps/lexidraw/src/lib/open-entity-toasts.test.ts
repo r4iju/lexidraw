@@ -54,6 +54,7 @@ function editedOverAWrite() {
     source: {
       updatedAt: async () => stored?.updatedAt ?? null,
       load: async () => stored ?? rev(0, ""),
+      save: async () => null,
     },
     noun: "drawing",
     entityId: "d1",
