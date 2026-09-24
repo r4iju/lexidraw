@@ -36,9 +36,14 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
       name={name}
       control={control}
       render={({ field, fieldState: { error } }) => {
+        const describedBy = error
+          ? `${name}-error`
+          : helperText
+            ? `${name}-hint`
+            : undefined;
         return (
-          <div className="mx-1">
-            {label && <Label>{label}</Label>}
+          <div className="grid gap-1.5">
+            {label && <Label htmlFor={name}>{label}</Label>}
             {multiline ? (
               <Textarea
                 {...field}
@@ -47,6 +52,8 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
                 rows={rows ?? 3}
                 placeholder={placeholder}
                 required={required}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={describedBy}
               />
             ) : (
               <Input
@@ -56,6 +63,8 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
                 type={type}
                 placeholder={placeholder}
                 required={required}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={describedBy}
                 inputMode={type === "number" ? "numeric" : undefined}
                 // Ensure RHF stores numbers for type="number" inputs
                 onChange={(e) => {
@@ -72,10 +81,14 @@ const RHFTextField: FC<RHFTextFieldProps> = ({
               />
             )}
             {error && (
-              <p className="mt-1 text-sm text-destructive">{error.message}</p>
+              <p id={`${name}-error`} className="text-sm text-destructive">
+                {error.message}
+              </p>
             )}
             {helperText && !error && (
-              <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
+              <p id={`${name}-hint`} className="text-sm text-muted-foreground">
+                {helperText}
+              </p>
             )}
           </div>
         );

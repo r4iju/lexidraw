@@ -1,26 +1,18 @@
 import { z } from "zod";
 
+/**
+ * Only asks that both fields are filled: the password policy is sign-up's,
+ * and an account made under an older policy must still be able to sign in.
+ */
 export const getSignInSchema = () =>
   z.object({
-    email: z.string().email().default(""),
+    email: z
+      .string()
+      .email({ message: "Enter your email address." })
+      .default(""),
     password: z
       .string()
-      .refine((password) => password.length >= 16, {
-        message: "Password must be at least 16 characters long.",
-      })
-      .refine((password) => /[A-Z]/.test(password), {
-        message: "Password must contain at least one uppercase letter.",
-      })
-      .refine((password) => /[a-z]/.test(password), {
-        message: "Password must contain at least one lowercase letter.",
-      })
-      .refine((password) => /\d/.test(password), {
-        message: "Password must contain at least one number.",
-      })
-      .refine((password) => /[!@#$%^&*]/.test(password), {
-        message:
-          "Password must contain at least one special character (!@#$%^&*).",
-      })
+      .min(1, { message: "Enter your password." })
       .default(""),
   });
 

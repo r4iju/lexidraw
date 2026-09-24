@@ -118,7 +118,7 @@ const nextAuth = NextAuth({
           signIn: "/signin",
           newUser: "/signup",
           signOut: "/signout",
-          error: "/error",
+          error: "/signin-error",
         }
       : {}),
   },

@@ -11,55 +11,38 @@ import { usePathname } from "next/navigation";
 
 export const SessionedDropdown = () => {
   const pathname = usePathname();
-  const dashboardActive =
+  const homeActive =
     pathname === "/dashboard" || pathname.startsWith("/dashboard/");
-  const profileActive =
-    pathname === "/profile" || pathname.startsWith("/profile/");
-  const tokensActive = pathname.startsWith("/settings/tokens");
+  const settingsActive = pathname.startsWith("/settings");
   return (
     <>
       <DropdownMenuItem asChild>
         <Link
           className={cn(
             "cursor-default",
-            dashboardActive && "bg-accent text-accent-foreground",
+            homeActive && "bg-accent text-accent-foreground",
           )}
           href="/dashboard"
-          aria-current={dashboardActive ? "page" : undefined}
+          aria-current={homeActive ? "page" : undefined}
         >
-          My Drawings
+          Home
         </Link>
       </DropdownMenuItem>
       <DropdownMenuItem asChild>
         <Link
           className={cn(
             "cursor-default",
-            profileActive && "bg-accent text-accent-foreground",
+            settingsActive && "bg-accent text-accent-foreground",
           )}
-          href="/profile"
-          aria-current={profileActive ? "page" : undefined}
+          href="/settings"
+          aria-current={settingsActive ? "page" : undefined}
         >
-          Profile
-        </Link>
-      </DropdownMenuItem>
-      <DropdownMenuItem asChild>
-        <Link
-          className={cn(
-            "cursor-default",
-            tokensActive && "bg-accent text-accent-foreground",
-          )}
-          href="/settings/tokens"
-          aria-current={tokensActive ? "page" : undefined}
-        >
-          API tokens
+          Settings
         </Link>
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem asChild>
-        <Link
-          className="cursor-default"
-          href="/api/auth/signout?callbackUrl=/api/auth/session"
-        >
+        <Link className="cursor-default" href="/signout">
           Sign out
         </Link>
       </DropdownMenuItem>

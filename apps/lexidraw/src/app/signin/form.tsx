@@ -12,7 +12,10 @@ import { Button } from "~/components/ui/button";
 import { getDefaults } from "@packages/lib";
 import { LoaderCircleIcon } from "lucide-react";
 import { GitHubMark } from "~/components/github-mark";
-import { cn } from "~/lib/utils";
+import { AuthDivider } from "~/components/auth-card";
+
+const WRONG_CREDENTIALS =
+  "That email and password don’t match. Try again or use GitHub.";
 
 export default function SignInForm() {
   const schema = getSignInSchema();
@@ -29,6 +32,7 @@ export default function SignInForm() {
   const { handleSubmit } = methods;
 
   const onSubmit: SubmitHandler<SignInSchema> = async (data) => {
+    setSubmitError(null);
     try {
       setIsLoading(true);
       const res = await signIn("credentials", {
@@ -40,48 +44,39 @@ export default function SignInForm() {
       if (res?.error) {
         setSubmitError(
           res.error === "CredentialsSignin"
-            ? "Invalid email or password."
-            : res.error,
+            ? WRONG_CREDENTIALS
+            : "We couldn’t sign you in. Try again.",
         );
       } else if (res?.ok) {
         router.push("/dashboard");
+        return;
       }
-    } catch (err) {
-      if (err instanceof Error) {
-        setSubmitError(err.message);
-      } else {
-        setSubmitError("An error occurred");
-      }
+    } catch {
+      setSubmitError(
+        "We couldn’t reach Lexidraw. Check your connection and try again.",
+      );
     }
     setIsLoading(false);
   };
 
   const handleGitHubSignin = async () => {
-    try {
-      const res = await signIn("github", {
-        redirect: false,
-        callbackUrl: typeof window !== "undefined" ? window.location.href : "/",
-      });
-      if (res?.url) {
-        window.location.href = res.url;
-      }
-    } catch (err) {
-      if (err instanceof Error) {
-        setSubmitError(err.message);
-      } else {
-        setSubmitError("An error occurred");
-      }
-    }
+    setSubmitError(null);
+    await signIn("github", { callbackUrl: "/dashboard" });
   };
 
   return (
-    <div>
-      <Button onClick={handleGitHubSignin} className="w-full">
-        <GitHubMark className="mr-4 size-4" />
-        Sign in with GitHub
+    <div className="flex flex-col gap-6">
+      <Button
+        variant="outline"
+        onClick={handleGitHubSignin}
+        className="w-full gap-2"
+      >
+        <GitHubMark className="size-4" />
+        Continue with GitHub
       </Button>
+      <AuthDivider />
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
-        <div className="space-y-4 py-4">
+        <div className="flex flex-col gap-4">
           <RHFTextField
             label="Email"
             name="email"
@@ -95,20 +90,18 @@ export default function SignInForm() {
             autoComplete="current-password"
           />
         </div>
-        <Button disabled={isLoading} type="submit" className="w-full mt-6">
-          <LoaderCircleIcon
-            className={cn("animate-spin w-4 mr-2", {
-              "opacity-100": isLoading,
-              "opacity-0": !isLoading,
-            })}
-          />
-          Sign In
-          <div className="w-4 ml-2 opacity-0" />
+        <Button
+          disabled={isLoading}
+          type="submit"
+          className="mt-6 w-full gap-2"
+        >
+          {isLoading && <LoaderCircleIcon className="size-4 animate-spin" />}
+          Sign in
         </Button>
         {submitError && (
-          <div className="text-center">
-            <span className="text-destructive">{submitError}</span>
-          </div>
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            {submitError}
+          </p>
         )}
       </FormProvider>
     </div>

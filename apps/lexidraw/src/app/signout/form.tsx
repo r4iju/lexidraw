@@ -1,22 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { useState } from "react";
+import { LoaderCircleIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { LogOutIcon } from "lucide-react";
 
-export default function SignInForm() {
+export default function SignOutForm() {
+  const [pending, setPending] = useState(false);
   const handleSignOut = async () => {
-    await signOut();
+    setPending(true);
+    await signOut({ callbackUrl: "/" });
   };
 
   return (
-    <Button
-      variant="destructive-confirm"
-      onClick={handleSignOut}
-      className="w-full"
-    >
-      <LogOutIcon className="mr-4" />
-      Sign Out
-    </Button>
+    <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <Button asChild variant="outline">
+        <Link href="/dashboard">Cancel</Link>
+      </Button>
+      <Button onClick={handleSignOut} disabled={pending} className="gap-2">
+        {pending && <LoaderCircleIcon className="size-4 animate-spin" />}
+        Sign out
+      </Button>
+    </div>
   );
 }
