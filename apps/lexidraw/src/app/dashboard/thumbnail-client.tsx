@@ -93,15 +93,18 @@ export function useThumbnailContent({
   if (entity.entityType === "directory") {
     const childCount = (entity as unknown as { childCount?: number })
       .childCount;
-    const result = folderVisual({
-      id: entity.id,
-      title: entity.title,
-      childCount,
-      src,
-      roundedCorners,
-      size,
-    });
-    return { thumbnail: result, ribbon: null };
+    // Rendered, not called: FolderVisual has hooks of its own, which this
+    // hook would otherwise call for folders only.
+    const thumbnail = (
+      <FolderVisual
+        title={entity.title}
+        childCount={childCount}
+        src={src}
+        roundedCorners={roundedCorners}
+        size={size}
+      />
+    );
+    return { thumbnail, ribbon: null };
   }
 
   if (entity.entityType === "url") {
@@ -211,17 +214,13 @@ export function ThumbnailFallback({
   );
 }
 
-// Called, not rendered, and only for folders: a component name would get it a
-// compiler cache, a hook the caller would then call conditionally.
-function folderVisual({
-  id: _id,
+function FolderVisual({
   title,
   childCount,
   src,
   roundedCorners,
   size,
 }: {
-  id: string;
   title: string;
   childCount?: number;
   src?: string | null;
