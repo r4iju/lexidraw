@@ -1,7 +1,11 @@
-import { ExcalidrawNode as HeadlessExcalidrawNode } from "@packages/lexical-nodes";
+import {
+  $getFigure,
+  ExcalidrawNode as HeadlessExcalidrawNode,
+} from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
 import { BlockLoading } from "../common/BlockLoading";
+import { FigureFrame } from "../common/Figure";
 
 export type { SerializedExcalidrawNode } from "@packages/lexical-nodes";
 
@@ -15,15 +19,17 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
 
   decorate(): React.JSX.Element {
     return (
-      <Suspense fallback={<BlockLoading />}>
-        <ExcalidrawComponent
-          nodeKey={this.getKey()}
-          data={this.__data}
-          defaultOpen={this.__justInserted}
-          width={this.__width}
-          height={this.__height}
-        />
-      </Suspense>
+      <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
+        <Suspense fallback={<BlockLoading />}>
+          <ExcalidrawComponent
+            nodeKey={this.getKey()}
+            data={this.__data}
+            defaultOpen={this.__justInserted}
+            width={this.__width}
+            height={this.__height}
+          />
+        </Suspense>
+      </FigureFrame>
     );
   }
 }

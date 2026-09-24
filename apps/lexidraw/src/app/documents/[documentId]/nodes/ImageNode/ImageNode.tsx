@@ -1,4 +1,7 @@
-import { ImageNode as HeadlessImageNode } from "@packages/lexical-nodes";
+import {
+  $getFigure,
+  ImageNode as HeadlessImageNode,
+} from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
 import { BlockLoading } from "../common/BlockLoading";
@@ -34,6 +37,7 @@ export class ImageNode extends HeadlessImageNode {
           showCaption={this.__showCaption}
           caption={this.__caption}
           captionsEnabled={this.__captionsEnabled}
+          figureWidth={$getFigure(this).width}
           resizable={true}
         />
       </Suspense>

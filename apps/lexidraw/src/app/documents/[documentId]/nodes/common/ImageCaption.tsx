@@ -91,10 +91,7 @@ export default function ImageCaption({
   if (!isEditable && blank) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute bottom-0 left-0 w-full z-10 [&_a]:cursor-pointer"
-    >
+    <div ref={containerRef} className="document-caption [&_a]:cursor-pointer">
       <LexicalNestedComposer initialEditor={caption}>
         {isEditable && autoFocus && <AutoFocusPlugin />}
         {isEditable && children}
@@ -106,7 +103,7 @@ export default function ImageCaption({
               onMouseEnter={() => setIsHovering(true)}
               onMouseLeave={() => setIsHovering(false)}
             >
-              <ContentEditable className="border-none border border-muted-foreground bg-muted/50 backdrop-blur-md text-sm w-full min-h-[20px]" />
+              <ContentEditable className="w-full min-h-[1.4em] p-0 font-normal" />
               {isEditable && isHovering && (
                 <Button
                   variant="ghost"
@@ -122,7 +119,7 @@ export default function ImageCaption({
           }
           placeholder={(editable) =>
             editable ? (
-              <Placeholder className="text-muted-foreground text-sm">
+              <Placeholder className="top-0 left-0 w-full text-center">
                 {placeholder}
               </Placeholder>
             ) : null

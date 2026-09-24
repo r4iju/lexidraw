@@ -337,7 +337,9 @@ test("replacing markdown in the app keeps a person's column widths", async () =>
   if (!captured) throw new Error("Editor not mounted");
   const editor = captured;
   await act(async () =>
-    markdownTools.insertMarkdown(editor, md.replace("20%", "30%"), "replace"),
+    markdownTools.insertMarkdown(editor, md.replace("20%", "30%"), "replace", {
+      title: "Tables",
+    }),
   );
   expect(editor.getEditorState().toJSON().root.children[0]).toHaveProperty(
     "colWidths",

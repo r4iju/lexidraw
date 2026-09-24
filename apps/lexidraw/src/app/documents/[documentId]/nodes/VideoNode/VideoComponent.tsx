@@ -34,6 +34,8 @@ import {
 } from "lexical";
 
 import ImageCaption, { useCaptionJustShown } from "../common/ImageCaption";
+import { FigureToolbar } from "../common/Figure";
+import type { FigureWidth } from "@packages/lexical-nodes";
 import VideoResizer from "~/components/ui/video-resizer";
 
 const VIDEO_MAX_WIDTH = 560;
@@ -47,6 +49,7 @@ interface VideoComponentProps {
   caption: LexicalEditor;
   showCaption: boolean;
   captionsEnabled?: boolean;
+  figureWidth: FigureWidth | undefined;
 }
 
 export default function VideoComponent({
@@ -58,6 +61,7 @@ export default function VideoComponent({
   caption,
   showCaption: initialShowCaption,
   captionsEnabled,
+  figureWidth,
 }: VideoComponentProps): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const captionContainerRef = useRef<HTMLDivElement | null>(null);
@@ -266,7 +270,7 @@ export default function VideoComponent({
       <div
         style={{
           position: "relative",
-          width: typeof width === "number" ? width : "100%",
+          width: typeof width === "number" && !figureWidth ? width : "100%",
           maxWidth: "100%",
           marginInline: "auto",
         }}
@@ -274,6 +278,18 @@ export default function VideoComponent({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
+        {isEditable && isSelected && (
+          <FigureToolbar
+            nodeKey={nodeKey}
+            width={figureWidth}
+            captionShown={Boolean(currentShowCaption)}
+            onToggleCaption={
+              captionsEnabled
+                ? () => setShowVideoCaptionOnNode(!currentShowCaption)
+                : undefined
+            }
+          />
+        )}
         {isEditable && isHovered && !isResizing && (
           <Button
             variant="ghost"
@@ -301,10 +317,7 @@ export default function VideoComponent({
         )}
 
         {currentShowCaption && captionsEnabled && (
-          <div
-            ref={captionContainerRef}
-            className="lexical-video-caption-container mt-1 text-sm text-muted-foreground"
-          >
+          <div ref={captionContainerRef}>
             <ImageCaption
               containerRef={nestedEditorContainerRef}
               caption={caption}

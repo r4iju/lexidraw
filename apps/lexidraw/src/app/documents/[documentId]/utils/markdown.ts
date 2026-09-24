@@ -5,10 +5,81 @@ import {
   $convertToMarkdownString,
   $convertFromMarkdownString,
 } from "@lexical/markdown";
+import { $isHeadingNode } from "@lexical/rich-text";
+import {
+  $gatherFootnotes,
+  $setDocumentHeader,
+  isUntitled,
+  readFrontMatter,
+  sameTitle,
+} from "@packages/lexical-nodes";
 import { $getRoot, $createParagraphNode } from "lexical";
 import { PLAYGROUND_TRANSFORMERS } from "../plugins/MarkdownTransformers";
 
 export type MarkdownInsertMode = "start" | "end" | "replace";
+
+/** What an import asks of the document beyond its content. */
+export type MarkdownImport = {
+  /** The title the markdown gives the document, when it differs. */
+  title?: string;
+};
+
+/**
+ * Puts `markdown` into the document the way a write through the API would:
+ * front matter becomes the header, a leading `# X` names a document nobody
+ * has named (or is dropped when it repeats the title) when it can only be
+ * the title, and the notes gather at the end.
+ */
+export function $insertMarkdown(
+  markdown: string,
+  mode: MarkdownInsertMode,
+  document: { title: string },
+): MarkdownImport {
+  const root = $getRoot();
+  const { frontMatter, body } = readFrontMatter(markdown);
+  // A temporary parent holds the conversion; it is never inserted.
+  const holder = $createParagraphNode();
+  $convertFromMarkdownString(body, PLAYGROUND_TRANSFORMERS, holder);
+  const nodes = holder.getChildren();
+  const result: MarkdownImport = {};
+  const title = frontMatter?.title ?? document.title;
+  if (frontMatter?.title && !sameTitle(frontMatter.title, document.title))
+    result.title = frontMatter.title;
+
+  const [first] = nodes;
+  const heading =
+    $isHeadingNode(first) && first.getTag() === "h1"
+      ? first.getTextContent().trim()
+      : "";
+  const mayName = mode === "replace" || root.isEmpty();
+  if (mayName && heading && (isUntitled(title) || sameTitle(heading, title))) {
+    nodes.shift();
+    if (isUntitled(title)) result.title = heading;
+  }
+
+  if (mode === "replace") {
+    const previous = root.getChildren();
+    nodes.forEach((node, index) => {
+      const original = previous[index];
+      if (
+        $isTableNode(node) &&
+        $isTableNode(original) &&
+        node.getColumnCount() === original.getColumnCount()
+      ) {
+        node.setColWidths(original.getColWidths());
+      }
+    });
+    root.clear().append(...nodes);
+  } else if (mode === "start") {
+    const existing = root.getChildren();
+    root.clear().append(...nodes, ...existing);
+  } else {
+    root.append(...nodes);
+  }
+  if (frontMatter) $setDocumentHeader(frontMatter.header);
+  $gatherFootnotes();
+  return result;
+}
 
 export const useMarkdownTools = () => {
   const convertEditorStateToMarkdown = useCallback(
@@ -30,69 +101,20 @@ export const useMarkdownTools = () => {
   );
 
   const insertMarkdown = useCallback(
-    (editor: LexicalEditor, markdown: string, mode: MarkdownInsertMode) => {
-      editor.update(() => {
-        const root = $getRoot();
-
-        try {
-          // Create a temporary parent node to hold the conversion output
-          // This node itself is never inserted into the editor
-          const tempParent = $createParagraphNode();
-
-          // Run the conversion, targeting the temporary parent
-          // Lexical will fill tempParent with the correct top-level nodes
-          $convertFromMarkdownString(
-            markdown,
-            PLAYGROUND_TRANSFORMERS,
-            tempParent,
-          );
-
-          const nodesToInsert = tempParent.getChildren();
-
-          if (nodesToInsert.length === 0) {
-            console.log("[insertMarkdown] Markdown produced no nodes");
-            return;
-          }
-
-          if (mode === "replace") {
-            const previous = root.getChildren();
-            nodesToInsert.forEach((node, index) => {
-              const original = previous[index];
-              if (
-                $isTableNode(node) &&
-                $isTableNode(original) &&
-                node.getColumnCount() === original.getColumnCount()
-              ) {
-                node.setColWidths(original.getColWidths());
-              }
-            });
-            root.clear();
-            for (const node of nodesToInsert) {
-              root.append(node);
-            }
-          } else if (mode === "start") {
-            // Get existing children before clearing
-            const existingChildren = root.getChildren();
-            root.clear();
-            // Append imported nodes first
-            for (const node of nodesToInsert) {
-              root.append(node);
-            }
-            // Then append existing children
-            for (const child of existingChildren) {
-              root.append(child);
-            }
-          } else if (mode === "end") {
-            // Append imported nodes to the end
-            for (const node of nodesToInsert) {
-              root.append(node);
-            }
-          }
-        } catch (e) {
-          console.error("[insertMarkdown] import error:", e);
-          throw e;
-        }
-      });
+    (
+      editor: LexicalEditor,
+      markdown: string,
+      mode: MarkdownInsertMode,
+      document: { title: string },
+    ): MarkdownImport => {
+      let result: MarkdownImport = {};
+      editor.update(
+        () => {
+          result = $insertMarkdown(markdown, mode, document);
+        },
+        { discrete: true },
+      );
+      return result;
     },
     [],
   );

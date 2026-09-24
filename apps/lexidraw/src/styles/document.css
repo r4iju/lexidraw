@@ -1,5 +1,6 @@
 .document-content,
-.document-placeholder {
+.document-placeholder,
+.document-header {
   --doc-measure: 44rem;
   --doc-wide: 64rem;
   --block-gap: 0.75em;
@@ -125,8 +126,7 @@
     [data-lexical-decorator]:not(hr),
     [data-lexical-layout-container],
     .document-wide
-  ),
-.document-content > p:has(> .editor-image) {
+  ) {
   max-width: var(--doc-wide);
 }
 .document-content > .document-full {
@@ -152,15 +152,365 @@
 }
 @container (max-width: 390px) {
   .document-content,
-  .document-placeholder {
+  .document-placeholder,
+  .document-header {
     --doc-gutter: 16px;
   }
 }
 @container (min-width: 1280px) {
   .document-content,
-  .document-placeholder {
+  .document-placeholder,
+  .document-header {
     --doc-gutter: 96px;
   }
+}
+
+/* Cover, title, subtitle, properties and contents, in the text column. */
+.document-header {
+  color: var(--foreground);
+  font-synthesis: none;
+  overflow-wrap: break-word;
+  padding-block: 32px 0;
+}
+.document-header > * {
+  max-width: var(--doc-measure);
+  margin-inline: auto;
+}
+.document-header [data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+}
+.document-header [contenteditable]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.document-cover {
+  position: relative;
+  max-width: var(--doc-wide);
+  margin-block: 0 32px;
+}
+.document-cover img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  max-height: 38svh;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--muted);
+}
+.document-cover .document-cover-remove {
+  position: absolute;
+  inset: auto 8px 8px auto;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--background) 85%, transparent);
+}
+.document-title {
+  color: var(--heading);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  margin-block: 0 0.5em;
+}
+.document-subtitle {
+  color: var(--muted-foreground);
+  font-size: 1.25em;
+  line-height: 1.4;
+  text-wrap: balance;
+  margin-block: -0.25em 1.25em;
+}
+.document-properties {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px 24px;
+  margin-block: 0 24px;
+}
+.document-property {
+  display: contents;
+}
+.document-property dt {
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.document-property dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 4px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.document-property dd a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.document-property input {
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--background);
+  font: inherit;
+}
+.document-property dd input {
+  flex: 1;
+}
+.document-property-edit {
+  margin-inline-start: auto;
+  opacity: 0;
+}
+.document-property:is(:hover, :focus-within) .document-property-edit {
+  opacity: 1;
+}
+@media (hover: none) {
+  .document-property-edit {
+    opacity: 1;
+  }
+}
+@container (max-width: 479px) {
+  .document-properties {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
+  }
+  .document-property dd {
+    margin-block-end: 8px;
+  }
+}
+.document-status {
+  --status: var(--muted-foreground);
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--status) 14%, transparent);
+  color: color-mix(in oklab, var(--status) 75%, var(--foreground));
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.document-status:is(
+  [data-status="done"],
+  [data-status="complete"],
+  [data-status="completed"],
+  [data-status="published"],
+  [data-status="approved"],
+  [data-status="final"]
+) {
+  --status: var(--success);
+}
+.document-status:is(
+  [data-status="in progress"],
+  [data-status="review"],
+  [data-status="in review"],
+  [data-status="wip"]
+) {
+  --status: var(--warning);
+}
+.document-status:is(
+  [data-status="blocked"],
+  [data-status="cancelled"],
+  [data-status="canceled"],
+  [data-status="archived"]
+) {
+  --status: var(--destructive);
+}
+.document-mention {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: color-mix(in oklab, var(--primary) 80%, var(--foreground));
+  font-weight: 500;
+}
+.document-contents {
+  margin-block: 0 32px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.document-contents-label {
+  margin-block: 0 4px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+.document-contents ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.document-contents li {
+  padding-block: 2px;
+}
+.document-contents li[data-level="h3"] {
+  padding-inline-start: 1.25em;
+  font-size: 14px;
+}
+.document-contents a {
+  color: inherit;
+  text-decoration: none;
+}
+.document-contents a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.document-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  margin-block: -8px 8px;
+}
+.document-header-action {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+.document-header-action:hover,
+.document-header-action[aria-pressed="true"] {
+  color: var(--foreground);
+}
+.document-header-action:focus-visible {
+  outline: 2px solid var(--ring);
+  border-radius: 2px;
+}
+.document-cover-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-block: 0 16px;
+}
+.document-cover-form input {
+  flex: 1 1 16rem;
+  padding: 4px 8px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--background);
+  font: inherit;
+  font-size: 14px;
+}
+@container (max-width: 639px) {
+  .document-title {
+    font-size: 32px;
+  }
+}
+/* Footnotes: markers in the accent colour, notes together at the end. */
+.document-content {
+  counter-reset: footnote;
+}
+.document-content sup.footnote-ref {
+  position: relative;
+  font-size: 0.75em;
+  line-height: 0;
+  vertical-align: super;
+}
+.footnote-ref-link {
+  padding-inline: 0.1em;
+  color: var(--primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+.footnote-ref-link:focus-visible {
+  outline: 2px solid var(--ring);
+  border-radius: 2px;
+}
+.footnote-preview {
+  position: absolute;
+  z-index: 20;
+  inset-block-end: calc(100% + 0.9em);
+  inset-inline-start: 50%;
+  width: max-content;
+  max-width: min(20rem, 80vw);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--elevation-overlay);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: start;
+  white-space: normal;
+  transform: translateX(-50%);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+.footnote-preview-number {
+  color: var(--muted-foreground);
+}
+@media (hover: hover) {
+  .footnote-ref:hover .footnote-preview {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+.footnote-ref-link:is(:focus-visible, [data-open]) + .footnote-preview {
+  visibility: visible;
+  opacity: 1;
+}
+.document-content > .footnote {
+  counter-increment: footnote;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  margin-block: 0 0.35em;
+  font-size: 0.875em;
+  line-height: 1.5;
+  scroll-margin-block-start: 5rem;
+}
+.document-content > :not(.footnote) + .footnote {
+  margin-block-start: 2.5em;
+  padding-block-start: 1em;
+  background:
+    linear-gradient(var(--border), var(--border)) no-repeat left top / 6em 1px;
+}
+/* Blocks written after the notes, before they are gathered again. */
+.document-content > .footnote + :not(.footnote) {
+  margin-block-start: 2em;
+}
+.footnote-number {
+  flex: none;
+  min-width: 1.25em;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.footnote-number::before {
+  content: counter(footnote) ".";
+}
+/* The way back follows the note's last word rather than the page edge. */
+.footnote-body {
+  flex: 0 1 auto;
+  min-width: 1ch;
+}
+.footnote-backref {
+  flex: none;
+  color: var(--primary);
+  text-decoration: none;
+}
+.footnote-ref-link[id] {
+  scroll-margin-block-start: 5rem;
+}
+
+/* The header shows the title, so a leading heading repeating it does not. */
+.document-content > [data-title-heading] {
+  display: none;
+}
+.document-content > [data-title-heading] + * {
+  margin-block-start: 0;
 }
 
 .document-typography {
@@ -388,6 +738,57 @@
 .document-content [data-media-type] {
   max-width: 100%;
   text-align: center;
+}
+
+/* A figure sits in the text column unless it was placed wider, or at a share
+   of the column. An image is placed through the paragraph that holds it. */
+.document-content
+> :is(
+  [data-lexical-decorator][data-figure-width],
+  p:has(> [data-figure-width])
+) {
+  width: 100%;
+}
+.document-content
+  > :is(
+    [data-lexical-decorator][data-figure-width="wide"],
+    p:has(> [data-figure-width="wide"])
+  ) {
+  max-width: min(var(--doc-wide), 100%);
+}
+.document-content
+  > :is(
+    [data-lexical-decorator][data-figure-width="full"],
+    p:has(> [data-figure-width="full"])
+  ) {
+  max-width: none;
+}
+.document-content > [data-lexical-decorator][data-figure-width="share"] {
+  max-width: calc(min(var(--doc-measure), 100%) * var(--figure-share));
+}
+.document-content > p > [data-figure-width] {
+  display: block;
+  margin-inline: auto;
+}
+.document-content > p > [data-figure-width="share"] {
+  width: calc(var(--figure-share) * 100%);
+}
+.document-content [data-figure-width] > .document-figure {
+  display: block;
+  width: 100%;
+}
+
+/* Below its figure, and never what makes the figure wider. */
+.document-caption {
+  contain: inline-size;
+  max-width: 60ch;
+  margin: 8px auto 0;
+  color: var(--muted-foreground);
+  font-size: 0.875em;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: center;
+  text-wrap: pretty;
 }
 .document-diagram {
   display: block;

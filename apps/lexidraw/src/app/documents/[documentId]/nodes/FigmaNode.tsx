@@ -1,8 +1,12 @@
-import { FigmaNode as HeadlessFigmaNode } from "@packages/lexical-nodes";
+import {
+  $getFigure,
+  FigmaNode as HeadlessFigmaNode,
+} from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
 import { BlockLoading } from "./common/BlockLoading";
+import { FigureFrame } from "./common/Figure";
 
 export type { SerializedFigmaNode } from "@packages/lexical-nodes";
 
@@ -21,14 +25,16 @@ export class FigmaNode extends HeadlessFigmaNode {
       focus: embedBlockTheme.focus || "",
     };
     return (
-      <Suspense fallback={<BlockLoading />}>
-        <FigmaComponent
-          className={className}
-          format={this.__format}
-          nodeKey={this.getKey()}
-          documentID={this.__id}
-        />
-      </Suspense>
+      <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
+        <Suspense fallback={<BlockLoading />}>
+          <FigmaComponent
+            className={className}
+            format={this.__format}
+            nodeKey={this.getKey()}
+            documentID={this.__id}
+          />
+        </Suspense>
+      </FigureFrame>
     );
   }
 }

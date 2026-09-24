@@ -11,6 +11,7 @@ import {
 } from "react";
 import type * as React from "react";
 import { cn } from "~/lib/utils";
+import { $titleHeadingKey } from "../../header/document-header";
 import { outlineLevels } from "./outline";
 
 /** Where reading happens: just under the page's sticky toolbar. */
@@ -124,11 +125,22 @@ function TableOfContentsList({
   );
 }
 
-function TocPluginWrapper() {
+/** The contents, less a leading `# title`, which the header already shows. */
+function TocPluginWrapper({ title }: { title: string }) {
+  const [editor] = useLexicalComposerContext();
   return (
     <LexicalTableOfContentsPlugin>
       {(tableOfContents) => {
-        return <TableOfContentsList tableOfContents={tableOfContents} />;
+        const titleKey = editor
+          .getEditorState()
+          .read(() => $titleHeadingKey(title));
+        return (
+          <TableOfContentsList
+            tableOfContents={tableOfContents.filter(
+              ([key]) => key !== titleKey,
+            )}
+          />
+        );
       }}
     </LexicalTableOfContentsPlugin>
   );

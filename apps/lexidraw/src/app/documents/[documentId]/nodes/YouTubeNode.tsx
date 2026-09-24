@@ -1,8 +1,12 @@
-import { YouTubeNode as HeadlessYouTubeNode } from "@packages/lexical-nodes";
+import {
+  $getFigure,
+  YouTubeNode as HeadlessYouTubeNode,
+} from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
 import { BlockLoading } from "./common/BlockLoading";
+import { FigureFrame } from "./common/Figure";
 
 export type { SerializedYouTubeNode } from "@packages/lexical-nodes";
 
@@ -21,16 +25,18 @@ export class YouTubeNode extends HeadlessYouTubeNode {
       focus: embedBlockTheme.focus || "",
     };
     return (
-      <Suspense fallback={<BlockLoading />}>
-        <YouTubeComponent
-          className={className}
-          format={this.__format}
-          nodeKey={this.getKey()}
-          videoID={this.__id}
-          width={this.__width}
-          height={this.__height}
-        />
-      </Suspense>
+      <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
+        <Suspense fallback={<BlockLoading />}>
+          <YouTubeComponent
+            className={className}
+            format={this.__format}
+            nodeKey={this.getKey()}
+            videoID={this.__id}
+            width={this.__width}
+            height={this.__height}
+          />
+        </Suspense>
+      </FigureFrame>
     );
   }
 }

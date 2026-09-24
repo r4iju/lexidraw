@@ -36,10 +36,12 @@ import KeywordsPlugin from "../../plugins/KeywordsPlugin";
 import LinkPlugin from "../../plugins/LinkPlugin";
 import MentionsPlugin from "../../plugins/MentionsPlugin";
 import TreeViewPlugin from "../../plugins/TreeViewPlugin";
+import type { FigureWidth } from "@packages/lexical-nodes";
 import ImageResizer from "~/components/ui/image-resizer";
 import { ImageNode } from "./ImageNode";
 import { cn } from "~/lib/utils";
 import ImageCaption, { useCaptionJustShown } from "../common/ImageCaption";
+import { FigureToolbar } from "../common/Figure";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { UpdateImageDialog } from "./UpdateImageDialog";
@@ -54,6 +56,7 @@ function LazyImage({
   width,
   height,
   focused,
+  fill,
   onDoubleClick,
 }: {
   altText: string;
@@ -62,6 +65,8 @@ function LazyImage({
   width: "inherit" | number;
   height: "inherit" | number;
   focused: boolean;
+  /** Placed at a figure width, the image fills it whatever size it was dragged to. */
+  fill: boolean;
   onDoubleClick: (event: React.MouseEvent) => void;
 }) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
@@ -94,10 +99,15 @@ function LazyImage({
           className={cn("document-image", focused && "ring-2 ring-ring")}
           style={{
             display: status === "loading" ? "none" : undefined,
+            width: fill ? "100%" : undefined,
             maxWidth:
-              typeof width === "number" ? `min(100%, ${width}px)` : "100%",
+              typeof width === "number" && !fill
+                ? `min(100%, ${width}px)`
+                : "100%",
             maxHeight:
-              typeof height === "number" ? `min(80vh, ${height}px)` : undefined,
+              typeof height === "number" && !fill
+                ? `min(80vh, ${height}px)`
+                : undefined,
           }}
           onLoad={() => setStatus("ready")}
           onError={() => setStatus("error")}
@@ -119,6 +129,7 @@ type ImageComponentProps = {
   src: string;
   width: "inherit" | number;
   captionsEnabled: boolean;
+  figureWidth: FigureWidth | undefined;
 };
 
 export default function ImageComponent({
@@ -132,6 +143,7 @@ export default function ImageComponent({
   showCaption,
   caption,
   captionsEnabled,
+  figureWidth,
 }: ImageComponentProps): React.JSX.Element {
   const captionJustShown = useCaptionJustShown(showCaption);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -399,12 +411,28 @@ export default function ImageComponent({
           imageRef={imageRef}
           width={currentDimensions.width}
           height={currentDimensions.height}
+          fill={figureWidth !== undefined}
           onDoubleClick={(e) => {
             // prevent double clicking from propagating to parent
             e.stopPropagation();
             setIsLightboxOpen(true);
           }}
         />
+
+        {isEditable && isSelected && $isNodeSelection(selection) && (
+          <FigureToolbar
+            nodeKey={nodeKey}
+            width={figureWidth}
+            captionShown={showCaption}
+            onToggleCaption={
+              !captionsEnabled
+                ? undefined
+                : showCaption
+                  ? handleHideCaption
+                  : setShowCaption
+            }
+          />
+        )}
 
         {isEditable && (
           <Button
@@ -445,7 +473,8 @@ export default function ImageComponent({
             maxWidth={maxWidth}
             onResizeStart={onResizeStart}
             onResizeEnd={onResizeEnd}
-            captionsEnabled={captionsEnabled}
+            // The figure toolbar offers the caption.
+            captionsEnabled={false}
             onDimensionsChange={onDimensionsChange}
           />
         )}

@@ -1,4 +1,7 @@
-import { VideoNode as HeadlessVideoNode } from "@packages/lexical-nodes";
+import {
+  $getFigure,
+  VideoNode as HeadlessVideoNode,
+} from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
@@ -29,6 +32,7 @@ export class VideoNode extends HeadlessVideoNode {
           caption={this.__caption}
           showCaption={this.__showCaption}
           captionsEnabled={this.__captionsEnabled}
+          figureWidth={$getFigure(this).width}
         />
       </Suspense>
     );

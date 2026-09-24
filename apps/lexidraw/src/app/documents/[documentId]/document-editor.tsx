@@ -66,6 +66,7 @@ import ExcalidrawPlugin from "./plugins/ExcalidrawPlugin";
 import { ExcalidrawNode } from "./nodes/ExcalidrawNode";
 import { FigmaNode } from "./nodes/FigmaNode";
 import { EquationNode } from "./nodes/EquationNode";
+import { FootnoteReferenceNode } from "./nodes/FootnoteNode";
 import FigmaPlugin from "./plugins/FigmaPlugin";
 import EquationsPlugin from "./plugins/EquationsPlugin";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
@@ -74,6 +75,7 @@ import { FlashMessageContext } from "./context/flash-message-context";
 import { LLMProvider } from "./context/llm-context";
 import ContextMenuPlugin from "./plugins/ContextMenuPlugin";
 import TableOfContentsPlugin from "./plugins/TableOfContentsPlugin";
+import { DocumentHeader, useRename } from "./header/document-header";
 import { LLMWidget } from "./plugins/AutocompletePlugin/LLMWidget";
 import { ToolbarContext } from "./context/toolbar-context";
 import ListMaxIndentLevelPlugin from "./plugins/ListMaxIndentLevelPlugin";
@@ -265,6 +267,7 @@ function EditorHandler({
   }, [editor, setEditorStateRef]);
 
   const { insertMarkdown } = useMarkdownTools();
+  const rename = useRename(entity.id);
 
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
   const {
@@ -316,13 +319,16 @@ function EditorHandler({
   const handleImportMarkdown = useCallback(
     (markdown: string, mode: MarkdownInsertMode) => {
       try {
-        insertMarkdown(editor, markdown, mode);
+        const imported = insertMarkdown(editor, markdown, mode, {
+          title: entity.title,
+        });
+        if (imported.title) rename(imported.title);
       } catch (error) {
         console.error("[handleImportMarkdown] import error:", error);
         throw error;
       }
     },
-    [editor, insertMarkdown],
+    [editor, insertMarkdown, entity.title, rename],
   );
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 
@@ -653,31 +659,44 @@ function EditorHandler({
                                   ref={onRef}
                                   className="relative document-viewport outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                                 >
-                                  <ContentEditable
-                                    id={`lexical-content-${entity.id}`}
-                                    aria-label="Document content"
-                                    aria-placeholder={PLACEHOLDER}
-                                    placeholder={(editable) =>
-                                      editable ? (
-                                        <div
-                                          className="document-placeholder"
-                                          style={{
-                                            fontFamily:
-                                              documentFont(defaultFontFamily)
-                                                .family,
-                                          }}
-                                        >
-                                          <div>{PLACEHOLDER}</div>
-                                        </div>
-                                      ) : null
-                                    }
+                                  <DocumentHeader
+                                    entityId={entity.id}
+                                    title={entity.title}
                                     lang={detectedLanguage}
-                                    style={{
-                                      fontFamily:
-                                        documentFont(defaultFontFamily).family,
-                                    }}
-                                    className="document-content document-typography outline-none"
+                                    canRename={onScreen}
+                                    fontFamily={
+                                      documentFont(defaultFontFamily).family
+                                    }
                                   />
+                                  {/* The placeholder sits over the first line. */}
+                                  <div className="relative">
+                                    <ContentEditable
+                                      id={`lexical-content-${entity.id}`}
+                                      aria-label="Document content"
+                                      aria-placeholder={PLACEHOLDER}
+                                      placeholder={(editable) =>
+                                        editable ? (
+                                          <div
+                                            className="document-placeholder"
+                                            style={{
+                                              fontFamily:
+                                                documentFont(defaultFontFamily)
+                                                  .family,
+                                            }}
+                                          >
+                                            <div>{PLACEHOLDER}</div>
+                                          </div>
+                                        ) : null
+                                      }
+                                      lang={detectedLanguage}
+                                      style={{
+                                        fontFamily:
+                                          documentFont(defaultFontFamily)
+                                            .family,
+                                      }}
+                                      className="document-content document-typography outline-none"
+                                    />
+                                  </div>
                                 </main>
                               }
                               ErrorBoundary={LexicalErrorBoundary}
@@ -739,7 +758,7 @@ function EditorHandler({
                                 {activeSidebar === "llm" && <LlmChatPlugin />}
                                 {activeSidebar === "comments" && <CommentUI />}
                                 {activeSidebar === "toc" && (
-                                  <TableOfContentsPlugin />
+                                  <TableOfContentsPlugin title={entity.title} />
                                 )}
                                 {activeSidebar === "tree" && <TreeViewPlugin />}
                               </SidebarWrapper>
@@ -908,6 +927,7 @@ export default function DocumentEditor({
     PollNode,
     StickyNode,
     ArticleNode,
+    FootnoteReferenceNode,
   ];
 
   return (
