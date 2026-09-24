@@ -156,13 +156,9 @@ async function processSingleJob(
     renderScreenshotStep(`${basePageUrl}&theme=dark`, "dark"),
   ]);
 
-  // Use .webp extension for both drawings and documents (screenshots)
-  const lightKey = `${validation.entityId}-light.webp`;
-  const darkKey = `${validation.entityId}-dark.webp`;
-
   const [lightUrl, darkUrl] = await Promise.all([
-    uploadBlobStep(lightKey, light),
-    uploadBlobStep(darkKey, dark),
+    uploadBlobStep(validation.entityId, "light", light),
+    uploadBlobStep(validation.entityId, "dark", dark),
   ]);
 
   // Update entity with thumbnail URLs

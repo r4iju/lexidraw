@@ -14,7 +14,6 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
-import { thumbnailSrc } from "./thumbnail-src";
 import type { RouterOutputs } from "~/trpc/shared";
 
 type RoundedCorners = "all" | "left-only" | "none";
@@ -70,18 +69,9 @@ export function useThumbnailContent({
     }, 8000);
     return () => clearTimeout(id);
   }, [thumbnailStatus, router]);
-  const src = useMemo(() => {
-    const base = deferredIsDarkTheme
-      ? entity.screenShotDark
-      : entity.screenShotLight;
-    if (!base) return base;
-    return thumbnailSrc(base, entity);
-  }, [
-    deferredIsDarkTheme,
-    entity.screenShotDark,
-    entity.screenShotLight,
-    entity,
-  ]);
+  const src = deferredIsDarkTheme
+    ? entity.screenShotDark
+    : entity.screenShotLight;
 
   const roundingClasses = getThumbnailRoundingClasses(roundedCorners, size);
 

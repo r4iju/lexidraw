@@ -3,32 +3,26 @@ import "server-only";
 import { put } from "@vercel/blob";
 import env from "@packages/env";
 import { RetryableError } from "workflow";
+import { thumbnailPathname } from "~/server/entities/thumbnail";
 
 export async function uploadBlobStep(
-  key: string,
+  entityId: string,
+  theme: "light" | "dark",
   data: Uint8Array,
 ): Promise<string> {
   "use step";
 
+  const pathname = thumbnailPathname(entityId, theme, "webp");
   try {
-    // Determine content type from file extension
-    const contentType = key.endsWith(".png")
-      ? "image/png"
-      : key.endsWith(".webp")
-        ? "image/webp"
-        : "image/webp"; // default fallback
-
-    const { url } = await put(key, new Blob([new Uint8Array(data)]), {
+    const { url } = await put(pathname, new Blob([new Uint8Array(data)]), {
       access: "public",
-      contentType,
+      contentType: "image/webp",
       token: env.BLOB_READ_WRITE_TOKEN,
-      addRandomSuffix: false,
-      allowOverwrite: true,
     });
     return url;
   } catch (error) {
     throw new RetryableError(
-      `Failed to upload blob ${key}: ${(error as Error).message}`,
+      `Failed to upload blob ${pathname}: ${(error as Error).message}`,
       { retryAfter: 30_000 },
     );
   }

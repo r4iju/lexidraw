@@ -42,7 +42,7 @@ import {
   findWritableEntity,
   resolveParentDirectory,
 } from "~/server/entities/readable";
-import { thumbnailColumns } from "~/server/entities/thumbnail";
+import { storeThumbnail, thumbnailPathname } from "~/server/entities/thumbnail";
 import {
   accessLevelOut,
   entityTypeOut,
@@ -1165,26 +1165,32 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
+      const columns = {
+        ...("title" in input ? { title: input.title } : {}),
+        ...("publicAccess" in input
+          ? { publicAccess: input.publicAccess }
+          : {}),
+        ...("parentId" in input ? { parentId: input.parentId } : {}),
+        updatedAt: new Date(),
+      };
       // Awaited: a REST caller reads the entity back the moment this returns.
-      await ctx.drizzle
-        .update(schema.entities)
-        .set({
-          ...("title" in input ? { title: input.title } : {}),
-          ...("publicAccess" in input
-            ? { publicAccess: input.publicAccess }
-            : {}),
-          ...("parentId" in input ? { parentId: input.parentId } : {}),
-          ...(input.screenShotLight !== undefined ||
-          input.screenShotDark !== undefined
-            ? thumbnailColumns({
-                light: input.screenShotLight,
-                dark: input.screenShotDark,
-              })
-            : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.entities.id, input.id))
-        .execute();
+      if (
+        input.screenShotLight !== undefined ||
+        input.screenShotDark !== undefined
+      ) {
+        await storeThumbnail(
+          ctx.drizzle,
+          input.id,
+          { light: input.screenShotLight, dark: input.screenShotDark },
+          columns,
+        );
+      } else {
+        await ctx.drizzle
+          .update(schema.entities)
+          .set(columns)
+          .where(eq(schema.entities.id, input.id))
+          .execute();
+      }
 
       // Every directory this entity was or is listed in; `prevParentId` is
       // what a drag out of a directory carries. A move changes both
@@ -1291,24 +1297,21 @@ export const entityRouter = createTRPCRouter({
         shoot("dark"),
       ]);
 
-      const lightBlob = await put(`${input.id}-light.webp`, lightBuf, {
-        access: "public",
-        contentType: "image/webp",
-        addRandomSuffix: true,
-      });
-      const darkBlob = await put(`${input.id}-dark.webp`, darkBuf, {
-        access: "public",
-        contentType: "image/webp",
-        addRandomSuffix: true,
-      });
+      const lightBlob = await put(
+        thumbnailPathname(input.id, "light", "webp"),
+        lightBuf,
+        { access: "public", contentType: "image/webp" },
+      );
+      const darkBlob = await put(
+        thumbnailPathname(input.id, "dark", "webp"),
+        darkBuf,
+        { access: "public", contentType: "image/webp" },
+      );
 
-      await ctx.drizzle
-        .update(schema.entities)
-        .set({
-          ...thumbnailColumns({ light: lightBlob.url, dark: darkBlob.url }),
-        })
-        .where(eq(schema.entities.id, input.id))
-        .execute();
+      await storeThumbnail(ctx.drizzle, input.id, {
+        light: lightBlob.url,
+        dark: darkBlob.url,
+      });
 
       // A thumbnail is what the listing shows of an entity.
       await revalidateEntitiesAndParents(ctx.drizzle, input.id);
@@ -1942,12 +1945,11 @@ export const entityRouter = createTRPCRouter({
                     ? "avif"
                     : "jpg";
             const buffer = Buffer.from(await res.arrayBuffer());
-            const key = `${input.id}-thumb.${ext}`;
-            const blob = await put(key, buffer, {
-              access: "public",
-              contentType,
-              allowOverwrite: true,
-            });
+            const blob = await put(
+              thumbnailPathname(input.id, "thumb", ext),
+              buffer,
+              { access: "public", contentType },
+            );
             screenShotLight = blob.url;
             screenShotDark = blob.url;
           }
@@ -1962,28 +1964,30 @@ export const entityRouter = createTRPCRouter({
         distilled,
       });
 
-      const updates: Record<string, unknown> = {
-        elements: mergedElements,
-        updatedAt: new Date(),
-      };
-
       // If default title, set to distilled.title
       const isDefaultTitle = !entity?.title || entity.title === "New link";
-      if (isDefaultTitle && distilled.title) {
-        updates.title = distilled.title;
-      }
-      if (screenShotLight || screenShotDark) {
-        Object.assign(
-          updates,
-          thumbnailColumns({ light: screenShotLight, dark: screenShotDark }),
-        );
-      }
+      const updates = {
+        elements: mergedElements,
+        updatedAt: new Date(),
+        ...(isDefaultTitle && distilled.title
+          ? { title: distilled.title }
+          : {}),
+      };
 
-      await ctx.drizzle
-        .update(schema.entities)
-        .set(updates)
-        .where(eq(schema.entities.id, input.id))
-        .execute();
+      if (screenShotLight || screenShotDark) {
+        await storeThumbnail(
+          ctx.drizzle,
+          input.id,
+          { light: screenShotLight, dark: screenShotDark },
+          updates,
+        );
+      } else {
+        await ctx.drizzle
+          .update(schema.entities)
+          .set(updates)
+          .where(eq(schema.entities.id, input.id))
+          .execute();
+      }
 
       await revalidateEntitiesAndParents(ctx.drizzle, input.id);
       return distilled;

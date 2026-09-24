@@ -33,8 +33,6 @@ export async function generateThumbnailWorkflow(
 
   let light: Uint8Array;
   let dark: Uint8Array;
-  let lightKey: string;
-  let darkKey: string;
 
   if (validation.entityType === "drawing") {
     // Use screenshot approach for drawings (same as documents)
@@ -91,10 +89,6 @@ export async function generateThumbnailWorkflow(
       lightBytes: light.byteLength,
       darkBytes: dark.byteLength,
     });
-
-    // Use .webp extension for drawings (screenshots)
-    lightKey = `${validation.entityId}-light.webp`;
-    darkKey = `${validation.entityId}-dark.webp`;
   } else {
     // Use screenshot approach for documents
     // Build screenshot URL
@@ -141,15 +135,11 @@ export async function generateThumbnailWorkflow(
       lightBytes: light.byteLength,
       darkBytes: dark.byteLength,
     });
-
-    // Use .webp extension for documents (screenshots)
-    lightKey = `${validation.entityId}-light.webp`;
-    darkKey = `${validation.entityId}-dark.webp`;
   }
 
   const [lightUrl, darkUrl] = await Promise.all([
-    uploadBlobStep(lightKey, light),
-    uploadBlobStep(darkKey, dark),
+    uploadBlobStep(validation.entityId, "light", light),
+    uploadBlobStep(validation.entityId, "dark", dark),
   ]);
 
   console.log("[thumbnail][wf] blobs uploaded", {

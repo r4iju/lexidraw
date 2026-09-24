@@ -46,8 +46,8 @@ async function thumbnailUpdatedAt(id: string) {
   return row?.at;
 }
 
-// Listings cache-bust a thumbnail on `thumbnailUpdatedAt` (see
-// `app/dashboard/thumbnail-src.ts`), and some writers reuse the blob path.
+// `list` hands `thumbnailUpdatedAt` to REST callers, so they can tell a new
+// picture from a revision of the content.
 describe("every write of a thumbnail says when it was stored", () => {
   test("a custom icon", async () => {
     await entityRouter.createCaller(context).update({
