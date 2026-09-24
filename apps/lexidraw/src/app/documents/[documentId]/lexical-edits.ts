@@ -71,6 +71,13 @@ export function trackLexicalEdits(
     },
     saved: (elements) => {
       baseline = elements;
+      // A save of everything the editor shows took Lexical's own passes on
+      // top of the user's edits too; there is nothing of theirs left to save.
+      const shown = root.getEditorState();
+      if (shown !== userState && JSON.stringify(shown) === elements) {
+        userState = shown;
+        serialized = elements;
+      }
     },
     dispose: stop,
   };

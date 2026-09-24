@@ -100,6 +100,23 @@ describe("which updates to an open document are the user's", () => {
     edits.dispose();
   });
 
+  test("a save of what the editor shows, Lexical's own passes included, leaves nothing unsaved", () => {
+    const { root } = documentWithSticky();
+    const edits = trackLexicalEdits(root);
+    type(root, "mine");
+    // Measuring a table's columns, say, after the user's last edit.
+    type(root, "measured", HISTORY_MERGE_TAG);
+
+    const sent = JSON.stringify(root.getEditorState());
+    edits.saved(sent);
+    expect(edits.hasLocalEdits()).toBe(false);
+    expect(edits.shows(sent)).toBe(true);
+
+    type(root, "more");
+    expect(edits.hasLocalEdits()).toBe(true);
+    edits.dispose();
+  });
+
   test("a sticky note added after the document opened is watched too", () => {
     const { root } = documentWithSticky();
     const edits = trackLexicalEdits(root);
