@@ -171,14 +171,6 @@ export const documentRouter = createTRPCRouter({
       );
       return created;
     }),
-  get: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }) => {
-      return await ctx.drizzle.query.entities.findFirst({
-        where: (doc, { eq, and }) =>
-          and(eq(doc.id, input.id), eq(doc.entityType, "document")),
-      });
-    }),
   /**
    * The document as markdown for agents and the CLI. Same read rule as
    * entities.load. Fails naming the node types that have no markdown form yet.
