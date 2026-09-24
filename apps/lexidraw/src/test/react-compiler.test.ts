@@ -94,9 +94,15 @@ describe("React Compiler", () => {
           plugins: [
             [
               require.resolve("babel-plugin-react-compiler"),
-              // This compiles every file, unreachable ones included; `next
-              // build` is what fails on a compiler error in shipped code.
-              { ...reactCompiler, panicThreshold: "none" },
+              {
+                ...reactCompiler,
+                // This compiles every file, unreachable ones included; `next
+                // build` is what fails on a compiler error in shipped code.
+                panicThreshold: "none",
+                // As `next dev` does: every compiled function gets a cache,
+                // even one a production build would leave without.
+                environment: { enableResetCacheOnSourceFileChanges: true },
+              },
             ],
             memoizedFunctions(found),
           ],
