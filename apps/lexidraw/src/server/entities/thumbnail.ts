@@ -20,15 +20,24 @@ export function thumbnailPathname(
   return `thumbnails/${entityId}/${label}-${Date.now()}-${crypto.randomUUID()}.${extension}`;
 }
 
+const BLOB_HOSTS = new Set(
+  [env.VERCEL_BLOB_STORAGE_HOST, env.VERCEL_BLOB_STORAGE_HOST_DEV].map(
+    (host) => new URL(host).host,
+  ),
+);
+
 /**
- * Only blobs named by {@link thumbnailPathname} for this entity are deleted:
- * a writer may point a thumbnail at any URL, such as an image a document
- * embeds, and replacing that must not delete it.
+ * Whether a URL is a blob named by {@link thumbnailPathname} for this entity.
+ * Only those are deleted when replaced: a writer may point a thumbnail at any
+ * URL, such as an image a document embeds, and replacing that must not delete
+ * it.
  */
-function isThumbnailOf(entityId: string, url: string): boolean {
+export function isThumbnailOf(entityId: string, url: string): boolean {
   try {
-    return decodeURIComponent(new URL(url).pathname).startsWith(
-      `/thumbnails/${entityId}/`,
+    const { host, pathname } = new URL(url);
+    return (
+      BLOB_HOSTS.has(host) &&
+      decodeURIComponent(pathname).startsWith(`/thumbnails/${entityId}/`)
     );
   } catch {
     return false;

@@ -10,7 +10,11 @@ import {
 import env from "@packages/env";
 import { revalidateEntities } from "~/server/api/entity-cache";
 import { findWritableEntity } from "~/server/entities/readable";
-import { storeThumbnail, thumbnailPathname } from "~/server/entities/thumbnail";
+import {
+  isThumbnailOf,
+  storeThumbnail,
+  thumbnailPathname,
+} from "~/server/entities/thumbnail";
 
 const THEME = {
   DARK: "dark",
@@ -168,21 +172,15 @@ export const snapshotRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { entityId, contentType } = input;
-      const entity = await ctx.drizzle.query.entities.findFirst({
-        where: (e, { eq }) => eq(e.id, entityId),
-      });
+      const entity = await findWritableEntity(
+        ctx.drizzle,
+        entityId,
+        ctx.session?.user.id ?? "",
+      );
       if (!entity)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
-        });
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyoneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyoneCanEdit)
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Forbidden",
         });
 
       const ext = contentType.split("/")[1]?.replace(/\+.*$/, "");
@@ -236,6 +234,11 @@ export const snapshotRouter = createTRPCRouter({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Drawing not found",
+        });
+      if (!isThumbnailOf(input.entityId, input.url))
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Not an upload of this drawing's thumbnail",
         });
 
       await storeThumbnail(

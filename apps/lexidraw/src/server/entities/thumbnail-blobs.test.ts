@@ -1,13 +1,14 @@
 /// <reference types="bun" />
 import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
-import { PublicAccess } from "@packages/types";
+import { AccessLevel, PublicAccess } from "@packages/types";
 import { eq } from "drizzle-orm";
 import { installServerRuntime } from "~/test/server-runtime";
 
 const db = await installServerRuntime();
+const { default: env } = await import("@packages/env");
 
-const HOST = "https://store.public.blob.test";
+const HOST = new URL(env.VERCEL_BLOB_STORAGE_HOST).origin;
 const uploadedPaths: string[] = [];
 const deleted: string[] = [];
 const refused: string[] = [];
@@ -50,6 +51,7 @@ const { uploadBlobStep } = await import(
 
 const OWNER = "thumbb_owner";
 const STRANGER = "thumbb_stranger";
+const EDITOR = "thumbb_editor";
 
 function contextOf(userId: string | null) {
   return {
@@ -70,6 +72,7 @@ beforeAll(async () => {
   await db.insert(schema.users).values([
     { id: OWNER, name: "Owner", email: "thumbb-owner@example.test" },
     { id: STRANGER, name: "Stranger", email: "thumbb-stranger@example.test" },
+    { id: EDITOR, name: "Editor", email: "thumbb-editor@example.test" },
   ]);
   await db.insert(schema.entities).values(
     [
@@ -79,6 +82,7 @@ beforeAll(async () => {
       "thumbb_image",
       "thumbb_flaky",
       "thumbb_private",
+      "thumbb_saved",
     ].map((id) => ({
       id,
       title: id,
@@ -209,5 +213,55 @@ describe("saving the URL of an uploaded thumbnail", () => {
       ).rejects.toThrow();
     }
     expect((await shotsOf("thumbb_private"))?.light).not.toBe(url);
+  });
+});
+
+describe("uploading a thumbnail", () => {
+  test("is open to someone the entity is shared with for editing", async () => {
+    await db.insert(schema.sharedEntities).values({
+      id: "thumbb_share",
+      entityId: "thumbb_shared",
+      userId: EDITOR,
+      accessLevel: AccessLevel.EDIT,
+    });
+    const tokens = await snapshotRouter
+      .createCaller(contextOf(EDITOR))
+      .generateClientUploadTokens({
+        entityId: "thumbb_shared",
+        contentType: "image/png",
+      });
+    expect(tokens).toHaveLength(2);
+  });
+});
+
+describe("saving the URL of an uploaded thumbnail", () => {
+  test("stores a picture uploaded as the entity's thumbnail", async () => {
+    const icon = await uploadIcon("thumbb_saved");
+    await owner.snapshot.saveUploadedUrl({
+      entityId: "thumbb_saved",
+      theme: "light",
+      url: icon.light,
+    });
+    expect((await shotsOf("thumbb_saved"))?.light).toBe(icon.light);
+  });
+
+  test("refuses any other URL", async () => {
+    const icon = await uploadIcon("thumbb_icon");
+    const before = (await shotsOf("thumbb_saved"))?.dark;
+    const others = [
+      `${HOST}/somewhere-else.svg`,
+      icon.light,
+      `https://elsewhere.example${new URL(icon.light).pathname}`,
+    ];
+    for (const url of others) {
+      await expect(
+        owner.snapshot.saveUploadedUrl({
+          entityId: "thumbb_saved",
+          theme: "dark",
+          url,
+        }),
+      ).rejects.toThrow();
+    }
+    expect((await shotsOf("thumbb_saved"))?.dark).toBe(before);
   });
 });
