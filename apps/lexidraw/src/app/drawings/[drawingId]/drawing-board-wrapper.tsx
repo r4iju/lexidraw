@@ -13,7 +13,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
 import { UnsavedChangesProvider } from "~/hooks/use-unsaved-changes";
-import EditBoard from "./board-edit";
+// Excalidraw touches `window` as it loads, so it must not render on the server.
+import EditBoard from "./board-edit-client";
 
 type Props = {
   revalidate: () => void;
