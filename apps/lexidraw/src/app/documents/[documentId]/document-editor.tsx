@@ -291,7 +291,8 @@ function EditorHandler({
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(360);
   const sidebarRef = useRef<HTMLElement>(null);
 
-  const { markDirty, markPristine } = useUnsavedChanges();
+  const { markDirty, markPristine, dirty, registerSaveHold } =
+    useUnsavedChanges();
   const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
   const onSyncReplace = useCallback(
     (editorState: EditorState) => {
@@ -304,11 +305,19 @@ function EditorHandler({
     [setEditorStateRef, markPristine],
   );
   const syncedEditor = useSyncedLexicalEditor(editor, onSyncReplace);
+  const onSavesResumed = useCallback(() => {
+    // Autosave held the edits while the question stood; without autosave
+    // they stay for the user to save.
+    if (dirty.current) debouncedAutoSaveRef.current?.();
+  }, [dirty]);
   const { holdsSaves } = useOpenEntitySync({
     entity,
     noun: "document",
     editor: printMode ? null : syncedEditor,
+    onSavesResumed,
   });
+  // Leaving must not save over a write the user has not answered.
+  useEffect(() => registerSaveHold(holdsSaves), [registerSaveHold, holdsSaves]);
   const { defaultFontFamily } = useDocumentSettings();
   const { enabled: autoSaveEnabled } = useAutoSave({ enabled: !printMode });
 

@@ -14,6 +14,7 @@ import {
   revalidateEntities,
   revalidateEntitiesAndParents,
 } from "~/server/api/entity-cache";
+import { thumbnailColumns } from "~/server/entities/thumbnail";
 
 const THEME = {
   DARK: "dark",
@@ -102,10 +103,11 @@ export const snapshotRouter = createTRPCRouter({
 
       await ctx.drizzle
         .update(schema.entities)
-        .set({
-          [input.theme === THEME.DARK ? "screenShotDark" : "screenShotLight"]:
-            url,
-        })
+        .set(
+          thumbnailColumns(
+            input.theme === THEME.DARK ? { dark: url } : { light: url },
+          ),
+        )
         .where(eq(schema.entities.id, input.entityId))
         .execute();
 
@@ -145,10 +147,11 @@ export const snapshotRouter = createTRPCRouter({
 
       await ctx.drizzle
         .update(schema.entities)
-        .set({
-          [input.theme === THEME.DARK ? "screenShotDark" : "screenShotLight"]:
-            url,
-        })
+        .set(
+          thumbnailColumns(
+            input.theme === THEME.DARK ? { dark: url } : { light: url },
+          ),
+        )
         .where(eq(schema.entities.id, input.entityId))
         .execute();
 
@@ -335,11 +338,15 @@ export const snapshotRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const column =
-        input.theme === THEME.DARK ? "screenShotDark" : "screenShotLight";
       await ctx.drizzle
         .update(schema.entities)
-        .set({ [column]: input.url })
+        .set(
+          thumbnailColumns(
+            input.theme === THEME.DARK
+              ? { dark: input.url }
+              : { light: input.url },
+          ),
+        )
         .where(eq(schema.entities.id, input.entityId))
         .execute();
 

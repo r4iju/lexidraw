@@ -49,9 +49,14 @@ function editor(showing: string, edited = false) {
     replaced: [] as StoredRevision[],
     /** Stored content this editor cannot parse, like a corrupt write. */
     unparsable: null as string | null,
+    /** How often it was asked what it shows: a full parse in a real editor. */
+    parses: 0,
   };
   const port: SyncedEditor = {
-    shows: (elements) => !state.edited && elements === state.showing,
+    shows: (elements) => {
+      state.parses++;
+      return !state.edited && elements === state.showing;
+    },
     hasLocalEdits: () => state.edited,
     replace: (revision) => {
       if (revision.elements === state.unparsable) throw new SyntaxError("bad");
@@ -67,14 +72,40 @@ function editor(showing: string, edited = false) {
   return { state, port };
 }
 
+/** Time the test moves by hand, and the timers waiting on it. */
+function clock() {
+  const state = { now: 0, timers: [] as { at: number; run: () => void }[] };
+  return {
+    state,
+    now: () => state.now,
+    after: (ms: number, run: () => void) => {
+      const timer = { at: state.now + ms, run };
+      state.timers.push(timer);
+      return () => {
+        state.timers = state.timers.filter((t) => t !== timer);
+      };
+    },
+    advance(ms: number) {
+      state.now += ms;
+      const due = state.timers.filter((t) => t.at <= state.now);
+      state.timers = state.timers.filter((t) => t.at > state.now);
+      for (const timer of due) timer.run();
+    },
+  };
+}
+
 function setup(held: StoredRevision, ed: ReturnType<typeof editor>) {
   const srv = server(held);
+  const time = clock();
   const notices: SyncNotice["kind"][] = [];
-  const sync = new OpenEntitySync(held, srv.source, (n) =>
-    notices.push(n.kind),
+  const sync = new OpenEntitySync(
+    held,
+    srv.source,
+    (n) => notices.push(n.kind),
+    { now: time.now, after: time.after },
   );
   sync.attach(ed.port);
-  return { srv, notices, sync };
+  return { srv, notices, sync, time };
 }
 
 describe("an open editor and the entity stored under it", () => {
@@ -110,15 +141,22 @@ describe("an open editor and the entity stored under it", () => {
     sync.keep();
     await sync.check();
     expect(ed.state.replaced).toEqual([]);
-    expect(notices).toEqual(["conflict", "settled"]);
+    // Saving the edits it kept is up to the editor again.
+    expect(notices).toEqual(["conflict", "settled", "resumed"]);
 
     // ...but the next write is announced again, and reloading takes it.
     srv.state.current = rev(3, "v3");
     await sync.check();
-    expect(notices).toEqual(["conflict", "settled", "conflict"]);
+    expect(notices).toEqual(["conflict", "settled", "resumed", "conflict"]);
     sync.reload();
     expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v3"]);
-    expect(notices).toEqual(["conflict", "settled", "conflict", "settled"]);
+    expect(notices).toEqual([
+      "conflict",
+      "settled",
+      "resumed",
+      "conflict",
+      "settled",
+    ]);
     await sync.check();
     expect(ed.state.replaced).toHaveLength(1);
   });
@@ -206,7 +244,13 @@ describe("an open editor and the entity stored under it", () => {
     srv.state.current = rev(4, "mine");
     sync.saveSucceeded(rev(4, "mine"));
     expect(sync.holdsSaves()).toBe(false);
-    expect(notices).toEqual(["conflict", "settled", "conflict", "settled"]);
+    expect(notices).toEqual([
+      "conflict",
+      "settled",
+      "resumed",
+      "conflict",
+      "settled",
+    ]);
     sync.reload();
     expect(ed.state.replaced).toEqual([]);
   });
@@ -221,11 +265,11 @@ describe("an open editor and the entity stored under it", () => {
     // A thumbnail or a rename moves updatedAt over the same content.
     srv.state.current = rev(3, "v2");
     await sync.check();
-    expect(notices).toEqual(["conflict", "settled"]);
+    expect(notices).toEqual(["conflict", "settled", "resumed"]);
 
     srv.state.current = rev(4, "v4");
     await sync.check();
-    expect(notices).toEqual(["conflict", "settled", "conflict"]);
+    expect(notices).toEqual(["conflict", "settled", "resumed", "conflict"]);
   });
 
   test("a replace that fails leaves the editor behind, so the next check tries again", async () => {
@@ -283,15 +327,73 @@ describe("an open editor and the entity stored under it", () => {
     expect(srv.state.loads).toBe(0);
   });
 
-  test("an entity that is gone is not asked about again", async () => {
-    const ed = editor("v1");
-    const { srv, sync } = setup(rev(1, "v1"), ed);
+  test("a standing question is not parsed or asked again by later polls", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync } = setup(rev(1, "v1"), ed);
 
+    srv.state.current = rev(2, "v2");
+    await sync.check();
+    await sync.check();
+    await sync.check();
+    expect(notices).toEqual(["conflict"]);
+    expect(ed.state.parses).toBe(1);
+
+    // Nor is content the user already kept theirs over.
+    sync.keep();
+    await sync.check();
+    await sync.check();
+    expect(ed.state.parses).toBe(1);
+    expect(srv.state.loads).toBe(1);
+  });
+
+  test("a reload waiting on a save that never answers goes ahead after a while", async () => {
+    const ed = editor("v1", true);
+    const { srv, notices, sync, time } = setup(rev(1, "v1"), ed);
+
+    srv.state.current = rev(2, "v2");
+    await sync.check();
+    sync.saveStarted();
+    sync.reload();
+    expect(sync.holdsSaves()).toBe(true);
+
+    time.advance(30_000);
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2"]);
+    expect(sync.holdsSaves()).toBe(false);
+    expect(notices).toEqual(["conflict", "settled"]);
+
+    // The save lands after all: the tab shows v2 over what is stored now,
+    // so the next check has to bring it back, not take the save as shown.
+    srv.state.current = rev(3, "mine");
+    sync.saveSucceeded(rev(3, "mine"));
+    await sync.check();
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v2", "mine"]);
+    expect(notices).toEqual(["conflict", "settled", "reloaded"]);
+  });
+
+  test("an entity that is gone is said so once, asked about sparingly, and followed when it returns", async () => {
+    const ed = editor("v1");
+    const { srv, notices, sync, time } = setup(rev(1, "v1"), ed);
+
+    const held = srv.state.current;
     srv.state.current = null;
     await sync.check();
+    expect(notices).toEqual(["gone"]);
+
+    // Polls leave it alone for a while; the user coming back does not.
     await sync.check();
     await sync.check();
     expect(srv.state.asked).toBe(1);
-    expect(ed.state.replaced).toEqual([]);
+    await sync.check("focus");
+    expect(srv.state.asked).toBe(2);
+    time.advance(5 * 60_000);
+    await sync.check();
+    expect(srv.state.asked).toBe(3);
+    expect(notices).toEqual(["gone"]);
+
+    // Shared again, or restored: back to normal, with what it holds now.
+    srv.state.current = held && rev(9, "v9");
+    await sync.check("focus");
+    expect(notices).toEqual(["gone", "back", "reloaded"]);
+    expect(ed.state.replaced.map((r) => r.elements)).toEqual(["v9"]);
   });
 });

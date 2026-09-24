@@ -42,6 +42,7 @@ import {
   findWritableEntity,
   resolveParentDirectory,
 } from "~/server/entities/readable";
+import { thumbnailColumns } from "~/server/entities/thumbnail";
 import {
   accessLevelOut,
   entityTypeOut,
@@ -1173,11 +1174,12 @@ export const entityRouter = createTRPCRouter({
             ? { publicAccess: input.publicAccess }
             : {}),
           ...("parentId" in input ? { parentId: input.parentId } : {}),
-          ...("screenShotLight" in input
-            ? { screenShotLight: input.screenShotLight }
-            : {}),
-          ...("screenShotDark" in input
-            ? { screenShotDark: input.screenShotDark }
+          ...(input.screenShotLight !== undefined ||
+          input.screenShotDark !== undefined
+            ? thumbnailColumns({
+                light: input.screenShotLight,
+                dark: input.screenShotDark,
+              })
             : {}),
           updatedAt: new Date(),
         })
@@ -1303,9 +1305,7 @@ export const entityRouter = createTRPCRouter({
       await ctx.drizzle
         .update(schema.entities)
         .set({
-          screenShotLight: lightBlob.url,
-          screenShotDark: darkBlob.url,
-          updatedAt: new Date(),
+          ...thumbnailColumns({ light: lightBlob.url, dark: darkBlob.url }),
         })
         .where(eq(schema.entities.id, input.id))
         .execute();
@@ -1972,8 +1972,12 @@ export const entityRouter = createTRPCRouter({
       if (isDefaultTitle && distilled.title) {
         updates.title = distilled.title;
       }
-      if (screenShotLight) updates.screenShotLight = screenShotLight;
-      if (screenShotDark) updates.screenShotDark = screenShotDark;
+      if (screenShotLight || screenShotDark) {
+        Object.assign(
+          updates,
+          thumbnailColumns({ light: screenShotLight, dark: screenShotDark }),
+        );
+      }
 
       await ctx.drizzle
         .update(schema.entities)

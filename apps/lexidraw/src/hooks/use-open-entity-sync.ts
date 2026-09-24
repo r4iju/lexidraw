@@ -6,11 +6,12 @@ import { getMutationKey } from "@trpc/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import {
+import type {
+  CheckTrigger,
   OpenEntitySync,
-  type SyncedEditor,
-  type SyncNotice,
+  SyncedEditor,
 } from "~/lib/open-entity-sync";
+import { announcedSync, syncToastIds } from "~/lib/open-entity-toasts";
 import { api } from "~/trpc/react";
 
 /**
@@ -21,7 +22,11 @@ import { api } from "~/trpc/react";
 const POLL_MS = 10_000;
 
 /** What a `entities.save` mutation carries, as far as syncing goes. */
-const SaveVariables = z.object({ id: z.string(), elements: z.string() });
+const SaveVariables = z.object({
+  id: z.string(),
+  elements: z.string(),
+  appState: z.string().nullish(),
+});
 const SaveResult = z.object({ updatedAt: z.date() });
 
 type Props = {
@@ -29,6 +34,11 @@ type Props = {
   noun: "document" | "drawing";
   /** Null until the editor can answer, and for renders that never go stale. */
   editor: SyncedEditor | null;
+  /**
+   * The user kept their edits over a write elsewhere: autosave, held while
+   * the question stood, may save what it holds.
+   */
+  onSavesResumed?: () => void;
 };
 
 /**
@@ -37,38 +47,64 @@ type Props = {
  * are read off the mutation cache rather than reported by each save site.
  * Answers whether an autosave has to wait: see `OpenEntitySync.holdsSaves`.
  */
-export function useOpenEntitySync({ entity, noun, editor }: Props) {
+export function useOpenEntitySync({
+  entity,
+  noun,
+  editor,
+  onSavesResumed,
+}: Props) {
   const utils = api.useUtils();
   const queryClient = useQueryClient();
-  const [sync] = useState(() => createSync(entity, noun, utils));
+  // Who saves once the user keeps their edits: whatever editor is mounted.
+  const [resumers] = useState(() => new Set<() => void>());
+  const [sync] = useState(() =>
+    createSync(entity, noun, utils, () => {
+      for (const resume of resumers) resume();
+    }),
+  );
   const holdsSaves = useCallback(() => sync.holdsSaves(), [sync]);
+
+  useEffect(() => {
+    if (!onSavesResumed) return;
+    resumers.add(onSavesResumed);
+    return () => {
+      resumers.delete(onSavesResumed);
+    };
+  }, [resumers, onSavesResumed]);
 
   // External system: the toaster, which outlives the editor.
   useEffect(
     () => () => {
-      toast.dismiss(toastId(entity.id));
+      // Dismissing a question keeps the user's edits; an editor going away
+      // must not save them for it.
+      resumers.clear();
+      const ids = syncToastIds(entity.id);
+      toast.dismiss(ids.conflict);
+      toast.dismiss(ids.gone);
     },
-    [entity.id],
+    [resumers, entity.id],
   );
 
   // External systems: the tab's visibility and focus, and a timer.
   useEffect(() => {
     sync.attach(editor);
     if (!editor) return;
-    const check = () => {
+    const check = (trigger: CheckTrigger) => {
       if (document.visibilityState !== "visible") return;
-      sync.check().catch((error: unknown) => {
+      sync.check(trigger).catch((error: unknown) => {
         console.error(`Checking the ${noun} for changes failed:`, error);
       });
     };
-    check();
-    document.addEventListener("visibilitychange", check);
-    window.addEventListener("focus", check);
-    const timer = window.setInterval(check, POLL_MS);
+    const onReturn = () => check("focus");
+    const poll = () => check("poll");
+    onReturn();
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
+    const timer = window.setInterval(poll, POLL_MS);
     return () => {
       sync.attach(null);
-      document.removeEventListener("visibilitychange", check);
-      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onReturn);
+      window.removeEventListener("focus", onReturn);
       window.clearInterval(timer);
     };
   }, [sync, editor, noun]);
@@ -91,10 +127,13 @@ export function useOpenEntitySync({ entity, noun, editor }: Props) {
             sync.saveFailed();
             break;
           }
-          sync.saveSucceeded({
-            updatedAt: result.data.updatedAt,
-            elements: variables.data.elements,
-          });
+          sync.saveSucceeded(
+            {
+              updatedAt: result.data.updatedAt,
+              elements: variables.data.elements,
+            },
+            variables.data.appState ?? undefined,
+          );
           break;
         }
         case "error":
@@ -107,16 +146,8 @@ export function useOpenEntitySync({ entity, noun, editor }: Props) {
   return { holdsSaves };
 }
 
-function toastId(id: string): string {
-  // Called from an effect's cleanup; see `fingerprint` in
-  // `use-synced-excalidraw.ts` for why it opts out of the compiler.
-  "use no memo";
-  return `open-entity-sync-${id}`;
-}
-
 /** A read the server refused because the entity is gone for this user. */
 function isNotFound(error: unknown): boolean {
-  "use no memo"; // called from a fetch's callback, as above
   return error instanceof TRPCClientError && error.data?.code === "NOT_FOUND";
 }
 
@@ -124,37 +155,11 @@ function createSync(
   entity: Props["entity"],
   noun: Props["noun"],
   utils: ReturnType<typeof api.useUtils>,
+  onSavesResumed: () => void,
 ): OpenEntitySync {
-  // A factory for `useState`, not a render: see `fingerprint` in
-  // `use-synced-excalidraw.ts` for why it opts out of the compiler.
-  "use no memo";
-  const id = toastId(entity.id);
-  const announce = (notice: SyncNotice) => {
-    switch (notice.kind) {
-      case "reloaded":
-        toast.info(`This ${noun} changed elsewhere`, {
-          description: "You are looking at the latest version.",
-        });
-        return;
-      case "conflict":
-        toast.warning(`This ${noun} changed elsewhere`, {
-          id,
-          duration: Number.POSITIVE_INFINITY,
-          description: `Reload to see the new version and discard your unsaved edits here, or keep editing yours: saving them will overwrite the other changes.`,
-          action: { label: "Reload", onClick: () => sync.reload() },
-          cancel: { label: "Keep mine", onClick: () => sync.keep() },
-          // Closing the question is not a choice to lose edits.
-          onDismiss: () => sync.keep(),
-        });
-        return;
-      case "settled":
-        toast.dismiss(id);
-        return;
-    }
-  };
-  const sync = new OpenEntitySync(
-    { updatedAt: entity.updatedAt, elements: entity.elements },
-    {
+  return announcedSync({
+    held: { updatedAt: entity.updatedAt, elements: entity.elements },
+    source: {
       updatedAt: async () => {
         try {
           const revision = await utils.entities.revision.fetch(
@@ -175,7 +180,9 @@ function createSync(
         return { updatedAt: stored.updatedAt, elements: stored.elements };
       },
     },
-    announce,
-  );
-  return sync;
+    noun,
+    entityId: entity.id,
+    toaster: toast,
+    onSavesResumed,
+  });
 }

@@ -1,6 +1,24 @@
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+
 /**
- * Which changes to an open drawing are the user's, over scene fingerprints
- * (see `use-synced-excalidraw.ts`).
+ * What a drawing save stores, as a string cheap to compare: the live
+ * elements' versions, which every change to an element bumps, and the
+ * background colour, the one piece of app state a save keeps. Scrolling and
+ * zooming move neither.
+ */
+export function sceneKey(
+  elements: readonly ExcalidrawElement[],
+  appState?: { viewBackgroundColor?: string },
+): string {
+  let key = appState?.viewBackgroundColor ?? "";
+  for (const element of elements) {
+    if (!element.isDeleted) key += `,${element.id}@${element.version}`;
+  }
+  return key;
+}
+
+/**
+ * Which changes to an open drawing are the user's, over scene keys.
  *
  * Excalidraw has no notion of who changed a scene: loading one and
  * re-measuring its text once the fonts arrive bump versions too. So the
@@ -11,6 +29,8 @@
 export class SceneEdits {
   private baseline: string;
   private touchedSinceLoad = false;
+  /** A pointer is down: a drag goes on over whatever replaced the scene. */
+  private pressing = false;
 
   constructor(scene: string) {
     this.baseline = scene;
@@ -30,10 +50,22 @@ export class SceneEdits {
     this.touchedSinceLoad = true;
   }
 
+  /** A pointer went down: a touch that may outlast a reload. */
+  pressed(): void {
+    this.pressing = true;
+    this.touched();
+  }
+
+  released(): void {
+    this.pressing = false;
+  }
+
   /** The editor now shows a stored scene, loaded like any other. */
   replaced(scene: string): void {
     this.baseline = scene;
-    this.touchedSinceLoad = false;
+    // A drag that began before the reload lands on the new scene; what it
+    // changes there is the user's.
+    this.touchedSinceLoad = this.pressing;
   }
 
   /** The server now stores this scene. */

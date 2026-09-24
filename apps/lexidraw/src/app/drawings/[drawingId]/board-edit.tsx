@@ -59,7 +59,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),
   );
-  const { markDirty, markPristine } = useUnsavedChanges();
+  const { markDirty, markPristine, registerSaveHold } = useUnsavedChanges();
   const { enabled: autoSaveEnabled } = useAutoSave();
   const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
 
@@ -80,12 +80,27 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
     [updateElementsRef, markPristine],
   );
-  const synced = useSyncedExcalidraw(excalidrawApi, onSyncReplace);
+  const { editor: syncedEditor, needsSave } = useSyncedExcalidraw(
+    excalidrawApi,
+    onSyncReplace,
+  );
+  const onSavesResumed = useCallback(() => {
+    // Autosave held the edits while the question stood; without autosave
+    // they stay for the user to save.
+    const saveLater = debouncedSaveRef.current;
+    if (!excalidrawApi || !saveLater) return;
+    const elements = excalidrawApi.getSceneElementsIncludingDeleted();
+    const appState = excalidrawApi.getAppState();
+    if (needsSave(elements, appState)) saveLater({ elements, appState });
+  }, [excalidrawApi, needsSave]);
   const { holdsSaves } = useOpenEntitySync({
     entity: drawing,
     noun: "drawing",
-    editor: synced.editor,
+    editor: syncedEditor,
+    onSavesResumed,
   });
+  // Leaving must not save over a write the user has not answered.
+  useEffect(() => registerSaveHold(holdsSaves), [registerSaveHold, holdsSaves]);
 
   const applyUpdate = useCallback(
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {
@@ -234,7 +249,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       state: AppState,
       _: BinaryFiles,
     ) => {
-      if (!synced.needsSave(elements)) {
+      if (!needsSave(elements, state)) {
         // Nothing the server lacks, like the scene a reload just showed or
         // an edit undone: a save still waiting would only write back.
         debouncedSaveRef.current?.cancel();
@@ -265,7 +280,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       isRemoteUpdate,
       isCollaborating,
       sendUpdateIfNeeded,
-      synced,
+      needsSave,
       holdsSaves,
       markDirty,
       markPristine,

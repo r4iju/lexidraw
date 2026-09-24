@@ -70,6 +70,10 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
         toggleTheme: false,
       },
     },
+    // Keeps the scene the server stores in step with what shows.
+    onChange: (elements, state) => {
+      synced.needsSave(elements, state);
+    },
     // isCollaborating: true,
   } satisfies ExcalidrawProps;
 

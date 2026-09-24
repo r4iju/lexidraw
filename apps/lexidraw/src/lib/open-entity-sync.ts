@@ -14,7 +14,11 @@
  * - it changed and the editor has no edits of its own → show it, and say so;
  * - it changed under local edits → ask, and replace nothing until the user
  *   chooses. Autosave waits while the question stands, since a save would
- *   answer it. Keeping theirs is not asked again for the same content.
+ *   answer it. Keeping theirs is not asked again for the same content, and a
+ *   question already asked is not worked out again by the next poll.
+ *
+ * An entity that goes away (deleted, or no longer shared) is said so once, and
+ * asked about again only when the user comes back to the tab or after a while.
  *
  * `updatedAt` is only the cheap question; `elements` is the answer, because
  * `updatedAt` moves for writes that do not change what the editor shows.
@@ -35,8 +39,11 @@ export interface SyncedEditor {
   hasLocalEdits(): boolean;
   /** Show this revision instead, dropping whatever the editor holds. */
   replace(revision: StoredRevision): void;
-  /** The server now stores `elements`, which this editor sent. */
-  saved(elements: string): void;
+  /**
+   * The server now stores `elements`, which this editor sent, with the
+   * `appState` sent alongside for editors that keep one.
+   */
+  saved(elements: string, appState?: string): void;
 }
 
 export interface SyncSource {
@@ -52,7 +59,37 @@ export type SyncNotice =
   | { kind: "reloaded" }
   | { kind: "conflict" }
   /** A conflict announced earlier no longer stands. */
-  | { kind: "settled" };
+  | { kind: "settled" }
+  /** The user kept their edits: saving them is the editor's call again. */
+  | { kind: "resumed" }
+  /** The entity is gone for this user: deleted, or no longer shared. */
+  | { kind: "gone" }
+  | { kind: "back" };
+
+/** A poll, or the user coming back to the tab. */
+export type CheckTrigger = "poll" | "focus";
+
+export type Clock = {
+  now(): number;
+  /** Runs `run` after `ms`; the answer cancels it. */
+  after(ms: number, run: () => void): () => void;
+};
+
+const realClock: Clock = {
+  now: () => Date.now(),
+  after: (ms, run) => {
+    const timer = setTimeout(run, ms);
+    return () => clearTimeout(timer);
+  },
+};
+
+/** How long polls leave a gone entity alone. */
+const GONE_POLL_MS = 5 * 60_000;
+/**
+ * How long a reload the user chose waits for a save on the wire. A request
+ * that never answers must not leave autosave held with no question showing.
+ */
+const RELOAD_WAIT_MS = 30_000;
 
 export class OpenEntitySync {
   private editor: SyncedEditor | null = null;
@@ -63,16 +100,22 @@ export class OpenEntitySync {
   /** The last revision loaded, so asking again for it costs no download. */
   private lastLoaded: StoredRevision | null = null;
   private conflict: StoredRevision | null = null;
+  /** The stored revision last put to the user, asked or kept over. */
+  private asked: Date | null = null;
   /** The content the user chose to keep their edits over. */
   private kept: string | null = null;
-  /** The user chose to reload while a save was in flight. */
-  private reloadAfterSave = false;
-  private gone = false;
+  /** Cancels the wait of a reload chosen while a save was in flight. */
+  private reloadWait: (() => void) | null = null;
+  /** Saves still on the wire when a reload went ahead without them. */
+  private abandonedSaves = 0;
+  /** When the entity was last found gone; null while it is there. */
+  private goneAt: number | null = null;
 
   constructor(
     private held: StoredRevision,
     private readonly source: SyncSource,
     private readonly notify: (notice: SyncNotice) => void,
+    private readonly clock: Clock = realClock,
   ) {}
 
   /** The editor, once it can answer; checks wait for it. */
@@ -80,19 +123,30 @@ export class OpenEntitySync {
     this.editor = editor;
   }
 
-  async check(): Promise<void> {
-    if (this.gone || this.checking || this.savesInFlight > 0 || !this.editor)
+  async check(trigger: CheckTrigger = "poll"): Promise<void> {
+    if (this.checking || this.savesInFlight > 0 || !this.editor) return;
+    if (
+      this.goneAt !== null &&
+      trigger === "poll" &&
+      this.clock.now() - this.goneAt < GONE_POLL_MS
+    )
       return;
     this.checking = true;
     try {
       const epoch = this.saveEpoch;
       const updatedAt = await this.source.updatedAt();
       if (!updatedAt) {
-        this.gone = true;
+        if (this.goneAt === null) this.notify({ kind: "gone" });
+        this.goneAt = this.clock.now();
         return;
+      }
+      if (this.goneAt !== null) {
+        this.goneAt = null;
+        this.notify({ kind: "back" });
       }
       if (epoch !== this.saveEpoch || sameTime(updatedAt, this.held.updatedAt))
         return;
+      if (this.asked && sameTime(this.asked, updatedAt)) return;
       const stored =
         this.lastLoaded && sameTime(this.lastLoaded.updatedAt, updatedAt)
           ? this.lastLoaded
@@ -125,6 +179,7 @@ export class OpenEntitySync {
       this.notify({ kind: "reloaded" });
       return;
     }
+    this.asked = stored.updatedAt;
     if (this.kept === stored.elements) return;
     this.conflict = stored;
     this.notify({ kind: "conflict" });
@@ -140,14 +195,24 @@ export class OpenEntitySync {
 
   /** The user chose the stored revision over their edits. */
   reload(): void {
-    const stored = this.conflict;
-    if (!stored || !this.editor) return;
+    if (!this.conflict || !this.editor) return;
     // A save on the wire decides what is stored; see `saveFailed` and
     // `saveSucceeded`.
     if (this.savesInFlight > 0) {
-      this.reloadAfterSave = true;
+      this.reloadWait ??= this.clock.after(RELOAD_WAIT_MS, () => {
+        this.reloadWait = null;
+        // Whatever those saves answer later is older than what shows now.
+        this.abandonedSaves = this.savesInFlight;
+        this.applyReload();
+      });
       return;
     }
+    this.applyReload();
+  }
+
+  private applyReload(): void {
+    const stored = this.conflict;
+    if (!stored || !this.editor) return;
     this.editor.replace(stored);
     this.held = stored;
     this.settle();
@@ -158,6 +223,7 @@ export class OpenEntitySync {
     if (!this.conflict) return;
     this.kept = this.conflict.elements;
     this.settle();
+    this.notify({ kind: "resumed" });
   }
 
   saveStarted(): void {
@@ -165,29 +231,38 @@ export class OpenEntitySync {
     this.saveEpoch++;
   }
 
-  saveSucceeded(saved: StoredRevision): void {
-    this.saveSettled();
+  saveSucceeded(saved: StoredRevision, appState?: string): void {
+    if (this.saveSettled()) return;
     // The stored content is the user's now: there is nothing to reload to.
-    this.reloadAfterSave = false;
+    this.stopReloadWait();
     // Answers can arrive out of order; an older one says nothing new.
     if (saved.updatedAt.getTime() > this.held.updatedAt.getTime()) {
       this.held = saved;
-      this.editor?.saved(saved.elements);
+      this.editor?.saved(saved.elements, appState);
     }
     this.settle();
   }
 
   saveFailed(): void {
-    this.saveSettled();
-    if (this.reloadAfterSave && this.savesInFlight === 0) {
-      this.reloadAfterSave = false;
-      this.reload();
+    if (this.saveSettled()) return;
+    if (this.reloadWait && this.savesInFlight === 0) {
+      this.stopReloadWait();
+      this.applyReload();
     }
   }
 
-  private saveSettled(): void {
+  /** Answers whether this save was abandoned, so its answer means nothing. */
+  private saveSettled(): boolean {
     this.savesInFlight = Math.max(0, this.savesInFlight - 1);
     this.saveEpoch++;
+    if (this.abandonedSaves === 0) return false;
+    this.abandonedSaves--;
+    return true;
+  }
+
+  private stopReloadWait(): void {
+    this.reloadWait?.();
+    this.reloadWait = null;
   }
 
   private settle(): void {

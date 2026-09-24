@@ -2,6 +2,7 @@ import "server-only";
 
 import { drizzle, schema, eq } from "@packages/drizzle";
 import { revalidateEntitiesOutsideRequest } from "~/server/api/entity-cache";
+import { thumbnailColumns } from "~/server/entities/thumbnail";
 
 export async function updateEntityStep(
   entityId: string,
@@ -14,13 +15,9 @@ export async function updateEntityStep(
   await drizzle
     .update(schema.entities)
     .set({
-      screenShotLight: lightUrl,
-      screenShotDark: darkUrl,
+      ...thumbnailColumns({ light: lightUrl, dark: darkUrl }),
       thumbnailStatus: "ready",
-      thumbnailUpdatedAt: new Date(),
       thumbnailVersion: version,
-      // Not `updatedAt`: that is the content's revision, which open editors
-      // and `ifUnmodifiedSince` compare against, and a picture of it is not one.
     })
     .where(eq(schema.entities.id, entityId))
     .execute();
