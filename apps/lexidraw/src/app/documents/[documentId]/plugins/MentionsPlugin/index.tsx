@@ -7,8 +7,8 @@ import {
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import type { TextNode } from "lexical";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import * as React from "react";
-import * as ReactDOM from "react-dom";
+import type * as React from "react";
+import { TypeaheadMenu } from "../typeahead-menu";
 
 import { $createMentionNode } from "@packages/lexical-nodes";
 
@@ -524,56 +524,18 @@ function useMentionLookupService(mentionString: string | null) {
 
 class MentionTypeaheadOption extends MenuOption {
   name: string;
-  picture: React.JSX.Element;
 
-  constructor(name: string, picture: React.JSX.Element) {
+  constructor(name: string) {
     super(name);
     this.name = name;
-    this.picture = picture;
   }
 }
 
-function MentionsTypeaheadMenuItem({
-  index,
-  isSelected,
-  onClick,
-  onMouseEnter,
-  option,
-}: {
-  index: number;
-  isSelected: boolean;
-  onClick: () => void;
-  onMouseEnter: () => void;
-  option: MentionTypeaheadOption;
-}) {
-  // Extract option properties before render to avoid ref access during render
-  const optionKey = option.key;
-  const setRefElement = option.setRefElement;
-  const picture = option.picture;
-  const name = option.name;
-  const pictureClassName = picture.props.className;
-
+function Avatar({ name }: { name: string }) {
   return (
-    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: todo: fix aria props
-    // biome-ignore lint/a11y/useKeyWithClickEvents: todo: fix key with click events
-    <li
-      key={optionKey}
-      tabIndex={-1}
-      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-      data-highlighted={isSelected ? "" : undefined}
-      ref={(element) => {
-        setRefElement(element);
-      }}
-      aria-selected={isSelected}
-      id={`typeahead-item-${index}`}
-      onMouseEnter={onMouseEnter}
-      onClick={onClick}
-    >
-      {React.cloneElement(picture, {
-        className: `${pictureClassName} mr-2`,
-      })}
-      <span className="grow">{name}</span>
-    </li>
+    <span className="flex size-5 items-center justify-center rounded-full bg-muted text-caption font-medium text-muted-foreground">
+      {name.charAt(0).toUpperCase()}
+    </span>
   );
 }
 
@@ -591,10 +553,7 @@ export default function NewMentionsPlugin(): React.JSX.Element | null {
   const options = useMemo(
     () =>
       results
-        .map(
-          (result) =>
-            new MentionTypeaheadOption(result, <i className="icon user" />),
-        )
+        .map((result) => new MentionTypeaheadOption(result))
         .slice(0, SUGGESTION_LIST_LENGTH_LIMIT),
     [results],
   );
@@ -670,32 +629,21 @@ export default function NewMentionsPlugin(): React.JSX.Element | null {
       menuRenderFn={(
         anchorElementRef,
         { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
-      ) =>
-        anchorElementRef.current && results.length
-          ? ReactDOM.createPortal(
-              <div className="typeahead-popover mentions-menu bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50">
-                <ul className="list-none p-0 m-0">
-                  {options.map((option, i: number) => (
-                    <MentionsTypeaheadMenuItem
-                      index={i}
-                      isSelected={selectedIndex === i}
-                      onClick={() => {
-                        setHighlightedIndex(i);
-                        selectOptionAndCleanUp(option);
-                      }}
-                      onMouseEnter={() => {
-                        setHighlightedIndex(i);
-                      }}
-                      key={option.key}
-                      option={option}
-                    />
-                  ))}
-                </ul>
-              </div>,
-              anchorElementRef.current,
-            )
-          : null
-      }
+      ) => (
+        <TypeaheadMenu
+          anchor={anchorElementRef.current}
+          label="People"
+          options={options}
+          selectedIndex={selectedIndex}
+          onSelect={(option, index) => {
+            setHighlightedIndex(index);
+            selectOptionAndCleanUp(option);
+          }}
+          onHighlight={setHighlightedIndex}
+          picture={(option) => <Avatar name={option.name} />}
+          name={(option) => option.name}
+        />
+      )}
     />
   );
 }

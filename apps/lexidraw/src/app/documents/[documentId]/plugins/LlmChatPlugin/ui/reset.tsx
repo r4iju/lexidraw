@@ -1,6 +1,6 @@
 import { Button } from "~/components/ui/button";
 import { useChatDispatch, useChatState } from "../llm-chat-context";
-import { RefreshCcw } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -28,15 +28,15 @@ export const Reset = () => {
       <TooltipTrigger asChild>
         <Button
           size="icon"
-          variant="outline"
+          variant="ghost"
           onClick={handleReset}
-          className="gap-2"
+          aria-label="New conversation"
+          className="shrink-0"
         >
-          <RefreshCcw className="w-4 h-4" />
-          <span className="sr-only">Reset the chat</span>
+          <MessageSquarePlus className="size-4" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Reset the chat</TooltipContent>
+      <TooltipContent>New conversation</TooltipContent>
     </Tooltip>
   );
 };

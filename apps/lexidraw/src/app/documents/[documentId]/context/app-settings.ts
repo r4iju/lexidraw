@@ -1,6 +1,5 @@
 export const DEFAULT_SETTINGS = {
   autocomplete: false,
-  chat: false,
   showNestedEditorTreeView: false,
 };
 

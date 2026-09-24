@@ -7,477 +7,318 @@ import {
   $isParagraphNode,
   $isRangeSelection,
   $isTextNode,
-  COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   type LexicalEditor,
-  SELECTION_CHANGE_COMMAND,
+  type TextFormatType,
 } from "lexical";
-import {
-  type JSX,
-  type Dispatch,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { createPortal } from "react-dom";
-import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { TooltipButton } from "~/components/ui/tooltip-button";
 import {
   Bold,
   Code,
   Italic,
   Link,
+  type LucideIcon,
   MessageSquareText,
   Strikethrough,
   Subscript,
   Superscript,
   Underline,
 } from "lucide-react";
+import {
+  type Dispatch,
+  type JSX,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { useFinePointer } from "~/hooks/use-media-query";
+import { placeFloating } from "~/lib/place-floating";
+import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { INSERT_INLINE_COMMAND } from "../CommentPlugin";
-import { cn } from "~/lib/utils";
+import { Toolbar, ToolbarButton } from "../ToolbarPlugin/toolbar";
 
-function TextFormatFloatingToolbar({
+type Mark = {
+  format: TextFormatType;
+  label: string;
+  icon: LucideIcon;
+  shortcut: string;
+};
+
+const MARKS: Mark[] = [
+  { format: "bold", label: "Bold", icon: Bold, shortcut: "Mod+B" },
+  { format: "italic", label: "Italic", icon: Italic, shortcut: "Mod+I" },
+  {
+    format: "underline",
+    label: "Underline",
+    icon: Underline,
+    shortcut: "Mod+U",
+  },
+  {
+    format: "strikethrough",
+    label: "Strikethrough",
+    icon: Strikethrough,
+    shortcut: "Mod+Shift+S",
+  },
+];
+
+const SCRIPTS: Mark[] = [
+  {
+    format: "subscript",
+    label: "Subscript",
+    icon: Subscript,
+    shortcut: "Mod+,",
+  },
+  {
+    format: "superscript",
+    label: "Superscript",
+    icon: Superscript,
+    shortcut: "Mod+.",
+  },
+];
+
+const ALL_FORMATS = [...MARKS, ...SCRIPTS].map(({ format }) => format);
+
+/** The page toolbar's bottom: the selection toolbar never goes under it. */
+function topBound() {
+  return (
+    document
+      .querySelector('[role="toolbar"][aria-label="Formatting"]')
+      ?.getBoundingClientRect().bottom ?? 0
+  );
+}
+
+function selectionRect(rootElement: HTMLElement): DOMRect | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed)
+    return null;
+  if (!rootElement.contains(selection.anchorNode)) return null;
+  if (selection.anchorNode === rootElement) {
+    let inner = rootElement;
+    while (inner.firstElementChild)
+      inner = inner.firstElementChild as HTMLElement;
+    return inner.getBoundingClientRect();
+  }
+  return selection.getRangeAt(0).getBoundingClientRect();
+}
+
+function SelectionToolbar({
   editor,
-  anchorElem,
+  formats,
   isLink,
   setIsLinkEditMode,
 }: {
   editor: LexicalEditor;
-  anchorElem: HTMLElement;
-  isBold: boolean;
-  isCode: boolean;
-  isItalic: boolean;
+  formats: Set<TextFormatType>;
   isLink: boolean;
-  isStrikethrough: boolean;
-  isSubscript: boolean;
-  isSuperscript: boolean;
-  isUnderline: boolean;
   setIsLinkEditMode: Dispatch<boolean>;
 }): JSX.Element {
-  const popupCharStylesEditorRef = useRef<HTMLDivElement | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
-  const insertLink = useCallback(() => {
-    if (!isLink) {
-      setIsLinkEditMode(true);
-      editor.dispatchCommand(TOGGLE_LINK_COMMAND, "https://");
-    } else {
-      setIsLinkEditMode(false);
-      editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
-    }
-  }, [editor, isLink, setIsLinkEditMode]);
-
-  const insertComment = () => {
-    editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
-  };
-
-  const mouseMoveListener = useCallback((e: MouseEvent) => {
-    if (
-      popupCharStylesEditorRef?.current &&
-      (e.buttons === 1 || e.buttons === 3)
-    ) {
-      if (popupCharStylesEditorRef.current.style.pointerEvents !== "none") {
-        const x = e.clientX;
-        const y = e.clientY;
-        const elementUnderMouse = document.elementFromPoint(x, y);
-
-        if (!popupCharStylesEditorRef.current.contains(elementUnderMouse)) {
-          // Mouse is not over the target element => not a normal click, but probably a drag
-          popupCharStylesEditorRef.current.style.pointerEvents = "none";
-        }
-      }
-    }
-  }, []);
-  const mouseUpListener = useCallback((_e: MouseEvent) => {
-    if (popupCharStylesEditorRef?.current) {
-      if (popupCharStylesEditorRef.current.style.pointerEvents !== "auto") {
-        popupCharStylesEditorRef.current.style.pointerEvents = "auto";
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (popupCharStylesEditorRef?.current) {
-      document.addEventListener("mousemove", mouseMoveListener);
-      document.addEventListener("mouseup", mouseUpListener);
-
-      return () => {
-        document.removeEventListener("mousemove", mouseMoveListener);
-        document.removeEventListener("mouseup", mouseUpListener);
-      };
-    }
-  }, [mouseMoveListener, mouseUpListener]);
-
-  const getDOMRangeRect = useCallback(
-    (nativeSelection: Selection, rootElement: HTMLElement): DOMRect => {
-      const domRange = nativeSelection.getRangeAt(0);
-
-      let rect: DOMRect | null = null;
-
-      if (nativeSelection.anchorNode === rootElement) {
-        let inner = rootElement;
-        while (inner.firstElementChild != null) {
-          inner = inner.firstElementChild as HTMLElement;
-        }
-        rect = inner.getBoundingClientRect();
-      } else {
-        rect = domRange.getBoundingClientRect();
-      }
-
-      return rect;
-    },
-    [],
-  );
-
-  const VERTICAL_GAP = 10;
-  const HORIZONTAL_OFFSET = 5;
-
-  const setFloatingElemPosition = useCallback(
-    (
-      targetRect: DOMRect | null,
-      floatingElem: HTMLElement,
-      anchorElem: HTMLElement,
-      isLink = false,
-      verticalGap: number = VERTICAL_GAP,
-      horizontalOffset: number = HORIZONTAL_OFFSET,
-    ): void => {
-      const scrollerElem = anchorElem.parentElement;
-
-      if (targetRect === null || !scrollerElem) {
-        floatingElem.style.opacity = "0";
-        floatingElem.style.transform = "translate(-10000px, -10000px)";
-        return;
-      }
-
-      const floatingElemRect = floatingElem.getBoundingClientRect();
-      const anchorElementRect = anchorElem.getBoundingClientRect();
-      const editorScrollerRect = scrollerElem.getBoundingClientRect();
-
-      let top = targetRect.top - floatingElemRect.height - verticalGap;
-      let left = targetRect.left - horizontalOffset;
-
-      if (top < editorScrollerRect.top) {
-        // adjusted height for link element if the element is at top
-        top +=
-          floatingElemRect.height +
-          targetRect.height +
-          verticalGap * (isLink ? 9 : 2);
-      }
-
-      if (left + floatingElemRect.width > editorScrollerRect.right) {
-        left =
-          editorScrollerRect.right - floatingElemRect.width - horizontalOffset;
-      }
-
-      top -= anchorElementRect.top;
-      left -= anchorElementRect.left;
-
-      floatingElem.style.opacity = "1";
-      floatingElem.style.transform = `translate(${left}px, ${top}px)`;
-    },
-    [],
-  );
-
-  const $updateTextFormatFloatingToolbar = useCallback(() => {
-    const selection = $getSelection();
-
-    const popupCharStylesEditorElem = popupCharStylesEditorRef.current;
-    const nativeSelection = window.getSelection();
-
-    if (popupCharStylesEditorElem === null) {
+  const place = useCallback(() => {
+    const element = ref.current;
+    const root = editor.getRootElement();
+    if (!element || !root) return;
+    const target = selectionRect(root);
+    if (!target) {
+      element.style.opacity = "0";
       return;
     }
-
-    const rootElement = editor.getRootElement();
-    if (
-      selection !== null &&
-      nativeSelection !== null &&
-      !nativeSelection.isCollapsed &&
-      rootElement !== null &&
-      rootElement.contains(nativeSelection.anchorNode)
-    ) {
-      const rangeRect = getDOMRangeRect(nativeSelection, rootElement);
-
-      setFloatingElemPosition(
-        rangeRect,
-        popupCharStylesEditorElem,
-        anchorElem,
-        isLink,
-      );
-    }
-  }, [editor, getDOMRangeRect, setFloatingElemPosition, anchorElem, isLink]);
-
-  useEffect(() => {
-    const scrollerElem = anchorElem.parentElement;
-
-    const update = () => {
-      editor.getEditorState().read(() => {
-        $updateTextFormatFloatingToolbar();
-      });
-    };
-
-    window.addEventListener("resize", update);
-    if (scrollerElem) {
-      scrollerElem.addEventListener("scroll", update);
-    }
-
-    return () => {
-      window.removeEventListener("resize", update);
-      if (scrollerElem) {
-        scrollerElem.removeEventListener("scroll", update);
-      }
-    };
-  }, [editor, $updateTextFormatFloatingToolbar, anchorElem]);
-
-  useEffect(() => {
-    editor.getEditorState().read(() => {
-      $updateTextFormatFloatingToolbar();
-    });
-    return mergeRegister(
-      editor.registerUpdateListener(({ editorState }) => {
-        editorState.read(() => {
-          $updateTextFormatFloatingToolbar();
-        });
-      }),
-
-      editor.registerCommand(
-        SELECTION_CHANGE_COMMAND,
-        () => {
-          $updateTextFormatFloatingToolbar();
-          return false;
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
+    const { left, top } = placeFloating(
+      target,
+      { width: element.offsetWidth, height: element.offsetHeight },
+      {
+        top: topBound(),
+        left: 0,
+        right: document.documentElement.clientWidth,
+        bottom: window.innerHeight,
+      },
+      { side: "above" },
     );
-  }, [editor, $updateTextFormatFloatingToolbar]);
+    // Measured from wherever `fixed` starts: a dialog's transform moves it.
+    element.style.left = "0px";
+    element.style.top = "0px";
+    const origin = element.getBoundingClientRect();
+    element.style.left = `${left - origin.left}px`;
+    element.style.top = `${top - origin.top}px`;
+    element.style.opacity = "1";
+  }, [editor]);
+
+  useLayoutEffect(place);
+
+  useEffect(() => {
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    const unregister = editor.registerUpdateListener(place);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      unregister();
+    };
+  }, [editor, place]);
+
+  // While the pointer drags a selection, it passes through the toolbar.
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => {
+      const element = ref.current;
+      if (!element || !(event.buttons & 1)) return;
+      const under = document.elementFromPoint(event.clientX, event.clientY);
+      if (!element.contains(under)) element.style.pointerEvents = "none";
+    };
+    const onUp = () => {
+      if (ref.current) ref.current.style.pointerEvents = "auto";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  const toggleLink = () => {
+    setIsLinkEditMode(!isLink);
+    editor.dispatchCommand(TOGGLE_LINK_COMMAND, isLink ? null : "https://");
+  };
+  const buttons = (marks: Mark[]) =>
+    marks.map(({ format, label, icon, shortcut }) => (
+      <ToolbarButton
+        key={format}
+        label={label}
+        shortcut={shortcut}
+        icon={icon}
+        pressed={formats.has(format)}
+        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, format)}
+      />
+    ));
 
   return (
     <div
-      ref={popupCharStylesEditorRef}
-      className={cn(
-        "elevation-overlay p-1 align-middle absolute top-0 left-0 z-10 rounded-lg opacity-0 flex flex-row gap-1 ",
-        "animate-in fade-in zoom-in duration-75 delay-100",
-      )}
+      ref={ref}
+      className="fixed top-0 left-0 z-50 rounded-lg border border-border-subtle bg-popover px-1 opacity-0 shadow-[var(--elevation-overlay)] transition-opacity duration-150 motion-reduce:transition-none"
     >
-      {editor.isEditable() && (
-        <>
-          <TooltipButton
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
-            }}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Bold"
-            Icon={Bold}
-            ariaLabel="Format text as bold"
-          />
-          <TooltipButton
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
-            }}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Italic"
-            Icon={Italic}
-            ariaLabel="Format text as italics"
-          />
-          <TooltipButton
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
-            }}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Underline"
-            Icon={Underline}
-            ariaLabel="Format text to underlined"
-          />
-          <TooltipButton
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough");
-            }}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Strikethrough"
-            Icon={Strikethrough}
-            ariaLabel="Format text with a strikethrough"
-          />
-          <TooltipButton
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript");
-            }}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Subscript"
-            Icon={Subscript}
-            ariaLabel="Format Subscript"
-          />
-          <TooltipButton
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript");
-            }}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Superscript"
-            Icon={Superscript}
-            ariaLabel="Format Superscript"
-          />
-          <TooltipButton
-            onClick={() => {
-              editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
-            }}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Code"
-            Icon={Code}
-            ariaLabel="Insert code block"
-          />
-          <TooltipButton
-            onClick={insertLink}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Link"
-            Icon={Link}
-            ariaLabel="Insert link"
-          />
-          <TooltipButton
-            onClick={insertComment}
-            className="w-10 md:w-8 h-12 md:h-10"
-            disabled={false}
-            title="Comment"
-            Icon={MessageSquareText}
-            ariaLabel="Insert comment"
-          />
-        </>
-      )}
+      <Toolbar
+        label="Selection formatting"
+        overflow={false}
+        className="flex-none"
+        groups={[
+          { id: "marks", label: "Text style", content: buttons(MARKS) },
+          { id: "script", label: "Script", content: buttons(SCRIPTS) },
+          {
+            id: "inline",
+            label: "Code and link",
+            content: (
+              <>
+                <ToolbarButton
+                  label="Inline code"
+                  shortcut="Mod+Shift+C"
+                  icon={Code}
+                  pressed={formats.has("code")}
+                  onClick={() =>
+                    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")
+                  }
+                />
+                <ToolbarButton
+                  label="Link"
+                  shortcut="Mod+K"
+                  icon={Link}
+                  pressed={isLink}
+                  onClick={toggleLink}
+                />
+              </>
+            ),
+          },
+          {
+            id: "comment",
+            label: "Comment",
+            content: (
+              <ToolbarButton
+                label="Comment"
+                icon={MessageSquareText}
+                onClick={() =>
+                  editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined)
+                }
+              />
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
 
-function useFloatingTextFormatToolbar(
-  editor: LexicalEditor,
-  anchorElem: HTMLElement,
-  setIsLinkEditMode: Dispatch<boolean>,
-): JSX.Element | null {
+/**
+ * Formatting next to a text selection, for mouse and trackpad: on touch the
+ * platform's own selection menu takes that place, and the page toolbar does
+ * the rest.
+ */
+export default function FloatingTextFormatToolbarPlugin({
+  setIsLinkEditMode,
+}: {
+  setIsLinkEditMode: Dispatch<boolean>;
+}): JSX.Element | null {
+  const [editor] = useLexicalComposerContext();
+  const fine = useFinePointer();
+  const getSelectedNode = useGetSelectedNode();
   const [isText, setIsText] = useState(false);
   const [isLink, setIsLink] = useState(false);
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [isUnderline, setIsUnderline] = useState(false);
-  const [isStrikethrough, setIsStrikethrough] = useState(false);
-  const [isSubscript, setIsSubscript] = useState(false);
-  const [isSuperscript, setIsSuperscript] = useState(false);
-  const [isCode, setIsCode] = useState(false);
-  const getSelectedNode = useGetSelectedNode();
+  const [formats, setFormats] = useState<Set<TextFormatType>>(new Set());
 
-  const updatePopup = useCallback(() => {
-    editor.getEditorState().read(() => {
-      // Should not to pop up the floating toolbar when using IME input
-      if (editor.isComposing()) {
-        return;
-      }
+  const update = useCallback(() => {
+    editor.read(() => {
+      // Not while an input method is composing.
+      if (editor.isComposing()) return;
       const selection = $getSelection();
-      const nativeSelection = window.getSelection();
-      const rootElement = editor.getRootElement();
-
+      const native = window.getSelection();
+      const root = editor.getRootElement();
       if (
-        nativeSelection !== null &&
-        (!$isRangeSelection(selection) ||
-          rootElement === null ||
-          !rootElement.contains(nativeSelection.anchorNode))
+        !$isRangeSelection(selection) ||
+        !native ||
+        !root?.contains(native.anchorNode) ||
+        selection.isCollapsed()
       ) {
         setIsText(false);
         return;
       }
-
-      if (!$isRangeSelection(selection)) {
-        return;
-      }
-
       const node = getSelectedNode(selection);
-
-      // Update text format
-      setIsBold(selection.hasFormat("bold"));
-      setIsItalic(selection.hasFormat("italic"));
-      setIsUnderline(selection.hasFormat("underline"));
-      setIsStrikethrough(selection.hasFormat("strikethrough"));
-      setIsSubscript(selection.hasFormat("subscript"));
-      setIsSuperscript(selection.hasFormat("superscript"));
-      setIsCode(selection.hasFormat("code"));
-
-      // Update links
-      const parent = node.getParent();
-      if ($isLinkNode(parent) || $isLinkNode(node)) {
-        setIsLink(true);
-      } else {
-        setIsLink(false);
-      }
-
-      if (
+      setFormats(
+        new Set(
+          [...ALL_FORMATS, "code" as const].filter((format) =>
+            selection.hasFormat(format),
+          ),
+        ),
+      );
+      setIsLink($isLinkNode(node.getParent()) || $isLinkNode(node));
+      setIsText(
         !$isCodeHighlightNode(selection.anchor.getNode()) &&
-        selection.getTextContent() !== ""
-      ) {
-        setIsText($isTextNode(node) || $isParagraphNode(node));
-      } else {
-        setIsText(false);
-      }
-
-      const rawTextContent = selection.getTextContent().replace(/\n/g, "");
-      if (!selection.isCollapsed() && rawTextContent === "") {
-        setIsText(false);
-        return;
-      }
+          selection.getTextContent().replace(/\n/g, "") !== "" &&
+          ($isTextNode(node) || $isParagraphNode(node)),
+      );
     });
   }, [editor, getSelectedNode]);
 
   useEffect(() => {
-    document.addEventListener("selectionchange", updatePopup);
-    return () => {
-      document.removeEventListener("selectionchange", updatePopup);
-    };
-  }, [updatePopup]);
-
-  useEffect(() => {
+    document.addEventListener("selectionchange", update);
     return mergeRegister(
-      editor.registerUpdateListener(() => {
-        updatePopup();
-      }),
+      () => document.removeEventListener("selectionchange", update),
+      editor.registerUpdateListener(update),
       editor.registerRootListener(() => {
-        if (editor.getRootElement() === null) {
-          setIsText(false);
-        }
+        if (editor.getRootElement() === null) setIsText(false);
       }),
     );
-  }, [editor, updatePopup]);
+  }, [editor, update]);
 
-  if (!isText) {
-    return null;
-  }
-
+  const root = editor.getRootElement();
+  if (!fine || !isText || !root || !editor.isEditable()) return null;
+  // Inside a dialog, only the dialog takes pointer input.
   return createPortal(
-    <TextFormatFloatingToolbar
+    <SelectionToolbar
       editor={editor}
-      anchorElem={anchorElem}
+      formats={formats}
       isLink={isLink}
-      isBold={isBold}
-      isItalic={isItalic}
-      isStrikethrough={isStrikethrough}
-      isSubscript={isSubscript}
-      isSuperscript={isSuperscript}
-      isUnderline={isUnderline}
-      isCode={isCode}
       setIsLinkEditMode={setIsLinkEditMode}
     />,
-    anchorElem,
+    root.closest<HTMLElement>('[role="dialog"]') ?? document.body,
   );
-}
-
-export default function FloatingTextFormatToolbarPlugin({
-  anchorElem = document.body,
-  setIsLinkEditMode,
-}: {
-  anchorElem?: HTMLElement;
-  setIsLinkEditMode: Dispatch<boolean>;
-}): JSX.Element | null {
-  const [editor] = useLexicalComposerContext();
-  return useFloatingTextFormatToolbar(editor, anchorElem, setIsLinkEditMode);
 }

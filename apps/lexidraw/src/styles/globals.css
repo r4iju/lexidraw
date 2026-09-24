@@ -218,6 +218,25 @@
   --callout-warning: #9a6700;
   --callout-caution: #cf222e;
   --callout-tint: 8%;
+  /* Text and highlight colours a document can use; see the colour picker. */
+  --doc-text-gray: oklch(0.52 0.01 285);
+  --doc-text-brown: oklch(0.49 0.07 50);
+  --doc-text-orange: oklch(0.57 0.15 55);
+  --doc-text-yellow: oklch(0.56 0.12 85);
+  --doc-text-green: oklch(0.52 0.12 155);
+  --doc-text-blue: oklch(0.52 0.16 255);
+  --doc-text-purple: oklch(0.52 0.18 295);
+  --doc-text-pink: oklch(0.55 0.18 350);
+  --doc-text-red: oklch(0.54 0.19 27);
+  --doc-highlight-gray: oklch(0.94 0.004 285);
+  --doc-highlight-brown: oklch(0.93 0.025 55);
+  --doc-highlight-orange: oklch(0.93 0.05 60);
+  --doc-highlight-yellow: oklch(0.95 0.07 95);
+  --doc-highlight-green: oklch(0.94 0.04 155);
+  --doc-highlight-blue: oklch(0.93 0.035 255);
+  --doc-highlight-purple: oklch(0.93 0.04 295);
+  --doc-highlight-pink: oklch(0.93 0.04 350);
+  --doc-highlight-red: oklch(0.93 0.04 27);
 }
 
 @media screen {
@@ -260,6 +279,24 @@
     --callout-warning: #d29922;
     --callout-caution: #f85149;
     --callout-tint: 14%;
+    --doc-text-gray: oklch(0.72 0.01 285);
+    --doc-text-brown: oklch(0.72 0.06 55);
+    --doc-text-orange: oklch(0.76 0.13 60);
+    --doc-text-yellow: oklch(0.82 0.12 90);
+    --doc-text-green: oklch(0.76 0.12 155);
+    --doc-text-blue: oklch(0.74 0.12 255);
+    --doc-text-purple: oklch(0.74 0.13 295);
+    --doc-text-pink: oklch(0.74 0.14 350);
+    --doc-text-red: oklch(0.72 0.16 27);
+    --doc-highlight-gray: oklch(0.32 0.008 285);
+    --doc-highlight-brown: oklch(0.33 0.03 55);
+    --doc-highlight-orange: oklch(0.35 0.06 60);
+    --doc-highlight-yellow: oklch(0.38 0.07 95);
+    --doc-highlight-green: oklch(0.34 0.05 155);
+    --doc-highlight-blue: oklch(0.34 0.06 255);
+    --doc-highlight-purple: oklch(0.34 0.06 295);
+    --doc-highlight-pink: oklch(0.34 0.06 350);
+    --doc-highlight-red: oklch(0.34 0.07 27);
   }
 }
 

@@ -21,7 +21,7 @@ import ImageResizer from "~/components/ui/image-resizer";
 import { ExcalidrawNode } from "./index";
 import ExcalidrawImage from "./ExcalidrawImage";
 import type { BinaryFiles, AppState } from "@excalidraw/excalidraw/types";
-import { Button } from "~/components/ui/button";
+import { NodeEditButton } from "../common/NodeEditButton";
 import { cn } from "~/lib/utils";
 import ExcalidrawModal from "./ExcalidrawModal";
 
@@ -220,7 +220,7 @@ export default function ExcalidrawComponent({
       {elements.length > 0 && (
         <div
           ref={frameRef}
-          className={cn("relative inline-block max-w-full", {
+          className={cn("group/node relative inline-block max-w-full", {
             selected: isEditable && isSelected,
           })}
         >
@@ -258,13 +258,11 @@ export default function ExcalidrawComponent({
             )}
           </ExcalidrawImage>
           {isEditable && (
-            <Button
-              variant="ghost"
-              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs print:hidden"
+            <NodeEditButton
+              label="Edit drawing"
+              visible={isSelected}
               onClick={openModal}
-            >
-              Edit
-            </Button>
+            />
           )}
         </div>
       )}

@@ -284,14 +284,6 @@ export const useToolbarUtils = () => {
     });
   };
 
-  const dropDownActiveClass = (active: boolean) => {
-    if (active) {
-      return "state-on";
-    } else {
-      return "";
-    }
-  };
-
   return {
     UpdateFontSizeType,
     updateFontSize,
@@ -303,6 +295,5 @@ export const useToolbarUtils = () => {
     formatQuote,
     formatCode,
     clearFormatting,
-    dropDownActiveClass,
   };
 };

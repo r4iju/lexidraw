@@ -42,7 +42,7 @@ import { ImageNode } from "./ImageNode";
 import { cn } from "~/lib/utils";
 import ImageCaption, { useCaptionJustShown } from "../common/ImageCaption";
 import { FigureToolbar } from "../common/Figure";
-import { Button } from "~/components/ui/button";
+import { NodeEditButton } from "../common/NodeEditButton";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { UpdateImageDialog } from "./UpdateImageDialog";
 
@@ -398,7 +398,7 @@ export default function ImageComponent({
   return (
     <Suspense fallback={null}>
       <div
-        className={cn("relative inline-block document-figure", {
+        className={cn("group/node relative inline-block document-figure", {
           "cursor-move": draggable,
         })}
         draggable={draggable}
@@ -435,14 +435,12 @@ export default function ImageComponent({
         )}
 
         {isEditable && (
-          <Button
+          <NodeEditButton
             ref={buttonRef}
-            variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs print:hidden"
+            label="Edit image"
+            visible={isFocused}
             onClick={() => setIsDialogOpen(true)}
-          >
-            Edit
-          </Button>
+          />
         )}
 
         {showCaption && (

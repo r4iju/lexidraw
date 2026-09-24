@@ -54,7 +54,7 @@ export function CopyButton({ editor, getCodeDOMNode }: Props) {
     <Button
       variant="outline"
       size="icon"
-      className="document-code-copy size-8"
+      className="document-code-copy size-8 pointer-coarse:size-11"
       onClick={handleClick}
       aria-label={isCopyCompleted ? "Copied code" : "Copy code"}
     >

@@ -11,7 +11,7 @@ import {
   type TextNode,
 } from "lexical";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import * as ReactDOM from "react-dom";
+import { TypeaheadMenu } from "../typeahead-menu";
 
 class EmojiOption extends MenuOption {
   title: string;
@@ -31,48 +31,6 @@ class EmojiOption extends MenuOption {
     this.keywords = options.keywords || [];
   }
 }
-function EmojiMenuItem({
-  index,
-  isSelected,
-  onClick,
-  onMouseEnter,
-  option,
-}: {
-  index: number;
-  isSelected: boolean;
-  onClick: () => void;
-  onMouseEnter: () => void;
-  option: EmojiOption;
-}) {
-  // Extract option properties before render to avoid ref access during render
-  const optionKey = option.key;
-  const setRefElement = option.setRefElement;
-  const emoji = option.emoji;
-  const title = option.title;
-
-  return (
-    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: emoji menu item is interactive
-    // biome-ignore lint/a11y/useKeyWithClickEvents: emoji menu item is interactive
-    <li
-      key={optionKey}
-      tabIndex={-1}
-      className="flex items-center px-2 py-1.5 text-sm rounded-sm cursor-default select-none outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-      data-highlighted={isSelected ? "" : undefined}
-      ref={(element) => {
-        setRefElement(element);
-      }}
-      aria-selected={isSelected}
-      id={`typeahead-item-${index}`}
-      onMouseEnter={onMouseEnter}
-      onClick={onClick}
-    >
-      <span className="grow">
-        {emoji} {title}
-      </span>
-    </li>
-  );
-}
-
 type Emoji = {
   emoji: string;
   description: string;
@@ -115,17 +73,13 @@ export default function EmojiPickerPlugin() {
   });
 
   const options: EmojiOption[] = useMemo(() => {
+    const query = queryString?.toLowerCase() ?? "";
     return emojiOptions
-      .filter((option: EmojiOption) => {
-        return queryString != null
-          ? new RegExp(queryString, "gi").exec(option.title) ||
-            option.keywords != null
-            ? option.keywords.some((keyword: string) =>
-                new RegExp(queryString, "gi").exec(keyword),
-              )
-            : false
-          : emojiOptions;
-      })
+      .filter((option) =>
+        option.keywords.some((keyword) =>
+          keyword.toLowerCase().includes(query),
+        ),
+      )
       .slice(0, MAX_EMOJI_SUGGESTION_COUNT);
   }, [emojiOptions, queryString]);
 
@@ -163,36 +117,21 @@ export default function EmojiPickerPlugin() {
       menuRenderFn={(
         anchorElementRef,
         { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
-      ) => {
-        if (anchorElementRef.current == null || options.length === 0) {
-          return null;
-        }
-
-        return anchorElementRef.current && options.length
-          ? ReactDOM.createPortal(
-              <div className="typeahead-popover emoji-menu bg-popover text-popover-foreground border border-border rounded-md shadow-lg p-1 z-50">
-                <ul className="list-none p-0 m-0">
-                  {options.map((option: EmojiOption, index) => (
-                    <EmojiMenuItem
-                      key={option.key}
-                      index={index}
-                      isSelected={selectedIndex === index}
-                      onClick={() => {
-                        setHighlightedIndex(index);
-                        selectOptionAndCleanUp(option);
-                      }}
-                      onMouseEnter={() => {
-                        setHighlightedIndex(index);
-                      }}
-                      option={option}
-                    />
-                  ))}
-                </ul>
-              </div>,
-              anchorElementRef.current,
-            )
-          : null;
-      }}
+      ) => (
+        <TypeaheadMenu
+          anchor={anchorElementRef.current}
+          label="Emoji"
+          options={options}
+          selectedIndex={selectedIndex}
+          onSelect={(option, index) => {
+            setHighlightedIndex(index);
+            selectOptionAndCleanUp(option);
+          }}
+          onHighlight={setHighlightedIndex}
+          picture={(option) => option.emoji}
+          name={(option) => option.title}
+        />
+      )}
     />
   );
 }

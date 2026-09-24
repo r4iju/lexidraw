@@ -1,16 +1,24 @@
 "use client";
 
 import {
+  createContext,
+  type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useState,
   useId,
-  useRef,
 } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { Button } from "~/components/ui/button";
-import { Popover, PopoverContent } from "~/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -21,27 +29,36 @@ import {
 import { Input } from "~/components/ui/input";
 import { Slider } from "~/components/ui/slider";
 import { Progress } from "~/components/ui/progress";
-import { ChevronDown, Loader2, Settings, Volume2, X } from "lucide-react";
-import { cn } from "~/lib/utils";
+import { Headphones, Loader2, Play, Settings, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { useMarkdownTools } from "../utils/markdown";
 import { PlayFromHereButton } from "./PlayFromHereButton";
 import { labelForLanguage, titleize } from "~/lib/i18n";
 import { useEntityId } from "~/hooks/use-entity-id";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import { PopoverAnchor, PopoverClose } from "@radix-ui/react-popover";
+import { DropdownMenuItem } from "~/components/ui/dropdown-menu";
+import { ToolbarMenu } from "./ToolbarPlugin/toolbar";
 
-type Props = {
-  className?: string;
+type Listen = {
+  documentId: string;
+  ready: boolean;
+  generating: boolean;
+  generate: () => void;
+  openSettings: () => void;
+  playerOpen: boolean;
+  setPlayerOpen: (open: boolean) => void;
 };
 
-export function TtsToolbar({ className }: Props) {
+const ListenContext = createContext<Listen | null>(null);
+
+function useListen() {
+  const listen = useContext(ListenContext);
+  if (!listen) throw new Error("useListen must be inside ListenProvider");
+  return listen;
+}
+
+/** Read-aloud: its state is shared by the toolbar and its More menu. */
+export function ListenProvider({ children }: { children: ReactNode }) {
   const documentId = useEntityId();
   const [editor] = useLexicalComposerContext();
   const { convertEditorStateToMarkdown } = useMarkdownTools();
@@ -53,7 +70,7 @@ export function TtsToolbar({ className }: Props) {
   const updateTts = api.config.updateTtsConfig.useMutation({
     onSuccess: () => {
       utils.config.getTtsConfig.invalidate();
-      toast.success("TTS settings saved");
+      toast.success("Listen settings saved");
     },
   });
   const ttsCatalogQuery = api.config.getTtsCatalog.useQuery(undefined, {
@@ -95,7 +112,7 @@ export function TtsToolbar({ className }: Props) {
   const [voiceFamily, setVoiceFamily] = useState<string>("all");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const lastOpened = useRef<number | null>(null);
+  const [playerOpen, setPlayerOpen] = useState(false);
 
   useEffect(() => {
     if (ttsQuery.data) {
@@ -397,271 +414,263 @@ export function TtsToolbar({ className }: Props) {
     });
   }, [updateTts, ttsCfg]);
 
-  return (
-    <fieldset className={cn("flex", className)} aria-label="TTS controls">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-12 md:h-10 rounded-r-none border-r-0"
-            title="Generate audio"
-          >
-            <span className="mr-2">TTS</span>
-            <ChevronDown className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem
-            onClick={handleGenerateAudio}
-            className="flex items-center gap-2 justify-between"
-            disabled={isGeneratingAudio}
-          >
-            <span className="text-md mr-2">
-              {ttsStatusQuery.data?.status === "ready"
-                ? "Regenerate audio"
-                : "Generate audio"}
-            </span>
-            {isGeneratingAudio ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Volume2 className="h-4 w-4" />
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="flex items-center gap-2 justify-between"
-            onSelect={() => {
-              lastOpened.current = Date.now();
-              setSettingsOpen(true);
-            }}
-          >
-            <span className="text-md">Settings</span>
-            <Settings className="h-4 w-4" />
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+  const ready = ttsStatusQuery.data?.status === "ready";
+  const listen = useMemo(
+    (): Listen => ({
+      documentId,
+      ready,
+      generating: isGeneratingAudio,
+      generate: () => void handleGenerateAudio(),
+      openSettings: () => setSettingsOpen(true),
+      playerOpen,
+      setPlayerOpen,
+    }),
+    [documentId, ready, isGeneratingAudio, handleGenerateAudio, playerOpen],
+  );
 
-      <Popover open={settingsOpen} onOpenChange={setSettingsOpen} modal={false}>
-        <PopoverAnchor></PopoverAnchor>
-        <PopoverContent
-          className="w-[380px] max-w-[90vw] absolute top-5 right-0"
-          onInteractOutside={(e) => {
-            if (lastOpened.current && Date.now() - lastOpened.current < 100) {
-              e.preventDefault();
-              return;
-            }
-            setSettingsOpen(false);
-          }}
-        >
-          <div className="space-y-4">
+  return (
+    <ListenContext.Provider value={listen}>
+      {children}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="md:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Listen settings</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="text-sm font-medium mb-2">Audio (TTS)</div>
-              <PopoverClose asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-0 right-0"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Close audio settings</span>
-                </Button>
-              </PopoverClose>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label
-                    htmlFor={`${uid}-tts-provider`}
-                    className="block text-xs mb-1"
-                  >
-                    Provider
-                  </label>
-                  <Select
-                    name={`${uid}-tts-provider`}
-                    value={ttsCfg.provider}
-                    onValueChange={(v) =>
-                      setTtsCfg((s) => ({
-                        ...s,
-                        provider: v as typeof s.provider,
-                      }))
-                    }
-                  >
-                    <SelectTrigger id={`${uid}-tts-provider`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(effectiveCatalog?.providers ?? []).map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.label || p.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label
-                    htmlFor={`${uid}-tts-lang`}
-                    className="block text-xs mb-1"
-                  >
-                    Language
-                  </label>
-                  <Select
-                    name={`${uid}-tts-lang`}
-                    value={ttsCfg.languageCode}
-                    onValueChange={(v) =>
-                      setTtsCfg((s) => ({ ...s, languageCode: v }))
-                    }
-                  >
-                    <SelectTrigger id={`${uid}-tts-lang`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {catalogLanguages.map((lc) => (
-                        <SelectItem key={lc} value={lc}>
-                          {labelForLanguage(lc)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label
-                    htmlFor={`${uid}-tts-family`}
-                    className="block text-xs mb-1"
-                  >
-                    Voice family
-                  </label>
-                  <Select
-                    name={`${uid}-tts-family`}
-                    value={voiceFamily}
-                    onValueChange={(v) => setVoiceFamily(v)}
-                  >
-                    <SelectTrigger id={`${uid}-tts-family`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      {availableFamilies.map((fam) => (
-                        <SelectItem key={fam} value={fam}>
-                          {titleize(fam)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label
-                    htmlFor={`${uid}-tts-voice`}
-                    className="block text-xs mb-1"
-                  >
-                    Voice ID
-                  </label>
-                  <Select
-                    name={`${uid}-tts-voice`}
-                    value={ttsCfg.voiceId}
-                    onValueChange={(v) =>
-                      setTtsCfg((s) => ({ ...s, voiceId: v }))
-                    }
-                    disabled={filteredVoices.length === 0}
-                  >
-                    <SelectTrigger id={`${uid}-tts-voice`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredVoices.map((v) => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {renderVoiceLabel(v.id, v.label)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2">
-                  <label
-                    htmlFor={`${uid}-tts-speed`}
-                    className="block text-xs mb-2"
-                  >
-                    Speed ({ttsCfg.speed.toFixed(2)})
-                  </label>
-                  <Slider
-                    id={`${uid}-tts-speed`}
-                    min={0.25}
-                    max={4}
-                    step={0.05}
-                    value={[ttsCfg.speed]}
-                    onValueChange={([v]) =>
-                      setTtsCfg((s) => ({ ...s, speed: v ?? s.speed }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor={`${uid}-tts-format`}
-                    className="block text-xs mb-1"
-                  >
-                    Format
-                  </label>
-                  <Select
-                    name={`${uid}-tts-format`}
-                    value={ttsCfg.format}
-                    onValueChange={(v) =>
-                      setTtsCfg((s) => ({
-                        ...s,
-                        format: v as typeof s.format,
-                      }))
-                    }
-                  >
-                    <SelectTrigger id={`${uid}-tts-format`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mp3">MP3</SelectItem>
-                      <SelectItem value="ogg">OGG</SelectItem>
-                      <SelectItem value="wav">WAV</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label
-                    htmlFor={`${uid}-tts-sample`}
-                    className="block text-xs mb-1"
-                  >
-                    Sample rate
-                  </label>
-                  <Input
-                    id={`${uid}-tts-sample`}
-                    type="number"
-                    value={ttsCfg.sampleRate ?? ""}
-                    onChange={(e) =>
-                      setTtsCfg((s) => ({
-                        ...s,
-                        sampleRate: e.target.value
-                          ? Number(e.target.value)
-                          : undefined,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between pt-1">
-              <div className="text-xs text-muted-foreground">
-                Changes apply to future generations.
-              </div>
-              <Button
-                size="sm"
-                onClick={handleSaveSettings}
-                disabled={updateTts.isPending}
+              <label
+                htmlFor={`${uid}-tts-provider`}
+                className="block text-xs mb-1"
               >
-                {updateTts.isPending ? "Saving..." : "Save"}
-              </Button>
+                Provider
+              </label>
+              <Select
+                name={`${uid}-tts-provider`}
+                value={ttsCfg.provider}
+                onValueChange={(v) =>
+                  setTtsCfg((s) => ({
+                    ...s,
+                    provider: v as typeof s.provider,
+                  }))
+                }
+              >
+                <SelectTrigger id={`${uid}-tts-provider`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(effectiveCatalog?.providers ?? []).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label htmlFor={`${uid}-tts-lang`} className="block text-xs mb-1">
+                Language
+              </label>
+              <Select
+                name={`${uid}-tts-lang`}
+                value={ttsCfg.languageCode}
+                onValueChange={(v) =>
+                  setTtsCfg((s) => ({ ...s, languageCode: v }))
+                }
+              >
+                <SelectTrigger id={`${uid}-tts-lang`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {catalogLanguages.map((lc) => (
+                    <SelectItem key={lc} value={lc}>
+                      {labelForLanguage(lc)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label
+                htmlFor={`${uid}-tts-family`}
+                className="block text-xs mb-1"
+              >
+                Voice family
+              </label>
+              <Select
+                name={`${uid}-tts-family`}
+                value={voiceFamily}
+                onValueChange={(v) => setVoiceFamily(v)}
+              >
+                <SelectTrigger id={`${uid}-tts-family`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {availableFamilies.map((fam) => (
+                    <SelectItem key={fam} value={fam}>
+                      {titleize(fam)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label
+                htmlFor={`${uid}-tts-voice`}
+                className="block text-xs mb-1"
+              >
+                Voice ID
+              </label>
+              <Select
+                name={`${uid}-tts-voice`}
+                value={ttsCfg.voiceId}
+                onValueChange={(v) => setTtsCfg((s) => ({ ...s, voiceId: v }))}
+                disabled={filteredVoices.length === 0}
+              >
+                <SelectTrigger id={`${uid}-tts-voice`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredVoices.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {renderVoiceLabel(v.id, v.label)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <label
+                htmlFor={`${uid}-tts-speed`}
+                className="block text-xs mb-2"
+              >
+                Speed ({ttsCfg.speed.toFixed(2)})
+              </label>
+              <Slider
+                id={`${uid}-tts-speed`}
+                min={0.25}
+                max={4}
+                step={0.05}
+                value={[ttsCfg.speed]}
+                onValueChange={([v]) =>
+                  setTtsCfg((s) => ({ ...s, speed: v ?? s.speed }))
+                }
+              />
+            </div>
+            <div>
+              <label
+                htmlFor={`${uid}-tts-format`}
+                className="block text-xs mb-1"
+              >
+                Format
+              </label>
+              <Select
+                name={`${uid}-tts-format`}
+                value={ttsCfg.format}
+                onValueChange={(v) =>
+                  setTtsCfg((s) => ({
+                    ...s,
+                    format: v as typeof s.format,
+                  }))
+                }
+              >
+                <SelectTrigger id={`${uid}-tts-format`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mp3">MP3</SelectItem>
+                  <SelectItem value="ogg">OGG</SelectItem>
+                  <SelectItem value="wav">WAV</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label
+                htmlFor={`${uid}-tts-sample`}
+                className="block text-xs mb-1"
+              >
+                Sample rate
+              </label>
+              <Input
+                id={`${uid}-tts-sample`}
+                type="number"
+                value={ttsCfg.sampleRate ?? ""}
+                onChange={(e) =>
+                  setTtsCfg((s) => ({
+                    ...s,
+                    sampleRate: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  }))
+                }
+              />
             </div>
           </div>
-        </PopoverContent>
-      </Popover>
+          <DialogFooter className="items-center">
+            <p className="text-xs text-muted-foreground">
+              Changes apply to audio generated from now on.
+            </p>
+            <Button
+              size="sm"
+              onClick={handleSaveSettings}
+              disabled={updateTts.isPending}
+            >
+              {updateTts.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </ListenContext.Provider>
+  );
+}
 
+/** Listen's actions as menu items; `withPlay` adds playing, for More. */
+export function ListenItems({ withPlay = false }: { withPlay?: boolean }) {
+  const { ready, generating, generate, openSettings, setPlayerOpen } =
+    useListen();
+  return (
+    <>
+      {withPlay && (
+        <DropdownMenuItem
+          className="gap-2"
+          onSelect={() => setPlayerOpen(true)}
+        >
+          <Play className="size-4" />
+          Play from cursor
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem
+        className="gap-2"
+        onSelect={generate}
+        disabled={generating}
+      >
+        {generating ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Volume2 className="size-4" />
+        )}
+        {ready ? "Regenerate audio" : "Generate audio"}
+      </DropdownMenuItem>
+      <DropdownMenuItem className="gap-2" onSelect={openSettings}>
+        <Settings className="size-4" />
+        Listen settings…
+      </DropdownMenuItem>
+    </>
+  );
+}
+
+export function ListenControls() {
+  const { documentId, playerOpen, setPlayerOpen } = useListen();
+  return (
+    <>
+      <ToolbarMenu label="Listen" icon={Headphones} trigger="Listen">
+        <ListenItems />
+      </ToolbarMenu>
       <PlayFromHereButton
         documentId={documentId}
-        buttonClassName="w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0 border-x border-border rounded-r-md"
+        open={playerOpen}
+        onOpenChange={setPlayerOpen}
       />
-    </fieldset>
+    </>
   );
 }

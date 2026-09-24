@@ -16,6 +16,7 @@ import { ErrorBoundary } from "react-error-boundary";
 
 import EquationEditor from "~/components/ui/equation-editor";
 import KatexRenderer from "~/components/ui/katex-renderer";
+import { useMediaQuery } from "~/hooks/use-media-query";
 import { EquationNode } from "./EquationNode";
 
 type EquationComponentProps = {
@@ -34,7 +35,17 @@ export default function EquationComponent({
   const [equationValue, setEquationValue] = useState(equation);
   const [editorRequested, setShowEquationEditor] = useState<boolean>(false);
   const showEquationEditor = isEditable && editorRequested;
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  // A double tap zooms on touch, so one tap opens the editor there, with the
+  // focus in it: the tap's own selection change would otherwise close it.
+  const coarse = useMediaQuery("(pointer: coarse)");
+  const [tapped, setTapped] = useState(false);
+  useEffect(() => {
+    if (showEquationEditor && tapped) {
+      inputRef.current?.focus();
+      setTapped(false);
+    }
+  }, [showEquationEditor, tapped]);
 
   const onHide = useCallback(
     (restoreSelection?: boolean) => {
@@ -124,6 +135,14 @@ export default function EquationComponent({
             equation={equationValue}
             inline={inline}
             onDoubleClick={() => setShowEquationEditor(true)}
+            onClick={
+              coarse
+                ? () => {
+                    setTapped(true);
+                    setShowEquationEditor(true);
+                  }
+                : undefined
+            }
           />
         </ErrorBoundary>
       )}

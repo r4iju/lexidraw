@@ -928,7 +928,7 @@
 .document-code:is(:hover, :focus-within) .document-code-copy {
   opacity: 1;
 }
-@media (hover: none) {
+@media (hover: none), (pointer: coarse) {
   .document-code-copy {
     opacity: 1;
   }

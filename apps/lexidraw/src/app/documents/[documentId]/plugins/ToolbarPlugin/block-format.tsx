@@ -1,87 +1,138 @@
-import { useToolbarUtils } from "./utils";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import { Button } from "~/components/ui/button";
-import {
-  Pilcrow,
+  Code,
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
   List,
-  ListOrdered,
   ListChecks,
-  TextQuote,
-  Code,
+  ListOrdered,
   type LucideIcon,
+  Pilcrow,
+  TextQuote,
 } from "lucide-react";
-import {
-  type LexicalEditor,
-  $getSelection,
-  $isRangeSelection,
-  $createParagraphNode,
-} from "lexical";
+import type { LexicalEditor } from "lexical";
 import type { JSX } from "react";
+import {
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuShortcut,
+} from "~/components/ui/dropdown-menu";
 import type { rootTypeToRootName } from "../../context/toolbar-context";
-import { $setBlocksType } from "@lexical/selection";
-import {
-  $createHeadingNode,
-  $createQuoteNode,
-  type HeadingTagType,
-} from "@lexical/rich-text";
-import {
-  INSERT_CHECK_LIST_COMMAND,
-  INSERT_ORDERED_LIST_COMMAND,
-  INSERT_UNORDERED_LIST_COMMAND,
-} from "@lexical/list";
-import { $createCodeNode } from "@lexical/code";
+import { formatShortcut, ToolbarMenu } from "./toolbar";
+import { useToolbarUtils } from "./utils";
 
-function getIconForBlockType(
-  blockType:
-    | "paragraph"
-    | "h1"
-    | "h2"
-    | "h3"
-    | "bullet"
-    | "number"
-    | "check"
-    | "quote"
-    | "code",
-): LucideIcon {
-  switch (blockType) {
-    case "paragraph":
-      return Pilcrow;
-    case "h1":
-      return Heading1;
-    case "h2":
-      return Heading2;
-    case "h3":
-      return Heading3;
-    case "bullet":
-      return List;
-    case "number":
-      return ListOrdered;
-    case "check":
-      return ListChecks;
-    case "quote":
-      return TextQuote;
-    case "code":
-      return Code;
-    default:
-      return Pilcrow; // Default to paragraph icon
-  }
+export const BLOCK_TYPES = [
+  { type: "paragraph", label: "Normal", icon: Pilcrow, shortcut: "Mod+Alt+0" },
+  { type: "h1", label: "Heading 1", icon: Heading1, shortcut: "Mod+Alt+1" },
+  { type: "h2", label: "Heading 2", icon: Heading2, shortcut: "Mod+Alt+2" },
+  { type: "h3", label: "Heading 3", icon: Heading3, shortcut: "Mod+Alt+3" },
+  { type: "h4", label: "Heading 4", icon: Heading4 },
+  { type: "bullet", label: "Bulleted list", icon: List, shortcut: "Mod+Alt+4" },
+  {
+    type: "number",
+    label: "Numbered list",
+    icon: ListOrdered,
+    shortcut: "Mod+Alt+5",
+  },
+  {
+    type: "check",
+    label: "Check list",
+    icon: ListChecks,
+    shortcut: "Mod+Alt+6",
+  },
+  { type: "quote", label: "Quote", icon: TextQuote, shortcut: "Mod+Alt+Q" },
+  { type: "code", label: "Code block", icon: Code, shortcut: "Mod+Alt+C" },
+] as const satisfies readonly {
+  type: string;
+  label: string;
+  icon: LucideIcon;
+  shortcut?: string;
+}[];
+
+export type BlockType = (typeof BLOCK_TYPES)[number]["type"];
+
+export function useSetBlockType(editor: LexicalEditor, blockType: BlockType) {
+  const {
+    formatParagraph,
+    formatHeading,
+    formatBulletList,
+    formatNumberedList,
+    formatCheckList,
+    formatQuote,
+    formatCode,
+  } = useToolbarUtils();
+  return (type: BlockType) => {
+    switch (type) {
+      case "paragraph":
+        return formatParagraph(editor);
+      case "h1":
+      case "h2":
+      case "h3":
+      case "h4":
+        return formatHeading(editor, blockType, type);
+      case "bullet":
+        return formatBulletList(editor, blockType);
+      case "number":
+        return formatNumberedList(editor, blockType);
+      case "check":
+        return formatCheckList(editor, blockType);
+      case "quote":
+        return formatQuote(editor, blockType);
+      case "code":
+        return formatCode(editor, blockType);
+    }
+  };
 }
 
-export type BlockType = Parameters<typeof getIconForBlockType>[0];
+/** The block types as menu items, for the toolbar, More and block menus. */
+export function BlockTypeItems({
+  editor,
+  blockType,
+  before,
+}: {
+  editor: LexicalEditor;
+  blockType: BlockType | null;
+  /** Runs first: puts the selection in the block to change. */
+  before?: () => void;
+}) {
+  const setBlockType = useSetBlockType(editor, blockType ?? "paragraph");
+  return (
+    <DropdownMenuRadioGroup value={blockType ?? ""}>
+      {BLOCK_TYPES.map(({ type, label, icon: Icon, ...rest }) => (
+        <DropdownMenuRadioItem
+          key={type}
+          value={type}
+          className="gap-2"
+          onSelect={() => {
+            before?.();
+            setBlockType(type);
+          }}
+        >
+          <Icon className="size-4" />
+          {label}
+          {"shortcut" in rest && (
+            <DropdownMenuShortcut aria-hidden="true">
+              {formatShortcut(rest.shortcut).label}
+            </DropdownMenuShortcut>
+          )}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+}
+
+export function blockTypeLabel(blockType: BlockType) {
+  return (
+    BLOCK_TYPES.find((option) => option.type === blockType) ?? BLOCK_TYPES[0]
+  );
+}
 
 export function BlockFormatDropDown({
   editor,
   blockType,
   disabled = false,
-  className = "",
+  className,
 }: {
   blockType: BlockType;
   rootType: keyof typeof rootTypeToRootName;
@@ -89,159 +140,23 @@ export function BlockFormatDropDown({
   disabled?: boolean;
   className?: string;
 }): JSX.Element {
-  const formatParagraph = () => {
-    editor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        $setBlocksType(selection, () => $createParagraphNode());
-      }
-    });
-  };
-
-  const formatHeading = (headingSize: HeadingTagType) => {
-    if (blockType !== headingSize) {
-      editor.update(() => {
-        const selection = $getSelection();
-        $setBlocksType(selection, () => $createHeadingNode(headingSize));
-      });
-    }
-  };
-
-  const formatBulletList = () => {
-    if (blockType !== "bullet") {
-      editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
-    } else {
-      formatParagraph();
-    }
-  };
-
-  const formatCheckList = () => {
-    if (blockType !== "check") {
-      editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined);
-    } else {
-      formatParagraph();
-    }
-  };
-
-  const formatNumberedList = () => {
-    if (blockType !== "number") {
-      editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
-    } else {
-      formatParagraph();
-    }
-  };
-
-  const formatQuote = () => {
-    if (blockType !== "quote") {
-      editor.update(() => {
-        const selection = $getSelection();
-        $setBlocksType(selection, () => $createQuoteNode());
-      });
-    }
-  };
-
-  const formatCode = () => {
-    if (blockType !== "code") {
-      editor.update(() => {
-        let selection = $getSelection();
-
-        if (selection !== null) {
-          if (selection.isCollapsed()) {
-            $setBlocksType(selection, () => $createCodeNode());
-          } else {
-            const textContent = selection.getTextContent();
-            const codeNode = $createCodeNode();
-            selection.insertNodes([codeNode]);
-            selection = $getSelection();
-            if ($isRangeSelection(selection)) {
-              selection.insertRawText(textContent);
-            }
-          }
-        }
-      });
-    }
-  };
-
-  const { dropDownActiveClass } = useToolbarUtils();
-  const BlockIcon = getIconForBlockType(blockType);
-
+  const { label, icon: Icon } = blockTypeLabel(blockType);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className={`flex gap-1 items-center h-12 md:h-10 ${className}`}
-          aria-label="Formatting options for text style"
-          disabled={disabled}
-          variant="outline"
-        >
-          <BlockIcon className="size-5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "paragraph")}`}
-          onClick={formatParagraph}
-        >
-          <Pilcrow className="size-4" />
-          <span className="text">Normal</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "h1")}`}
-          onClick={() => formatHeading("h1")}
-        >
-          <Heading1 className="size-4" />
-          <span className="text">Heading 1</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "h2")}`}
-          onClick={() => formatHeading("h2")}
-        >
-          <Heading2 className="size-4" />
-          <span className="text">Heading 2</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "h3")}`}
-          onClick={() => formatHeading("h3")}
-        >
-          <Heading3 className="size-4" />
-          <span className="text">Heading 3</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "bullet")}`}
-          onClick={formatBulletList}
-        >
-          <List className="size-4" />
-          <span className="text">Bullet List</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "number")}`}
-          onClick={formatNumberedList}
-        >
-          <ListOrdered className="size-4" />
-          <span className="text">Numbered List</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "check")}`}
-          onClick={formatCheckList}
-        >
-          <ListChecks className="size-4" />
-          <span className="text">Check List</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "quote")}`}
-          onClick={formatQuote}
-        >
-          <TextQuote className="size-4" />
-          <span className="text">Quote</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={`flex gap-2 item ${dropDownActiveClass(blockType === "code")}`}
-          onClick={formatCode}
-        >
-          <Code className="size-4" />
-          <span className="text">Code Block</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <ToolbarMenu
+      label="Block type"
+      disabled={disabled}
+      className={className}
+      trigger={
+        <>
+          <Icon className="shrink-0" />
+          {/* A fixed width, so the toolbar doesn't move as the caret does. */}
+          <span className="hidden w-24 truncate text-left sm:inline">
+            {label}
+          </span>
+        </>
+      }
+    >
+      <BlockTypeItems editor={editor} blockType={blockType} />
+    </ToolbarMenu>
   );
 }

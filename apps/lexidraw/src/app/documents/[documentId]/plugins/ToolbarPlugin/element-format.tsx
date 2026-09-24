@@ -6,39 +6,112 @@ import {
   OUTDENT_CONTENT_COMMAND,
 } from "lexical";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import {
-  AlignLeftIcon,
   AlignCenterIcon,
-  AlignRightIcon,
   AlignJustifyIcon,
-  ArrowLeftIcon,
-  ArrowRightIcon,
+  AlignLeftIcon,
+  AlignRightIcon,
+  IndentDecrease,
+  IndentIncrease,
 } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import {
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+} from "~/components/ui/dropdown-menu";
+import { formatShortcut, ToolbarMenu } from "./toolbar";
 
-function getIconForAlignment(
-  format: ElementFormatType | "",
-): React.ComponentType<{ className?: string }> {
-  switch (format) {
-    case "left":
-    case "start": // Treat start as left for icon purposes
-      return AlignLeftIcon;
-    case "center":
-      return AlignCenterIcon;
-    case "right":
-    case "end": // Treat end as right for icon purposes
-      return AlignRightIcon;
-    case "justify":
-      return AlignJustifyIcon;
-    default:
-      return AlignLeftIcon; // Default icon
-  }
+const ALIGNMENTS = [
+  {
+    value: "left",
+    label: "Left",
+    icon: AlignLeftIcon,
+    shortcut: "Mod+Shift+L",
+  },
+  {
+    value: "center",
+    label: "Center",
+    icon: AlignCenterIcon,
+    shortcut: "Mod+Shift+E",
+  },
+  {
+    value: "right",
+    label: "Right",
+    icon: AlignRightIcon,
+    shortcut: "Mod+Shift+R",
+  },
+  {
+    value: "justify",
+    label: "Justify",
+    icon: AlignJustifyIcon,
+    shortcut: "Mod+Shift+J",
+  },
+] as const;
+
+/** Start and end read as left and right in a left-to-right document. */
+function alignment(value: ElementFormatType, isRTL: boolean) {
+  if (value === "start" || value === "") return isRTL ? "right" : "left";
+  if (value === "end") return isRTL ? "left" : "right";
+  return value;
+}
+
+export function AlignItems({
+  editor,
+  value,
+  isRTL,
+}: {
+  editor: LexicalEditor;
+  value: ElementFormatType;
+  isRTL: boolean;
+}) {
+  return (
+    <>
+      <DropdownMenuRadioGroup value={alignment(value, isRTL)}>
+        {ALIGNMENTS.map(({ value, label, icon: Icon, shortcut }) => (
+          <DropdownMenuRadioItem
+            key={value}
+            value={value}
+            className="gap-2"
+            onSelect={() =>
+              editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, value)
+            }
+          >
+            <Icon className="size-4" />
+            {label}
+            <DropdownMenuShortcut aria-hidden="true">
+              {formatShortcut(shortcut).label}
+            </DropdownMenuShortcut>
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="gap-2 pl-8"
+        onSelect={() =>
+          editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined)
+        }
+      >
+        <IndentDecrease className="size-4" />
+        Outdent
+        <DropdownMenuShortcut aria-hidden="true">
+          {formatShortcut("Mod+[").label}
+        </DropdownMenuShortcut>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        className="gap-2 pl-8"
+        onSelect={() =>
+          editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined)
+        }
+      >
+        <IndentIncrease className="size-4" />
+        Indent
+        <DropdownMenuShortcut aria-hidden="true">
+          {formatShortcut("Mod+]").label}
+        </DropdownMenuShortcut>
+      </DropdownMenuItem>
+    </>
+  );
 }
 
 export function ElementFormatDropdown({
@@ -46,7 +119,7 @@ export function ElementFormatDropdown({
   value,
   isRTL,
   disabled = false,
-  className = "",
+  className,
 }: {
   editor: LexicalEditor;
   value: ElementFormatType;
@@ -54,103 +127,17 @@ export function ElementFormatDropdown({
   disabled?: boolean;
   className?: string;
 }) {
-  const SelectedIcon = getIconForAlignment(value);
-
+  const current =
+    ALIGNMENTS.find((option) => option.value === alignment(value, isRTL)) ??
+    ALIGNMENTS[0];
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className={`flex gap-2 h-12 md:h-10 ${className}`}
-          variant="outline"
-          disabled={disabled}
-          aria-label="Formatting options for text alignment"
-        >
-          <SelectedIcon className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "left");
-          }}
-          className="flex gap-2"
-        >
-          <AlignLeftIcon className="size-4" />
-          <span className="text">Left Align</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "center");
-          }}
-          className="flex gap-2"
-        >
-          <AlignCenterIcon className="size-4" />
-          <span className="text">Center Align</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "right");
-          }}
-          className="flex gap-2"
-        >
-          <AlignRightIcon className="size-4" />
-          <span className="text">Right Align</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "justify");
-          }}
-          className="flex gap-2"
-        >
-          <AlignJustifyIcon className="size-4" />
-          <span className="text">Justify Align</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "start");
-          }}
-          className="flex gap-2"
-        >
-          <AlignLeftIcon className="size-4" />
-          <span className="text">Start Align</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "end");
-          }}
-          className="flex gap-2"
-        >
-          <AlignRightIcon className="size-4" />
-          <span className="text">End Align</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
-          }}
-          className="flex gap-2"
-        >
-          {isRTL ? (
-            <ArrowRightIcon className="size-4" />
-          ) : (
-            <ArrowLeftIcon className="size-4" />
-          )}
-          <span className="text">Outdent</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
-          }}
-          className="flex gap-2"
-        >
-          {isRTL ? (
-            <ArrowLeftIcon className="size-4" />
-          ) : (
-            <ArrowRightIcon className="size-4" />
-          )}
-          <span className="text">Indent</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <ToolbarMenu
+      label="Align"
+      icon={current.icon}
+      disabled={disabled}
+      className={className}
+    >
+      <AlignItems editor={editor} value={value} isRTL={isRTL} />
+    </ToolbarMenu>
   );
 }

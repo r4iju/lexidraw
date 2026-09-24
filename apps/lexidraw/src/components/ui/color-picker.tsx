@@ -1,25 +1,59 @@
-import { useEffect, useMemo, useState, useCallback, useId } from "react";
-import type * as React from "react";
-import { Label } from "./label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "./dropdown-menu";
-import { Button } from "./button";
 import type { LucideIcon } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import type * as React from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import { cn } from "~/lib/utils";
-import { RefreshCcwIcon } from "lucide-react";
-import { Saturation as RcSaturation } from "../colorful/common/Saturation";
 import { Hue as RcHue } from "../colorful/common/Hue";
+import { Saturation as RcSaturation } from "../colorful/common/Saturation";
 import { HexColorInput as RcHexColorInput } from "../colorful/HexColorInput";
-import type { HsvaColor, HexColor } from "../colorful/types";
+import type { HexColor, HsvaColor } from "../colorful/types";
 import { useConvertUtils } from "../colorful/utils/convert";
+import { Button } from "./button";
+import { Label } from "./label";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 import "../colorful/css/styles.css";
 
-const basicColors = [
+export type ColorPreset = { label: string; value: string };
+
+/**
+ * Colours that follow the theme: stored as the variable with a fallback, so
+ * the text keeps a colour wherever the document is shown without our CSS.
+ */
+function themed(kind: "text" | "highlight", presets: [string, string][]) {
+  return presets.map(
+    ([name, fallback]): ColorPreset => ({
+      label: name[0]?.toUpperCase() + name.slice(1),
+      value: `var(--doc-${kind}-${name}, ${fallback})`,
+    }),
+  );
+}
+
+export const TEXT_COLOUR_PRESETS = themed("text", [
+  ["gray", "#6b6b73"],
+  ["brown", "#8a5a3c"],
+  ["orange", "#c4600e"],
+  ["yellow", "#9a7400"],
+  ["green", "#2e7d4f"],
+  ["blue", "#2a6bd1"],
+  ["purple", "#7a4fd1"],
+  ["pink", "#c23d80"],
+  ["red", "#c9362c"],
+]);
+
+export const HIGHLIGHT_PRESETS = themed("highlight", [
+  ["gray", "#ececef"],
+  ["brown", "#f1e6dd"],
+  ["orange", "#fbe4d0"],
+  ["yellow", "#fbf0c4"],
+  ["green", "#dcf0e2"],
+  ["blue", "#dde9fb"],
+  ["purple", "#ebe2fb"],
+  ["pink", "#f8e0ec"],
+  ["red", "#fbdfdc"],
+]);
+
+const BASIC_COLOURS: ColorPreset[] = [
   "#d0021b",
   "#f5a623",
   "#f8e71c",
@@ -35,220 +69,219 @@ const basicColors = [
   "#4a4a4a",
   "#9b9b9b",
   "#ffffff",
-] as const;
+].map((value) => ({ label: value, value }));
 
+const AUTOMATIC: ColorPreset = { label: "Automatic", value: "" };
+const HEX = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const DEFAULT_PICKER_WIDTH = 214;
 
 interface ColorPickerContentProps {
-  color: string; // Expecting a hex string (e.g., #RRGGBB)
-  onChange?: (newHexColor: string, skipHistoryStack: boolean) => void;
+  /** A CSS colour, or empty for none: the theme decides. */
+  color: string;
+  onChange?: (color: string, skipHistoryStack: boolean) => void;
+  presets?: ColorPreset[];
   className?: string;
   pickerWidth?: number;
-}
-
-interface ColorPickerButtonProps {
-  disabled?: boolean;
-  buttonAriaLabel?: string;
-  title?: string;
-  color: string; // Expecting a hex string
-  Icon?: LucideIcon;
-  onChange?: (newHexColor: string, skipHistoryStack: boolean) => void;
-  className?: string;
 }
 
 export function ColorPickerContent({
   color,
   onChange,
+  presets = BASIC_COLOURS,
   className,
   pickerWidth = DEFAULT_PICKER_WIDTH,
 }: Readonly<ColorPickerContentProps>): React.JSX.Element {
-  const { hexToHsva, hsvaToHex } = useConvertUtils();
-
-  const [currentHsva, setCurrentHsva] = useState<HsvaColor>(() =>
-    hexToHsva(color || "#000000"),
+  const swatches = [AUTOMATIC, ...presets];
+  const current = swatches.find(
+    (swatch) => swatch.value.toLowerCase() === color.toLowerCase(),
   );
+  const [custom, setCustom] = useState(!current && HEX.test(color));
 
-  useEffect(() => {
-    try {
-      const newHsva = hexToHsva(color || "#000000");
-      if (
-        newHsva.h !== currentHsva.h ||
-        newHsva.s !== currentHsva.s ||
-        newHsva.v !== currentHsva.v ||
-        newHsva.a !== currentHsva.a
-      ) {
-        setCurrentHsva(newHsva);
-      }
-    } catch (_e) {
-      console.error("Error converting hex to hsva in useEffect:", _e);
-      setCurrentHsva(hexToHsva("#000000"));
-    }
-  }, [
-    color,
-    currentHsva.h,
-    currentHsva.s,
-    currentHsva.v,
-    currentHsva.a,
-    hexToHsva,
-  ]);
-
-  const rcHexInputId = useId();
-
-  const handleSaturationChange = useCallback(
-    (newSaturationValue: { s: number; v: number }) => {
-      const newHsvaColor = {
-        ...currentHsva,
-        s: newSaturationValue.s,
-        v: newSaturationValue.v,
-      };
-      setCurrentHsva(newHsvaColor);
-      onChange?.(hsvaToHex(newHsvaColor), true);
-    },
-    [currentHsva, hsvaToHex, onChange],
-  );
-
-  // Corrected: RcHue's onChange provides newHue as a number
-  const handleHueChange = useCallback(
-    (newHueValue: number) => {
-      // newHueValue is a number
-      const newHsvaColor = {
-        ...currentHsva,
-        h: newHueValue, // Assign the number directly
-      };
-      setCurrentHsva(newHsvaColor);
-      onChange?.(hsvaToHex(newHsvaColor), true);
-    },
-    [currentHsva, hsvaToHex, onChange],
-  );
-
-  const handleHexInputChange = useCallback(
-    (newHex: HexColor) => {
-      const newHsvaColor = hexToHsva(newHex);
-      setCurrentHsva(newHsvaColor);
-      onChange?.(newHex, false);
-    },
-    [hexToHsva, onChange],
-  );
-
-  const currentHexForDisplay = useMemo(
-    () => hsvaToHex(currentHsva),
-    [currentHsva, hsvaToHex],
-  );
+  const onSwatchKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[
+      event.key
+    ];
+    if (!step) return;
+    const radios = [
+      ...event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'),
+    ];
+    const index = radios.indexOf(event.target as HTMLElement);
+    event.preventDefault();
+    radios[(index + step + radios.length) % radios.length]?.focus();
+  };
 
   return (
     <div
-      className={cn(
-        "flex flex-col gap-4 p-4 react-colorful-custom-wrapper",
-        className,
-      )}
+      className={cn("flex flex-col gap-3", className)}
       style={{ width: pickerWidth }}
     >
-      <div className="relative" style={{ height: pickerWidth * 0.75 }}>
-        <RcSaturation hsva={currentHsva} onChange={handleSaturationChange} />
-      </div>
-
-      <div className="relative" style={{ height: 16 }}>
-        <RcHue
-          hue={currentHsva.h}
-          onChange={({ h: newHue }) => handleHueChange(newHue)}
-        />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Label htmlFor={rcHexInputId} className="text-sm">
-          Hex
-        </Label>
-        <RcHexColorInput
-          id={rcHexInputId}
-          color={currentHexForDisplay}
-          onChange={handleHexInputChange}
-          className="w-full p-1 border-border border rounded text-sm"
-          prefixed
-          alpha={false}
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-3 my-2">
-        {basicColors.map((basicColor) => (
-          <Button
-            variant="ghost"
-            className={cn(
-              "outline size-6 rounded-full p-0 m-0 border-1 border-paper-white hover:border-paper-white hover:ring-2 hover:ring-ring",
-              basicColor === currentHexForDisplay
-                ? "ring-2 ring-ring ring-offset-1"
-                : "",
-            )}
-            key={basicColor}
-            style={{ backgroundColor: basicColor }}
-            onClick={() => {
-              const newHsvaFromSwatch = hexToHsva(basicColor);
-              setCurrentHsva(newHsvaFromSwatch);
-              onChange?.(basicColor, false);
-            }}
-            aria-label={`Select color ${basicColor}`}
-          />
-        ))}
-      </div>
-
-      <Button
-        variant="outline"
-        className="w-full flex items-center justify-center gap-2"
-        onClick={() => {
-          // Reset to transparent/no color
-          onChange?.("", false);
-        }}
+      <div
+        role="radiogroup"
+        aria-label="Colours"
+        className="grid grid-cols-5 gap-2"
+        onKeyDown={onSwatchKeyDown}
       >
-        <RefreshCcwIcon className="size-4" />
-        Reset
+        {swatches.map((swatch) => {
+          const checked = swatch === (current ?? (color ? null : AUTOMATIC));
+          return (
+            // biome-ignore lint/a11y/useSemanticElements: a swatch, not a native radio
+            <button
+              type="button"
+              role="radio"
+              key={swatch.value || "automatic"}
+              aria-checked={checked}
+              aria-label={swatch.label}
+              title={swatch.label}
+              tabIndex={checked || (!current && swatch === AUTOMATIC) ? 0 : -1}
+              onClick={() => onChange?.(swatch.value, false)}
+              className={cn(
+                "relative size-7 overflow-hidden rounded-full border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover",
+                checked &&
+                  "ring-2 ring-primary ring-offset-2 ring-offset-popover",
+              )}
+              style={{ background: swatch.value || undefined }}
+            >
+              {swatch === AUTOMATIC && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 m-auto h-px w-[130%] -translate-x-[12%] -rotate-45 bg-destructive"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-expanded={custom}
+        onClick={() => setCustom((open) => !open)}
+        className="justify-start px-2"
+      >
+        Custom colour…
       </Button>
+      {custom && (
+        <CustomColour
+          color={HEX.test(color) ? color : "#808080"}
+          onChange={onChange}
+          pickerWidth={pickerWidth}
+        />
+      )}
     </div>
   );
 }
 
+function CustomColour({
+  color,
+  onChange,
+  pickerWidth,
+}: {
+  color: string;
+  onChange?: (color: string, skipHistoryStack: boolean) => void;
+  pickerWidth: number;
+}) {
+  const { hexToHsva, hsvaToHex } = useConvertUtils();
+  const [hsva, setHsva] = useState<HsvaColor>(() => hexToHsva(color));
+  const hexInputId = useId();
+  const change = useCallback(
+    (next: HsvaColor) => {
+      setHsva(next);
+      onChange?.(hsvaToHex(next), true);
+    },
+    [hsvaToHex, onChange],
+  );
+  const hex = useMemo(() => hsvaToHex(hsva), [hsva, hsvaToHex]);
+
+  return (
+    <div className="react-colorful-custom-wrapper flex flex-col gap-3">
+      <div className="relative" style={{ height: pickerWidth * 0.75 }}>
+        <RcSaturation
+          hsva={hsva}
+          onChange={({ s, v }) => change({ ...hsva, s, v })}
+        />
+      </div>
+      <div className="relative" style={{ height: 16 }}>
+        <RcHue hue={hsva.h} onChange={({ h }) => change({ ...hsva, h })} />
+      </div>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={hexInputId} className="text-sm">
+          Hex
+        </Label>
+        <RcHexColorInput
+          id={hexInputId}
+          color={hex}
+          onChange={(next: HexColor) => {
+            setHsva(hexToHsva(next));
+            onChange?.(next, false);
+          }}
+          className="w-full rounded border border-border p-1 text-sm"
+          prefixed
+          alpha={false}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface ColorPickerButtonProps {
+  /** Names the picker: its trigger, tooltip and heading. */
+  title: string;
+  disabled?: boolean;
+  color: string;
+  presets?: ColorPreset[];
+  Icon?: LucideIcon;
+  onChange?: (color: string, skipHistoryStack: boolean) => void;
+  className?: string;
+}
+
 export function ColorPickerButton({
-  buttonAriaLabel = "Choose color",
   title,
   disabled,
   color,
+  presets,
   onChange,
   Icon,
   className,
 }: Readonly<ColorPickerButtonProps>): React.JSX.Element {
-  const displayColor = useMemo(() => {
-    if (!color || color === "") return "transparent";
-    return /^#([0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/i.test(color)
-      ? color
-      : "transparent";
-  }, [color]);
-
+  const [open, setOpen] = useState(false);
   return (
-    <Tooltip>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <PopoverTrigger asChild>
           <TooltipTrigger asChild>
             <Button
-              aria-label={buttonAriaLabel}
-              variant="outline"
-              className={cn("w-8 h-12 md:h-10 p-0.5", className)}
+              type="button"
+              aria-label={title}
+              variant="ghost"
+              className={cn(
+                "relative size-8 shrink-0 p-0 pointer-coarse:size-11",
+                className,
+              )}
               disabled={disabled}
             >
-              {Icon ? (
-                <Icon className="size-4" />
-              ) : (
-                <div
-                  className="w-6 h-6 rounded border border-input"
-                  style={{ backgroundColor: displayColor }}
-                  aria-hidden="true"
-                />
-              )}
+              {Icon && <Icon />}
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-2 bottom-1 h-0.5 rounded-full"
+                style={{ background: color || "currentColor" }}
+              />
             </Button>
           </TooltipTrigger>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="min-w-[auto] w-auto p-0">
-          <ColorPickerContent color={color} onChange={onChange} />
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {title && <TooltipContent>{title}</TooltipContent>}
-    </Tooltip>
+        </PopoverTrigger>
+        <TooltipContent>{title}</TooltipContent>
+      </Tooltip>
+      <PopoverContent align="start" className="w-auto p-3">
+        <h3 className="mb-3 text-label font-medium">{title}</h3>
+        <ColorPickerContent
+          color={color}
+          presets={presets}
+          onChange={(value, skipHistoryStack) => {
+            onChange?.(value, skipHistoryStack);
+            if (!skipHistoryStack) setOpen(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }

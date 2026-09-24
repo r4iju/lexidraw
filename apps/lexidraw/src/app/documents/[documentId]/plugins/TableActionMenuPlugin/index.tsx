@@ -653,7 +653,7 @@ function TableCellActionMenuContainer({
         rect.bottom < 0 || top > innerHeight || right < 24
           ? "hidden"
           : "visible";
-      menu.style.transform = `translate(${right - 32}px, ${top}px)`;
+      menu.style.transform = `translate(${right - menu.offsetWidth - 8}px, ${top}px)`;
     };
     position();
     window.addEventListener("scroll", position, true);
@@ -688,7 +688,7 @@ function TableCellActionMenuContainer({
               aria-expanded={isMenuOpen}
               variant="outline"
               size="icon"
-              className="flex justify-center items-center border-0 size-6"
+              className="flex justify-center items-center border-0 size-6 pointer-coarse:size-11"
             >
               <ChevronDown className="size-4" />
               <span className="sr-only">Table cell actions</span>

@@ -1,75 +1,63 @@
+import { $isCodeNode } from "@lexical/code";
+import { $getNodeByKey, type LexicalEditor, type NodeKey } from "lexical";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "~/components/ui/dropdown-menu";
-import { Button } from "~/components/ui/button";
-import { ChevronDownIcon } from "lucide-react";
 import {
   CODE_LANGUAGE_OPTIONS,
   getCodeLanguageFriendlyName,
 } from "../code-language";
-import { useCallback } from "react";
-import { useToolbarUtils } from "./utils";
-import { $getNodeByKey, type LexicalEditor, type NodeKey } from "lexical";
-import { $isCodeNode } from "@lexical/code";
+import { ToolbarMenu } from "./toolbar";
 
-type CodeSelectorProps = {
-  activeEditor: LexicalEditor;
+type CodeLanguageProps = {
+  editor: LexicalEditor;
   selectedElementKey: NodeKey | null;
-  isEditable: boolean;
   codeLanguage: string;
 };
 
-export function CodeSelector({
-  activeEditor,
+export function CodeLanguageItems({
+  editor,
   selectedElementKey,
-  isEditable,
   codeLanguage,
-}: CodeSelectorProps) {
-  const { dropDownActiveClass } = useToolbarUtils();
-
-  const onCodeLanguageSelect = useCallback(
-    (value: string) => {
-      activeEditor.update(() => {
-        if (selectedElementKey !== null) {
-          const node = $getNodeByKey(selectedElementKey);
-          if ($isCodeNode(node)) {
-            node.setLanguage(value);
-          }
-        }
-      });
-    },
-    [activeEditor, selectedElementKey],
-  );
-
+}: CodeLanguageProps) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          disabled={!isEditable}
-          className="flex gap-1 h-12 md:h-10"
-          aria-label="Select language"
-        >
-          {getCodeLanguageFriendlyName(codeLanguage)}
-          <ChevronDownIcon className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        {CODE_LANGUAGE_OPTIONS.map(([value, name]) => {
-          return (
-            <DropdownMenuItem
-              className={`item ${dropDownActiveClass(value === codeLanguage)}`}
-              onClick={() => onCodeLanguageSelect(value)}
-              key={value}
-            >
-              <span className="text">{name}</span>
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenuRadioGroup
+      value={codeLanguage}
+      onValueChange={(language) =>
+        editor.update(() => {
+          const node =
+            selectedElementKey === null
+              ? null
+              : $getNodeByKey(selectedElementKey);
+          if ($isCodeNode(node)) node.setLanguage(language);
+        })
+      }
+    >
+      {CODE_LANGUAGE_OPTIONS.map(([value, name]) => (
+        <DropdownMenuRadioItem key={value} value={value}>
+          {name}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+}
+
+/** Takes the font's place in code, at the font's width. */
+export function CodeSelector(
+  props: CodeLanguageProps & { disabled?: boolean },
+) {
+  return (
+    <ToolbarMenu
+      label="Code language"
+      disabled={props.disabled}
+      trigger={
+        <span className="w-24 truncate text-left">
+          {getCodeLanguageFriendlyName(props.codeLanguage)}
+        </span>
+      }
+    >
+      <CodeLanguageItems {...props} />
+    </ToolbarMenu>
   );
 }

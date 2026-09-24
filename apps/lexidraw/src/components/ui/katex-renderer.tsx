@@ -6,10 +6,12 @@ export default function KatexRenderer({
   equation,
   inline,
   onDoubleClick,
+  onClick,
 }: Readonly<{
   equation: string;
   inline: boolean;
   onDoubleClick: () => void;
+  onClick?: () => void;
 }>): React.JSX.Element {
   const katexElementRef = useRef(null);
 
@@ -38,6 +40,7 @@ export default function KatexRenderer({
         type="button"
         tabIndex={-1}
         onDoubleClick={onDoubleClick}
+        onClick={onClick}
         ref={katexElementRef}
         aria-label="Rendered equation"
       />

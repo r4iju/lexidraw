@@ -1,352 +1,296 @@
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import { Button } from "~/components/ui/button";
-import {
-  Plus,
-  VideoIcon,
-  Minus,
-  FileText,
-  Image,
-  Gift,
-  PencilRuler,
-  Table,
-  Vote,
-  Columns,
-  Sigma,
-  StickyNote,
-  ChevronRight,
-  Settings,
-  ChartScatter,
-  Info,
-} from "lucide-react";
-import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
-import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
-import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
-import { INSERT_MERMAID_COMMAND } from "../MermaidPlugin";
-import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
+import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import {
   $getRoot,
-  type LexicalEditor,
   $getSelection,
   $isRangeSelection,
+  type LexicalEditor,
 } from "lexical";
-import { InsertImageDialog, type InsertImagePayload } from "../ImagePlugin";
-import useModal from "~/hooks/useModal";
-import { InsertInlineImageDialog } from "../InlineImagePlugin";
-import { InsertTableDialog } from "../TablePlugin";
-import { InsertPollDialog } from "../PollPlugin";
-import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
-import InsertCalloutDialog from "../CalloutPlugin/InsertCalloutDialog";
-import { InsertEquationDialog } from "../EquationsPlugin";
+import {
+  ChartColumn,
+  Columns3,
+  Film,
+  Image,
+  ImagePlus,
+  Info,
+  ListCollapse,
+  type LucideIcon,
+  PencilRuler,
+  Plus,
+  Presentation,
+  SeparatorHorizontal,
+  Sigma,
+  SquareSplitVertical,
+  StickyNote,
+  Table,
+  VideoIcon,
+  Vote,
+  Workflow,
+} from "lucide-react";
+import { Fragment, type JSX, type ReactNode } from "react";
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "~/components/ui/dropdown-menu";
 import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
-import { INSERT_IMAGE_COMMAND } from "../ImagePlugin/commands";
-import {
-  OPEN_INSERT_VIDEO_DIALOG_COMMAND,
-  InsertVideoSettingsDialog,
-} from "../VideoPlugin";
-import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
+import InsertCalloutDialog from "../CalloutPlugin/InsertCalloutDialog";
 import { INSERT_CHART_COMMAND } from "../ChartPlugin";
+import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
+import { InsertEquationDialog } from "../EquationsPlugin";
+import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
+import { InsertImageDialog } from "../ImagePlugin";
+import { INSERT_IMAGE_COMMAND } from "../ImagePlugin/commands";
+import { InsertInlineImageDialog } from "../InlineImagePlugin";
+import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
+import { INSERT_MERMAID_COMMAND } from "../MermaidPlugin";
+import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
+import { InsertPollDialog } from "../PollPlugin";
+import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
+import { InsertTableDialog } from "../TablePlugin";
+import { OPEN_INSERT_VIDEO_DIALOG_COMMAND } from "../VideoPlugin";
+import { ToolbarMenu } from "./toolbar";
 
-// -------------------------------------------------------------------------------------------------
-// TODO: fix style
-// -------------------------------------------------------------------------------------------------
+type ShowModal = (
+  title: string,
+  content: (onClose: () => void) => JSX.Element,
+) => void;
 
-type InsertItemProps = {
-  activeEditor: LexicalEditor;
-  isEditable: boolean;
+type Insertable = { label: string; icon: ReactNode; insert: () => void };
+
+const EMBED_LABELS: Record<string, string> = {
+  "youtube-video": "YouTube",
+  tweet: "Tweet",
+  figma: "Figma",
+  article: "Article",
 };
+const EMBED_ORDER = Object.keys(EMBED_LABELS);
 
-export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
-  const [modal, showModal] = useModal();
-  const EmbedConfigs = useEmbedConfigs();
+function icon(Icon: LucideIcon) {
+  return <Icon className="size-4" />;
+}
 
-  const insertGifOnClick = (payload: InsertImagePayload) => {
-    activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
-  };
+/** Everything that can be inserted, in labelled groups. */
+export function InsertItems({
+  editor,
+  showModal,
+}: {
+  editor: LexicalEditor;
+  showModal: ShowModal;
+}) {
+  const embeds = useEmbedConfigs();
+  const dialog =
+    (title: string, render: (onClose: () => void) => JSX.Element) => () =>
+      showModal(title, render);
 
+  const groups: [string, Insertable[]][] = [
+    [
+      "Basic",
+      [
+        {
+          label: "Divider",
+          icon: icon(SeparatorHorizontal),
+          insert: () =>
+            editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
+        },
+        {
+          label: "Page break",
+          icon: icon(SquareSplitVertical),
+          insert: () => editor.dispatchCommand(INSERT_PAGE_BREAK, undefined),
+        },
+        {
+          label: "Table",
+          icon: icon(Table),
+          insert: dialog("Insert table", (onClose) => (
+            <InsertTableDialog activeEditor={editor} onClose={onClose} />
+          )),
+        },
+        {
+          label: "Columns",
+          icon: icon(Columns3),
+          insert: dialog("Insert columns", (onClose) => (
+            <InsertLayoutDialog activeEditor={editor} onClose={onClose} />
+          )),
+        },
+        {
+          label: "Collapsible",
+          icon: icon(ListCollapse),
+          insert: () =>
+            editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, undefined),
+        },
+        {
+          label: "Callout",
+          icon: icon(Info),
+          insert: dialog("Insert callout", (onClose) => (
+            <InsertCalloutDialog activeEditor={editor} onClose={onClose} />
+          )),
+        },
+      ],
+    ],
+    [
+      "Media",
+      [
+        {
+          label: "Image",
+          icon: icon(Image),
+          insert: dialog("Insert image", (onClose) => (
+            <InsertImageDialog
+              activeEditor={editor}
+              onClose={onClose}
+              onInsert={(payload) => {
+                editor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
+                onClose();
+              }}
+            />
+          )),
+        },
+        {
+          label: "Inline image",
+          icon: icon(ImagePlus),
+          insert: dialog("Insert inline image", (onClose) => (
+            <InsertInlineImageDialog activeEditor={editor} onClose={onClose} />
+          )),
+        },
+        {
+          label: "GIF",
+          icon: icon(Film),
+          insert: () =>
+            editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
+              altText: "Cat typing on a laptop",
+              src: "/images/cat-typing.gif",
+            }),
+        },
+        {
+          label: "Video",
+          icon: icon(VideoIcon),
+          insert: () =>
+            editor.dispatchCommand(OPEN_INSERT_VIDEO_DIALOG_COMMAND, undefined),
+        },
+      ],
+    ],
+    [
+      "Diagrams and data",
+      [
+        {
+          label: "Excalidraw",
+          icon: icon(PencilRuler),
+          insert: () =>
+            editor.dispatchCommand(INSERT_EXCALIDRAW_COMMAND, undefined),
+        },
+        {
+          label: "Mermaid",
+          icon: icon(Workflow),
+          insert: () =>
+            editor.dispatchCommand(INSERT_MERMAID_COMMAND, undefined),
+        },
+        {
+          label: "Chart",
+          icon: icon(ChartColumn),
+          insert: () =>
+            editor.dispatchCommand(INSERT_CHART_COMMAND, {
+              type: "bar",
+              data: "[]",
+              config: "{}",
+              width: "inherit",
+              height: "inherit",
+            }),
+        },
+        {
+          label: "Equation",
+          icon: icon(Sigma),
+          insert: dialog("Insert equation", (onClose) => (
+            <InsertEquationDialog activeEditor={editor} onClose={onClose} />
+          )),
+        },
+        {
+          label: "Slide deck",
+          icon: icon(Presentation),
+          insert: () =>
+            editor.dispatchCommand(INSERT_SLIDEDECK_COMMAND, undefined),
+        },
+      ],
+    ],
+    [
+      "Embeds",
+      embeds
+        .filter((embed) => embed.type in EMBED_LABELS)
+        .sort(
+          (a, b) => EMBED_ORDER.indexOf(a.type) - EMBED_ORDER.indexOf(b.type),
+        )
+        .map((embed) => ({
+          label: EMBED_LABELS[embed.type] ?? embed.contentName,
+          icon: embed.icon,
+          insert: () =>
+            editor.dispatchCommand(INSERT_EMBED_COMMAND, embed.type),
+        })),
+    ],
+    [
+      "Interactive",
+      [
+        {
+          label: "Poll",
+          icon: icon(Vote),
+          insert: dialog("Insert poll", (onClose) => (
+            <InsertPollDialog activeEditor={editor} onClose={onClose} />
+          )),
+        },
+        {
+          label: "Sticky note",
+          icon: icon(StickyNote),
+          insert: () =>
+            editor.update(() => {
+              const selection = $getSelection();
+              const sticky = StickyNode.$createStickyNode(0, 0);
+              if ($isRangeSelection(selection)) selection.insertNodes([sticky]);
+              else $getRoot().append(sticky);
+            }),
+        },
+      ],
+    ],
+  ];
+
+  return groups.map(([label, items], index) => (
+    <Fragment key={label}>
+      {index > 0 && <DropdownMenuSeparator />}
+      <DropdownMenuGroup aria-label={label}>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          {label}
+        </DropdownMenuLabel>
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={item.label}
+            className="gap-2"
+            onSelect={item.insert}
+          >
+            {item.icon}
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuGroup>
+    </Fragment>
+  ));
+}
+
+export function InsertMenu({
+  editor,
+  disabled,
+  showModal,
+}: {
+  editor: LexicalEditor;
+  disabled?: boolean;
+  showModal: ShowModal;
+}) {
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            disabled={!isEditable}
-            variant="outline"
-            className="flex gap-1 h-12 md:h-10 rounded-r-none border-r-0"
-            aria-label="Insert specialized editor node"
-          >
-            Insert
-            <Plus className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(
-                INSERT_HORIZONTAL_RULE_COMMAND,
-                undefined,
-              );
-            }}
-            className="flex gap-2"
-          >
-            <Minus className="size-4" />
-            <span className="text">Horizontal Rule</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(INSERT_PAGE_BREAK, undefined);
-            }}
-            className="flex gap-2"
-          >
-            <FileText className="size-4" />
-            <span className="text">Page Break</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="flex items-center justify-between gap-2"
-            onClick={() => {
-              console.log("should fire OPEN_INSERT_VIDEO_DIALOG_COMMAND");
-              activeEditor.dispatchCommand(
-                OPEN_INSERT_VIDEO_DIALOG_COMMAND,
-                undefined,
-              );
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <VideoIcon className="size-4" />
-              <span className="text">Video</span>
-            </div>
-            <button
-              type="button"
-              className="p-1 rounded-sm hover:bg-accent focus:outline-none"
-              onClick={(e) => {
-                e.stopPropagation();
-                showModal("Video Download Settings", (onClose) => (
-                  <InsertVideoSettingsDialog
-                    onClose={() => {
-                      onClose();
-                    }}
-                  />
-                ));
-              }}
-              aria-label="Video settings"
-            >
-              <Settings className="size-4" />
-            </button>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(INSERT_CHART_COMMAND, {
-                type: "bar",
-                data: "[]",
-                config: "{}",
-                width: "inherit",
-                height: "inherit",
-              });
-            }}
-            className="flex gap-2"
-          >
-            <ChartScatter className="size-4" />
-            <span className="text">Chart</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Image", (onClose) => (
-                <InsertImageDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                  onInsert={(payload) => {
-                    activeEditor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
-                    onClose();
-                  }}
-                />
-              ));
-            }}
-            className="flex gap-2"
-          >
-            <Image className="size-4" />
-            <span className="text">Image</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Inline Image", (onClose) => (
-                <InsertInlineImageDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                />
-              ));
-            }}
-            className="flex gap-2"
-          >
-            <Image className="size-4" />
-            <span className="text">Inline Image</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() =>
-              insertGifOnClick({
-                altText: "Cat typing on a laptop",
-                src: "/images/cat-typing.gif",
-              })
-            }
-            className="flex gap-2"
-          >
-            <Gift className="size-4" />
-            <span className="text">GIF</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(
-                INSERT_EXCALIDRAW_COMMAND,
-                undefined,
-              );
-            }}
-            className="flex gap-2"
-          >
-            <PencilRuler className="size-4" />
-            <span className="text">Excalidraw</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(INSERT_MERMAID_COMMAND, undefined);
-            }}
-            className="flex gap-2"
-          >
-            <ChartScatter className="size-4" />
-            <span className="text">Mermaid</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Table", (onClose) => (
-                <InsertTableDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                />
-              ));
-            }}
-            className="flex gap-2"
-          >
-            <Table className="size-4" />
-            <span className="text">Table</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Poll", (onClose) => (
-                <InsertPollDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                />
-              ));
-            }}
-            className="flex gap-2"
-          >
-            <Vote className="size-4" />
-            <span className="text">Poll</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Columns Layout", (onClose) => (
-                <InsertLayoutDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                />
-              ));
-            }}
-            className="flex gap-2"
-          >
-            <Columns className="size-4" />
-            <span className="text">Columns Layout</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(INSERT_SLIDEDECK_COMMAND, undefined);
-            }}
-            className="flex gap-2"
-          >
-            <Columns className="size-4" />
-            <span className="text">Slide</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Equation", (onClose) => (
-                <InsertEquationDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                />
-              ));
-            }}
-            className="flex gap-2"
-          >
-            <Sigma className="size-4" />
-            <span className="text">Equation</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.update(() => {
-                const selection = $getSelection();
-                const stickyNode = StickyNode.$createStickyNode(0, 0);
-                if ($isRangeSelection(selection)) {
-                  selection.insertNodes([stickyNode]);
-                } else {
-                  const root = $getRoot();
-                  root.append(stickyNode);
-                }
-              });
-            }}
-            className="flex gap-2"
-          >
-            <StickyNote className="size-4" />
-            <span className="text">Sticky Note</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              activeEditor.dispatchCommand(
-                INSERT_COLLAPSIBLE_COMMAND,
-                undefined,
-              );
-            }}
-            className="flex gap-2"
-          >
-            <ChevronRight className="size-4" />
-            <span className="text">Collapsible container</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              showModal("Insert Callout", (onClose) => (
-                <InsertCalloutDialog
-                  activeEditor={activeEditor}
-                  onClose={onClose}
-                />
-              ));
-            }}
-            className="flex gap-2"
-          >
-            <Info className="size-4" />
-            <span className="text">Callout</span>
-          </DropdownMenuItem>
-          {EmbedConfigs.map((embedConfig) => (
-            <DropdownMenuItem
-              key={embedConfig.type}
-              onClick={() => {
-                activeEditor.dispatchCommand(
-                  INSERT_EMBED_COMMAND,
-                  embedConfig.type,
-                );
-              }}
-              className="flex gap-2"
-            >
-              {embedConfig.icon}
-              <span className="text">{embedConfig.contentName}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {modal}
-    </>
+    <ToolbarMenu
+      label="Insert"
+      icon={Plus}
+      trigger={<span className="hidden sm:inline">Insert</span>}
+      disabled={disabled}
+      contentClassName="min-w-52"
+    >
+      <InsertItems editor={editor} showModal={showModal} />
+    </ToolbarMenu>
   );
 }

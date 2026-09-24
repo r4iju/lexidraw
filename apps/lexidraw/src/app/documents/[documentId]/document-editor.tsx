@@ -86,6 +86,7 @@ import { PollNode } from "./nodes/PollNode";
 import { StickyNode } from "./nodes/StickyNode";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
+import { useDeveloperFlag } from "~/lib/developer-flag";
 import { SlidePlugin } from "./plugins/SlidePlugin";
 import { SlideNode } from "./nodes/SlideNode/SlideNode";
 import { CommentNode } from "./nodes/CommentNode";
@@ -192,7 +193,7 @@ function getSidebarTitle(sidebar: ActiveSidebar): string {
   if (!sidebar) return "";
   switch (sidebar) {
     case "llm":
-      return "LLM Chat";
+      return "AI assistant";
     case "comments":
       return "Comments";
     case "toc":
@@ -283,6 +284,7 @@ function EditorHandler({
   const { activeSidebar, setActiveSidebar, toggleSidebar } =
     useSidebarManager();
   const [sharing, setSharing] = useState(false);
+  const developer = useDeveloperFlag();
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(SIDEBAR_WIDTH);
   const sidebarRef = useRef<HTMLElement>(null);
 
@@ -720,17 +722,17 @@ function EditorHandler({
                                   cellMerge={true}
                                 />
                                 <FloatingTextFormatToolbarPlugin
-                                  anchorElem={floatingAnchorElem}
                                   setIsLinkEditMode={setIsLinkEditMode}
                                 />
                               </>
                             )}
                             {isEditable && <ContextMenuPlugin />}
                           </div>
-                          {/* A chat left open by an earlier sign-in stays shut. */}
+                          {/* A chat left open by an earlier sign-in, or the tree once the developer flag is off, stays shut. */}
                           {onScreen &&
                             activeSidebar &&
-                            (signedIn || activeSidebar !== "llm") && (
+                            (signedIn || activeSidebar !== "llm") &&
+                            (developer || activeSidebar !== "tree") && (
                               <SidebarWrapper
                                 key={activeSidebar}
                                 ref={sidebarRef}

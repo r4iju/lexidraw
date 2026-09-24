@@ -7,13 +7,16 @@ import {
   $getNearestNodeFromDOMNode,
   $getNodeByKey,
   $getRoot,
+  $isElementNode,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
   DRAGOVER_COMMAND,
   DROP_COMMAND,
   isHTMLElement,
   type LexicalEditor,
+  type NodeKey,
 } from "lexical";
+import { GripVertical, Plus } from "lucide-react";
 import type * as React from "react";
 import {
   type DragEvent as ReactDragEvent,
@@ -23,8 +26,17 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { useFinePointer } from "~/hooks/use-media-query";
 import { Point } from "../../utils/point";
 import { Rect } from "../../utils/rect";
+import { $blockTypeOf, BlockActionItems } from "../ToolbarPlugin/block-actions";
+import { insertBlockBelow } from "../ToolbarPlugin/block-commands";
+import type { BlockType } from "../ToolbarPlugin/block-format";
 
 function useDraggableBlockMenu(
   editor: LexicalEditor,
@@ -213,12 +225,20 @@ function useDraggableBlockMenu(
       const floatingElemRect = floatingElem.getBoundingClientRect();
       const anchorElementRect = anchorElem.getBoundingClientRect();
 
+      const lineHeight =
+        parseInt(targetStyle.lineHeight, 10) || floatingElemRect.height;
       const top =
         targetRect.top +
-        (parseInt(targetStyle.lineHeight, 10) - floatingElemRect.height) / 2 -
+        parseInt(targetStyle.paddingTop, 10) +
+        (lineHeight - floatingElemRect.height) / 2 -
         anchorElementRect.top;
-
-      const left = SPACE;
+      const left = Math.max(
+        0,
+        targetRect.left -
+          anchorElementRect.left -
+          floatingElemRect.width -
+          SPACE,
+      );
 
       floatingElem.style.opacity = "1";
       floatingElem.style.transform = `translate(${left}px, ${top}px)`;
@@ -291,8 +311,15 @@ function useDraggableBlockMenu(
     return !!element.closest(`.${DRAGGABLE_BLOCK_MENU_CLASSNAME}`);
   }, []);
 
+  const [menu, setMenu] = useState<{
+    key: NodeKey;
+    blockType: BlockType | null;
+    canTurnInto: boolean;
+  } | null>(null);
+
   const onMouseMove = useCallback(
     (event: MouseEvent) => {
+      if (menu) return;
       const target = event.target;
       if (!isHTMLElement(target)) {
         setDraggableBlockElem(null);
@@ -307,12 +334,32 @@ function useDraggableBlockMenu(
 
       setDraggableBlockElem(_draggableBlockElem);
     },
-    [anchorElem, editor, getBlockElement, isOnMenu],
+    [anchorElem, editor, getBlockElement, isOnMenu, menu],
   );
 
   const onMouseLeave = useCallback(() => {
-    setDraggableBlockElem(null);
-  }, []);
+    if (!menu) setDraggableBlockElem(null);
+  }, [menu]);
+
+  const blockKey = () =>
+    draggableBlockElem
+      ? editor.read(() =>
+          $getNearestNodeFromDOMNode(draggableBlockElem)?.getKey(),
+        )
+      : undefined;
+
+  const openMenu = () => {
+    const key = blockKey();
+    if (!key) return;
+    editor.read(() => {
+      const node = $getNodeByKey(key);
+      setMenu({
+        key,
+        blockType: $blockTypeOf(node),
+        canTurnInto: $isElementNode(node),
+      });
+    });
+  };
 
   useEffect(() => {
     scrollerElem?.addEventListener("mousemove", onMouseMove);
@@ -417,7 +464,7 @@ function useDraggableBlockMenu(
   }, [anchorElem, editor, getBlockElement, setTargetLine]);
 
   const onDragStart = useCallback(
-    (event: ReactDragEvent<HTMLDivElement>): void => {
+    (event: ReactDragEvent<HTMLButtonElement>): void => {
       const dataTransfer = event.dataTransfer;
       if (!dataTransfer || !draggableBlockElem) {
         return;
@@ -443,15 +490,61 @@ function useDraggableBlockMenu(
 
   return createPortal(
     <>
-      {/** biome-ignore lint/a11y/noStaticElementInteractions: draggable block menu is interactive */}
       <div
-        className="icon draggable-block-menu"
+        className={`${DRAGGABLE_BLOCK_MENU_CLASSNAME} flex items-center text-muted-foreground`}
         ref={menuRef}
-        draggable={true}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
       >
-        <div className={isEditable ? "icon" : ""} />
+        {isEditable && (
+          <>
+            <button
+              type="button"
+              aria-label="Insert a block below"
+              title="Insert a block below"
+              className="flex size-6 items-center justify-center rounded-sm hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              onClick={() => {
+                const key = blockKey();
+                if (key) insertBlockBelow(editor, key);
+              }}
+            >
+              <Plus className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Block actions"
+              title="Drag to move, click for actions"
+              draggable={true}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onClick={openMenu}
+              className="flex h-6 w-5 cursor-grab items-center justify-center rounded-sm hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
+            >
+              <GripVertical className="size-4" />
+            </button>
+          </>
+        )}
+        <DropdownMenu
+          open={menu !== null}
+          onOpenChange={(open) => {
+            if (!open) setMenu(null);
+          }}
+        >
+          <DropdownMenuTrigger asChild>
+            <span
+              aria-hidden="true"
+              className="absolute right-0 bottom-0 size-0"
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-48">
+            {menu && (
+              <BlockActionItems
+                editor={editor}
+                nodeKey={menu.key}
+                blockType={menu.blockType}
+                canTurnInto={menu.canTurnInto}
+              />
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div className="draggable-block-target-line" ref={targetLineRef} />
     </>,
@@ -459,11 +552,29 @@ function useDraggableBlockMenu(
   );
 }
 
+function DraggableBlockMenu({
+  editor,
+  anchorElem,
+}: {
+  editor: LexicalEditor;
+  anchorElem: HTMLElement;
+}) {
+  return useDraggableBlockMenu(editor, anchorElem, editor.isEditable());
+}
+
+/**
+ * A handle beside the block under the mouse: drag it to move the block,
+ * click it for the block's actions. Touch has those in the toolbar's Block
+ * menu instead.
+ */
 export default function DraggableBlockPlugin({
   anchorElem = document.body,
 }: {
   anchorElem?: HTMLElement;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  return useDraggableBlockMenu(editor, anchorElem, editor._editable);
+  const fine = useFinePointer();
+  return fine ? (
+    <DraggableBlockMenu editor={editor} anchorElem={anchorElem} />
+  ) : null;
 }

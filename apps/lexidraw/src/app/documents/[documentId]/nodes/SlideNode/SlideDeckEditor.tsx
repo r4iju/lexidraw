@@ -602,7 +602,6 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
                   cellMerge={true}
                 />
                 <FloatingTextFormatToolbarPlugin
-                  anchorElem={floatingAnchorElem}
                   setIsLinkEditMode={setIsLinkEditMode}
                 />
               </>

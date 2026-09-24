@@ -8,13 +8,16 @@ import { DebugPanel } from "./debug-panel";
 import { AgentSettings } from "./agent-settings";
 import { SlideGenerationForm } from "./slide-generation-form";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { useDeveloperFlag } from "~/lib/developer-flag";
 
 export const Sidebar: React.FC = () => {
-  const { mode } = useChatState();
+  const { mode: chosen } = useChatState();
+  const developer = useDeveloperFlag();
+  const mode = chosen === "debug" && !developer ? "chat" : chosen;
 
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden">
-      <div className="p-2 flex justify-between gap-2 border-b border-border">
+      <div className="p-2 flex items-center justify-between gap-2 border-b border-border">
         <ModeTabs />
         <Reset />
       </div>

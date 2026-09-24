@@ -47,6 +47,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
+import { ToolbarTooltip } from "./ToolbarPlugin/toolbar";
 
 type TtsSegment = {
   index: number;
@@ -57,15 +58,17 @@ type TtsSegment = {
   sectionIndex?: number;
 };
 
+/** Plays the document aloud from the caret's section. */
 export function PlayFromHereButton({
   documentId,
-  buttonClassName,
+  open,
+  onOpenChange,
 }: {
   documentId: string;
-  buttonClassName?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const [editor] = useLexicalComposerContext();
-  const [open, setOpen] = useState(false);
   const [segments, setSegments] = useState<TtsSegment[]>([]);
   const [initialIndex, setInitialIndex] = useState<number>(0);
   const [loading, setLoading] = useState(false);
@@ -156,19 +159,22 @@ export function PlayFromHereButton({
     [slugifySection],
   );
 
-  const handleOpenChange = useCallback((isOpen: boolean) => {
-    setOpen(isOpen);
-    if (!isOpen) {
-      // Reset segments and tracking when closing
-      setSegments([]);
-      setInitialIndex(0);
-      hasTriggeredTts.current = false;
-      setPosition({ x: 0, y: 0 }); // Reset position when closing
-    } else {
-      // Reset tracking when opening
-      hasTriggeredTts.current = false;
-    }
-  }, []);
+  const handleOpenChange = useCallback(
+    (isOpen: boolean) => {
+      onOpenChange(isOpen);
+      if (!isOpen) {
+        // Reset segments and tracking when closing
+        setSegments([]);
+        setInitialIndex(0);
+        hasTriggeredTts.current = false;
+        setPosition({ x: 0, y: 0 }); // Reset position when closing
+      } else {
+        // Reset tracking when opening
+        hasTriggeredTts.current = false;
+      }
+    },
+    [onOpenChange],
+  );
 
   // Drag handlers using @dnd-kit
   const sensors = useSensors(
@@ -213,8 +219,6 @@ export function PlayFromHereButton({
     generateTts();
   }, [open]);
 
-  const disabled = useMemo(() => false, []);
-
   // When job is ready, populate segments and seek to nearest heading
   useEffect(() => {
     if (!open) return;
@@ -242,17 +246,18 @@ export function PlayFromHereButton({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          size="icon"
-          variant="outline"
-          disabled={disabled}
-          className={buttonClassName}
-          title={disabled ? "Generate audio first" : "Play from here"}
-        >
-          <PlayIcon className="size-4" />
-        </Button>
-      </PopoverTrigger>
+      <ToolbarTooltip label="Play from cursor">
+        <PopoverTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Play from cursor"
+            className="size-8 shrink-0 pointer-coarse:size-11"
+          >
+            <PlayIcon />
+          </Button>
+        </PopoverTrigger>
+      </ToolbarTooltip>
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <DraggablePopoverContent
           position={position}
@@ -331,7 +336,7 @@ function DraggablePopoverContent({
                 isDragging ? "cursor-grabbing" : "cursor-move"
               }`}
             >
-              Play from here
+              Listen
             </h3>
             <PopoverClose asChild>
               <Button

@@ -20,6 +20,7 @@ import React, {
   useState,
 } from "react";
 import { cn } from "~/lib/utils";
+import { NodeEditButton } from "../common/NodeEditButton";
 import { MetadataModalProvider } from "./MetadataModalContext";
 
 export type {
@@ -138,13 +139,25 @@ function SlideNodeInner({
       <div
         onDoubleClick={isEditable ? handleOpenModal : undefined}
         onClick={isEditable ? handleSelect : undefined}
-        className={cn("relative", {
+        className={cn("group/node relative", {
           "cursor-pointer": isEditable,
           "ring-1 ring-primary box-content": isEditable && showSelectionUI,
         })}
       >
         <SlideView initialData={initialData} editor={editor} />
+        {isEditable && (
+          <NodeEditButton
+            label="Edit slides"
+            visible={showSelectionUI}
+            onClick={handleOpenModal}
+          />
+        )}
       </div>
+      {isEditable && showSelectionUI && (
+        <p className="mt-2 text-caption text-muted-foreground print:hidden">
+          To change the slides, use Edit or double-click the deck.
+        </p>
+      )}
       {isEditable && isModalOpen && (
         <MetadataModalProvider>
           <SlideModal

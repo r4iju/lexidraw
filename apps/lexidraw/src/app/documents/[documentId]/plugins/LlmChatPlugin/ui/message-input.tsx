@@ -13,6 +13,19 @@ import { useEntityId } from "~/hooks/use-entity-id";
 import { useDebounce } from "~/lib/client-utils";
 import { loadInput, saveInput } from "../storage/local-chat-storage";
 
+const SUGGESTIONS: Partial<Record<string, string[]>> = {
+  chat: [
+    "Summarise this document in three sentences",
+    "What is missing or unclear here?",
+    "Suggest a clearer title",
+  ],
+  agent: [
+    "Fix spelling and grammar",
+    "Add a short summary at the top",
+    "Turn the main points into a checklist",
+  ],
+};
+
 export const MessageInput = () => {
   const documentId = useEntityId();
   const { streaming, mode, messages } = useChatState();
@@ -30,6 +43,7 @@ export const MessageInput = () => {
   const [editor] = useLexicalComposerContext();
   const { serializeEditorStateWithKeys } = useKeyedSerialization();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileUploadInputId = useId();
   const prevModeRef = useRef<typeof mode | null>(null);
   const textRef = useRef(text);
@@ -202,8 +216,36 @@ export const MessageInput = () => {
     }
   })();
 
+  const suggestions = SUGGESTIONS[mode];
+
   return (
     <>
+      {messages.length === 0 && suggestions && (
+        <div className="flex flex-col gap-2 px-3 pb-2">
+          <p className="text-sm text-muted-foreground">
+            Chat answers questions about the document. Agent writes and edits it
+            for you.
+          </p>
+          <ul className="flex flex-col gap-1" aria-label="Suggested prompts">
+            {suggestions.map((suggestion) => (
+              <li key={suggestion}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-auto w-full justify-start py-1.5 text-left whitespace-normal"
+                  onClick={() => {
+                    setText(suggestion);
+                    textareaRef.current?.focus();
+                  }}
+                >
+                  {suggestion}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {files && (
         <div className="flex flex-wrap gap-2 mx-2 mb-1">
           {files.map((file, index) => (
@@ -247,6 +289,7 @@ export const MessageInput = () => {
         />
         <div className="flex-1 flex flex-col">
           <Textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={placeholder}

@@ -24,7 +24,7 @@ import {
 import { MermaidNode } from "../../nodes/MermaidNode";
 import ImageResizer from "~/components/ui/image-resizer";
 import MermaidImage from "./MermaidImage";
-import { Button } from "~/components/ui/button";
+import { NodeEditButton } from "../common/NodeEditButton";
 import MermaidModal from "./MermaidModal";
 import { cn } from "~/lib/utils";
 
@@ -145,7 +145,7 @@ export default function MermaidComponent({
   return (
     <>
       <div
-        className={cn("relative inline-block max-w-full", {
+        className={cn("group/node relative inline-block max-w-full", {
           "cursor-move":
             isFocused && !isResizing && $isNodeSelection(selection),
         })}
@@ -163,14 +163,12 @@ export default function MermaidComponent({
           )}
         />
         {isEditable && (
-          <Button
+          <NodeEditButton
             ref={btnRef}
-            variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs cursor-pointer print:hidden"
+            label="Edit diagram"
+            visible={isFocused}
             onClick={() => setModalOpen(true)}
-          >
-            Edit
-          </Button>
+          />
         )}
 
         {(isFocused || isResizing) && (

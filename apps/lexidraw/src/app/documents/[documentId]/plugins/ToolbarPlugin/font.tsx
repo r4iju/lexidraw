@@ -1,33 +1,40 @@
 import { $patchStyleText } from "@lexical/selection";
 import { $getSelection, type LexicalEditor } from "lexical";
 import Link from "next/link";
-import { useCallback, useMemo, useState, type JSX } from "react";
+import { type JSX, useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import useModal from "~/hooks/useModal";
-import { useToolbarUtils } from "./utils";
+import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 import {
   contentFonts,
   documentFont,
   savedFontFamily,
 } from "~/lib/document-fonts";
 import { useDocumentSettings } from "../../context/document-settings-context";
-import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
+import { ToolbarMenu } from "./toolbar";
+
+type ShowModal = (
+  title: string,
+  content: (onClose: () => void) => JSX.Element,
+) => void;
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["sans", "Sans"],
   ["serif", "Serif"],
   ["mono", "Mono"],
   ["Fredoka", "Fredoka"],
-  ["'M PLUS Rounded 1c'", "'M PLUS Rounded 1c'"],
+  ["M PLUS Rounded 1c", "M PLUS Rounded 1c"],
   ["Noto Sans JP", "Noto Sans JP"],
   ["Arial", "Arial"],
   ["Courier New", "Courier New"],
@@ -40,193 +47,197 @@ const FONT_FAMILY_OPTIONS: [string, string][] = [
   ["Sawarabi Mincho", "Sawarabi Mincho"],
 ];
 
-const FONT_SIZE_OPTIONS: [string, string][] = [
-  ["10px", "10px"],
-  ["11px", "11px"],
-  ["12px", "12px"],
-  ["13px", "13px"],
-  ["14px", "14px"],
-  ["15px", "15px"],
-  ["16px", "16px"],
-  ["17px", "17px"],
-  ["18px", "18px"],
-  ["19px", "19px"],
-  ["20px", "20px"],
-];
+function fontOptions(editor: LexicalEditor): [string, string][] {
+  const known = new Set(FONT_FAMILY_OPTIONS.map(([option]) => option));
+  const imported = contentFonts(JSON.stringify(editor.getEditorState()))
+    .filter((name) => !known.has(name))
+    .map((name): [string, string] => [name, name]);
+  return [...FONT_FAMILY_OPTIONS, ...imported];
+}
+
+function matches(option: string, value: string) {
+  const unquoted = value.replace(/^['"]|['"]$/g, "");
+  return (
+    option === unquoted ||
+    savedFontFamily(option) === unquoted ||
+    documentFont(option).family === value
+  );
+}
+
+function applyFont(editor: LexicalEditor, option: string) {
+  editor.update(() => {
+    const selection = $getSelection();
+    if (selection !== null)
+      $patchStyleText(selection, { "font-family": savedFontFamily(option) });
+  });
+}
+
+const DOCUMENT_FACES = [
+  ["sans", "Sans"],
+  ["serif", "Serif"],
+  ["mono", "Mono"],
+] as const;
+
+/** Fonts, each shown in its own face, then the document-wide actions. */
+export function FontItems({
+  editor,
+  value,
+  showModal,
+}: {
+  editor: LexicalEditor;
+  value: string;
+  showModal: ShowModal;
+}) {
+  const { defaultFontFamily, setDefaultFontFamily, lang, setLang } =
+    useDocumentSettings();
+  const { markDirty } = useUnsavedChanges();
+  const options = fontOptions(editor);
+  const current = options.find(([option]) => matches(option, value))?.[0];
+  const documentFace = defaultFontFamily || "sans";
+
+  const setDocumentFont = (face: string) => {
+    setDefaultFontFamily(face);
+    markDirty();
+  };
+
+  return (
+    <>
+      <DropdownMenuRadioGroup value={current ?? ""}>
+        {options.map(([option, text]) => {
+          const face = documentFont(option);
+          return (
+            <DropdownMenuRadioItem
+              key={option}
+              value={option}
+              onSelect={() => applyFont(editor, option)}
+            >
+              {face.href && <link rel="stylesheet" href={face.href} />}
+              <span style={{ fontFamily: face.family }}>{text}</span>
+            </DropdownMenuRadioItem>
+          );
+        })}
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="pl-8"
+        onSelect={() =>
+          showModal("Import a Google font", (onClose) => (
+            <FontImportModal
+              onClose={onClose}
+              onImport={(name) => applyFont(editor, name.trim())}
+            />
+          ))
+        }
+      >
+        Import a Google font…
+      </DropdownMenuItem>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className="pl-8">
+          Document font
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          <DropdownMenuLabel className="text-muted-foreground">
+            The face for text with no font of its own
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={
+              DOCUMENT_FACES.some(([face]) => face === documentFace)
+                ? documentFace
+                : "other"
+            }
+          >
+            {DOCUMENT_FACES.map(([face, label]) => (
+              <DropdownMenuRadioItem
+                key={face}
+                value={face}
+                onSelect={() => setDocumentFont(face)}
+              >
+                <span style={{ fontFamily: documentFont(face).family }}>
+                  {label}
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
+            <DropdownMenuRadioItem
+              value="other"
+              onSelect={() =>
+                showModal("Document font", (onClose) => (
+                  <DefaultFontImportModal
+                    onClose={onClose}
+                    onImport={setDocumentFont}
+                  />
+                ))
+              }
+            >
+              A Google font…
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuItem
+        className="pl-8"
+        onSelect={() =>
+          showModal("Document language", (onClose) => (
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const value = new FormData(event.currentTarget).get("lang");
+                setLang(typeof value === "string" && value ? value : null);
+                markDirty();
+                onClose();
+              }}
+            >
+              <Label htmlFor="document-language">Language</Label>
+              <select
+                id="document-language"
+                name="lang"
+                defaultValue={lang || ""}
+                className="border rounded-md bg-background p-2"
+              >
+                <option value="">Detect from content</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="zh-Hans">简体中文</option>
+                <option value="zh-Hant">繁體中文</option>
+                <option value="ko">한국어</option>
+              </select>
+              <Button type="submit">Apply</Button>
+            </form>
+          ))
+        }
+      >
+        Document language…
+      </DropdownMenuItem>
+    </>
+  );
+}
 
 export function FontDropDown({
   editor,
   value,
-  style,
+  showModal,
   disabled = false,
-  className = "",
+  className,
 }: {
   editor: LexicalEditor;
   value: string;
-  style: string;
+  showModal: ShowModal;
   disabled?: boolean;
   className?: string;
 }): JSX.Element {
-  const [modal, showModal] = useModal();
-  const [customFonts, setCustomFonts] = useState<[string, string][]>(() =>
-    contentFonts(JSON.stringify(editor.getEditorState())).map((name) => [
-      name,
-      name,
-    ]),
-  );
-  const { dropDownActiveClass } = useToolbarUtils();
-  const { setDefaultFontFamily, lang, setLang } = useDocumentSettings();
-  const { markDirty } = useUnsavedChanges();
-
-  const handleClick = useCallback(
-    (option: string) => {
-      editor.update(() => {
-        const selection = $getSelection();
-        if (selection !== null) {
-          $patchStyleText(selection, {
-            [style]: style === "font-family" ? savedFontFamily(option) : option,
-          });
-        }
-      });
-    },
-    [editor, style],
-  );
-
-  const handleAddFont = useCallback(() => {
-    showModal("Import a custom Font", (onClose) => (
-      <FontImportModal
-        onClose={onClose}
-        onImport={(fontName) => {
-          setCustomFonts((prev) => [
-            ...prev,
-            [fontName.trim(), fontName.trim()],
-          ]);
-        }}
-      />
-    ));
-  }, [showModal]);
-
-  const handleSetDefaultFont = useCallback(() => {
-    showModal("Set Default Document Font", (onClose) => (
-      <DefaultFontImportModal
-        onClose={onClose}
-        onImport={(fontName) => {
-          setDefaultFontFamily(fontName);
-          markDirty();
-        }}
-      />
-    ));
-  }, [showModal, setDefaultFontFamily, markDirty]);
-
-  const buttonAriaLabel =
-    style === "font-family"
-      ? "Formatting options for font family"
-      : "Formatting options for font size";
-
-  const allFontOptions = useMemo(
-    () => [...FONT_FAMILY_OPTIONS, ...customFonts],
-    [customFonts],
-  );
-
-  const options = style === "font-family" ? allFontOptions : FONT_SIZE_OPTIONS;
-
+  const label =
+    fontOptions(editor).find(([option]) => matches(option, value))?.[1] ??
+    value.replace(/^['"]|['"]$/g, "");
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            className={` text-left h-12 md:h-10 ${className}`}
-            variant="outline"
-            disabled={disabled}
-            aria-label={buttonAriaLabel}
-          >
-            <span className="text-sm truncate max-w-20">
-              {getFontLabel(value, options)}
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {options.map(([option, text]: [string, string]) => (
-            <DropdownMenuItem
-              className={`item ${dropDownActiveClass(value === option)} ${
-                style === "font-size" ? "fontsize-item" : ""
-              }`}
-              onClick={() => handleClick(option)}
-              key={option}
-            >
-              <span className="text">{text.replace(/'/g, "")}</span>
-            </DropdownMenuItem>
-          ))}
-          {style === "font-family" && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleAddFont}
-                className="item font-semibold text-primary"
-              >
-                + Import Google Font…
-              </DropdownMenuItem>
-              {(["sans", "serif", "mono"] as const).map((face) => (
-                <DropdownMenuItem
-                  key={face}
-                  onClick={() => {
-                    setDefaultFontFamily(face);
-                    markDirty();
-                  }}
-                >
-                  Document: {face}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem
-                onClick={() =>
-                  showModal("Document language", (onClose) => (
-                    <form
-                      className="flex flex-col gap-3"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        const value = new FormData(event.currentTarget).get(
-                          "lang",
-                        );
-                        setLang(
-                          typeof value === "string" && value ? value : null,
-                        );
-                        markDirty();
-                        onClose();
-                      }}
-                    >
-                      <Label htmlFor="document-language">Language</Label>
-                      <select
-                        id="document-language"
-                        name="lang"
-                        defaultValue={lang || ""}
-                        className="border rounded-md bg-background p-2"
-                      >
-                        <option value="">Detect from content</option>
-                        <option value="en">English</option>
-                        <option value="ja">日本語</option>
-                        <option value="zh-Hans">简体中文</option>
-                        <option value="zh-Hant">繁體中文</option>
-                        <option value="ko">한국어</option>
-                      </select>
-                      <Button type="submit">Apply</Button>
-                    </form>
-                  ))
-                }
-              >
-                Document language…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleSetDefaultFont}
-                className="item font-semibold text-primary"
-              >
-                Set Default Document Font…
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {modal}
-    </>
+    <ToolbarMenu
+      label="Font"
+      disabled={disabled}
+      className={className}
+      contentClassName="min-w-56"
+      trigger={<span className="w-24 truncate text-left">{label}</span>}
+    >
+      <FontItems editor={editor} value={value} showModal={showModal} />
+    </ToolbarMenu>
   );
 }
 
@@ -262,7 +273,9 @@ function FontImportModal({
           Find a font on Google Fonts
         </Link>
       </Button>
-      <Label className="font-medium">Google Font Name</Label>
+      <Label htmlFor="google-font-name" className="font-medium">
+        Google font name
+      </Label>
 
       <Input
         value={fontName}
@@ -270,6 +283,7 @@ function FontImportModal({
           setFontName(e.target.value);
           setError("");
         }}
+        id="google-font-name"
         placeholder="e.g. Indie Flower"
         autoFocus
       />
@@ -313,7 +327,9 @@ function DefaultFontImportModal({
           Find a font on Google Fonts
         </Link>
       </Button>
-      <Label className="font-medium">Google Font Name for Document</Label>
+      <Label htmlFor="google-font-name" className="font-medium">
+        Google font name
+      </Label>
 
       <Input
         value={fontName}
@@ -321,23 +337,14 @@ function DefaultFontImportModal({
           setFontName(e.target.value);
           setError("");
         }}
+        id="google-font-name"
         placeholder="e.g. Roboto"
         autoFocus
       />
       {error && <Label className="text-xs text-destructive">{error}</Label>}
       <Button type="submit" className="mt-2">
-        Set as Default
+        Use for the document
       </Button>
     </form>
   );
-}
-
-function getFontLabel(value: string, options: [string, string][]) {
-  const found = options.find(
-    ([val]) =>
-      val === value ||
-      savedFontFamily(val) === value ||
-      documentFont(val).family === value,
-  );
-  return found ? found[1].replace(/'/g, "") : value;
 }

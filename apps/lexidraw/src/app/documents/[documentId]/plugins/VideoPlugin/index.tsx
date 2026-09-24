@@ -94,7 +94,6 @@ function InsertVideoByUrlDialogBody({
         { url, entityId },
         {
           onSuccess: (data) => {
-            console.log("Download started:", data);
             onStartProcessing(data.requestId, url);
           },
           onError: (err) => {
@@ -167,12 +166,18 @@ export function InsertVideoDialog({
         <TabsTrigger className="flex-1" value="url">
           From a link
         </TabsTrigger>
+        <TabsTrigger className="flex-1" value="settings">
+          Download settings
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="upload" className="min-w-84">
         <InsertVideoUploadedDialogBody onClick={insertVideo} />
       </TabsContent>
       <TabsContent value="url" className="min-w-84">
         <InsertVideoByUrlDialogBody onStartProcessing={onStartProcessing} />
+      </TabsContent>
+      <TabsContent value="settings" className="min-w-84">
+        <VideoDownloadSettings onClose={() => setTab("url")} />
       </TabsContent>
     </Tabs>
   );
@@ -295,7 +300,6 @@ export default function VideoPlugin(): React.JSX.Element | null {
     const unregisterOpenDialogCommand = editor.registerCommand(
       OPEN_INSERT_VIDEO_DIALOG_COMMAND,
       () => {
-        console.log("OPEN_INSERT_VIDEO_DIALOG_COMMAND");
         setIsModalOpen(true);
         return true;
       },
@@ -314,7 +318,6 @@ export default function VideoPlugin(): React.JSX.Element | null {
 
   const handleStartProcessing = useCallback(
     (requestId: string, url: string) => {
-      console.log(`Starting processing for ${url} with ID: ${requestId}`);
       const toastId = toast.loading(
         `Processing video: ${url.substring(0, 50)}...`,
       );
@@ -396,7 +399,7 @@ export default function VideoPlugin(): React.JSX.Element | null {
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
-              <DialogTitle>Insert Video</DialogTitle>
+              <DialogTitle>Insert video</DialogTitle>
             </DialogHeader>
             <InsertVideoDialog
               activeEditor={editor}
@@ -410,11 +413,8 @@ export default function VideoPlugin(): React.JSX.Element | null {
   );
 }
 
-export function InsertVideoSettingsDialog({
-  onClose,
-}: {
-  onClose: () => void;
-}) {
+/** Cookies for sites that only share video with a signed-in viewer. */
+function VideoDownloadSettings({ onClose }: { onClose: () => void }) {
   const schema = z.object({
     cookies: z.array(
       z.object({
@@ -449,8 +449,6 @@ export function InsertVideoSettingsDialog({
   }, [cookies, reset]);
 
   const onSubmit = ({ cookies }: z.infer<typeof schema>) => {
-    // TODO: handle save
-    console.log("Save cookies:", cookies);
     setCookies(
       {
         cookies: cookies.map((cookie) => ({
@@ -505,6 +503,10 @@ export function InsertVideoSettingsDialog({
 
   return (
     <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
+      <p className="text-sm text-muted-foreground">
+        Some sites only share video with a signed-in viewer. Paste the site's
+        cookies.txt export to download from a link there.
+      </p>
       <div className="flex flex-col gap-4">
         {fields.map((_field, index) => (
           <div key={`cookie-${_field.id}`} className="flex flex-col gap-1">
@@ -542,7 +544,7 @@ export function InsertVideoSettingsDialog({
         className="w-full flex items-center gap-2"
       >
         <Plus className="size-4" />
-        Add Cookie
+        Add cookie
       </Button>
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>

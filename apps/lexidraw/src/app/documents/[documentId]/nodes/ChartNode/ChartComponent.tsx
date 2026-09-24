@@ -26,7 +26,7 @@ import {
 } from "react";
 import { ChartNode, type ChartType } from "./index"; // Assuming ChartNode is in the same directory
 import ImageResizer from "~/components/ui/image-resizer";
-import { Button } from "~/components/ui/button";
+import { NodeEditButton } from "../common/NodeEditButton";
 import ChartModal from "./ChartModal";
 import DynamicChartRenderer from "./DynamicChartRenderer";
 import { cn } from "~/lib/utils";
@@ -180,11 +180,14 @@ export default function ChartComponent({
   return (
     <>
       <div
-        className={cn("relative block max-w-full mx-auto chart-component", {
-          "cursor-move":
-            isFocused && !isResizing && $isNodeSelection(selection),
-          "ring-1 ring-muted-foreground": isFocused || isResizing,
-        })}
+        className={cn(
+          "group/node relative block max-w-full mx-auto chart-component",
+          {
+            "cursor-move":
+              isFocused && !isResizing && $isNodeSelection(selection),
+            "ring-1 ring-muted-foreground": isFocused || isResizing,
+          },
+        )}
         data-empty={parsedChartData.length === 0}
         ref={containerRef}
         draggable={isFocused && !isResizing && $isNodeSelection(selection)}
@@ -207,14 +210,12 @@ export default function ChartComponent({
         />
 
         {isEditable && (
-          <Button
+          <NodeEditButton
             ref={btnRef}
-            variant="ghost"
-            className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-media-overlay/65 text-media-overlay-foreground hover:bg-media-overlay/80 backdrop-blur-xs cursor-pointer print:hidden"
+            label="Edit chart"
+            visible={isFocused}
             onClick={() => setModalOpen(true)}
-          >
-            Edit
-          </Button>
+          />
         )}
 
         {(isFocused || isResizing) && (

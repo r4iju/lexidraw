@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 
+import { useDeveloperFlag } from "~/lib/developer-flag";
 import { DEFAULT_SETTINGS, type Settings } from "./app-settings";
 
 const SETTINGS_STORAGE_KEY = "lexidraw-settings";
@@ -75,9 +76,14 @@ export const SettingsProvider = ({
     });
   }, []);
 
+  const developer = useDeveloperFlag();
   const contextValue = useMemo(() => {
-    return { setOption, settings };
-  }, [setOption, settings]);
+    // Developer tools stay off, whatever was stored, unless the flag is on.
+    const effective = developer
+      ? settings
+      : { ...settings, showNestedEditorTreeView: false };
+    return { setOption, settings: effective };
+  }, [setOption, settings, developer]);
 
   return (
     <SettingsContext.Provider value={contextValue}>

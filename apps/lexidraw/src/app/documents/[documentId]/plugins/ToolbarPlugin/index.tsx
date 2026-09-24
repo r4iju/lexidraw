@@ -3,8 +3,6 @@ import { normalizeCodeLanguage } from "@lexical/code-shiki";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $isListNode, ListNode } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode";
-import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";
 import {
   $getSelectionStyleValueForProperty,
   $patchStyleText,
@@ -12,17 +10,14 @@ import {
 import { $isTableNode, $isTableSelection } from "@lexical/table";
 import {
   $findMatchingParent,
-  $getNearestBlockElementAncestorOrThrow,
   $getNearestNodeOfType,
   mergeRegister,
 } from "@lexical/utils";
 import {
-  $createParagraphNode,
   $getSelection,
   $isElementNode,
   $isRangeSelection,
   $isRootOrShadowRoot,
-  $isTextNode,
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_CRITICAL,
@@ -34,60 +29,187 @@ import {
   type NodeKey,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
+  type TextFormatType,
   UNDO_COMMAND,
 } from "lexical";
 import {
-  type Dispatch,
-  useCallback,
-  useEffect,
-  useState,
-  type JSX,
-} from "react";
-import { IS_APPLE } from "../../shared/environment";
-import { ColorPickerButton } from "~/components/ui/color-picker";
-import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { useSanitizeUrl } from "../../utils/url";
-import FontSize from "./font-size";
-import { useDocumentSettings } from "../../context/document-settings-context";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import { Button } from "~/components/ui/button";
-import {
   Baseline,
+  Blocks,
   Bold,
+  Bug,
   Code,
+  Headphones,
+  Highlighter,
   Italic,
   Link,
-  BotMessageSquare,
-  PaintBucket,
+  type LucideIcon,
   Redo,
+  RemoveFormatting,
+  Sparkles,
+  Strikethrough,
+  Subscript,
+  Superscript,
   Underline,
   Undo,
 } from "lucide-react";
-import { TooltipButton } from "~/components/ui/tooltip-button";
-import Ellipsis from "~/components/icons/ellipsis";
-import { Tooltip, TooltipTrigger } from "~/components/ui/tooltip";
-import { cn } from "~/lib/utils";
-import { useSidebarManager } from "~/context/sidebar-manager-context";
-import { useToolbarUtils } from "./utils";
-import { FontDropDown } from "./font";
 import {
-  blockTypeToBlockName,
-  type rootTypeToRootName,
-} from "../../context/toolbar-context";
-import { BlockFormatDropDown, type BlockType } from "./block-format";
-import { LlmModelSelector } from "./llm-config";
-import { ElementFormatDropdown } from "./element-format";
-import { Divider } from "./divider";
-import { CodeSelector } from "./code-selector";
-import { InsertItem } from "./insert-item";
-import { SettingsDropdown } from "./settings-dropdown";
-import { TtsToolbar } from "../TtsToolbar";
+  type Dispatch,
+  type JSX,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+import {
+  ColorPickerButton,
+  type ColorPreset,
+  HIGHLIGHT_PRESETS,
+  TEXT_COLOUR_PRESETS,
+} from "~/components/ui/color-picker";
+import {
+  DropdownMenuCheckboxItem,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "~/components/ui/dropdown-menu";
+import useModal from "~/hooks/useModal";
+import { useDeveloperFlag } from "~/lib/developer-flag";
+import { useDocumentSettings } from "../../context/document-settings-context";
 import { useSignedIn } from "../../context/signed-in-context";
+import type { rootTypeToRootName } from "../../context/toolbar-context";
+import { IS_APPLE } from "../../shared/environment";
+import { useGetSelectedNode } from "../../utils/getSelectedNode";
+import { useSanitizeUrl } from "../../utils/url";
+import { ListenControls, ListenItems, ListenProvider } from "../TtsToolbar";
+import { AiItems, AiMenu, DeveloperItems, DeveloperMenu } from "./ai-menu";
+import { $blockTypeOf, BlockActionItems } from "./block-actions";
+import {
+  BlockFormatDropDown,
+  type BlockType,
+  BlockTypeItems,
+  blockTypeLabel,
+} from "./block-format";
+import { CodeLanguageItems, CodeSelector } from "./code-selector";
+import { AlignItems, ElementFormatDropdown } from "./element-format";
+import { FontDropDown, FontItems } from "./font";
+import FontSize from "./font-size";
+import { InsertItems, InsertMenu } from "./insert-item";
+import {
+  formatShortcut,
+  Toolbar,
+  ToolbarButton,
+  type ToolbarGroup,
+  ToolbarMenu,
+} from "./toolbar";
+import { useToolbarUtils } from "./utils";
+
+const MARKS: {
+  format: TextFormatType;
+  label: string;
+  icon: LucideIcon;
+  shortcut: string;
+}[] = [
+  { format: "bold", label: "Bold", icon: Bold, shortcut: "Mod+B" },
+  { format: "italic", label: "Italic", icon: Italic, shortcut: "Mod+I" },
+  {
+    format: "underline",
+    label: "Underline",
+    icon: Underline,
+    shortcut: "Mod+U",
+  },
+  {
+    format: "strikethrough",
+    label: "Strikethrough",
+    icon: Strikethrough,
+    shortcut: "Mod+Shift+S",
+  },
+];
+
+const SCRIPTS: typeof MARKS = [
+  {
+    format: "subscript",
+    label: "Subscript",
+    icon: Subscript,
+    shortcut: "Mod+,",
+  },
+  {
+    format: "superscript",
+    label: "Superscript",
+    icon: Superscript,
+    shortcut: "Mod+.",
+  },
+];
+
+const REDO_SHORTCUT = IS_APPLE ? "Mod+Shift+Z" : "Mod+Y";
+
+/** A folded group in More: its label opens what the group offers. */
+function MoreSub({
+  label,
+  icon: Icon,
+  children,
+  disabled,
+}: {
+  label: string;
+  icon?: LucideIcon;
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="gap-2" disabled={disabled}>
+        {Icon && <Icon className="size-4" />}
+        {label}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="min-w-52">
+        {children}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+}
+
+function ShortcutHint({ shortcut }: { shortcut: string }) {
+  return (
+    <DropdownMenuShortcut aria-hidden="true">
+      {formatShortcut(shortcut).label}
+    </DropdownMenuShortcut>
+  );
+}
+
+function ColourItems({
+  value,
+  presets,
+  onChange,
+}: {
+  value: string;
+  presets: ColorPreset[];
+  onChange: (value: string, skipHistoryStack: boolean) => void;
+}) {
+  return (
+    <DropdownMenuRadioGroup
+      value={value}
+      onValueChange={(next) => onChange(next, false)}
+    >
+      {[{ label: "Automatic", value: "" }, ...presets].map((preset) => (
+        <DropdownMenuRadioItem
+          key={preset.value || "automatic"}
+          value={preset.value}
+          className="gap-2"
+        >
+          <span
+            aria-hidden="true"
+            className="size-3.5 rounded-full border border-border"
+            style={{ background: preset.value || undefined }}
+          />
+          {preset.label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+}
 
 export default function ToolbarPlugin({
   setIsLinkEditMode,
@@ -98,6 +220,7 @@ export default function ToolbarPlugin({
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const signedIn = useSignedIn();
+  const developer = useDeveloperFlag();
   const [activeEditor, setActiveEditor] = useState(editor);
   const [blockType, setBlockType] = useState<BlockType>("paragraph");
   const [rootType, setRootType] =
@@ -105,29 +228,22 @@ export default function ToolbarPlugin({
   const [selectedElementKey, setSelectedElementKey] = useState<NodeKey | null>(
     null,
   );
-  const { dropDownActiveClass } = useToolbarUtils();
   const getSelectedNode = useGetSelectedNode();
   const { defaultFontFamily } = useDocumentSettings();
+  const { clearFormatting } = useToolbarUtils();
+  const [modal, showModal] = useModal();
   const [fontSize, setFontSize] = useState<string>("16px");
   const [fontColor, setFontColor] = useState<string>("");
   const [bgColor, setBgColor] = useState<string>("");
   const [fontFamily, setFontFamily] = useState<string>("");
   const [elementFormat, setElementFormat] = useState<ElementFormatType>("left");
   const [isLink, setIsLink] = useState(false);
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [isUnderline, setIsUnderline] = useState(false);
-  const [isStrikethrough, setIsStrikethrough] = useState(false);
-  const [isSubscript, setIsSubscript] = useState(false);
-  const [isSuperscript, setIsSuperscript] = useState(false);
-  const [isCode, setIsCode] = useState(false);
+  const [formats, setFormats] = useState<Set<TextFormatType>>(new Set());
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [isRTL, setIsRTL] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState<string>("");
   const [isEditable, setIsEditable] = useState(() => activeEditor.isEditable());
-
-  const { activeSidebar, toggleSidebar } = useSidebarManager();
 
   const sanitizeUrl = useSanitizeUrl();
 
@@ -150,14 +266,13 @@ export default function ToolbarPlugin({
       const elementKey = element.getKey();
       const elementDOM = activeEditor.getElementByKey(elementKey);
 
-      // Update text format
-      setIsBold(selection.hasFormat("bold"));
-      setIsItalic(selection.hasFormat("italic"));
-      setIsUnderline(selection.hasFormat("underline"));
-      setIsStrikethrough(selection.hasFormat("strikethrough"));
-      setIsSubscript(selection.hasFormat("subscript"));
-      setIsSuperscript(selection.hasFormat("superscript"));
-      setIsCode(selection.hasFormat("code"));
+      setFormats(
+        new Set(
+          [...MARKS, ...SCRIPTS, { format: "code" as const }]
+            .map(({ format }) => format)
+            .filter((format) => selection.hasFormat(format)),
+        ),
+      );
       // Lexical >=0.35 requires an active editor when reading computed styles
       // Determine RTL from the root element direction to avoid relying on editor state
       const rootEl = activeEditor.getRootElement();
@@ -167,21 +282,12 @@ export default function ToolbarPlugin({
         setIsRTL(dir === "rtl");
       }
 
-      // Update links
       const node = getSelectedNode(selection);
       const parent = node.getParent();
-      if ($isLinkNode(parent) || $isLinkNode(node)) {
-        setIsLink(true);
-      } else {
-        setIsLink(false);
-      }
+      setIsLink($isLinkNode(parent) || $isLinkNode(node));
 
       const tableNode = $findMatchingParent(node, $isTableNode);
-      if ($isTableNode(tableNode)) {
-        setRootType("table");
-      } else {
-        setRootType("root");
-      }
+      setRootType($isTableNode(tableNode) ? "table" : "root");
 
       if (elementDOM !== null) {
         setSelectedElementKey(elementKey);
@@ -190,17 +296,12 @@ export default function ToolbarPlugin({
             anchorNode,
             ListNode,
           );
-          const type = parentList
-            ? parentList.getListType()
-            : element.getListType();
-          setBlockType(type);
+          setBlockType(
+            parentList ? parentList.getListType() : element.getListType(),
+          );
         } else {
-          const type = $isHeadingNode(element)
-            ? element.getTag()
-            : element.getType();
-          if (type in blockTypeToBlockName) {
-            setBlockType(type as BlockType);
-          }
+          const type = $blockTypeOf(element);
+          if (type) setBlockType(type);
           if ($isCodeNode(element)) {
             const language = element.getLanguage();
             setCodeLanguage(language ? normalizeCodeLanguage(language) : "");
@@ -208,7 +309,6 @@ export default function ToolbarPlugin({
           }
         }
       }
-      // Handle buttons
       setFontColor($getSelectionStyleValueForProperty(selection, "color", ""));
       setBgColor(
         $getSelectionStyleValueForProperty(selection, "background-color", ""),
@@ -218,14 +318,13 @@ export default function ToolbarPlugin({
       );
       let matchingParent: LexicalNode | null = null;
       if ($isLinkNode(parent)) {
-        // If node is a link, we need to fetch the parent paragraph node to set format
+        // A link's format is its paragraph's.
         matchingParent = $findMatchingParent(
           node,
           (parentNode) => $isElementNode(parentNode) && !parentNode.isInline(),
         );
       }
 
-      // If matchingParent is a valid node, pass it's format type
       setElementFormat(
         $isElementNode(matchingParent)
           ? matchingParent.getFormatType()
@@ -294,30 +393,33 @@ export default function ToolbarPlugin({
     );
   }, [$updateToolbar, activeEditor]);
 
+  const toggleLink = useCallback(() => {
+    if (!isLink) {
+      setIsLinkEditMode(true);
+      activeEditor.dispatchCommand(
+        TOGGLE_LINK_COMMAND,
+        sanitizeUrl("https://"),
+      );
+    } else {
+      setIsLinkEditMode(false);
+      activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+    }
+  }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
+
   useEffect(() => {
     return activeEditor.registerCommand(
       KEY_MODIFIER_COMMAND,
-      (payload) => {
-        const event: KeyboardEvent = payload;
-        const { code, ctrlKey, metaKey } = event;
-
-        if (code === "KeyK" && (ctrlKey || metaKey)) {
+      (event: KeyboardEvent) => {
+        if (event.code === "KeyK" && (event.ctrlKey || event.metaKey)) {
           event.preventDefault();
-          let url: string | null;
-          if (!isLink) {
-            setIsLinkEditMode(true);
-            url = sanitizeUrl("https://");
-          } else {
-            setIsLinkEditMode(false);
-            url = null;
-          }
-          return activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, url);
+          toggleLink();
+          return true;
         }
         return false;
       },
       COMMAND_PRIORITY_NORMAL,
     );
-  }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
+  }, [activeEditor, toggleLink]);
 
   const applyStyleText = useCallback(
     (styles: Record<string, string | null>, skipHistoryStack?: boolean) => {
@@ -333,62 +435,6 @@ export default function ToolbarPlugin({
     },
     [activeEditor],
   );
-
-  const clearFormatting = useCallback(() => {
-    activeEditor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection) || $isTableSelection(selection)) {
-        const anchor = selection.anchor;
-        const focus = selection.focus;
-        const nodes = selection.getNodes();
-        const extractedNodes = selection.extract();
-
-        if (anchor.key === focus.key && anchor.offset === focus.offset) {
-          return;
-        }
-
-        for (let [idx, node] of nodes.entries()) {
-          // We split the first and last node by the selection
-          // So that we don't format unselected text inside those nodes
-          if ($isTextNode(node)) {
-            // Use a separate variable to ensure TS does not lose the refinement
-            let textNode = node;
-            if (idx === 0 && anchor.offset !== 0) {
-              textNode = textNode.splitText(anchor.offset)[1] || textNode;
-            }
-            if (idx === nodes.length - 1) {
-              textNode = textNode.splitText(focus.offset)[0] || textNode;
-            }
-            /**
-             * If the selected text has one format applied
-             * selecting a portion of the text, could
-             * clear the format to the wrong portion of the text.
-             *
-             * The cleared text is based on the length of the selected text.
-             */
-            // We need this in case the selected text only has one format
-            const extractedTextNode = extractedNodes[0];
-            if (nodes.length === 1 && $isTextNode(extractedTextNode)) {
-              textNode = extractedTextNode;
-            }
-
-            if (textNode.__style !== "") {
-              textNode.setStyle("");
-            }
-            if (textNode.__format !== 0) {
-              textNode.setFormat(0);
-              $getNearestBlockElementAncestorOrThrow(textNode).setFormat("");
-            }
-            node = textNode;
-          } else if ($isHeadingNode(node) || $isQuoteNode(node)) {
-            node.replace($createParagraphNode(), true);
-          } else if ($isDecoratorBlockNode(node)) {
-            node.setFormat("");
-          }
-        }
-      }
-    });
-  }, [activeEditor]);
 
   const onFontColorSelect = useCallback(
     (value: string, skipHistoryStack: boolean) => {
@@ -407,289 +453,363 @@ export default function ToolbarPlugin({
     [applyStyleText],
   );
 
-  const insertLink = useCallback(() => {
-    if (!isLink) {
-      setIsLinkEditMode(true);
-      activeEditor.dispatchCommand(
-        TOGGLE_LINK_COMMAND,
-        sanitizeUrl("https://"),
-      );
-    } else {
-      setIsLinkEditMode(false);
-      activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
-    }
-  }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
+  const inCode = blockType === "code";
+  const format = (value: TextFormatType) =>
+    activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, value);
+  const formatItems = (marks: typeof MARKS) =>
+    marks.map(({ format: value, label, icon: Icon, shortcut }) => (
+      <DropdownMenuCheckboxItem
+        key={value}
+        checked={formats.has(value)}
+        disabled={inCode}
+        onCheckedChange={() => format(value)}
+      >
+        <Icon className="mr-2 size-4" />
+        {label}
+        <ShortcutHint shortcut={shortcut} />
+      </DropdownMenuCheckboxItem>
+    ));
+  const formatButtons = (marks: typeof MARKS) =>
+    marks.map(({ format: value, label, icon, shortcut }) => (
+      <ToolbarButton
+        key={value}
+        label={label}
+        shortcut={shortcut}
+        icon={icon}
+        pressed={formats.has(value)}
+        disabled={inCode}
+        onClick={() => format(value)}
+      />
+    ));
+  const fontValue = fontFamily || defaultFontFamily || "sans";
 
-  return (
-    <div
-      className={cn(
-        "flex flex-nowrap md:flex-wrap gap-2 overflow-x-auto md:overflow-visible top-0",
-        className,
-      )}
-    >
-      {/* Formatting and inserting: nothing to offer someone reading. */}
-      {isEditable && (
+  const editing: ToolbarGroup[] = [
+    {
+      id: "history",
+      label: "History",
+      content: (
         <>
-          {/* Undo/Redo */}
-          <fieldset className="flex" aria-label="History actions">
-            <TooltipButton
-              onClick={() => {
-                activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
-              }}
-              className="w-10 md:w-8 h-12 md:h-10 rounded-r-none"
-              disabled={!canUndo}
-              title={IS_APPLE ? "Undo (⌘Z)" : "Undo (Ctrl+Z)"}
-              Icon={Undo}
-              ariaLabel="Undo"
-            />
-            <TooltipButton
-              onClick={() => {
-                activeEditor.dispatchCommand(REDO_COMMAND, undefined);
-              }}
-              className="w-10 md:w-8 h-12 md:h-10 rounded-l-none"
-              disabled={!canRedo}
-              title={IS_APPLE ? "Redo (⌘Y)" : "Redo (Ctrl+Y)"}
-              Icon={Redo}
-              ariaLabel="Redo"
-            />
-          </fieldset>
-
-          <Divider />
-
-          {blockType === "code" ? (
-            <>
-              <CodeSelector
-                activeEditor={activeEditor}
-                selectedElementKey={selectedElementKey}
-                isEditable={isEditable}
-                codeLanguage={codeLanguage}
-              />
-              <Divider />
-            </>
-          ) : (
-            <>
-              <div className="flex gap-0 h-12 md:h-10">
-                <ElementFormatDropdown
-                  value={elementFormat}
-                  editor={activeEditor}
-                  isRTL={isRTL}
-                  className="rounded-r-none border-r-0"
-                />
-                <BlockFormatDropDown
-                  blockType={blockType}
-                  rootType={rootType}
-                  editor={activeEditor}
-                  className="rounded-none border-x-0"
-                />
-                <FontDropDown
-                  style={"font-family"}
-                  value={fontFamily || defaultFontFamily || "sans"}
-                  editor={activeEditor}
-                  className="rounded-l-none border-l-0"
-                />
-              </div>
-              <Divider />
-              <fieldset
-                className="flex"
-                aria-label="Font style and basic formatting"
-              >
-                <FontSize
-                  selectionFontSize={fontSize.slice(0, -2)}
-                  editor={activeEditor}
-                  className=""
-                />
-                <TooltipButton
-                  onClick={() => {
-                    activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
-                  }}
-                  className={cn(
-                    "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
-                    { "bg-muted": isBold },
-                  )}
-                  title={IS_APPLE ? "Bold (⌘B)" : "Bold (Ctrl+B)"}
-                  Icon={Bold}
-                  ariaLabel={`Format text as bold. Shortcut: ${IS_APPLE ? "⌘B" : "Ctrl+B"}`}
-                />
-                <TooltipButton
-                  onClick={() => {
-                    activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
-                  }}
-                  className={cn(
-                    "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
-                    { "bg-muted": isItalic },
-                  )}
-                  title={IS_APPLE ? "Italic (⌘I)" : "Italic (Ctrl+I)"}
-                  Icon={Italic}
-                  ariaLabel={`Format text as italics. Shortcut: ${IS_APPLE ? "⌘I" : "Ctrl+I"}`}
-                />
-                <TooltipButton
-                  onClick={() => {
-                    activeEditor.dispatchCommand(
-                      FORMAT_TEXT_COMMAND,
-                      "underline",
-                    );
-                  }}
-                  className={cn(
-                    "w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0",
-                    { "bg-muted": isUnderline },
-                  )}
-                  title={IS_APPLE ? "Underline (⌘U)" : "Underline (Ctrl+U)"}
-                  Icon={Underline}
-                  ariaLabel={`Format text to underlined. Shortcut: ${IS_APPLE ? "⌘U" : "Ctrl+U"}`}
-                />
-                {/* Text Color / Background Color */}
-                <div className="flex">
-                  <ColorPickerButton
-                    buttonAriaLabel="Formatting text color"
-                    color={fontColor}
-                    onChange={onFontColorSelect}
-                    title="Text color"
-                    Icon={Baseline}
-                    className="rounded-none border-x-0"
-                  />
-                  <ColorPickerButton
-                    buttonAriaLabel="Formatting background color"
-                    color={bgColor}
-                    onChange={onBgColorSelect}
-                    title="Background color"
-                    Icon={PaintBucket}
-                    className="rounded-none border-x-0"
-                  />
-                </div>
-                <Tooltip>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          aria-label="Formatting options for additional text styles"
-                          className="w-10 md:w-8 h-12 md:h-10 p-1 rounded-l-none rounded-r-md border-l-0"
-                        >
-                          <Ellipsis className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          activeEditor.dispatchCommand(
-                            FORMAT_TEXT_COMMAND,
-                            "strikethrough",
-                          );
-                        }}
-                        className={`item ${dropDownActiveClass(isStrikethrough)}`}
-                        title="Strikethrough"
-                        aria-label="Format text with a strikethrough"
-                      >
-                        <i className="icon strikethrough" />
-                        <span className="text">Strikethrough</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          activeEditor.dispatchCommand(
-                            FORMAT_TEXT_COMMAND,
-                            "subscript",
-                          );
-                        }}
-                        className={`item ${dropDownActiveClass(isSubscript)}`}
-                        title="Subscript"
-                        aria-label="Format text with a subscript"
-                      >
-                        <i className="icon subscript" />
-                        <span className="text">Subscript</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          activeEditor.dispatchCommand(
-                            FORMAT_TEXT_COMMAND,
-                            "superscript",
-                          );
-                        }}
-                        className={`item ${dropDownActiveClass(isSuperscript)}`}
-                        title="Superscript"
-                        aria-label="Format text with a superscript"
-                      >
-                        <i className="icon superscript" />
-                        <span className="text">Superscript</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={clearFormatting}
-                        className="item"
-                        title="Clear text formatting"
-                        aria-label="Clear all text formatting"
-                      >
-                        <i className="icon clear" />
-                        <span className="text">Clear Formatting</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </Tooltip>
-              </fieldset>
-              <Divider />
-
-              <div className="flex gap-0 h-12 md:h-10">
-                <InsertItem
-                  activeEditor={activeEditor}
-                  isEditable={isEditable}
-                />
-                <TooltipButton
-                  onClick={() => {
-                    activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
-                  }}
-                  className={cn(
-                    "w-10 md:w-8 h-12 md:h-10 border-x-0 rounded-none",
-                    {
-                      "bg-muted": isCode,
-                    },
-                  )}
-                  title="Insert code block"
-                  Icon={Code}
-                  ariaLabel="Insert code block"
-                />
-                <TooltipButton
-                  className={cn(
-                    "w-10 md:w-8 h-12 md:h-10 border-l-0 rounded-l-none",
-                    {
-                      "bg-muted": isLink,
-                    },
-                  )}
-                  onClick={insertLink}
-                  title="Insert link"
-                  Icon={Link}
-                  ariaLabel="Insert link"
-                />
-              </div>
-            </>
-          )}
-          <Divider />
-        </>
-      )}
-
-      {/* The assistant writes into the document, so it goes with editing. */}
-      {isEditable && (
-        <fieldset className="flex" aria-label="AI controls">
-          <LlmModelSelector
-            className={cn(signedIn && "rounded-r-none border-r-0")}
+          <ToolbarButton
+            label="Undo"
+            shortcut="Mod+Z"
+            icon={Undo}
+            disabled={!canUndo}
+            onClick={() =>
+              activeEditor.dispatchCommand(UNDO_COMMAND, undefined)
+            }
           />
-          {signedIn && (
-            <TooltipButton
-              className={cn(
-                "w-10 md:w-8 h-12 md:h-10 rounded-l-none rounded-r-md border-l-0",
-                { "bg-muted": activeSidebar === "llm" },
-              )}
-              onClick={() => toggleSidebar("llm")}
-              ariaLabel="Toggle LLM Chat"
-              title="AI Assistant"
-              Icon={BotMessageSquare}
+          <ToolbarButton
+            label="Redo"
+            shortcut={REDO_SHORTCUT}
+            icon={Redo}
+            disabled={!canRedo}
+            onClick={() =>
+              activeEditor.dispatchCommand(REDO_COMMAND, undefined)
+            }
+          />
+        </>
+      ),
+      menu: (
+        <>
+          <DropdownMenuItem
+            className="gap-2"
+            disabled={!canUndo}
+            onSelect={() =>
+              activeEditor.dispatchCommand(UNDO_COMMAND, undefined)
+            }
+          >
+            <Undo className="size-4" />
+            Undo
+            <ShortcutHint shortcut="Mod+Z" />
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2"
+            disabled={!canRedo}
+            onSelect={() =>
+              activeEditor.dispatchCommand(REDO_COMMAND, undefined)
+            }
+          >
+            <Redo className="size-4" />
+            Redo
+            <ShortcutHint shortcut={REDO_SHORTCUT} />
+          </DropdownMenuItem>
+        </>
+      ),
+    },
+    {
+      id: "block-type",
+      label: "Block type",
+      content: (
+        <BlockFormatDropDown
+          blockType={blockType}
+          rootType={rootType}
+          editor={activeEditor}
+        />
+      ),
+      menu: (
+        <MoreSub label="Block type" icon={blockTypeLabel(blockType).icon}>
+          <BlockTypeItems editor={activeEditor} blockType={blockType} />
+        </MoreSub>
+      ),
+    },
+    {
+      id: "marks",
+      label: "Text style",
+      content: formatButtons(MARKS),
+      menu: formatItems(MARKS),
+    },
+    {
+      id: "inline",
+      label: "Code and link",
+      content: (
+        <>
+          <ToolbarButton
+            label="Inline code"
+            shortcut="Mod+Shift+C"
+            icon={Code}
+            pressed={formats.has("code")}
+            disabled={inCode}
+            onClick={() => format("code")}
+          />
+          <ToolbarButton
+            label="Link"
+            shortcut="Mod+K"
+            icon={Link}
+            pressed={isLink}
+            disabled={inCode}
+            onClick={toggleLink}
+          />
+        </>
+      ),
+      menu: (
+        <>
+          <DropdownMenuCheckboxItem
+            checked={formats.has("code")}
+            disabled={inCode}
+            onCheckedChange={() => format("code")}
+          >
+            <Code className="mr-2 size-4" />
+            Inline code
+            <ShortcutHint shortcut="Mod+Shift+C" />
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={isLink}
+            disabled={inCode}
+            onCheckedChange={toggleLink}
+          >
+            <Link className="mr-2 size-4" />
+            Link
+            <ShortcutHint shortcut="Mod+K" />
+          </DropdownMenuCheckboxItem>
+        </>
+      ),
+    },
+    {
+      id: "colour",
+      label: "Colour",
+      content: (
+        <>
+          <ColorPickerButton
+            title="Text colour"
+            color={fontColor}
+            presets={TEXT_COLOUR_PRESETS}
+            onChange={onFontColorSelect}
+            Icon={Baseline}
+            disabled={inCode}
+          />
+          <ColorPickerButton
+            title="Highlight"
+            color={bgColor}
+            presets={HIGHLIGHT_PRESETS}
+            onChange={onBgColorSelect}
+            Icon={Highlighter}
+            disabled={inCode}
+          />
+        </>
+      ),
+      menu: (
+        <>
+          <MoreSub label="Text colour" icon={Baseline} disabled={inCode}>
+            <ColourItems
+              value={fontColor}
+              presets={TEXT_COLOUR_PRESETS}
+              onChange={onFontColorSelect}
             />
-          )}
-        </fieldset>
-      )}
+          </MoreSub>
+          <MoreSub label="Highlight" icon={Highlighter} disabled={inCode}>
+            <ColourItems
+              value={bgColor}
+              presets={HIGHLIGHT_PRESETS}
+              onChange={onBgColorSelect}
+            />
+          </MoreSub>
+        </>
+      ),
+    },
+    {
+      id: "insert",
+      label: "Insert",
+      content: <InsertMenu editor={activeEditor} showModal={showModal} />,
+      menu: (
+        <MoreSub label="Insert">
+          <InsertItems editor={activeEditor} showModal={showModal} />
+        </MoreSub>
+      ),
+    },
+    {
+      id: "align",
+      label: "Alignment",
+      content: (
+        <ElementFormatDropdown
+          value={elementFormat}
+          editor={activeEditor}
+          isRTL={isRTL}
+        />
+      ),
+      menu: (
+        <MoreSub label="Align">
+          <AlignItems
+            editor={activeEditor}
+            value={elementFormat}
+            isRTL={isRTL}
+          />
+        </MoreSub>
+      ),
+    },
+    {
+      id: "font",
+      label: inCode ? "Code language" : "Font",
+      content: inCode ? (
+        <>
+          <CodeSelector
+            editor={activeEditor}
+            selectedElementKey={selectedElementKey}
+            codeLanguage={codeLanguage}
+          />
+          <FontSize
+            selectionFontSize={fontSize.slice(0, -2)}
+            editor={activeEditor}
+            disabled
+          />
+        </>
+      ) : (
+        <>
+          <FontDropDown
+            value={fontValue}
+            editor={activeEditor}
+            showModal={showModal}
+          />
+          <FontSize
+            selectionFontSize={fontSize.slice(0, -2)}
+            editor={activeEditor}
+          />
+        </>
+      ),
+      menu: inCode ? (
+        <MoreSub label="Code language">
+          <CodeLanguageItems
+            editor={activeEditor}
+            selectedElementKey={selectedElementKey}
+            codeLanguage={codeLanguage}
+          />
+        </MoreSub>
+      ) : (
+        <MoreSub label="Font">
+          <FontItems
+            editor={activeEditor}
+            value={fontValue}
+            showModal={showModal}
+          />
+        </MoreSub>
+      ),
+    },
+    {
+      id: "script",
+      label: "Script and clearing",
+      content: (
+        <>
+          {formatButtons(SCRIPTS)}
+          <ToolbarButton
+            label="Clear formatting"
+            shortcut="Mod+\"
+            icon={RemoveFormatting}
+            disabled={inCode}
+            onClick={() => clearFormatting(activeEditor)}
+          />
+        </>
+      ),
+      menu: (
+        <>
+          {formatItems(SCRIPTS)}
+          <DropdownMenuItem
+            className="gap-2"
+            disabled={inCode}
+            onSelect={() => clearFormatting(activeEditor)}
+          >
+            <RemoveFormatting className="size-4" />
+            Clear formatting
+            <ShortcutHint shortcut="Mod+\" />
+          </DropdownMenuItem>
+        </>
+      ),
+    },
+  ];
 
-      {signedIn && <TtsToolbar />}
+  const groups: ToolbarGroup[] = isEditable ? [...editing] : [];
+  if (isEditable)
+    groups.push({
+      id: "block",
+      label: "Block",
+      content: (
+        <ToolbarMenu label="Block" icon={Blocks}>
+          <BlockActionItems editor={activeEditor} blockType={blockType} />
+        </ToolbarMenu>
+      ),
+      menu: (
+        <MoreSub label="Block" icon={Blocks}>
+          <BlockActionItems editor={activeEditor} blockType={blockType} />
+        </MoreSub>
+      ),
+    });
+  if (isEditable && signedIn)
+    groups.push({
+      id: "ai",
+      label: "AI",
+      content: <AiMenu />,
+      menu: (
+        <MoreSub label="AI" icon={Sparkles}>
+          <AiItems />
+        </MoreSub>
+      ),
+    });
+  if (signedIn)
+    groups.push({
+      id: "listen",
+      label: "Listen",
+      content: <ListenControls />,
+      menu: (
+        <MoreSub label="Listen" icon={Headphones}>
+          <ListenItems withPlay />
+        </MoreSub>
+      ),
+    });
+  if (developer)
+    groups.push({
+      id: "developer",
+      label: "Developer tools",
+      content: <DeveloperMenu />,
+      menu: (
+        <MoreSub label="Developer tools" icon={Bug}>
+          <DeveloperItems />
+        </MoreSub>
+      ),
+    });
 
-      <Divider />
-      <SettingsDropdown className="rounded-md" />
-    </div>
+  const toolbar = (
+    <>
+      <Toolbar label="Formatting" groups={groups} className={className} />
+      {modal}
+    </>
   );
+  return signedIn ? <ListenProvider>{toolbar}</ListenProvider> : toolbar;
 }
