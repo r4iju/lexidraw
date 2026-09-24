@@ -111,7 +111,7 @@ export async function Dashboard({
           directory && {
             id: directory.id,
             title: directory.title,
-            canRename: directory.ownerId === account?.id,
+            canRename: directory.isOwner,
             ancestors: directory.ancestors.map(({ id, title }) => ({
               id,
               title,

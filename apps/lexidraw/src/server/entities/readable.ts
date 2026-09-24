@@ -14,11 +14,10 @@ import { TRPCError } from "@trpc/server";
 
 type Db = typeof drizzle;
 
-const entityColumns = {
+/** An entity as the access rules see it, without its content. */
+const entityFacts = {
   id: schema.entities.id,
   title: schema.entities.title,
-  appState: schema.entities.appState,
-  elements: schema.entities.elements,
   entityType: schema.entities.entityType,
   publicAccess: schema.entities.publicAccess,
   parentId: schema.entities.parentId,
@@ -29,7 +28,24 @@ const entityColumns = {
   ownerId: schema.users.id,
 };
 
-export type ReachableEntity = Awaited<ReturnType<typeof findEntity>>;
+const entityColumns = {
+  ...entityFacts,
+  appState: schema.entities.appState,
+  elements: schema.entities.elements,
+};
+
+type CallersAccess = {
+  ownerId: string | null;
+  sharedAccessLevel: string | null;
+};
+
+/**
+ * Whether `userId` may hand out access to an entity they reached, and so see
+ * who else has it: its owner, or someone it was shared with for editing. An
+ * entity anyone may edit is not enough; that is a link, not an invitation.
+ */
+export const canShare = (entity: CallersAccess, userId: string) =>
+  entity.ownerId === userId || entity.sharedAccessLevel === AccessLevel.EDIT;
 
 /**
  * The share row joined in, narrowed to `userId` first, so `sharedAccessLevel`
@@ -82,6 +98,21 @@ function readableBy(userId: string): SQL | undefined {
  */
 export async function findReadableEntity(db: Db, id: string, userId: string) {
   return findEntity(db, id, userId, readableBy(userId));
+}
+
+/**
+ * {@link findReadableEntity} without the content, for a caller that only
+ * needs to know what the entity is and where.
+ */
+export async function findReadableFacts(db: Db, id: string, userId: string) {
+  const rows = await db
+    .select(entityFacts)
+    .from(schema.entities)
+    .where(live(id, readableBy(userId)))
+    .leftJoin(schema.sharedEntities, callersShare(userId))
+    .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
+    .execute();
+  return rows[0] ?? null;
 }
 
 /**
@@ -193,11 +224,7 @@ export async function findOwnedEntity(db: Db, id: string, userId: string) {
 // Directory nesting is user-made, so the walk is bounded rather than trusted.
 const MAX_PATH_DEPTH = 64;
 
-export type EntityAncestor = {
-  id: string;
-  title: string;
-  parentId: string | null;
-};
+export type EntityAncestor = { id: string; title: string };
 
 /** `id` and the entities above it, nearest first, whoever may read them. */
 async function parentChain(
@@ -247,6 +274,35 @@ export async function readableTitles(
 }
 
 /**
+ * `rows` as `userId` may see where they are: a `parentId` they may read stays,
+ * with its title as `folderTitle`, and one they may not reads as the top of
+ * Home. That folder, its id included, is its owner's to keep.
+ */
+export async function inReadableFolders<
+  Row extends { parentId: string | null },
+>(
+  db: Db,
+  rows: Row[],
+  userId: string,
+): Promise<(Row & { folderTitle: string | null })[]> {
+  const titles = await readableTitles(
+    db,
+    rows.map((row) => row.parentId),
+    userId,
+  );
+  return rows.map((row) => {
+    const folderTitle = row.parentId
+      ? (titles.get(row.parentId) ?? null)
+      : null;
+    return {
+      ...row,
+      parentId: folderTitle === null ? null : row.parentId,
+      folderTitle,
+    };
+  });
+}
+
+/**
  * The folders above the entity whose parent is `parentId` that `userId` may
  * read, nearest first. The walk goes through the ones they may not, so a
  * readable folder higher up still shows.
@@ -264,7 +320,7 @@ export async function entityAncestors(
   );
   return chain.flatMap((link) => {
     const title = titles.get(link.id);
-    return title === undefined ? [] : [{ ...link, title }];
+    return title === undefined ? [] : [{ id: link.id, title }];
   });
 }
 
