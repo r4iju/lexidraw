@@ -3,6 +3,7 @@
 import type { RouterOutputs } from "~/trpc/shared";
 import { EntityCardRow } from "./entity-card-row";
 import { EntityCardCol } from "./entity-card-col";
+import { FolderCard } from "./folder-card";
 
 type Entity = RouterOutputs["entities"]["list"][number];
 
@@ -21,6 +22,17 @@ export function EntityCard({
   sortOrder = "desc",
   isOverlay = false,
 }: Props) {
+  if (flex === "flex-row" && entity.entityType === "directory") {
+    return (
+      <FolderCard
+        entity={entity}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        isOverlay={isOverlay}
+      />
+    );
+  }
+
   if (flex === "flex-row") {
     return (
       <EntityCardRow

@@ -1,6 +1,5 @@
 "use client";
 
-import { Folder } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { EntityTypeIcon } from "~/lib/entity-types";
@@ -12,7 +11,7 @@ type Entity = RouterOutputs["entities"]["list"][number];
 
 type Props = {
   entity: Entity;
-  /** 40×40 in a list row, or 4:3 across a grid card. */
+  /** 40×40 in a list row, or 4:3 across the top of a grid card. */
   variant: "row" | "card";
 };
 
@@ -26,14 +25,14 @@ export function EntityThumbnail({ entity, variant }: Props) {
   return (
     <div
       className={cn(
-        "relative shrink-0 overflow-hidden border border-border bg-card",
+        "relative shrink-0 overflow-hidden bg-card",
         variant === "row"
-          ? "size-10 rounded-md"
-          : "aspect-4/3 w-full rounded-md",
+          ? "size-10 rounded-md border border-border"
+          : "aspect-4/3 w-full border-b border-border",
       )}
     >
       {entity.entityType === "directory" ? (
-        <FolderVisual variant={variant} childCount={entity.childCount} />
+        <Placeholder type={entity.entityType} variant={variant} />
       ) : (
         <ThemedThumbnail
           light={entity.screenShotLight}
@@ -49,9 +48,6 @@ export function EntityThumbnail({ entity, variant }: Props) {
           }
           fallback={<Placeholder type={entity.entityType} variant={variant} />}
         />
-      )}
-      {pending && (
-        <div className="absolute inset-0 animate-pulse bg-foreground/5" />
       )}
     </div>
   );
@@ -80,33 +76,6 @@ function useRefreshWhilePending(pending: boolean) {
   }, [pending, router]);
 }
 
-function FolderVisual({
-  variant,
-  childCount,
-}: {
-  variant: "row" | "card";
-  childCount: number;
-}) {
-  return (
-    <div className="absolute inset-0 grid place-items-center bg-muted/60 text-muted-foreground">
-      <span className="flex flex-col items-center gap-1">
-        <Folder
-          aria-hidden="true"
-          strokeWidth={1.5}
-          className={variant === "row" ? "size-5" : "size-10 sm:size-12"}
-        />
-        {variant === "card" && (
-          <span className="text-caption">
-            {childCount === 0
-              ? "Empty"
-              : `${childCount} ${childCount === 1 ? "item" : "items"}`}
-          </span>
-        )}
-      </span>
-    </div>
-  );
-}
-
 function Placeholder({
   type,
   variant,
@@ -117,18 +86,15 @@ function Placeholder({
   return (
     <div
       className={cn(
-        "absolute inset-0 grid place-items-center text-muted-foreground/70",
-        variant === "card" &&
-          type === "document" &&
-          "bg-[repeating-linear-gradient(transparent,transparent_12px,var(--color-border)_12px,var(--color-border)_13px)]",
-        variant === "card" &&
-          type !== "document" &&
-          "bg-[radial-gradient(circle_at_1px_1px,var(--color-border)_1px,transparent_1px)] bg-size-[12px_12px]",
+        "absolute inset-0 grid place-items-center",
+        variant === "row"
+          ? "text-muted-foreground/70"
+          : "bg-background text-muted-foreground/50",
       )}
     >
       <EntityTypeIcon
         type={type}
-        className={variant === "row" ? "size-4" : "size-8"}
+        className={variant === "row" ? "size-4" : "size-7"}
       />
     </div>
   );

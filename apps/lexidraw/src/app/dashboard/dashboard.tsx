@@ -9,12 +9,9 @@ import { NewEntity } from "./_actions/new-entity";
 import { CanonicalizeDashboardURL } from "./canonicalize-dashboard-url";
 import { DashboardAppBar } from "./dashboard-app-bar";
 import { FilterSortSheet, SheetField, StickyBar } from "./dashboard-bar";
+import { DashboardEntities } from "./dashboard-entities";
 import { DraggingContext } from "./dnd-context";
-import { Drag } from "./drag";
-import { Drop } from "./drop";
 import { EmptyState } from "./empty-state";
-import { EntityCardCol } from "./entity-card-col";
-import { EntityCardRow } from "./entity-card-row";
 import { FilterByTags } from "./filter-by-tags";
 import { PersistDashboardPrefsCookie } from "./persist-dashboard-prefs-cookie";
 import { SearchBar, SearchButton } from "./search";
@@ -202,41 +199,12 @@ export async function Dashboard({
               action={<NewEntity parentId={parentId} />}
             />
           ) : (
-            <section
-              aria-label="Files"
-              className={cn(
-                "grid",
-                flex === "flex-row" &&
-                  "grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4",
-                flex === "flex-col" &&
-                  "grid-cols-1 divide-y divide-border rounded-lg border border-border bg-card",
-              )}
-            >
-              {entities.map((entity) => (
-                <Drag entity={entity} key={entity.id} flex={flex}>
-                  <Drop
-                    parentId={entity.id}
-                    disabled={entity.entityType !== "directory"}
-                  >
-                    {flex === "flex-row" ? (
-                      <EntityCardRow
-                        entity={entity}
-                        flex={flex}
-                        sortBy={sortBy}
-                        sortOrder={sortOrder}
-                      />
-                    ) : (
-                      <EntityCardCol
-                        entity={entity}
-                        flex={flex}
-                        sortBy={sortBy}
-                        sortOrder={sortOrder}
-                      />
-                    )}
-                  </Drop>
-                </Drag>
-              ))}
-            </section>
+            <DashboardEntities
+              entities={entities}
+              flex={flex}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+            />
           )}
         </div>
       </main>

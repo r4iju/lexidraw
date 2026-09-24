@@ -38,7 +38,7 @@ export function EntityCardRow({
     <Card
       id={`entity-${entity.id}`}
       className={cn(
-        "flex flex-col gap-2 p-2 sm:p-3",
+        "flex flex-col overflow-hidden",
         isOverlay && "cursor-grabbing shadow-lg",
       )}
     >
@@ -46,7 +46,7 @@ export function EntityCardRow({
         <EntityThumbnail entity={entity} variant="card" />
       </Link>
 
-      <div className="flex items-start gap-1">
+      <div className="flex items-start gap-1 p-2 sm:px-3 sm:pb-3">
         <Link
           href={href}
           draggable={false}
