@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { JSDOM } from "jsdom";
-import { act, createContext, type ReactNode, useEffect } from "react";
+import { act, createContext, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -28,19 +28,6 @@ mock.module("./use-auto-save", () => ({
 mock.module("./use-open-entity-sync", () => ({
   OpenEntityContext: createContext(null),
 }));
-// Radix settles at its first import whether it has a DOM, and another test
-// imports it without one; the question is what is under test, not its look.
-const Plain = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
-mock.module("~/components/ui/dialog", () => ({
-  Dialog: ({ open, children }: { open: boolean; children?: ReactNode }) =>
-    open ? <div>{children}</div> : null,
-  DialogContent: Plain,
-  DialogDescription: Plain,
-  DialogFooter: Plain,
-  DialogHeader: Plain,
-  DialogTitle: Plain,
-}));
-
 let UnsavedChangesProvider: typeof import("./use-unsaved-changes").UnsavedChangesProvider;
 let useUnsavedChanges: typeof import("./use-unsaved-changes").useUnsavedChanges;
 let useSaveStatus: typeof import("./use-unsaved-changes").useSaveStatus;
