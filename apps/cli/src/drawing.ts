@@ -2,7 +2,7 @@ import { one, parseArgs, rejectExtra } from "./args";
 import { json, type Context } from "./context";
 import { CliError, describe, usageError } from "./errors";
 import { expectOk, requestApi } from "./http";
-import { type ApiSession, openSession } from "./session";
+import { openSession } from "./session";
 
 const USAGE = `usage:
   lexidraw drawing get <id>
@@ -48,15 +48,14 @@ export async function drawingCommand(
 ): Promise<void> {
   const args = parseArgs(argv, FLAGS);
   const [verb, id] = args.positionals;
-  let session: Promise<ApiSession> | undefined;
+  const session = openSession(context);
   const request = async (
     method: string,
     path: string,
     body?: unknown,
     query?: readonly (readonly [string, string])[],
   ) => {
-    session ??= openSession(context);
-    const response = await requestApi(await session, {
+    const response = await requestApi(session, {
       method,
       path,
       body,

@@ -456,7 +456,10 @@ export async function extractAndSanitizeArticle({
       let primary = await fetchOnce(
         isProxy
           ? buildBrowserHeaders(url)
-          : { "user-agent": "Lexidraw-Reader/1.0 (+https://lexidraw.vercel.app)" },
+          : {
+              "user-agent":
+                "Lexidraw-Reader/1.0 (+https://lexidraw.vercel.app)",
+            },
       );
 
       // Retry once on 429/5xx

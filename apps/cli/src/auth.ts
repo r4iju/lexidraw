@@ -45,7 +45,7 @@ export async function authLogin(
 
   // Validated before it is stored: a keychain entry that does not work is
   // worse than no entry at all.
-  const me = await fetchMe(await openSession(context, token));
+  const me = await fetchMe(openSession(context, token));
   context.io.tokens.set(context.profile.name, token);
   context.io.stdout(
     json({
@@ -70,7 +70,7 @@ export async function authStatus(
     context.io.env,
     context.io.tokens,
   );
-  const me = await fetchMe(await openSession(context, token));
+  const me = await fetchMe(openSession(context, token));
   context.io.stdout(
     json({
       profile: name,

@@ -43,7 +43,7 @@ async function list(context: Context, args: ParsedArgs): Promise<void> {
   const format = chooseFormat(args, ["json", "table"], "json");
   if (pageAll) rejectFormat(args, "--page-all streams NDJSON; drop --format");
 
-  const session = await openSession(context);
+  const session = openSession(context);
   const parentId = await resolveOptional(context, session, {
     id: args.positionals[0],
     path: one(args, "path"),
@@ -65,7 +65,7 @@ async function create(context: Context, args: ParsedArgs): Promise<void> {
   const title = one(args, "title");
   if (title === undefined) throw usageError("dir create needs --title");
 
-  const session = await openSession(context);
+  const session = openSession(context);
   const parentId = await resolveOptional(context, session, {
     ...dirSpec(one(args, "dir"), one(args, "dir-path")),
     kind: "directory",

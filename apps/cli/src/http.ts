@@ -41,7 +41,10 @@ export async function requestApi(
   const anonymous = typeof target === "string";
   const url = apiUrl(anonymous ? target : target.baseUrl, options);
   const headers: Record<string, string> = { accept: "application/json" };
-  if (!anonymous) headers.authorization = `Bearer ${target.token}`;
+  if (!anonymous) {
+    await target.verify();
+    headers.authorization = `Bearer ${target.token}`;
+  }
   if (options.body !== undefined) {
     headers["content-type"] = "application/json";
   }
@@ -51,6 +54,8 @@ export async function requestApi(
     response = await fetch(url, {
       method: options.method,
       headers,
+      // A redirect would carry the token to a host nobody verified.
+      redirect: "manual",
       body:
         options.body === undefined ? undefined : JSON.stringify(options.body),
     });
@@ -58,6 +63,15 @@ export async function requestApi(
     throw new CliError(
       "NETWORK",
       `${options.method} ${url} did not reach the server: ${describe(cause)}`,
+    );
+  }
+
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    throw new CliError(
+      "REDIRECT",
+      `${options.method} ${url} redirected to ${location}; the CLI does not follow redirects`,
+      { details: { status: response.status, location } },
     );
   }
 

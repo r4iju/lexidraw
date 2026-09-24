@@ -198,7 +198,8 @@ usage errors exit 2.
 | `UNPROCESSABLE_CONTENT` | the document holds a node type this version cannot read or build | do not rewrite it; report the types the error names |
 | `PAYLOAD_TOO_LARGE` | the request body is over the 4.5 MB limit | send less, or split the write |
 | `TOO_MANY_REQUESTS` | rate limited | wait and retry |
-| `NOT_LEXIDRAW_SERVER` | the base URL does not serve the Lexidraw API; no token was sent | fix `LEXIDRAW_URL` or `--profile` |
+| `NOT_LEXIDRAW_SERVER` | the base URL does not serve the Lexidraw API itself (another site, or a redirect); no token was sent | fix `LEXIDRAW_URL` or `--profile`; after a redirect, use the address the message names |
+| `REDIRECT` | an authenticated call was redirected, which the CLI does not follow | point `LEXIDRAW_URL` at the address the message names |
 | `NETWORK` | the server could not be reached | check the base URL and that the server is up |
 | `BAD_RESPONSE` | the server answered with something the CLI could not parse | retry with `--refresh`; report it if it persists |
 | `INTERNAL`, `INTERNAL_SERVER_ERROR` | a bug on either side, details masked | report it with the command that failed |

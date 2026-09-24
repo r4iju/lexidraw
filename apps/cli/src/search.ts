@@ -17,7 +17,7 @@ export async function searchCommand(
   rejectExtra(args, 1);
   const format = chooseFormat(args, ["json", "table"], "json");
 
-  const rows = await callApi(await openSession(context), {
+  const rows = await callApi(openSession(context), {
     method: "GET",
     path: "/entities/search",
     query: [["query", query]],

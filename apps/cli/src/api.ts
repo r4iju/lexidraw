@@ -31,7 +31,7 @@ export async function apiCommand(
     throw usageError(`${verb} does not take a body; drop --json`);
   }
 
-  const response = await requestApi(await openSession(context), {
+  const response = await requestApi(openSession(context), {
     method: verb,
     path: restPath(path),
     query: parseQuery(args.values.query ?? []),

@@ -205,9 +205,12 @@ next one, so a chain of writes never needs a read between them.
   read and written only when `LEXIDRAW_URL` resolves to the profile's own
   origin, or to a loopback address on `dev`; pointed anywhere else the only
   token source is `LEXIDRAW_TOKEN` and `auth login` refuses to store one.
-  Whatever the source, no token is sent until the base URL has served an
-  OpenAPI document titled `Lexidraw API` (cached with the schema, 5 minutes);
-  anything else is `NOT_LEXIDRAW_SERVER` before the first authenticated call.
+  Whatever the source, no token is sent until the base URL has itself served
+  an OpenAPI document titled `Lexidraw API` (cached with the schema, 5
+  minutes). The CLI follows no redirects, so a host that answers with a
+  redirect, another document, or nothing at all is `NOT_LEXIDRAW_SERVER`
+  before the first authenticated call; an unreachable host or a 5xx keeps its
+  own code.
   `auth login` validates a token against `/me` before storing it; `auth
   status` reports the profile, base URL, token source, and scope.
 - Live today: `doc`, `dir`, `search`, `drawing get|put|create|render`, `auth

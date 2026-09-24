@@ -75,7 +75,14 @@ export async function loadDocument(
   const document = expectOk(
     response,
     "fetching the OpenAPI document failed",
-  ) as OpenApiDocument;
+  ) as OpenApiDocument | null;
+  if (document === null || typeof document !== "object") {
+    throw new CliError(
+      "BAD_RESPONSE",
+      `${options.profile.baseUrl} answered its OpenAPI document with no object`,
+      { details: { status: response.status } },
+    );
+  }
   await mkdir(dirname(file), { recursive: true });
   await Bun.write(file, JSON.stringify(document));
   return { document, cached: false };

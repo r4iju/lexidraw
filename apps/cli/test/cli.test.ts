@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { run } from "../src/cli";
+import type { Env } from "../src/context";
 import type { OpenApiDocument } from "../src/openapi";
 import { fakeIo, startStub, type Stub } from "./helpers";
 
@@ -401,11 +402,37 @@ describe("server identity", () => {
         ? Response.json({ ...fixture, info: { title: "Some API" } })
         : Response.json({ userId: "someone-else" }),
     );
+    impostors["an empty answer"] = startStub(() => new Response(null));
+    // A host that only points at a real server has not shown it is one, and
+    // plain http redirecting to https is the usual case of it.
+    impostors["a redirect to Lexidraw"] = startStub(
+      (url) =>
+        new Response(null, {
+          status: 308,
+          headers: { location: `${stub.baseUrl}${url.pathname}${url.search}` },
+        }),
+    );
   });
 
   afterAll(() => {
     for (const impostor of Object.values(impostors)) impostor.stop();
   });
+
+  async function impostorEnv(impostor: Stub, extra: Env = {}): Promise<Env> {
+    return {
+      LEXIDRAW_PROFILE: "dev",
+      LEXIDRAW_URL: impostor.baseUrl,
+      XDG_CACHE_HOME: await mkdtemp(join(tmpdir(), "lexidraw-cli-")),
+      ...extra,
+    };
+  }
+
+  /** No authorization header reached the impostor, or Lexidraw through it. */
+  function noTokenSent(impostor: Stub, lexidrawSeen: number): boolean {
+    return [...impostor.requests, ...stub.requests.slice(lexidrawSeen)].every(
+      ({ auth }) => auth === null,
+    );
+  }
 
   const COMMANDS = [
     ["auth", "status"],
@@ -416,39 +443,83 @@ describe("server identity", () => {
     ["drawing", "get", "abc"],
   ];
 
-  for (const kind of ["html", "another API"]) {
+  for (const kind of Object.keys({
+    html: 0,
+    "another API": 0,
+    "an empty answer": 0,
+    "a redirect to Lexidraw": 0,
+  })) {
     for (const argv of COMMANDS) {
       it(`${argv.join(" ")} sends no token to ${kind}`, async () => {
         const impostor = impostors[kind] as Stub;
+        const seen = stub.requests.length;
         const io = fakeIo({
-          env: {
-            LEXIDRAW_PROFILE: "dev",
-            LEXIDRAW_URL: impostor.baseUrl,
-            LEXIDRAW_TOKEN: "lxd_good",
-            XDG_CACHE_HOME: await mkdtemp(join(tmpdir(), "lexidraw-cli-")),
-          },
+          env: await impostorEnv(impostor, { LEXIDRAW_TOKEN: "lxd_good" }),
         });
         expect(await run(argv, io.io)).toBe(1);
         expect(JSON.parse(io.stderr()).code).toBe("NOT_LEXIDRAW_SERVER");
-        expect(impostor.requests.every(({ auth }) => auth === null)).toBe(true);
+        expect(noTokenSent(impostor, seen)).toBe(true);
       });
     }
 
     it(`auth login stores nothing and sends nothing to ${kind}`, async () => {
       const impostor = impostors[kind] as Stub;
-      const io = fakeIo({
-        env: {
-          LEXIDRAW_PROFILE: "dev",
-          LEXIDRAW_URL: impostor.baseUrl,
-          XDG_CACHE_HOME: await mkdtemp(join(tmpdir(), "lexidraw-cli-")),
-        },
-      });
+      const seen = stub.requests.length;
+      const io = fakeIo({ env: await impostorEnv(impostor) });
       expect(await run(["auth", "login", "--token", "lxd_good"], io.io)).toBe(
         1,
       );
       expect(JSON.parse(io.stderr()).code).toBe("NOT_LEXIDRAW_SERVER");
       expect(io.stored.size).toBe(0);
-      expect(impostor.requests.every(({ auth }) => auth === null)).toBe(true);
+      expect(noTokenSent(impostor, seen)).toBe(true);
+    });
+  }
+
+  it("names the redirect target, so the base URL can be corrected", async () => {
+    const impostor = impostors["a redirect to Lexidraw"] as Stub;
+    const io = fakeIo({
+      env: await impostorEnv(impostor, { LEXIDRAW_TOKEN: "lxd_good" }),
+    });
+    await run(["auth", "status"], io.io);
+    expect(JSON.parse(io.stderr()).message).toContain(stub.baseUrl);
+  });
+
+  it("reports a server error as one, not as the wrong host", async () => {
+    const down = startStub(() => new Response("Bad Gateway", { status: 502 }));
+    try {
+      const io = fakeIo({
+        env: await impostorEnv(down, { LEXIDRAW_TOKEN: "lxd_good" }),
+      });
+      expect(await run(["auth", "status"], io.io)).toBe(1);
+      expect(JSON.parse(io.stderr())).toMatchObject({
+        code: "BAD_RESPONSE",
+        status: 502,
+      });
+    } finally {
+      down.stop();
+    }
+  });
+
+  // Nothing listens on port 1, so a usage error that reached for the
+  // network would come back as NETWORK instead.
+  for (const argv of [
+    ["doc", "get"],
+    ["doc", "get", "a", "b"],
+    ["doc", "get", "a", "--nth", "2"],
+    ["doc", "list", "--dir", "a", "--dir-path", "b"],
+    ["api", "GET", "/me", "--query", "bad"],
+  ]) {
+    it(`${argv.join(" ")} is a usage error before any call`, async () => {
+      const io = fakeIo({
+        env: {
+          LEXIDRAW_PROFILE: "dev",
+          LEXIDRAW_URL: "http://127.0.0.1:1",
+          LEXIDRAW_TOKEN: "lxd_good",
+          XDG_CACHE_HOME: await mkdtemp(join(tmpdir(), "lexidraw-cli-")),
+        },
+      });
+      expect(await run(argv, io.io)).toBe(2);
+      expect(JSON.parse(io.stderr()).code).toBe("USAGE");
     });
   }
 });
