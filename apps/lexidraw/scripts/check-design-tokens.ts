@@ -20,6 +20,7 @@ const colourData = [
   "lib/schemas.ts",
   "app/screenshot/",
   "app/layout.tsx",
+  "app/opengraph-image.tsx",
 ];
 let failures = 0;
 const requested = process.argv.slice(2);

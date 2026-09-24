@@ -11,6 +11,7 @@ import { Toaster } from "~/components/ui/sonner";
 import Script from "next/script";
 import env from "@packages/env";
 import type { Metadata, Viewport } from "next";
+import { SITE_PREVIEW } from "~/lib/link-preview";
 import LayoutListener from "./layout-listener";
 import LeaveGuardListener from "./leave-guard-listener";
 import ImpersonationBanner from "~/components/admin/impersonation-banner";
@@ -20,7 +21,7 @@ import { APP_NAME, TITLE_TEMPLATE } from "~/lib/tab-title";
 
 export const metadata = {
   title: { default: APP_NAME, template: TITLE_TEMPLATE },
-  description: "An Excalidraw demo app",
+  ...SITE_PREVIEW,
 } satisfies Metadata;
 
 export const viewport: Viewport = {

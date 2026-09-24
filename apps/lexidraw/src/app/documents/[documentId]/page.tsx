@@ -4,7 +4,9 @@ import type { Metadata, Viewport } from "next";
 import { cacheTag } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
+import { drizzle } from "@packages/drizzle";
 import { entityTag } from "~/server/api/entity-cache";
+import { entityPreview } from "~/server/entity-preview";
 import { auth } from "~/server/auth";
 import { entityFrame } from "~/server/app-bar-account";
 import { api } from "~/trpc/server";
@@ -18,14 +20,16 @@ const APPLE_WEB_APP: Metadata["appleWebApp"] = {
 };
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
-  const { documentId } = await props.params;
+  const { documentId } = Params.parse(await props.params);
   cacheTag(entityTag(documentId));
-  const document = await api.entities.getMetadata
-    .query({ id: documentId })
-    .catch(() => null);
+  const [document, preview] = await Promise.all([
+    api.entities.getMetadata.query({ id: documentId }).catch(() => null),
+    entityPreview(drizzle, documentId),
+  ]);
   return {
     title: document?.title || "Document",
     appleWebApp: APPLE_WEB_APP,
+    ...preview,
   };
 }
 

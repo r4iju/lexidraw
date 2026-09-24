@@ -5,7 +5,9 @@ import { z } from "zod";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { AccessLevel } from "@packages/types";
+import { drizzle } from "@packages/drizzle";
 import { entityTag } from "~/server/api/entity-cache";
+import { entityPreview } from "~/server/entity-preview";
 import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 import { Button } from "~/components/ui/button";
@@ -19,14 +21,16 @@ import { EntityAppBar } from "~/components/app-bar/entity-frame";
 import { AppBar } from "~/components/app-bar/app-bar";
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
-  const { drawingId } = await props.params;
+  const { drawingId } = Params.parse(await props.params);
   cacheTag(entityTag(drawingId));
-  const drawing = await api.entities.getMetadata
-    .query({ id: drawingId })
-    .catch(() => null);
+  const [drawing, preview] = await Promise.all([
+    api.entities.getMetadata.query({ id: drawingId }).catch(() => null),
+    entityPreview(drizzle, drawingId),
+  ]);
   return {
     title: drawing?.title || "Drawing",
     appleWebApp: { capable: true, statusBarStyle: "black", title: "Lexidraw" },
+    ...preview,
   };
 }
 

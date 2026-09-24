@@ -3,20 +3,24 @@
 import type { Metadata } from "next";
 import { cacheTag } from "next/cache";
 import { z } from "zod";
+import { drizzle } from "@packages/drizzle";
 import { entityTag } from "~/server/api/entity-cache";
+import { entityPreview } from "~/server/entity-preview";
 import { auth } from "~/server/auth";
 import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
-  const { urlId } = await props.params;
+  const { urlId } = Params.parse(await props.params);
   cacheTag(entityTag(urlId));
-  const link = await api.entities.getMetadata
-    .query({ id: urlId })
-    .catch(() => null);
+  const [link, preview] = await Promise.all([
+    api.entities.getMetadata.query({ id: urlId }).catch(() => null),
+    entityPreview(drizzle, urlId),
+  ]);
   return {
     title: link?.title || "Link",
     appleWebApp: { capable: true, statusBarStyle: "black", title: "Lexidraw" },
+    ...preview,
   };
 }
 
