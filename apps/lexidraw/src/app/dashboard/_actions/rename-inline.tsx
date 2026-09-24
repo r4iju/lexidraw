@@ -76,6 +76,7 @@ const EntityTitle = ({ className, entity }: Props) => {
           <>
             <Input
               autoFocus
+              aria-label="Title"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               className=" text-lg font-semibold px-0 border-none focus-visible:ring-transparent"

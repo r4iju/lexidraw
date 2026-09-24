@@ -136,6 +136,7 @@ export async function Dashboard({
                       key: "onlyFavorites",
                       value: onlyFavorites ? "false" : "true",
                     })}
+                    aria-current={onlyFavorites ? "true" : undefined}
                   >
                     <Heart className="md:hidden" />
                     <span className="sr-only md:not-sr-only md:block">
@@ -156,6 +157,7 @@ export async function Dashboard({
                       key: "includeArchived",
                       value: includeArchived ? "false" : "true",
                     })}
+                    aria-current={includeArchived ? "true" : undefined}
                   >
                     <Archive className="md:hidden" />
                     <span className="sr-only md:not-sr-only md:block">
@@ -178,7 +180,7 @@ export async function Dashboard({
                       key: "flex",
                       value: "flex-row",
                     })}
-                    aria-current={flex === "flex-row" ? "page" : undefined}
+                    aria-current={flex === "flex-row" ? "true" : undefined}
                   >
                     <LayoutGrid />
                     <span className="sr-only">Grid view</span>
@@ -196,7 +198,7 @@ export async function Dashboard({
                       key: "flex",
                       value: "flex-col",
                     })}
-                    aria-current={flex === "flex-col" ? "page" : undefined}
+                    aria-current={flex === "flex-col" ? "true" : undefined}
                   >
                     <Rows3 />
                     <span className="sr-only">List view</span>

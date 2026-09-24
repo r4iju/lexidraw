@@ -70,6 +70,7 @@ export function FilterByTags({ options }: Props) {
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label="Filter by tags"
           className={cn(
             "relative h-10 w-10 p-0", // mobile
             "md:w-[200px] md:justify-between md:flex md:p-2", // desktop
@@ -77,7 +78,6 @@ export function FilterByTags({ options }: Props) {
         >
           {/* mobile icon */}
           <TagsIcon className="size-6 md:hidden" />
-          <span className="sr-only md:hidden">Filter by tags</span>
           {/* negative margin to offset the icon size, top right */}
           <div className="md:hidden absolute -top-4 -right-2 flex items-center justify-center">
             <span className="text-sm font-medium text-foreground bg-muted rounded-full ring-1 ring-offset-background ring-background px-2 py-1">

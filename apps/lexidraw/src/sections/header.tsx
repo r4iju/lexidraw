@@ -22,10 +22,7 @@ async function HeaderContent() {
     <header className="sticky top-0 left-0 w-full min-w-[100dw] min-h-[var(--header-height)] z-50 flex border-b border-muted items-center justify-between bg-background shadow-md pt-[var(--header-padding-top)] pb-[var(--header-py)] px-4 lg:px-6 overflow-hidden">
       <Button asChild variant="outline" size="icon">
         <Link href="/">
-          <AppIcon
-            className="size-full object-contain border-muted hover:shadow-xs"
-            aria-label="Go to startpage"
-          />
+          <AppIcon aria-label="Go to startpage" />
         </Link>
       </Button>
 
@@ -62,10 +59,7 @@ export default function Header() {
         <header className="sticky top-0 left-0 w-full min-w-[100dw] min-h-[var(--header-height)] z-50 flex border-b border-muted items-center justify-between bg-background shadow-md pt-[var(--header-padding-top)] pb-[var(--header-py)] px-4 lg:px-6 overflow-hidden">
           <Button asChild variant="outline" size="icon">
             <Link href="/">
-              <AppIcon
-                className="size-full object-contain border-muted hover:shadow-xs"
-                aria-label="Go to startpage"
-              />
+              <AppIcon aria-label="Go to startpage" />
             </Link>
           </Button>
           <nav>
