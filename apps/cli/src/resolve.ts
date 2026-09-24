@@ -44,23 +44,36 @@ export const ADDRESS = ["path", "nth"];
 /** A parent directory, by id or by path, never guessed from one value. */
 export const PARENT = ["dir", "dir-path"];
 
-/** The entity a verb's id positional or `--path` names. */
+/**
+ * The entity a verb's id positional or `--path` names, refused before any
+ * input is read or request made when it names none.
+ */
 export function address(
   args: ParsedArgs,
-  kind: EntityKind,
+  kind: Exclude<EntityKind, "directory">,
   access: Access,
 ): Target {
   rejectExtra(args, 1);
-  return {
+  const target = {
     id: args.positionals[0],
     path: one(args, "path"),
     kind,
     access,
     nth: integer(args, "nth", 1),
-    // No verb that takes --path also names a directory, so a directory on the
-    // way to the entity is only escaped by naming the entity itself.
+    // No verb addressed this way names a directory, so a directory on the way
+    // to the entity is only escaped by naming the entity itself.
     dirHint: `address the ${kind} by id`,
   };
+  if (target.id === undefined && target.path === undefined) {
+    throw unnamed(kind);
+  }
+  return target;
+}
+
+function unnamed(kind: EntityKind): CliError {
+  return usageError(
+    `name the ${kind}: its id as an argument, or --path "Dir/Title"`,
+  );
 }
 
 /**
@@ -88,11 +101,7 @@ export async function resolveEntity(
   target: Target,
 ): Promise<string> {
   const id = await resolveOptional(context, session, target);
-  if (id === null) {
-    throw usageError(
-      `name the ${target.kind}: its id as an argument, or --path "Dir/Title"`,
-    );
-  }
+  if (id === null) throw unnamed(target.kind);
   return id;
 }
 

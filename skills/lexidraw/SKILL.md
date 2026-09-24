@@ -133,7 +133,7 @@ headings **in document order**, not by recency as on paths. No match is a
 0, and the block count appends.
 
 `doc list` lists documents only; `dir list` lists every entity type in a
-directory, which is how a drawing's id is found without `search`.
+directory, drawings included.
 
 ## Placeholders
 

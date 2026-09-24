@@ -212,3 +212,85 @@ describe("drawing --path", () => {
     );
   });
 });
+
+describe("drawing arguments", () => {
+  it("names its verbs when given another", async () => {
+    const out = io();
+    expect(await run(["drawing", "erase", "drw-flow"], out.io)).toBe(2);
+    expect(JSON.parse(out.stderr()).known).toEqual([
+      "get",
+      "put",
+      "create",
+      "render",
+    ]);
+  });
+
+  it("refuses a flag that belongs to another verb", async () => {
+    const out = io();
+    expect(
+      await run(["drawing", "get", "drw-flow", "--file", "e.json"], out.io),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).message).toBe("unknown flag --file");
+  });
+
+  it("put names what is missing before reading the elements", async () => {
+    const out = fakeIo({ env: stubEnv(stub), stdin: "not json" });
+    expect(
+      await run(
+        ["drawing", "put", "--file", "-", "--if-unmodified-since", "latest"],
+        out.io,
+      ),
+    ).toBe(2);
+    expect(JSON.parse(out.stderr()).message).toStartWith("name the drawing");
+  });
+});
+
+describe("a drawing path through an ambiguous directory", () => {
+  beforeEach(() => {
+    stub.rows.set("dir-notes-2", {
+      id: "dir-notes-2",
+      title: "Notes",
+      entityType: "directory",
+      parentId: null,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      blocks: [],
+    });
+  });
+
+  it("refuses a write, with the drawing's own way out", async () => {
+    const out = io();
+    const file = await elementsFile();
+    const argv = ["drawing", "put", "--path", "Notes/Flow", "--file", file];
+    expect(
+      await run([...argv, "--if-unmodified-since", "latest"], out.io),
+    ).toBe(1);
+    const error = JSON.parse(out.stderr());
+    expect(error.code).toBe("AMBIGUOUS_PATH");
+    expect(error.message).toContain("address the drawing by id");
+    expect(writes()).toEqual([]);
+  });
+
+  it("does not let --nth settle the directory for a write", async () => {
+    const out = io();
+    const file = await elementsFile();
+    expect(
+      await run(
+        [
+          "drawing",
+          "put",
+          "--path",
+          "Notes/Flow",
+          "--nth",
+          "1",
+          "--file",
+          file,
+          "--if-unmodified-since",
+          "latest",
+        ],
+        out.io,
+      ),
+    ).toBe(1);
+    expect(JSON.parse(out.stderr()).code).toBe("AMBIGUOUS_PATH");
+    expect(writes()).toEqual([]);
+  });
+});

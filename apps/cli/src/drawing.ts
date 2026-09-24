@@ -21,7 +21,7 @@ import { type ApiSession, openSession } from "./session";
 const USAGE = `usage:
   lexidraw drawing get <id|--path P> [--nth N]
   lexidraw drawing put <id|--path P> [--nth N] --file <elements.json|-> --if-unmodified-since <iso|latest>
-  lexidraw drawing create --title <title> [--file <elements.json|->] [--dir <id>|--dir-path P]
+  lexidraw drawing create --title <title> [--dir <id>|--dir-path P] [--file <elements.json|->]
   lexidraw drawing render <id|--path P> [--nth N] [--format svg|png] [--scale 1-4] [--out <file>]
 
 put replaces every element, so it states which revision it replaces: pass the
@@ -57,7 +57,7 @@ export async function drawingCommand(
   argv: readonly string[],
 ): Promise<void> {
   const verb = VERBS.find((name) => name === argv[0]);
-  if (verb === undefined) throw usageError(USAGE);
+  if (verb === undefined) throw usageError(USAGE, { known: VERBS });
   const args = parseArgs(argv.slice(1), SPECS[verb]);
   switch (verb) {
     case "get":

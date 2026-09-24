@@ -203,8 +203,8 @@ browser that landed in between fails with `CONFLICT` and
 `data.currentUpdatedAt` to re-read from, instead of overwriting it. A caller
 with no revision to name wants `POST /api/v1/drawings` instead.
 
-From the CLI, `lexidraw drawing put <id> --file elements.json
---if-unmodified-since <iso|latest>` is the same write; `latest` reads the
+From the CLI, `lexidraw drawing put <id|--path "Dir/Title"> --file
+elements.json --if-unmodified-since <iso|latest>` is the same write; `latest` reads the
 revision immediately before writing, for a caller that accepts whatever is
 stored this second.
 
@@ -236,8 +236,8 @@ as `encoding` says; `contentType` is what those bytes would be served as.
 reports twice the 1x size, and scene units for an SVG, where they are whatever
 the export wrote and may be fractional. `updatedAt` is the revision rendered.
 
-From the CLI, `lexidraw drawing render <id> [--format svg|png] [--scale 1-4]
-[--out <file>]` decodes it: without `--out` the image goes to stdout, the SVG
+From the CLI, `lexidraw drawing render <id|--path "Dir/Title"> [--format
+svg|png] [--scale 1-4] [--out <file>]` decodes it: without `--out` the image goes to stdout, the SVG
 as text and the PNG as bytes, which it refuses to write to a terminal.
 
 ### Fonts

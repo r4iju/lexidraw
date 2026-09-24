@@ -27,9 +27,7 @@ const VALUE_FLAGS = [
   "nth",
   "after-heading",
   "at-block",
-  "parent",
   "if-unmodified-since",
-  "format",
   "out",
   "scale",
 ];

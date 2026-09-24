@@ -439,4 +439,13 @@ describe("a drawing", () => {
     expect(body.code).toBe("CONFLICT");
     expect(body.message).toStartWith("Drawing was modified at ");
   });
+
+  // The CLI's `drawing put <id>` sends any id straight here, trusting this.
+  test("is not found when the id is another kind of entity", async () => {
+    const { response, body } = await api("PUT", "/drawings/rest_doc", {
+      body: { elements: [], ifUnmodifiedSince: "2020-01-01T00:00:00.000Z" },
+    });
+    expect(response.status).toBe(404);
+    expect(body.code).toBe("NOT_FOUND");
+  });
 });

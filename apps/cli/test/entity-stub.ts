@@ -13,9 +13,9 @@ const openApi = await Bun.file(
 const cacheHome = await mkdtemp(join(tmpdir(), "lexidraw-entity-stub-"));
 
 /**
- * A stand-in for the entity, markdown and drawing REST paths: enough of the server's
- * behaviour — titles, parents, revisions, preconditions — that the commands
- * are driven end to end over HTTP.
+ * A stand-in for the entity, markdown and drawing REST paths: enough of the
+ * server's behaviour — titles, parents, revisions, preconditions — that the
+ * commands are driven end to end over HTTP.
  */
 export type Row = {
   id: string;
