@@ -101,10 +101,7 @@ export function AccountMenu({
           <Link href="/dashboard">Home</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/profile">Settings</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings/tokens">API tokens</Link>
+          <Link href="/settings">Settings</Link>
         </DropdownMenuItem>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>Theme</DropdownMenuSubTrigger>
@@ -122,9 +119,7 @@ export function AccountMenu({
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/api/auth/signout?callbackUrl=/api/auth/session">
-            Sign out
-          </Link>
+          <Link href="/signout">Sign out</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

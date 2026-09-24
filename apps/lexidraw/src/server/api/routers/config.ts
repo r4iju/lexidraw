@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { autoSaveEnabled } from "~/lib/auto-save";
+import { TTS_DEFAULTS } from "~/app/settings/schema";
 import {
   type createTRPCContext,
   createTRPCRouter,
@@ -160,13 +161,7 @@ const ArticleConfigSchema = z.object({
 });
 const ArticlePatchSchema = ArticleConfigSchema.partial();
 
-const defaultTts: z.infer<typeof TtsConfigSchema> = {
-  provider: "openai",
-  voiceId: "alloy",
-  speed: 1,
-  format: "mp3",
-  languageCode: "en-US",
-};
+const defaultTts: z.infer<typeof TtsConfigSchema> = { ...TTS_DEFAULTS };
 
 const defaultArticles: z.infer<typeof ArticleConfigSchema> = {
   languageCode: "en-US",

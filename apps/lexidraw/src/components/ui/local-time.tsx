@@ -1,6 +1,6 @@
 "use client";
 
-import { format as formatDate } from "date-fns";
+import { format as formatDate, formatDistanceToNow } from "date-fns";
 import { useSyncExternalStore } from "react";
 
 /**
@@ -20,6 +20,11 @@ const FORMATS = {
   datetime: {
     local: (date: Date) => formatDate(date, "yyyy-MM-dd HH:mm:ss"),
     utc: (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 19)} UTC`,
+  },
+  /** "3 days ago", with the exact time on hover. */
+  relative: {
+    local: (date: Date) => formatDistanceToNow(date, { addSuffix: true }),
+    utc: (iso: string) => iso.slice(0, 10),
   },
 } as const;
 
@@ -48,6 +53,20 @@ export function LocalTime({
     () => (iso === null ? null : FORMATS[format].local(new Date(iso))),
     () => null,
   );
+  const exact = useSyncExternalStore(
+    subscribe,
+    () => (iso === null ? null : FORMATS.locale.local(new Date(iso))),
+    () => null,
+  );
   if (iso === null) return null;
-  return <time dateTime={iso}>{local ?? FORMATS[format].utc(iso)}</time>;
+  return (
+    <time
+      dateTime={iso}
+      title={
+        format === "relative" ? (exact ?? FORMATS.locale.utc(iso)) : undefined
+      }
+    >
+      {local ?? FORMATS[format].utc(iso)}
+    </time>
+  );
 }

@@ -1,55 +1,6 @@
-"use cache: private";
+import { redirect } from "next/navigation";
 
-import { Suspense } from "react";
-import ProfileForm from "./form";
-import FormSkeleton from "./skeleton";
-import Link from "next/link";
-import { Button } from "~/components/ui/button";
-import { api } from "~/trpc/server";
-import { Card } from "~/components/ui/card";
-
-async function ProfileContent() {
-  const user = await api.auth.getProfile.query();
-  return (
-    <Card className="w-full max-w-xl">
-      <div className="p-6">
-        <h2 className="mb-4 text-center text-title font-semibold text-foreground">
-          Edit profile
-        </h2>
-        <ProfileForm user={user} />
-      </div>
-    </Card>
-  );
-}
-
-export default async function SignInPage() {
-  return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="flex h-full min-h-[calc(100vh-56px-65px)] flex-col w-full"
-    >
-      <div className="flex-1 overflow-y-auto w-full">
-        <div className="flex flex-col gap-4 items-center justify-center p-4">
-          <Suspense
-            fallback={
-              <Card className="w-full max-w-xl">
-                <div className="p-6">
-                  <h2 className="mb-4 text-center text-title font-semibold text-foreground">
-                    Edit profile
-                  </h2>
-                  <FormSkeleton />
-                </div>
-              </Card>
-            }
-          >
-            <ProfileContent />
-          </Suspense>
-          <Button asChild variant="link">
-            <Link href="/dashboard">Go to my drawings</Link>
-          </Button>
-        </div>
-      </div>
-    </main>
-  );
+/** Profile became the Account part of Settings; old links still land there. */
+export default function ProfilePage() {
+  redirect("/settings#settings-account");
 }

@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSignUpSchema } from "~/app/signup/schema";
-import { ProfileSchema } from "~/app/profile/schema";
+import { SettingsSchema } from "~/app/settings/schema";
 import env from "@packages/env";
 import {
   createTRPCRouter,
@@ -12,6 +12,23 @@ import { schema } from "@packages/drizzle";
 import { eq, inArray } from "@packages/drizzle";
 import { errorCode } from "~/server/auth/error-code";
 import { hashPassword } from "~/server/auth/password";
+
+/**
+ * Lays a settings change over what is stored: a value replaces, null removes
+ * the key so the default applies again, and a missing key is left alone.
+ */
+function applyOverrides<T extends object>(
+  current: T | undefined,
+  change: Record<string, unknown> | undefined,
+): T | undefined {
+  if (!change) return current;
+  const next: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(change)) {
+    if (value === null) delete next[key];
+    else if (value !== undefined) next[key] = value;
+  }
+  return next as T;
+}
 
 export const authRouter = createTRPCRouter({
   signUp: publicProcedure
@@ -35,7 +52,7 @@ export const authRouter = createTRPCRouter({
       }
     }),
   getProfile: protectedProcedure.query(async ({ ctx }) => {
-    const users = await ctx.drizzle
+    const [user] = await ctx.drizzle
       .select({
         id: schema.users.id,
         email: schema.users.email,
@@ -44,13 +61,13 @@ export const authRouter = createTRPCRouter({
       })
       .from(schema.users)
       .where(eq(schema.users.id, ctx.session.user.id));
-    if (users.length === 0) {
+    if (!user) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: "User not found",
       });
     }
-    return users[0];
+    return user;
   }),
   getLlmConfig: protectedProcedure.query(async ({ ctx }) => {
     const users = await ctx.drizzle
@@ -60,7 +77,7 @@ export const authRouter = createTRPCRouter({
     return users[0]?.config?.llm;
   }),
   updateProfile: protectedProcedure
-    .input(ProfileSchema)
+    .input(SettingsSchema)
     .mutation(async ({ ctx, input }) => {
       const currentUser = await ctx.drizzle
         .select({ config: schema.users.config })
@@ -138,65 +155,27 @@ export const authRouter = createTRPCRouter({
         }
       }
 
-      const updatedLlm: {
-        chat?: {
-          modelId: string;
-          provider: string;
-          temperature: number;
-          maxOutputTokens: number;
-        };
-        autocomplete?: {
-          modelId: string;
-          provider: string;
-          temperature: number;
-          maxOutputTokens: number;
-        };
-      } = { ...(currentConfig.llm ?? {}) };
-
-      if (input.chat) {
-        updatedLlm.chat = {
-          ...(currentConfig.llm?.chat ?? {}),
-          ...input.chat,
-        } as {
-          modelId: string;
-          provider: string;
-          temperature: number;
-          maxOutputTokens: number;
-        };
-      }
-
-      if (input.autocomplete) {
-        updatedLlm.autocomplete = {
-          ...(currentConfig.llm?.autocomplete ?? {}),
-          ...input.autocomplete,
-        } as {
-          modelId: string;
-          provider: string;
-          temperature: number;
-          maxOutputTokens: number;
-        };
-      }
-
-      // Build next config merging optional fields
+      const llm = currentConfig.llm ?? {};
       const nextConfig = {
         ...currentConfig,
-        llm: updatedLlm,
-        tts: {
-          ...currentConfig.tts,
-          ...input.tts,
+        llm: {
+          ...llm,
+          chat: applyOverrides(llm.chat, input.chat),
+          agent: applyOverrides(
+            (llm as { agent?: Record<string, unknown> }).agent,
+            input.agent,
+          ),
         },
-        articles: {
-          ...currentConfig.articles,
-          ...input.articles,
-        },
-      } as (typeof schema.users.$inferInsert)["config"];
-
-      if (typeof input.autoSave === "boolean") {
-        (nextConfig as Record<string, unknown>).autoSave = {
-          ...(currentConfig.autoSave ?? {}),
-          enabled: input.autoSave,
-        } as unknown;
-      }
+        // Autocomplete has its own engine, which reads this key.
+        autocomplete: applyOverrides(
+          currentConfig.autocomplete,
+          input.autocomplete,
+        ),
+        tts: applyOverrides(currentConfig.tts, input.tts),
+        ...(typeof input.autoSave === "boolean" && {
+          autoSave: { ...currentConfig.autoSave, enabled: input.autoSave },
+        }),
+      };
 
       await ctx.drizzle
         .update(schema.users)

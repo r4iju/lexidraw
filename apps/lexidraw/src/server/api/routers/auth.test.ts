@@ -46,3 +46,78 @@ describe("sign-up", () => {
     expect(logged).toContain("[Auth]");
   });
 });
+
+describe("saving settings", () => {
+  const SETTINGS_USER = "settings_user";
+  const settings = authRouter.createCaller({
+    drizzle: db,
+    schema,
+    session: { user: { id: SETTINGS_USER } },
+    auth: { kind: "session" },
+    headers: new Headers(),
+  } as never);
+  const account = { name: "Settings", email: "settings@example.test" };
+  const stored = async () => {
+    const [row] = await db
+      .select({ config: schema.users.config })
+      .from(schema.users)
+      .where(eq(schema.users.id, SETTINGS_USER));
+    // Stored overrides are partial, whatever the column's type says.
+    return row?.config as
+      | {
+          llm?: Record<string, unknown>;
+          autocomplete?: Record<string, unknown>;
+        }
+      | undefined;
+  };
+
+  test("keeps the agent model, and a cleared field goes back to the default", async () => {
+    await db
+      .insert(schema.llmPolicies)
+      .values(
+        (["chat", "agent", "autocomplete"] as const).map((mode) => ({
+          mode,
+          provider: "google",
+          modelId: "gemini-3-pro-preview",
+          temperature: 0.5,
+          maxOutputTokens: 8000,
+          allowedModels: [
+            { provider: "google", modelId: "gemini-3-pro-preview" },
+            { provider: "openai", modelId: "gpt-5-mini" },
+          ],
+          enforcedCaps: {
+            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
+          },
+        })),
+      )
+      .onConflictDoNothing();
+    await db.insert(schema.users).values({ id: SETTINGS_USER, ...account });
+
+    await settings.updateProfile({
+      ...account,
+      chat: { provider: "openai", modelId: "gpt-5-mini", temperature: 0.9 },
+      agent: { provider: "openai", modelId: "gpt-5-mini" },
+    });
+    expect((await stored())?.llm?.agent).toEqual({
+      provider: "openai",
+      modelId: "gpt-5-mini",
+    });
+
+    await settings.updateProfile({ ...account, chat: { temperature: null } });
+    expect((await stored())?.llm?.chat).toEqual({
+      provider: "openai",
+      modelId: "gpt-5-mini",
+    });
+  });
+
+  test("autocomplete settings go where autocomplete reads them", async () => {
+    await settings.updateProfile({
+      ...account,
+      autocomplete: { enabled: false, verbosity: "high" },
+    });
+    expect((await stored())?.autocomplete).toMatchObject({
+      enabled: false,
+      verbosity: "high",
+    });
+  });
+});

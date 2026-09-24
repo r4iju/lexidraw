@@ -1,24 +1,19 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Footer from "~/sections/footer";
-import { AppBar, Crumb, CrumbLink } from "~/components/app-bar/app-bar";
+import { AppBar, Crumb } from "~/components/app-bar/app-bar";
 import { appBarAccount } from "~/server/app-bar-account";
 
-export const metadata: Metadata = { title: "API tokens" };
+export const metadata: Metadata = { title: "Settings" };
 
 type Props = {
   children: React.ReactNode;
 };
 
 const crumbs = (
-  <>
-    <Crumb>
-      <CrumbLink href="/profile">Settings</CrumbLink>
-    </Crumb>
-    <Crumb current>
-      <span className="truncate px-1.5 font-medium">API tokens</span>
-    </Crumb>
-  </>
+  <Crumb current>
+    <span className="truncate px-1.5 font-medium">Settings</span>
+  </Crumb>
 );
 
 async function SignedInAppBar() {
