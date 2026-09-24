@@ -209,6 +209,13 @@
   --chart-3: oklch(0.55 0.14 250);
   --chart-4: oklch(0.60 0.13 90);
   --chart-5: oklch(0.55 0.15 330);
+  /* GitHub's alert colours, so a callout reads as the kind it is on GitHub. */
+  --callout-note: #0969da;
+  --callout-tip: #1a7f37;
+  --callout-important: #8250df;
+  --callout-warning: #9a6700;
+  --callout-caution: #cf222e;
+  --callout-tint: 8%;
 }
 
 @media screen {
@@ -244,6 +251,12 @@
     --chart-3: oklch(0.70 0.14 250);
     --chart-4: oklch(0.74 0.13 90);
     --chart-5: oklch(0.68 0.15 330);
+    --callout-note: #4493f8;
+    --callout-tip: #3fb950;
+    --callout-important: #ab7df8;
+    --callout-warning: #d29922;
+    --callout-caution: #f85149;
+    --callout-tint: 14%;
   }
 }
 

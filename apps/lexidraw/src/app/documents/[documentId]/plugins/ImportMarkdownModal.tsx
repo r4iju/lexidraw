@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,17 +9,14 @@ import {
   DialogFooter,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
+import { Radio } from "~/components/ui/radio";
 import { ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { ParagraphNode, TextNode } from "lexical";
-import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { ListNode, ListItemNode } from "@lexical/list";
-import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { $convertFromMarkdownString } from "@lexical/markdown";
+import { CORE_NODES } from "@packages/lexical-nodes";
 import { theme } from "../themes/theme";
 import { PLAYGROUND_TRANSFORMERS } from "./MarkdownTransformers";
 import type { MarkdownInsertMode } from "../utils/markdown";
@@ -33,6 +30,16 @@ type Props = {
   canEdit: boolean;
 };
 
+const MODES = [
+  { value: "start", label: "Insert at start", Icon: ArrowUp },
+  { value: "end", label: "Insert at end", Icon: ArrowDown },
+  { value: "replace", label: "Replace document", Icon: RefreshCw },
+] as const satisfies readonly {
+  value: MarkdownInsertMode;
+  label: string;
+  Icon: typeof ArrowUp;
+}[];
+
 export default function ImportMarkdownModal({
   isOpen,
   onOpenChange,
@@ -43,107 +50,86 @@ export default function ImportMarkdownModal({
 }: Props) {
   const [selectedMode, setSelectedMode] =
     useState<MarkdownInsertMode>(defaultMode);
+  const ids = useId();
+  const chosen = MODES.find((mode) => mode.value === selectedMode) ?? MODES[1];
 
   const handleConfirm = () => {
     onConfirm(selectedMode);
     onOpenChange(false);
   };
 
-  const handleCancel = () => {
-    onOpenChange(false);
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] flex flex-col max-h-[80vh]">
+      <DialogContent className="flex h-[min(56rem,calc(100dvh-32px))] flex-col break-normal md:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Import Markdown</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-4 flex-1 min-h-0">
-          {/* Preview Section */}
-          <div className="border border-border rounded-md bg-muted/30 p-4 max-h-64 overflow-y-auto">
-            <div className="text-sm font-medium mb-2 text-muted-foreground">
-              Preview
-            </div>
-            <LexicalComposer
-              initialConfig={{
-                namespace: "markdown-import-preview",
-                theme: theme,
-                editable: false,
-                onError: (error) => {
-                  console.error("Lexical error in preview:", error);
-                },
-                editorState: () =>
-                  $convertFromMarkdownString(markdown, PLAYGROUND_TRANSFORMERS),
-                nodes: [
-                  HeadingNode,
-                  ListNode,
-                  ListItemNode,
-                  QuoteNode,
-                  CodeNode,
-                  CodeHighlightNode,
-                  ParagraphNode,
-                  TextNode,
-                ],
-              }}
-            >
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable className="outline-hidden min-h-[100px]" />
-                }
-                placeholder={null}
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-            </LexicalComposer>
+        <section
+          aria-label="Preview"
+          className="document-viewport min-h-0 flex-1 overflow-y-auto rounded-md border border-border bg-background p-4"
+        >
+          <LexicalComposer
+            initialConfig={{
+              namespace: "markdown-import-preview",
+              theme,
+              editable: false,
+              onError: (error) => {
+                console.error("Lexical error in preview:", error);
+              },
+              editorState: () =>
+                $convertFromMarkdownString(markdown, PLAYGROUND_TRANSFORMERS),
+              nodes: CORE_NODES,
+            }}
+          >
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable
+                  className="document-content outline-hidden"
+                  // The document's type and spacing, without its page frame.
+                  style={{ minHeight: 0, padding: 0 }}
+                />
+              }
+              placeholder={null}
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+          </LexicalComposer>
+        </section>
+        <fieldset disabled={!canEdit} className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-medium text-muted-foreground">
+            Import as
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {MODES.map(({ value, label, Icon }) => (
+              <label
+                key={value}
+                htmlFor={`${ids}-${value}`}
+                className="flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-2 text-sm transition-colors hover:bg-accent has-checked:border-primary has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring has-disabled:cursor-not-allowed has-disabled:opacity-50"
+              >
+                <Radio
+                  id={`${ids}-${value}`}
+                  name="markdown-import-mode"
+                  value={value}
+                  checked={selectedMode === value}
+                  onChange={() => setSelectedMode(value)}
+                />
+                <Icon className="size-4 shrink-0" aria-hidden />
+                <span>{label}</span>
+              </label>
+            ))}
           </div>
-
-          {/* Mode Selection */}
-          <div className="flex flex-col gap-2">
-            <div className="text-sm font-medium text-muted-foreground">
-              Insert mode
-            </div>
-            <ToggleGroup
-              type="single"
-              value={selectedMode}
-              onValueChange={(value) => {
-                if (value) setSelectedMode(value as MarkdownInsertMode);
-              }}
-              disabled={!canEdit}
-              className="justify-start"
-            >
-              <ToggleGroupItem
-                value="start"
-                aria-label="Insert at start"
-                className="flex items-center gap-2"
-              >
-                <ArrowUp className="h-4 w-4" />
-                <span>Insert at start</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="end"
-                aria-label="Insert at end"
-                className="flex items-center gap-2"
-              >
-                <ArrowDown className="h-4 w-4" />
-                <span>Insert at end</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="replace"
-                aria-label="Replace document"
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className="h-4 w-4" />
-                <span>Replace document</span>
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        </div>
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm} disabled={!canEdit}>
-            Confirm
+          <Button
+            variant={
+              selectedMode === "replace" ? "destructive-confirm" : "default"
+            }
+            onClick={handleConfirm}
+            disabled={!canEdit}
+          >
+            {chosen.label}
           </Button>
         </DialogFooter>
       </DialogContent>

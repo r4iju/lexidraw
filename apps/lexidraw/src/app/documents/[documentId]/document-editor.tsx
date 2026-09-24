@@ -16,6 +16,7 @@ import CommentPluginProvider, {
 } from "./plugins/CommentPlugin";
 import { LayoutPlugin } from "./plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "./plugins/CollapsiblePlugin";
+import CalloutPlugin from "./plugins/CalloutPlugin";
 import ShortcutsPlugin from "./plugins/ShortcutsPlugin";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
@@ -502,6 +503,7 @@ function EditorHandler({
                             <MarkdownShortcutPlugin />
                             <PageBreakPlugin />
                             <CollapsiblePlugin />
+                            <CalloutPlugin />
                             <PollPlugin />
                             <CodeHighlightPlugin />
                             <TabIndentationPlugin />

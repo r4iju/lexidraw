@@ -237,6 +237,10 @@
     overflow-wrap: break-word;
   }
 
+  .callout {
+    break-inside: avoid;
+  }
+
   p {
     orphans: 3;
     widows: 3;

@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Settings,
   ChartScatter,
+  Info,
 } from "lucide-react";
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
@@ -40,6 +41,7 @@ import { InsertInlineImageDialog } from "../InlineImagePlugin";
 import { InsertTableDialog } from "../TablePlugin";
 import { InsertPollDialog } from "../PollPlugin";
 import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
+import InsertCalloutDialog from "../CalloutPlugin/InsertCalloutDialog";
 import { InsertEquationDialog } from "../EquationsPlugin";
 import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
@@ -312,6 +314,20 @@ export function InsertItem({ activeEditor, isEditable }: InsertItemProps) {
           >
             <ChevronRight className="size-4" />
             <span className="text">Collapsible container</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              showModal("Insert Callout", (onClose) => (
+                <InsertCalloutDialog
+                  activeEditor={activeEditor}
+                  onClose={onClose}
+                />
+              ));
+            }}
+            className="flex gap-2"
+          >
+            <Info className="size-4" />
+            <span className="text">Callout</span>
           </DropdownMenuItem>
           {EmbedConfigs.map((embedConfig) => (
             <DropdownMenuItem

@@ -91,6 +91,7 @@ import ImagePlugin from "../../plugins/ImagePlugin";
 import VideoPlugin from "../../plugins/VideoPlugin";
 import { LayoutPlugin } from "../../plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "../../plugins/CollapsiblePlugin";
+import CalloutPlugin from "../../plugins/CalloutPlugin";
 import PollPlugin from "../../plugins/PollPlugin";
 import TableCellResizer from "../../plugins/TableCellResizer";
 import TableActionMenuPlugin from "../../plugins/TableActionMenuPlugin";
@@ -581,6 +582,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
             <VideoPlugin />
             <LayoutPlugin />
             <CollapsiblePlugin />
+            <CalloutPlugin />
             <PollPlugin />
             <TableCellResizer />
             {floatingAnchorElem && (

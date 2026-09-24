@@ -55,6 +55,7 @@ const Button = ({
   return (
     <Comp
       ref={ref}
+      data-variant={variant ?? "default"}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
