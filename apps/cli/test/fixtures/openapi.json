@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Lexidraw API",
-    "description": "REST access to Lexidraw documents and drawings. Authenticate with a personal access token created at /settings/tokens.",
+    "description": "REST access to Lexidraw documents and drawings. Authenticate with a personal access token created at /settings#api-tokens.",
     "version": "1.0.0"
   },
   "servers": [

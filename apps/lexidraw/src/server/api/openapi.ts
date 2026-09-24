@@ -118,7 +118,7 @@ const document = generateOpenApiDocument(appRouter, {
   // The CLI sends a token only to a host whose document carries this title.
   title: "Lexidraw API",
   description:
-    "REST access to Lexidraw documents and drawings. Authenticate with a personal access token created at /settings/tokens.",
+    "REST access to Lexidraw documents and drawings. Authenticate with a personal access token created at /settings#api-tokens.",
   version: "1.0.0",
   baseUrl: "/api/v1",
   securitySchemes: {

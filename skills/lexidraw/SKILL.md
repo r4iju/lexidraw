@@ -29,7 +29,7 @@ lexidraw auth login --token lxd_...   # validated against /me before it is store
 lexidraw auth status         # profile, base URL, token source, scope
 ```
 
-Tokens are minted at `/settings/tokens` in the app, with scope `read` or
+Tokens are minted at `/settings#api-tokens` in the app, with scope `read` or
 `write`, and shown once.
 
 Profiles: `prod` (https://lexidraw.vercel.app, the default) and `dev`
@@ -342,7 +342,7 @@ usage errors exit 2.
 | `USAGE` | the arguments are wrong | read the message; it names the missing flag |
 | `NO_TOKEN` | no token for this profile | `lexidraw auth login`, or set `LEXIDRAW_TOKEN` |
 | `KEYCHAIN_UNAVAILABLE` | `security` could not be run or read | set `LEXIDRAW_TOKEN` instead |
-| `UNAUTHORIZED` | the token is unknown, revoked, or expired | mint a new one at `/settings/tokens` |
+| `UNAUTHORIZED` | the token is unknown, revoked, or expired | mint a new one at `/settings#api-tokens` |
 | `FORBIDDEN` | a `read`-scope token tried to write, or the entity is shared without edit rights | use a `write`-scope token; ask the owner for edit access |
 | `UNKNOWN_COMMAND` | no such command for `schema` | `lexidraw schema --list` |
 | `AMBIGUOUS_PATH` | a write path matched several entities | pick one from `candidates` with `--nth N` or its id |

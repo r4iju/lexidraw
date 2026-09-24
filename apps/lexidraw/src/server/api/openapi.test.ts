@@ -52,6 +52,10 @@ describe("openApiDocument", () => {
     expect(problems).toEqual([]);
   });
 
+  it("sends readers to where tokens are made", () => {
+    expect(document.info.description).toContain("/settings#api-tokens");
+  });
+
   it("exposes entity load as GET /entities/{id}", () => {
     const operation = document.paths?.["/entities/{id}"]?.get;
     expect(operation).toBeDefined();
