@@ -38,6 +38,7 @@ import {
   entityAncestors,
   findOwnedEntity,
   findReadableEntity,
+  findReadableRevision,
   findWritableEntity,
   resolveParentDirectory,
 } from "~/server/entities/readable";
@@ -67,6 +68,8 @@ const loadOutput = z.object({
     z.object({ userId: z.string(), accessLevel: z.string() }),
   ),
   accessLevel: z.enum(AccessLevel),
+  // The revision the content is, so an open editor can tell when it moved.
+  updatedAt: isoDate,
 });
 
 /** What `list` returns: one row per entity the dashboard draws. */
@@ -517,7 +520,25 @@ export const entityRouter = createTRPCRouter({
           accessLevel: share.accessLevel,
         })),
         accessLevel,
+        updatedAt: entity.updatedAt,
       };
+    }),
+  /**
+   * The stored revision without its content: what an open editor polls to
+   * learn that the entity moved under it (`lib/open-entity-sync.ts`). Not a
+   * REST path; agents read `updatedAt` from the reads they already make.
+   */
+  revision: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ updatedAt: isoDate }))
+    .query(async ({ input, ctx }) => {
+      const revision = await findReadableRevision(
+        ctx.drizzle,
+        input.id,
+        ctx.session?.user?.id ?? "",
+      );
+      if (!revision) throw notFound();
+      return revision;
     }),
   getMetadata: publicProcedure
     .input(z.object({ id: z.string() }))

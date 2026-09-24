@@ -44,6 +44,7 @@ export default function DrawingScreenshotView({
           drawing={drawing}
           elements={elements}
           appState={appState}
+          renderOnly
         />
       </div>
     </ThemeProvider>

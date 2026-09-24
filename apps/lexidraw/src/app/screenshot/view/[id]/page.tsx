@@ -49,6 +49,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
         appState: schema.entities.appState,
         elements: schema.entities.elements,
         publicAccess: schema.entities.publicAccess,
+        updatedAt: schema.entities.updatedAt,
         entityType: schema.entities.entityType,
       })
       .from(schema.entities)
@@ -68,6 +69,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
       publicAccess: row.publicAccess as PublicAccess,
       sharedWith: [] as { userId: string; accessLevel: AccessLevel }[],
       accessLevel: AccessLevel.READ,
+      updatedAt: row.updatedAt,
     };
 
     const parsedAppState = drawing.appState
@@ -111,6 +113,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
     publicAccess: row.publicAccess as PublicAccess,
     sharedWith: [] as { userId: string; accessLevel: AccessLevel }[],
     accessLevel: AccessLevel.READ,
+    updatedAt: row.updatedAt,
   };
 
   const iceServers = await api.auth.iceServers.query();

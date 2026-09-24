@@ -108,6 +108,8 @@ import {
   ImageGenerationProvider,
 } from "~/hooks/use-image-generation";
 import { useAutoSave } from "~/hooks/use-auto-save";
+import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import { useSyncedLexicalEditor } from "./use-synced-lexical-editor";
 import {
   LexicalImageProvider,
   ImageProvider,
@@ -290,6 +292,19 @@ function EditorHandler({
   const sidebarRef = useRef<HTMLElement>(null);
 
   const { markDirty, markPristine } = useUnsavedChanges();
+  const onSyncReplace = useCallback(
+    (editorState: EditorState) => {
+      setEditorStateRef(editorState);
+      markPristine();
+    },
+    [setEditorStateRef, markPristine],
+  );
+  const syncedEditor = useSyncedLexicalEditor(editor, onSyncReplace);
+  useOpenEntitySync({
+    entity,
+    noun: "document",
+    editor: printMode ? null : syncedEditor,
+  });
   const { defaultFontFamily } = useDocumentSettings();
   const { enabled: autoSaveEnabled } = useAutoSave({ enabled: !printMode });
 

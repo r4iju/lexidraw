@@ -13,6 +13,8 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
+import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import { useSyncedExcalidraw } from "./use-synced-excalidraw";
 import type { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
@@ -20,15 +22,25 @@ type Props = {
   drawing: RouterOutputs["entities"]["load"];
   appState?: UIAppState;
   elements?: NonDeletedExcalidrawElement[];
+  /** A one-off render, like a thumbnail capture, that never follows writes. */
+  renderOnly?: boolean;
 };
 
 const ExcalidrawViewWrapper: React.FC<Props> = ({
+  drawing,
   appState,
   elements,
   revalidate,
+  renderOnly = false,
 }) => {
   const [excalidrawApi, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
+  const syncedEditor = useSyncedExcalidraw(excalidrawApi);
+  useOpenEntitySync({
+    entity: drawing,
+    noun: "drawing",
+    editor: renderOnly ? null : syncedEditor,
+  });
   const isDarkTheme = useIsDarkTheme();
 
   const options = {

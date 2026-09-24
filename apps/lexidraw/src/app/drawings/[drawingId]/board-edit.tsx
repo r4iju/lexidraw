@@ -27,6 +27,8 @@ import { Theme, type MessageStructure } from "@packages/types";
 import { DrawingBoardMenu } from "./dropdown";
 import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
 import { useAutoSave } from "~/hooks/use-auto-save";
+import { useOpenEntitySync } from "~/hooks/use-open-entity-sync";
+import { useSyncedExcalidraw } from "./use-synced-excalidraw";
 
 type Props = {
   revalidate: () => void;
@@ -58,6 +60,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   );
   const { markDirty, markPristine } = useUnsavedChanges();
   const { enabled: autoSaveEnabled } = useAutoSave();
+  // The mounted editor, for what has to wait until there is one.
+  const [mountedApi, setMountedApi] = useState<ExcalidrawImperativeAPI | null>(
+    null,
+  );
 
   const updateElementsRef = useCallback(
     (currentElements: Map<string, ExcalidrawElement>) => {
@@ -65,6 +71,16 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     },
     [],
   );
+
+  const onSyncReplace = useCallback(
+    (elements: readonly ExcalidrawElement[]) => {
+      updateElementsRef(new Map(elements.map((e) => [e.id, e])));
+      markPristine();
+    },
+    [updateElementsRef, markPristine],
+  );
+  const syncedEditor = useSyncedExcalidraw(mountedApi, onSyncReplace);
+  useOpenEntitySync({ entity: drawing, noun: "drawing", editor: syncedEditor });
 
   const applyUpdate = useCallback(
     ({ elements }: { elements: readonly ExcalidrawElement[] }) => {
@@ -293,6 +309,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         {...options}
         excalidrawAPI={(api) => {
           excalidrawApi.current = api;
+          setMountedApi(api);
           onExcalidrawApiReady?.(api);
           console.log("excalidraw api set");
         }}
