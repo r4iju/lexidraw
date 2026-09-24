@@ -414,3 +414,24 @@ describe("withFrontmatter", () => {
     );
   });
 });
+
+test("code numbers are opt-in and survive markdown round trips without a stored theme", () => {
+  const markdown = "```js showLineNumbers\nconst a = 1;\nconsole.log(a);\n```";
+  const state = markdownToEditorState(markdown);
+  expect(state.root.children[0]).toMatchObject({ showLineNumbers: true });
+  expect(editorStateToMarkdown(state)).toBe(markdown);
+  expect(
+    markdownToEditorState("```text\none line\n```").root.children[0],
+  ).toMatchObject({ showLineNumbers: false });
+  expect(state.root.children[0]).not.toHaveProperty("theme");
+});
+
+test("line numbers work without a language and can be turned back off", () => {
+  const numbered = markdownToEditorState("```showLineNumbers\nhello\n```");
+  expect(editorStateToMarkdown(numbered)).toBe(
+    "```showLineNumbers\nhello\n```",
+  );
+  const node = numbered.root.children[0];
+  if (node && "showLineNumbers" in node) node.showLineNumbers = false;
+  expect(editorStateToMarkdown(numbered)).toBe("```\nhello\n```");
+});

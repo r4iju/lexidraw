@@ -69,3 +69,12 @@ plus a narrowed desktop container. They check media bounds and aspect ratios,
 centering, theme treatment, placeholders, poll results and print break rules.
 The suite saves a PDF from the dark editor and a CLI PDF; `pdftotext` (Poppler)
 is required to verify the CLI PDF includes its chart and poll results.
+
+Rich-block cases cover separate quotes, long URLs and inline code, multiline
+checklist items, plain and numbered code, inline and display equations, and a
+single-series chart. The sticky note sits beside the other rich blocks so it
+stays within the 6000px baseline cap. The six captures now total about 3 MB;
+remaining media fallbacks can extend past the cap and have browser coverage.
+Browser checks cover actual inline-math line layout, header accessibility,
+number defaults, quote styling, link wrapping, chart legends, collapsible type,
+and print wrapping/line markers. The exported PDF must omit the skip link.

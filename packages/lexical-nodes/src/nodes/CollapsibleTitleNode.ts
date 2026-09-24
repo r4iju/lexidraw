@@ -44,11 +44,12 @@ export class CollapsibleTitleNode extends ElementNode {
     });
 
     const button = document.createElement("button");
+    button.dataset.placeholder = "Section title";
     button.dataset.slot = "accordion-trigger";
     button.dataset.state = isOpen ? "open" : "closed";
     button.className = [
       "flex flex-1 flex-row items-center gap-2 w-full py-1 min-h-10",
-      "text-left text-sm font-medium",
+      "text-left text-base font-medium",
       "transition-all ease-in-out",
       "outline-none cursor-pointer",
       "disabled:pointer-events-none disabled:opacity-50",

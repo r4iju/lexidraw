@@ -105,13 +105,13 @@
     :is(
       .document-figure,
       [data-media-type],
-      .editor-equation,
+      div.editor-equation,
       [data-poll],
       .chart-component,
       .slide-view-outer-viewport,
       .slide-deck-container
     ),
-  .document-content p:has(.document-figure, .editor-equation) {
+  .document-content p:has(.document-figure, div.editor-equation) {
     break-inside: avoid;
   }
 
@@ -124,10 +124,10 @@
           .document-table-region,
           pre,
           code,
-          .editor-equation
+          div.editor-equation
         )
     ),
-  .document-content p:has(+ p .document-figure, + p .editor-equation) {
+  .document-content p:has(+ p .document-figure, + p div.editor-equation) {
     break-after: avoid;
   }
 
@@ -258,5 +258,24 @@
     margin: 0 auto;
     padding: 2rem;
     background: white;
+  }
+}
+
+@media print {
+  .document-code-header {
+    display: none;
+  }
+  .document-code .document-code-body {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow: visible;
+  }
+  .document-code {
+    break-inside: avoid;
+  }
+  .document-link,
+  .document-content [data-prose] a {
+    color: inherit;
+    text-decoration-color: currentColor;
   }
 }

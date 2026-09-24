@@ -1,3 +1,4 @@
+export * from "./nodes/DocumentCodeNode.js";
 export * from "./nodes/ArticleNode.js";
 export * from "./nodes/AutocompleteNode.js";
 export * from "./nodes/ChartNode.js";

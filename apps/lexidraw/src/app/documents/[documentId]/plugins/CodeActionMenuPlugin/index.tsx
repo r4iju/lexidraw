@@ -1,198 +1,144 @@
-import { $isCodeNode, CodeNode } from "@lexical/code";
+import { DocumentCodeNode } from "@packages/lexical-nodes";
 import { normalizeCodeLanguage } from "@lexical/code-shiki";
-import { getCodeLanguageFriendlyName } from "../code-language";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
-import { $getNearestNodeFromDOMNode } from "lexical";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  $getNodeByKey,
+  $nodesOfType,
+  $isLineBreakNode,
+  type NodeKey,
+} from "lexical";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  CODE_LANGUAGE_OPTIONS,
+  getCodeLanguageFriendlyName,
+} from "../code-language";
 import { CopyButton } from "./copy-button";
 import { PrettierButton } from "./prettier-button";
-import { useDebounce } from "~/lib/client-utils";
-import type { Options } from "prettier";
 
-const CODE_PADDING = 8;
-
-type Position = {
-  top: string;
-  right: string;
+type Header = {
+  key: NodeKey;
+  element: HTMLElement;
+  code: HTMLElement;
+  language: string;
+  numbers: boolean;
 };
 
-function CodeActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
+export default function CodeActionMenuPlugin() {
   const [editor] = useLexicalComposerContext();
-  const isEditable = useLexicalEditable();
-  const [lang, setLang] = useState("");
-  const [isShown, setShown] = useState<boolean>(false);
-  const [shouldListenMouseMove, setShouldListenMouseMove] =
-    useState<boolean>(false);
-  const [position, setPosition] = useState<Position>({
-    right: "0",
-    top: "0",
-  });
-
-  const codeSetRef = useRef<Set<string>>(new Set());
-  const codeDOMNodeRef = useRef<HTMLElement | null>(null);
-
-  /**
-   * 1. Provide a stable callback that returns the ref value.
-   *    We'll pass this to the child components instead of the raw ref.
-   */
-  const getCodeDOMNode = useCallback(() => {
-    return codeDOMNodeRef.current;
-  }, []);
-
-  const getMouseInfo = useCallback(
-    (
-      event: MouseEvent,
-    ): {
-      codeDOMNode: HTMLElement | null;
-      isOutside: boolean;
-    } => {
-      const target = event.target;
-
-      if (!(target instanceof Element)) {
-        return { codeDOMNode: null, isOutside: true };
-      }
-
-      const menuElem = (target as Element).closest<HTMLElement>(
-        "[data-code-action-menu]",
-      );
-
-      let codeDOMNode = (target as Element).closest<HTMLElement>("code");
-      if (menuElem) {
-        codeDOMNode = codeDOMNodeRef.current;
-      }
-
-      const isOutside = !codeDOMNode;
-      return { codeDOMNode, isOutside };
-    },
-    [],
+  const editable = useLexicalEditable();
+  const [headers, setHeaders] = useState<Header[]>([]);
+  // Lexical owns the code DOM and notifies us when its header or line markers change.
+  useEffect(
+    () =>
+      editor.registerMutationListener(
+        DocumentCodeNode,
+        () => {
+          editor.getEditorState().read(() => {
+            const next: Header[] = [];
+            $nodesOfType(DocumentCodeNode).forEach((node) => {
+              if (!(node instanceof DocumentCodeNode) || !node.isAttached())
+                return;
+              const code = editor.getElementByKey(node.getKey());
+              const element = code?.querySelector<HTMLElement>(
+                ".document-code-header",
+              );
+              if (!code || !element) return;
+              let line = 1;
+              let first = true;
+              for (const child of node.getChildren()) {
+                const dom = editor.getElementByKey(child.getKey());
+                if (dom) {
+                  dom.removeAttribute("data-line-number");
+                  if (first) dom.dataset.lineNumber = String(line);
+                }
+                if ($isLineBreakNode(child)) {
+                  line++;
+                  first = true;
+                } else first = false;
+              }
+              next.push({
+                key: node.getKey(),
+                element,
+                code,
+                language: node.getLanguage() || "",
+                numbers: node.getShowLineNumbers(),
+              });
+            });
+            setHeaders(next);
+          });
+        },
+        { skipInitialization: false },
+      ),
+    [editor],
   );
 
-  const { run: debouncedOnMouseMove, cancel: cancelDebouncedOnMouseMove } =
-    useDebounce((event) => {
-      const { codeDOMNode, isOutside } = getMouseInfo(event as MouseEvent);
-
-      if (isOutside) {
-        setShown(false);
-        return;
-      }
-
-      if (!codeDOMNode) {
-        return;
-      }
-
-      let codeNode: CodeNode | null = null;
-      let _lang = "";
-
-      editor.update(() => {
-        const maybeCodeNode = $getNearestNodeFromDOMNode(codeDOMNode);
-        if ($isCodeNode(maybeCodeNode)) {
-          codeNode = maybeCodeNode;
-          _lang = codeNode.getLanguage() || "";
-        }
-      });
-
-      if (codeNode) {
-        const { y: editorElemY, right: editorElemRight } =
-          anchorElem.getBoundingClientRect();
-        const { y, right } = codeDOMNode.getBoundingClientRect();
-        setLang(_lang);
-        setShown(true);
-        setPosition({
-          right: `${editorElemRight - right + CODE_PADDING}px`,
-          top: `${y - editorElemY}px`,
-        });
-
-        /**
-         * 2. Store the new node in the ref,
-         *    but don't read it in the render path.
-         */
-        codeDOMNodeRef.current = codeDOMNode;
-      }
-    }, 50);
-
-  useEffect(() => {
-    if (!shouldListenMouseMove) {
-      return;
-    }
-    document.addEventListener("mousemove", debouncedOnMouseMove);
-    return () => {
-      setShown(false);
-      cancelDebouncedOnMouseMove();
-      document.removeEventListener("mousemove", debouncedOnMouseMove);
-    };
-  }, [shouldListenMouseMove, debouncedOnMouseMove, cancelDebouncedOnMouseMove]);
-
-  // Register a mutation listener so we know when code nodes are added/removed
-  useEffect(() => {
-    return editor.registerMutationListener(CodeNode, (mutations) => {
-      editor.getEditorState().read(() => {
-        for (const [key, type] of mutations) {
-          switch (type) {
-            case "created":
-              codeSetRef.current.add(key);
-              setShouldListenMouseMove(codeSetRef.current.size > 0);
-              break;
-            case "destroyed":
-              codeSetRef.current.delete(key);
-              setShouldListenMouseMove(codeSetRef.current.size > 0);
-              break;
-            default:
-              break;
-          }
-        }
-      });
-    });
-  }, [editor]);
-
-  const PRETTIER_OPTIONS_BY_LANG: Record<string, Options> = {
-    css: { parser: "css" },
-    html: { parser: "html" },
-    js: { parser: "babel" },
-    markdown: { parser: "markdown" },
-    typescript: { parser: "typescript" },
-  };
-
-  const LANG_CAN_BE_PRETTIER = Object.keys(PRETTIER_OPTIONS_BY_LANG);
-
-  const canBePrettier = (lang: string): boolean => {
-    return LANG_CAN_BE_PRETTIER.includes(lang);
-  };
-
-  const normalizedLang = normalizeCodeLanguage(lang);
-  const codeFriendlyName = getCodeLanguageFriendlyName(lang);
-
-  return (
-    <>
-      {isShown ? (
-        <div
-          className="absolute flex flex-row items-center gap-2 mt-1 select-none h-9 text-muted-foreground"
-          style={{ ...position }}
-          data-code-action-menu
-        >
-          <div className="text-xs">{codeFriendlyName}</div>
-          <CopyButton editor={editor} getCodeDOMNode={getCodeDOMNode} />
-          {isEditable && canBePrettier(normalizedLang) ? (
-            <PrettierButton
-              editor={editor}
-              getCodeDOMNode={getCodeDOMNode}
-              lang={normalizedLang}
-            />
-          ) : null}
+  return headers.map(({ key, element, code, language, numbers }) =>
+    createPortal(
+      <>
+        {editable ? (
+          <select
+            aria-label="Code language"
+            value={language}
+            onChange={(event) => {
+              const value = event.target.value;
+              editor.update(() => {
+                const node = $getNodeByKey(key);
+                if (node instanceof DocumentCodeNode) node.setLanguage(value);
+              });
+            }}
+          >
+            <option value="">Plain text</option>
+            {language &&
+              !CODE_LANGUAGE_OPTIONS.some(([value]) => value === language) && (
+                <option value={language}>
+                  {getCodeLanguageFriendlyName(language)}
+                </option>
+              )}
+            {CODE_LANGUAGE_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span>{getCodeLanguageFriendlyName(language) || "Plain text"}</span>
+        )}
+        <div className="document-code-actions">
+          {editable && (
+            <label title="Show line numbers">
+              <input
+                type="checkbox"
+                aria-label="Show line numbers"
+                checked={numbers}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  editor.update(() => {
+                    const node = $getNodeByKey(key);
+                    if (node instanceof DocumentCodeNode)
+                      node.setShowLineNumbers(checked);
+                  });
+                }}
+              />{" "}
+              Lines
+            </label>
+          )}
+          <CopyButton editor={editor} getCodeDOMNode={() => code} />
+          {editable &&
+            ["css", "html", "javascript", "markdown", "typescript"].includes(
+              normalizeCodeLanguage(language),
+            ) && (
+              <PrettierButton
+                editor={editor}
+                getCodeDOMNode={() => code}
+                lang={normalizeCodeLanguage(language)}
+              />
+            )}
         </div>
-      ) : null}
-    </>
-  );
-}
-
-export default function CodeActionMenuPlugin({
-  anchorElem = document.body,
-}: {
-  anchorElem?: HTMLElement;
-}) {
-  return createPortal(
-    <CodeActionMenuContainer anchorElem={anchorElem} />,
-    anchorElem,
+      </>,
+      element,
+      key,
+    ),
   );
 }

@@ -43,7 +43,7 @@ export class CollapsibleContentNode extends ElementNode {
     outer.dataset.slot = "accordion-content";
     outer.dataset.state = isOpen ? "open" : "closed"; // Initial state
     outer.className =
-      "overflow-hidden text-sm " +
+      "overflow-hidden text-base " +
       "data-[state=open]:animate-accordion-down " +
       "data-[state=closed]:animate-accordion-up";
 
@@ -82,7 +82,7 @@ export class CollapsibleContentNode extends ElementNode {
     element.dataset.slot = "accordion-content";
     // The parent CollapsibleContainerNode is responsible for the data-state attribute that drives animation.
     // This node just needs its base classes.
-    element.className = "overflow-hidden text-sm pt-0 pb-4";
+    element.className = "overflow-hidden text-base pt-0 pb-4";
     // The animate-accordion-down/up classes are applied based on data-state, set by parent container.
     // So we don't need to explicitly add them here if state is unknown.
     return { element };

@@ -61,7 +61,6 @@ import { InlineImageNode } from "../InlineImageNode/InlineImageNode";
 import { VideoNode } from "../VideoNode/VideoNode";
 import { PollNode } from "../PollNode";
 import { TableNode, TableRowNode, TableCellNode } from "@lexical/table";
-import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -205,8 +204,6 @@ export const NESTED_EDITOR_NODES = [
   YouTubeNode,
   ExcalidrawNode,
   FigmaNode,
-  CodeNode,
-  CodeHighlightNode,
   LayoutContainerNode,
   LayoutItemNode,
   CollapsibleContainerNode,
@@ -592,7 +589,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
                   anchorElem={floatingAnchorElem}
                   cellMerge={true}
                 />
-                <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+                <CodeActionMenuPlugin />
                 <FloatingLinkEditorPlugin
                   anchorElem={floatingAnchorElem}
                   isLinkEditMode={isLinkEditMode}

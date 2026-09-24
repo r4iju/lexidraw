@@ -45,7 +45,11 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
         (event: MouseEvent) => {
           const pbElem = editor.getElementByKey(nodeKey);
 
-          if (event.target === pbElem) {
+          if (
+            isEditable &&
+            event.target instanceof Node &&
+            pbElem?.contains(event.target)
+          ) {
             if (!event.shiftKey) {
               clearSelection();
             }
@@ -68,12 +72,20 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
         COMMAND_PRIORITY_LOW,
       ),
     );
-  }, [clearSelection, editor, isSelected, nodeKey, $onDelete, setSelected]);
+  }, [
+    clearSelection,
+    editor,
+    isEditable,
+    isSelected,
+    nodeKey,
+    $onDelete,
+    setSelected,
+  ]);
 
   useEffect(() => {
     const pbElem = editor.getElementByKey(nodeKey);
     if (pbElem !== null) {
-      pbElem.className = isSelected ? "selected" : "";
+      pbElem.classList.toggle("document-page-break-selected", isSelected);
     }
   }, [editor, isSelected, nodeKey]);
 
@@ -89,15 +101,14 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
         "bg-muted border-muted",
         "w-full",
         "my-[1rem]",
-        "peer-[:has(+.page-break-handle)[data-selected='true']]:border-primary",
+        isSelected && "border-primary",
       )}
     >
-      {/* scissors icon (old ::before) */}
       <ScissorsIcon
         className={cn(
           "absolute left-3",
           "top-1/2 -translate-y-1/2 h-4 w-4 opacity-50",
-          "peer-[:has(+.page-break-handle)[data-selected='true']]:opacity-100",
+          isSelected && "opacity-100",
         )}
       />
 
@@ -106,9 +117,6 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
           PAGE&nbsp;BREAK
         </span>
       </span>
-
-      {/* invisible handle that Lexical toggles with .selected */}
-      <span data-selected={isSelected} className="page-break-handle hidden" />
     </figure>
   );
 }

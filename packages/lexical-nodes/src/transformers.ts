@@ -1,8 +1,11 @@
+import { DocumentCodeNode } from "./nodes/DocumentCodeNode.js";
 import { $createDocumentTable } from "./tables.js";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
   CHECK_LIST,
+  CODE,
+  type MultilineElementTransformer,
   ELEMENT_TRANSFORMERS,
   type ElementTransformer,
   MULTILINE_ELEMENT_TRANSFORMERS,
@@ -307,6 +310,38 @@ function getTableColumnsSize(table: TableNode) {
   return $isTableRowNode(row) ? row.getChildrenSize() : 0;
 }
 
+const DOCUMENT_CODE: MultilineElementTransformer = {
+  ...CODE,
+  dependencies: [DocumentCodeNode],
+  handleImportAfterStartMatch(args) {
+    const result = CODE.handleImportAfterStartMatch?.(args);
+    const node = args.rootNode.getLastChild();
+    if (node instanceof DocumentCodeNode) {
+      if (node.getLanguage() === "showLineNumbers") node.setLanguage(undefined);
+      node.setShowLineNumbers(
+        /(?:^|\s)showLineNumbers(?:\s|$)/.test(
+          (args.lines[args.startLineIndex] ?? "").replace(/^\s*`{3,}/, ""),
+        ),
+      );
+    }
+    return result ?? null;
+  },
+  export(node, ...args) {
+    const markdown = CODE.export?.(node, ...args);
+    if (!markdown || !(node instanceof DocumentCodeNode))
+      return markdown ?? null;
+    const [info = "", ...lines] = markdown.split("\n");
+    const clean = info.replace(/\s+showLineNumbers\b/g, "");
+    return [
+      clean +
+        (node.getShowLineNumbers()
+          ? `${node.getLanguage() ? " " : ""}showLineNumbers`
+          : ""),
+      ...lines,
+    ].join("\n");
+  },
+};
+
 /**
  * The full transformer list for an editor. `extra` holds transformers for
  * nodes this package does not know; nested conversions inside tables and
@@ -325,7 +360,9 @@ export function createTransformers(extra: Transformer[] = []): Transformer[] {
     EMOJI,
     CHECK_LIST,
     ...ELEMENT_TRANSFORMERS,
-    ...MULTILINE_ELEMENT_TRANSFORMERS,
+    ...MULTILINE_ELEMENT_TRANSFORMERS.map((transformer) =>
+      transformer === CODE ? DOCUMENT_CODE : transformer,
+    ),
     ...TEXT_FORMAT_TRANSFORMERS,
     ...TEXT_MATCH_TRANSFORMERS,
   );

@@ -26,7 +26,7 @@ import { createPortal } from "react-dom";
 import { useGetSelectedNode } from "../../../utils/getSelectedNode";
 import { useSanitizeUrl } from "../../../utils/url";
 import { Button } from "~/components/ui/button";
-import { CheckIcon, PencilIcon, TrashIcon, XIcon } from "lucide-react";
+import { CheckIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { Input } from "~/components/ui/input";
 
@@ -311,21 +311,33 @@ function FloatingLinkEditor({
           </div>
         </div>
       ) : (
-        <div className="flex items-center w-full justify-between gap-4 p-1 elevation-overlay rounded-md">
-          <Button variant="link" asChild rel="noopener noreferrer">
+        <div className="flex flex-wrap items-center w-full gap-2 p-2 elevation-overlay rounded-md">
+          <span className="min-w-0 w-full truncate text-sm" title={linkUrl}>
+            {linkUrl}
+          </span>
+          <Button variant="ghost" size="sm" asChild>
             <Link
-              className="text-muted-foreground text-sm text-left justify-start truncate pl-2"
               target="_blank"
+              rel="noopener noreferrer"
               href={sanitizeUrl(linkUrl)}
             >
-              {linkUrl}
+              Open
             </Link>
           </Button>
-
+          <Button
+            variant="ghost"
+            size="sm"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              void navigator.clipboard.writeText(linkUrl);
+            }}
+          >
+            Copy
+          </Button>
           <div className="flex items-center gap-2">
             <Button
-              variant="secondary"
-              size="icon"
+              variant="ghost"
+              size="sm"
               role="button"
               tabIndex={0}
               onMouseDown={(event) => event.preventDefault()}
@@ -339,12 +351,11 @@ function FloatingLinkEditor({
                 }, 0);
               }}
             >
-              <PencilIcon className="w-4 h-4" />
-              <span className="sr-only">Edit link</span>
+              <span>Edit</span>
             </Button>
             <Button
-              variant="destructive"
-              size="icon"
+              variant="ghost"
+              size="sm"
               role="button"
               tabIndex={0}
               onMouseDown={(event) => event.preventDefault()}
@@ -352,8 +363,7 @@ function FloatingLinkEditor({
                 editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
               }}
             >
-              <TrashIcon className="w-4 h-4" />
-              <span className="sr-only">Remove link</span>
+              <span>Unlink</span>
             </Button>
           </div>
         </div>

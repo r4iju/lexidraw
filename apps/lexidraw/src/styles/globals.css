@@ -149,6 +149,12 @@
 }
 
 :root {
+  --code-background: oklch(0.97 0.004 285);
+  --diagram-paper-background: oklch(1 0 0);
+  --diagram-paper-surface: oklch(0.97 0.004 285);
+  --diagram-paper-foreground: oklch(0.23 0.01 285);
+  --diagram-paper-border: oklch(0.86 0.006 285);
+  --diagram-paper-muted: oklch(0.49 0.012 285);
   color-scheme: light;
   --desk: oklch(0.96 0.004 285);
   --background: oklch(0.985 0.002 285);
@@ -207,6 +213,7 @@
 
 @media screen {
   .dark {
+    --code-background: var(--surface-1);
     color-scheme: dark;
     --desk: oklch(0.145 0.004 285);
     --background: oklch(0.17 0.006 285);
@@ -348,5 +355,18 @@ p {
 @media (width >= 1024px) {
   :root {
     --header-height: clamp(4.25rem, 3.25rem + 1.5vw, 5.5rem);
+  }
+}
+
+@media screen {
+  .dark .sticky-note-container {
+    --color-sticky-pink: oklch(.78 .07 350);
+    --color-sticky-yellow: oklch(.82 .10 95);
+    --color-sticky-green: oklch(.78 .07 150);
+    --color-sticky-blue: oklch(.76 .07 250);
+    --color-sticky-red: oklch(.76 .08 25);
+    --color-sticky-orange: oklch(.78 .09 65);
+    --color-sticky-purple: oklch(.76 .07 300);
+    --color-sticky-gray: oklch(.76 .005 285);
   }
 }

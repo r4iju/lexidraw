@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: Props) {
       >
         <a
           href="#main-content"
-          className="fixed left-4 top-4 z-[100] -translate-y-24 focus:translate-y-0 rounded-md bg-primary text-primary-foreground p-3 focus-visible:ring-2 focus-visible:ring-ring"
+          className="print:hidden fixed left-4 top-4 z-[100] -translate-y-24 focus:translate-y-0 rounded-md bg-primary text-primary-foreground p-3 focus-visible:ring-2 focus-visible:ring-ring"
         >
           Skip to content
         </a>

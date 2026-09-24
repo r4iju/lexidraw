@@ -106,6 +106,7 @@
     table,
     pre,
     code,
+    .document-code,
     [data-lexical-decorator]:not(hr),
     [data-lexical-layout-container],
     .document-wide
@@ -424,7 +425,7 @@
 }
 
 @media screen {
-  .dark .document-diagram {
+  .dark .document-diagram:not([data-mermaid]) {
     filter: invert(93%) hue-rotate(180deg);
   }
 }
@@ -437,4 +438,222 @@
 .chart-component[data-empty="true"] {
   min-height: 96px;
   display: grid;
+}
+
+.document-quote {
+  border-inline-start: 3px solid var(--border-strong, var(--border));
+  padding-inline: 1em 0;
+  color: inherit;
+  font: inherit;
+}
+.document-link,
+.document-content [data-prose] a {
+  display: inline;
+  color: var(--primary);
+  text-decoration: underline 1px;
+  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
+}
+.document-link:hover {
+  text-decoration-color: currentColor;
+}
+.document-inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  color: inherit;
+  background: color-mix(in oklab, var(--foreground) 7%, transparent);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  overflow-wrap: anywhere;
+}
+.document-code {
+  background: var(--code-background);
+  color: var(--foreground);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.document-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 40px;
+  padding: 4px 16px;
+  font: 12px / 1.4 var(--font-sans);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+.document-code-header select {
+  min-width: 0;
+  max-width: 120px;
+  background: var(--code-background);
+  color: var(--foreground);
+}
+.document-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.document-code-actions label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.document-code-copy {
+  opacity: 0;
+}
+.document-code:is(:hover, :focus-within) .document-code-copy {
+  opacity: 1;
+}
+@media (hover: none) {
+  .document-code-copy {
+    opacity: 1;
+  }
+}
+.document-code-body {
+  position: relative;
+  display: block;
+  overflow-x: auto;
+  padding: 14px 16px;
+  font: 14px / 1.6 var(--font-mono);
+  white-space: pre;
+  tab-size: 2;
+  font-variant-ligatures: none;
+}
+.document-code-body [style*="--shiki"] {
+  color: var(--shiki-light);
+}
+@media screen {
+  .dark .document-code-body [style*="--shiki"] {
+    color: var(--shiki-dark);
+  }
+}
+.document-code[data-line-numbers="true"] .document-code-body {
+  padding-inline-start: 4em;
+}
+.document-code[data-line-numbers="true"] [data-line-number]::before {
+  content: attr(data-line-number);
+  position: absolute;
+  left: 1em;
+  width: 2em;
+  text-align: end;
+  color: var(--muted-foreground);
+  user-select: none;
+}
+.document-content li.document-task {
+  position: relative;
+  list-style: none;
+  padding-inline: 1.75em 0;
+  margin-inline: 0;
+}
+.document-task::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.3em;
+  width: 1em;
+  height: 1em;
+  border: 1.5px solid var(--muted-foreground);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.document-task-done {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
+.document-task-done * {
+  color: inherit;
+  text-decoration-color: var(--muted-foreground);
+}
+.document-task-done::before {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.document-task-done::after {
+  content: "";
+  position: absolute;
+  left: 0.34em;
+  top: 0.45em;
+  width: 0.3em;
+  height: 0.5em;
+  border: solid var(--primary-foreground);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.editor-equation .katex {
+  font-size: 1.05em;
+}
+span.editor-equation {
+  display: inline;
+  vertical-align: baseline;
+}
+div.editor-equation {
+  text-align: center;
+  margin-block: 1.25em;
+  overflow-x: auto;
+}
+.editor-equation button {
+  max-width: none;
+}
+[data-slot="accordion-trigger"]:not(:has([data-lexical-text]))::after {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+.document-content [data-prose] {
+  font-size: inherit;
+  line-height: inherit;
+}
+.document-content [data-prose] :is(h1, h2, h3) {
+  font-weight: 600;
+  margin-block: 1.5em 0.4em;
+}
+.document-content [data-prose] h1 {
+  font-size: 1.875em;
+}
+.document-content [data-prose] h2 {
+  font-size: 1.5em;
+}
+.document-content [data-prose] h3 {
+  font-size: 1.25em;
+}
+.document-content [data-prose] :is(p, ul, ol) {
+  margin-block: 0 0.75em;
+}
+.document-content [data-prose] ul {
+  list-style: disc;
+  padding-inline-start: 1.5em;
+}
+.document-content [data-prose] ol {
+  list-style: decimal;
+  padding-inline-start: 1.5em;
+}
+
+.document-mermaid {
+  max-width: 100%;
+  overflow-x: auto;
+}
+@media print {
+  .document-mermaid img[data-mermaid] {
+    min-width: 0 !important;
+  }
+}
+.document-embed-selected,
+.document-page-break-selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+/* The zero-size images protect Android composition without breaking the text line. */
+.editor-equation > img {
+  display: inline;
+  width: 0;
+  height: 0;
+}
+.editor-equation button {
+  vertical-align: baseline;
 }

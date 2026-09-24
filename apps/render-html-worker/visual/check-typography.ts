@@ -99,7 +99,7 @@ export async function checkTypography(page: Page, fixtureId: string) {
           .map((heading) => getComputedStyle(heading).fontSize),
         firstHeadingGap: getComputedStyle(firstHeading).marginTop,
         codeWidth: content
-          .querySelector("code[data-language]")
+          .querySelector(".document-code")
           ?.getBoundingClientRect().width,
         loadedFonts: [...document.fonts]
           .filter((font) => font.status === "loaded")

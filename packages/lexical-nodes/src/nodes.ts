@@ -1,4 +1,5 @@
-import { CodeHighlightNode, CodeNode } from "@lexical/code";
+import { DocumentCodeNode } from "./nodes/DocumentCodeNode.js";
+import { CodeHighlightNode } from "@lexical/code";
 import { HorizontalRuleNode } from "@lexical/extension";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
@@ -46,7 +47,7 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   ListNode,
   HorizontalRuleNode,
   MarkNode,
-  CodeNode,
+  DocumentCodeNode,
   CodeHighlightNode,
   TableNode,
   TableCellNode,

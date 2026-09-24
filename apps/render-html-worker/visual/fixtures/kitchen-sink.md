@@ -26,14 +26,28 @@ A second paragraph shares the same block gap. Long prose remains a readable meas
         1. Third level step
 2. Cook · 焼く
 
-- [x] Written · 完了
-- [ ] Review · 確認
+- [x] Written · 完了 with a long completed task that wraps onto a second line on a phone
+- [ ] Review · 確認 with a long unfinished task that wraps onto a second line on a phone
 
 > A short quote with **emphasis**. 日本語の引用も読みやすく。
 
+> A separate quote after a blank line.
+
+A long link: [https://example.com/documents/a-very-long-unbroken-path-that-must-wrap-on-a-phone-without-overflow](https://example.com/documents/a-very-long-unbroken-path-that-must-wrap-on-a-phone-without-overflow) and `a_very_long_inline_identifier_that_must_wrap_cleanly_on_a_phone`.
+
 ```typescript
+// A readable comment in both themes
 const greeting = "こんにちは";
 console.log(greeting);
+```
+
+```js showLineNumbers
+const longLine = "This deliberately long source line must scroll on a phone and wrap on paper while its number stays beside the first visual line.";
+console.log(longLine);
+```
+
+```text
+one line, no numbers
 ```
 
 | Dish · 料理 | Time | Price |

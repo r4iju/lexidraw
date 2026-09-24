@@ -1,33 +1,7 @@
 import type { EditorThemeClasses } from "lexical";
 
 export const theme = {
-  code: `bg-input
-    dark:bg-muted
-    font-mono
-    block
-    overflow-x-auto
-    my-4
-    px-3
-    pl-[52px]
-    py-3
-    text-[14px]
-    leading-6
-    rounded-md
-    relative
-    tab-size-[2]
-    before:absolute
-    before:content-[attr(data-gutter)]
-    before:left-0
-    before:top-0
-    before:bg-muted
-    before:border-r
-    before:border-border
-    before:p-2
-    before:text-muted-foreground
-    before:whitespace-pre-wrap
-    before:text-right
-    before:min-w-[25px]
-    `,
+  code: "document-code-body",
   codeHighlight: {
     atrule: "text-syntax-keyword",
     attr: "text-syntax-function",
@@ -87,7 +61,11 @@ export const theme = {
   tableSelected: "outline outline-2 outline-primary",
   heading: { h1: "", h2: "", h3: "", h4: "", h5: "", h6: "" },
   image: "editor-image",
-  link: "inline-flex items-center font-medium text-primary hover:underline",
+  embedBlock: {
+    base: "document-embed-block",
+    focus: "document-embed-selected",
+  },
+  link: "document-link",
   list: {
     // For bullet-lists (top-level <ul>)
     ul: "p-0 m-0 list-outside",
@@ -102,60 +80,8 @@ export const theme = {
     listitem: "",
 
     // Checklists:
-    listitemUnchecked: `
-      relative
-      p-0
-      mr-2
-      !ml-0
-      pl-8
-      pr-8
-      list-none
-      outline-hidden
-      before:absolute
-      before:left-0
-      before:top-1/2
-      before:-translate-y-1/2
-      before:size-5
-      before:border
-      before:border-input
-      before:rounded
-      before:bg-card
-      before:content-['']
-      before:cursor-pointer
-    `,
-    listitemChecked: `
-      relative
-      p-0
-      mr-2
-      !ml-0
-      pl-8
-      pr-8
-      list-none
-      outline-hidden
-      line-through
-      text-muted-foreground
-      before:absolute
-      before:left-0
-      before:top-1/2
-      before:-translate-y-1/2
-      before:size-5
-      before:border
-      before:border-primary
-      before:bg-primary
-      before:rounded
-      before:content-['']
-      before:cursor-pointer
-      after:absolute
-      after:left-[7px]
-      after:top-[45%]
-      after:-translate-y-[45%]
-      after:w-[6px]
-      after:h-[10px]
-      after:border-r-[2px]
-      after:border-b-[2px]
-      after:border-primary-foreground
-      after:rotate-45
-    `,
+    listitemUnchecked: "document-task",
+    listitemChecked: "document-task document-task-done",
     nested: {
       listitem: "list-none before:hidden after:hidden",
     },
@@ -173,21 +99,11 @@ export const theme = {
   paragraph: "relative",
   placeholder:
     "text-muted top-4 left-3 absolute text-sm font-medium pointer-events-none inline-block",
-  quote: `m-0 ml-5 border-l-4 border-border px-5 py-3 text-foreground`,
+  quote: "document-quote",
   rtl: "text-right",
   text: {
-    highlight: "bg-highlight text-foreground",
-    code: `
-      rounded-2xs
-      text-muted-foreground
-      bg-muted/60
-      dark:bg-muted/40
-      font-mono
-      font-semibold
-      overflow-x-auto
-      py-0.5
-      px-1.5
-    `,
+    highlight: "bg-highlight text-foreground rounded-[2px]",
+    code: "document-inline-code",
     bold: "font-bold text-foreground",
     hashtag: "editor-text-hashtag text-info",
     italic: "italic text-foreground",
@@ -201,6 +117,4 @@ export const theme = {
   // paper see the columns without it.
   layoutItem:
     "document-column border border-dashed border-muted p-2 [[aria-readonly=true]_&]:border-transparent print:border-transparent",
-  codeGutter:
-    "absolute bg-accent left-0 top-0 border-r border-muted px-2 text-muted-foreground whitespace-pre-wrap text-right min-w-[25px]",
 } satisfies EditorThemeClasses;

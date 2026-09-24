@@ -556,11 +556,7 @@ function EditorHandler({
                             <OnChangePlugin onChange={onChange} />
                             <HistoryPlugin />
                             {isEditable && <AutoFocusPlugin />}
-                            {floatingAnchorElem && (
-                              <CodeActionMenuPlugin
-                                anchorElem={floatingAnchorElem}
-                              />
-                            )}
+                            <CodeActionMenuPlugin />
                             {isEditable && floatingAnchorElem && (
                               <>
                                 <DraggableBlockPlugin

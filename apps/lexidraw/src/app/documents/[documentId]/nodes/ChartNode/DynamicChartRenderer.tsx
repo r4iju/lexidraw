@@ -136,6 +136,10 @@ export default function DynamicChartRenderer({
   };
 
   const chartConfig = getGeneratedChartConfig();
+  const series = Object.keys(chartConfig);
+  const singleSeries =
+    series.length === 1 ? chartConfig[series[0] ?? ""]?.label : undefined;
+  const axisStyle = { fontSize: 12, fill: "var(--muted-foreground)" };
   const containerHeight = "100%";
 
   const message = useMemo(() => {
@@ -162,14 +166,35 @@ export default function DynamicChartRenderer({
           <BarChart data={data} layout="horizontal">
             <CartesianGrid vertical={false} />
             <XAxis
+              tick={axisStyle}
               dataKey={xAxisDataKey}
               tickLine={false}
               tickMargin={10}
               axisLine={false}
             />
-            <YAxis />
+            <YAxis
+              tick={axisStyle}
+              tickLine={false}
+              axisLine={false}
+              label={
+                singleSeries
+                  ? {
+                      value:
+                        typeof singleSeries === "string" ||
+                        typeof singleSeries === "number"
+                          ? singleSeries
+                          : series[0],
+                      angle: -90,
+                      position: "insideLeft",
+                      ...axisStyle,
+                    }
+                  : undefined
+              }
+            />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
-            <ShadcnChartLegend content={<ChartLegendContent />} />
+            {series.length > 1 && (
+              <ShadcnChartLegend content={<ChartLegendContent />} />
+            )}
             {Object.keys(chartConfig).map((key) => (
               <Bar
                 isAnimationActive={false}
@@ -186,14 +211,35 @@ export default function DynamicChartRenderer({
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
+              tick={axisStyle}
               dataKey={xAxisDataKey}
               tickLine={false}
               tickMargin={10}
               axisLine={false}
             />
-            <YAxis />
+            <YAxis
+              tick={axisStyle}
+              tickLine={false}
+              axisLine={false}
+              label={
+                singleSeries
+                  ? {
+                      value:
+                        typeof singleSeries === "string" ||
+                        typeof singleSeries === "number"
+                          ? singleSeries
+                          : series[0],
+                      angle: -90,
+                      position: "insideLeft",
+                      ...axisStyle,
+                    }
+                  : undefined
+              }
+            />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
-            <ShadcnChartLegend content={<ChartLegendContent />} />
+            {series.length > 1 && (
+              <ShadcnChartLegend content={<ChartLegendContent />} />
+            )}
             {Object.keys(chartConfig).map((key) => (
               <Line
                 isAnimationActive={false}
@@ -236,7 +282,9 @@ export default function DynamicChartRenderer({
               outerRadius={"80%"}
               fill={`var(--color-${slugify(pieDataKey)})`}
             />
-            <ShadcnChartLegend content={<ChartLegendContent />} />
+            {series.length > 1 && (
+              <ShadcnChartLegend content={<ChartLegendContent />} />
+            )}
           </PieChart>
         );
       }

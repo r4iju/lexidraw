@@ -118,6 +118,10 @@ export class EquationNode extends DecoratorNode<unknown> {
     return this.__inline !== prevNode.__inline;
   }
 
+  isInline(): boolean {
+    return this.__inline;
+  }
+
   getTextContent(): string {
     return this.__equation;
   }

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
+import { checkRichBlocks } from "./check-rich-blocks";
 import { checkMedia } from "./check-media";
 import { checkTables } from "./check-tables";
 import { checkTokens } from "./check-tokens";
@@ -94,6 +95,9 @@ try {
   const [page = await browser.newPage(), ...restored] = await browser.pages();
   for (const restoredPage of restored) await restoredPage.close();
   await checkTokens(page);
+  const richPage = await browser.newPage();
+  await checkRichBlocks(richPage, fixtureId, output);
+  await richPage.close();
   await checkMedia(page, fixtureId, output);
   await checkTables(page, fixtureId);
   await checkTypography(page, fixtureId);
@@ -112,7 +116,8 @@ const text = await new Response(pdfText.stdout).text();
 if (
   (await pdfText.exited) ||
   !text.includes("Osaka") ||
-  !text.includes("3 votes total")
+  !text.includes("3 votes total") ||
+  text.includes("Skip to content")
 )
   throw new Error("PDF must include the chart and poll results");
 

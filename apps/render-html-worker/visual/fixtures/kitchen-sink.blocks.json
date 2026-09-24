@@ -6,6 +6,36 @@
       {
         "type": "text",
         "version": 1,
+        "text": "Inline equation before ",
+        "format": 0
+      },
+      {
+        "type": "equation",
+        "version": 1,
+        "equation": "E=mc^2",
+        "inline": true
+      },
+      {
+        "type": "text",
+        "version": 1,
+        "text": " and after on the same line.",
+        "format": 0
+      }
+    ]
+  },
+  {
+    "type": "equation",
+    "version": 1,
+    "equation": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+    "inline": false
+  },
+  {
+    "type": "paragraph",
+    "version": 1,
+    "children": [
+      {
+        "type": "text",
+        "version": 1,
         "text": "Highlighted text · 強調  ",
         "format": 128,
         "detail": 0,
@@ -29,7 +59,9 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": ["fixture-thread"]
+        "ids": [
+          "fixture-thread"
+        ]
       }
     ],
     "direction": null,
@@ -317,6 +349,44 @@
     "height": "inherit"
   },
   {
+    "type": "sticky",
+    "version": 1,
+    "xOffset": 0,
+    "yOffset": 2700,
+    "color": "yellow",
+    "caption": {
+      "editorState": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "Sticky · 付箋",
+                  "format": 0,
+                  "detail": 0,
+                  "mode": "normal",
+                  "style": ""
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0
+        }
+      }
+    }
+  },
+  {
     "type": "poll",
     "version": 1,
     "question": "Lunch · 昼ご飯?",
@@ -324,12 +394,17 @@
       {
         "text": "Rice · ご飯",
         "uid": "rice",
-        "votes": ["one", "two"]
+        "votes": [
+          "one",
+          "two"
+        ]
       },
       {
         "text": "Soup · スープ",
         "uid": "soup",
-        "votes": ["three"]
+        "votes": [
+          "three"
+        ]
       }
     ]
   },
@@ -442,44 +517,6 @@
     "height": 100
   },
   {
-    "type": "sticky",
-    "version": 1,
-    "xOffset": 0,
-    "yOffset": 2700,
-    "color": "yellow",
-    "caption": {
-      "editorState": {
-        "root": {
-          "type": "root",
-          "version": 1,
-          "children": [
-            {
-              "type": "paragraph",
-              "version": 1,
-              "children": [
-                {
-                  "type": "text",
-                  "version": 1,
-                  "text": "Sticky · 付箋",
-                  "format": 0,
-                  "detail": 0,
-                  "mode": "normal",
-                  "style": ""
-                }
-              ],
-              "direction": null,
-              "format": "",
-              "indent": 0
-            }
-          ],
-          "direction": null,
-          "format": "",
-          "indent": 0
-        }
-      }
-    }
-  },
-  {
     "type": "paragraph",
     "version": 1,
     "children": [
@@ -500,7 +537,9 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": ["fixture-thread"]
+        "ids": [
+          "fixture-thread"
+        ]
       }
     ],
     "direction": null,
