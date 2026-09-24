@@ -8,7 +8,7 @@ async function FooterContent() {
 
   return (
     <footer className="flex w-full shrink-0 min-h-[var(--footer-height)] flex-col items-center gap-2 border-t border-border px-4 py-[var(--footer-py)] sm:flex-row md:px-6">
-      <p className="text-xs text-gray-500 dark:text-gray-400">
+      <p className="text-xs text-muted-foreground">
         © {new Date().getFullYear()} Lexidraw. All rights reserved.
       </p>
       <nav className="flex gap-4 sm:ml-auto sm:gap-6">
@@ -34,7 +34,7 @@ export default function Footer() {
     <Suspense
       fallback={
         <footer className="flex w-full shrink-0 min-h-[var(--footer-height)] flex-col items-center gap-2 border-t border-border px-4 py-[var(--footer-py)] sm:flex-row md:px-6">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-muted-foreground">
             © Lexidraw. All rights reserved.
           </p>
           <nav className="flex gap-4 sm:ml-auto sm:gap-6">

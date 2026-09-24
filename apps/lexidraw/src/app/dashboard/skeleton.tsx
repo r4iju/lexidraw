@@ -8,7 +8,11 @@ type Props = {
 
 export function DashboardSkeleton({ flex = "flex-row" }: Props) {
   return (
-    <main className="flex size-full min-h-0 flex-col overflow-auto pb-6 px-4">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex size-full min-h-0 flex-col overflow-auto pb-6 px-4"
+    >
       {/* Breadcrumb: each ancestor is droppable */}
       <nav className="flex flex-col space-x-2 md:px-8 py-2 gap-y-4">
         <div className="flex justify-between items-center">

@@ -95,7 +95,11 @@ export default async function DrawingBoard(props: Props) {
       : undefined;
 
     return (
-      <div className="flex w-full items-center justify-center">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex w-full items-center justify-center"
+      >
         {drawing.accessLevel === AccessLevel.EDIT && (
           <DrawingBoardWithSave
             revalidate={revalidate}
@@ -113,19 +117,23 @@ export default async function DrawingBoard(props: Props) {
             appState={parsedAppState}
           />
         )}
-      </div>
+      </main>
     );
   } catch (error) {
     // The 404 for a missing drawing is Next's to render, not a failure.
     unstable_rethrow(error);
     console.error(error);
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex h-full w-full flex-col items-center justify-center gap-4"
+      >
         <p className="text-lg">Something went wrong</p>
         <Button asChild>
           <Link href={`/dashboard`}>Go to dashboard</Link>
         </Button>
-      </div>
+      </main>
     );
   }
 }

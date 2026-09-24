@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayIcon } from "lucide-react";
+
 import {
   useCallback,
   useEffect,
@@ -248,7 +250,7 @@ export function PlayFromHereButton({
           className={buttonClassName}
           title={disabled ? "Generate audio first" : "Play from here"}
         >
-          ▶
+          <PlayIcon className="size-4" />
         </Button>
       </PopoverTrigger>
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>

@@ -25,7 +25,7 @@ export const Pointer = ({
       className={cn(
         "absolute box-border size-[28px]",
         "-translate-x-1/2 -translate-y-1/2",
-        "bg-transparent border-2 border-white rounded-full",
+        "bg-transparent border-2 border-paper-white rounded-full",
         "shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
         "transition-transform duration-100 ease-in-out focus:scale-110",
         className,

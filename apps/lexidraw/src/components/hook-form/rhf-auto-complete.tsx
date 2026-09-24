@@ -28,7 +28,7 @@ const RHFAutocomplete: React.FC<RHFAutocompleteProps> = ({
       {label && (
         <label
           htmlFor={name}
-          className="block text-sm font-medium text-gray-700"
+          className="block text-sm font-medium text-foreground"
         >
           {label}
         </label>
@@ -40,7 +40,7 @@ const RHFAutocomplete: React.FC<RHFAutocompleteProps> = ({
           <select
             {...field}
             id={name}
-            className="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-hidden focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-input py-2 pl-3 pr-10 text-base focus:border-input focus:outline-hidden focus:ring-ring sm:text-sm"
           >
             {placeholder && (
               <option value="" disabled>

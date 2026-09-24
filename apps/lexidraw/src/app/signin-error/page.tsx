@@ -1,17 +1,20 @@
+import { Card } from "~/components/ui/card";
 import type { ServerRuntime } from "next";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 
 export default function AuthError() {
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="w-full rounded  border border-border p-6 shadow-lg md:max-w-lg">
-        <h2 className="mb-4 text-center text-2xl font-bold text-gray-900 dark:text-white">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex h-full items-center justify-center"
+    >
+      <Card className="w-full p-6 md:max-w-lg">
+        <h2 className="mb-4 text-center text-title font-semibold text-foreground">
           Error
         </h2>
-        <p className="mb-6 text-center text-gray-900 dark:text-white">
-          Something went wrong
-        </p>
+        <p className="mb-6 text-center text-foreground">Something went wrong</p>
 
         <div className="flex flex-col gap-4 ">
           <Button asChild className="w-full">
@@ -21,7 +24,7 @@ export default function AuthError() {
             <Link href="/signup">Sign up</Link>
           </Button>
         </div>
-      </div>
-    </div>
+      </Card>
+    </main>
   );
 }

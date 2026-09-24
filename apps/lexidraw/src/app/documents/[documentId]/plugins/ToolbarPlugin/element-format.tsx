@@ -13,13 +13,13 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import {
-  TextAlignLeftIcon,
-  TextAlignCenterIcon,
-  TextAlignRightIcon,
-  TextAlignJustifyIcon,
+  AlignLeftIcon,
+  AlignCenterIcon,
+  AlignRightIcon,
+  AlignJustifyIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-} from "@radix-ui/react-icons";
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 
 function getIconForAlignment(
@@ -28,16 +28,16 @@ function getIconForAlignment(
   switch (format) {
     case "left":
     case "start": // Treat start as left for icon purposes
-      return TextAlignLeftIcon;
+      return AlignLeftIcon;
     case "center":
-      return TextAlignCenterIcon;
+      return AlignCenterIcon;
     case "right":
     case "end": // Treat end as right for icon purposes
-      return TextAlignRightIcon;
+      return AlignRightIcon;
     case "justify":
-      return TextAlignJustifyIcon;
+      return AlignJustifyIcon;
     default:
-      return TextAlignLeftIcon; // Default icon
+      return AlignLeftIcon; // Default icon
   }
 }
 
@@ -75,7 +75,7 @@ export function ElementFormatDropdown({
           }}
           className="flex gap-2"
         >
-          <TextAlignLeftIcon className="size-4" />
+          <AlignLeftIcon className="size-4" />
           <span className="text">Left Align</span>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -84,7 +84,7 @@ export function ElementFormatDropdown({
           }}
           className="flex gap-2"
         >
-          <TextAlignCenterIcon className="size-4" />
+          <AlignCenterIcon className="size-4" />
           <span className="text">Center Align</span>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -93,7 +93,7 @@ export function ElementFormatDropdown({
           }}
           className="flex gap-2"
         >
-          <TextAlignRightIcon className="size-4" />
+          <AlignRightIcon className="size-4" />
           <span className="text">Right Align</span>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -102,7 +102,7 @@ export function ElementFormatDropdown({
           }}
           className="flex gap-2"
         >
-          <TextAlignJustifyIcon className="size-4" />
+          <AlignJustifyIcon className="size-4" />
           <span className="text">Justify Align</span>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -111,7 +111,7 @@ export function ElementFormatDropdown({
           }}
           className="flex gap-2"
         >
-          <TextAlignLeftIcon className="size-4" />
+          <AlignLeftIcon className="size-4" />
           <span className="text">Start Align</span>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -120,7 +120,7 @@ export function ElementFormatDropdown({
           }}
           className="flex gap-2"
         >
-          <TextAlignRightIcon className="size-4" />
+          <AlignRightIcon className="size-4" />
           <span className="text">End Align</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

@@ -229,7 +229,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
         }}
         style={{ width: `${width}px` }}
         className={cn(
-          "sticky top-0 h-full flex flex-col border-l border-border bg-popover shadow-lg touch-none",
+          "sticky top-0 h-full flex flex-col border-l border-border bg-card touch-none",
           className,
         )}
       >

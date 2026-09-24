@@ -202,7 +202,7 @@ export function TokensPanel({ tokens }: { tokens: TokenRow[] }) {
               again.
             </DialogDescription>
           </DialogHeader>
-          <code className="block break-all rounded border bg-muted p-3 text-sm">
+          <code className="block break-all rounded border-border border bg-muted p-3 text-sm">
             {created?.token}
           </code>
           <DialogFooter>

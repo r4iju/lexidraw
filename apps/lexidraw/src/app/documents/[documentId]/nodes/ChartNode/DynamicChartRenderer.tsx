@@ -35,7 +35,7 @@ interface DynamicChartRendererProps {
 const DEFAULT_CHART_CONFIG: ChartConfig = {
   value: {
     label: "Value",
-    color: "hsl(var(--chart-1))",
+    color: "chart-1",
   },
 };
 
@@ -130,7 +130,7 @@ export default function DynamicChartRenderer({
       const index = numericKeys.indexOf(key);
       generatedConfig[key] = {
         label: key.charAt(0).toUpperCase() + key.slice(1), // capitalize key for label
-        color: `hsl(var(--chart-${(index % 5) + 1}))`, // cycle through chart-1 to chart-5
+        color: `chart-${(index % 5) + 1}`, // cycle through chart-1 to chart-5
       };
     }
     return generatedConfig;

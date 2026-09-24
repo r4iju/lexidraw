@@ -22,19 +22,19 @@ export function RHFCheckbox({ name, helperText, label }: RHFCheckboxProps) {
             type="checkbox"
             {...field}
             checked={field.value}
-            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
           />
           <label
             htmlFor={field.name}
-            className="ml-2 block text-sm text-gray-700"
+            className="ml-2 block text-sm text-foreground"
           >
             {label}
           </label>
           {error ? (
-            <p className="mt-1 text-sm text-red-600">{error.message}</p>
+            <p className="mt-1 text-sm text-destructive">{error.message}</p>
           ) : (
             helperText && (
-              <p className="mt-1 text-sm text-gray-600">{helperText}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
             )
           )}
         </div>
@@ -90,16 +90,16 @@ export function RHFMultiCheckbox({
                     Array.isArray(field.value) &&
                     field.onChange(getSelected(field.value, option.value))
                   }
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                 />
                 <span>{option.label}</span>
               </label>
             ))}
           </div>
           {error ? (
-            <p className="mt-1 text-sm text-red-600">{error.message}</p>
+            <p className="mt-1 text-sm text-destructive">{error.message}</p>
           ) : (
-            <p className="mt-1 text-sm text-gray-600">{helperText}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
           )}
         </div>
       )}

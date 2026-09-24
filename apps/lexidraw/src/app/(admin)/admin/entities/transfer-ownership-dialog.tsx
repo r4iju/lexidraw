@@ -28,8 +28,8 @@ export default function TransferOwnershipDialog(props: {
         Transfer
       </Button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-md border border-border bg-background p-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim">
+          <div className="w-full max-w-sm rounded-lg elevation-modal p-4">
             <div className="mb-3 text-sm font-medium">Transfer Ownership</div>
             <Select
               value={ownerId}

@@ -7,7 +7,7 @@ type CardProps = React.HTMLAttributes<HTMLDivElement>;
 const Card = ({ className, ...props }: CardProps) => (
   <div
     className={cn(
-      "rounded-lg border border-border bg-card text-card-foreground shadow-xs",
+      "rounded-lg elevation-surface text-card-foreground",
       className,
     )}
     {...props}
@@ -29,7 +29,7 @@ type CardTitleProps = React.HTMLAttributes<HTMLHeadingElement>;
 const CardTitle = ({ className, ...props }: CardTitleProps) => (
   <h3
     className={cn(
-      "text-2xl font-semibold leading-none tracking-tight",
+      "text-title font-semibold leading-none tracking-tight",
       className,
     )}
     {...props}

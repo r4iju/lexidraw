@@ -181,7 +181,7 @@ export function AutocompleteConfig({ className }: { className?: string }) {
         <Label htmlFor="ac-effort">Reasoning effort</Label>
         <select
           id="ac-effort"
-          className="h-10 w-full rounded-md border bg-background px-3"
+          className="h-10 w-full rounded-md border-border border bg-background px-3"
           value={reasoningEffort}
           onChange={(e) => {
             const v = e.target.value as typeof reasoningEffort;
@@ -199,7 +199,7 @@ export function AutocompleteConfig({ className }: { className?: string }) {
         <Label htmlFor="ac-verb">Verbosity</Label>
         <select
           id="ac-verb"
-          className="h-10 w-full rounded-md border bg-background px-3"
+          className="h-10 w-full rounded-md border-border border bg-background px-3"
           value={verbosity}
           onChange={(e) => {
             const v = e.target.value as typeof verbosity;

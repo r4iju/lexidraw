@@ -5,7 +5,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Button } from "~/components/ui/button";
-import { ChevronDownIcon } from "@radix-ui/react-icons";
+import { ChevronDownIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";

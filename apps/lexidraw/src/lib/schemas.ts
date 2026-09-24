@@ -132,5 +132,5 @@ export const ChartConfigSchema = z
   })
   .strict()
   .describe(
-    'Chart configuration options as a JSON object (e.g., for Recharts, defining colors or labels: {value: {label: "Sales", color: "#8884d8"}}). Empty object {} is fine.',
+    'Chart configuration options as a JSON object (e.g., for Recharts, defining colors or labels: {value: {label: "Sales", color: "chart-1"}}). Empty object {} is fine.',
   );

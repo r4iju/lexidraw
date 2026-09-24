@@ -77,7 +77,7 @@ const DropdownMenuSubTrigger = ({
 }: DropdownMenuSubTriggerProps) => (
   <DropdownMenuPrimitive.SubTrigger
     className={cn(
-      "flex cursor-default select-none items-center rounded-sm px-2 py-2.5 md:py-1.5 text-sm outline-hidden focus:bg-accent data-[state=open]:bg-accent",
+      "flex cursor-default select-none items-center rounded-sm px-2 py-2.5 md:py-1.5 text-label outline-hidden focus:bg-accent data-[state=open]:bg-accent",
       inset && "pl-8",
       className,
     )}
@@ -101,7 +101,7 @@ const DropdownMenuSubContent = ({
 }: DropdownMenuSubContentProps) => (
   <DropdownMenuPrimitive.SubContent
     className={cn(
-      "z-50 min-w-32 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      "z-50 min-w-32 overflow-y-auto rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-[var(--elevation-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
       className,
     )}
     {...props}
@@ -148,7 +148,7 @@ const DropdownMenuContent = ({
         // Links here navigate after the menu closes; see `lib/leave-guard.ts`.
         data-asks-before-leaving
         className={cn(
-          "max-h-[80vh] overflow-y-auto z-50 min-w-32 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          "max-h-[80vh] overflow-y-auto z-50 min-w-32 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-[var(--elevation-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           className,
         )}
         onCloseAutoFocus={(e) => {
@@ -229,7 +229,7 @@ const DropdownMenuItem = ({
 }: DropdownMenuItemProps) => (
   <DropdownMenuPrimitive.Item
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-2.5 md:py-1.5 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+      "relative flex font-medium cursor-default select-none items-center rounded-sm px-2 py-2.5 md:py-1.5 text-label outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
       inset && "pl-8",
       className,
     )}
@@ -251,7 +251,7 @@ const DropdownMenuCheckboxItem = ({
 }: DropdownMenuCheckboxItemProps) => (
   <DropdownMenuPrimitive.CheckboxItem
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-2.5 md:py-1.5 pl-8 pr-2 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+      "relative flex font-medium cursor-default select-none items-center rounded-sm py-2.5 md:py-1.5 pl-8 pr-2 text-label outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
       className,
     )}
     checked={checked}
@@ -280,7 +280,7 @@ const DropdownMenuRadioItem = ({
 }: DropdownMenuRadioItemProps) => (
   <DropdownMenuPrimitive.RadioItem
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-2.5 md:py-1.5 pl-8 pr-2 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+      "relative flex font-medium cursor-default select-none items-center rounded-sm py-2.5 md:py-1.5 pl-8 pr-2 text-label outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
       className,
     )}
     {...props}
@@ -307,7 +307,7 @@ const DropdownMenuLabel = ({
 }: DropdownMenuLabelProps) => (
   <DropdownMenuPrimitive.Label
     className={cn(
-      "px-2 py-2.5 md:py-1.5 text-sm font-semibold",
+      "px-2 py-2.5 md:py-1.5 text-label font-medium",
       inset && "pl-8",
       className,
     )}

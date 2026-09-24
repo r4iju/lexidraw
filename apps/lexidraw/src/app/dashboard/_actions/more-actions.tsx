@@ -9,12 +9,12 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import {
-  DotsHorizontalIcon,
-  Link1Icon,
-  Pencil1Icon,
-  Share1Icon,
+  EllipsisIcon,
+  LinkIcon,
+  PencilIcon,
+  ShareIcon,
   TrashIcon,
-} from "@radix-ui/react-icons";
+} from "lucide-react";
 import DeleteEntity from "./delete-entity";
 import { useState, useEffect } from "react";
 import * as React from "react";
@@ -25,7 +25,7 @@ import TagEntityModal from "./tag-modal";
 import { PublicAccess } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { TagIcon } from "lucide-react";
-import { Icon } from "@radix-ui/react-select";
+import { ImageIcon } from "lucide-react";
 import { ImageGenerationProvider } from "~/hooks/use-image-generation";
 import { ImageProvider } from "~/hooks/use-image-insertion";
 import { toast } from "sonner";
@@ -119,7 +119,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost">
-            <DotsHorizontalIcon className="size-5" />
+            <EllipsisIcon className="size-5" />
             <span className="sr-only">
               {`More actions for ${entity.title}`}
             </span>
@@ -141,7 +141,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={handleOpenDelete}
-              className="justify-between"
+              className="justify-between text-destructive focus:text-destructive"
             >
               Delete
               <TrashIcon />
@@ -151,7 +151,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
               className="justify-between"
             >
               Share {entity.entityType}
-              <Share1Icon />
+              <ShareIcon />
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={handleOpenTag}
@@ -165,14 +165,14 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
               className="justify-between"
             >
               Rename
-              <Pencil1Icon />
+              <PencilIcon />
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={handleOpenThumbnail}
               className="justify-between"
             >
               Thumbnail
-              <Icon />
+              <ImageIcon />
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={copyPublicLink}
@@ -183,7 +183,7 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
               className="justify-between"
             >
               Copy link
-              <Link1Icon />
+              <LinkIcon />
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>

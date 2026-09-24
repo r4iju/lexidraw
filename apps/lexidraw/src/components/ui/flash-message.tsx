@@ -14,7 +14,7 @@ export default function FlashMessage({
       role="dialog"
     >
       <p
-        className="bg-black text-white p-2 rounded-md font-medium text-lg px-4 py-2"
+        className="elevation-overlay text-popover-foreground p-2 rounded-md font-medium text-lg px-4 py-2"
         role="alert"
       >
         {children}

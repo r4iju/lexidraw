@@ -271,7 +271,7 @@ export const DebugPanel: React.FC = () => {
       </Select>
 
       {selectedTool && (
-        <ScrollArea className="h-48 p-2 border rounded-md bg-muted">
+        <ScrollArea className="h-48 p-2 border-border border rounded-md bg-muted">
           <p className="text-sm font-semibold">Description:</p>
           <p className="text-xs mb-2">
             {typeof selectedTool.description === "function"
@@ -314,7 +314,7 @@ export const DebugPanel: React.FC = () => {
       {toolResult && (
         <div className="flex-1 flex flex-col space-y-1">
           <p className="text-sm font-medium">Tool Result:</p>
-          <ScrollArea className="flex-1 p-2 border rounded-md bg-muted">
+          <ScrollArea className="flex-1 p-2 border-border border rounded-md bg-muted">
             <pre className="text-xs whitespace-pre-wrap break-all">
               {toolResult}
             </pre>

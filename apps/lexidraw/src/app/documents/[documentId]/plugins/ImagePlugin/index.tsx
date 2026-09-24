@@ -217,7 +217,7 @@ export function InsertImageUnsplashDialogBody({
                 type="button"
                 key={image.id}
                 onClick={() => onImageSelect(image)}
-                className="aspect-square focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded overflow-hidden group"
+                className="aspect-square focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded overflow-hidden group"
                 title={`Select image by ${image.attribution.authorName}`}
               >
                 <img

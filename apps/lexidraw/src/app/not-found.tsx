@@ -7,7 +7,11 @@ export default function NotFound() {
   return (
     <>
       <Header />
-      <main className="flex size-full min-h-[calc(100vh-56px-65px)] flex-col items-center justify-center gap-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex size-full min-h-[calc(100vh-56px-65px)] flex-col items-center justify-center gap-4"
+      >
         <p className="text-lg">Sorry, that page doesn't seem to exist.</p>
         <Button asChild>
           <Link href={`/`}>Go home</Link>

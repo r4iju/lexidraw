@@ -23,7 +23,7 @@ import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
-import { ReloadIcon } from "@radix-ui/react-icons";
+import { LoaderCircleIcon } from "lucide-react";
 import { put } from "@vercel/blob/client";
 
 type Props = {
@@ -255,11 +255,11 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
             onClick={handleUpload}
             className="flex items-center gap-2"
           >
-            <ReloadIcon
+            <LoaderCircleIcon
               className={cn("w-0", isUploading && "animate-spin w-4")}
             />
             <span>Save thumbnail</span>
-            <ReloadIcon className="w-0 opacity-0" />
+            <LoaderCircleIcon className="w-0 opacity-0" />
           </Button>
         </DialogFooter>
       </DialogContent>

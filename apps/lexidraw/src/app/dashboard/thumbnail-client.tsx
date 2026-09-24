@@ -289,7 +289,8 @@ function FolderVisual({
           className={cn(
             "absolute z-10 grid place-items-center rounded-full border border-border bg-background text-foreground leading-none bottom-1 right-0 h-4 min-w-4 text-xs px-1 shadow-sm",
             {
-              "top-10 right-5 h-10 min-w-10 text-xl shadow-md border-2": isBig,
+              "top-10 right-5 h-10 min-w-10 text-xl shadow-md border-border border-2":
+                isBig,
               "rounded-none": !isBig,
             },
           )}

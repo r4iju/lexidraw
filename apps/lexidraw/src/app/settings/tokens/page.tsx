@@ -10,7 +10,11 @@ async function TokensContent() {
 
 export default function TokensSettingsPage() {
   return (
-    <main className="flex h-full min-h-[calc(100vh-56px-65px)] flex-col w-full">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex h-full min-h-[calc(100vh-56px-65px)] flex-col w-full"
+    >
       <div className="flex-1 overflow-y-auto w-full">
         <div className="flex flex-col gap-4 items-center p-4">
           <Card className="w-full max-w-3xl">

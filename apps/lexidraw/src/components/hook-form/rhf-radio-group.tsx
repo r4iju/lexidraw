@@ -46,17 +46,17 @@ const RHFRadioGroup: React.FC<RHFRadioGroupProps> = ({
                   {...field}
                   value={option.value}
                   checked={field.value === option.value}
-                  className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 border-input text-primary focus:ring-ring"
                 />
                 <span>{option.label}</span>
               </label>
             ))}
           </div>
           {error && (
-            <p className="mt-2 text-sm text-red-600">{error.message}</p>
+            <p className="mt-2 text-sm text-destructive">{error.message}</p>
           )}
           {helperText && !error && (
-            <p className="mt-2 text-sm text-gray-600">{helperText}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{helperText}</p>
           )}
         </fieldset>
       )}

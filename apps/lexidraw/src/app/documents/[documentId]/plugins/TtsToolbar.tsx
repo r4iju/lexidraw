@@ -660,7 +660,7 @@ export function TtsToolbar({ className }: Props) {
 
       <PlayFromHereButton
         documentId={documentId}
-        buttonClassName="w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0 border-x rounded-r-md"
+        buttonClassName="w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0 border-x border-border rounded-r-md"
       />
     </fieldset>
   );

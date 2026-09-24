@@ -40,6 +40,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   interactiveWidget: "resizes-content",
   userScalable: true,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "oklch(0.985 0.002 285)" },
+    { media: "(prefers-color-scheme: dark)", color: "oklch(0.17 0.006 285)" },
+  ],
 };
 
 type Props = {
@@ -59,12 +63,18 @@ export default async function RootLayout({ children }: Props) {
       </head>
       <body
         className={cn(
-          "h-[var(--dynamic-viewport-height)] max-w-[100dvw] flex flex-col font-fredoka bg-background text-foreground antialiased overflow-y-hidden",
+          "h-[var(--dynamic-viewport-height)] max-w-[100dvw] flex flex-col font-sans bg-background text-foreground antialiased overflow-y-hidden",
           fredoka.variable,
           mono.variable,
         )}
         style={{ scrollbarGutter: "stable", scrollbarWidth: "thin" }}
       >
+        <a
+          href="#main-content"
+          className="fixed left-4 top-4 z-[100] -translate-y-24 focus:translate-y-0 rounded-md bg-primary text-primary-foreground p-3 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Skip to content
+        </a>
         <LeaveGuardListener />
         <SessionProvider>
           <Suspense fallback={<div className="min-h-[100vh]" />}>

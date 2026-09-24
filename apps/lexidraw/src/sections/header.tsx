@@ -19,14 +19,14 @@ async function HeaderContent() {
   const userIsAdmin = await isAdmin();
 
   return (
-    <header className="sticky top-0 left-0 w-full min-w-[100dw] min-h-[var(--header-height)] z-50 flex border-b border-muted items-center justify-between bg-background shadow-md pt-[var(--header-padding-top)] pb-[var(--header-py)] px-4 lg:px-6 overflow-hidden">
+    <header className="sticky top-0 left-0 w-full min-w-[100dw] min-h-[var(--header-height)] z-50 flex border-b border-border items-center justify-between bg-card pt-[var(--header-padding-top)] pb-[var(--header-py)] px-4 lg:px-6 overflow-hidden">
       <Button asChild variant="outline" size="icon">
         <Link href="/">
           <AppIcon aria-label="Go to startpage" />
         </Link>
       </Button>
 
-      <nav>
+      <nav aria-label="Account and appearance">
         <ul className="flex items-center gap-4 sm:gap-6">
           {userIsAdmin && <HeaderAdminIconButton />}
           <li>
@@ -56,13 +56,13 @@ export default function Header() {
   return (
     <Suspense
       fallback={
-        <header className="sticky top-0 left-0 w-full min-w-[100dw] min-h-[var(--header-height)] z-50 flex border-b border-muted items-center justify-between bg-background shadow-md pt-[var(--header-padding-top)] pb-[var(--header-py)] px-4 lg:px-6 overflow-hidden">
+        <header className="sticky top-0 left-0 w-full min-w-[100dw] min-h-[var(--header-height)] z-50 flex border-b border-border items-center justify-between bg-card pt-[var(--header-padding-top)] pb-[var(--header-py)] px-4 lg:px-6 overflow-hidden">
           <Button asChild variant="outline" size="icon">
             <Link href="/">
               <AppIcon aria-label="Go to startpage" />
             </Link>
           </Button>
-          <nav>
+          <nav aria-label="Account and appearance">
             <ul className="flex items-center gap-4 sm:gap-6">
               <li>
                 <Button variant="outline" size="icon" disabled>

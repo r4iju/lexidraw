@@ -82,7 +82,7 @@ export function RHFMultiSelect({
           <select
             {...field}
             multiple
-            className="form-multiselect mt-1 block w-full rounded-md border-gray-300 shadow-xs focus:border-indigo-300 focus:ring-3 focus:ring-indigo-200 focus:ring-opacity-50"
+            className="form-multiselect mt-1 block w-full rounded-md border-input shadow-xs focus:border-input focus:ring-3 focus:ring-ring focus:ring-opacity-50"
           >
             {options.map((option) => (
               <option key={option.value} value={option.value}>
@@ -91,9 +91,9 @@ export function RHFMultiSelect({
             ))}
           </select>
           {error ? (
-            <p className="mt-1 text-sm text-red-600">{error.message}</p>
+            <p className="mt-1 text-sm text-destructive">{error.message}</p>
           ) : (
-            <p className="mt-1 text-sm text-gray-600">{helperText}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
           )}
         </div>
       )}

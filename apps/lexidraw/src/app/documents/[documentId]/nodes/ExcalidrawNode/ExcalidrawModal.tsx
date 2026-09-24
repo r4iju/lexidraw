@@ -230,7 +230,10 @@ export default function ExcalidrawInlineEditor({
             <div className="flex justify-between mt-6">
               <Button onClick={closeDiscardConfirm}>Cancel</Button>
               <div className="space-x-2">
-                <Button variant="destructive" onClick={handleDiscardConfirmed}>
+                <Button
+                  variant="destructive-confirm"
+                  onClick={handleDiscardConfirmed}
+                >
                   Discard
                 </Button>
                 <Button variant="outline" onClick={save}>

@@ -1,3 +1,4 @@
+import { Card } from "~/components/ui/card";
 import { Suspense } from "react";
 import SignOutForm from "./form";
 import { auth } from "~/server/auth";
@@ -14,18 +15,22 @@ export default async function SignInPage() {
   }
 
   return (
-    <main className=" flex h-full min-h-[calc(100vh-56px-65px)] flex-col items-center justify-center ">
-      <div className="flex w-full flex-col gap-y-6  rounded border p-6 shadow-lg md:max-w-lg">
-        <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className=" flex h-full min-h-[calc(100vh-56px-65px)] flex-col items-center justify-center "
+    >
+      <Card className="flex w-full flex-col gap-y-6 p-6 md:max-w-lg">
+        <h2 className="text-center text-title font-semibold text-foreground">
           Sign Out
         </h2>
-        <span className="text-center  text-gray-600 dark:text-gray-300">
+        <span className="text-center  text-muted-foreground">
           Are you sure you want to sign out?
         </span>
         <Suspense fallback={<FormSkeleton />}>
           <SignOutForm />
         </Suspense>
-      </div>
+      </Card>
       <Button asChild variant="link">
         <Link href="/dashboard">Go to my drawings</Link>
       </Button>

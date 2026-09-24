@@ -19,47 +19,49 @@ export const theme = {
     before:content-[attr(data-gutter)]
     before:left-0
     before:top-0
-    before:bg-gray-200 dark:before:bg-gray-800
+    before:bg-muted
     before:border-r
-    before:border-gray-300 dark:before:border-gray-700
+    before:border-border
     before:p-2
-    before:text-gray-500 dark:before:text-gray-400
+    before:text-muted-foreground
     before:whitespace-pre-wrap
     before:text-right
     before:min-w-[25px]
     `,
   codeHighlight: {
-    atrule: "text-indigo-600 dark:text-indigo-400",
-    attr: "text-blue-600 dark:text-blue-400",
-    boolean: "text-green-600 dark:text-green-400",
-    builtin: "text-red-600 dark:text-red-400",
-    cdata: "text-gray-600 dark:text-gray-400",
-    char: "text-pink-600 dark:text-pink-400",
-    class: "text-blue-600 dark:text-blue-400",
-    "class-name": "text-green-600 dark:text-green-400",
-    comment: "text-gray-400 dark:text-gray-600 italic",
-    constant: "text-purple-600 dark:text-purple-400",
-    deleted: "text-red-600 dark:text-red-400",
-    doctype: "text-gray-600 dark:text-gray-400",
-    entity: "text-purple-600 dark:text-purple-400",
-    function: "text-blue-600 dark:text-blue-400",
-    important: "text-red-600 dark:text-red-400",
-    inserted: "text-green-600 dark:text-green-400",
-    keyword: "text-purple-600 dark:text-purple-400",
-    namespace: "text-purple-600 dark:text-purple-400",
-    number: "text-yellow-600 dark:text-yellow-400",
-    operator: "text-pink-600 dark:text-pink-400",
-    prolog: "text-gray-600 dark:text-gray-400",
-    property: "text-teal-600 dark:text-teal-400",
+    atrule: "text-syntax-keyword",
+    attr: "text-syntax-function",
+    boolean: "text-syntax-string",
+    builtin: "text-syntax-literal",
+    cdata: "text-muted-foreground",
+    char: "text-syntax-keyword",
+    class: "text-syntax-function",
+    "class-name": "text-syntax-string",
+    comment: "text-muted-foreground italic",
+    constant: "text-syntax-keyword",
+    deleted: "text-syntax-literal",
+    doctype: "text-muted-foreground",
+    entity: "text-syntax-keyword",
+    function: "text-syntax-function",
+    important: "text-syntax-literal",
+    inserted: "text-syntax-string",
+    keyword: "text-syntax-keyword",
+    namespace: "text-syntax-keyword",
+    number: "text-syntax-number",
+    operator: "text-syntax-keyword",
+    prolog: "text-muted-foreground",
+    property: "text-syntax-string",
     punctuation: "text-foreground",
-    regex: "text-red-600 dark:text-red-400",
-    selector: "text-green-600 dark:text-green-400",
-    string: "text-teal-600 dark:text-teal-400",
-    symbol: "text-orange-600 dark:text-orange-400",
-    tag: "text-pink-600 dark:text-pink-400",
-    url: "text-blue-600 dark:text-blue-400",
-    variable: "text-indigo-600 dark:text-indigo-400",
+    regex: "text-syntax-literal",
+    selector: "text-syntax-string",
+    string: "text-syntax-string",
+    symbol: "text-syntax-number",
+    tag: "text-syntax-keyword",
+    url: "text-syntax-function",
+    variable: "text-syntax-keyword",
   },
+  mark: "bg-comment-mark text-foreground border-b-2 border-comment-border",
+  markFocused: "bg-comment-mark border-comment-border",
   autocomplete: "text-muted-foreground",
   table:
     "border-collapse border-spacing-0 overflow-x-auto overflow-y-auto table-fixed w-max my-8 rounded-md",
@@ -85,12 +87,12 @@ export const theme = {
   tableSelection: "",
   tableSelected: "outline outline-2 outline-primary",
   heading: {
-    h1: "text-3xl font-semibold leading-tight mt-8 mb-3 text-foreground",
-    h2: "text-2xl font-semibold leading-tight mt-6 mb-2 text-foreground",
-    h3: "text-xl font-semibold leading-snug mt-4 mb-2 text-foreground",
-    h4: "text-lg font-semibold mt-4 mb-1.5 text-foreground",
-    h5: "text-md font-semibold mt-3 mb-1 text-foreground",
-    h6: "text-sm font-semibold mt-3 mb-1 text-foreground",
+    h1: "text-3xl font-semibold leading-tight mt-8 mb-3 text-heading",
+    h2: "text-2xl font-semibold leading-tight mt-6 mb-2 text-heading",
+    h3: "text-xl font-semibold leading-snug mt-4 mb-2 text-heading",
+    h4: "text-lg font-semibold mt-4 mb-1.5 text-heading",
+    h5: "text-md font-semibold mt-3 mb-1 text-heading",
+    h6: "text-sm font-semibold mt-3 mb-1 text-heading",
   },
   image: "editor-image",
   link: "inline-flex items-center font-medium text-primary hover:underline",
@@ -123,9 +125,9 @@ export const theme = {
       before:-translate-y-1/2
       before:size-5
       before:border
-      before:border-muted-foreground
+      before:border-input
       before:rounded
-      before:bg-white
+      before:bg-card
       before:content-['']
       before:cursor-pointer
     `,
@@ -159,7 +161,7 @@ export const theme = {
       after:h-[10px]
       after:border-r-[2px]
       after:border-b-[2px]
-      after:border-white
+      after:border-primary-foreground
       after:rotate-45
     `,
     nested: {
@@ -187,9 +189,10 @@ export const theme = {
     "m-0 relative mb-2 leading-relaxed text-foreground [&:last-child]:mb-0",
   placeholder:
     "text-muted top-4 left-3 absolute text-sm font-medium pointer-events-none inline-block",
-  quote: `m-0 ml-5 border-l-4 border-gray-200 dark:border-gray-700 px-5 py-3 text-foreground`,
+  quote: `m-0 ml-5 border-l-4 border-border px-5 py-3 text-foreground`,
   rtl: "text-right",
   text: {
+    highlight: "bg-highlight text-foreground",
     code: `
       rounded-2xs
       text-muted-foreground
@@ -202,7 +205,7 @@ export const theme = {
       px-1.5
     `,
     bold: "font-bold text-foreground",
-    hashtag: "editor-text-hashtag text-blue-600 dark:text-blue-400",
+    hashtag: "editor-text-hashtag text-info",
     italic: "italic text-foreground",
     overflowed: "editor-text-overflowed text-foreground",
     strikethrough: "line-through text-foreground",

@@ -19,7 +19,7 @@ export default function KatexRenderer({
     if (katexElement !== null) {
       katex.render(equation, katexElement, {
         displayMode: !inline, // true === block display //
-        errorColor: "#cc0000",
+        errorColor: "var(--destructive)",
         output: "html",
         strict: "warn",
         throwOnError: false,

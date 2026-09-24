@@ -136,7 +136,7 @@ export default function MermaidModal({
 
         <div className="flex-1 grid grid-rows-[56%_40%] gap-4 overflow-hidden p-1">
           {/* Preview */}
-          <div className="relative border rounded bg-background overflow-auto">
+          <div className="relative border-border border rounded bg-background overflow-auto">
             {svgUri ? (
               <img
                 src={svgUri}

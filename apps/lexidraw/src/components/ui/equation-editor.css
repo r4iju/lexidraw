@@ -12,7 +12,7 @@
   margin: 0;
   border: 0;
   outline: 0;
-  color: #8421a2;
+  color: var(--primary);
   background-color: inherit;
   resize: none;
 }
@@ -22,17 +22,17 @@
   margin: 0;
   border: 0;
   outline: 0;
-  color: #8421a2;
+  color: var(--primary);
   background-color: inherit;
   resize: none;
   width: 100%;
 }
 
 .EquationEditor_inputBackground {
-  background-color: #eee;
+  background-color: var(--muted);
 }
 
 .EquationEditor_dollarSign {
   text-align: left;
-  color: #b0b0b0;
+  color: var(--muted-foreground);
 }

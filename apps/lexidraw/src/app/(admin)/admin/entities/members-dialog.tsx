@@ -27,8 +27,8 @@ export default function MembersDialog(props: {
         Members
       </Button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-md border border-border bg-background p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim">
+          <div className="w-full max-w-md rounded-lg elevation-modal p-4">
             <div className="mb-3 text-sm font-medium">Members</div>
             <div className="max-h-64 overflow-y-auto rounded border border-border">
               <table className="w-full text-sm">

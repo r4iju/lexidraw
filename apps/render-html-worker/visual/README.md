@@ -27,17 +27,24 @@ Markdown details/summary are explicitly TODO #91; use the JSON collapsible
 until that ticket lands.
 
 Images are embedded SVGs and charts/drawings use fixed data. External embeds
-use deliberately unavailable fixture IDs, so the baseline records their
-empty/loading fallback, not third-party content. The video records its error
-fallback. Those cases can be extended with local media in #90. The suite
-records today's styling defects; later visual tickets update these baselines.
+use deliberately unavailable fixture IDs; the tweet uses an empty ID so it
+stays inert instead of racing a remote widget script. The video uses an embedded
+one-second black clip with fixed dimensions; its former empty source raced
+between native controls and the error fallback, changing capture height.
+The suite records local media and embed fallbacks, not third-party content.
+These cases can be extended in #90. Later visual tickets update the remaining
+styling defects recorded in these baselines.
 
 Each render goes through the same `GET /documents/{id}/render` operation as the
 CLI and MCP, at 375/768/1280px in light/dark. PNGs retain 1:1 pixels, capped at
 6000px high to bound repository growth (currently all six fit without clipping).
-The six committed images total **1,372,557 bytes**. Pixelmatch ignores minor
+The six committed images total about **1.4 MB**. Pixelmatch ignores minor
 antialiasing changes with a per-pixel threshold of 0.15 and permits at most
 0.5% differing pixels. A changed image size always fails. Actual images and
 failure diffs go in `.playwright-mcp/document-snapshots/`, never in the baseline
 directory unless `--update` was explicitly supplied. Use the same Puppeteer
 Chromium and installed fonts when comparing across machines.
+
+The suite also checks browser-rendered UI colours for text/input/switch contrast,
+neutral hover tokens, the UI font and ordered dark surfaces. The fixture pairs
+a highlight with a comment underline and uses chart token names in saved data.

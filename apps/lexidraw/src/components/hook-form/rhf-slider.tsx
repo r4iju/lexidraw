@@ -27,7 +27,7 @@ const RHFSlider: React.FC<RHFSliderProps> = ({
       {label && (
         <label
           htmlFor={name}
-          className="mb-2 block text-sm font-medium text-gray-200"
+          className="mb-2 block text-sm font-medium text-muted-foreground"
         >
           {label}
         </label>
@@ -46,13 +46,13 @@ const RHFSlider: React.FC<RHFSliderProps> = ({
               step={step}
               onChange={(e) => field.onChange(parseFloat(e.target.value))}
               value={field.value ?? min}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-gray-200 focus:accent-gray-100 focus:outline-hidden focus:ring-gray-500 dark:bg-gray-500"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary focus:accent-primary focus:outline-hidden focus:ring-ring"
             />
             {error && (
-              <p className="mt-1 text-sm text-red-600">{error.message}</p>
+              <p className="mt-1 text-sm text-destructive">{error.message}</p>
             )}
             {helperText && !error && (
-              <p className="mt-1 text-sm text-gray-600">{helperText}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
             )}
           </div>
         )}

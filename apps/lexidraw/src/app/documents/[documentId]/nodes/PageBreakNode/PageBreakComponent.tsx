@@ -85,7 +85,7 @@ export default function PageBreakComponent({ nodeKey }: { nodeKey: NodeKey }) {
     <figure
       data-node-type="page-break"
       className={cn(
-        "relative block border-y border-dashed print:hidden",
+        "relative block border-y border-muted border-dashed print:hidden",
         "bg-muted border-muted",
         "w-[calc(100%+4rem)]",
         "-ml-[2rem]",

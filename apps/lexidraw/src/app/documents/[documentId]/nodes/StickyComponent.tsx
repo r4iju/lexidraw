@@ -190,25 +190,25 @@ export default function StickyComponent({
   };
 
   const colorClasses = {
-    pink: "bg-pink-300",
-    yellow: "bg-yellow-300",
-    green: "bg-green-300",
-    blue: "bg-blue-300",
-    red: "bg-red-300",
-    orange: "bg-orange-300",
-    purple: "bg-purple-300",
-    gray: "bg-gray-300",
+    pink: "bg-sticky-pink",
+    yellow: "bg-sticky-yellow",
+    green: "bg-sticky-green",
+    blue: "bg-sticky-blue",
+    red: "bg-sticky-red",
+    orange: "bg-sticky-orange",
+    purple: "bg-sticky-purple",
+    gray: "bg-sticky-gray",
   } as const;
 
   const contentEditableTwClasses =
-    "min-h-[20px] border-0 resize-none cursor-text text-2xl caret-[#050505] block relative outline-none p-0 select-text whitespace-pre-wrap break-words w-full box-border";
+    "min-h-[20px] border-0 resize-none cursor-text text-2xl caret-paper-ink block relative outline-none p-0 select-text whitespace-pre-wrap break-words w-full box-border";
   const placeholderTwClasses =
-    "text-2xl text-neutral-400 overflow-hidden absolute text-ellipsis top-[30px] left-[20px] w-[120px] select-none whitespace-nowrap inline-block pointer-events-none";
+    "text-2xl text-paper-ink/60 overflow-hidden absolute text-ellipsis top-[30px] left-[20px] w-[120px] select-none whitespace-nowrap inline-block pointer-events-none";
 
   return (
     <div ref={stickyContainerRef} className="sticky-note-container absolute">
       <div
-        className={`block w-48 h-48 p-1 border border-border shadow-lg relative ${colorClasses[color]}`}
+        className={`block w-48 h-48 p-1 border border-border shadow-lg text-paper-ink relative ${colorClasses[color]}`}
         onPointerDown={(event) => {
           const stickyContainer = stickyContainerRef.current;
           if (

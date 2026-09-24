@@ -190,7 +190,7 @@ export default function SlideChartEditModal({
                 id={slideChartConfigTextareaId}
                 value={chartConfigStr}
                 onChange={(e) => setChartConfigStr(e.target.value)}
-                placeholder='{"value": {"label": "Visitors", "color": "hsl(var(--chart-1))"}}'
+                placeholder='{"value": {"label": "Visitors", "color": "chart-1"}}'
                 className={cn(
                   "resize-none flex-1 font-mono text-sm",
                   configError && "border-destructive",
@@ -206,7 +206,7 @@ export default function SlideChartEditModal({
           </div>
 
           {/* Preview */}
-          <div className="relative border rounded bg-background overflow-auto flex flex-col">
+          <div className="relative border-border border rounded bg-background overflow-auto flex flex-col">
             <Label className="text-xs text-muted-foreground p-2 pb-0">
               Preview
             </Label>
@@ -238,7 +238,7 @@ export default function SlideChartEditModal({
           </div>
         </div>
 
-        <DialogFooter className="p-6 pt-4 flex flex-row justify-between items-end gap-2 border-t">
+        <DialogFooter className="p-6 pt-4 flex flex-row justify-between items-end gap-2 border-t border-border">
           <div className="flex flex-row gap-2">
             <div>
               <Label htmlFor={slideChartWidthInputId}>Width</Label>

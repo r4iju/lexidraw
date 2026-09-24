@@ -68,7 +68,7 @@ export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
             <Button variant="outline">Cancel</Button>
           </DialogClose>
           <Button
-            variant="destructive"
+            variant="destructive-confirm"
             type="button"
             onClick={handleDelete}
             disabled={isPending}

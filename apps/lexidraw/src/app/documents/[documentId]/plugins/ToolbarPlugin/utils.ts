@@ -286,7 +286,7 @@ export const useToolbarUtils = () => {
 
   const dropDownActiveClass = (active: boolean) => {
     if (active) {
-      return "bg-accent text-accent-foreground";
+      return "state-on";
     } else {
       return "";
     }

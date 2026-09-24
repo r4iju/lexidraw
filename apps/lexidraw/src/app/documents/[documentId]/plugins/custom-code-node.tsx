@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { DotsHorizontalIcon, Link1Icon } from "@radix-ui/react-icons";
+import { EllipsisIcon, LinkIcon } from "lucide-react";
 import { CodeNode as OriginalCodeNode } from "@lexical/code";
 import { CODE_LANGUAGE_OPTIONS } from "./code-language";
 
@@ -20,7 +20,7 @@ function SelectLanguage() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost">
-          <DotsHorizontalIcon className="h-5 w-5" />
+          <EllipsisIcon className="h-5 w-5" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
@@ -32,7 +32,7 @@ function SelectLanguage() {
               className="justify-between"
             >
               {friendlyName}
-              <Link1Icon />
+              <LinkIcon />
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>

@@ -1,5 +1,3 @@
-import "./index.css";
-
 import {
   $createLinkNode,
   $isAutoLinkNode,
@@ -271,7 +269,7 @@ function FloatingLinkEditor({
       className="flex items-center absolute top-0 left-0 z-10 max-w-[400px] w-full opacity-0 bg-transparent  transition-opacity duration-300"
     >
       {!isLink ? null : isLinkEditMode ? (
-        <div className="flex items-center w-full justify-between gap-4 p-1 bg-background border border-border rounded-md">
+        <div className="flex items-center w-full justify-between gap-4 p-1 elevation-overlay rounded-md">
           <Input
             ref={inputRef}
             value={editedLinkUrl}
@@ -313,7 +311,7 @@ function FloatingLinkEditor({
           </div>
         </div>
       ) : (
-        <div className="flex items-center w-full justify-between gap-4 p-1 bg-background border border-border rounded-md">
+        <div className="flex items-center w-full justify-between gap-4 p-1 elevation-overlay rounded-md">
           <Button variant="link" asChild rel="noopener noreferrer">
             <Link
               className="text-muted-foreground text-sm text-left justify-start truncate pl-2"

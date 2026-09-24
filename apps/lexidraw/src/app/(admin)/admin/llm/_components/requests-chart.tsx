@@ -22,7 +22,7 @@ export function RequestsChart(props: {
   return (
     <ChartContainer
       className="mt-3"
-      config={{ Requests: { label: "Requests", color: "hsl(var(--chart-1))" } }}
+      config={{ Requests: { label: "Requests", color: "chart-1" } }}
     >
       <ResponsiveContainer>
         <LineChart data={props.data} margin={{ left: 12, right: 12 }}>

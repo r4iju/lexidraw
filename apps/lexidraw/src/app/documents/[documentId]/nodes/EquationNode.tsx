@@ -20,7 +20,7 @@ export class EquationNode extends HeadlessEquationNode {
     const element = output.element as HTMLElement;
     katex.render(this.__equation, element, {
       displayMode: !this.__inline, // true === block display //
-      errorColor: "#cc0000",
+      errorColor: "var(--destructive)",
       output: "html",
       strict: "warn",
       throwOnError: false,

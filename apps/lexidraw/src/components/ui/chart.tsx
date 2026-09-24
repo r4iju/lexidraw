@@ -93,7 +93,11 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
           const color =
             itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
             itemConfig.color;
-          return color ? `  --color-${slugify(key)}: ${color};` : null;
+          const token = color?.match(
+            /^(?:chart-[1-5]|hsl\(var\(--(chart-[1-5])\)\))$/,
+          );
+          const resolved = token ? `var(--${token[1] ?? color})` : color;
+          return resolved ? `  --color-${slugify(key)}: ${resolved};` : null;
         })
         .filter(Boolean)
         .join("\n");
@@ -177,7 +181,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
+        "elevation-overlay grid min-w-[8rem] items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
         className,
       )}
     >
@@ -214,7 +218,7 @@ function ChartTooltipContent({
                           {
                             "h-2.5 w-2.5": indicator === "dot",
                             "w-1": indicator === "line",
-                            "w-0 border-[1.5px] border-dashed bg-transparent":
+                            "w-0 border-[1.5px] border-transparent border-dashed bg-transparent":
                               indicator === "dashed",
                             "my-0.5": nestLabel && indicator === "dashed",
                           },

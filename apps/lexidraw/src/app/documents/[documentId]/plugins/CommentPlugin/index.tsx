@@ -270,7 +270,6 @@ export function CommentInputBox({
       // also highlight selection
       const { container, elements } = highlightState;
       const selectionRects = range.getClientRects();
-      const color = "255, 212, 0"; // some highlight color
       for (let i = 0; i < selectionRects.length; i++) {
         const cRect = selectionRects[i];
         if (!elements[i]) {
@@ -283,7 +282,7 @@ export function CommentInputBox({
           cRect?.top ?? 0 + window.pageYOffset
         }px;left:${cRect?.left ?? 0}px;height:${cRect?.height ?? 0}px;width:${
           cRect?.width ?? 0
-        }px;background-color:rgba(${color},0.3);z-index:9999;pointer-events:none;`;
+        }px;background-color:var(--comment-mark);border-bottom:2px solid var(--comment-border);z-index:9999;pointer-events:none;`;
         if (span) {
           span.style.cssText = style;
         }
@@ -343,7 +342,7 @@ export function CommentInputBox({
   return (
     <div
       data-component-name="CommentInputBox"
-      className="fixed w-64 min-h-20 left-0 top-0 bg-muted shadow-lg rounded-md z-20 animate-in slide-in-from-right-5 border border-border"
+      className="fixed w-64 min-h-20 left-0 top-0 elevation-overlay rounded-lg z-20 animate-in slide-in-from-right-5"
       ref={boxRef}
     >
       {/* arrow div */}

@@ -125,7 +125,7 @@ export function UnsavedChangesProvider({
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button
-              variant="destructive"
+              variant="destructive-confirm"
               onClick={() => question?.answer("leave")}
             >
               Leave

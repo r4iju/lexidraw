@@ -195,10 +195,10 @@ export function EntitiesDataTable(props: {
       </div>
       {regenerateStatus && (
         <div
-          className={`mb-2 rounded-md border p-2 text-sm ${
+          className={`mb-2 rounded-md border-border border p-2 text-sm ${
             regenerateStatus.type === "success"
-              ? "border-green-500 bg-green-50 text-green-900"
-              : "border-red-500 bg-red-50 text-red-900"
+              ? "border-input bg-success/10 text-success"
+              : "border-destructive bg-destructive/10 text-destructive"
           }`}
         >
           {regenerateStatus.message}

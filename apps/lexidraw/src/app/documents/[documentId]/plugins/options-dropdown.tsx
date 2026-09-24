@@ -1,6 +1,6 @@
 "use client";
 
-import { HamburgerMenuIcon } from "@radix-ui/react-icons";
+import { MenuIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -242,7 +242,7 @@ export default function OptionsDropdown({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button className={className} variant="outline" size="icon">
-            <HamburgerMenuIcon />
+            <MenuIcon />
             <span className="sr-only">Open menu</span>
           </Button>
         </DropdownMenuTrigger>

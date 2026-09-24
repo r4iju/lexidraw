@@ -3,7 +3,7 @@ import type { ServerRuntime } from "next";
 export default function PrivacyPolicy() {
   return (
     <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1">
         {/** biome-ignore lint/correctness/useUniqueElementIds: static */}
         <section
           id="terms-of-service"

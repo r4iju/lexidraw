@@ -4,12 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "~/trpc/react";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
-import {
-  Pencil1Icon,
-  Cross1Icon,
-  CheckIcon,
-  ReloadIcon,
-} from "@radix-ui/react-icons";
+import { PencilIcon, XIcon, CheckIcon, LoaderCircleIcon } from "lucide-react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { cn } from "~/lib/utils";
@@ -59,7 +54,7 @@ const EntityTitle = ({ className, entity }: Props) => {
       <div className="flex flex-1  items-center gap-2">
         {!isEditing && (
           <>
-            <span className="flex-1 text-lg font-semibold line-clamp-1">
+            <span className="flex-1 text-row font-medium line-clamp-1">
               {newTitle}
             </span>
             <Button
@@ -68,7 +63,7 @@ const EntityTitle = ({ className, entity }: Props) => {
               onClick={() => setIsEditing(true)}
               aria-label={`Edit title of ${newTitle}`}
             >
-              <Pencil1Icon className="w-4" />
+              <PencilIcon className="w-4" />
             </Button>
           </>
         )}
@@ -79,7 +74,7 @@ const EntityTitle = ({ className, entity }: Props) => {
               aria-label="Title"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              className=" text-lg font-semibold px-0 border-none focus-visible:ring-transparent"
+              className=" text-row font-medium px-0 border-none focus-visible:ring-transparent"
             ></Input>
             <Button
               className="px-2"
@@ -89,7 +84,7 @@ const EntityTitle = ({ className, entity }: Props) => {
               aria-label="Save title"
             >
               {!isLoading && <CheckIcon className="w-4" />}
-              {isLoading && <ReloadIcon className="animate-spin w-4" />}
+              {isLoading && <LoaderCircleIcon className="animate-spin w-4" />}
             </Button>
             <Button
               className="px-2"
@@ -101,7 +96,7 @@ const EntityTitle = ({ className, entity }: Props) => {
               }}
               aria-label="Cancel renaming"
             >
-              <Cross1Icon className="w-4" />
+              <XIcon className="w-4" />
             </Button>
           </>
         )}

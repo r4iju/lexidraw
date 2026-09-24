@@ -17,7 +17,7 @@ import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useSession } from "next-auth/react";
-import { ReloadIcon } from "@radix-ui/react-icons";
+import { LoaderCircleIcon } from "lucide-react";
 import { SelectItem } from "~/components/ui/select";
 import { useMemo } from "react";
 // Removed useAutoSave to make auto-save part of form submission
@@ -302,7 +302,7 @@ export default function ProfileForm({ user }: Props) {
             type="submit"
             disabled={!isDirty || isPending}
           >
-            <ReloadIcon
+            <LoaderCircleIcon
               className={`animate-spin w-4 mr-2 ${!isPending && "opacity-0"}`}
             />
             Save

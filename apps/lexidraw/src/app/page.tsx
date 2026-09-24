@@ -22,16 +22,20 @@ export default async function LandingPage() {
   return (
     <>
       <Header />
-      <main className="flex h-full flex-col overflow-auto pb-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex h-full flex-col overflow-auto pb-6"
+      >
         {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
         <section id="landing-about" className="w-full pt-12 md:pt-24 lg:pt-32">
           <div className="space-y-10 px-4 md:px-6 xl:space-y-16">
             <div className="mx-auto grid max-w-[1300px] gap-4 px-4 sm:px-6 md:grid-cols-2 md:gap-16 md:px-10">
               <div className="flex flex-col gap-3">
-                <h1 className="lg:leading-tighter text-3xl font-semibold tracking-tighter sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
+                <h1 className="lg:leading-tighter text-3xl font-brand sm:text-4xl md:text-5xl xl:text-[3.4rem] 2xl:text-[3.75rem]">
                   Lexidraw
                 </h1>
-                <p className="mx-auto max-w-[700px] text-gray-600 dark:text-gray-300 md:text-xl">
+                <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
                   Collaborative online drawing and diagramming tool. Create
                   documents wireframes, flowcharts, user interfaces, and more.
                   All saved automatically and shareable with a link.
@@ -51,7 +55,7 @@ export default async function LandingPage() {
               <div>
                 <Image
                   alt="A web application for drawing and diagramming"
-                  className="mx-auto aspect-4/3 border overflow-hidden rounded-2xl object-cover"
+                  className="mx-auto aspect-4/3 border-border border overflow-hidden rounded-2xl object-cover"
                   src="/images/homepage-banner.png"
                   height={500}
                   width={500}
@@ -66,46 +70,44 @@ export default async function LandingPage() {
           className="w-full py-12 md:py-24 lg:py-32"
         >
           <div className="container px-4 md:px-6">
-            <h2 className="text-center text-3xl font-semibold tracking-tighter sm:text-5xl">
+            <h2 className="text-center text-3xl font-brand sm:text-5xl">
               Sample projects
             </h2>
             <div className="mx-auto mt-12 grid items-start gap-8 sm:max-w-4xl sm:grid-cols-2 md:gap-12 lg:max-w-5xl lg:grid-cols-3">
               <div className="grid gap-1">
                 <Image
                   alt="Project 1"
-                  className="mx-auto aspect-7/6 overflow-hidden border rounded-2xl object-cover"
+                  className="mx-auto aspect-7/6 overflow-hidden border-border border rounded-2xl object-cover"
                   height={350}
                   width={350}
                   src="/images/projects/project.png"
                 />
-                <h3 className="text-lg font-semibold">Quick sketches</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Quick sketches
-                </p>
+                <h3 className="text-lg font-brand">Quick sketches</h3>
+                <p className="text-sm text-muted-foreground">Quick sketches</p>
               </div>
               <div className="grid gap-1">
                 <Image
                   alt="Project 2"
-                  className="mx-auto aspect-7/6 overflow-hidden border rounded-2xl object-cover"
+                  className="mx-auto aspect-7/6 overflow-hidden border-border border rounded-2xl object-cover"
                   height={350}
                   width={350}
                   src="/images/projects/project.png"
                 />
-                <h3 className="text-lg font-bold">Make wiregrams</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <h3 className="text-lg font-brand">Make wiregrams</h3>
+                <p className="text-sm text-muted-foreground">
                   A brief description of Project 2.
                 </p>
               </div>
               <div className="grid gap-1">
                 <Image
                   alt="Project 3"
-                  className="mx-auto aspect-7/6 overflow-hidden border rounded-2xl object-cover"
+                  className="mx-auto aspect-7/6 overflow-hidden border-border border rounded-2xl object-cover"
                   height={350}
                   width={350}
                   src="/images/projects/project.png"
                 />
-                <h3 className="text-lg font-bold">Make a product pitch</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <h3 className="text-lg font-brand">Make a product pitch</h3>
+                <p className="text-sm text-muted-foreground">
                   A brief description of Project 3.
                 </p>
               </div>

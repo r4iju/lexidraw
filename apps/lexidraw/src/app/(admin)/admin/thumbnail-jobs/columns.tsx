@@ -32,15 +32,15 @@ function formatDate(date: Date | number | null | undefined) {
 function getStatusColor(status: string): string {
   switch (status) {
     case "pending":
-      return "text-yellow-600";
+      return "text-warning";
     case "processing":
-      return "text-blue-600";
+      return "text-info";
     case "done":
-      return "text-green-600";
+      return "text-success";
     case "error":
-      return "text-red-600";
+      return "text-destructive";
     case "stale":
-      return "text-gray-600";
+      return "text-muted-foreground";
     default:
       return "";
   }
@@ -67,7 +67,7 @@ export const thumbnailJobColumns: ColumnDef<
     cell: ({ row }) => (
       <Link
         href={`/admin/entities?query=${row.original.entityId}`}
-        className="font-mono text-xs text-blue-600 hover:underline"
+        className="font-mono text-xs text-info hover:underline"
       >
         {truncate(row.original.entityId, 12)}
       </Link>

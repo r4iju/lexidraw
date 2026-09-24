@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
+import puppeteer from "puppeteer";
+import { checkTokens } from "./check-tokens";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const here = fileURLToPath(new URL("./", import.meta.url));
@@ -14,6 +16,12 @@ if (process.env.CI)
     "Visual snapshots require the local dev stack; do not run in CI",
   );
 await mkdir(output, { recursive: true });
+const browser = await puppeteer.launch({ headless: true });
+try {
+  await checkTokens(await browser.newPage());
+} finally {
+  await browser.close();
+}
 
 async function cli(...args: string[]) {
   const child = Bun.spawn(

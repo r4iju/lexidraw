@@ -61,8 +61,8 @@ const RHFCodes: FC<Props> = ({ keyName = "", inputs = [], ...other }) => {
                 handleChangeWithNextField(event, field.onChange);
               }}
               onFocus={(event) => event.currentTarget.select()}
-              className={`h-9 w-9 border p-0 text-center ${
-                error ? "border-red-500" : "border-gray-300"
+              className={`h-9 w-9 border-border border p-0 text-center ${
+                error ? "border-destructive" : "border-input"
               } rounded-md`}
               maxLength={1}
               type="number"

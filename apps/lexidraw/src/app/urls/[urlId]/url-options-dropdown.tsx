@@ -1,6 +1,6 @@
 "use client";
 
-import { HamburgerMenuIcon, ReloadIcon } from "@radix-ui/react-icons";
+import { MenuIcon, LoaderCircleIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -60,7 +60,7 @@ export default function UrlOptionsDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button className={className} variant="outline" size="icon">
-          <HamburgerMenuIcon />
+          <MenuIcon />
           <span className="sr-only">Open menu</span>
         </Button>
       </DropdownMenuTrigger>
@@ -73,7 +73,7 @@ export default function UrlOptionsDropdown({
         <DropdownMenuSeparator />
         <DropdownMenuGroup title="Article">
           <DropdownMenuItem onClick={handleRefresh} disabled={isPending}>
-            <ReloadIcon className="mr-2 inline-block" /> Refresh
+            <LoaderCircleIcon className="mr-2 inline-block" /> Refresh
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
             Rename

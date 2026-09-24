@@ -3,7 +3,7 @@ import type { ServerRuntime } from "next";
 export default function TermsOfService() {
   return (
     <div className="flex min-h-[calc(100vh-56px-65px)] flex-col">
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1">
         {/** biome-ignore lint/correctness/useUniqueElementIds: landing page section id */}
         <section id="privacy-policy" className="w-full pt-12 md:pt-24 lg:pt-32">
           <div className="space-y-10 px-4 md:px-6 xl:space-y-16">

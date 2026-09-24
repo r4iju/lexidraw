@@ -13,7 +13,7 @@ async function ProfileContent() {
   return (
     <Card className="w-full max-w-xl">
       <div className="p-6">
-        <h2 className="mb-4 text-center text-2xl font-bold text-foreground">
+        <h2 className="mb-4 text-center text-title font-semibold text-foreground">
           Edit profile
         </h2>
         <ProfileForm user={user} />
@@ -24,14 +24,18 @@ async function ProfileContent() {
 
 export default async function SignInPage() {
   return (
-    <main className="flex h-full min-h-[calc(100vh-56px-65px)] flex-col w-full">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex h-full min-h-[calc(100vh-56px-65px)] flex-col w-full"
+    >
       <div className="flex-1 overflow-y-auto w-full">
         <div className="flex flex-col gap-4 items-center justify-center p-4">
           <Suspense
             fallback={
               <Card className="w-full max-w-xl">
                 <div className="p-6">
-                  <h2 className="mb-4 text-center text-2xl font-bold text-foreground">
+                  <h2 className="mb-4 text-center text-title font-semibold text-foreground">
                     Edit profile
                   </h2>
                   <FormSkeleton />

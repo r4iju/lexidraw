@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { MoreActions } from "./_actions/more-actions";
 import { useThumbnailContent } from "./thumbnail-client";
-import { DotsHorizontalIcon } from "@radix-ui/react-icons";
+import { EllipsisIcon } from "lucide-react";
 import { TagTooltip } from "./entity-card-tag-tooltip";
 import {
   type EntityCardBaseProps,
@@ -79,7 +79,7 @@ export function EntityCardCol({
         })}
         className="min-w-0"
       >
-        <span className="font-semibold line-clamp-2 select-none">
+        <span className="text-row font-medium line-clamp-2 select-none">
           {entity.title}
         </span>
       </Link>
@@ -112,7 +112,7 @@ export function EntityCardCol({
             <MoreActions entity={entity} currentAccess={entity.publicAccess} />
           ) : (
             <Button size="icon" variant="ghost" disabled>
-              <DotsHorizontalIcon className="size-5" />
+              <EllipsisIcon className="size-5" />
               <span className="sr-only">
                 {`More actions for ${entity.title}`}
               </span>

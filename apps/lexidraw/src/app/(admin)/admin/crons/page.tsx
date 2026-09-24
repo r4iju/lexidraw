@@ -61,7 +61,11 @@ async function CronsContent() {
 
 export default async function SignInPage() {
   return (
-    <main className=" flex h-full flex-col items-center justify-center ">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className=" flex h-full flex-col items-center justify-center "
+    >
       <Suspense
         fallback={<div className="w-full md:max-w-2xl p-6">Loading…</div>}
       >

@@ -543,7 +543,6 @@ function EditorHandler({
                         <EditabilityPlugin editable={canEdit && !reading} />
                         {!onScreen && <RenderReadyPlugin />}
                         <div
-                          style={dynamicPageStyle}
                           className={cn(
                             "page-frame z-0 flex flex-col h-screen overflow-hidden",
                             inter.variable,
@@ -557,7 +556,7 @@ function EditorHandler({
                         >
                           {onScreen && (
                             <div
-                              className="sticky top-0 left-0 z-10 w-full shrink-0 bg-white dark:bg-card shadow-xs flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
+                              className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card flex items-start gap-2 overflow-x-auto whitespace-nowrap px-4 md:px-8 py-2 justify-center border-b border-border"
                               data-component-name="Toolbar"
                             >
                               <OptionsDropdown
@@ -601,7 +600,7 @@ function EditorHandler({
                           )}
 
                           {/* editor + sidebar container */}
-                          <div className="flex flex-1 overflow-hidden bg-muted">
+                          <div className="flex flex-1 overflow-hidden bg-desk">
                             {/* editor */}
                             <div
                               ref={scrollRef}
@@ -649,13 +648,19 @@ function EditorHandler({
                               <ArticlePlugin />
                               <RichTextPlugin
                                 contentEditable={
-                                  <article ref={onRef} className="relative">
+                                  <main
+                                    id="main-content"
+                                    tabIndex={-1}
+                                    ref={onRef}
+                                    className="relative"
+                                  >
                                     <ContentEditable
                                       id={`lexical-content-${entity.id}`}
                                       aria-label="Document content"
-                                      className="py-4 px-4 md:px-8 text-foreground outline-muted outline-2 outline-offset-12 min-h-[calc(100svh-4rem)]"
+                                      style={dynamicPageStyle}
+                                      className="font-fredoka text-base py-4 px-4 md:px-8 text-foreground outline-muted outline-2 outline-offset-12 min-h-[calc(100svh-4rem)]"
                                     />
-                                  </article>
+                                  </main>
                                 }
                                 placeholder={(editable) =>
                                   editable ? <Placeholder /> : null
@@ -698,7 +703,7 @@ function EditorHandler({
                               (signedIn || activeSidebar !== "llm") && (
                                 <SidebarWrapper
                                   ref={sidebarRef}
-                                  className="shadow-lg print:hidden"
+                                  className="print:hidden"
                                   onClose={() => {
                                     setActiveSidebar(null);
                                   }}

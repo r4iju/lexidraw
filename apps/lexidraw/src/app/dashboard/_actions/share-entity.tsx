@@ -1,7 +1,7 @@
 "use client";
 
 import { PublicAccess, AccessLevel } from "@packages/types";
-import { ChevronDownIcon, ReloadIcon } from "@radix-ui/react-icons";
+import { ChevronDownIcon, LoaderCircleIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
@@ -330,7 +330,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                     disabled={publicShareIsLoading}
                   >
                     {publicShareIsLoading && (
-                      <ReloadIcon className="mr-2 w-4 animate-spin" />
+                      <LoaderCircleIcon className="mr-2 w-4 animate-spin" />
                     )}
                     {publicAccessLevelLabel[publicAccess as PublicAccess]}
                     <ChevronDownIcon />
@@ -383,7 +383,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
 
                 <Button disabled={shareWithIsLoading} onClick={handleShareWith}>
                   {shareWithIsLoading && (
-                    <ReloadIcon className="mr-2 w-4 animate-spin" />
+                    <LoaderCircleIcon className="mr-2 w-4 animate-spin" />
                   )}
                   Share
                 </Button>
@@ -418,7 +418,7 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
                           variant="outline"
                         >
                           {changeAccessLevelIsLoading && (
-                            <ReloadIcon className="mr-2 w-4 animate-spin" />
+                            <LoaderCircleIcon className="mr-2 w-4 animate-spin" />
                           )}
                           {
                             accessLevelLabel[

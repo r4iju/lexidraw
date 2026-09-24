@@ -414,7 +414,7 @@ function TableCellResizer({ editor }: { editor: LexicalEditor }): JSX.Element {
             style.width = "4px";
             style.height = `${tableRect.height}px`;
           }
-          style.backgroundColor = "#adf";
+          style.backgroundColor = "var(--primary)";
           style.mixBlendMode = "unset";
           style.zIndex = 22; /* active guideline */
         }

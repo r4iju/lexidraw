@@ -162,7 +162,7 @@ export function ColorPickerContent({
           id={rcHexInputId}
           color={currentHexForDisplay}
           onChange={handleHexInputChange}
-          className="w-full p-1 border rounded text-sm"
+          className="w-full p-1 border-border border rounded text-sm"
           prefixed
           alpha={false}
         />
@@ -173,7 +173,7 @@ export function ColorPickerContent({
           <Button
             variant="ghost"
             className={cn(
-              "outline size-6 rounded-full p-0 m-0 border-1 border-white hover:border-white hover:ring-2 hover:ring-ring",
+              "outline size-6 rounded-full p-0 m-0 border-1 border-paper-white hover:border-paper-white hover:ring-2 hover:ring-ring",
               basicColor === currentHexForDisplay
                 ? "ring-2 ring-ring ring-offset-1"
                 : "",
@@ -236,7 +236,7 @@ export function ColorPickerButton({
                 <Icon className="size-4" />
               ) : (
                 <div
-                  className="w-6 h-6 rounded border border-gray-400"
+                  className="w-6 h-6 rounded border border-input"
                   style={{ backgroundColor: displayColor }}
                   aria-hidden="true"
                 />

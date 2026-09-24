@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";
-import { ReloadIcon } from "@radix-ui/react-icons";
+import { LoaderCircleIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { revalidateDashboard } from "../server-actions";
 
@@ -86,11 +86,11 @@ const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
             onClick={handleSave}
             className="flex items-center gap-2"
           >
-            <ReloadIcon
+            <LoaderCircleIcon
               className={cn("w-0", isLoading && "animate-spin w-4")}
             />
             <span>Save title</span>
-            <ReloadIcon className="w-0 opacity-0" />
+            <LoaderCircleIcon className="w-0 opacity-0" />
           </Button>
         </DialogFooter>
       </DialogContent>

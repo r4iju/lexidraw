@@ -11,7 +11,7 @@ import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { toast } from "sonner";
 import { getDefaults } from "@packages/lib";
-import { GitHubLogoIcon, ReloadIcon } from "@radix-ui/react-icons";
+import { GitBranchIcon, LoaderCircleIcon } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { cn } from "~/lib/utils";
 
@@ -54,7 +54,7 @@ export default function SignUpForm() {
   return (
     <div>
       <Button onClick={handleGitHubSignup} className="w-full">
-        <GitHubLogoIcon className="mr-4" />
+        <GitBranchIcon className="mr-4 size-4" />
         Sign in with GitHub
       </Button>
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
@@ -64,7 +64,7 @@ export default function SignUpForm() {
           <RHFTextField name="password" label="Password" type="password" />
         </div>
         <Button disabled={isPending} type="submit" className="w-full mt-6">
-          <ReloadIcon
+          <LoaderCircleIcon
             className={cn("animate-spin w-4 mr-2", {
               "opacity-100": isPending,
               "opacity-0": !isPending,
@@ -75,9 +75,7 @@ export default function SignUpForm() {
         </Button>
         {submitError && (
           <div className="text-center">
-            <span className="dark:text-red-300 text-red-600">
-              {submitError}
-            </span>
+            <span className=" text-destructive">{submitError}</span>
           </div>
         )}
       </FormProvider>

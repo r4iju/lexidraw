@@ -68,9 +68,16 @@ export async function Dashboard({
           onlyFavorites,
         }}
       />
-      <main className="flex size-full min-h-0 flex-col overflow-auto pb-6 px-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex size-full min-h-0 flex-col overflow-auto pb-6 px-4"
+      >
         {/* Breadcrumb: each ancestor is droppable */}
-        <nav className="flex flex-col  py-2 gap-y-2 md:container">
+        <nav
+          aria-label="Files and filters"
+          className="ui-toolbar flex flex-col  py-2 gap-y-2 md:container"
+        >
           <div className="flex justify-between items-center ">
             <div className="flex items-center space-x-2 truncate">
               {directory && directory.ancestors?.length > 0 ? (
@@ -124,7 +131,7 @@ export async function Dashboard({
               {/* favorites / archived toggles */}
               <div className="flex gap-2">
                 <Button
-                  variant={onlyFavorites ? "secondary" : "outline"}
+                  variant={onlyFavorites ? "on" : "outline"}
                   size="icon"
                   asChild
                   className="md:min-w-20"
@@ -145,7 +152,7 @@ export async function Dashboard({
                   </Link>
                 </Button>
                 <Button
-                  variant={includeArchived ? "secondary" : "outline"}
+                  variant={includeArchived ? "on" : "outline"}
                   size="icon"
                   asChild
                   className="md:min-w-20"
@@ -169,7 +176,7 @@ export async function Dashboard({
 
               <div className="flex gap-2">
                 <Button
-                  variant={flex === "flex-row" ? "secondary" : "outline"}
+                  variant={flex === "flex-row" ? "on" : "outline"}
                   size="icon"
                   asChild
                 >
@@ -187,7 +194,7 @@ export async function Dashboard({
                   </Link>
                 </Button>
                 <Button
-                  variant={flex === "flex-col" ? "secondary" : "outline"}
+                  variant={flex === "flex-col" ? "on" : "outline"}
                   size="icon"
                   asChild
                 >

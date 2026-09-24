@@ -390,9 +390,9 @@ export default function VideoResizer({
         }
       >
         {/* 1px black outline just on the top & right, offset outward */}
-        <div className="absolute -top-px -right-px h-[18px] w-[18px] border-t border-r border-black" />
+        <div className="absolute -top-px -right-px h-[18px] w-[18px] border-t border-r border-paper-ink" />
         {/* existing 2px white “L” */}
-        <div className="absolute inset-0 border-t-2 border-r-2 border-white" />
+        <div className="absolute inset-0 border-t-2 border-r-2 border-paper-white" />
       </div>
 
       {/* ── Bottom‑Right ────────────────────────────────────────── */}
@@ -402,8 +402,8 @@ export default function VideoResizer({
           handlePointerDown(e, Direction.south | Direction.east)
         }
       >
-        <div className="absolute -bottom-px -right-px h-[18px] w-[18px] border-b border-r border-black" />
-        <div className="absolute inset-0 border-b-2 border-r-2 border-white" />
+        <div className="absolute -bottom-px -right-px h-[18px] w-[18px] border-b border-r border-paper-ink" />
+        <div className="absolute inset-0 border-b-2 border-r-2 border-paper-white" />
       </div>
 
       {/* ── Bottom‑Left ─────────────────────────────────────────── */}
@@ -413,8 +413,8 @@ export default function VideoResizer({
           handlePointerDown(e, Direction.south | Direction.west)
         }
       >
-        <div className="absolute -bottom-px -left-px h-[18px] w-[18px] border-b border-l border-black" />
-        <div className="absolute inset-0 border-b-2 border-l-2 border-white" />
+        <div className="absolute -bottom-px -left-px h-[18px] w-[18px] border-b border-l border-paper-ink" />
+        <div className="absolute inset-0 border-b-2 border-l-2 border-paper-white" />
       </div>
 
       {/* ── Top‑Left ────────────────────────────────────────────── */}
@@ -424,8 +424,8 @@ export default function VideoResizer({
           handlePointerDown(e, Direction.north | Direction.west)
         }
       >
-        <div className="absolute -top-px -left-px h-[18px] w-[18px] border-t border-l border-black" />
-        <div className="absolute inset-0 border-t-2 border-l-2 border-white" />
+        <div className="absolute -top-px -left-px h-[18px] w-[18px] border-t border-l border-paper-ink" />
+        <div className="absolute inset-0 border-t-2 border-l-2 border-paper-white" />
       </div>
     </div>
   );
