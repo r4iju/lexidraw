@@ -17,7 +17,11 @@ type Policy = {
   maxOutputTokens: number;
   allowedModels: { provider: string; modelId: string }[];
   enforcedCaps: {
-    maxOutputTokensByProvider: { openai: number; google: number };
+    maxOutputTokensByProvider: {
+      openai: number;
+      google: number;
+      openrouter?: number;
+    };
   };
   extraConfig?: Record<string, unknown>;
 };
@@ -251,13 +255,20 @@ export function PoliciesEditor({
         },
         autocomplete: {
           mode: "autocomplete",
-          provider: "openai",
-          modelId: "gpt-5.4-nano",
+          provider: "openrouter",
+          modelId: "deepseek/deepseek-v4.1-flash",
           temperature: 0.2,
           maxOutputTokens: 64,
-          allowedModels: [{ provider: "openai", modelId: "gpt-5.4-nano" }],
+          allowedModels: [
+            { provider: "openrouter", modelId: "deepseek/deepseek-v4.1-flash" },
+            { provider: "openai", modelId: "gpt-5.4-nano" },
+          ],
           enforcedCaps: {
-            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
+            maxOutputTokensByProvider: {
+              openai: 32768,
+              google: 65535,
+              openrouter: 64,
+            },
           },
           extraConfig: undefined,
         },

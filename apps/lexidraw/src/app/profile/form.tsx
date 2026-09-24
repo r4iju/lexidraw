@@ -32,7 +32,11 @@ type PolicyType = {
   maxOutputTokens: number;
   allowedModels: Array<{ provider: string; modelId: string }>;
   enforcedCaps: {
-    maxOutputTokensByProvider: { openai: number; google: number };
+    maxOutputTokensByProvider: {
+      openai: number;
+      google: number;
+      openrouter?: number;
+    };
   };
   extraConfig: Record<string, unknown> | null | undefined;
 };
@@ -52,6 +56,7 @@ function LLMSection({
         <RHFSelect name={`${prefix}.provider`} label="Provider">
           <SelectItem value="openai">OpenAI</SelectItem>
           <SelectItem value="google">Google</SelectItem>
+          <SelectItem value="openrouter">OpenRouter</SelectItem>
         </RHFSelect>
         <RHFModelSelect
           name={`${prefix}.modelId`}

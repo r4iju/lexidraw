@@ -65,6 +65,7 @@ export const adminLlmRouter = createTRPCRouter({
               maxOutputTokensByProvider: z.object({
                 openai: z.number(),
                 google: z.number(),
+                openrouter: z.number().optional(),
               }),
             }),
             extraConfig: z.record(z.string(), z.unknown()).nullish(),

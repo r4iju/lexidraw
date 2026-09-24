@@ -1,5 +1,6 @@
 import "server-only";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
+import { fragmentAt } from "./autocomplete-fragment";
 
 /** Enough text around the cursor for tone and topic, small enough to stay fast. */
 export const MAX_BEFORE_CHARS = 3000;
@@ -10,8 +11,8 @@ export const MAX_SUGGESTION_TOKENS = 64;
 
 export const AUTOCOMPLETE_SYSTEM = [
   "You are the inline autocomplete in a document editor. The user is typing at <cursor/>.",
-  "Reply with only the text to insert at <cursor/>: no quotes, labels, markdown, or explanations.",
-  "Continue naturally from the last character before <cursor/>. If it ends mid-word, finish that word first. If the continuation starts a new word and there is no space before <cursor/>, begin with a space.",
+  "Reply with only the text that continues from <cursor/>: no quotes, labels, markdown, or explanations.",
+  "Begin your reply by repeating the word fragment given as <fragment>, exactly, then continue with the usual spacing. If the fragment is empty, just continue.",
   "Keep it short: finish the current sentence or list item, at most about 12 words. Never start a new paragraph.",
   "Write in the same language, tone and format as the document. Do not repeat text that already appears after <cursor/>.",
   "If there is no confident continuation, reply with nothing.",
@@ -27,7 +28,8 @@ export function autocompletePrompt({
   after: string;
 }): string {
   const heading = title ? `Document title: ${title}\n\n` : "";
-  return `${heading}${before.slice(-MAX_BEFORE_CHARS)}<cursor/>${after.slice(0, MAX_AFTER_CHARS)}`;
+  const fragment = `<fragment>${fragmentAt(before)}</fragment>`;
+  return `${heading}${before.slice(-MAX_BEFORE_CHARS)}<cursor/>${after.slice(0, MAX_AFTER_CHARS)}\n\n${fragment}`;
 }
 
 /**
@@ -48,6 +50,15 @@ export function lowestReasoning(
     }
     if (/^o\d/.test(modelId)) return { openai: { reasoningEffort: "low" } };
     return undefined;
+  }
+  if (provider === "openrouter") {
+    // Route to whichever host answers first; the models are the same.
+    return {
+      openrouter: {
+        reasoning: { enabled: false },
+        provider: { sort: "latency" },
+      },
+    };
   }
   if (provider === "google") {
     if (/^gemini-2\.5-flash/.test(modelId)) {

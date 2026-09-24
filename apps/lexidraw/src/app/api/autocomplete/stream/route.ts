@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { streamText, type LanguageModel } from "ai";
 import env from "@packages/env";
 import { auth } from "~/server/auth";
@@ -12,6 +13,7 @@ import {
   autocompletePrompt,
   lowestReasoning,
 } from "~/server/llm/autocomplete";
+import { fragmentAt, stripFragment } from "~/server/llm/autocomplete-fragment";
 import { generateUUID } from "~/lib/utils";
 
 type Body = {
@@ -65,6 +67,10 @@ export async function POST(req: NextRequest) {
   let model: LanguageModel;
   if (cfg.provider === "openai" && env.OPENAI_API_KEY) {
     model = createOpenAI({ apiKey: env.OPENAI_API_KEY })(cfg.modelId);
+  } else if (cfg.provider === "openrouter" && env.OPENROUTER_API_KEY) {
+    model = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY }).chat(
+      cfg.modelId,
+    );
   } else if (cfg.provider === "google" && env.GOOGLE_API_KEY) {
     model = createGoogleGenerativeAI({ apiKey: env.GOOGLE_API_KEY })(
       cfg.modelId,
@@ -129,7 +135,13 @@ export async function POST(req: NextRequest) {
       }).catch(() => {}),
   });
 
-  return result.toTextStreamResponse({
-    headers: { "Cache-Control": "no-cache, no-transform" },
+  const suggestion = result.textStream
+    .pipeThrough(stripFragment(fragmentAt(before)))
+    .pipeThrough(new TextEncoderStream());
+  return new Response(suggestion, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
   });
 }
