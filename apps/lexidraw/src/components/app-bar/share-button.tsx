@@ -7,7 +7,7 @@ import type { RouterOutputs } from "~/trpc/shared";
 
 export type Shareable = Pick<
   RouterOutputs["entities"]["list"][number],
-  "id" | "title" | "entityType" | "publicAccess" | "parentId"
+  "id" | "title" | "entityType" | "publicAccess" | "parentId" | "userId"
 >;
 
 /** Opens the share dialog the dashboard uses, from the app bar. */

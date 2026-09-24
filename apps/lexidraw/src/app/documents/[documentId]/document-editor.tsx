@@ -593,6 +593,8 @@ function EditorHandler({
                                   entityType: entity.entityType,
                                   publicAccess: entity.publicAccess,
                                   parentId: frame.parentId,
+                                  // Only the owner is offered Share.
+                                  userId: frame.account?.id ?? "",
                                 }}
                                 open={sharing}
                                 onOpenChange={setSharing}
