@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import type { Page } from "puppeteer";
+import { appUrl } from "./app-url";
 
 export async function checkTokens(page: Page) {
-  await page.goto("http://localhost:3025/signin", {
+  await page.goto(`${appUrl}/signin`, {
     waitUntil: "networkidle2",
   });
   await page.waitForSelector('input[name="email"]');

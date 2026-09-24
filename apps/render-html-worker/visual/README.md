@@ -9,6 +9,10 @@ bun run test:visual
 bun run test:visual --update
 ```
 
+To run against a second local stack, for example from another worktree, set
+`VISUAL_APP_URL=http://localhost:3026` and `VISUAL_FIXTURE_ID` to a document of
+its own, so two runs never overwrite the same fixture.
+
 The suite uses the source CLI with `--profile dev`, forces its URL to localhost,
 and uses the dev keychain credential. It replaces the dedicated dev fixture
 `98683bf7-3f2c-4c60-acd3-a82f24f805ad` on each run. It never runs in `bun run test`
@@ -54,7 +58,7 @@ an ignored local browser profile in `.playwright-mcp/document-snapshots/browser`
 They verify rendered sizes, the 704px prose / 1024px wide column, heading scale,
 CJK emphasis and breaking, print type, container responsiveness, unused font
 families, the toolbar size field, and font/language settings after save and
-reload. Only localhost:3025 is used.
+reload. Only localhost is used.
 
 Table cases cover key/value tokens, GFM alignment, a six-column mixed-language
 comparison and the 80% numeric threshold. Browser checks assert intrinsic

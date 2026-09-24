@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "puppeteer";
 import { signInToDev } from "./check-typography";
+import { appUrl } from "./app-url";
 
 export async function checkMedia(
   page: Page,
@@ -8,7 +9,7 @@ export async function checkMedia(
   output: string,
 ) {
   await signInToDev(page);
-  await page.goto(`http://localhost:3025/documents/${fixtureId}`, {
+  await page.goto(`${appUrl}/documents/${fixtureId}`, {
     waitUntil: "networkidle2",
   });
   for (const [width, height] of [

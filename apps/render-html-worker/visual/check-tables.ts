@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import type { Page } from "puppeteer";
 import { signInToDev } from "./check-typography";
+import { appUrl } from "./app-url";
 
 export async function checkTables(page: Page, fixtureId: string) {
   await signInToDev(page);
   await page.setViewport({ width: 1280, height: 900 });
-  await page.goto(`http://localhost:3025/documents/${fixtureId}`, {
+  await page.goto(`${appUrl}/documents/${fixtureId}`, {
     waitUntil: "networkidle2",
   });
   await page.waitForSelector(".document-content table");

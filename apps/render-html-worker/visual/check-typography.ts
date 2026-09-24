@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import type { Page } from "puppeteer";
+import { appUrl } from "./app-url";
 
 export async function signInToDev(page: Page) {
   await page.setRequestInterception(true);
@@ -10,7 +11,7 @@ export async function signInToDev(page: Page) {
     if (request.url().includes("react-scan")) void request.abort();
     else void request.continue();
   });
-  await page.goto("http://localhost:3025/signin", {
+  await page.goto(`${appUrl}/signin`, {
     waitUntil: "networkidle2",
   });
   const signedIn = await page.evaluate(async () => {
@@ -46,7 +47,7 @@ export async function checkTypography(page: Page, fixtureId: string) {
   await page.bringToFront();
   await signInToDev(page);
   await page.setViewport({ width: 1280, height: 900 });
-  await page.goto(`http://localhost:3025/documents/${fixtureId}`, {
+  await page.goto(`${appUrl}/documents/${fixtureId}`, {
     waitUntil: "networkidle2",
   });
   await page.waitForSelector('[id^="lexical-content-"] > p > span');
@@ -241,10 +242,9 @@ export async function checkDocumentSettings(page: Page, fixtureId: string) {
     );
   }
   await choose("serif", "ja");
-  const response = await page.goto(
-    `http://localhost:3025/documents/${fixtureId}`,
-    { waitUntil: "networkidle2" },
-  );
+  const response = await page.goto(`${appUrl}/documents/${fixtureId}`, {
+    waitUntil: "networkidle2",
+  });
   assert(response);
   const html = await response.text();
   assert(html.includes('lang="ja"'));

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
+import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
 import { checkMedia } from "./check-media";
 import { checkTables } from "./check-tables";
@@ -13,7 +14,8 @@ import { checkTypography, checkDocumentSettings } from "./check-typography";
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const here = fileURLToPath(new URL("./", import.meta.url));
 const output = resolve(root, ".playwright-mcp/document-snapshots");
-const fixtureId = "98683bf7-3f2c-4c60-acd3-a82f24f805ad";
+const fixtureId =
+  process.env.VISUAL_FIXTURE_ID ?? "98683bf7-3f2c-4c60-acd3-a82f24f805ad";
 const update = process.argv.includes("--update");
 if (process.env.CI)
   throw new Error(
@@ -31,7 +33,7 @@ async function cli(...args: string[]) {
       // Never let a shell override redirect this suite to production.
       env: {
         ...process.env,
-        LEXIDRAW_URL: "http://localhost:3025",
+        LEXIDRAW_URL: appUrl,
         LEXIDRAW_TOKEN: undefined,
       },
     },

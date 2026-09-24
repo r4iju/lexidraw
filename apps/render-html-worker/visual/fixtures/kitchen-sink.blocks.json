@@ -59,9 +59,7 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": [
-          "fixture-thread"
-        ]
+        "ids": ["fixture-thread"]
       }
     ],
     "direction": null,
@@ -394,17 +392,12 @@
       {
         "text": "Rice · ご飯",
         "uid": "rice",
-        "votes": [
-          "one",
-          "two"
-        ]
+        "votes": ["one", "two"]
       },
       {
         "text": "Soup · スープ",
         "uid": "soup",
-        "votes": [
-          "three"
-        ]
+        "votes": ["three"]
       }
     ]
   },
@@ -537,9 +530,7 @@
         "direction": null,
         "format": "",
         "indent": 0,
-        "ids": [
-          "fixture-thread"
-        ]
+        "ids": ["fixture-thread"]
       }
     ],
     "direction": null,
