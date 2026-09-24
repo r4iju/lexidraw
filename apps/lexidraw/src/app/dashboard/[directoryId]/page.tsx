@@ -10,6 +10,8 @@ import { DashboardSkeleton } from "../skeleton";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import type { Metadata } from "next";
+import { appBarAccount } from "~/server/app-bar-account";
 
 const SearchParams = z.object({
   parentId: z.string().optional().nullable().default(null),
@@ -41,6 +43,7 @@ type Props = {
 };
 
 async function DashboardContent({ params, searchParams }: Props) {
+  const account = await appBarAccount();
   const directoryId = (await params).directoryId;
   const queryParams = await searchParams;
 
@@ -111,6 +114,7 @@ async function DashboardContent({ params, searchParams }: Props) {
 
   return (
     <Dashboard
+      account={account}
       directory={directory}
       sortBy={sortBy}
       sortOrder={sortOrder}
@@ -120,6 +124,15 @@ async function DashboardContent({ params, searchParams }: Props) {
       onlyFavorites={onlyFavorites}
     />
   );
+}
+
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const { directoryId } = await props.params;
+  cacheTag(entityTag(directoryId));
+  const directory = await api.entities.getMetadata
+    .query({ id: directoryId })
+    .catch(() => null);
+  return { title: directory?.title || "Home" };
 }
 
 export default async function DashboardPage(props: Props) {

@@ -6,6 +6,7 @@ import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
+import { checkFrame } from "./check-frame";
 import { checkMedia } from "./check-media";
 import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
@@ -92,6 +93,48 @@ await cli(
 
 // A throwaway empty document, for what a blank page offers.
 const empty = await cli("doc", "create", "--title", "Visual suite · empty");
+// A throwaway drawing whose one shape sits far off the first screen.
+const shapesPath = resolve(output, "drawing.json");
+await writeFile(
+  shapesPath,
+  JSON.stringify([
+    {
+      id: "visual-suite-far-box",
+      type: "rectangle",
+      x: 4000,
+      y: 3000,
+      width: 240,
+      height: 160,
+      angle: 0,
+      strokeColor: "#e03131",
+      backgroundColor: "#e03131",
+      fillStyle: "solid",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roughness: 0,
+      opacity: 100,
+      groupIds: [],
+      frameId: null,
+      roundness: null,
+      seed: 1,
+      version: 1,
+      versionNonce: 1,
+      isDeleted: false,
+      boundElements: null,
+      updated: 1,
+      link: null,
+      locked: false,
+    },
+  ]),
+);
+const drawing = await cli(
+  "drawing",
+  "create",
+  "--title",
+  "Visual suite · drawing",
+  "--file",
+  shapesPath,
+);
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -109,9 +152,15 @@ try {
   await checkTypography(page, fixtureId);
   await checkDocumentSettings(page, fixtureId);
   await checkPage(page, fixtureId, empty.id);
+  await checkFrame(page, {
+    fixtureId,
+    emptyId: empty.id,
+    drawingId: drawing.id,
+  });
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);
+  await cli("drawing", "delete", drawing.id);
 }
 
 const pdfPath = resolve(output, "kitchen-sink.pdf");

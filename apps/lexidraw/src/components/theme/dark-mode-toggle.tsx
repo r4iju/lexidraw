@@ -1,38 +1,57 @@
 "use client";
 
-import { MoonIcon, SunIcon } from "lucide-react";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { cn } from "~/lib/utils";
+
+const THEMES = [
+  { value: "light", label: "Light", Icon: SunIcon },
+  { value: "dark", label: "Dark", Icon: MoonIcon },
+  { value: "system", label: "System", Icon: MonitorIcon },
+] as const;
+
+/** Light, Dark and System, the current one checked. */
+export function ThemeRadioItems() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+      {THEMES.map(({ value, label, Icon }) => (
+        <DropdownMenuRadioItem key={value} value={value} className="gap-2">
+          <Icon className="size-4" aria-hidden />
+          {label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+}
 
 export default function ModeToggle({ className }: { className?: string }) {
-  const { setTheme } = useTheme();
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className={className}>
-          <SunIcon className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <MoonIcon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          <span className="sr-only">Toggle theme</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Theme"
+          title="Theme"
+          className={cn("size-9", className)}
+        >
+          {/* The page's class says which is showing, from the first paint. */}
+          <SunIcon className="size-5 dark:hidden" aria-hidden />
+          <MoonIcon className="hidden size-5 dark:block" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          System
-        </DropdownMenuItem>
+        <ThemeRadioItems />
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -544,3 +544,66 @@ describe("the editor's saves", () => {
     expect(notices).toEqual([]);
   });
 });
+
+describe("whether the editor is saving", () => {
+  test("holds from the first save sent until the last one waiting lands, and each change is told", async () => {
+    const ed = editor("v1", true);
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+    const told: boolean[] = [];
+    sync.subscribe(() => told.push(sync.isSaving()));
+    expect(sync.isSaving()).toBe(false);
+
+    srv.state.held = [];
+    const a = sync.save({ elements: "a" });
+    const ab = sync.save({ elements: "ab" });
+    expect(sync.isSaving()).toBe(true);
+
+    srv.release();
+    await flush();
+    // The second is on the wire now; the first landing is not the end.
+    expect(sync.isSaving()).toBe(true);
+    srv.release();
+    await Promise.all([a, ab]);
+    await flush();
+    expect(sync.isSaving()).toBe(false);
+    expect(told.at(0)).toBe(true);
+    expect(told.at(-1)).toBe(false);
+  });
+
+  test("a save waiting on the user's answer is not being saved", async () => {
+    const ed = editor("v1", true);
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+    srv.state.current = rev(2, "v2");
+    await sync.check();
+
+    const saving = sync.save({ elements: "mine" });
+    await flush();
+    expect(sync.isSaving()).toBe(false);
+
+    sync.keep();
+    expect(sync.isSaving()).toBe(true);
+    await saving;
+    await flush();
+    expect(sync.isSaving()).toBe(false);
+  });
+
+  test("a save that fails leaves it not saving", async () => {
+    const ed = editor("v1", true);
+    const { srv, sync } = setup(rev(1, "v1"), ed);
+    srv.state.lose = true;
+    await expect(sync.save({ elements: "a" })).rejects.toThrow();
+    await flush();
+    expect(sync.isSaving()).toBe(false);
+  });
+
+  test("stops telling a listener once it unsubscribes", async () => {
+    const ed = editor("v1", true);
+    const { sync } = setup(rev(1, "v1"), ed);
+    let told = 0;
+    const unsubscribe = sync.subscribe(() => told++);
+    unsubscribe();
+    await sync.save({ elements: "a" });
+    await flush();
+    expect(told).toBe(0);
+  });
+});

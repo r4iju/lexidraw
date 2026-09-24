@@ -7,7 +7,7 @@ import Footer from "~/sections/footer";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Lexidraw",
+  title: { absolute: "Lexidraw" },
   description:
     "This is a demo of the excalidraw tool. It is a collaborative online drawing and diagramming tool.",
   appleWebApp: {

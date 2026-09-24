@@ -9,14 +9,17 @@ import { auth } from "~/server/auth";
 import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 
-export const metadata: Metadata = {
-  title: "Lexidraw | url",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black",
-    title: "Lexidraw",
-  },
-};
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const { urlId } = await props.params;
+  cacheTag(entityTag(urlId));
+  const link = await api.entities.getMetadata
+    .query({ id: urlId })
+    .catch(() => null);
+  return {
+    title: link?.title || "Link",
+    appleWebApp: { capable: true, statusBarStyle: "black", title: "Lexidraw" },
+  };
+}
 
 // export const fetchCache = "force-no-store";
 

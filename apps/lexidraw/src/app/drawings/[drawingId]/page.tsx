@@ -14,15 +14,21 @@ import { cacheTag, revalidatePath } from "next/cache";
 import DrawingBoardWithSave from "./drawing-board-wrapper";
 import ViewBoard from "./board-view-client";
 import { redirect, unstable_rethrow } from "next/navigation";
+import { appBarAccount, entityFrame } from "~/server/app-bar-account";
+import { EntityAppBar } from "~/components/app-bar/entity-frame";
+import { AppBar } from "~/components/app-bar/app-bar";
 
-export const metadata: Metadata = {
-  title: "Lexidraw | drawing",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black",
-    title: "Lexidraw",
-  },
-};
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const { drawingId } = await props.params;
+  cacheTag(entityTag(drawingId));
+  const drawing = await api.entities.getMetadata
+    .query({ id: drawingId })
+    .catch(() => null);
+  return {
+    title: drawing?.title || "Drawing",
+    appleWebApp: { capable: true, statusBarStyle: "black", title: "Lexidraw" },
+  };
+}
 
 const Params = z.object({
   drawingId: z.string(),
@@ -63,10 +69,11 @@ export default async function DrawingBoard(props: Props) {
   }
 
   try {
-    const drawing = await api.entities.load
-      .query({ id: drawingId })
-      .catch(notFoundOr);
-    const iceServers = await api.auth.iceServers.query();
+    const [drawing, iceServers, frame] = await Promise.all([
+      api.entities.load.query({ id: drawingId }).catch(notFoundOr),
+      api.auth.iceServers.query(),
+      entityFrame(drawingId),
+    ]);
 
     const revalidate = async () => {
       "use server";
@@ -98,7 +105,7 @@ export default async function DrawingBoard(props: Props) {
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex w-full items-center justify-center"
+        className="flex min-h-0 w-full flex-1 flex-col"
       >
         {drawing.accessLevel === AccessLevel.EDIT && (
           <DrawingBoardWithSave
@@ -107,15 +114,21 @@ export default async function DrawingBoard(props: Props) {
             elements={parsedElements}
             appState={parsedAppState}
             iceServers={iceServers}
+            frame={frame}
           />
         )}
         {drawing.accessLevel === AccessLevel.READ && (
-          <ViewBoard
-            revalidate={revalidate}
-            drawing={drawing}
-            elements={parsedElements}
-            appState={parsedAppState}
-          />
+          <>
+            <EntityAppBar frame={frame} entity={drawing} canRename={false} />
+            <div className="relative min-h-0 flex-1">
+              <ViewBoard
+                revalidate={revalidate}
+                drawing={drawing}
+                elements={parsedElements}
+                appState={parsedAppState}
+              />
+            </div>
+          </>
         )}
       </main>
     );
@@ -124,16 +137,24 @@ export default async function DrawingBoard(props: Props) {
     unstable_rethrow(error);
     console.error(error);
     return (
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="flex h-full w-full flex-col items-center justify-center gap-4"
-      >
-        <p className="text-lg">Something went wrong</p>
-        <Button asChild>
-          <Link href={`/dashboard`}>Go to dashboard</Link>
-        </Button>
-      </main>
+      <>
+        <AppBar account={await appBarAccount().catch(() => null)} />
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex w-full flex-1 flex-col items-center justify-center gap-2 px-4 text-center"
+        >
+          <h1 className="text-title font-semibold">
+            This drawing couldn&apos;t be opened
+          </h1>
+          <p className="text-muted-foreground">
+            It may have been deleted, or you no longer have access.
+          </p>
+          <Button asChild className="mt-4">
+            <Link href="/dashboard">Back to Home</Link>
+          </Button>
+        </main>
+      </>
     );
   }
 }

@@ -2,6 +2,7 @@
 
 import { api } from "~/trpc/react";
 import { useCallback } from "react";
+import { autoSaveEnabled } from "~/lib/auto-save";
 
 export function useAutoSave(options?: { enabled?: boolean }) {
   const queryEnabled = options?.enabled ?? true;
@@ -30,8 +31,6 @@ export function useAutoSave(options?: { enabled?: boolean }) {
       },
     });
 
-  const enabled = data?.enabled ?? false;
-
   const setEnabled = useCallback(
     (newEnabled: boolean) => {
       if (!queryEnabled) return;
@@ -41,7 +40,8 @@ export function useAutoSave(options?: { enabled?: boolean }) {
   );
 
   return {
-    enabled: isLoading ? false : enabled,
+    // Unknown until it loads, and a save the user turned off is not undone.
+    enabled: isLoading ? false : autoSaveEnabled(data),
     setEnabled,
     isLoading,
   };

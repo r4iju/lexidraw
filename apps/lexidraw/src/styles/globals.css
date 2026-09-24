@@ -325,6 +325,39 @@ html:has([data-scroll-root="page"]) {
   scroll-padding-top: calc(var(--page-toolbar-height, 0px) + 16px);
 }
 
+/* Excalidraw draws its controls from its own variables; these hand it the
+   app's, in both of its themes. Its stylesheet is unlayered and loads after
+   this one, so the selector outranks `.excalidraw.theme--dark`. */
+html .excalidraw.excalidraw {
+  --ui-font: var(--font-sans);
+  --border-radius-md: var(--radius-md);
+  --border-radius-lg: var(--radius-lg);
+  --color-primary: var(--primary);
+  --color-primary-hover: color-mix(in oklab, var(--primary) 88%, var(--foreground));
+  --color-primary-darker: color-mix(in oklab, var(--primary) 88%, var(--foreground));
+  --color-primary-darkest: color-mix(in oklab, var(--primary) 76%, var(--foreground));
+  --color-primary-light: color-mix(in oklab, var(--primary) 15%, var(--card));
+  --color-primary-light-darker: color-mix(in oklab, var(--primary) 22%, var(--card));
+  --color-brand-hover: var(--color-primary-hover);
+  --color-brand-active: var(--color-primary-darker);
+  --color-selection: var(--primary);
+  --color-logo-icon: var(--primary);
+  --color-surface-primary-container: var(--on);
+  --color-on-primary-container: var(--primary);
+  --color-surface-lowest: var(--card);
+  --color-surface-low: var(--surface-3);
+  --color-surface-mid: var(--surface-3);
+  --color-surface-high: var(--accent);
+  --color-on-surface: var(--foreground);
+  --text-primary-color: var(--foreground);
+  --island-bg-color: var(--popover);
+  --popup-text-color: var(--popover-foreground);
+  --input-bg-color: var(--card);
+  --input-border-color: var(--border);
+  --default-border-color: var(--border-subtle);
+  --dialog-border-color: var(--border-subtle);
+}
+
 /* ensures iOS won't allow scrolling while dragging */
 .touch-none {
   touch-action: none;

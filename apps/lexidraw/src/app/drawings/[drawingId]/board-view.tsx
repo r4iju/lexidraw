@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useOpenEntity, useOpenEntitySync } from "~/hooks/use-open-entity-sync";
 import { useSyncedExcalidraw } from "./use-synced-excalidraw";
+import { useFitOnOpen } from "./use-fit-on-open";
 import type { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
@@ -54,8 +55,6 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
               appState.collaborators ?? new Map<SocketId, Collaborator>(),
           } satisfies UIAppState)
         : ({
-            theme: isDarkTheme ? THEME.DARK : THEME.LIGHT,
-            viewBackgroundColor: "#ffffff",
             exportWithDarkMode: true, // Indicates whether to export with dark mode
             exportBackground: true, // Indicates whether background should be exported
             exportEmbedScene: true, // Indicates whether scene data should be embedded in svg/png. This will increase the image size.
@@ -76,11 +75,7 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
     // isCollaborating: true,
   } satisfies ExcalidrawProps;
 
-  useEffect(() => {
-    excalidrawApi?.updateScene({
-      appState: { theme: isDarkTheme ? THEME.DARK : THEME.LIGHT },
-    });
-  }, [excalidrawApi, isDarkTheme]);
+  useFitOnOpen(renderOnly ? null : excalidrawApi);
 
   useEffect(() => {
     return () => {
@@ -89,8 +84,8 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
   }, [revalidate]);
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <Excalidraw {...options}></Excalidraw>
+    <div className="absolute inset-0">
+      <Excalidraw {...options} theme={isDarkTheme ? THEME.DARK : THEME.LIGHT} />
     </div>
   );
 };

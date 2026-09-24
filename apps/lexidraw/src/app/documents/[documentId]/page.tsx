@@ -6,19 +6,29 @@ import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
 import { entityTag } from "~/server/api/entity-cache";
 import { auth } from "~/server/auth";
+import { entityFrame } from "~/server/app-bar-account";
 import { api } from "~/trpc/server";
 import { notFoundOr } from "~/trpc/not-found";
 import DocumentEditor from "./document-editor-client";
 import { EMPTY_CONTENT } from "./initial-content";
 
-export const metadata: Metadata = {
-  title: "Lexidraw | document",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black",
-    title: "Lexidraw",
-  },
+const APPLE_WEB_APP: Metadata["appleWebApp"] = {
+  capable: true,
+  statusBarStyle: "black",
+  title: "Lexidraw",
 };
+
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const { documentId } = await props.params;
+  cacheTag(entityTag(documentId));
+  const document = await api.entities.getMetadata
+    .query({ id: documentId })
+    .catch(() => null);
+  return {
+    title: document?.title || "Document",
+    appleWebApp: APPLE_WEB_APP,
+  };
+}
 
 // The page extends under the notch and home indicator; the frame pads
 // itself by the safe areas.
@@ -74,11 +84,12 @@ export default async function DocumentPage(props: Props) {
   const document = await api.entities.load
     .query({ id: documentId })
     .catch(notFoundOr);
-  const [iceServers, initialLlmConfig, session] = await Promise.all([
+  const [iceServers, initialLlmConfig, session, frame] = await Promise.all([
     api.auth.iceServers.query(),
     // A visitor without an account reads the defaults.
     api.config.getConfig.query(),
     auth(),
+    entityFrame(documentId),
   ]);
 
   try {
@@ -88,6 +99,7 @@ export default async function DocumentPage(props: Props) {
         iceServers={iceServers}
         initialLlmConfig={initialLlmConfig}
         signedIn={Boolean(session?.user)}
+        frame={frame}
       />
     );
   } catch (error) {

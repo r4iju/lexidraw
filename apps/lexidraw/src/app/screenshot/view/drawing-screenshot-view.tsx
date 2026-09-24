@@ -38,7 +38,7 @@ export default function DrawingScreenshotView({
       enableSystem={false}
       disableTransitionOnChange
     >
-      <div className="w-full h-full" id="screenshot-root">
+      <div className="relative w-full h-full" id="screenshot-root">
         <ViewBoard
           revalidate={revalidate}
           drawing={drawing}

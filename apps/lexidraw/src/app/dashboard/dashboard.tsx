@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { AppBarAccount } from "~/components/app-bar/account-menu";
 import { api } from "~/trpc/server";
 import type { RouterOutputs } from "~/trpc/shared";
 import { cn } from "~/lib/utils";
@@ -16,8 +17,10 @@ import { FilterByTags } from "./filter-by-tags";
 import { SearchBar } from "./search";
 import { PersistDashboardPrefsCookie } from "./persist-dashboard-prefs-cookie";
 import { CanonicalizeDashboardURL } from "./canonicalize-dashboard-url";
+import { DashboardAppBar } from "./dashboard-app-bar";
 
 type Props = {
+  account: AppBarAccount | null;
   directory?: RouterOutputs["entities"]["getMetadata"];
   sortBy: "updatedAt" | "createdAt" | "title";
   sortOrder: "asc" | "desc";
@@ -28,6 +31,7 @@ type Props = {
 };
 
 export async function Dashboard({
+  account,
   directory,
   sortBy,
   sortOrder,
@@ -68,56 +72,36 @@ export async function Dashboard({
           onlyFavorites,
         }}
       />
+      <DashboardAppBar
+        account={account}
+        query={searchParams.toString()}
+        folder={
+          directory && {
+            id: directory.id,
+            title: directory.title,
+            canRename: directory.ownerId === account?.id,
+            // Someone else's folders above one they were shared are theirs.
+            ancestors:
+              directory.ownerId === account?.id
+                ? directory.ancestors.flatMap((ancestor) =>
+                    ancestor.id
+                      ? [{ id: ancestor.id, title: ancestor.title }]
+                      : [],
+                  )
+                : [],
+          }
+        }
+      />
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex size-full min-h-0 flex-col overflow-auto pb-6 px-4"
+        className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-6 px-4 sm:px-6 lg:px-8"
       >
-        {/* Breadcrumb: each ancestor is droppable */}
         <nav
           aria-label="Files and filters"
-          className="ui-toolbar flex flex-col  py-2 gap-y-2 md:container"
+          className="ui-toolbar flex flex-col py-2 gap-y-2"
         >
-          <div className="flex justify-between items-center ">
-            <div className="flex items-center space-x-2 truncate">
-              {directory && directory.ancestors?.length > 0 ? (
-                <>
-                  {directory.ancestors.map((ancestor, index) => (
-                    <div
-                      key={ancestor.id}
-                      className="flex items-center space-x-2 "
-                    >
-                      <Drop parentId={ancestor.id}>
-                        <Button
-                          asChild
-                          variant="link"
-                          size="icon"
-                          className="truncate text-left hover:underline w-[fit-content] max-w-[125px] text-primary"
-                        >
-                          <Link
-                            href={`/dashboard/${ancestor.id ?? ""}${
-                              searchParams.size > 0
-                                ? `?${searchParams.toString()}`
-                                : ""
-                            }`}
-                          >
-                            {ancestor.title ?? "Untitled"}
-                          </Link>
-                        </Button>
-                      </Drop>
-                      {index < directory.ancestors.length && (
-                        <span className="text-muted-foreground">/</span>
-                      )}
-                    </div>
-                  ))}
-                  <span className="font-semibold truncate">
-                    {directory.title}
-                  </span>
-                </>
-              ) : (
-                <span>Root</span>
-              )}
-            </div>
+          <div className="flex justify-end items-center">
             <NewEntity parentId={directory ? directory.id : null} />
           </div>
           <div className="flex flex-col-reverse md:flex-col-reverse items-stretch gap-2">
@@ -217,7 +201,7 @@ export async function Dashboard({
           </div>
         </nav>
 
-        <div className="flex-1 md:container">
+        <div className="flex-1">
           <section className="w-full">
             <div
               className={cn(

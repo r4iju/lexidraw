@@ -43,7 +43,9 @@ mock.module("~/components/ui/dialog", () => ({
 
 let UnsavedChangesProvider: typeof import("./use-unsaved-changes").UnsavedChangesProvider;
 let useUnsavedChanges: typeof import("./use-unsaved-changes").useUnsavedChanges;
+let useSaveStatus: typeof import("./use-unsaved-changes").useSaveStatus;
 let leaveThen: typeof import("~/lib/leave-guard").leaveThen;
+let OpenEntityContext: typeof import("./use-open-entity-sync").OpenEntityContext;
 
 beforeAll(async () => {
   // The dialog reaches for much of the DOM: everything the window has that
@@ -52,9 +54,10 @@ beforeAll(async () => {
   for (const key of shimmed) globals[key] = win[key];
   for (const key of replaced) globals[key] = win[key];
   globals.IS_REACT_ACT_ENVIRONMENT = true;
-  ({ UnsavedChangesProvider, useUnsavedChanges } = await import(
+  ({ UnsavedChangesProvider, useUnsavedChanges, useSaveStatus } = await import(
     "./use-unsaved-changes"
   ));
+  ({ OpenEntityContext } = await import("./use-open-entity-sync"));
   ({ leaveThen } = await import("~/lib/leave-guard"));
 });
 afterAll(() => {
@@ -99,6 +102,79 @@ describe("the question leaving an editor puts", () => {
     await act(async () => root.render(page(async () => true)));
     await act(async () => button("Leave").click());
     expect(went).toBe(1);
+    await act(async () => root.unmount());
+  });
+});
+
+describe("what the app bar says about saving", () => {
+  /** A sync whose saves the test starts and lands by hand. */
+  function fakeSync() {
+    const listeners = new Set<() => void>();
+    let saving = false;
+    return {
+      set saving(value: boolean) {
+        saving = value;
+        for (const listener of listeners) listener();
+      },
+      sync: {
+        isSaving: () => saving,
+        subscribe(listener: () => void) {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        hasLocalEdits: () => false,
+        holdsSaves: () => false,
+        keep() {},
+      },
+    };
+  }
+
+  test("goes from Unsaved changes to Saving… to Saved", async () => {
+    const fake = fakeSync();
+    let edits: ReturnType<typeof useUnsavedChanges> | null = null;
+    function Status() {
+      edits = useUnsavedChanges();
+      return <output>{useSaveStatus()}</output>;
+    }
+    const host = dom.window.document.createElement("div");
+    dom.window.document.body.append(host);
+    const root = createRoot(host);
+    const open = { sync: fake.sync, noun: "document", resumers: new Set() };
+    await act(async () =>
+      root.render(
+        <OpenEntityContext.Provider value={open as never}>
+          <UnsavedChangesProvider>
+            <Status />
+          </UnsavedChangesProvider>
+        </OpenEntityContext.Provider>,
+      ),
+    );
+    const said = () => host.querySelector("output")?.textContent;
+    expect(said()).toBe("saved");
+
+    await act(async () => edits?.markDirty());
+    expect(said()).toBe("unsaved");
+    await act(async () => {
+      fake.saving = true;
+    });
+    expect(said()).toBe("saving");
+    await act(async () => {
+      edits?.markPristine();
+      fake.saving = false;
+    });
+    expect(said()).toBe("saved");
+    await act(async () => root.unmount());
+  });
+
+  test("says nothing where nothing is open to save", async () => {
+    function Status() {
+      return <output>{useSaveStatus() ?? "none"}</output>;
+    }
+    const host = dom.window.document.createElement("div");
+    dom.window.document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<Status />));
+    expect(host.querySelector("output")?.textContent).toBe("none");
     await act(async () => root.unmount());
   });
 });

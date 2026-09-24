@@ -144,6 +144,9 @@ export class OpenEntitySync {
   /** Saves that failed with no answer since the last one answered. */
   private unanswered: SaveContent[] = [];
   private peersConnected = false;
+  private readonly listeners = new Set<() => void>();
+  /** Whether it was saving when listeners were last told. */
+  private toldSaving = false;
 
   constructor(
     private held: StoredRevision,
@@ -156,6 +159,30 @@ export class OpenEntitySync {
   /** The editor, once it can answer; checks wait for it. */
   attach(editor: SyncedEditor | null): void {
     this.editor = editor;
+  }
+
+  /**
+   * A save is on the wire, or will go out as soon as the one before lands.
+   * One waiting for the user's answer to a write elsewhere is not: nothing
+   * is being saved until they answer.
+   */
+  isSaving(): boolean {
+    return this.sending || (this.queued !== null && this.conflict === null);
+  }
+
+  /** Calls `listener` whenever `isSaving` changes; returns how to stop. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private changed(): void {
+    const saving = this.isSaving();
+    if (saving === this.toldSaving) return;
+    this.toldSaving = saving;
+    for (const listener of this.listeners) listener();
   }
 
   /** Whether collaborators are connected to the editor, editing live. */
@@ -171,6 +198,7 @@ export class OpenEntitySync {
     this.editor = null;
     this.finishQueued("dropped");
     this.conflict = null;
+    this.changed();
   }
 
   async check(trigger: CheckTrigger = "poll"): Promise<void> {
@@ -258,6 +286,7 @@ export class OpenEntitySync {
       return;
     }
     this.conflict = stored;
+    this.changed();
     this.notify({ kind: "conflict" });
   }
 
@@ -314,6 +343,7 @@ export class OpenEntitySync {
         waiters: [...(this.queued?.waiters ?? []), { resolve, reject }],
       };
       this.sendQueued();
+      this.changed();
     });
   }
 
@@ -327,6 +357,7 @@ export class OpenEntitySync {
       this.sending = false;
       this.saveEpoch++;
       this.sendQueued();
+      this.changed();
     });
   }
 
@@ -379,12 +410,14 @@ export class OpenEntitySync {
   private takeQueued(): QueuedSave["waiters"] {
     const waiters = this.queued?.waiters ?? [];
     this.queued = null;
+    this.changed();
     return waiters;
   }
 
   private settle(): void {
     if (!this.conflict) return;
     this.conflict = null;
+    this.changed();
     this.notify({ kind: "settled" });
   }
 }

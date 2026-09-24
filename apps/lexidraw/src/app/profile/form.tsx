@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm, type SubmitHandler } from "react-hook-form";
+import { autoSaveEnabled } from "~/lib/auto-save";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { ProfileSchema } from "./schema";
 import FormProvider, {
@@ -136,7 +137,7 @@ export default function ProfileForm({ user }: Props) {
       email: user?.email ?? "",
       name: user?.name ?? "",
       chat: user?.config?.llm?.chat ?? undefined,
-      autoSave: user?.config?.autoSave?.enabled ?? false,
+      autoSave: autoSaveEnabled(user?.config?.autoSave),
       agent:
         (user?.config?.llm as { agent?: unknown } | undefined)?.agent ??
         undefined,

@@ -1,11 +1,13 @@
 "use client";
 
-import { MenuIcon } from "lucide-react";
+import { MoreHorizontalIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
   DropdownMenuGroup,
   DropdownMenuSeparator,
@@ -13,7 +15,6 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "~/components/ui/dropdown-menu";
-import { Switch } from "~/components/ui/switch";
 import { toast } from "sonner";
 import { useState, useCallback, useRef } from "react";
 import { FileDown, Loader2 } from "lucide-react";
@@ -24,9 +25,9 @@ import ImportMarkdownModal from "./ImportMarkdownModal";
 import type { RouterOutputs } from "~/trpc/shared";
 import { AccessLevel } from "@packages/types";
 import type { MarkdownInsertMode } from "../utils/markdown";
-import Link from "next/link";
-import { useUnsavedChanges } from "../../../../hooks/use-unsaved-changes";
-import { useAutoSave } from "../../../../hooks/use-auto-save";
+import { useAutoSave } from "~/hooks/use-auto-save";
+import { saveShortcutLabel } from "~/hooks/use-save-shortcut";
+import { useSidebarManager } from "~/context/sidebar-manager-context";
 import { revalidate } from "../actions";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
@@ -48,8 +49,9 @@ const PDF_PAGES: {
 
 type Props = {
   className?: string;
-  onSaveDocument: (onSuccessCallback?: () => void) => void;
-  isSavingDocument: boolean;
+  onSave: () => void;
+  /** Opens sharing; absent for someone who may not share. */
+  onShare?: () => void;
   onExportMarkdown?: () => void;
   onImportMarkdown?: (markdown: string, mode: MarkdownInsertMode) => void;
   entity: Pick<
@@ -60,14 +62,14 @@ type Props = {
 
 export default function OptionsDropdown({
   className,
-  onSaveDocument,
-  isSavingDocument,
+  onSave,
+  onShare,
   onExportMarkdown,
   onImportMarkdown,
   entity,
 }: Props) {
   const router = useRouter();
-  const { markPristine } = useUnsavedChanges();
+  const { activeSidebar, toggleSidebar } = useSidebarManager();
   const canEdit = entity.accessLevel === AccessLevel.EDIT;
   const { enabled: autoSaveEnabled, setEnabled: setAutoSaveEnabled } =
     useAutoSave({ enabled: canEdit });
@@ -129,14 +131,6 @@ export default function OptionsDropdown({
     },
     [entity.id, entity.title, utils],
   );
-
-  const handleDropdownSave = () => {
-    if (isSavingDocument) return;
-
-    onSaveDocument(() => {
-      markPristine();
-    });
-  };
 
   const handleTagSuccess = async () => {
     await revalidate(entity.id);
@@ -241,67 +235,34 @@ export default function OptionsDropdown({
       />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button className={className} variant="outline" size="icon">
-            <MenuIcon />
-            <span className="sr-only">Open menu</span>
+          <Button
+            className={className}
+            variant="ghost"
+            size="icon"
+            aria-label="Document actions"
+            title="Document actions"
+          >
+            <MoreHorizontalIcon />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuGroup title="App">
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard">Go to dashboard</Link>
+        <DropdownMenuContent align="end" className="min-w-52">
+          <DropdownMenuGroup>
+            {canEdit && (
+              <DropdownMenuItem onClick={onSave}>
+                Save
+                <DropdownMenuShortcut>
+                  {saveShortcutLabel()}
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+            )}
+            {onShare && (
+              <DropdownMenuItem onClick={onShare}>Share…</DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => window.print()}>
+              Print…
             </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup title="Document">
-            {canEdit && (
-              <>
-                <DropdownMenuItem
-                  onClick={handleDropdownSave}
-                  disabled={isSavingDocument}
-                >
-                  Save
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => e.preventDefault()}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span>Auto-save</span>
-                  <Switch
-                    size="sm"
-                    checked={autoSaveEnabled}
-                    onCheckedChange={setAutoSaveEnabled}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsTagOpen(true)}>
-                  Edit tags
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsDeleteOpen(true)}>
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-            {canEdit && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  Import from file
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem
-                    onClick={handleMarkdownImportClick}
-                    disabled={!onImportMarkdown}
-                  >
-                    Markdown (.md)
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Export to file</DropdownMenuSubTrigger>
+              <DropdownMenuSubTrigger>Export</DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 <DropdownMenuItem
                   onClick={onExportMarkdown}
@@ -337,7 +298,64 @@ export default function OptionsDropdown({
                 )}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+            {canEdit && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>Import</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={handleMarkdownImportClick}
+                    disabled={!onImportMarkdown}
+                  >
+                    Markdown (.md)
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
           </DropdownMenuGroup>
+          {/* On a phone the app bar has no room for the reading tools. */}
+          <DropdownMenuGroup className="sm:hidden">
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={activeSidebar === "comments"}
+              onCheckedChange={() => toggleSidebar("comments")}
+            >
+              Comments
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={activeSidebar === "toc"}
+              onCheckedChange={() => toggleSidebar("toc")}
+            >
+              Table of contents
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuGroup>
+          {canEdit && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem onClick={() => setIsRenameOpen(true)}>
+                  Rename…
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsTagOpen(true)}>
+                  Tags…
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={autoSaveEnabled}
+                onCheckedChange={setAutoSaveEnabled}
+                onSelect={(event) => event.preventDefault()}
+              >
+                Auto-save
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setIsDeleteOpen(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                Delete…
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
         {canEdit && (
           <RenameEntityModal

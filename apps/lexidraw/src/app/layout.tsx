@@ -16,9 +16,10 @@ import LeaveGuardListener from "./leave-guard-listener";
 import ImpersonationBanner from "~/components/admin/impersonation-banner";
 import TRPCProviderWrapper from "./trpc-provider-wrapper";
 import { DashboardCacheInvalidator } from "~/components/dashboard-cache-invalidator";
+import { APP_NAME, TITLE_TEMPLATE } from "~/lib/tab-title";
 
 export const metadata = {
-  title: "Lexidraw",
+  title: { default: APP_NAME, template: TITLE_TEMPLATE },
   description: "An Excalidraw demo app",
 } satisfies Metadata;
 

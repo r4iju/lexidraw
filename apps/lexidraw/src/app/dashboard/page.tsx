@@ -4,9 +4,10 @@ import { Dashboard } from "./dashboard";
 import { DashboardSkeleton } from "./skeleton";
 import { z } from "zod";
 import { cookies } from "next/headers";
+import { appBarAccount } from "~/server/app-bar-account";
 
 export const metadata: Metadata = {
-  title: "Lexidraw | Dashboard",
+  title: "Home",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
@@ -72,6 +73,7 @@ async function getFlexPreference(searchParams: Promise<Sort>) {
 }
 
 async function DashboardContent({ searchParams }: Props) {
+  const account = await appBarAccount();
   const queryParams = await searchParams;
 
   // Merge: cookie -> query -> defaults (no redirect, SSR friendly)
@@ -112,7 +114,7 @@ async function DashboardContent({ searchParams }: Props) {
   }
 
   const query = Sort.parse(merged);
-  return <Dashboard {...query} />;
+  return <Dashboard {...query} account={account} />;
 }
 
 export default async function DashboardPage(props: Props) {

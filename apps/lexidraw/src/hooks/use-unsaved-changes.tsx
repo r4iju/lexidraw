@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
@@ -31,6 +32,11 @@ type Ctx = {
 };
 
 const UnsavedCtx = createContext<Ctx | null>(null);
+/** Whether the editor holds edits not saved yet, for what says so. */
+const UnsavedStateCtx = createContext<boolean | null>(null);
+
+/** What the app bar says about the open entity's edits. */
+export type SaveStatus = "saved" | "saving" | "unsaved";
 
 /** The question leaving puts, and how the user answers it. */
 type Question = {
@@ -53,6 +59,7 @@ export function UnsavedChangesProvider({
   saveBeforeLeaving?: () => Promise<boolean>;
 }) {
   const dirty = useRef(false);
+  const [unsaved, setUnsaved] = useState(false);
   const open = useContext(OpenEntityContext);
   const { enabled: autoSave } = useAutoSave();
   const [question, setQuestion] = useState<Question | null>(null);
@@ -96,9 +103,11 @@ export function UnsavedChangesProvider({
 
   const markDirty = useCallback(() => {
     dirty.current = true;
+    setUnsaved(true);
   }, []);
   const markPristine = useCallback(() => {
     dirty.current = false;
+    setUnsaved(false);
   }, []);
 
   const value = useMemo<Ctx>(
@@ -108,43 +117,48 @@ export function UnsavedChangesProvider({
 
   return (
     <UnsavedCtx.Provider value={value}>
-      <Dialog
-        open={question !== null}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) question?.answer("stay");
-        }}
-      >
-        <DialogContent className="min-w-80">
-          <DialogHeader>
-            <DialogTitle>Unsaved changes</DialogTitle>
-            <DialogDescription>
-              {question?.savesHeld
-                ? "This changed elsewhere since you opened it, and your edits here are not saved. Saving them will overwrite the other changes. Leave anyway?"
-                : "You have unsaved changes. Leave anyway?"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="destructive-confirm"
-              onClick={() => question?.answer("leave")}
-            >
-              Leave
-            </Button>
-            {saveBeforeLeaving && (
+      <UnsavedStateCtx.Provider value={unsaved}>
+        <Dialog
+          open={question !== null}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) question?.answer("stay");
+          }}
+        >
+          <DialogContent className="min-w-80">
+            <DialogHeader>
+              <DialogTitle>Unsaved changes</DialogTitle>
+              <DialogDescription>
+                {question?.savesHeld
+                  ? "This changed elsewhere since you opened it, and your edits here are not saved. Saving them will overwrite the other changes. Leave anyway?"
+                  : "You have unsaved changes. Leave anyway?"}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
               <Button
-                variant="default"
-                onClick={() => question?.answer("save")}
+                variant="destructive-confirm"
+                onClick={() => question?.answer("leave")}
               >
-                Save and leave
+                Leave
               </Button>
-            )}
-            <Button variant="outline" onClick={() => question?.answer("stay")}>
-              Stay
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {children}
+              {saveBeforeLeaving && (
+                <Button
+                  variant="default"
+                  onClick={() => question?.answer("save")}
+                >
+                  Save and leave
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => question?.answer("stay")}
+              >
+                Stay
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {children}
+      </UnsavedStateCtx.Provider>
     </UnsavedCtx.Provider>
   );
 }
@@ -155,4 +169,26 @@ export function useUnsavedChanges() {
     throw new Error("useUnsavedChanges must be inside UnsavedChangesProvider");
   }
   return ctx;
+}
+
+/**
+ * "saving" while a save of the open entity is under way, "unsaved" while it
+ * holds edits no save has taken yet, "saved" otherwise; null outside an
+ * editor, where there is nothing to say.
+ */
+export function useSaveStatus(): SaveStatus | null {
+  const unsaved = useContext(UnsavedStateCtx);
+  const open = useContext(OpenEntityContext);
+  const subscribe = useCallback(
+    (listener: () => void) => open?.sync.subscribe(listener) ?? (() => {}),
+    [open],
+  );
+  const saving = useSyncExternalStore(
+    subscribe,
+    () => open?.sync.isSaving() ?? false,
+    () => false,
+  );
+  if (unsaved === null) return null;
+  if (saving) return "saving";
+  return unsaved ? "unsaved" : "saved";
 }

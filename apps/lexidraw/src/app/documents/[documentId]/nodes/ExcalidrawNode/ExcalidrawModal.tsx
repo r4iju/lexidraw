@@ -6,31 +6,18 @@ import type {
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
-import type React from "react";
-import {
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-  useId,
-} from "react";
+import { Suspense, useEffect, useRef, useState, useCallback } from "react";
 
-import {
-  Dialog,
-  DialogOverlay,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
+import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Theme } from "@packages/types";
 import { ErrorBoundary } from "next/dist/client/components/error-boundary";
 import { Loader2 } from "lucide-react";
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import { Excalidraw } from "@excalidraw/excalidraw";
+import { useSyncedExcalidraw } from "~/app/drawings/[drawingId]/use-synced-excalidraw";
+import { useFitOnOpen } from "~/app/drawings/[drawingId]/use-fit-on-open";
+import { useDocumentTitle } from "../../context/document-title-context";
 import { DrawingBoardMenu } from "./ExcalidrawMenu";
 export type ExcalidrawInitialElements = ExcalidrawInitialDataState["elements"];
 
@@ -56,11 +43,26 @@ type Props = {
 };
 
 /**
- * Inline Excalidraw editor.
- *
- * Renders full‑width/height inside the parent container.  A tiny confirmation
- * dialog (\<Dialog/>) is only used when the user clicks *Discard* – it offers
- * *Cancel*, *Discard* and *Save*.
+ * Whether Escape is Excalidraw's: it finishes a shape or text, puts the tool
+ * down, and closes its own menus and dialogs. A selection it keeps.
+ */
+function escapeIsExcalidraws(state: AppState): boolean {
+  return (
+    state.openMenu !== null ||
+    state.openSidebar !== null ||
+    state.editingLinearElement !== null ||
+    state.openDialog !== null ||
+    state.openPopup !== null ||
+    state.editingTextElement !== null ||
+    state.newElement !== null ||
+    state.multiElement !== null ||
+    state.activeTool.type !== "selection"
+  );
+}
+
+/**
+ * The drawing editor a document opens over one of its drawings, full screen.
+ * Leaving without saving asks first when there is anything to lose.
  */
 export default function ExcalidrawInlineEditor({
   onSave,
@@ -71,17 +73,16 @@ export default function ExcalidrawInlineEditor({
   onDelete,
   onClose,
 }: Props) {
-  // ────────────────────────────────────────────────────────────────────────────
-  // refs & state
-  // ────────────────────────────────────────────────────────────────────────────
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const [excalidraw, setExcalidraw] = useState<ExcalidrawImperativeAPI | null>(
+    null,
+  );
   const isDarkTheme = useIsDarkTheme();
+  const documentTitle = useDocumentTitle();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const { needsSave } = useSyncedExcalidraw(excalidraw);
+  const changed = useRef(false);
+  useFitOnOpen(excalidraw);
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // helpers
-  // ────────────────────────────────────────────────────────────────────────────
   const buildPartialAppState = useCallback(
     (state?: AppState): Partial<AppState> => ({
       exportBackground: state?.exportBackground,
@@ -99,68 +100,49 @@ export default function ExcalidrawInlineEditor({
     [],
   );
 
-  const save = useCallback(() => {
-    if (!apiRef.current) return;
-
-    const els = apiRef.current.getSceneElements();
-    const fls = apiRef.current.getFiles();
-
-    const partialState = buildPartialAppState(apiRef.current.getAppState());
-    onSave(els, partialState, fls ?? {});
-  }, [onSave, buildPartialAppState]);
-
   const saveAndClose = () => {
-    save();
+    if (excalidraw) {
+      onSave(
+        excalidraw.getSceneElements(),
+        buildPartialAppState(excalidraw.getAppState()),
+        excalidraw.getFiles() ?? {},
+      );
+    }
     onClose();
   };
 
-  const closeDiscardConfirm = () => setConfirmOpen(false);
-
-  const handleDiscardConfirmed = () => {
-    closeDiscardConfirm();
-    // if everything is deleted, treat it like discard
-    if (
-      apiRef.current?.getSceneElements().filter((e) => !e.isDeleted).length ===
-      0
-    ) {
+  const discard = useCallback(() => {
+    // A drawing left empty is no drawing: the node goes with it.
+    if (!excalidraw?.getSceneElements().some((element) => !element.isDeleted))
       onDelete();
-    }
     onClose();
-  };
+  }, [excalidraw, onClose, onDelete]);
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // Excalidraw options (memoised)
-  // ────────────────────────────────────────────────────────────────────────────
-  const options = useMemo(
-    () => ({
-      initialData: {
-        appState: {
-          ...initialAppState,
-          openMenu: null,
-          theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
-          exportWithDarkMode: false,
-          exportBackground: false,
-        },
-        elements: initialElements ?? [],
-        files: initialFiles ?? {},
-      },
-      UIOptions: {
-        canvasActions: {
-          toggleTheme: false,
-        },
-      },
-    }),
-    [initialAppState, initialElements, initialFiles, isDarkTheme],
-  );
+  const leave = useCallback(() => {
+    if (changed.current) setConfirmOpen(true);
+    else discard();
+  }, [discard]);
 
-  // Update theme live
+  // External system: the keyboard, before Excalidraw acts on Escape.
   useEffect(() => {
-    if (apiRef.current && isShown) {
-      apiRef.current.updateScene({
-        appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
-      });
-    }
-  }, [isDarkTheme, isShown]);
+    if (!isShown || !excalidraw || confirmOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const state = excalidraw.getAppState();
+      if (escapeIsExcalidraws(state)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      // A step back at a time: first out of the selection, then out of here.
+      if (Object.keys(state.selectedElementIds).length > 0)
+        excalidraw.updateScene({
+          appState: { selectedElementIds: {}, selectedGroupIds: {} },
+        });
+      else leave();
+    };
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [isShown, excalidraw, confirmOpen, leave]);
 
   const BODY_LOCK = "overflow-hidden";
   useEffect(() => {
@@ -170,17 +152,26 @@ export default function ExcalidrawInlineEditor({
     }
   }, [isShown]);
 
-  const discardDialogId = useId();
-
   if (!isShown) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] bg-background">
-      {/* inline container */}
-      <div
-        ref={containerRef}
-        className="relative size-full bg-background overflow-hidden"
-      >
+    <div
+      className="fixed inset-0 z-[120] flex flex-col bg-background"
+      data-component-name="DrawingEditor"
+    >
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]">
+        <h2 className="min-w-0 flex-1 truncate text-sm">
+          <span className="text-muted-foreground">Drawing in </span>
+          <span className="font-medium">{documentTitle || "Untitled"}</span>
+        </h2>
+        <Button variant="ghost" size="sm" onClick={leave}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={saveAndClose}>
+          Save &amp; close
+        </Button>
+      </header>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <ErrorBoundary
           errorComponent={({ error }) => (
             <div className="flex items-center justify-center size-full">
@@ -196,54 +187,47 @@ export default function ExcalidrawInlineEditor({
               </div>
             }
           >
-            <Excalidraw
-              {...options}
-              excalidrawAPI={(api) => {
-                apiRef.current = api;
-              }}
-            >
-              <MainMenu>
-                <DrawingBoardMenu
-                  excalidrawApi={
-                    apiRef as React.RefObject<ExcalidrawImperativeAPI>
-                  }
-                  onSaveAndClose={saveAndClose}
-                  onSave={save}
-                  onDiscard={handleDiscardConfirmed}
-                />
-              </MainMenu>
-            </Excalidraw>
+            <div className="absolute inset-0">
+              <Excalidraw
+                initialData={{
+                  appState: {
+                    ...initialAppState,
+                    openMenu: null,
+                    exportWithDarkMode: false,
+                    exportBackground: false,
+                  },
+                  elements: initialElements ?? [],
+                  files: initialFiles ?? {},
+                }}
+                theme={isDarkTheme ? Theme.DARK : Theme.LIGHT}
+                UIOptions={{
+                  canvasActions: {
+                    toggleTheme: false,
+                    loadScene: false,
+                    clearCanvas: false,
+                    saveToActiveFile: false,
+                  },
+                }}
+                onChange={(elements, state) => {
+                  changed.current = needsSave(elements, state);
+                }}
+                excalidrawAPI={setExcalidraw}
+              >
+                <DrawingBoardMenu excalidrawApi={excalidraw} />
+              </Excalidraw>
+            </div>
           </Suspense>
         </ErrorBoundary>
       </div>
-
-      {/* discard confirmation dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogOverlay>
-          <DialogContent aria-describedby="discard-dialog-description">
-            <DialogHeader>
-              <DialogTitle>Discard changes?</DialogTitle>
-            </DialogHeader>
-            <DialogDescription id={discardDialogId}>
-              Your drawing has unsaved changes. What would you like to do?
-            </DialogDescription>
-            <div className="flex justify-between mt-6">
-              <Button onClick={closeDiscardConfirm}>Cancel</Button>
-              <div className="space-x-2">
-                <Button
-                  variant="destructive-confirm"
-                  onClick={handleDiscardConfirmed}
-                >
-                  Discard
-                </Button>
-                <Button variant="outline" onClick={save}>
-                  Save
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </DialogOverlay>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        className="z-[130]"
+        title="Discard changes?"
+        description="This drawing has changes that aren't saved to the document."
+        confirmLabel="Discard"
+        onConfirm={discard}
+      />
     </div>,
     document.body,
   );

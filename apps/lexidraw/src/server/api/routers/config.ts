@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { autoSaveEnabled } from "~/lib/auto-save";
 import {
   type createTRPCContext,
   createTRPCRouter,
@@ -392,8 +393,7 @@ export const configRouter = createTRPCRouter({
   // --- Auto-save preferences ---
   getAutoSaveConfig: publicProcedure.query(async ({ ctx }) => {
     const config = await storedConfig(ctx);
-    const enabled = config?.autoSave?.enabled ?? false;
-    return { enabled } as { enabled: boolean };
+    return { enabled: autoSaveEnabled(config?.autoSave) };
   }),
 
   updateAutoSaveConfig: protectedProcedure

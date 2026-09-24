@@ -2,7 +2,7 @@
 
 import "@excalidraw/excalidraw/index.css";
 
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import { Excalidraw } from "@excalidraw/excalidraw";
 import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
@@ -19,7 +19,6 @@ import type { RouterOutputs } from "~/trpc/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
-import ModeToggle from "~/components/theme/dark-mode-toggle";
 import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { Theme, type MessageStructure } from "@packages/types";
@@ -31,6 +30,9 @@ import {
   useOpenEntitySync,
 } from "~/hooks/use-open-entity-sync";
 import { useSyncedExcalidraw } from "./use-synced-excalidraw";
+import { useFitOnOpen } from "./use-fit-on-open";
+import { useSaveShortcut } from "~/hooks/use-save-shortcut";
+import { toast } from "sonner";
 
 type Props = {
   revalidate: () => void;
@@ -178,43 +180,52 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     }, 100),
   );
 
+  /** Saves the scene on screen; says "Saved" only once nothing is newer. */
+  const saveScene = useCallback(
+    ({ elements, appState }: SendUpdateProps) =>
+      openDrawing.sync
+        .save({
+          appState: JSON.stringify({
+            ...appState,
+            openDialog: null,
+            theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
+          } satisfies AppState),
+          elements: JSON.stringify(elements as ExcalidrawElement[]),
+        })
+        .then((outcome) => {
+          if (outcome === "saved" && !syncedEditor?.hasLocalEdits())
+            markPristine();
+        }),
+    [isDarkTheme, markPristine, openDrawing, syncedEditor],
+  );
+
   useEffect(() => {
     if (autoSaveEnabled) {
-      debouncedSaveRef.current = debounce(
-        ({ elements, appState }: SendUpdateProps) => {
-          if (holdsSaves()) {
-            markDirty();
-            return;
-          }
-          openDrawing.sync
-            .save({
-              appState: JSON.stringify({
-                ...appState,
-                openDialog: null,
-                theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
-              } satisfies AppState),
-              elements: JSON.stringify(elements as ExcalidrawElement[]),
-            })
-            .then(
-              (outcome) => {
-                if (outcome === "saved") markPristine();
-              },
-              (err: unknown) => console.error("auto save failed: ", err),
-            );
-        },
-        1000,
-      );
+      debouncedSaveRef.current = debounce((scene: SendUpdateProps) => {
+        if (holdsSaves()) return;
+        saveScene(scene).catch((err: unknown) =>
+          console.error("auto save failed: ", err),
+        );
+      }, 1000);
     } else {
       debouncedSaveRef.current = null;
     }
-  }, [
-    autoSaveEnabled,
-    isDarkTheme,
-    holdsSaves,
-    markDirty,
-    markPristine,
-    openDrawing,
-  ]);
+  }, [autoSaveEnabled, holdsSaves, saveScene]);
+
+  const saveNow = useCallback(() => {
+    if (!excalidrawApi) return;
+    debouncedSaveRef.current?.cancel();
+    saveScene({
+      elements: excalidrawApi.getSceneElements(),
+      appState: excalidrawApi.getAppState(),
+    }).catch((err: unknown) =>
+      toast.error("Couldn't save", {
+        description: err instanceof Error ? err.message : undefined,
+      }),
+    );
+  }, [excalidrawApi, saveScene]);
+  useSaveShortcut(saveNow);
+  useFitOnOpen(excalidrawApi);
 
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
@@ -251,14 +262,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         // an edit undone: a save still waiting would only write back.
         debouncedSaveRef.current?.cancel();
         markPristine();
-      } else if (
-        !autoSaveEnabled ||
-        holdsSaves() ||
-        !debouncedSaveRef.current
-      ) {
-        markDirty();
       } else {
-        debouncedSaveRef.current({ elements, appState: state });
+        markDirty();
+        if (autoSaveEnabled && !holdsSaves())
+          debouncedSaveRef.current?.({ elements, appState: state });
       }
       if (isRemoteUpdate) {
         console.log("remote update detected");
@@ -292,7 +299,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
           appState: appState
             ? {
                 ...appState,
-                theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
                 exportWithDarkMode: false,
                 exportBackground: false,
                 openMenu: null,
@@ -300,7 +306,6 @@ const ExcalidrawWrapper: React.FC<Props> = ({
                   appState.collaborators ?? new Map<SocketId, Collaborator>(),
               }
             : {
-                theme: isDarkTheme ? Theme.DARK : Theme.LIGHT,
                 exportWithDarkMode: false,
                 exportBackground: false,
                 openMenu: null,
@@ -310,19 +315,17 @@ const ExcalidrawWrapper: React.FC<Props> = ({
         UIOptions: {
           canvasActions: {
             toggleTheme: false,
+            // The menu opens and clears only after asking, and Cmd+S saves
+            // to Lexidraw rather than to a file.
+            loadScene: false,
+            clearCanvas: false,
+            saveToActiveFile: false,
           },
         },
         onChange: onChange,
       }) as ExcalidrawProps,
-    [appState, elements, isDarkTheme, onChange],
+    [appState, elements, onChange],
   );
-
-  // switching dark-light mode
-  useEffect(() => {
-    excalidrawApi?.updateScene({
-      appState: { theme: isDarkTheme ? Theme.DARK : Theme.LIGHT },
-    });
-  }, [excalidrawApi, isDarkTheme]);
 
   // trigger live collaboration on mount
   useEffect(() => {
@@ -344,24 +347,20 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   }, [openDrawing, peersConnected]);
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
+    <div className="absolute inset-0">
       <Excalidraw
         {...options}
+        theme={isDarkTheme ? Theme.DARK : Theme.LIGHT}
         excalidrawAPI={(api) => {
           setExcalidrawApi(api);
           onExcalidrawApiReady?.(api);
-          console.log("excalidraw api set");
         }}
-        renderTopRightUI={() => (
-          <>
-            {/* would be nice to show active users */}
-            <ModeToggle className="hidden md:flex" />
-          </>
-        )}
       >
-        <MainMenu>
-          <DrawingBoardMenu drawing={drawing} excalidrawApi={excalidrawApi} />
-        </MainMenu>
+        <DrawingBoardMenu
+          drawing={drawing}
+          excalidrawApi={excalidrawApi}
+          onSave={saveNow}
+        />
       </Excalidraw>
     </div>
   );

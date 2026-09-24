@@ -228,18 +228,16 @@ export async function checkDocumentSettings(page: Page, fixtureId: string) {
     await page.select("#document-language", lang);
     await clickText("Apply", "button");
     await page.waitForSelector('[role="dialog"]', { hidden: true });
-    await clickText("Open menu", "button");
     const saved = page.waitForResponse(
       (response) =>
         response.url().includes("entities.save") && response.status() === 200,
     );
-    await clickText("Save", '[role="menuitem"]');
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+    await page.keyboard.down(modifier);
+    await page.keyboard.press("s");
+    await page.keyboard.up(modifier);
     await saved;
-    await page.waitForFunction(() =>
-      [...document.querySelectorAll("[data-sonner-toast]")].some((toast) =>
-        toast.textContent?.includes("Saved"),
-      ),
-    );
+    await page.waitForSelector('[data-save-status="saved"]');
   }
   await choose("serif", "ja");
   const response = await page.goto(`${appUrl}/documents/${fixtureId}`, {

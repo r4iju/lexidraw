@@ -42,7 +42,6 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { theme } from "./themes/theme";
-import ModeToggle from "~/components/theme/dark-mode-toggle";
 import OptionsDropdown from "./plugins/options-dropdown";
 import type { EditorState, Klass, LexicalNode } from "lexical";
 import { $getRoot, COLLABORATION_TAG } from "lexical";
@@ -97,7 +96,20 @@ import {
 } from "../../../hooks/use-unsaved-changes";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Button } from "~/components/ui/button";
-import { BookOpenIcon, PencilIcon } from "lucide-react";
+import {
+  ListTreeIcon,
+  type LucideIcon,
+  MessageSquareTextIcon,
+} from "lucide-react";
+import {
+  EntityAppBar,
+  type EntityFrame,
+} from "~/components/app-bar/entity-frame";
+import { ShareButton, ShareDialog } from "~/components/app-bar/share-button";
+import { useSaveShortcut } from "~/hooks/use-save-shortcut";
+import { cn } from "~/lib/utils";
+import { EditReadSwitch } from "./edit-read-switch";
+import { DocumentTitleProvider } from "./context/document-title-context";
 import { EditabilityPlugin, mayEdit, type RenderMode } from "./editability";
 import RenderReadyPlugin from "./plugins/RenderReadyPlugin";
 import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
@@ -133,7 +145,10 @@ import {
 } from "~/lib/document-fonts";
 import { FontResources } from "./document-typography";
 import { DocumentFontsPlugin } from "./plugins/DocumentFontsPlugin";
-import { useSaveAndExportDocument } from "./context/save-and-export";
+import {
+  type SentSettings,
+  useSaveAndExportDocument,
+} from "./context/save-and-export";
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 import { CommentInputBox } from "./plugins/CommentPlugin";
 import MermaidPlugin from "./plugins/MermaidPlugin";
@@ -157,12 +172,15 @@ type EditorProps = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
+  /** The app bar's; absent where nothing is on screen to frame. */
+  frame?: EntityFrame;
 };
 
 type ExtendedEditorProps = EditorProps & {
-  handleSave: (onSuccessCallback?: () => void) => void;
-  handleSilentSave: (onSaveSuccessCallback?: () => void) => void;
-  isUploading: boolean;
+  handleSave: (onSaveSuccessCallback?: (sent: SentSettings) => void) => void;
+  handleSilentSave: (
+    onSaveSuccessCallback?: (sent: SentSettings) => void,
+  ) => void;
   exportMarkdown: () => void;
   editorStateRef: RefObject<EditorState | undefined>;
   setEditorStateRef: (editorState: EditorState) => void;
@@ -225,11 +243,11 @@ function EditorHandler({
   initialLlmConfig,
   handleSave,
   handleSilentSave,
-  isUploading,
   exportMarkdown,
   editorStateRef,
   setEditorStateRef,
   renderMode,
+  frame,
 }: ExtendedEditorProps & { renderMode: RenderMode }) {
   const onScreen = renderMode === "view";
   const canEdit = mayEdit(renderMode, entity.accessLevel);
@@ -259,7 +277,9 @@ function EditorHandler({
   const [floatingAnchorElem, setFloatingAnchorElem] =
     useState<HTMLDivElement | null>(null);
 
-  const { activeSidebar, setActiveSidebar } = useSidebarManager();
+  const { activeSidebar, setActiveSidebar, toggleSidebar } =
+    useSidebarManager();
+  const [sharing, setSharing] = useState(false);
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(SIDEBAR_WIDTH);
   const sidebarRef = useRef<HTMLElement>(null);
 
@@ -324,21 +344,49 @@ function EditorHandler({
     }, 100),
   );
 
+  // Typing on, or changing the document's font or language, while a save is
+  // out leaves edits the save did not take.
+  const settings = useRef<SentSettings>({ defaultFontFamily, lang });
   useEffect(() => {
-    if (autoSaveEnabled) {
-      debouncedAutoSaveRef.current = debounce(() => {
-        if (holdsSaves()) {
-          markDirty();
-          return;
-        }
-        handleSilentSave(() => {
-          markPristine();
-        });
-      }, 1000);
-    } else {
+    settings.current = { defaultFontFamily, lang };
+  }, [defaultFontFamily, lang]);
+  const markSavedIfCaughtUp = useCallback(
+    (sent: SentSettings) => {
+      const now = settings.current;
+      if (
+        !holdsLocalEdits(syncedEditor) &&
+        sent.defaultFontFamily === now.defaultFontFamily &&
+        sent.lang === now.lang
+      )
+        markPristine();
+    },
+    [syncedEditor, markPristine],
+  );
+
+  // One timer for the session, saving what the latest render holds: a timer
+  // made by an earlier render would send its settings over newer ones.
+  const autoSave = useRef(() => {});
+  useEffect(() => {
+    autoSave.current = () => {
+      if (holdsSaves()) return;
+      handleSilentSave(markSavedIfCaughtUp);
+    };
+  }, [handleSilentSave, holdsSaves, markSavedIfCaughtUp]);
+  useEffect(() => {
+    if (!autoSaveEnabled) return;
+    const debounced = debounce(() => autoSave.current(), 1000);
+    debouncedAutoSaveRef.current = debounced;
+    return () => {
+      debounced.cancel();
       debouncedAutoSaveRef.current = null;
-    }
-  }, [autoSaveEnabled, handleSilentSave, holdsSaves, markDirty, markPristine]);
+    };
+  }, [autoSaveEnabled]);
+
+  const saveNow = useCallback(() => {
+    debouncedAutoSaveRef.current?.cancel();
+    handleSave(markSavedIfCaughtUp);
+  }, [handleSave, markSavedIfCaughtUp]);
+  useSaveShortcut(onScreen && canEdit ? saveNow : null);
 
   const onChange = (
     editorState: EditorState,
@@ -358,11 +406,9 @@ function EditorHandler({
     if (parsedState === JSON.stringify(editorStateRef.current)) {
       return;
     }
-    if (!autoSaveEnabled || holdsSaves()) {
-      // The first change after loading has nothing to compare with above.
-      if (holdsLocalEdits(syncedEditor)) markDirty();
-      else markPristine();
-    }
+    // The first change after loading has nothing to compare with above.
+    if (holdsLocalEdits(syncedEditor)) markDirty();
+    else markPristine();
     setEditorStateRef(editorState);
     debouncedSendUpdateRef.current(parsedState);
     if (autoSaveEnabled && debouncedAutoSaveRef.current) {
@@ -467,46 +513,91 @@ function EditorHandler({
                         {onScreen && (
                           <div
                             ref={toolbarRef}
-                            className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card flex items-start gap-2 overflow-x-auto whitespace-nowrap pt-[max(--spacing(2),env(safe-area-inset-top))] pb-2 pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))] md:pl-[max(--spacing(8),env(safe-area-inset-left))] md:pr-[max(--spacing(8),env(safe-area-inset-right))] justify-center border-b border-border"
+                            className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card pt-[env(safe-area-inset-top)] print:hidden"
                             data-component-name="Toolbar"
                           >
-                            <OptionsDropdown
-                              className="flex h-12 md:h-10 min-w-12 md:min-w-10"
-                              onSaveDocument={handleSave}
-                              isSavingDocument={isUploading}
-                              onExportMarkdown={exportMarkdown}
-                              onImportMarkdown={handleImportMarkdown}
-                              entity={{
-                                id: entity.id,
-                                title: entity.title,
-                                accessLevel: entity.accessLevel,
-                              }}
-                            />
-                            {canEdit && (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="flex h-12 md:h-10 min-w-12 md:min-w-10"
-                                aria-pressed={reading}
-                                title={reading ? "Edit" : "Reading view"}
-                                onClick={() => setReading((on) => !on)}
-                              >
-                                {reading ? <PencilIcon /> : <BookOpenIcon />}
-                                <span className="sr-only">
-                                  {reading ? "Edit" : "Reading view"}
-                                </span>
-                              </Button>
+                            {frame && (
+                              <EntityAppBar
+                                frame={frame}
+                                entity={entity}
+                                canRename={canEdit}
+                                actions={
+                                  <>
+                                    {frame.isOwner && (
+                                      <ShareButton
+                                        onClick={() => setSharing(true)}
+                                        className="h-9 gap-1.5 px-2.5 max-sm:hidden"
+                                      />
+                                    )}
+                                    <SidebarToggle
+                                      label="Comments"
+                                      Icon={MessageSquareTextIcon}
+                                      on={activeSidebar === "comments"}
+                                      onClick={() => toggleSidebar("comments")}
+                                    />
+                                    <SidebarToggle
+                                      label="Table of contents"
+                                      Icon={ListTreeIcon}
+                                      on={activeSidebar === "toc"}
+                                      onClick={() => toggleSidebar("toc")}
+                                    />
+                                    {canEdit && (
+                                      <EditReadSwitch
+                                        reading={reading}
+                                        onChange={setReading}
+                                      />
+                                    )}
+                                    <OptionsDropdown
+                                      className="size-9"
+                                      onSave={saveNow}
+                                      onShare={
+                                        frame.isOwner
+                                          ? () => setSharing(true)
+                                          : undefined
+                                      }
+                                      onExportMarkdown={exportMarkdown}
+                                      onImportMarkdown={handleImportMarkdown}
+                                      entity={{
+                                        id: entity.id,
+                                        title: entity.title,
+                                        accessLevel: entity.accessLevel,
+                                      }}
+                                    />
+                                  </>
+                                }
+                              />
                             )}
-                            <ShortcutsPlugin
-                              editor={editor}
-                              setIsLinkEditMode={setIsLinkEditMode}
-                            />
-                            <TooltipProvider>
-                              <ToolbarPlugin
+                            {/* The formatting strip is for editing; a
+                                reader signed in keeps listening (#93). */}
+                            <div
+                              className={cn(
+                                "flex items-start justify-center gap-2 overflow-x-auto whitespace-nowrap border-b border-border py-2 pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))] md:pl-[max(--spacing(8),env(safe-area-inset-left))] md:pr-[max(--spacing(8),env(safe-area-inset-right))]",
+                                !(canEdit && !reading) && !signedIn && "hidden",
+                              )}
+                            >
+                              <ShortcutsPlugin
+                                editor={editor}
                                 setIsLinkEditMode={setIsLinkEditMode}
                               />
-                            </TooltipProvider>
-                            <ModeToggle className="hidden md:flex h-12 md:h-10 min-w-12 md:min-w-10" />
+                              <TooltipProvider>
+                                <ToolbarPlugin
+                                  setIsLinkEditMode={setIsLinkEditMode}
+                                />
+                              </TooltipProvider>
+                            </div>
+                            {frame?.isOwner && (
+                              <ShareDialog
+                                entity={{
+                                  id: entity.id,
+                                  title: entity.title,
+                                  entityType: entity.entityType,
+                                  publicAccess: entity.publicAccess,
+                                  parentId: frame.parentId,
+                                }}
+                                open={sharing}
+                                onOpenChange={setSharing}
+                              />
+                            )}
                           </div>
                         )}
 
@@ -669,12 +760,40 @@ function EditorHandler({
 
 const PLACEHOLDER = "Start writing…";
 
+/** Opens or closes a reading tool's sidebar; in the ⋯ menu on phones. */
+function SidebarToggle({
+  label,
+  Icon,
+  on,
+  onClick,
+}: {
+  label: string;
+  Icon: LucideIcon;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant={on ? "on" : "ghost"}
+      size="icon"
+      aria-label={label}
+      aria-pressed={on}
+      title={label}
+      onClick={onClick}
+      className="size-9 max-sm:hidden"
+    >
+      <Icon className="size-5" aria-hidden />
+    </Button>
+  );
+}
+
 type Props = {
   entity: RouterOutputs["entities"]["load"];
   iceServers: RTCIceServer[];
   initialLlmConfig: StoredLlmConfig;
   signedIn: boolean;
   renderMode?: RenderMode;
+  frame?: EntityFrame;
 };
 
 function EditorScaffold({
@@ -685,7 +804,9 @@ function EditorScaffold({
   initialLlmConfig,
   nodes,
   renderMode,
+  frame,
 }: {
+  frame?: EntityFrame;
   entity: RouterOutputs["entities"]["load"];
   editorStateRef: RefObject<EditorState | undefined>;
   setEditorStateRef: (editorState: EditorState) => void;
@@ -730,11 +851,11 @@ function EditorScaffold({
                 initialLlmConfig={initialLlmConfig}
                 handleSave={handleSave}
                 handleSilentSave={handleSilentSave}
-                isUploading={saveAndExport.isUploading}
                 exportMarkdown={saveAndExport.exportMarkdown}
                 editorStateRef={editorStateRef}
                 setEditorStateRef={setEditorStateRef}
                 renderMode={renderMode}
+                frame={frame}
               />
             </SidebarManagerProvider>
           </UnsavedChangesProvider>
@@ -750,6 +871,7 @@ export default function DocumentEditor({
   initialLlmConfig,
   signedIn,
   renderMode = "view",
+  frame,
 }: Props) {
   console.log("🔄 DocumentEditor re-rendered");
 
@@ -788,20 +910,23 @@ export default function DocumentEditor({
 
   return (
     <SignedInProvider value={signedIn}>
-      <DocumentSettingsProvider
-        initialDefaultFontFamily={appState.defaultFontFamily ?? null}
-        initialLang={appState.lang ?? null}
-      >
-        <EditorScaffold
-          entity={entity}
-          editorStateRef={editorStateRef}
-          setEditorStateRef={setEditorStateRef}
-          iceServers={iceServers}
-          initialLlmConfig={initialLlmConfig}
-          nodes={lexicalNodes}
-          renderMode={renderMode}
-        />
-      </DocumentSettingsProvider>
+      <DocumentTitleProvider value={entity.title}>
+        <DocumentSettingsProvider
+          initialDefaultFontFamily={appState.defaultFontFamily ?? null}
+          initialLang={appState.lang ?? null}
+        >
+          <EditorScaffold
+            entity={entity}
+            editorStateRef={editorStateRef}
+            setEditorStateRef={setEditorStateRef}
+            iceServers={iceServers}
+            initialLlmConfig={initialLlmConfig}
+            nodes={lexicalNodes}
+            renderMode={renderMode}
+            frame={frame}
+          />
+        </DocumentSettingsProvider>
+      </DocumentTitleProvider>
     </SignedInProvider>
   );
 }

@@ -73,7 +73,6 @@ import Ellipsis from "~/components/icons/ellipsis";
 import { Tooltip, TooltipTrigger } from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
 import { useSidebarManager } from "~/context/sidebar-manager-context";
-import { MessageSquareText, ListTree } from "lucide-react";
 import { useToolbarUtils } from "./utils";
 import { FontDropDown } from "./font";
 import {
@@ -666,47 +665,26 @@ export default function ToolbarPlugin({
         </>
       )}
 
-      {/* AI Config / LLM Chat / Comments / TOC */}
-      <fieldset className="flex" aria-label="AI and sidebar controls">
-        {/* The assistant writes into the document, so it goes with editing. */}
-        {isEditable && (
-          <LlmModelSelector className="rounded-r-none border-r-0" />
-        )}
-        {isEditable && signedIn && (
-          <TooltipButton
-            className={cn("w-10 md:w-8 h-12 md:h-10 rounded-none border-x-0", {
-              "bg-muted": activeSidebar === "llm",
-            })}
-            onClick={() => toggleSidebar("llm")}
-            ariaLabel="Toggle LLM Chat"
-            title="AI Assistant"
-            Icon={BotMessageSquare}
+      {/* The assistant writes into the document, so it goes with editing. */}
+      {isEditable && (
+        <fieldset className="flex" aria-label="AI controls">
+          <LlmModelSelector
+            className={cn(signedIn && "rounded-r-none border-r-0")}
           />
-        )}
-        <TooltipButton
-          className={cn(
-            "w-10 md:w-8 h-12 md:h-10",
-            isEditable
-              ? "rounded-none border-x-0"
-              : "rounded-r-none border-r-0",
-            { "bg-muted": activeSidebar === "comments" },
+          {signedIn && (
+            <TooltipButton
+              className={cn(
+                "w-10 md:w-8 h-12 md:h-10 rounded-l-none rounded-r-md border-l-0",
+                { "bg-muted": activeSidebar === "llm" },
+              )}
+              onClick={() => toggleSidebar("llm")}
+              ariaLabel="Toggle LLM Chat"
+              title="AI Assistant"
+              Icon={BotMessageSquare}
+            />
           )}
-          onClick={() => toggleSidebar("comments")}
-          ariaLabel="Toggle Comments"
-          title="Comments"
-          Icon={MessageSquareText}
-        />
-        <TooltipButton
-          className={cn(
-            "w-10 md:w-8 h-12 md:h-10 rounded-l-none rounded-r-md border-l-0",
-            { "bg-muted": activeSidebar === "toc" },
-          )}
-          onClick={() => toggleSidebar("toc")}
-          ariaLabel="Toggle Table of Contents"
-          title="Table of Contents"
-          Icon={ListTree}
-        />
-      </fieldset>
+        </fieldset>
+      )}
 
       {signedIn && <TtsToolbar />}
 

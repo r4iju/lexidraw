@@ -20,6 +20,8 @@ const { configRouter } = await import("./config");
 const db = await createTestDatabase();
 
 const SETTLED_USER = "config_settled_user";
+const NEW_USER = "config_new_user";
+const OPTED_OUT_USER = "config_opted_out_user";
 
 /** A value other than the default in every section a settings read serves. */
 const STORED = {
@@ -89,6 +91,15 @@ beforeAll(async () => {
     email: "config-settled@example.test",
     config: STORED,
   });
+  await db.insert(schema.users).values([
+    { id: NEW_USER, name: "New", email: "config-new@example.test" },
+    {
+      id: OPTED_OUT_USER,
+      name: "Opted out",
+      email: "config-opted-out@example.test",
+      config: { autoSave: { enabled: false } },
+    },
+  ]);
 });
 
 describe("a visitor with no account", () => {
@@ -121,8 +132,8 @@ describe("a visitor with no account", () => {
     });
   });
 
-  test("reads auto-save as off", async () => {
-    expect(await visitor.getAutoSaveConfig()).toEqual({ enabled: false });
+  test("reads auto-save as on", async () => {
+    expect(await visitor.getAutoSaveConfig()).toEqual({ enabled: true });
   });
 
   test("reads the default TTS settings", async () => {
@@ -188,4 +199,18 @@ test("a signed-in reader still gets the settings they stored", async () => {
   const autocomplete: unknown = await owner.getAutocompleteConfig();
   expect(autocomplete).toEqual(STORED.autocomplete);
   expect(await owner.getConfig()).toEqual(STORED.llm);
+});
+
+describe("auto-save", () => {
+  test("is on for a new account", async () => {
+    expect(await callerFor(NEW_USER).getAutoSaveConfig()).toEqual({
+      enabled: true,
+    });
+  });
+
+  test("stays off for someone who turned it off", async () => {
+    expect(await callerFor(OPTED_OUT_USER).getAutoSaveConfig()).toEqual({
+      enabled: false,
+    });
+  });
 });
