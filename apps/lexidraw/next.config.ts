@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import nextBundleAnalyzer from "@next/bundle-analyzer";
 import env from "@packages/env";
 import { withWorkflow } from "workflow/next";
+import { reactCompiler } from "./react-compiler";
 
 const withBundleAnalyzer = nextBundleAnalyzer({
   enabled: env.ANALYZE,
@@ -68,10 +69,7 @@ const config = {
   experimental: {
     turbopackFileSystemCacheForDev: true,
   },
-  reactCompiler: {
-    compilationMode: "all",
-    panicThreshold: "critical_errors",
-  },
+  reactCompiler,
   turbopack: {
     resolveAlias: {
       "~/*": ["./src/*"],
