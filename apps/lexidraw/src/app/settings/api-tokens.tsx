@@ -342,7 +342,7 @@ export function ApiTokensSection({ tokens }: { tokens: TokenRow[] }) {
     <section
       id="api-tokens"
       aria-labelledby="api-tokens-heading"
-      className="flex scroll-mt-[calc(var(--header-height)+2rem)] flex-col gap-1"
+      className="flex scroll-mt-[calc(var(--app-bar-height)+1rem)] flex-col gap-1"
     >
       <h2 id="api-tokens-heading" className="text-lg font-semibold">
         API tokens

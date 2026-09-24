@@ -16,15 +16,28 @@ const crumbs = (
   </Crumb>
 );
 
+// Settings scrolls as a page, so its bar holds on top as the document's does.
+const STICKY = "sticky top-0 z-40";
+
 async function SignedInAppBar() {
-  return <AppBar account={await appBarAccount()} crumbs={crumbs} />;
+  return (
+    <AppBar
+      account={await appBarAccount()}
+      crumbs={crumbs}
+      className={STICKY}
+    />
+  );
 }
 
 export default function SettingsLayout({ children }: Props) {
   return (
     <PageFrame
       bar={
-        <Suspense fallback={<AppBar account={undefined} crumbs={crumbs} />}>
+        <Suspense
+          fallback={
+            <AppBar account={undefined} crumbs={crumbs} className={STICKY} />
+          }
+        >
           <SignedInAppBar />
         </Suspense>
       }

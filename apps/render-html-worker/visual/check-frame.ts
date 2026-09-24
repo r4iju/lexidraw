@@ -194,6 +194,7 @@ export async function checkFrame(
   const theme = await page.evaluate(() => localStorage.getItem("theme"));
   try {
     await checkBar(page, emptyId, drawingId);
+    await checkSettings(page);
     await checkDocument(page, emptyId);
     await checkEmbedded(page, fixtureId);
     await checkDrawing(page, drawingId);
@@ -288,6 +289,46 @@ async function checkBar(page: Page, emptyId: string, drawingId: string) {
       `The account menu offers ${item} (${account.join(", ")})`,
     );
   await page.keyboard.press("Escape");
+}
+
+/**
+ * Settings scrolls as a page: the app bar stays on top, and what is held or
+ * jumped to below it clears the bar by the same 2rem at every width.
+ */
+export async function checkSettings(page: Page) {
+  for (const [width, height, barHeight] of [
+    [375, 812, 44],
+    [1280, 900, 48],
+  ] as const) {
+    await page.setViewport({ width, height });
+    await page.goto(`${appUrl}/settings`, { waitUntil: "networkidle2" });
+    await page.waitForSelector("section#settings-editor", { visible: true });
+    await page.locator('aside a[href="#settings-editor"]').click();
+    await pause(800);
+    const seen = await page.evaluate(() => {
+      const top = (selector: string) =>
+        document.querySelector(selector)?.getBoundingClientRect().top ?? null;
+      return {
+        scrollY: window.scrollY,
+        bar: top('[data-component-name="AppBar"]'),
+        section: top("section#settings-editor"),
+        aside: top("aside > div"),
+      };
+    });
+    assert(seen.scrollY > 0, `${width} settings: the jump scrolls the page`);
+    assert.equal(seen.bar, 0, `${width} settings: the app bar stays on top`);
+    assert.equal(
+      Math.round(seen.section ?? 0),
+      barHeight + 32,
+      `${width} settings: a section jumped to clears the app bar by 2rem`,
+    );
+    if (width >= 768)
+      assert.equal(
+        Math.round(seen.aside ?? 0),
+        barHeight + 32,
+        `${width} settings: the held nav clears the app bar by 2rem`,
+      );
+  }
 }
 
 async function checkDocument(page: Page, emptyId: string) {

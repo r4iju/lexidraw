@@ -42,7 +42,7 @@ export default function SettingsPage() {
       className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8 md:flex-row md:gap-12"
     >
       <aside className="md:w-44 md:shrink-0">
-        <div className="flex flex-col gap-4 md:sticky md:top-[calc(var(--header-height)+2rem)]">
+        <div className="flex flex-col gap-4 md:sticky md:top-[calc(var(--app-bar-height)+2rem)]">
           <h1 className="text-title font-semibold">Settings</h1>
           <SettingsNav />
         </div>

@@ -220,11 +220,13 @@ function Section({
   purpose: string;
   children: ReactNode;
 }) {
+  // With the page's 1rem scroll padding, a section jumped to lines up with
+  // the nav held 2rem under the app bar.
   return (
     <section
       id={id}
       aria-labelledby={`${id}-heading`}
-      className="flex scroll-mt-[calc(var(--header-height)+2rem)] flex-col gap-1"
+      className="flex scroll-mt-[calc(var(--app-bar-height)+1rem)] flex-col gap-1"
     >
       <h2 id={`${id}-heading`} className="text-lg font-semibold">
         {title}

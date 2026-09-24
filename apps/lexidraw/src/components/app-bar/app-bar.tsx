@@ -80,7 +80,7 @@ export function AppBar({
     <header
       data-component-name="AppBar"
       className={cn(
-        "flex h-11 w-full shrink-0 items-center gap-2 border-b border-border bg-card text-sm sm:h-12",
+        "flex h-(--app-bar-height) w-full shrink-0 items-center gap-2 border-b border-border bg-card text-sm",
         "pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]",
         "sm:pl-[max(--spacing(6),env(safe-area-inset-left))] sm:pr-[max(--spacing(6),env(safe-area-inset-right))]",
         "lg:pl-[max(--spacing(8),env(safe-area-inset-left))] lg:pr-[max(--spacing(8),env(safe-area-inset-right))]",
