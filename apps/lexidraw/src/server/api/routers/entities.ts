@@ -39,7 +39,7 @@ import {
 } from "~/server/documents/document-store";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
-  canShare,
+  canEdit,
   entityAncestors,
   findOwnedEntity,
   findReadableEntity,
@@ -472,9 +472,9 @@ export const entityRouter = createTRPCRouter({
         .where(eq(schema.sharedEntities.entityId, input.id))
         .limit(1);
 
-      const hasEditAccess =
-        canShare(entity, userId) || entity.publicAccess === PublicAccess.EDIT;
-      const accessLevel = hasEditAccess ? AccessLevel.EDIT : AccessLevel.READ;
+      const accessLevel = canEdit(entity, userId)
+        ? AccessLevel.EDIT
+        : AccessLevel.READ;
 
       return {
         id: entity.id,
@@ -1108,9 +1108,12 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
-      if (!entity || !canShare(entity, userId)) throw notFound();
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
 
       const userToShareWith = await ctx.drizzle.query.users.findFirst({
         where: (user, { eq }) => eq(user.email, input.userEmail),

@@ -129,6 +129,45 @@ describe("who a file is shared with is for its owner to see", () => {
   });
 });
 
+describe("who has a file is for its owner to change", () => {
+  test("someone it is shared with to edit is told it isn't there", async () => {
+    const editor = callerOf(EDITOR);
+    await expect(
+      editor.share({
+        id: "erd_doc",
+        userEmail: "erd-owner@example.test",
+        accessLevel: AccessLevel.EDIT,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      editor.changeAccessLevel({
+        id: "erd_doc",
+        userId: READER,
+        accessLevel: AccessLevel.EDIT,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      editor.unShare({ id: "erd_doc", userId: READER }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const shares = await callerOf(OWNER).getSharedInfo({ id: "erd_doc" });
+    expect(shares.map((s) => [s.email, s.accessLevel]).toSorted()).toEqual([
+      ["erd-editor@example.test", AccessLevel.EDIT],
+      ["erd-reader@example.test", AccessLevel.READ],
+    ]);
+  });
+
+  test("while its owner shares it", async () => {
+    await expect(
+      callerOf(OWNER).share({
+        id: "erd_doc",
+        userEmail: "erd-reader@example.test",
+        accessLevel: AccessLevel.READ,
+      }),
+    ).resolves.toMatchObject({ success: true });
+  });
+});
+
 describe("a listing says whether each file is the caller's, not whose it is", () => {
   test("to its owner, and to someone it is shared with", async () => {
     const owned = await callerOf(OWNER).list({ parentId: PRIVATE });
