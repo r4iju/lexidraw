@@ -2,7 +2,7 @@
 
 import type { DocumentCover } from "@packages/lexical-nodes";
 import { type DragEvent, useEffect, useRef, useState } from "react";
-import { IMAGE_TYPES, type UploadImage } from "~/lib/image-upload";
+import { IMAGE, type Upload } from "~/lib/media-upload";
 
 const carriesFiles = (event: DragEvent) =>
   event.dataTransfer.types.includes("Files");
@@ -17,7 +17,7 @@ export function CoverForm({
   upload,
 }: {
   onDone: (cover: DocumentCover | null) => void;
-  upload: UploadImage;
+  upload: Upload;
 }) {
   const [src, setSrc] = useState("");
   /** How far the upload is, in percent; undefined before its first report. */
@@ -100,7 +100,7 @@ export function CoverForm({
       <input
         ref={picker}
         type="file"
-        accept={IMAGE_TYPES.join(",")}
+        accept={IMAGE.types.join(",")}
         hidden
         tabIndex={-1}
         onChange={(event) => {

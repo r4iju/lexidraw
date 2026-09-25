@@ -18,9 +18,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "~/components/ui/dialog";
-import FileInput from "~/components/ui/file-input";
+import FileInput, { UploadingNote } from "~/components/ui/file-input";
 import { Button } from "~/components/ui/button";
-import { useVideoUpload } from "~/hooks/use-video-upload";
+import { useVideoUpload } from "~/hooks/use-media-upload";
+import { usePickedUpload } from "~/hooks/use-picked-upload";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { VideoNode, type VideoPayload } from "../../nodes/VideoNode/VideoNode";
 import { INSERT_VIDEO_COMMAND } from "./commands";
@@ -45,24 +46,18 @@ function InsertVideoUploadedDialogBody({
   onClick: (payload: VideoPayload) => void;
   onCancel: () => void;
 }) {
-  const { src, handleFileChange, error: uploadError } = useVideoUpload();
-  const entityId = useEntityId();
-
-  const isDisabled = src === "" || !!uploadError;
-
-  const onChange = (files: FileList | null) => {
-    handleFileChange(files, entityId);
-  };
+  const { src, pending, pick } = usePickedUpload(useVideoUpload(useEntityId()));
+  const isDisabled = src === "";
 
   return (
     <div className="space-y-4">
       <FileInput
         label="Video Upload"
-        onChange={onChange}
+        onChange={pick}
         accept="video/*"
         className="pb-[2px]"
       />
-      {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
+      {pending && <UploadingNote />}
       <DialogFooter>
         <Button variant="ghost" onClick={onCancel}>
           Cancel

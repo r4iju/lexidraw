@@ -29,7 +29,7 @@ import {
 } from "../../nodes/InlineImageNode/InlineImageNode";
 import { DialogFooter } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
-import FileInput from "~/components/ui/file-input";
+import FileInput, { UploadingNote } from "~/components/ui/file-input";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
@@ -40,7 +40,8 @@ import {
   SelectValue,
   SelectTrigger,
 } from "~/components/ui/select";
-import { useImageUpload } from "~/hooks/use-image-upload";
+import { useImageUpload } from "~/hooks/use-media-upload";
+import { usePickedUpload } from "~/hooks/use-picked-upload";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { Switch } from "~/components/ui/switch";
 import { SwitchThumb } from "@radix-ui/react-switch";
@@ -60,20 +61,12 @@ export function InsertInlineImageDialog({
   activeEditor: LexicalEditor;
   onClose: () => void;
 }): React.JSX.Element {
-  const upload = useImageUpload(useEntityId());
-  const [src, setSrc] = useState("");
+  const { src, pending, pick } = usePickedUpload(useImageUpload(useEntityId()));
   const [altText, setAltText] = useState("");
   const [showCaption, setShowCaption] = useState(false);
   const [position, setPosition] = useState<Position>("left");
 
   const isDisabled = src === "";
-
-  const onChange = (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-    setSrc("");
-    void upload(file).then((url) => url && setSrc(url));
-  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -92,7 +85,8 @@ export function InsertInlineImageDialog({
   return (
     <form onSubmit={submit} className="contents">
       <div>
-        <FileInput label="Image Upload" onChange={onChange} accept="image/*" />
+        <FileInput label="Image Upload" onChange={pick} accept="image/*" />
+        {pending && <UploadingNote />}
       </div>
       <div style={{ marginBottom: "1em" }}>
         <Label htmlFor="alt-text">Alt Text</Label>

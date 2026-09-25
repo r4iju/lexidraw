@@ -22,7 +22,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { toast } from "sonner";
-import { useImageUpload } from "~/hooks/use-image-upload";
+import { useImageUpload } from "~/hooks/use-media-upload";
 import { propertyValueParts } from "~/lib/document-properties";
 import { api } from "~/trpc/react";
 import { CoverForm } from "./cover-form";

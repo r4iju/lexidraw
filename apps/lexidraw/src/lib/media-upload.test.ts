@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, mock, spyOn, test } from "bun:test";
 import { toast } from "sonner";
-import { MAX_IMAGE_BYTES, uploadImage } from "./image-upload";
+import { IMAGE, uploadMedia, VIDEO } from "./media-upload";
 
 /** The toasts shown since `before`, as their titles and descriptions. */
 function toastsSince(before: number) {
@@ -41,7 +41,7 @@ describe("uploading an image", () => {
     const progress: number[] = [];
     const file = new File(["png"], "cover.png", { type: "image/png" });
 
-    const url = await uploadImage(file, {
+    const url = await uploadMedia(file, IMAGE, {
       sign,
       send,
       onProgress: (percentage) => progress.push(percentage),
@@ -64,8 +64,9 @@ describe("uploading an image", () => {
     const sign = signer();
     const send = sender();
 
-    const url = await uploadImage(
+    const url = await uploadMedia(
       new File(["gif"], "cover.gif", { type: "image/gif" }),
+      IMAGE,
       { sign, send },
     );
 
@@ -85,10 +86,11 @@ describe("uploading an image", () => {
     const sign = signer();
     const send = sender();
 
-    const url = await uploadImage(
-      new File([new Uint8Array(MAX_IMAGE_BYTES + 1)], "huge.png", {
+    const url = await uploadMedia(
+      new File([new Uint8Array(IMAGE.maxBytes + 1)], "huge.png", {
         type: "image/png",
       }),
+      IMAGE,
       { sign, send },
     );
 
@@ -107,8 +109,9 @@ describe("uploading an image", () => {
       throw new Error("You cannot edit this document");
     });
 
-    const url = await uploadImage(
+    const url = await uploadMedia(
       new File(["png"], "cover.png", { type: "image/png" }),
+      IMAGE,
       { sign, send: sender() },
     );
 
@@ -120,5 +123,65 @@ describe("uploading an image", () => {
       },
     ]);
     logged.mockRestore();
+  });
+});
+
+/** A file that says it is `size` bytes, without holding them. */
+function sized(name: string, type: string, size: number) {
+  const file = new File(["x"], name, { type });
+  Object.defineProperty(file, "size", { value: size });
+  return file;
+}
+
+describe("uploading anything", () => {
+  test("says why when sending fails, after the upload was signed", async () => {
+    const before = toast.getHistory().length;
+    const logged = spyOn(console, "error").mockImplementation(() => {});
+    const send = mock(async () => {
+      throw new Error("Network down");
+    });
+
+    const url = await uploadMedia(
+      new File(["mp4"], "clip.mp4", { type: "video/mp4" }),
+      VIDEO,
+      { sign: signer(), send },
+    );
+
+    expect(url).toBeNull();
+    expect(toastsSince(before)).toEqual([
+      { title: "Video Upload Failed", description: "Network down" },
+    ]);
+    logged.mockRestore();
+  });
+
+  test("refuses a video of a type or size it does not take", async () => {
+    const before = toast.getHistory().length;
+    const sign = signer();
+    for (const file of [
+      sized("clip.mov", "video/quicktime", 10),
+      sized("long.mp4", "video/mp4", VIDEO.maxBytes + 1),
+    ])
+      expect(
+        await uploadMedia(file, VIDEO, { sign, send: sender() }),
+      ).toBeNull();
+    expect(sign).not.toHaveBeenCalled();
+    expect(toastsSince(before)).toEqual([
+      {
+        title: "Unsupported video type",
+        description: "Allowed: MP4, WEBM, OGG.",
+      },
+      { title: "Video too large", description: "Max size is 100MB." },
+    ]);
+  });
+
+  test("sends a video with the type it was signed for", async () => {
+    const sign = signer();
+    const url = await uploadMedia(
+      new File(["webm"], "clip.webm", { type: "video/webm" }),
+      VIDEO,
+      { sign, send: sender("https://blob.test/clip.webm") },
+    );
+    expect(url).toBe("https://blob.test/clip.webm");
+    expect(sign).toHaveBeenCalledWith("video/webm");
   });
 });

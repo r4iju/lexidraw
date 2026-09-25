@@ -24,10 +24,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "~/components/ui/dialog";
-import FileInput from "~/components/ui/file-input";
+import FileInput, { UploadingNote } from "~/components/ui/file-input";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { useImageUpload } from "~/hooks/use-image-upload";
+import { useImageUpload } from "~/hooks/use-media-upload";
+import { usePickedUpload } from "~/hooks/use-picked-upload";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { INSERT_IMAGE_COMMAND } from "./commands";
 import type { TRPCClientErrorLike } from "@trpc/client";
@@ -113,19 +114,11 @@ export function InsertImageUploadedDialogBody({
   onClick: (payload: InsertImagePayload) => void;
   onCancel: () => void;
 }) {
-  const upload = useImageUpload(useEntityId());
-  const [src, setSrc] = useState("");
+  const { src, pending, pick } = usePickedUpload(useImageUpload(useEntityId()));
   const [altText, setAltText] = useState("");
   const altTextId = useId();
 
   const isDisabled = src === "";
-
-  const onChange = (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-    setSrc("");
-    void upload(file).then((url) => url && setSrc(url));
-  };
 
   return (
     <form
@@ -135,7 +128,8 @@ export function InsertImageUploadedDialogBody({
         if (!isDisabled) onClick({ altText, src });
       }}
     >
-      <FileInput label="Image Upload" onChange={onChange} accept="image/*" />
+      <FileInput label="Image Upload" onChange={pick} accept="image/*" />
+      {pending && <UploadingNote />}
       <Label htmlFor={altTextId}>Alt Text</Label>
       <Input
         id={altTextId}
