@@ -217,7 +217,7 @@ function printedPdf(row: Row, url: URL) {
       contentType: "image/png",
       encoding: "base64",
       data: Buffer.from(
-        `PNG ${row.id} ${url.searchParams.get("width")} ${url.searchParams.get("theme")}`,
+        `PNG ${row.id} ${url.searchParams.get("width")} ${url.searchParams.get("theme")}${url.searchParams.get("touch") === "true" ? " touch" : ""}`,
       ).toString("base64"),
       updatedAt: row.updatedAt,
     };

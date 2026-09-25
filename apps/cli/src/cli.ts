@@ -49,7 +49,7 @@ Usage:
   lexidraw doc put <id|--path P> --replace (--file f|--text s)
                    --if-unmodified-since W
   lexidraw doc render <id|--path P> [--format png|pdf] [--width 1280]
-                      [--theme light|dark] [--paper A4|Letter]
+                      [--theme light|dark] [--touch] [--paper A4|Letter]
                       [--orientation portrait|landscape] [--out <file>]
   lexidraw doc delete <id|--path P>
   lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]

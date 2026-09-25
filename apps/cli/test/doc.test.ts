@@ -638,6 +638,31 @@ describe("doc render", () => {
     });
   });
 
+  it("renders the page as a touch screen shows it", async () => {
+    const output = join(
+      await mkdtemp(join(tmpdir(), "lexidraw-png-")),
+      "doc.png",
+    );
+    expect(
+      await run(
+        [
+          "doc",
+          "render",
+          "doc-plan",
+          "--width",
+          "768",
+          "--theme",
+          "light",
+          "--touch",
+          "--out",
+          output,
+        ],
+        io().io,
+      ),
+    ).toBe(0);
+    expect(await Bun.file(output).text()).toBe("PNG doc-plan 768 light touch");
+  });
+
   it("refuses paper it cannot print on, without a request", async () => {
     const out = io();
     const before = stub.requests.length;

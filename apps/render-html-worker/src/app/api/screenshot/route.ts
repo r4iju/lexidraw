@@ -205,7 +205,14 @@ export async function POST(req: NextRequest) {
       url?: string;
       cookiesHeader?: string;
       selector?: string;
-      viewport?: { width: number; height: number; deviceScaleFactor?: number };
+      viewport?: {
+        width: number;
+        height: number;
+        deviceScaleFactor?: number;
+        /** A touch screen, as a phone or tablet has: `pointer: coarse` matches. */
+        hasTouch?: boolean;
+        isMobile?: boolean;
+      };
       image?: { type?: "webp" | "png"; quality?: number };
       waitUntil?: WaitUntil;
       timeoutMs?: number;
@@ -231,10 +238,10 @@ export async function POST(req: NextRequest) {
     const selector =
       body?.selector ??
       "#lexical-content, [id^='lexical-content-'], #screenshot-root";
-    const vp = body?.viewport ?? {
-      width: 1200,
-      height: 900,
-      deviceScaleFactor: 1,
+    const vp = {
+      ...(body?.viewport ?? { width: 1200, height: 900, deviceScaleFactor: 1 }),
+      hasTouch: body?.viewport?.hasTouch === true,
+      isMobile: body?.viewport?.isMobile === true,
     };
     if (
       body.waitForDocument &&
@@ -398,16 +405,22 @@ export async function POST(req: NextRequest) {
           content:
             "*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }",
         });
-        const height = await page.evaluate(() => {
+        const { width, height } = await page.evaluate(() => {
           const article = document.querySelector<HTMLElement>(
             "[id^='lexical-content-']",
           );
           if (!article) throw new Error("Document content not found");
-          return Math.ceil(
-            article.getBoundingClientRect().bottom + window.scrollY,
-          );
+          return {
+            // A page that scrolls sideways is captured as wide as it scrolls,
+            // so the caller sees the overflow rather than a tidy crop.
+            width: document.documentElement.scrollWidth,
+            height: Math.ceil(
+              article.getBoundingClientRect().bottom + window.scrollY,
+            ),
+          };
         });
-        const pixels = vp.width * height * (vp.deviceScaleFactor ?? 1) ** 2;
+        const captureWidth = Math.max(vp.width, width);
+        const pixels = captureWidth * height * (vp.deviceScaleFactor ?? 1) ** 2;
         if (pixels > Math.min(body.maxPixels ?? 16_000_000, 16_000_000)) {
           return new NextResponse(
             "Document exceeds 16 megapixels; choose a smaller width",
@@ -416,7 +429,7 @@ export async function POST(req: NextRequest) {
         }
         const png = await page.screenshot({
           type: "png",
-          clip: { x: 0, y: 0, width: vp.width, height },
+          clip: { x: 0, y: 0, width: captureWidth, height },
         });
         if (Math.ceil(png.length / 3) * 4 > 3_000_000) {
           return new NextResponse("PNG exceeds 3 MB encoded", { status: 413 });

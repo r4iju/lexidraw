@@ -45,7 +45,7 @@ import {
   findReadableEntity,
   findWritableEntity,
 } from "~/server/entities/readable";
-import { isoDate } from "../rest-schemas";
+import { isoDate, queryBoolean } from "../rest-schemas";
 import {
   DOCUMENT_RENDER_FORMATS,
   MAX_DOCUMENT_WIDTH,
@@ -613,7 +613,7 @@ export const documentRouter = createTRPCRouter({
         path: "/documents/{id}/render",
         tags: ["documents"],
         summary: "Render a document as PNG or PDF",
-        description: `Returns the file in the JSON body, base64-encoded in \`data\`. PNG defaults to width 1280 and light theme; width and theme select its viewport. PNGs over 16 megapixels are refused. \`paper\` and \`orientation\` set the page; the document prints light whatever theme its reader uses. A file over ${MAX_RENDER_BYTES / 1_000_000} MB encoded is refused with 413, and 503 means this server has no page renderer to print with.`,
+        description: `Returns the file in the JSON body, base64-encoded in \`data\`. PNG defaults to width 1280, light theme and a mouse; width, theme and \`touch\` (a touch screen, as a phone or tablet has) select its viewport. A PNG is as wide as the page lays out, so one wider than \`width\` shows the page scrolls sideways. PNGs over 16 megapixels are refused. \`paper\` and \`orientation\` set the page; the document prints light whatever theme its reader uses. A file over ${MAX_RENDER_BYTES / 1_000_000} MB encoded is refused with 413, and 503 means this server has no page renderer to print with.`,
         protect: true,
         errorResponses: RENDER_ERRORS,
       },
@@ -624,6 +624,7 @@ export const documentRouter = createTRPCRouter({
         format: z.enum(DOCUMENT_RENDER_FORMATS).default("png"),
         width: z.number().int().min(320).max(MAX_DOCUMENT_WIDTH).default(1280),
         theme: z.enum(["light", "dark"]).default("light"),
+        touch: queryBoolean.optional().default(false),
         paper: z.enum(PAPER_SIZES).default("A4"),
         orientation: z.enum(ORIENTATIONS).default("portrait"),
       }),
@@ -660,7 +661,12 @@ export const documentRouter = createTRPCRouter({
                   paper: input.paper,
                   orientation: input.orientation,
                 }
-              : { format: "png", width: input.width, theme: input.theme },
+              : {
+                  format: "png",
+                  width: input.width,
+                  theme: input.theme,
+                  touch: input.touch,
+                },
         });
       } catch (error) {
         if (error instanceof RenderTooLargeError) {

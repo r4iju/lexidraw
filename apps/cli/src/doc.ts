@@ -68,7 +68,7 @@ const SPECS: Record<(typeof VERBS)[number], ArgSpec> = {
       "theme",
       "out",
     ],
-    boolean: [],
+    boolean: ["touch"],
   },
   delete: { value: ADDRESS, boolean: [] },
 };
@@ -357,6 +357,7 @@ async function render(context: Context, args: ParsedArgs): Promise<void> {
       ["format", format],
       ...(width === undefined ? [] : [["width", width] as const]),
       ...(theme === undefined ? [] : [["theme", theme] as const]),
+      ...(args.booleans.has("touch") ? [["touch", "true"] as const] : []),
       ...(paper === undefined ? [] : [["paper", paper] as const]),
       ...(orientation === undefined
         ? []

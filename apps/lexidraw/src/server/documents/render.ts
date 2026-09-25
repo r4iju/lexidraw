@@ -46,7 +46,12 @@ export async function renderDocument(params: {
   userId: string;
   options:
     | (PdfOptions & { format: "pdf" })
-    | { format: "png"; width: number; theme: "light" | "dark" };
+    | {
+        format: "png";
+        width: number;
+        theme: "light" | "dark";
+        touch?: boolean;
+      };
 }): Promise<Uint8Array> {
   const endpoint = rendererEndpoint(params.options.format);
   if (!endpoint || env.HEADLESS_RENDER_ENABLED === false) {
@@ -95,6 +100,8 @@ export async function renderDocument(params: {
                 width: params.options.width,
                 height: 900,
                 deviceScaleFactor: 1,
+                hasTouch: params.options.touch === true,
+                isMobile: params.options.touch === true,
               },
               theme: params.options.theme,
               image: { type: "png" },
