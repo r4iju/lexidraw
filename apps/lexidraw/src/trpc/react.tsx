@@ -1,7 +1,11 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchStreamLink } from "@trpc/client";
+import {
+  httpBatchStreamLink,
+  httpSubscriptionLink,
+  splitLink,
+} from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import { useState } from "react";
 import type { AppRouter } from "~/server/api/root";
@@ -19,12 +23,16 @@ export function TRPCReactProvider(props: {
     api.createClient({
       links: [
         // loggerLink(),
-        httpBatchStreamLink({
-          transformer,
-          url: "/api/trpc",
-          headers() {
-            return { "x-trpc-source": "react" };
-          },
+        splitLink({
+          condition: (op) => op.type === "subscription",
+          true: httpSubscriptionLink({ transformer, url: "/api/trpc" }),
+          false: httpBatchStreamLink({
+            transformer,
+            url: "/api/trpc",
+            headers() {
+              return { "x-trpc-source": "react" };
+            },
+          }),
         }),
       ],
     }),

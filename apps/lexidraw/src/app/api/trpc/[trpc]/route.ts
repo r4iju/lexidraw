@@ -3,6 +3,9 @@ import env from "@packages/env";
 import { appRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 
+/** Long enough for a `rooms.signals` stream to reach `sse.maxDurationMs`. */
+export const maxDuration = 300;
+
 const handler = async (req: Request) =>
   fetchRequestHandler({
     endpoint: "/api/trpc",

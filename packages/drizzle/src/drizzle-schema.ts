@@ -6,6 +6,7 @@ import {
   index,
   integer,
   numeric,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -409,6 +410,61 @@ export const signInAttempts = sqliteTable(
     count: integer("count").notNull(),
   },
   (table) => [index("SignInAttempt_windowStart_idx").on(table.windowStart)],
+);
+
+/**
+ * Who is in an entity's live-editing room, and whether they may edit. A row
+ * exists while its peer's signal stream keeps `lastSeen` fresh; its insert and
+ * its delete are what the room hears as `join` and `leave`.
+ */
+export const roomPeers = sqliteTable(
+  "RoomPeers",
+  {
+    entityId: text("entityId")
+      .notNull()
+      .references(() => entities.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    peer: text("peer").notNull(),
+    canEdit: integer("canEdit", { mode: "boolean" }).notNull(),
+    lastSeen: integer("lastSeen", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.entityId, table.peer] }),
+    index("RoomPeer_lastSeen_idx").on(table.lastSeen),
+  ],
+);
+
+/**
+ * The messages peers exchange to open WebRTC connections to each other, in
+ * the order the room heard them. `toPeer` is null for `join` and `leave`,
+ * which everyone else in the room hears. `canEdit` is the sender's, as the app
+ * found it, never what the sender claimed.
+ */
+export const roomSignals = sqliteTable(
+  "RoomSignals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+    entityId: text("entityId")
+      .notNull()
+      .references(() => entities.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    fromPeer: text("fromPeer").notNull(),
+    toPeer: text("toPeer"),
+    type: text("type")
+      .$type<"join" | "leave" | "offer" | "answer" | "iceCandidate">()
+      .notNull(),
+    payload: text("payload"),
+    canEdit: integer("canEdit", { mode: "boolean" }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("RoomSignal_entityId_id_idx").on(table.entityId, table.id),
+    index("RoomSignal_createdAt_idx").on(table.createdAt),
+  ],
 );
 
 export const sharedEntities = sqliteTable(

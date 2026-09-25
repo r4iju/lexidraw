@@ -63,6 +63,14 @@ const t = initTRPC
   .context<typeof createTRPCContext>()
   .create({
     transformer: superjson,
+    // Only `rooms.signals` streams. It ends before the function's
+    // `maxDuration` (`app/api/trpc/[trpc]/route.ts`) and the client picks it
+    // up again; pings keep idle streams open through proxies meanwhile.
+    sse: {
+      maxDurationMs: 240_000,
+      ping: { enabled: true, intervalMs: 15_000 },
+      client: { reconnectAfterInactivityMs: 30_000 },
+    },
     errorFormatter({ shape, error }) {
       // A driver error quotes the failing SQL and its bound parameters, in the
       // message and again in the stack. Neither leaves the server for a 500;

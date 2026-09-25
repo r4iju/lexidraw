@@ -92,7 +92,6 @@
     "date-fns": "^4.4.0",
     "dom-to-svg": "^0.12.2",
     "drizzle-orm": "^0.45.3",
-    "firebase": "^12.19.0",
     "html2canvas-pro": "^2.4.4",
     "jsdom": "~26.1.0",
     "katex": "^0.18.7",

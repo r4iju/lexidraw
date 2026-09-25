@@ -15,9 +15,6 @@ const env = createEnv({
       z.boolean(),
     ),
     SHARED_KEY: z.string(),
-    // Signs the room tokens the signaling server checks; the same value goes
-    // in that server's environment. Unset, clients join rooms without one.
-    SIGNALING_SECRET: z.string().min(32).optional(),
     CRON_SECRET: z.string(),
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.preprocess(
@@ -99,13 +96,6 @@ const env = createEnv({
   client: {
     NEXT_PUBLIC_UNSPLASH_APP_NAME: z.string().min(1),
     NEXT_PUBLIC_NODE_ENV: z.enum(["development", "test", "production"]),
-    NEXT_PUBLIC_WS_SERVER: z.string().min(1),
-    NEXT_PUBLIC_FIRESTORE_API_KEY: z.string().min(1),
-    NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN: z.string().min(1),
-    NEXT_PUBLIC_FIRESTORE_PROJECT_ID: z.string().min(1),
-    NEXT_PUBLIC_FIRESTORE_STORAGE_BUCKET: z.string().min(1),
-    NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID: z.string().min(1),
-    NEXT_PUBLIC_FIRESTORE_APP_ID: z.string().min(1),
     NEXT_PUBLIC_CODE_MODE_RUNNER_URL: z.string().optional(),
   },
   runtimeEnv: {
@@ -113,10 +103,8 @@ const env = createEnv({
     NEXT_PUBLIC_UNSPLASH_APP_NAME: process.env.NEXT_PUBLIC_UNSPLASH_APP_NAME,
     ANALYZE: process.env.ANALYZE,
     NEXT_PUBLIC_NODE_ENV: process.env.NODE_ENV,
-    NEXT_PUBLIC_WS_SERVER: process.env.NEXT_PUBLIC_WS_SERVER,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,
-    SIGNALING_SECRET: process.env.SIGNALING_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     TURSO_URL: process.env.TURSO_URL,
     TRUST_HOST: process.env.TRUST_HOST,
@@ -139,16 +127,6 @@ const env = createEnv({
     VERCEL_BLOB_STORAGE_HOST_DEV: process.env.VERCEL_BLOB_STORAGE_HOST_DEV,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
-    NEXT_PUBLIC_FIRESTORE_API_KEY: process.env.NEXT_PUBLIC_FIRESTORE_API_KEY,
-    NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN:
-      process.env.NEXT_PUBLIC_FIRESTORE_AUTH_DOMAIN,
-    NEXT_PUBLIC_FIRESTORE_PROJECT_ID:
-      process.env.NEXT_PUBLIC_FIRESTORE_PROJECT_ID,
-    NEXT_PUBLIC_FIRESTORE_STORAGE_BUCKET:
-      process.env.NEXT_PUBLIC_FIRESTORE_STORAGE_BUCKET,
-    NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID:
-      process.env.NEXT_PUBLIC_FIRESTORE_MESSAGING_SENDER_ID,
-    NEXT_PUBLIC_FIRESTORE_APP_ID: process.env.NEXT_PUBLIC_FIRESTORE_APP_ID,
     MEDIA_DOWNLOADER_PORT: process.env.MEDIA_DOWNLOADER_PORT,
     MEDIA_DOWNLOADER_URL: process.env.MEDIA_DOWNLOADER_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
