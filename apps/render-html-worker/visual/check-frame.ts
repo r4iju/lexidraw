@@ -398,10 +398,16 @@ async function checkDocument(page: Page, emptyId: string) {
       const pill = document.querySelector(
         '[role="toolbar"][aria-label="Reading"]',
       );
+      const strip = document.querySelector(
+        '[role="toolbar"][aria-label="Formatting"]',
+      );
       return {
-        formatting: shown(
-          document.querySelector('[role="toolbar"][aria-label="Formatting"]'),
-        ),
+        formatting: shown(strip),
+        // Groups in sight, not folded into More.
+        groups: [
+          ...(strip?.querySelectorAll("[data-toolbar-group]:not([inert])") ??
+            []),
+        ].filter(shown).length,
         pill: shown(pill)
           ? [...(pill?.querySelectorAll("button") ?? [])].map(
               (button) =>
@@ -441,6 +447,10 @@ async function checkDocument(page: Page, emptyId: string) {
     await switchTo("Edit");
     const editing = await tools();
     assert(editing.formatting, `${width}: editing has the formatting strip`);
+    assert(
+      editing.groups > 0,
+      `${width}: the strip comes back with its controls after reading`,
+    );
     assert.equal(editing.pill, null, `${width}: editing has no reading pill`);
   }
 

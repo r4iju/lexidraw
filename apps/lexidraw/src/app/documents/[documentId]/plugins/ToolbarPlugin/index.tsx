@@ -296,6 +296,9 @@ export default function ToolbarPlugin({
   }, [editor, activeEditor]);
 
   useEffect(() => {
+    // The strip mounts as reading ends, in the same commit that makes the
+    // editor editable again; that change can come before this listener.
+    setIsEditable(activeEditor.isEditable());
     return mergeRegister(
       activeEditor.registerEditableListener((editable) => {
         setIsEditable(editable);
