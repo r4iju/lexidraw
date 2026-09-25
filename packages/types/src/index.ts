@@ -82,7 +82,12 @@ export const MessageStructure = z.union([
   DrawingMessageStructure,
 ]);
 
-export type WebRtcMessage =
+/**
+ * A signaling message. `canEdit` is set by a signaling server that checks room
+ * tokens, on everything it relays, to what the sender's token allows; a
+ * client never sets it, and a server without a secret never does either.
+ */
+export type WebRtcMessage = (
   | {
       type: "join" | "leave";
       room: string;
@@ -108,4 +113,5 @@ export type WebRtcMessage =
       from: string; // userId
       to: string; // userId
       candidate: string;
-    };
+    }
+) & { canEdit?: boolean };
