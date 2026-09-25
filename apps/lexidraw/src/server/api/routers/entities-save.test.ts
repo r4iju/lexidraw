@@ -1,25 +1,37 @@
 /// <reference types="bun" />
-import { beforeAll, describe, expect, mock, test } from "bun:test";
+import {
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { PublicAccess } from "@packages/types";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
+import * as imageProbe from "~/server/documents/image-probe";
 import { installServerRuntime } from "~/test/server-runtime";
 
 const db = await installServerRuntime();
 // A save queues a thumbnail workflow, which needs the Workflow build.
 mock.module("workflow/api", () => ({ start: async () => ({}) }));
 const { entityRouter } = await import("~/server/api/routers/entities");
+const { documentRouter } = await import("~/server/api/routers/documents");
 
 const OWNER = "esave_owner";
 const READ_AT = new Date("2026-09-01T00:00:00.000Z");
-const caller = entityRouter.createCaller({
+const context = {
   drizzle: db,
   schema,
   session: { user: { id: OWNER } },
   auth: { kind: "session" },
   headers: new Headers(),
-} as never);
+} as never;
+const caller = entityRouter.createCaller(context);
+const documents = documentRouter.createCaller(context);
 
 beforeAll(async () => {
   await db
@@ -62,5 +74,70 @@ describe("a browser save carries the revision it was made over", () => {
     await expect(stale).rejects.toBeInstanceOf(TRPCError);
     await expect(stale).rejects.toMatchObject({ code: "CONFLICT" });
     expect(await stored("esave_doc")).toBe("written elsewhere");
+  });
+});
+
+describe("a document written without a browser stores its pictures' sizes", () => {
+  afterEach(() => {
+    (imageProbe.probeImageSize as { mockRestore?: () => void }).mockRestore?.();
+  });
+
+  const withPicture = JSON.stringify({
+    root: {
+      type: "root",
+      children: [
+        {
+          type: "paragraph",
+          children: [
+            {
+              type: "image",
+              version: 1,
+              src: "https://images.example/cover.jpg",
+              altText: "",
+              width: 0,
+              height: 0,
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const storedSize = async (id: string) =>
+    JSON.parse((await stored(id)) ?? "{}").root?.children[0].children[0].$
+      ?.natural;
+
+  test("a save, a create and an import each measure an unmeasured outside picture", async () => {
+    spyOn(imageProbe, "probeImageSize").mockImplementation(async () => ({
+      width: 1080,
+      height: 1350,
+    }));
+
+    await caller.save({ id: "esave_doc", elements: withPicture });
+    await caller.create({
+      id: "esave_created",
+      title: "Created",
+      elements: withPicture,
+      entityType: "document",
+      parentId: null,
+    });
+    await documents.create({
+      id: "esave_imported",
+      title: "Imported",
+      elements: withPicture,
+    });
+
+    for (const id of ["esave_doc", "esave_created", "esave_imported"])
+      expect([id, await storedSize(id)]).toEqual([
+        id,
+        { width: 1080, height: 1350 },
+      ]);
+  });
+
+  test("a picture that cannot be measured leaves the save as sent", async () => {
+    spyOn(imageProbe, "probeImageSize").mockImplementation(
+      async () => undefined,
+    );
+    await caller.save({ id: "esave_doc", elements: withPicture });
+    expect(await stored("esave_doc")).toBe(withPicture);
   });
 });
