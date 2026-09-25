@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, mock, test } from "bun:test";
 import { EntityType, PublicAccess } from "@packages/types";
-import type { ComponentProps } from "react";
+import { act, type ComponentProps } from "react";
 import { installDom, render } from "~/test/dom";
 import type { Entity } from "./entity-card-utils";
 
@@ -141,5 +141,58 @@ describe("Home in grid view", () => {
     expect(group("Files")).toBeDefined();
     expect(document.body.textContent).toContain("Proxies and downloading");
     await view.unmount();
+  });
+});
+
+describe("Home's thumbnails", () => {
+  test("load for the first screen at once, and for the rest as they come near it", async () => {
+    const watched = new Map<Element, IntersectionObserverCallback>();
+    const globals = globalThis as Record<string, unknown>;
+    const before = globals.IntersectionObserver;
+    globals.IntersectionObserver = class {
+      constructor(private callback: IntersectionObserverCallback) {}
+      observe(target: Element) {
+        watched.set(target, this.callback);
+      }
+      unobserve(target: Element) {
+        watched.delete(target);
+      }
+      disconnect() {
+        watched.clear();
+      }
+    };
+    const files = Array.from({ length: 50 }, (_, index) =>
+      entity({
+        id: `d${index}`,
+        title: `Document ${index}`,
+        screenShotLight: `/thumbnails/${index}.png`,
+        screenShotDark: `/thumbnails/${index}-dark.png`,
+      }),
+    );
+    const view = await show(files, { flex: "flex-col" });
+    const pictured = () =>
+      new Set(
+        [...document.querySelectorAll("img")].map(
+          (image) => image.closest('[id^="entity-"]')?.id,
+        ),
+      );
+
+    expect(pictured().has("entity-d0")).toBe(true);
+    expect(pictured().has("entity-d49")).toBe(false);
+    expect(pictured().size).toBeLessThan(16);
+
+    const last = document.getElementById("entity-d49");
+    const [target, callback] =
+      [...watched].find(([element]) => last?.contains(element)) ?? [];
+    expect(target).toBeDefined();
+    await act(async () => {
+      callback?.(
+        [{ isIntersecting: true, target } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+    expect(pictured().has("entity-d49")).toBe(true);
+    await view.unmount();
+    globals.IntersectionObserver = before;
   });
 });

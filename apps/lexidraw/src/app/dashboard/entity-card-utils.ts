@@ -8,6 +8,8 @@ export type EntityCardBaseProps = {
   entity: Entity;
   sortBy?: "updatedAt" | "createdAt" | "title";
   sortOrder?: "asc" | "desc";
+  /** On the first screen, so its picture loads straight away. */
+  eager?: boolean;
 };
 
 export function buildSearchParams({

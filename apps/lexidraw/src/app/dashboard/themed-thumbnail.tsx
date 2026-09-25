@@ -1,5 +1,7 @@
+"use client";
+
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { cn } from "~/lib/utils";
 
 type Props = {
@@ -10,6 +12,8 @@ type Props = {
   className?: string;
   /** Shown in a theme that has no picture. */
   fallback: ReactNode;
+  /** Off the first screen: fetched only once it comes near the screen. */
+  deferred?: boolean;
 };
 
 /**
@@ -24,7 +28,13 @@ export function ThemedThumbnail({
   sizes,
   className,
   fallback,
+  deferred = false,
 }: Props) {
+  const [near, sentinel] = useNear(!deferred);
+  if (!near)
+    return (
+      <span ref={sentinel} aria-hidden="true" className="absolute inset-0" />
+    );
   const image = (src: string, theme: string) => (
     <Image
       src={src}
@@ -70,4 +80,41 @@ function Only({
       {children}
     </div>
   );
+}
+
+/** The nearest ancestor that scrolls, whose edge is where "near" is measured from. */
+function scroller(element: Element) {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    if (/auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+  }
+  return null;
+}
+
+/**
+ * Whether an element is within a row or two of the screen, and has been since it
+ * first was. A browser's own lazy loading starts screens ahead, which in a
+ * long list is most of it.
+ */
+function useNear(initially: boolean) {
+  const [near, setNear] = useState(initially);
+  const sentinel = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const target = sentinel.current;
+    if (near || !target) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setNear(true);
+        observer.disconnect();
+      },
+      { root: scroller(target), rootMargin: "0px 0px 100px" },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [near]);
+  return [near, sentinel] as const;
 }

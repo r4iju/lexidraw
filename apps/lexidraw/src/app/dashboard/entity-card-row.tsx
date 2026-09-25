@@ -22,6 +22,7 @@ export function EntityCardRow({
   entity,
   sortBy = "updatedAt",
   sortOrder = "desc",
+  eager = true,
   flex = "flex-row",
 }: Props) {
   const href = getItemUrl({
@@ -33,7 +34,7 @@ export function EntityCardRow({
   return (
     <Card id={`entity-${entity.id}`} className="flex flex-col overflow-hidden">
       <Link href={href} draggable={false} tabIndex={-1} aria-hidden="true">
-        <EntityThumbnail entity={entity} variant="card" />
+        <EntityThumbnail entity={entity} variant="card" eager={eager} />
       </Link>
 
       <div className="flex items-start gap-1 p-2 sm:px-3 sm:pb-3">
