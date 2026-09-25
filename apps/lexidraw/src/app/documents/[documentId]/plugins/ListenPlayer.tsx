@@ -1,7 +1,5 @@
 "use client";
 
-import { PlayIcon } from "lucide-react";
-
 import {
   useCallback,
   useEffect,
@@ -24,7 +22,6 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from "~/components/ui/popover";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import {
@@ -48,7 +45,6 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
-import { ToolbarTooltip } from "./ToolbarPlugin/toolbar";
 
 type TtsSegment = {
   index: number;
@@ -59,18 +55,23 @@ type TtsSegment = {
   sectionIndex?: number;
 };
 
-/** Plays the document aloud from the caret's section. */
-export function PlayFromHereButton({
+/**
+ * The document's one read-aloud player. It is held by `ListenProvider`, above
+ * the controls that open it, so what it is playing outlives them: switching
+ * between editing and reading swaps the toolbar for the reading pill without
+ * stopping the audio or asking for it again. It opens beside `anchor`, the
+ * control showing now, or at the foot of the screen when none is in sight.
+ */
+export function ListenPlayer({
   documentId,
   open,
   onOpenChange,
-  withTrigger = true,
+  anchor,
 }: {
   documentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Without one, the player opens from Listen in a menu, at the bottom. */
-  withTrigger?: boolean;
+  anchor: HTMLElement | null;
 }) {
   const [editor] = useLexicalComposerContext();
   const [segments, setSegments] = useState<TtsSegment[]>([]);
@@ -81,6 +82,9 @@ export function PlayFromHereButton({
     x: 0,
     y: 0,
   });
+  // A control folded into a More menu is still there, but out of sight.
+  const shown = anchor && !anchor.closest("[inert]") ? anchor : null;
+  const anchored = useMemo(() => shown && { current: shown }, [shown]);
   const { convertEditorStateToMarkdown } = useMarkdownTools();
   const startTts = api.tts.startDocumentTts.useMutation();
   const statusQuery = api.tts.getDocumentTtsStatus.useQuery(
@@ -163,23 +167,6 @@ export function PlayFromHereButton({
     [slugifySection],
   );
 
-  const handleOpenChange = useCallback(
-    (isOpen: boolean) => {
-      onOpenChange(isOpen);
-      if (!isOpen) {
-        // Reset segments and tracking when closing
-        setSegments([]);
-        setInitialIndex(0);
-        hasTriggeredTts.current = false;
-        setPosition({ x: 0, y: 0 }); // Reset position when closing
-      } else {
-        // Reset tracking when opening
-        hasTriggeredTts.current = false;
-      }
-    },
-    [onOpenChange],
-  );
-
   // Drag handlers using @dnd-kit
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -217,10 +204,17 @@ export function PlayFromHereButton({
     }
   });
 
-  // Trigger TTS generation when popover opens
+  // Asks for the audio as it opens, and forgets it as it closes, whichever
+  // control opened or closed it.
   useEffect(() => {
-    if (!open) return;
-    generateTts();
+    if (open) {
+      generateTts();
+      return;
+    }
+    setSegments([]);
+    setInitialIndex(0);
+    hasTriggeredTts.current = false;
+    setPosition({ x: 0, y: 0 });
   }, [open]);
 
   // When job is ready, populate segments and seek to nearest heading
@@ -249,20 +243,9 @@ export function PlayFromHereButton({
   ]);
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      {withTrigger ? (
-        <ToolbarTooltip label="Play from cursor">
-          <PopoverTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label="Play from cursor"
-              className="size-8 shrink-0 pointer-coarse:size-11"
-            >
-              <PlayIcon />
-            </Button>
-          </PopoverTrigger>
-        </ToolbarTooltip>
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {anchored ? (
+        <PopoverAnchor virtualRef={anchored} />
       ) : (
         <PopoverAnchor className="fixed bottom-0 right-4" />
       )}

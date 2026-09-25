@@ -172,11 +172,7 @@ import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 import ArticlePlugin from "./plugins/ArticlePlugin";
 import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
 import { useLayoutClass } from "~/hooks/use-media-query";
-import {
-  ListenControls,
-  ListenPlayer,
-  ListenProvider,
-} from "./plugins/TtsToolbar";
+import { ListenControls, ListenProvider } from "./plugins/TtsToolbar";
 
 const SIDEBAR_WIDTH = 360;
 
@@ -840,10 +836,6 @@ function EditorHandler({
                               contentsOpen={activeSidebar === "toc"}
                               onContents={() => toggleSidebar("toc")}
                             />
-                          )}
-                          {/* A phone edits from its bottom bar, and plays from Listen in the ⋯ menu. */}
-                          {onScreen && phone && signedIn && editing && (
-                            <ListenPlayer withTrigger={false} />
                           )}
                         </div>
                       </ListenWhenSignedIn>
