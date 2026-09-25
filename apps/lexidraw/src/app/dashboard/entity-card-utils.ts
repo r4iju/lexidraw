@@ -8,7 +8,6 @@ export type EntityCardBaseProps = {
   entity: Entity;
   sortBy?: "updatedAt" | "createdAt" | "title";
   sortOrder?: "asc" | "desc";
-  isOverlay?: boolean;
 };
 
 export function buildSearchParams({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -10,23 +10,37 @@ import {
   useSensors,
   MouseSensor,
   TouchSensor,
+  pointerWithin,
 } from "@dnd-kit/core";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
-import { EntityCard } from "./entity-card";
+import { besidePointer } from "./beside-pointer";
 import { revalidateDashboard } from "./server-actions";
+import { EntityThumbnail } from "./thumbnail-client";
+
+type Entity = RouterOutputs["entities"]["list"][number];
 
 type Props = {
   children: React.ReactNode;
-  flex: "flex-row" | "flex-col";
   sortBy: "updatedAt" | "createdAt" | "title";
   sortOrder: "asc" | "desc";
 };
 
-export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
-  const [activeEntity, setActiveEntity] = useState<
-    RouterOutputs["entities"]["list"][number] | null
-  >(null);
+/** The ghost's size until it has been measured: its widest, and its height. */
+const CHIP_ESTIMATE = { width: 256, height: 48 };
+
+export function DraggingContext({ children, sortBy, sortOrder }: Props) {
+  const [activeEntity, setActiveEntity] = useState<Entity | null>(null);
+  const [chip, setChip] = useState(CHIP_ESTIMATE);
+  const measureChip = useCallback(
+    (size: { width: number; height: number }) =>
+      setChip((known) =>
+        known.width === size.width && known.height === size.height
+          ? known
+          : size,
+      ),
+    [],
+  );
 
   const utils = api.useUtils();
 
@@ -74,7 +88,7 @@ export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
         if (!current) return [];
 
         const movedEntity = {
-          ...(activeEntity as RouterOutputs["entities"]["list"][number]),
+          ...(activeEntity as Entity),
           id: id as string,
           parentId: newParentId as string | null,
         };
@@ -134,23 +148,47 @@ export function DraggingContext({ children, flex, sortBy, sortOrder }: Props) {
   return (
     <DndContext
       sensors={sensors}
+      // The target is what the pointer is over, not what the ghost beside it
+      // overlaps.
+      collisionDetection={pointerWithin}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
       {children}
 
       {/* Overlay is rendered at the root level so it’s not constrained by layout */}
-      <DragOverlay>
+      <DragOverlay modifiers={[besidePointer(chip)]}>
         {activeEntity ? (
-          <EntityCard
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            flex={flex}
-            entity={activeEntity}
-            isOverlay
-          />
+          <DragChip entity={activeEntity} onMeasured={measureChip} />
         ) : null}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+/**
+ * What is being dragged, as small as it can say so: its picture and name,
+ * whether it is a list row or a grid card, so the target stays in sight.
+ */
+function DragChip({
+  entity,
+  onMeasured,
+}: {
+  entity: Entity;
+  onMeasured: (size: { width: number; height: number }) => void;
+}) {
+  return (
+    <div
+      ref={(node) => {
+        if (node)
+          onMeasured({ width: node.offsetWidth, height: node.offsetHeight });
+      }}
+      className="flex h-12 w-max max-w-64 cursor-grabbing items-center gap-2.5 rounded-lg border border-border bg-popover py-1 pr-3.5 pl-1 text-popover-foreground shadow-lg"
+    >
+      <EntityThumbnail entity={entity} variant="row" />
+      <span className="truncate text-row font-medium select-none">
+        {entity.title}
+      </span>
+    </div>
   );
 }

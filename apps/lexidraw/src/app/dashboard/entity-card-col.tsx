@@ -1,11 +1,8 @@
 "use client";
 
-import { EllipsisIcon } from "lucide-react";
 import Link from "next/link";
-import { Button } from "~/components/ui/button";
 import { LocalTime } from "~/components/ui/local-time";
 import { entityTypeLabel } from "~/lib/entity-types";
-import { cn } from "~/lib/utils";
 import { MoreActions } from "./_actions/more-actions";
 import { TagTooltip } from "./entity-card-tag-tooltip";
 import {
@@ -24,7 +21,6 @@ export function EntityCardCol({
   entity,
   sortBy = "updatedAt",
   sortOrder = "desc",
-  isOverlay = false,
   flex = "flex-col",
 }: Props) {
   const href = getItemUrl({
@@ -42,10 +38,7 @@ export function EntityCardCol({
   return (
     <div
       id={`entity-${entity.id}`}
-      className={cn(
-        "flex h-14 items-center gap-2 rounded-lg pr-1 pl-2 sm:pl-3",
-        isOverlay && "cursor-grabbing bg-card shadow-lg",
-      )}
+      className="flex h-14 items-center gap-2 rounded-lg pr-1 pl-2 sm:pl-3"
     >
       <Link
         href={href}
@@ -81,18 +74,7 @@ export function EntityCardCol({
         {entity.tags.length > 0 && (
           <TagTooltip entity={entity} className="hidden md:flex" />
         )}
-        {isOverlay ? (
-          <Button
-            size="icon"
-            variant="ghost"
-            disabled
-            aria-label={`More actions for ${entity.title}`}
-          >
-            <EllipsisIcon className="size-5" />
-          </Button>
-        ) : (
-          <MoreActions entity={entity} currentAccess={entity.publicAccess} />
-        )}
+        <MoreActions entity={entity} currentAccess={entity.publicAccess} />
       </div>
     </div>
   );

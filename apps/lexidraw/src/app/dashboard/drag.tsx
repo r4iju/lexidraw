@@ -8,13 +8,12 @@ import type { RouterOutputs } from "~/trpc/shared";
 type DragProps = {
   entity: RouterOutputs["entities"]["list"][number];
   children: ReactNode;
-  flex: "flex-row" | "flex-col";
 };
 
-export function Drag({ entity, children, flex }: DragProps) {
+export function Drag({ entity, children }: DragProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: entity.id as UniqueIdentifier,
-    data: { entity, flex },
+    data: { entity },
   });
   // We rely on sensors in `dnd-context` for activation constraints, so
   // dragging should not start on simple clicks.
