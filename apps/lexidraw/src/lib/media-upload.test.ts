@@ -1,7 +1,13 @@
 /// <reference types="bun" />
 import { describe, expect, mock, spyOn, test } from "bun:test";
 import { toast } from "sonner";
-import { IMAGE, uploadMedia, VIDEO } from "./media-upload";
+import {
+  IMAGE,
+  insertUploads,
+  uploadGeneratedImage,
+  uploadMedia,
+  VIDEO,
+} from "./media-upload";
 
 /** The toasts shown since `before`, as their titles and descriptions. */
 function toastsSince(before: number) {
@@ -183,5 +189,86 @@ describe("uploading anything", () => {
     );
     expect(url).toBe("https://blob.test/clip.webm");
     expect(sign).toHaveBeenCalledWith("video/webm");
+  });
+});
+
+/** An upload that sends `ok` files and refuses the rest, as `uploadMedia` does. */
+function uploadOnly(ok: string[]) {
+  return async (file: File) => {
+    if (ok.includes(file.name)) return `https://blob.test/${file.name}`;
+    toast.error("Image Upload Failed", { description: file.name });
+    return null;
+  };
+}
+
+const image = (name: string) => new File(["png"], name, { type: "image/png" });
+
+describe("dropping or pasting images", () => {
+  test("says the image went in only once it has", async () => {
+    const before = toast.getHistory().length;
+    const inserted: string[] = [];
+    await insertUploads([image("a.png")], uploadOnly(["a.png"]), (url) =>
+      inserted.push(url),
+    );
+    expect(inserted).toEqual(["https://blob.test/a.png"]);
+    expect(toastsSince(before).map((shown) => shown.title)).toEqual([
+      "Image inserted",
+    ]);
+  });
+
+  test("a failed upload shows the failure, not that it was inserted", async () => {
+    const before = toast.getHistory().length;
+    const insert = mock(() => {});
+    await insertUploads([image("a.png")], uploadOnly([]), insert);
+    expect(insert).not.toHaveBeenCalled();
+    expect(toastsSince(before).map((shown) => shown.title)).toEqual([
+      "Image Upload Failed",
+    ]);
+  });
+
+  test("of several, counts the ones that went in", async () => {
+    const before = toast.getHistory().length;
+    await insertUploads(
+      [image("a.png"), image("b.png"), image("c.png")],
+      uploadOnly(["a.png", "c.png"]),
+      () => {},
+    );
+    expect(toastsSince(before).map((shown) => shown.title)).toEqual([
+      "Image Upload Failed",
+      "Inserted 2 of 3 images",
+    ]);
+  });
+});
+
+describe("uploading a generated image", () => {
+  const transport = () => ({ sign: signer(), send: sender() });
+
+  test("names the file for the type the model sent", async () => {
+    const { sign, send } = transport();
+    await uploadGeneratedImage(
+      new Uint8Array([1, 2, 3]),
+      "image/jpeg",
+      "a red fox",
+      (file) => uploadMedia(file, IMAGE, { sign, send }),
+    );
+    const sent = send.mock.calls[0]?.[1] as File;
+    expect(sent.name).toMatch(/^a_red_fox_.+\.jpg$/);
+    expect(sent.type).toBe("image/jpeg");
+  });
+
+  test("says it is uploading only after the type is checked", async () => {
+    const before = toast.getHistory().length;
+    const { sign, send } = transport();
+    const url = await uploadGeneratedImage(
+      new Uint8Array([1, 2, 3]),
+      "image/gif",
+      "a red fox",
+      (file) => uploadMedia(file, IMAGE, { sign, send }),
+    );
+    expect(url).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+    expect(toastsSince(before).map((shown) => shown.title)).toEqual([
+      "Unsupported image type",
+    ]);
   });
 });

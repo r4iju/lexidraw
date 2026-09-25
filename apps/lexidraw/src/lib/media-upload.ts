@@ -61,6 +61,23 @@ type Transport<Type extends string> = {
   onProgress?: (percentage: number) => void;
 };
 
+/** Why `kind` does not take `file`, as a toast says it, or null when it does. */
+function refusal<Type extends string>(file: File, kind: MediaKind<Type>) {
+  if (!kind.types.some((type) => type === file.type)) {
+    return {
+      title: `Unsupported ${kind.noun.toLowerCase()} type`,
+      description: `Allowed: ${kind.allowed}.`,
+    };
+  }
+  if (file.size > kind.maxBytes) {
+    return {
+      title: `${kind.noun} too large`,
+      description: `Max size is ${kind.max}.`,
+    };
+  }
+  return null;
+}
+
 /**
  * The one way a file reaches a document's storage: images from the image
  * dialogs, a paste or drop, the cover and image generation, and videos from
@@ -72,17 +89,11 @@ export async function uploadMedia<Type extends string>(
   kind: MediaKind<Type>,
   { sign, send, onProgress }: Transport<Type>,
 ): Promise<string | null> {
+  const refused = refusal(file, kind);
   const contentType = kind.types.find((type) => type === file.type);
-  if (!contentType) {
-    toast.error(`Unsupported ${kind.noun.toLowerCase()} type`, {
-      description: `Allowed: ${kind.allowed}.`,
-    });
-    return null;
-  }
-  if (file.size > kind.maxBytes) {
-    toast.error(`${kind.noun} too large`, {
-      description: `Max size is ${kind.max}.`,
-    });
+  if (refused || !contentType) {
+    if (refused)
+      toast.error(refused.title, { description: refused.description });
     return null;
   }
   try {
@@ -103,4 +114,68 @@ export async function uploadMedia<Type extends string>(
     console.error(err);
     return null;
   }
+}
+
+/**
+ * Uploads each dropped or pasted image and hands `insert` the address of
+ * each one that arrived, then says how many went in. One that did not has
+ * already said why, so it is not counted as inserted.
+ */
+export async function insertUploads(
+  files: File[],
+  upload: Upload,
+  insert: (url: string, file: File) => void,
+): Promise<void> {
+  let inserted = 0;
+  for (const file of files) {
+    const url = await upload(file);
+    if (!url) continue;
+    try {
+      insert(url, file);
+      inserted++;
+    } catch (err) {
+      toast.error("Image not inserted", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+  if (inserted === 0) return;
+  toast.success(
+    inserted < files.length
+      ? `Inserted ${inserted} of ${files.length} images`
+      : inserted === 1
+        ? "Image inserted"
+        : `Inserted ${inserted} images`,
+  );
+}
+
+const IMAGE_EXTENSIONS: Record<(typeof IMAGE.types)[number], string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/svg+xml": "svg",
+  "image/webp": "webp",
+  "image/avif": "avif",
+};
+
+/**
+ * Uploads an image a model made from `prompt`, named after it with the
+ * extension of the type it came as. It says it is uploading only once the
+ * image is one `upload` will send.
+ */
+export async function uploadGeneratedImage(
+  imageData: Uint8Array,
+  mimeType: string,
+  prompt: string,
+  upload: Upload,
+): Promise<string | null> {
+  const extension =
+    IMAGE_EXTENSIONS[mimeType as keyof typeof IMAGE_EXTENSIONS] ?? "bin";
+  const name = `${prompt.replace(/[^a-z0-9_\-.]/gi, "_").substring(0, 50)}_${crypto.randomUUID()}.${extension}`;
+  const file = new File([new Uint8Array(imageData)], name, { type: mimeType });
+  if (refusal(file, IMAGE) === null) {
+    toast.info("Uploading image…", { description: name });
+  }
+  const url = await upload(file);
+  if (url) toast.success("Upload Successful", { description: name });
+  return url;
 }
