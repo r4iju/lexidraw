@@ -80,6 +80,15 @@ Addressing:
   addressable by id, and the "path" a "doc get" prints in its frontmatter is
   a display label rather than something to feed back to --path.
 
+Markdown (doc create, append, insert, put):
+  GitHub markdown plus: YAML front matter (title, subtitle, cover, tags,
+  lang, properties, toc); callouts "> [!NOTE] Title" (TIP, IMPORTANT,
+  WARNING, CAUTION); figures "![Caption](src){width=50%}", {.wide} or
+  {.full}; footnotes "text[^1]" with "[^1]: Note"; "<details>" (or
+  "<details open>") with a "<summary>"; "<columns>" holding "<column>"
+  blocks, "<columns wide>" for the wide column; "$math$". Every write
+  reports in "notes" where it read the markdown one way of several.
+
 Preconditions:
   --if-unmodified-since <iso> is the updatedAt the write expects to find;
   "latest" reads the document first and uses what it finds, which is two

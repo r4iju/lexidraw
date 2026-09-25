@@ -826,6 +826,20 @@ describe("dispatch", () => {
     expect(io.stdout()).toContain("lexidraw auth login");
   });
 
+  it("names the markdown a document write understands in its help", async () => {
+    const io = fakeIo({ env: env() });
+    expect(await run(["doc", "create", "--help"], io.io)).toBe(0);
+    for (const feature of [
+      "front matter",
+      "[!NOTE]",
+      "{width=50%}",
+      "[^1]",
+      "<details>",
+      "<columns>",
+    ])
+      expect(io.stdout()).toContain(feature);
+  });
+
   it("fails an unknown top-level command with exit 2", async () => {
     const io = fakeIo({ env: env() });
     expect(await run(["frobnicate"], io.io)).toBe(2);
