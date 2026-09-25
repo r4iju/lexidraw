@@ -391,8 +391,8 @@ async function checkDocument(page: Page, emptyId: string) {
 
   // Reading, at any size, keeps its tools in the reading pill and has no
   // formatting strip; editing brings the strip back.
-  const tools = () =>
-    page.evaluate(() => {
+  const tools = (on = page) =>
+    on.evaluate(() => {
       const shown = (element: Element | null) =>
         Boolean(element && element.getClientRects().length > 0);
       const pill = document.querySelector(
@@ -452,6 +452,51 @@ async function checkDocument(page: Page, emptyId: string) {
       `${width}: the strip comes back with its controls after reading`,
     );
     assert.equal(editing.pill, null, `${width}: editing has no reading pill`);
+  }
+
+  // Signed out, a document anyone may read is read from the pill too, which
+  // has only Contents: listening is for someone signed in.
+  const setPublicAccess = (publicAccess: "READ" | "PRIVATE") =>
+    page.evaluate(
+      async (id, publicAccess) => {
+        const response = await fetch("/api/trpc/entities.update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ json: { id, publicAccess } }),
+        });
+        if (!response.ok) throw new Error(`update: ${response.status}`);
+      },
+      emptyId,
+      publicAccess,
+    );
+  await setPublicAccess("READ");
+  const signedOut = await page.browser().createBrowserContext();
+  try {
+    const visitor = await signedOut.newPage();
+    for (const [width, height] of [
+      [768, 1024],
+      [1280, 900],
+    ] as const) {
+      await visitor.setViewport({ width, height });
+      await visitor.goto(`${appUrl}/documents/${emptyId}`, {
+        waitUntil: "networkidle2",
+      });
+      await visitor.waitForSelector('[id^="lexical-content-"]');
+      await pause(300);
+      const visiting = await tools(visitor);
+      assert(
+        !visiting.formatting,
+        `${width}: signed out, there is no formatting strip`,
+      );
+      assert.deepEqual(
+        visiting.pill,
+        ["Contents"],
+        `${width}: signed out, the pill has Contents alone`,
+      );
+    }
+  } finally {
+    await signedOut.close();
+    await setPublicAccess("PRIVATE");
   }
 
   // Saving: typing is unsaved, then saving, then saved; Cmd+S saves now.
