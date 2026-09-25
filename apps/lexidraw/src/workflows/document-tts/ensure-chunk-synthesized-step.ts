@@ -37,7 +37,7 @@ export async function ensureChunkSynthesizedStep(args: {
     providerName === "google"
       ? createGoogleTtsProvider(env.GOOGLE_API_KEY)
       : providerName === "kokoro"
-        ? createKokoroTtsProvider(env.KOKORO_URL ?? "", env.KOKORO_BEARER)
+        ? createKokoroTtsProvider(env.KOKORO_URL ?? "")
         : createOpenAiTtsProvider(env.OPENAI_API_KEY);
   console.log("[tts][wf][chunk] begin", {
     index: args.index,

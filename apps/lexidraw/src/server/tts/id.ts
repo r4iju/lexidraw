@@ -27,7 +27,7 @@ export function computeDocKey(
 ): string {
   return stableHash([
     documentId,
-    cfg.provider, // requested provider string (e.g., "apple_say")
+    cfg.provider, // requested provider string (unset means auto)
     cfg.voiceId,
     cfg.speed,
     cfg.format,
@@ -42,7 +42,7 @@ export function computeArticleKey(
 ): string {
   return stableHash([
     articleId,
-    cfg.provider, // requested provider string (e.g., "apple_say")
+    cfg.provider, // requested provider string (unset means auto)
     cfg.voiceId,
     cfg.speed,
     cfg.format,

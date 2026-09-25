@@ -44,7 +44,7 @@ export async function planChunksStep(
   const voiceId =
     tts.voiceId ?? (providerName === "google" ? "en-US-Standard-C" : "alloy");
   // IMPORTANT: articleKey must match API precomputeArticleTtsKey which hashes the REQUESTED provider string
-  // (e.g., "apple_say"), not the mapped internal providerName (e.g., "kokoro").
+  // (unset means auto), not the providerName that chooseProvider resolves.
   const articleKey = computeArticleKey(articleId, {
     provider: tts.provider,
     voiceId,

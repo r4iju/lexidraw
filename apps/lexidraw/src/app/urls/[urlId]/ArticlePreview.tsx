@@ -81,7 +81,7 @@ export default function ArticlePreview({
 
   // Local config state
   const [ttsCfg, setTtsCfg] = useState({
-    provider: "openai" as "openai" | "google" | "kokoro" | "apple_say" | "xtts",
+    provider: "openai" as "openai" | "google" | "kokoro",
     voiceId: "alloy",
     speed: 1,
     format: "mp3" as "mp3" | "ogg" | "wav",
@@ -104,7 +104,7 @@ export default function ArticlePreview({
     }
   }, [ttsQuery.data]);
 
-  // Live TTS catalog: poll until local providers appear or 30s passes
+  // Live TTS catalog: poll until Kokoro appears or 30s passes
   const [polling, setPolling] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => setPolling(false), 30_000);
@@ -120,10 +120,7 @@ export default function ArticlePreview({
   });
   useEffect(() => {
     const c = ttsCatalogQuery.data;
-    const hasLocal = !!c?.providers?.some((p) =>
-      ["kokoro", "apple_say", "xtts"].includes(p.id),
-    );
-    if (hasLocal) setPolling(false);
+    if (c?.providers?.some((p) => p.id === "kokoro")) setPolling(false);
   }, [ttsCatalogQuery.data]);
   const effectiveCatalog = ttsCatalogQuery.data ?? ttsConfig;
 

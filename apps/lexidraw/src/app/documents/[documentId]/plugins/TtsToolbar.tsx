@@ -109,7 +109,7 @@ export function ListenProvider({ children }: { children: ReactNode }) {
   );
 
   const [ttsCfg, setTtsCfg] = useState({
-    provider: "openai" as "openai" | "google" | "kokoro" | "apple_say" | "xtts",
+    provider: "openai" as "openai" | "google" | "kokoro",
     voiceId: "alloy",
     speed: 1,
     format: "mp3" as "mp3" | "ogg" | "wav",

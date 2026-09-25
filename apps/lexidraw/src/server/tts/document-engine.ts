@@ -17,33 +17,7 @@ import type { TtsResult, TtsProviderName } from "./types";
 import { createOpenAiTtsProvider } from "./providers/openai";
 import { createGoogleTtsProvider } from "./providers/google";
 import { createKokoroTtsProvider } from "./providers/kokoro";
-
-type ChooseProviderArgs = {
-  requested?: string | TtsProviderName;
-  languageCode?: string;
-};
-
-function chooseProvider({
-  requested,
-  languageCode,
-}: ChooseProviderArgs): TtsProviderName {
-  if (requested === "apple_say" || requested === "xtts") return "kokoro";
-  if (
-    requested === "openai" ||
-    requested === "google" ||
-    requested === "kokoro"
-  )
-    return requested;
-  const hasSidecar = !!process.env.KOKORO_URL;
-  const lang = (languageCode || "").toLowerCase();
-  if (hasSidecar) {
-    if (lang.startsWith("ja")) return "kokoro";
-    if (lang.startsWith("sv")) return "kokoro";
-  }
-  if (process.env.NODE_ENV !== "production" && hasSidecar) return "kokoro";
-  if (languageCode && !lang.startsWith("en")) return "google";
-  return "openai";
-}
+import { chooseProvider, defaultKokoroVoice } from "./choose-provider";
 
 function stableHash(
   parts: (string | number | boolean | null | undefined)[],
@@ -88,10 +62,7 @@ export async function synthesizeDocumentFromMarkdown(args: {
   sampleRate?: number;
   titleHint?: string;
 }): Promise<TtsResult> {
-  const providerName = chooseProvider({
-    requested: args.provider,
-    languageCode: args.languageCode,
-  });
+  const providerName = chooseProvider(args.provider, args.languageCode);
   const format = args.format ?? "mp3";
   const stitchWithFfmpeg = process.env.TTS_STITCH_WITH_FFMPEG === "true";
   const segmentFormat: "mp3" | "ogg" | "wav" = stitchWithFfmpeg
@@ -101,12 +72,8 @@ export async function synthesizeDocumentFromMarkdown(args: {
     args.voiceId ??
     (() => {
       if (providerName === "google") return "en-US-Standard-C";
-      if (providerName === "kokoro") {
-        const lang = (args.languageCode || "").toLowerCase();
-        if (lang.startsWith("sv")) return "Erik";
-        if (lang.startsWith("ja")) return "ja_female";
-        return "af_heart";
-      }
+      if (providerName === "kokoro")
+        return defaultKokoroVoice(args.languageCode);
       return "alloy";
     })();
   const speed = args.speed ?? 1.0;
@@ -164,7 +131,7 @@ export async function synthesizeDocumentFromMarkdown(args: {
     providerName === "google"
       ? createGoogleTtsProvider(env.GOOGLE_API_KEY)
       : providerName === "kokoro"
-        ? createKokoroTtsProvider(env.KOKORO_URL ?? "", env.KOKORO_BEARER)
+        ? createKokoroTtsProvider(env.KOKORO_URL ?? "")
         : createOpenAiTtsProvider(env.OPENAI_API_KEY);
 
   const segments: TtsResult["segments"] = [];
@@ -232,7 +199,7 @@ export async function synthesizeDocumentFromMarkdown(args: {
           providerName === "google"
             ? createOpenAiTtsProvider(env.OPENAI_API_KEY)
             : env.KOKORO_URL
-              ? createKokoroTtsProvider(env.KOKORO_URL, env.KOKORO_BEARER)
+              ? createKokoroTtsProvider(env.KOKORO_URL)
               : createGoogleTtsProvider(env.GOOGLE_API_KEY);
         const targetProviderName: TtsProviderName =
           providerName === "google"

@@ -3,10 +3,7 @@ import type { TtsProvider, TtsSynthesizeInput } from "../types";
 import { RetryableError, FatalError } from "workflow";
 import env from "@packages/env";
 
-export function createKokoroTtsProvider(
-  baseUrl: string,
-  bearer?: string,
-): TtsProvider {
+export function createKokoroTtsProvider(baseUrl: string): TtsProvider {
   if (!baseUrl) {
     throw new Error("Kokoro baseUrl not configured");
   }
@@ -29,17 +26,15 @@ export function createKokoroTtsProvider(
         method: "POST",
         headers: {
           "content-type": "application/json",
-          ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
           ...(cfHeaders ?? {}),
         },
         body: JSON.stringify({
-          model: "kokoro-82m",
+          model: "kokoro",
           input: input.textOrSsml,
           voice: input.voiceId,
-          format: input.format ?? "wav",
-          // Hints for sidecar routing
-          languageCode: input.languageCode,
-          provider: input.metadata?.requestedProvider,
+          // Kokoro-FastAPI serves Ogg as Opus
+          response_format: input.format === "ogg" ? "opus" : input.format,
+          speed: input.speed,
         }),
       });
 

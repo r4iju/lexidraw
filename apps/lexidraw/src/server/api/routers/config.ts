@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { autoSaveEnabled } from "~/lib/auto-save";
-import { TTS_DEFAULTS } from "~/app/settings/schema";
+import { TTS_DEFAULTS, TTS_PROVIDERS } from "~/app/settings/schema";
 import {
   type createTRPCContext,
   createTRPCRouter,
@@ -57,12 +57,11 @@ export type TtsConfigProvider = {
   label: string;
   formats: string[];
   languages: string[];
-  capabilities?: { ssml?: boolean; needsSpeakerWav?: boolean };
+  capabilities?: { ssml?: boolean };
 };
 export type TtsConfigVoice = TtsVoice & {
   provider: string;
   family?: string;
-  requires?: { speakerWav?: string };
 };
 export type TtsConfigResult = {
   providers: TtsConfigProvider[];
@@ -85,9 +84,15 @@ const KOKORO_FALLBACK: TtsOptionsResult = {
 };
 
 const KOKORO_LANG_FROM_PREFIX: Record<string, string> = {
-  a: "en-US", // American English
-  b: "en-GB", // British English
-  // Other languages exist (j, z, e, f, h, i, p), but we currently scope to English
+  a: "en-US",
+  b: "en-GB",
+  j: "ja-JP",
+  z: "zh-CN",
+  e: "es-ES",
+  f: "fr-FR",
+  h: "hi-IN",
+  i: "it-IT",
+  p: "pt-BR",
 };
 const KOKORO_GENDER_FROM_PREFIX: Record<string, "Female" | "Male"> = {
   f: "Female",
@@ -102,6 +107,45 @@ function formatKokoroLabel(id: string): string {
   const genderKey = id.length > 1 ? id[1] : "";
   const gender = KOKORO_GENDER_FROM_PREFIX[genderKey || ""];
   return gender ? `${name} (${gender})` : name;
+}
+
+async function fetchKokoroVoices(baseUrl: string): Promise<TtsOptionsResult> {
+  const resp = await fetch(`${baseUrl}/v1/audio/voices`, {
+    headers: kokoroCfHeaders(),
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    return {
+      ...KOKORO_FALLBACK,
+      diagnostics: { code: "http_error", status: resp.status, message: text },
+    };
+  }
+  const json = (await resp.json()) as { voices?: Array<{ id?: string }> };
+  const voices: TtsVoice[] = [];
+  for (const v of json.voices ?? []) {
+    const id = v?.id;
+    const lang = id ? KOKORO_LANG_FROM_PREFIX[id[0] ?? ""] : undefined;
+    // Skip voice blends and ids outside the known language prefixes
+    if (!id || !lang || id.includes("+")) continue;
+    voices.push({ id, label: formatKokoroLabel(id), languageCodes: [lang] });
+  }
+  if (voices.length === 0) return KOKORO_FALLBACK;
+  const languages = Array.from(
+    new Set(voices.flatMap((v) => v.languageCodes)),
+  ).sort();
+  return { voices, languages };
+}
+
+function kokoroCfHeaders(): Record<string, string> {
+  return process.env.NODE_ENV === "production" &&
+    env.CF_ACCESS_CLIENT_ID &&
+    env.CF_ACCESS_CLIENT_SECRET
+    ? {
+        "CF-Access-Client-Id": env.CF_ACCESS_CLIENT_ID,
+        "CF-Access-Client-Secret": env.CF_ACCESS_CLIENT_SECRET,
+      }
+    : {};
 }
 
 // Define separate defaults
@@ -144,7 +188,7 @@ function normalizeBaseConfig(
 
 // --- TTS and Article Config Schemas & Defaults ---
 const TtsConfigSchema = z.object({
-  provider: z.enum(["openai", "google", "kokoro", "apple_say", "xtts"]),
+  provider: z.enum(TTS_PROVIDERS),
   voiceId: z.string(),
   speed: z.number().min(0.25).max(4),
   format: z.enum(["mp3", "ogg", "wav"]),
@@ -152,6 +196,10 @@ const TtsConfigSchema = z.object({
   sampleRate: z.number().int().positive().optional(),
 });
 const TtsPatchSchema = TtsConfigSchema.partial();
+// Stored configs can still name the removed "apple_say" and "xtts" providers.
+const StoredTtsConfigSchema = TtsConfigSchema.extend({
+  provider: TtsConfigSchema.shape.provider.catch(TTS_DEFAULTS.provider),
+});
 
 const ArticleConfigSchema = z.object({
   languageCode: z.string(),
@@ -426,7 +474,7 @@ export const configRouter = createTRPCRouter({
   getTtsOptions: protectedProcedure
     .input(
       z.object({
-        provider: z.enum(["openai", "google", "kokoro", "apple_say", "xtts"]),
+        provider: z.enum(TTS_PROVIDERS),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -466,11 +514,10 @@ export const configRouter = createTRPCRouter({
 
       if (input.provider === "kokoro") {
         const baseUrl = env.KOKORO_URL?.replace(/\/$/, "");
-        const bearer = env.KOKORO_BEARER;
         const dev = process.env.NODE_ENV !== "production";
         const successTtlMs = dev ? 5_000 : 10 * 60_000;
         const errorTtlMs = dev ? 5_000 : 60_000;
-        // Fallback static voice if sidecar not configured
+        // Fallback static voice if Kokoro is not configured
         if (!baseUrl) {
           bag.set(cacheKey, {
             expires: now + errorTtlMs,
@@ -479,60 +526,9 @@ export const configRouter = createTRPCRouter({
           return KOKORO_FALLBACK;
         }
         try {
-          const cfHeaders =
-            process.env.NODE_ENV === "production" &&
-            env.CF_ACCESS_CLIENT_ID &&
-            env.CF_ACCESS_CLIENT_SECRET
-              ? {
-                  "CF-Access-Client-Id": process.env
-                    .CF_ACCESS_CLIENT_ID as string,
-                  "CF-Access-Client-Secret": process.env
-                    .CF_ACCESS_CLIENT_SECRET as string,
-                }
-              : undefined;
-          const resp = await fetch(`${baseUrl}/v1/voices`, {
-            method: "GET",
-            headers: {
-              ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
-              ...(cfHeaders ?? {}),
-            },
-          });
-          if (!resp.ok) {
-            const text = await resp.text().catch(() => "");
-            const data: Result = {
-              ...KOKORO_FALLBACK,
-              diagnostics: {
-                code: "http_error",
-                status: resp.status,
-                message: text,
-              },
-            };
-            bag.set(cacheKey, { expires: now + errorTtlMs, data });
-            return data;
-          }
-          const json = (await resp.json()) as { voices?: string[] };
-          const ids = (Array.isArray(json.voices) ? json.voices : []).filter(
-            (id) => {
-              // Filter to English only (en-US/en-GB) via first-letter prefix
-              const langKey = id?.[0];
-              return langKey === "a" || langKey === "b";
-            },
-          );
-          const voices: Voice[] = ids.map((id) => {
-            const langKey = id.length > 0 ? id[0] : "a";
-            const lang =
-              KOKORO_LANG_FROM_PREFIX[
-                langKey as keyof typeof KOKORO_LANG_FROM_PREFIX
-              ] || "en-US";
-            return { id, label: formatKokoroLabel(id), languageCodes: [lang] };
-          });
-          const languages = Array.from(
-            new Set(voices.flatMap((v) => v.languageCodes)),
-          ).sort();
-          const data: Result = voices.length
-            ? { voices, languages }
-            : KOKORO_FALLBACK;
-          bag.set(cacheKey, { expires: now + successTtlMs, data });
+          const data = await fetchKokoroVoices(baseUrl);
+          const ttlMs = data.diagnostics ? errorTtlMs : successTtlMs;
+          bag.set(cacheKey, { expires: now + ttlMs, data });
           return data;
         } catch (e) {
           const data: Result = {
@@ -626,9 +622,8 @@ export const configRouter = createTRPCRouter({
     }),
 
   // --- Rich TTS catalog merged with OpenAI/Google ---
-  // Not a settings read, so a visitor is refused: building it calls Google and
-  // the TTS sidecar with the app's credentials, and the sidecar answers with
-  // paths on its own disk.
+  // Not a settings read, so a visitor is refused: building it calls Google with
+  // the app's credentials.
   getTtsCatalog: protectedProcedure.query(async () => {
     const providers: TtsConfigProvider[] = [];
     const languages = new Set<string>();
@@ -732,65 +727,29 @@ export const configRouter = createTRPCRouter({
       // ignore google errors
     }
 
-    // Sidecar (kokoro-service) enrichment
-    const baseUrl = (process.env.KOKORO_URL || "").replace(/\/$/, "");
-    const bearer = process.env.KOKORO_BEARER || process.env.APP_TOKEN;
-    if (baseUrl) {
+    const kokoroUrl = env.KOKORO_URL?.replace(/\/$/, "");
+    if (kokoroUrl) {
       try {
-        const cfHeaders =
-          process.env.NODE_ENV === "production" &&
-          process.env.CF_ACCESS_CLIENT_ID &&
-          process.env.CF_ACCESS_CLIENT_SECRET
-            ? {
-                "CF-Access-Client-Id": process.env
-                  .CF_ACCESS_CLIENT_ID as string,
-                "CF-Access-Client-Secret": process.env
-                  .CF_ACCESS_CLIENT_SECRET as string,
-              }
-            : undefined;
-        const resp = await fetch(`${baseUrl}/v1/tts-config`, {
-          method: "GET",
-          headers: {
-            ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
-            ...(cfHeaders ?? {}),
-          },
-          cache: "no-store",
-        });
-        if (resp.ok) {
-          const json = (await resp.json()) as Partial<TtsConfigResult>;
-          if (Array.isArray(json.providers)) providers.push(...json.providers);
-          if (Array.isArray(json.voices)) {
-            for (const v of json.voices) {
-              // minimal validation
-              if (
-                v &&
-                typeof v.id === "string" &&
-                typeof v.provider === "string"
-              ) {
-                voices.push({
-                  id: v.id,
-                  provider: v.provider,
-                  label: v.label || v.id,
-                  languageCodes: Array.isArray(v.languageCodes)
-                    ? v.languageCodes
-                    : [],
-                  family: v.family,
-                  requires: v.requires,
-                });
-                for (const lc of v.languageCodes || []) languages.add(lc);
-                if (v.family) families.add(v.family);
-              }
-            }
+        const kokoro = await fetchKokoroVoices(kokoroUrl);
+        if (!kokoro.diagnostics) {
+          providers.push({
+            id: "kokoro",
+            label: "Kokoro",
+            formats: ["mp3", "ogg", "wav"],
+            languages: kokoro.languages,
+            capabilities: { ssml: false },
+          });
+          for (const v of kokoro.voices) {
+            voices.push({ ...v, provider: "kokoro" });
+            for (const lc of v.languageCodes) languages.add(lc);
           }
-          for (const lc of json.languages || []) languages.add(lc);
-          for (const f of json.families || []) families.add(f);
         }
       } catch {
-        // ignore sidecar errors; return clouds only
+        // Kokoro unreachable; return clouds only
       }
     }
 
-    // Dedupe voices by provider:id to avoid duplicate entries (e.g., Apple say)
+    // Dedupe voices by provider:id
     const uniqueVoices = Array.from(
       new Map(voices.map((v) => [`${v.provider}:${v.id}`, v])).values(),
     );
@@ -807,7 +766,7 @@ export const configRouter = createTRPCRouter({
   getTtsConfig: publicProcedure.query(async ({ ctx }) => {
     const config = await storedConfig(ctx);
     const tts = { ...defaultTts, ...(config?.tts ?? {}) };
-    return TtsConfigSchema.parse(tts);
+    return StoredTtsConfigSchema.parse(tts);
   }),
   updateTtsConfig: protectedProcedure
     .input(TtsPatchSchema)
@@ -821,7 +780,7 @@ export const configRouter = createTRPCRouter({
         .update(schema.users)
         .set({ config: { ...(current?.config ?? {}), tts: next } })
         .where(eq(schema.users.id, ctx.session.user.id));
-      return TtsConfigSchema.parse(next);
+      return StoredTtsConfigSchema.parse(next);
     }),
 
   // --- Article config ---
