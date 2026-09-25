@@ -13,6 +13,7 @@ import type * as React from "react";
 import { cn } from "~/lib/utils";
 import { $titleHeadingKey } from "../../header/document-header";
 import { outlineLevels } from "./outline";
+import { scrollMotion } from "~/lib/scroll-motion";
 
 /** Where reading happens: just under the page's sticky toolbar. */
 function readingLine(): number {
@@ -47,9 +48,7 @@ function TableOfContentsList({
     setCurrent(key);
     heading.scrollIntoView({
       block: "start",
-      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth",
+      behavior: scrollMotion(),
     });
     onNavigate?.();
   };

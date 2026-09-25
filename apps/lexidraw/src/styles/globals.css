@@ -108,11 +108,21 @@
   --text-row: 0.9375rem;
   --text-title: 1.375rem;
 
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
+  /* Motion: hover, press and focus are fast; tooltips, menus, popovers and
+     floating toolbars base; dialogs and accordions moderate; sheets and
+     sidebars slow. What enters decelerates; what leaves accelerates. */
+  --transition-duration-fast: 100ms;
+  --transition-duration-base: 150ms;
+  --transition-duration-moderate: 200ms;
+  --transition-duration-slow: 250ms;
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  --animate-accordion-down: accordion-down var(--transition-duration-moderate) var(--ease-enter);
+  --animate-accordion-up: accordion-up var(--transition-duration-moderate) var(--ease-exit);
   /* A placeholder shows only once a load has taken a moment, then breathes. */
-  --animate-skeleton: skeleton-in 150ms ease-out 300ms both, skeleton-pulse 2s ease-in-out 450ms infinite;
-  --animate-content-in: content-in 150ms ease-out;
+  --animate-skeleton: skeleton-in var(--transition-duration-base) var(--ease-enter) 300ms both, skeleton-pulse 2s ease-in-out 450ms infinite;
+  --animate-content-in: content-in var(--transition-duration-base) var(--ease-enter);
 
   --font-fredoka: var(--font-fredoka);
   --font-mplus: var(--font-mplus);
@@ -155,6 +165,33 @@
   /* Typography rhythm */
   --leading-normal: 1.625;
   --paragraph-spacing: 0.5rem;
+}
+
+/* Asked for less motion, things still fade in and out, but nothing travels,
+   zooms or pulses, a spinner turns slowly, and a scroll jumps. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-rotate: 0;
+    scroll-behavior: auto;
+  }
+  .animate-pulse {
+    animation: none;
+  }
+  .animate-skeleton {
+    animation: skeleton-in var(--transition-duration-base) var(--ease-enter) 300ms both;
+  }
+  .animate-spin {
+    animation-duration: 3s;
+  }
 }
 
 @utility container {

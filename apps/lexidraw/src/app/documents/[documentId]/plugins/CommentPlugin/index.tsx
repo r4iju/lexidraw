@@ -84,6 +84,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { useUserNameOrGuestName } from "~/hooks/use-user-name-or-guest-name";
+import { scrollMotion } from "~/lib/scroll-motion";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -755,9 +756,7 @@ function CommentsPanelList({
           if (activeElem instanceof HTMLElement) activeElem.focus();
           editor.getElementByKey(firstKey)?.scrollIntoView({
             block: "center",
-            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? "auto"
-              : "smooth",
+            behavior: scrollMotion(),
           });
         },
       },

@@ -11,6 +11,7 @@ import { checkFirstPaint } from "./check-first-paint";
 import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
 import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
 import { checkMedia } from "./check-media";
+import { checkMotion } from "./check-motion";
 import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
 import { checkEditorControls } from "./check-editor-controls";
@@ -330,6 +331,7 @@ try {
   await checkOverlays(page, fixtureId, output);
   await checkReservedSizes(page, { sizedId: sized.id, emptyId: empty.id });
   await checkExcalidrawAssets(page, drawn.id);
+  await checkMotion(page, fixtureId);
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);
