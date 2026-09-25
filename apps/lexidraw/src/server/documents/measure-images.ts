@@ -8,6 +8,10 @@ type Node = {
   children?: unknown;
 };
 
+/** Every field of a node is optional, so any object in a document is one. */
+const isNode = (value: unknown): value is Node =>
+  typeof value === "object" && value !== null;
+
 type Options = {
   probe?: (src: string) => Promise<NaturalSize | undefined>;
   /** How many addresses one write measures; the rest wait for a reader. */
@@ -40,13 +44,13 @@ export async function measureImages(
     now = Date.now,
   }: Options = {},
 ): Promise<string> {
-  let document: { root?: Node };
+  let document: { root?: unknown };
   try {
     document = JSON.parse(elements);
   } catch {
     return elements;
   }
-  if (!document?.root || typeof document.root !== "object") return elements;
+  if (!isNode(document?.root)) return elements;
 
   const unmeasured = new Map<string, Node[]>();
   const visit = (node: Node) => {
@@ -59,8 +63,7 @@ export async function measureImages(
     )
       unmeasured.set(node.src, [...(unmeasured.get(node.src) ?? []), node]);
     if (Array.isArray(node.children))
-      for (const child of node.children)
-        if (child && typeof child === "object") visit(child as Node);
+      for (const child of node.children) if (isNode(child)) visit(child);
   };
   visit(document.root);
 
