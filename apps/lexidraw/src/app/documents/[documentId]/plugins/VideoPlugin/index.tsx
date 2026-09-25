@@ -20,7 +20,7 @@ import {
 } from "~/components/ui/dialog";
 import FileInput from "~/components/ui/file-input";
 import { Button } from "~/components/ui/button";
-import { useUploader } from "~/hooks/use-uploader";
+import { useVideoUpload } from "~/hooks/use-video-upload";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { VideoNode, type VideoPayload } from "../../nodes/VideoNode/VideoNode";
 import { INSERT_VIDEO_COMMAND } from "./commands";
@@ -45,13 +45,13 @@ function InsertVideoUploadedDialogBody({
   onClick: (payload: VideoPayload) => void;
   onCancel: () => void;
 }) {
-  const { src, handleFileChange, error: uploadError } = useUploader();
+  const { src, handleFileChange, error: uploadError } = useVideoUpload();
   const entityId = useEntityId();
 
   const isDisabled = src === "" || !!uploadError;
 
   const onChange = (files: FileList | null) => {
-    handleFileChange(files, entityId, "video");
+    handleFileChange(files, entityId);
   };
 
   return (

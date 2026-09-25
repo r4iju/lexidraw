@@ -27,7 +27,7 @@ import {
 import FileInput from "~/components/ui/file-input";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { useUploader } from "~/hooks/use-uploader";
+import { useImageUpload } from "~/hooks/use-image-upload";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { INSERT_IMAGE_COMMAND } from "./commands";
 import type { TRPCClientErrorLike } from "@trpc/client";
@@ -40,7 +40,6 @@ import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useLexicalImageGeneration } from "~/hooks/use-image-generation";
 import { Textarea } from "~/components/ui/textarea";
-import { put } from "@vercel/blob/client";
 import { INSERT_INLINE_IMAGE_COMMAND } from "../InlineImagePlugin";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
@@ -114,15 +113,18 @@ export function InsertImageUploadedDialogBody({
   onClick: (payload: InsertImagePayload) => void;
   onCancel: () => void;
 }) {
-  const { src, handleFileChange } = useUploader();
-  const entityId = useEntityId();
+  const upload = useImageUpload(useEntityId());
+  const [src, setSrc] = useState("");
   const [altText, setAltText] = useState("");
   const altTextId = useId();
 
   const isDisabled = src === "";
 
   const onChange = (files: FileList | null) => {
-    handleFileChange(files, entityId);
+    const file = files?.[0];
+    if (!file) return;
+    setSrc("");
+    void upload(file).then((url) => url && setSrc(url));
   };
 
   return (
@@ -486,62 +488,7 @@ export default function ImagePlugin({
   const [editor] = useLexicalComposerContext();
   const modalOnCloseRef = useRef<(() => void) | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const entityId = useEntityId();
-  const { mutateAsync: generateUploadUrlAsync } =
-    api.entities.generateUploadUrl.useMutation();
-
-  const uploadClipboardImage = useCallback(
-    async (file: File): Promise<string | null> => {
-      const allowedImageTypes = [
-        "image/png",
-        "image/jpeg",
-        "image/svg+xml",
-        "image/webp",
-        "image/avif",
-      ] as const;
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (
-        !allowedImageTypes.includes(
-          file.type as (typeof allowedImageTypes)[number],
-        )
-      ) {
-        toast.error("Unsupported image type", {
-          description: "Allowed: PNG, JPEG, SVG, WEBP, AVIF.",
-        });
-        return null;
-      }
-      if (file.size > maxSize) {
-        toast.error("Image too large", { description: "Max size is 10MB." });
-        return null;
-      }
-      try {
-        const { token, pathname } = await generateUploadUrlAsync({
-          entityId,
-          contentType: file.type as
-            | "image/png"
-            | "image/jpeg"
-            | "image/svg+xml"
-            | "image/webp"
-            | "image/avif",
-          mode: "direct",
-        });
-        const { url } = await put(pathname, file, {
-          access: "public",
-          multipart: true,
-          contentType: file.type,
-          token,
-        });
-        return url;
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unknown upload error";
-        toast.error("Image Upload Failed", { description: message });
-        console.error(err);
-        return null;
-      }
-    },
-    [entityId, generateUploadUrlAsync],
-  );
+  const uploadImage = useImageUpload(useEntityId());
 
   const handleInsertByCommand = useCallback(
     (payload: InsertImagePayload) => {
@@ -627,7 +574,7 @@ export default function ImagePlugin({
         void (async () => {
           for (const file of imageFiles) {
             try {
-              const url = await uploadClipboardImage(file);
+              const url = await uploadImage(file);
               if (!url) continue;
               const altText = (file.name || "image").replace(/\.[^/.]+$/, "");
               editor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
@@ -672,7 +619,7 @@ export default function ImagePlugin({
             toast.info("Uploading image…");
             void (async () => {
               try {
-                const url = await uploadClipboardImage(file);
+                const url = await uploadImage(file);
                 if (!url) return;
                 const altText = (file.name || "image").replace(/\.[^/.]+$/, "");
                 editor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
@@ -702,7 +649,7 @@ export default function ImagePlugin({
       unregisterDrop();
       unregisterPaste();
     };
-  }, [editor, captionsEnabled, uploadClipboardImage]);
+  }, [editor, captionsEnabled, uploadImage]);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);

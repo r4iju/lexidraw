@@ -6,7 +6,6 @@ import { $isHeadingNode } from "@lexical/rich-text";
 import {
   $getDocumentHeader,
   $setDocumentHeader,
-  type DocumentCover,
   type DocumentHeader as Header,
   type DocumentProperty,
   sameTitle,
@@ -23,8 +22,10 @@ import {
   useSyncExternalStore,
 } from "react";
 import { toast } from "sonner";
+import { useImageUpload } from "~/hooks/use-image-upload";
 import { propertyValueParts } from "~/lib/document-properties";
 import { api } from "~/trpc/react";
+import { CoverForm } from "./cover-form";
 
 const sameJSON = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -412,46 +413,6 @@ function Contents({
   );
 }
 
-function CoverForm({
-  onDone,
-}: {
-  onDone: (cover: DocumentCover | null) => void;
-}) {
-  const [src, setSrc] = useState("");
-  return (
-    <form
-      className="document-cover-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onDone(src.trim() ? { src: src.trim() } : null);
-      }}
-    >
-      <input
-        // biome-ignore lint/a11y/noAutofocus: the form was opened to be filled
-        autoFocus
-        type="url"
-        aria-label="Cover image address"
-        placeholder="https://…/cover.jpg"
-        value={src}
-        onChange={(event) => setSrc(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onDone(null);
-        }}
-      />
-      <button type="submit" className="document-header-action">
-        Set cover
-      </button>
-      <button
-        type="button"
-        className="document-header-action"
-        onClick={() => onDone(null)}
-      >
-        Cancel
-      </button>
-    </form>
-  );
-}
-
 type DocumentHeaderProps = {
   entityId: string;
   title: string;
@@ -520,6 +481,7 @@ export function DocumentHeader({
   const outline = useOutline(editor, header.toc === true);
   useHiddenTitleHeading(editor, title);
   const rename = useRename(entityId, title);
+  const uploadImage = useImageUpload(entityId);
   const [shownTitle, setShownTitle] = useState(title);
   const [addingSubtitle, setAddingSubtitle] = useState(false);
   const [addingProperty, setAddingProperty] = useState(false);
@@ -601,6 +563,7 @@ export function DocumentHeader({
       {header.toc && <Contents editor={editor} outline={outline} />}
       {editable && addingCover && (
         <CoverForm
+          upload={uploadImage}
           onDone={(next) => {
             setAddingCover(false);
             if (next) set({ cover: next });

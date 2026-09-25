@@ -40,7 +40,7 @@ import {
   SelectValue,
   SelectTrigger,
 } from "~/components/ui/select";
-import { useUploader } from "~/hooks/use-uploader";
+import { useImageUpload } from "~/hooks/use-image-upload";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { Switch } from "~/components/ui/switch";
 import { SwitchThumb } from "@radix-ui/react-switch";
@@ -60,8 +60,8 @@ export function InsertInlineImageDialog({
   activeEditor: LexicalEditor;
   onClose: () => void;
 }): React.JSX.Element {
-  const entityId = useEntityId();
-  const { src, handleFileChange } = useUploader();
+  const upload = useImageUpload(useEntityId());
+  const [src, setSrc] = useState("");
   const [altText, setAltText] = useState("");
   const [showCaption, setShowCaption] = useState(false);
   const [position, setPosition] = useState<Position>("left");
@@ -69,7 +69,10 @@ export function InsertInlineImageDialog({
   const isDisabled = src === "";
 
   const onChange = (files: FileList | null) => {
-    handleFileChange(files, entityId);
+    const file = files?.[0];
+    if (!file) return;
+    setSrc("");
+    void upload(file).then((url) => url && setSrc(url));
   };
 
   const submit = (event: React.FormEvent) => {

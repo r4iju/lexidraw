@@ -427,6 +427,21 @@
   gap: 8px 16px;
   margin-block: 0 16px;
 }
+.document-cover-form[data-over] {
+  outline: 2px dashed var(--ring);
+  outline-offset: 6px;
+  border-radius: 4px;
+}
+.document-cover-form .document-header-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.document-cover-progress {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
 .document-cover-form input {
   flex: 1 1 16rem;
   padding: 4px 8px;
@@ -439,6 +454,10 @@
 @container (max-width: 639px) {
   .document-title {
     font-size: 32px;
+  }
+  /* The address takes its row, and the form's actions stay together below. */
+  .document-cover-form input {
+    flex-basis: 100%;
   }
 }
 /* Footnotes: markers in the accent colour, notes together at the end. */
