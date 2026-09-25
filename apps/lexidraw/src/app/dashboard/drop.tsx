@@ -23,10 +23,10 @@ export function Drop({ parentId, disabled, children }: Props) {
     <div
       ref={setDroppableRef}
       className={cn(
-        "relative z-0 bg-card rounded-lg",
+        "relative z-0 rounded-lg bg-card after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-primary/10 after:opacity-0 after:transition-opacity",
         isOver &&
           !isDraggingItself &&
-          "opacity-60 scale-[1.02] shadow-lg transition-all duration-150 ring-2 ring-primary ring-offset-2 ring-offset-background",
+          "ring-2 ring-primary ring-offset-2 ring-offset-background after:opacity-100",
       )}
     >
       {children}

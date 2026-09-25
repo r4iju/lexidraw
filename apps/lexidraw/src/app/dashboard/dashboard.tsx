@@ -128,11 +128,11 @@ export async function Dashboard({
           <div
             className={cn(
               GUTTER,
-              "flex flex-col gap-2 py-3 transition-[padding] group-data-scrolled/bar:py-2",
+              "flex flex-col gap-2 py-3 group-data-scrolled/bar:py-2",
             )}
           >
             <div className="flex min-h-10 items-center gap-1 sm:gap-2">
-              <h1 className="min-w-0 flex-1 truncate text-title font-semibold transition-[font-size] max-md:group-data-scrolled/bar:text-lg">
+              <h1 className="min-w-0 flex-1 truncate text-title font-semibold max-md:group-data-scrolled/bar:text-lg">
                 {directory?.title || "Home"}
               </h1>
               <div className="flex items-center gap-1 md:hidden">

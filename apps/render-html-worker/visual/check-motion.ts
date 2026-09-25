@@ -128,9 +128,9 @@ function travel({ transform }: { transform: string }) {
  * Motion by the design's tokens: menus open in 150ms and close in 100ms,
  * dialogs in 200ms and 150ms with their backdrop in step, sheets and
  * sidebars in 250ms and 200ms from their edge, entering decelerated and
- * leaving accelerated; tooltips wait 500ms and fade without zooming. With
- * reduced motion, fades stay and nothing travels, zooms or pulses, and
- * spinners slow down.
+ * leaving accelerated; tooltips wait 500ms and fade without zooming, and
+ * poll bars move by transform over 250ms. With reduced motion, fades stay
+ * and nothing travels, zooms or pulses, and spinners slow down.
  */
 export async function checkMotion(page: Page, fixtureId: string) {
   const path = `${appUrl}/documents/${fixtureId}`;
@@ -218,6 +218,48 @@ export async function checkMotion(page: Page, fixtureId: string) {
         const scale = tip.from.transform.match(/scale3d\(([\d.]+)/)?.[1];
         assert(!scale || scale === "1", "A tooltip does not zoom");
         await tab.mouse.move(0, 0);
+      }
+
+      if (!reduced) {
+        // Voting moves every bar; each grows or shrinks along its row.
+        const vote = '[data-poll] button[role="checkbox"]';
+        await tab.evaluate(() => {
+          const runs: { property: string; ms: number }[] = [];
+          (window as unknown as { runs: typeof runs }).runs = runs;
+          document.addEventListener("transitionrun", (event) => {
+            if (!(event.target as Element).closest("[data-poll] .relative"))
+              return;
+            const style = getComputedStyle(event.target as Element);
+            const index = style.transitionProperty
+              .split(", ")
+              .indexOf(event.propertyName);
+            runs.push({
+              property: event.propertyName,
+              ms:
+                Number.parseFloat(
+                  style.transitionDuration.split(", ")[index] ?? "0",
+                ) * 1000,
+            });
+          });
+        });
+        await tab.locator(vote).click();
+        await pause(400);
+        const runs = await tab.evaluate(
+          () =>
+            (window as unknown as { runs: { property: string; ms: number }[] })
+              .runs,
+        );
+        await tab.locator(vote).click();
+        await tab.waitForFunction(() =>
+          document
+            .querySelector("[data-poll]")
+            ?.textContent?.includes("3 votes total"),
+        );
+        assert.deepEqual(
+          [...new Set(runs.map(({ property, ms }) => `${property} ${ms}ms`))],
+          ["transform 250ms"],
+          "A poll's bars move by transform over 250ms",
+        );
       }
 
       // A drawer on a tablet slides in from the right edge, and back.

@@ -361,7 +361,7 @@ export function CommentInputBox({
   return createPortal(
     <div
       data-component-name="CommentInputBox"
-      className="absolute w-64 min-h-20 left-0 top-0 elevation-overlay rounded-lg z-20 animate-in slide-in-from-right-5"
+      className="absolute w-64 min-h-20 left-0 top-0 elevation-overlay rounded-lg z-20 animate-in fade-in slide-in-from-right-5 duration-base ease-enter"
       ref={boxRef}
     >
       {/* arrow div */}

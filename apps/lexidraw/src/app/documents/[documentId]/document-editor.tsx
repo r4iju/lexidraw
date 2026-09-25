@@ -564,7 +564,7 @@ function EditorHandler({
                             <div
                               ref={toolbarRef}
                               className={cn(
-                                "ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-200 motion-reduce:transition-none print:hidden",
+                                "ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-moderate motion-reduce:transition-none print:hidden",
                                 barScrolledAway && "-translate-y-full",
                               )}
                               data-component-name="Toolbar"

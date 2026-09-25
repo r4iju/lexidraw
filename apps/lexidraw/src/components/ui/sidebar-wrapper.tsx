@@ -331,7 +331,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
               aria-label="Resize sidebar"
               tabIndex={0}
             >
-              <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors duration-200 mx-auto pointer-events-none"></div>
+              <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors mx-auto pointer-events-none"></div>
             </div>
           )}
 

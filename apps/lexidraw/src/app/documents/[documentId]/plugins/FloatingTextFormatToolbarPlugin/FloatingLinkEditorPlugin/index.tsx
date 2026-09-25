@@ -266,7 +266,7 @@ function FloatingLinkEditor({
     <div
       ref={editorRef}
       style={{ willChange: "transform" }}
-      className="flex items-center absolute top-0 left-0 z-10 max-w-[400px] w-full opacity-0 bg-transparent  transition-opacity duration-300"
+      className="flex items-center absolute top-0 left-0 z-10 max-w-[400px] w-full opacity-0 bg-transparent transition-opacity duration-base"
     >
       {!isLink ? null : isLinkEditMode ? (
         <div className="flex items-center w-full justify-between gap-4 p-1 elevation-overlay rounded-md">

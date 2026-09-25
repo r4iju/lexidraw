@@ -26,8 +26,10 @@ export function LLMWidget() {
   return (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-50 elevation-overlay w-full max-w-sm h-20 p-2 rounded-lg transition-transform duration-300 ease-in-out",
-        hidden ? "translate-x-full opacity-0" : "translate-x-0 opacity-100",
+        "fixed bottom-4 right-4 z-50 elevation-overlay w-full max-w-sm h-20 p-2 rounded-lg transition-[opacity,transform]",
+        hidden
+          ? "translate-x-full opacity-0 duration-moderate ease-exit motion-reduce:translate-x-0"
+          : "translate-x-0 opacity-100 duration-slow ease-enter",
         {
           "bg-destructive-bg text-destructive border-destructive": isError,
         },

@@ -122,20 +122,6 @@ export default function StickyComponent({
     };
   }, [editor, positionSticky]);
 
-  useEffect(() => {
-    const stickyContainer = stickyContainerRef.current;
-    if (stickyContainer !== null) {
-      // Delay adding transition so we don't trigger the
-      // transition on load of the sticky.
-      setTimeout(() => {
-        stickyContainer.style.setProperty(
-          "transition",
-          "top 0.3s ease 0s, left 0.3s ease 0s",
-        );
-      }, 500);
-    }
-  }, []);
-
   const handlePointerMove = (event: PointerEvent) => {
     const stickyContainer = stickyContainerRef.current;
     const positioning = positioningRef.current;

@@ -540,7 +540,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
       </div>
       <div
         className={cn(
-          "absolute inset-0 rounded pointer-events-none transition-all duration-100",
+          "absolute inset-0 rounded pointer-events-none transition-opacity",
           isSelected
             ? "ring-2 ring-primary/90 opacity-100"
             : "opacity-0 group-hover:opacity-100 group-hover:ring-2 group-hover:ring-primary/40",

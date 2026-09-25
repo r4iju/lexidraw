@@ -17,11 +17,11 @@ export default function TreeViewPlugin(): React.JSX.Element {
       text-foreground"
       treeTypeButtonClassName="
       ml-4 px-1 py-0.5 rounded-sm border border-muted-foreground
-      text-muted-foreground hover:text-foreground transition"
+      text-muted-foreground hover:text-foreground transition-colors"
       timeTravelPanelClassName="flex items-center gap-2 pt-2"
       timeTravelButtonClassName="
       px-1 py-0.5 rounded-sm border border-muted-foreground
-      text-muted-foreground hover:text-foreground transition"
+      text-muted-foreground hover:text-foreground transition-colors"
       timeTravelPanelSliderClassName="flex-1"
       timeTravelPanelButtonClassName="
       px-1 py-0.5 text-muted-foreground hover:text-foreground text-xs"
