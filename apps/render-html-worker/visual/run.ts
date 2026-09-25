@@ -11,6 +11,7 @@ import { checkMedia } from "./check-media";
 import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
 import { checkEditorControls } from "./check-editor-controls";
+import { checkOverlays } from "./check-overlays";
 import { checkTokens } from "./check-tokens";
 import { checkTypography, checkDocumentSettings } from "./check-typography";
 
@@ -20,6 +21,8 @@ const output = resolve(root, ".playwright-mcp/document-snapshots");
 const fixtureId =
   process.env.VISUAL_FIXTURE_ID ?? "98683bf7-3f2c-4c60-acd3-a82f24f805ad";
 const update = process.argv.includes("--update");
+// Phones and tablets under a finger, whose targets grow to 44px.
+const touch = process.argv.includes("--touch");
 if (process.env.CI)
   throw new Error(
     "Visual snapshots require the local dev stack; do not run in CI",
@@ -159,6 +162,7 @@ try {
     drawingId: drawing.id,
   });
   await checkEditorControls(page, fixtureId, output);
+  await checkOverlays(page, fixtureId, output);
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);
@@ -182,9 +186,10 @@ if (
 
 let failures = 0;
 let totalBytes = 0;
-for (const width of [375, 768, 1280]) {
+const widths = touch ? [375, 768] : [375, 768, 1280];
+for (const width of widths) {
   for (const theme of ["light", "dark"]) {
-    const name = `${width}-${theme}.png`;
+    const name = `${width}-${theme}${touch ? "-touch" : ""}.png`;
     const actualPath = resolve(output, name);
     await cli(
       "doc",
@@ -194,12 +199,16 @@ for (const width of [375, 768, 1280]) {
       String(width),
       "--theme",
       theme,
+      ...(touch ? ["--touch"] : []),
       "--out",
       actualPath,
     );
+    // The render is as wide as the page scrolls.
     const full = PNG.sync.read(await readFile(actualPath));
     if (full.width !== width)
-      throw new Error(`Expected ${width}px, received ${full.width}`);
+      throw new Error(
+        `${name}: the page scrolls sideways, ${full.width}px wide at ${width}px`,
+      );
     // Bound repository size while retaining the top of the reading view at 1:1.
     const actual = new PNG({ width, height: Math.min(full.height, 6000) });
     PNG.bitblt(full, actual, 0, 0, width, actual.height, 0, 0);
@@ -239,11 +248,13 @@ for (const width of [375, 768, 1280]) {
     if (ratio > 0.005) {
       failures++;
       await writeFile(
-        resolve(output, `${width}-${theme}-diff.png`),
+        resolve(output, name.replace(/\.png$/, "-diff.png")),
         PNG.sync.write(diff),
       );
     }
   }
 }
-console.log(`Six captures: ${totalBytes} bytes. Artifacts: ${output}`);
+console.log(
+  `${widths.length * 2} captures${touch ? " by touch" : ""}: ${totalBytes} bytes. Artifacts: ${output}`,
+);
 if (failures) throw new Error(`${failures} visual comparisons failed`);

@@ -9,6 +9,12 @@ bun run test:visual
 bun run test:visual --update
 ```
 
+`bun run test:visual --touch` renders the 375 and 768px captures as a
+touch screen sees them (`doc render --touch`), where targets grow to 44px, and
+compares them with their own `-touch` baselines (`--touch --update` writes
+them). Every render is as wide as the page scrolls, so a page that scrolls
+sideways fails its capture.
+
 To run against a second local stack, for example from another worktree, set
 `VISUAL_APP_URL=http://localhost:3026` and `VISUAL_FIXTURE_ID` to a document of
 its own, so two runs never overwrite the same fixture.
@@ -94,3 +100,16 @@ remaining media fallbacks can extend past the cap and have browser coverage.
 Browser checks cover actual inline-math line layout, header accessibility,
 number defaults, quote styling, link wrapping, chart legends, collapsible type,
 and print wrapping/line markers. The exported PDF must omit the skip link.
+
+Overlay checks cover the phone at 375×812 and the tablet at 768×1024 by touch,
+and dialogs at 1280×900. On the phone: the bar on the bottom edge and above the
+keyboard, turning to selection tools for selected text; Insert and the ⋯
+actions as bottom sheets, with Export drilling down to PDF behind a Back row
+and Delete last; the contents as a half sheet that takes focus, closes on
+Escape and after a jump; the emoji typeahead as one strip of 44px chips; a
+dialog as a sheet that leaves its field untapped; and no sideways scroll on a
+document, Home or Settings. On the tablet: the contents as a 360px drawer over
+a scrim that leaves the page where it was, and every control in the app bar,
+toolbar and drawer at least 44px. On the desktop: the diagram editor 1024px
+wide over one backdrop, ending Cancel then Save diagram, and Import Markdown
+at 768px.

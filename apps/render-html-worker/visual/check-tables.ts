@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import type { Page } from "puppeteer";
+import type { ElementHandle, Page } from "puppeteer";
 import { signInToDev } from "./check-typography";
 import { appUrl } from "./app-url";
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function checkTables(page: Page, fixtureId: string) {
   await signInToDev(page);
@@ -247,33 +249,59 @@ export async function checkTables(page: Page, fixtureId: string) {
   await page.$eval(".document-content th", (cell) =>
     cell.scrollIntoView({ block: "center" }),
   );
+  // The dev overlay's badge sits over the bar's first buttons.
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.click(".document-content th");
-  await page.locator('button[aria-label="Table cell actions"]').click();
-  await page.waitForFunction(() => {
-    const menu = document.querySelector('[role="menu"]');
-    return menu && getComputedStyle(menu).opacity === "1";
-  });
-  const menu = await page.$eval('[role="menu"]', (menu) => ({
-    rect: menu.getBoundingClientRect().toJSON(),
-    checks: [...menu.querySelectorAll('[role="menuitemcheckbox"]')].map(
-      (item) => item.getAttribute("aria-checked"),
-    ),
-    items: [
-      ...menu.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"]'),
-    ].map((item) => ({
-      text: item.textContent?.trim(),
-      bottom: item.getBoundingClientRect().bottom,
-    })),
-  }));
-  assert(menu.rect.top >= 0 && menu.rect.bottom <= 812);
-  assert(menu.rect.left >= 0 && menu.rect.right <= 375);
-  assert.deepEqual(menu.checks, ["true", "false"]);
-  assert(menu.items.every((item) => item.bottom <= menu.rect.bottom));
+  await page.waitForSelector('[role="toolbar"][data-bar-mode="table"] button');
+  // A phone's table actions are in its editing bar, a menu per part.
+  const partMenu = async (label: string) => {
+    const trigger = await page.evaluateHandle(
+      (label) =>
+        [
+          ...document.querySelectorAll(
+            '[role="toolbar"][data-bar-mode="table"] button',
+          ),
+        ].find((button) => button.textContent?.trim() === label),
+      label,
+    );
+    const button = trigger.asElement();
+    assert(button, `The phone bar offers ${label} in a table`);
+    await (button as ElementHandle<Element>).click();
+    await page.waitForFunction(() => {
+      const menu = document.querySelector('[role="menu"]');
+      return menu && getComputedStyle(menu).opacity === "1";
+    });
+    const menu = await page.$eval('[role="menu"]', (menu) => ({
+      rect: menu.getBoundingClientRect().toJSON(),
+      checks: [...menu.querySelectorAll('[role="menuitemcheckbox"]')].map(
+        (item) => item.getAttribute("aria-checked"),
+      ),
+      items: [
+        ...menu.querySelectorAll(
+          '[role="menuitem"], [role="menuitemcheckbox"]',
+        ),
+      ].map((item) => ({
+        text: item.textContent?.trim(),
+        bottom: item.getBoundingClientRect().bottom,
+      })),
+    }));
+    assert(menu.rect.top >= 0 && menu.rect.bottom <= 812);
+    assert(menu.rect.left >= 0 && menu.rect.right <= 375);
+    assert(menu.items.every((item) => item.bottom <= menu.rect.bottom));
+    await page.keyboard.press("Escape");
+    await pause(300);
+    return menu;
+  };
+  assert.deepEqual((await partMenu("Rows")).checks, ["true"], "Header row on");
   assert.deepEqual(
-    menu.items.slice(-3).map((item) => item.text),
+    (await partMenu("Columns")).checks,
+    ["false"],
+    "Header column off",
+  );
+  assert.deepEqual(
+    (await partMenu("Delete")).items.map((item) => item.text),
     ["Delete column", "Delete row", "Delete table"],
   );
-  await page.keyboard.press("Escape");
   await page.emulateMediaType("print");
   await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
   const print = await page.$$eval("table[data-print-table]", (tables) =>

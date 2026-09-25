@@ -37,6 +37,7 @@ async function appBar(page: Page) {
       crumbs,
       account: box(bar.querySelector('button[aria-label="Account"]')),
       theme: box(bar.querySelector('button[aria-label="Theme"]')),
+      back: box(bar.querySelector('a[aria-label^="Back to"]')),
       status: bar.querySelector("[data-save-status]")?.textContent ?? null,
       pageWidth: document.documentElement.scrollWidth,
     };
@@ -233,8 +234,19 @@ async function checkBar(page: Page, emptyId: string, drawingId: string) {
         barHeight,
         `${width} ${name}: the bar is ${barHeight}px`,
       );
-      assert(bar.account?.visible, `${width} ${name}: the account menu shows`);
-      assert(bar.theme?.visible, `${width} ${name}: the theme control shows`);
+      // A document on a phone trades them for a way back; its ⋯ holds both.
+      const compact = width === 375 && name === "document";
+      if (compact) {
+        assert(bar.back?.visible, `${width} ${name}: a way back shows`);
+        assert(!bar.account?.visible, `${width} ${name}: no account menu`);
+        assert(!bar.theme?.visible, `${width} ${name}: no theme control`);
+      } else {
+        assert(
+          bar.account?.visible,
+          `${width} ${name}: the account menu shows`,
+        );
+        assert(bar.theme?.visible, `${width} ${name}: the theme control shows`);
+      }
       assert(
         bar.pageWidth <= width,
         `${width} ${name}: nothing scrolls sideways`,
@@ -245,6 +257,7 @@ async function checkBar(page: Page, emptyId: string, drawingId: string) {
     }
     const reference = seen.Home;
     for (const [name, bar] of Object.entries(seen)) {
+      if (width === 375 && name === "document") continue;
       assert.equal(
         Math.round(bar.account?.right ?? 0),
         Math.round(reference?.account?.right ?? -1),
@@ -427,20 +440,25 @@ async function checkDocument(page: Page, emptyId: string) {
   await page.keyboard.press("Escape");
   if (!autoSaved) await setAutoSave(page, false);
 
-  // The theme, from the editor on a phone.
+  // The theme, from the editor's ⋯ on a phone, one sheet down.
   await page.setViewport({ width: 375, height: 812 });
   await pause(300);
+  const themeSheet = async () => {
+    await menuItems(page, `${APP_BAR} button[aria-label="Document actions"]`);
+    await choose(page, "Theme");
+    await pause(300);
+    return page.$$eval('[role="menuitemradio"]', (radios) =>
+      radios.map((radio) => radio.textContent?.trim()),
+    );
+  };
   for (const choice of ["Dark", "Light"]) {
-    await menuItems(page, `${APP_BAR} button[aria-label="Theme"]`);
+    await themeSheet();
     await choose(page, choice);
     const dark = await page.evaluate(() =>
       document.documentElement.classList.contains("dark"),
     );
     assert.equal(dark, choice === "Dark", `375: ${choice} applies`);
-    const checked = await menuItems(
-      page,
-      `${APP_BAR} button[aria-label="Theme"]`,
-    );
+    const checked = await themeSheet();
     const marked = await page.$$eval(
       '[role="menuitemradio"][aria-checked="true"]',
       (radios) => radios.map((radio) => radio.textContent?.trim()),

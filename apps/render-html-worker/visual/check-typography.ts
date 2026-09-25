@@ -254,7 +254,7 @@ export async function checkDocumentSettings(page: Page, fixtureId: string) {
     await page.locator(FONT).click();
     await clickText("Document language…", '[role="menuitem"]');
     await page.select("#document-language", lang);
-    await clickText("Apply", "button");
+    await clickText("Set language", "button");
     await page.waitForSelector('[role="dialog"]', { hidden: true });
     const saved = page.waitForResponse(
       (response) =>
