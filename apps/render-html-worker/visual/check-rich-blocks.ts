@@ -25,18 +25,19 @@ export async function checkRichBlocks(
           document.documentElement.classList.toggle(name, name === theme);
       }, theme);
       const result = await page.evaluate(() => {
-        const root = document.querySelector<HTMLElement>(".document-content")!;
+        const root = document.querySelector<HTMLElement>(".document-content");
+        if (!root) throw new Error("No document content");
         const inline = [...root.querySelectorAll(".editor-equation")].find(
           (e) => e.textContent?.includes("E="),
         );
         const code = root.querySelector<HTMLElement>(".document-code");
         const quote = root.querySelector("blockquote");
         const link = root.querySelector('a[href*="a-very-long"]');
+        const katex = inline?.querySelector(".katex");
+        const section = root.querySelector('[data-slot="accordion-content"]');
         return {
           inline: inline ? getComputedStyle(inline).display : null,
-          equationSize: inline?.querySelector(".katex")
-            ? getComputedStyle(inline.querySelector(".katex")!).fontSize
-            : null,
+          equationSize: katex ? getComputedStyle(katex).fontSize : null,
           codeBackground: code ? getComputedStyle(code).backgroundColor : null,
           lineNumbers: code?.dataset.lineNumbers,
           quoteBorder: quote ? getComputedStyle(quote).borderLeftWidth : null,
@@ -46,9 +47,7 @@ export async function checkRichBlocks(
               root.getBoundingClientRect().right
             : false,
           legend: !!root.querySelector(".recharts-legend-wrapper"),
-          collapsibleSize: getComputedStyle(
-            root.querySelector('[data-slot="accordion-content"]')!,
-          ).fontSize,
+          collapsibleSize: section ? getComputedStyle(section).fontSize : null,
         };
       });
       assert(
@@ -94,18 +93,20 @@ export async function checkRichBlocks(
     }
   }
   await page.emulateMediaType("print");
-  const print = await page.evaluate(() => ({
-    wrapping: getComputedStyle(document.querySelector(".document-code-body")!)
-      .whiteSpace,
-    skip: [...document.querySelectorAll("a")]
-      .filter((e) => e.textContent?.includes("Skip to content"))
-      .map((e) => getComputedStyle(e).display),
-    numbers: [
-      ...document.querySelectorAll(
-        '.document-code[data-line-numbers="true"] [data-line-number]',
-      ),
-    ].map((e) => e.getAttribute("data-line-number")),
-  }));
+  const print = await page.evaluate(() => {
+    const code = document.querySelector(".document-code-body");
+    return {
+      wrapping: code ? getComputedStyle(code).whiteSpace : null,
+      skip: [...document.querySelectorAll("a")]
+        .filter((e) => e.textContent?.includes("Skip to content"))
+        .map((e) => getComputedStyle(e).display),
+      numbers: [
+        ...document.querySelectorAll(
+          '.document-code[data-line-numbers="true"] [data-line-number]',
+        ),
+      ].map((e) => e.getAttribute("data-line-number")),
+    };
+  });
   assert.equal(print.wrapping, "pre-wrap");
   assert(print.skip.every((display) => display === "none"));
   assert.deepEqual(print.numbers, ["1", "2"]);

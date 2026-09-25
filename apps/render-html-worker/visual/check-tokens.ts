@@ -31,11 +31,11 @@ export async function checkTokens(page: Page) {
         return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
       }
       function luminance(value: string) {
-        const [r, g, b] = rgb(value).map((channel) => {
+        const [r = 0, g = 0, b = 0] = rgb(value).map((channel) => {
           const c = channel / 255;
           return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
         });
-        return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
       }
       function contrast(a: string, b: string) {
         const x = luminance(a);
@@ -89,7 +89,9 @@ export async function checkTokens(page: Page) {
     );
     if (theme === "dark") {
       assert.ok(
-        result.layers.every((l, i, layers) => i === 0 || l > layers[i - 1]!),
+        result.layers.every(
+          (l, i, layers) => i === 0 || l > (layers[i - 1] ?? l),
+        ),
         "Raised dark surfaces are lighter",
       );
     }
