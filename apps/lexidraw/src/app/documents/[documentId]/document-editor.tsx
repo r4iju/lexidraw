@@ -294,8 +294,6 @@ function EditorHandler({
   const sidebarRef = useRef<HTMLElement>(null);
   const phone = useLayoutClass() === "phone";
   const editing = canEdit && !reading;
-  // Reading, at every size, reads from the reading pill; the formatting
-  // strip is only for editing.
   const readingOnScreen = onScreen && !editing;
   const barScrolledAway = useScrolledAway(readingOnScreen && phone);
 
@@ -888,7 +886,10 @@ function useScrolledAway(enabled: boolean) {
   return enabled && away;
 }
 
-/** A reader's tools, off the page: listening, when signed in, and the contents. */
+/**
+ * A reader's tools, off the page, at every size: listening, when signed in,
+ * and the contents. The formatting strip is only for editing.
+ */
 function ReadingPill({
   signedIn,
   contentsOpen,

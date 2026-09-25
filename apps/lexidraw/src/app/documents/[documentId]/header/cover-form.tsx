@@ -20,13 +20,22 @@ export function CoverForm({
   upload: Upload;
 }) {
   const [src, setSrc] = useState("");
-  /** How far the upload is, in percent; undefined before its first report. */
-  const [progress, setProgress] = useState<number | undefined>();
-  const [uploading, setUploading] = useState(false);
+  /**
+   * The upload under way, if any, and how far it is in percent; no progress
+   * before its first report.
+   */
+  const [uploading, setUploading] = useState<{ progress?: number } | null>(
+    null,
+  );
   const [over, setOver] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
-  /** Once cancelled or gone, an upload still under way sets nothing. */
+  /**
+   * Once cancelled or gone, an upload still under way sets nothing: the blob
+   * store's request outlives the form, and its progress and address arrive
+   * after it.
+   */
   const closed = useRef(false);
+  // Opens and closes the gate for that request as the form mounts and goes.
   useEffect(() => {
     closed.current = false;
     return () => {
@@ -41,13 +50,12 @@ export function CoverForm({
 
   const send = async (file: File) => {
     if (uploading) return;
-    setUploading(true);
-    setProgress(undefined);
-    const url = await upload(file, (percentage) => {
-      if (!closed.current) setProgress(percentage);
+    setUploading({});
+    const url = await upload(file, (progress) => {
+      if (!closed.current) setUploading({ progress });
     });
     if (closed.current) return;
-    setUploading(false);
+    setUploading(null);
     if (url) close({ src: url });
   };
 
@@ -74,7 +82,8 @@ export function CoverForm({
         setOver(true);
       }}
       onDragLeave={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+        const to = event.relatedTarget;
+        if (!(to instanceof Node && event.currentTarget.contains(to)))
           setOver(false);
       }}
       onDrop={(event) => {
@@ -112,7 +121,7 @@ export function CoverForm({
       <button
         type="button"
         className="document-header-action"
-        disabled={uploading}
+        disabled={uploading !== null}
         onClick={() => picker.current?.click()}
       >
         Upload
@@ -120,7 +129,7 @@ export function CoverForm({
       <button
         type="submit"
         className="document-header-action"
-        disabled={uploading}
+        disabled={uploading !== null}
       >
         Set cover
       </button>
@@ -133,7 +142,9 @@ export function CoverForm({
       </button>
       {uploading && (
         <span role="status" className="document-cover-progress">
-          {progress === undefined ? "Uploading…" : `Uploading… ${progress}%`}
+          {uploading.progress === undefined
+            ? "Uploading…"
+            : `Uploading… ${uploading.progress}%`}
         </span>
       )}
     </form>

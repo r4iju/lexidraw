@@ -73,8 +73,7 @@ const loadOutput = z.object({
   appState: z.string().nullable(),
   elements: z.string(),
   publicAccess: z.enum(PublicAccess),
-  // Whether it is shared with anyone, not with whom: the owner alone sees
-  // that, through getSharedInfo.
+  // Whether it is shared with anyone.
   shared: z.boolean(),
   accessLevel: z.enum(AccessLevel),
   // The revision the content is, so an open editor can tell when it moved.
@@ -465,7 +464,7 @@ export const entityRouter = createTRPCRouter({
       if (!entity) throw notFound();
 
       // Whether anyone else has it, so the editor knows to connect for
-      // collaboration; who they are is the owner's to see, in getSharedInfo.
+      // collaboration.
       const [anyShare] = await ctx.drizzle
         .select({ userId: schema.sharedEntities.userId })
         .from(schema.sharedEntities)
@@ -936,8 +935,6 @@ export const entityRouter = createTRPCRouter({
       ),
     )
     .query(async ({ ctx, input }) => {
-      // The rows carry emails and names, which are the owner's to see: to
-      // anyone else, whatever it was shared with them for, it isn't there.
       const entity = await findOwnedEntity(
         ctx.drizzle,
         input.id,

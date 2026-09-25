@@ -21,7 +21,6 @@ export type Shareable = Pick<
   "id" | "title" | "entityType" | "publicAccess"
 >;
 
-/** Only the owner is offered this: who else has the file is theirs to see. */
 type Props = {
   entity: Shareable;
   isOpen: boolean;

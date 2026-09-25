@@ -64,7 +64,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entity: { title: string; entityType: string };
-  /** The owner, the only one the dialog is offered to. */
+  /** The file's owner. */
   you: { name: string | null; email: string | null };
   people: SharePerson[];
   publicAccess: PublicAccess;

@@ -30,7 +30,7 @@ type Props = {
   href: string;
   favorited: boolean;
   archived: boolean;
-  /** Only for the file's owner: who else has it is theirs to see and change. */
+  /** Only for the file's owner. */
   onShare?: () => void;
   onCopyLink: () => void;
   onRename: () => void;

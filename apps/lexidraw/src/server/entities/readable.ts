@@ -42,8 +42,7 @@ type CallersAccess = {
 
 /**
  * Whether `userId` may edit an entity they reached: its owner, someone it was
- * shared with for editing, or anyone, when anyone may. Who else has it is a
- * separate question, and the owner's alone; see {@link findOwnedEntity}.
+ * shared with for editing, or anyone, when anyone may.
  */
 export const canEdit = (entity: CallersAccess, userId: string) =>
   entity.ownerId === userId ||

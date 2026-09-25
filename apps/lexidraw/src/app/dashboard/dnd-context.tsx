@@ -84,15 +84,11 @@ export function DraggingContext({ children, sortBy, sortOrder }: Props) {
         current ? current.filter((e) => e.id !== id) : [],
       );
 
+      const moved = oldParentData.find((e) => e.id === id) ?? activeEntity;
       utils.entities.list.setData(newParentKey, (current) => {
         if (!current) return [];
-
-        const movedEntity = {
-          ...(activeEntity as Entity),
-          id: id as string,
-          parentId: newParentId as string | null,
-        };
-        return [...current, movedEntity];
+        if (!moved) return current;
+        return [...current, { ...moved, parentId: newParentId ?? null }];
       });
 
       return {
@@ -134,9 +130,9 @@ export function DraggingContext({ children, sortBy, sortOrder }: Props) {
     const { active, over } = event;
 
     if (active?.id && over?.id && active.id !== over.id) {
-      const parentId = over.id === "null" ? null : (over.id as string);
+      const parentId = over.id === "null" ? null : String(over.id);
       updateEntity({
-        id: active.id as string,
+        id: String(active.id),
         parentId,
         prevParentId: active.data.current?.entity.parentId,
       });

@@ -716,7 +716,6 @@ export default function ToolbarPlugin({
         </MoreSub>
       ),
     });
-  // A reader listens from the reading pill instead.
   if (isEditable && signedIn)
     groups.push({
       id: "listen",

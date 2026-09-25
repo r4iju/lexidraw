@@ -7,14 +7,27 @@ const FINGER_GAP = 28;
 
 type Size = { width: number; height: number };
 
+type Point = { clientX: number; clientY: number };
+
+const isPoint = (value: unknown): value is Point =>
+  typeof value === "object" &&
+  value !== null &&
+  "clientX" in value &&
+  typeof value.clientX === "number" &&
+  "clientY" in value &&
+  typeof value.clientY === "number";
+
+const firstOf = (list: unknown): unknown =>
+  typeof list === "object" && list !== null && 0 in list ? list[0] : undefined;
+
 function startOf(event: Event | null): { x: number; y: number } | null {
   if (!event) return null;
   const point =
     "touches" in event
-      ? ((event as TouchEvent).touches[0] ??
-        (event as TouchEvent).changedTouches?.[0])
-      : (event as MouseEvent);
-  return point ? { x: point.clientX, y: point.clientY } : null;
+      ? (firstOf(event.touches) ??
+        ("changedTouches" in event ? firstOf(event.changedTouches) : undefined))
+      : event;
+  return isPoint(point) ? { x: point.clientX, y: point.clientY } : null;
 }
 
 /**
