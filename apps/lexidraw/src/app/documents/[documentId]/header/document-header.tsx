@@ -17,6 +17,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   useEffect,
+  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -306,15 +307,20 @@ function PropertyEditor({
 }
 
 function Properties({
+  id,
   properties,
   editable,
+  editsShown,
   lang,
   adding,
   onChange,
   onAdded,
 }: {
+  id: string;
   properties: DocumentProperty[];
   editable: boolean;
+  /** Every row's Edit, where there is no pointer to show one row's. */
+  editsShown: boolean;
   lang: string | undefined;
   adding: boolean;
   onChange: (properties: DocumentProperty[]) => void;
@@ -333,7 +339,11 @@ function Properties({
     if (!sameJSON(next, properties)) onChange(next);
   };
   return (
-    <dl className="document-properties">
+    <dl
+      id={id}
+      className="document-properties"
+      data-edits-shown={(editable && editsShown) || undefined}
+    >
       {rows.map((property, index) =>
         index === editingIndex ? (
           <PropertyEditor
@@ -514,6 +524,8 @@ export function DocumentHeader({
   const [addingSubtitle, setAddingSubtitle] = useState(false);
   const [addingProperty, setAddingProperty] = useState(false);
   const [addingCover, setAddingCover] = useState(false);
+  const [propertyEditsShown, setPropertyEditsShown] = useState(false);
+  const propertiesId = useId();
 
   useEffect(() => setShownTitle(title), [title]);
 
@@ -577,8 +589,10 @@ export function DocumentHeader({
         />
       )}
       <Properties
+        id={propertiesId}
         properties={properties}
         editable={editable}
+        editsShown={propertyEditsShown}
         lang={lang}
         adding={editable && addingProperty}
         onAdded={() => setAddingProperty(false)}
@@ -620,6 +634,17 @@ export function DocumentHeader({
               onClick={() => setAddingProperty(true)}
             >
               Add property
+            </button>
+          )}
+          {properties.length > 0 && (
+            <button
+              type="button"
+              className="document-header-action document-properties-toggle"
+              aria-controls={propertiesId}
+              aria-pressed={propertyEditsShown}
+              onClick={() => setPropertyEditsShown((shown) => !shown)}
+            >
+              Edit properties
             </button>
           )}
           <button

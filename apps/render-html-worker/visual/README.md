@@ -45,7 +45,7 @@ Each render goes through the same `GET /documents/{id}/render` operation as the
 CLI and MCP, at 375/768/1280px in light/dark. PNGs retain 1:1 pixels, capped at
 6000px high to bound repository growth (all six currently reach the cap, so
 the end of the fixture is not captured). The six committed images total about
-**3.8 MB**. Pixelmatch ignores minor
+**4.0 MB**. Pixelmatch ignores minor
 antialiasing changes with a per-pixel threshold of 0.15 and permits at most
 0.5% differing pixels. A changed image size always fails. Actual images and
 failure diffs go in `.playwright-mcp/document-snapshots/`, never in the baseline
@@ -64,23 +64,30 @@ families, the toolbar size field, and font/language settings after save and
 reload. Only localhost is used.
 
 Table cases cover key/value tokens, GFM alignment, a six-column mixed-language
-comparison and the 80% numeric threshold. Browser checks assert intrinsic
-widths, the 1024px limit, labelled keyboard scroll regions, the pinned phone
-column and cell-menu bounds/header toggles. The fixture explicitly clears saved
+comparison, a three-column table with sentences whose labels together are too
+wide for a phone, and the 80% numeric threshold. Browser checks assert content
+widths from the text column's edge, the 1024px limit, short tables fitting a
+phone while editing and reading, sentences wrapping there while labels, tokens
+and Japanese words stay whole (in a heading too; the widest label gives way
+between its words), labelled keyboard scroll regions, the pinned
+phone column and cell-menu bounds/header toggles. The fixture explicitly clears saved
 column widths so every capture exercises a document before manual resizing.
 
 Media cases include a 2000px portrait image, a missing image with alt text,
-three columns, unsized diagrams/video/charts, voted polls, and empty charts
-and slides. Browser checks cover 375×812, 768×1024 and 1280×900 in both themes,
+columns in the text column and written wide, unsized diagrams/video/charts,
+voted polls, and empty charts and slides. Browser checks cover 375×812, 768×1024 and 1280×900 in both themes,
 plus a narrowed desktop container. They check media bounds and aspect ratios,
-centering, theme treatment, placeholders, poll results and print break rules.
+centering, theme treatment (photos dimmed a little in dark), half-column
+figures filling a phone, footnote markers and the way back after a wrapped
+note, placeholders, poll results and print break rules. On touch, property
+Edit buttons wait for the header's one Edit properties action.
 The suite saves a PDF from the dark editor and a CLI PDF; `pdftotext` (Poppler)
 is required to verify the CLI PDF includes its chart and poll results.
 
 Rich-block cases cover separate quotes, long URLs and inline code, multiline
 checklist items, plain and numbered code, inline and display equations, and a
 single-series chart. The sticky note sits beside the other rich blocks so it
-stays within the 6000px baseline cap. The six captures now total about 3 MB;
+stays within the 6000px baseline cap. The six captures now total about 4 MB;
 remaining media fallbacks can extend past the cap and have browser coverage.
 Browser checks cover actual inline-math line layout, header accessibility,
 number defaults, quote styling, link wrapping, chart legends, collapsible type,

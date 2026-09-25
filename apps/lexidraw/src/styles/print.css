@@ -186,6 +186,7 @@
     background: none;
     border: 0;
     border-radius: 0;
+    outline: 0;
   }
   .document-table-region > table {
     display: none;

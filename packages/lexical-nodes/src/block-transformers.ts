@@ -10,6 +10,7 @@ import {
   type ElementNode,
   type LexicalNode,
 } from "lexical";
+import { $getFigure, $setFigure } from "./figure.js";
 import { reportMarkdownNote } from "./markdown-notes.js";
 import {
   type CalloutKind,
@@ -400,7 +401,8 @@ function splitColumns(lines: readonly string[]): string[][] {
 
 /**
  * Notion's column syntax. Widths are not part of it, so every column comes in
- * equal; a whole-document replace puts a hand-set template back.
+ * equal; a whole-document replace puts a hand-set template back. Columns sit
+ * in the text column; `<columns wide>` places them in the wide one.
  */
 export function createColumnsTransformer(
   transformers: TransformerSource,
@@ -417,7 +419,9 @@ export function createColumnsTransformer(
           ...padded(exportBlocks(transformers, item)),
           "</column>",
         ]);
-      return ["<columns>", ...columns, "</columns>"].join("\n");
+      const open =
+        $getFigure(node).width === "wide" ? "<columns wide>" : "<columns>";
+      return [open, ...columns, "</columns>"].join("\n");
     },
     handleImportAfterStartMatch: ({ lines, rootNode, startLineIndex }) => {
       const end = findClose(
@@ -432,6 +436,8 @@ export function createColumnsTransformer(
       const layout = LayoutContainerNode.$createLayoutContainerNode(
         columns.map(() => "1fr").join(" "),
       );
+      if (/\swide\b/i.test(lines[startLineIndex] ?? ""))
+        $setFigure(layout, { width: "wide" });
       for (const column of columns) {
         const item = LayoutItemNode.$createLayoutItemNode();
         $fill(item, trimBlankLines(column).join("\n"), transformers);

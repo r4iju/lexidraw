@@ -43,8 +43,8 @@ export async function checkMedia(
         },
       );
       assert(
-        hero.height <= height * 0.8 + 1,
-        `Tall image must fit 80% of ${height}px; got ${hero.height}`,
+        hero.height <= Math.min(height * 0.6, 448) + 1,
+        `An unsized image is at most 60% of ${height}px and 28rem; got ${hero.height}`,
       );
       assert(
         Math.abs(hero.width / hero.height - 0.5) < 0.01,
@@ -54,7 +54,92 @@ export async function checkMedia(
         Math.abs(hero.center - hero.columnCenter) < 2,
         "Standalone image is centered",
       );
-      assert.equal(hero.filter, "none", "Photos are never inverted");
+      assert(!hero.filter.includes("invert"), "Photos are never inverted");
+      assert(
+        theme === "dark"
+          ? /brightness\(0\.\d+\)/.test(hero.filter)
+          : hero.filter === "none",
+        `A photo is dimmed a little in dark mode only: ${hero.filter}`,
+      );
+
+      const layout = await page.evaluate(() => {
+        const content = document.querySelector(".document-content");
+        const text = content?.querySelector(":scope > p");
+        const half = document.querySelector(
+          'img[alt="Half the column · 半分"]',
+        );
+        const [columns, wide] = [
+          ...document.querySelectorAll(
+            ".document-content > [data-lexical-layout-container]",
+          ),
+        ];
+        const firstText = (element: Element | null | undefined) =>
+          element
+            ?.querySelector("[data-lexical-text]")
+            ?.getBoundingClientRect();
+        if (!text || !half || !columns || !wide)
+          throw new Error("Missing text, figure or columns");
+        const column = text.getBoundingClientRect();
+        const marker = document.querySelector(
+          ".document-content sup.footnote-ref",
+        );
+        const digit = marker?.querySelector("a")?.firstChild;
+        const before = marker?.previousElementSibling?.getClientRects();
+        const range = document.createRange();
+        if (digit) range.selectNodeContents(digit);
+        const note = document.querySelector(".document-content > .footnote");
+        const body = note?.querySelector(".footnote-body")?.getClientRects();
+        const back = note
+          ?.querySelector(".footnote-backref")
+          ?.getBoundingClientRect();
+        const lastBefore = before?.[before.length - 1];
+        const lastBody = body?.[body.length - 1];
+        return {
+          column: { left: column.left, width: column.width },
+          half: half.getBoundingClientRect().width,
+          columns: firstText(columns)?.left,
+          wide: wide.getBoundingClientRect().width,
+          gap: lastBefore
+            ? range.getBoundingClientRect().left - lastBefore.right
+            : null,
+          raise: lastBefore
+            ? lastBefore.top - range.getBoundingClientRect().top
+            : null,
+          noteLines: body?.length ?? 0,
+          back: back &&
+            lastBody && {
+              gap: back.left - lastBody.right,
+              drop: Math.abs(back.bottom - lastBody.bottom),
+            },
+        };
+      });
+      assert(
+        width < 640
+          ? Math.abs(layout.half - layout.column.width) < 1
+          : Math.abs(layout.half - layout.column.width / 2) < 1,
+        `A half-column figure fills a phone's column and is half of a wider one: ${JSON.stringify(layout)}`,
+      );
+      assert(
+        Math.abs((layout.columns ?? 0) - layout.column.left) < 1,
+        `Columns start where the text does: ${JSON.stringify(layout)}`,
+      );
+      if (width === 1280)
+        assert(layout.wide > 1000, "Columns written wide use the wide column");
+      assert(
+        layout.gap !== null && layout.gap < 1,
+        `A footnote marker hugs its word: ${layout.gap}`,
+      );
+      assert(
+        layout.raise !== null && layout.raise < 4,
+        `A footnote marker sits like a superscript: ${layout.raise}`,
+      );
+      if (width === 375) {
+        assert(layout.noteLines > 1, "The first note wraps on a phone");
+        assert(
+          layout.back && layout.back.gap < 12 && layout.back.drop < 6,
+          `The way back follows the note's last word: ${JSON.stringify(layout.back)}`,
+        );
+      }
       assert(
         await page.$('img[src="/images/image-broken.svg"]'),
         "Broken image has a placeholder",

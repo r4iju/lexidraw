@@ -113,7 +113,7 @@ export const theme = {
     underline: "underline text-foreground",
     underlineStrikethrough: "underline line-through text-foreground",
   },
-  layoutContainer: "document-wide grid gap-2",
+  layoutContainer: "grid gap-2",
   // The dashed outline shows an editor where a column ends; a reader and
   // paper see the columns without it.
   layoutItem:

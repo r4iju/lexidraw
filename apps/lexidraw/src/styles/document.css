@@ -118,15 +118,7 @@
   margin-block: 2em;
 }
 .document-content
-  > :is(
-    table,
-    pre,
-    code,
-    .document-code,
-    [data-lexical-decorator]:not(hr),
-    [data-lexical-layout-container],
-    .document-wide
-  ) {
+  > :is(table, pre, code, .document-code, [data-lexical-decorator]:not(hr)) {
   max-width: var(--doc-wide);
 }
 .document-content > .document-full {
@@ -141,9 +133,22 @@
   letter-spacing: 0.02em;
   line-break: strict;
 }
-.document-content:is(:lang(ja), :lang(zh)) :is(h1, h2, h3, h4, h5, h6) {
+.document-content:is(:lang(ja), :lang(zh))
+  :is(h1, h2, h3, h4, h5, h6, th, td, .document-caption) {
   word-break: auto-phrase;
+}
+.document-content:is(:lang(ja), :lang(zh)) :is(h1, h2, h3, h4, h5, h6) {
   font-feature-settings: "palt";
+}
+/* Elsewhere a CJK word stays whole: text marked Japanese breaks between its
+   phrases, other CJK text at its spaces and punctuation. Lexical sets the
+   content's own word-break, so this starts at its blocks. */
+.document-content:not(:lang(ja), :lang(zh)) > *,
+.document-header:not(:lang(ja), :lang(zh)) {
+  word-break: keep-all;
+}
+.document-content:not(:lang(ja), :lang(zh)) [lang="ja"] {
+  word-break: auto-phrase;
 }
 @container (max-width: 639px) {
   .document-content h1:not([data-lexical-decorator] *) {
@@ -270,9 +275,19 @@
 .document-property:is(:hover, :focus-within) .document-property-edit {
   opacity: 1;
 }
+/* Without a pointer to show one row's Edit, one header action shows them all. */
 @media (hover: none) {
   .document-property-edit {
+    visibility: hidden;
+  }
+  .document-properties[data-edits-shown] .document-property-edit {
+    visibility: visible;
     opacity: 1;
+  }
+}
+@media (hover: hover) {
+  .document-properties-toggle {
+    display: none;
   }
 }
 @container (max-width: 479px) {
@@ -409,12 +424,12 @@
 }
 .document-content sup.footnote-ref {
   position: relative;
+  top: 0;
   font-size: 0.75em;
   line-height: 0;
   vertical-align: super;
 }
 .footnote-ref-link {
-  padding-inline: 0.1em;
   color: var(--primary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -463,27 +478,45 @@
 }
 .document-content > .footnote {
   counter-increment: footnote;
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
+  position: relative;
   margin-block: 0 0.35em;
+  padding-inline-start: 1.75em;
   font-size: 0.875em;
   line-height: 1.5;
   scroll-margin-block-start: 5rem;
 }
 .document-content > :not(.footnote) + .footnote {
-  margin-block-start: 2.5em;
-  padding-block-start: 1em;
-  background:
-    linear-gradient(var(--border), var(--border)) no-repeat left top / 6em 1px;
+  margin-block-start: 3em;
+  padding-block-start: 2.25em;
+  border-block-start: 1px solid var(--border);
+}
+.document-content > :not(.footnote) + .footnote::before {
+  content: "Notes";
+  position: absolute;
+  inset-block-start: 0.75em;
+  inset-inline-start: 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.document-content:lang(ja) > :not(.footnote) + .footnote::before {
+  content: "注";
+}
+.document-content:lang(zh) > :not(.footnote) + .footnote::before {
+  content: "注释";
+}
+.document-content:lang(ko) > :not(.footnote) + .footnote::before {
+  content: "주석";
 }
 /* Blocks written after the notes, before they are gathered again. */
 .document-content > .footnote + :not(.footnote) {
   margin-block-start: 2em;
 }
 .footnote-number {
-  flex: none;
-  min-width: 1.25em;
+  position: absolute;
+  inset-inline-start: 0;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   user-select: none;
@@ -492,14 +525,11 @@
   content: counter(footnote) ".";
 }
 /* The way back follows the note's last word rather than the page edge. */
-.footnote-body {
-  flex: 0 1 auto;
-  min-width: 1ch;
-}
 .footnote-backref {
-  flex: none;
+  margin-inline-start: 0.35em;
   color: var(--primary);
   text-decoration: none;
+  white-space: nowrap;
 }
 .footnote-ref-link[id] {
   scroll-margin-block-start: 5rem;
@@ -570,6 +600,9 @@
   max-width: min(var(--doc-wide), 100%);
 }
 
+/* The region starts at the text column, so a table narrower than the text
+   lines up with it, and grows to the wide column. The table inside is as wide
+   as its content: sentences wrap before the region scrolls. */
 .document-content > .document-table-region {
   width: fit-content;
   min-width: min(var(--doc-measure), 100%);
@@ -580,7 +613,6 @@
   overflow: auto;
   max-width: 100%;
   max-height: calc(100svh - 8rem);
-  border: 1px solid var(--border);
   border-radius: 6px;
   isolation: isolate;
   overscroll-behavior-inline: contain;
@@ -600,11 +632,17 @@
   background-repeat: no-repeat;
   background-attachment: scroll;
 }
+/* A table that scrolls keeps its frame on the region, above what scrolls. */
+.document-table-region:is([data-scroll-left], [data-scroll-right]) {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
 .document-table {
-  width: max-content;
-  min-width: 100%;
+  width: auto;
   max-width: none;
   table-layout: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 15px;
@@ -613,15 +651,36 @@
   letter-spacing: normal;
 }
 .document-table :is(td, th) {
-  min-width: min(120px, 30vw);
   padding: 8px 12px;
   border-inline-end: 1px solid var(--border);
   border-block-end: 1px solid var(--border);
   vertical-align: top;
   text-align: start;
   overflow-wrap: normal;
-  word-break: keep-all;
   hyphens: none;
+}
+.document-table :is(td, th)[data-whole] p {
+  white-space: nowrap;
+}
+.document-table :is(td, th):not([data-short]) {
+  min-width: min(7.5rem, 40vw);
+}
+/* Room to start typing in a new table. */
+.document-table
+:is(td, th):not(:has([data-lexical-text], [data-lexical-decorator])) {
+  min-width: 6rem;
+}
+.document-table > tr:first-child > :first-child {
+  border-start-start-radius: 5px;
+}
+.document-table > tr:first-child > :last-child {
+  border-start-end-radius: 5px;
+}
+.document-table > tr:last-child > :first-child {
+  border-end-start-radius: 5px;
+}
+.document-table > tr:last-child > :last-child {
+  border-end-end-radius: 5px;
 }
 .document-table tr > :last-child {
   border-inline-end: 0;
@@ -645,6 +704,7 @@
   margin-block-end: 0;
 }
 .document-table[data-sized="true"] {
+  width: max-content;
   table-layout: fixed;
 }
 .document-table[data-print-table] {
@@ -654,14 +714,30 @@
   .document-table tr:hover > td {
     background-color: var(--accent);
   }
-  .document-content[contenteditable="true"] .document-table :is(td, th) {
-    padding-inline-end: 40px;
+  /* The cell menu's trigger sits in the top end corner; text wraps around
+     it there rather than every cell being wider to leave it room. */
+  .document-content[contenteditable="true"]
+    .document-table
+    :is(td, th)::before {
+    content: "";
+    float: inline-end;
+    width: 20px;
+    height: 24px;
+  }
+  @media (pointer: coarse) {
+    .document-content[contenteditable="true"]
+      .document-table
+      :is(td, th)::before {
+      width: 40px;
+      height: 44px;
+    }
   }
 }
 @media screen and (max-width: 639px) {
+  /* Inside the table's own border, where it was before the scroll began. */
   .document-table[data-pin-first="true"] tr > :first-child {
     position: sticky;
-    left: 0;
+    left: 1px;
     z-index: 1;
     background-color: var(--card);
   }
@@ -756,6 +832,10 @@
   ) {
   max-width: min(var(--doc-wide), 100%);
 }
+/* An image placed at no width is kept to a screenful's share of height. */
+.document-content .editor-image:not([data-figure-width]) .document-image {
+  max-height: min(60svh, 28rem);
+}
 .document-content
   > :is(
     [data-lexical-decorator][data-figure-width="full"],
@@ -763,15 +843,28 @@
   ) {
   max-width: none;
 }
+/* A share of the column, but never narrower than a phone's column allows:
+   on a phone it is the whole column. */
+.document-content {
+  --figure-least: min(100%, 20rem);
+}
 .document-content > [data-lexical-decorator][data-figure-width="share"] {
-  max-width: calc(min(var(--doc-measure), 100%) * var(--figure-share));
+  max-width: max(
+    calc(min(var(--doc-measure), 100%) * var(--figure-share)),
+    var(--figure-least)
+  );
 }
 .document-content > p > [data-figure-width] {
   display: block;
   margin-inline: auto;
 }
 .document-content > p > [data-figure-width="share"] {
-  width: calc(var(--figure-share) * 100%);
+  width: max(calc(var(--figure-share) * 100%), var(--figure-least));
+}
+@container (max-width: 567px) {
+  .document-content {
+    --figure-least: 100%;
+  }
 }
 .document-content [data-figure-width] > .document-figure {
   display: block;
@@ -807,6 +900,24 @@
 }
 .document-content > figure[type="page-break"] {
   width: 100%;
+}
+/* Columns sit in the text column with their text in line with it; the frame
+   an editor sees stands out into the margin. `<columns wide>` uses the wide
+   column. */
+.document-content > [data-lexical-layout-container] {
+  --column-inset: calc(0.5rem + 1px);
+  --column-measure: var(--doc-measure);
+  width: calc(100% + 2 * var(--column-inset));
+  max-width: calc(var(--column-measure) + 2 * var(--column-inset));
+  margin-inline: max(
+    calc(-1 * var(--column-inset)),
+    calc((100% - var(--column-measure)) / 2 - var(--column-inset))
+  );
+  margin-block: calc(-1 * var(--column-inset))
+    calc(var(--block-gap) - var(--column-inset));
+}
+.document-content > [data-lexical-layout-container][data-figure-width="wide"] {
+  --column-measure: var(--doc-wide);
 }
 @container (max-width: 567px) {
   .document-content [data-lexical-layout-container] {
@@ -845,6 +956,19 @@
 @media screen {
   .dark .document-diagram:not([data-mermaid]) {
     filter: invert(93%) hue-rotate(180deg);
+  }
+  /* A photo on a white ground would glare on the dark page; it is dimmed a
+     little, and shown as it is while pointed at or selected. */
+  .dark :is(.document-content .document-image, .document-cover img) {
+    filter: brightness(0.88);
+    transition: filter 150ms;
+  }
+  .dark
+    :is(.document-content .document-image, .document-cover img):is(
+      :hover,
+      [data-selected]
+    ) {
+    filter: none;
   }
 }
 

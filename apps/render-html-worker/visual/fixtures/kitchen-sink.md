@@ -28,7 +28,7 @@ A footnote marker sits in the accent colour[^accent] and a second follows it[^se
 
 ## Heading two · 京都の秋をゆっくり歩くための見出し
 
-### Heading three
+### Heading three · サーモンのレモンハーブグリル
 
 #### Heading four
 
@@ -88,6 +88,12 @@ one line, no numbers
 | Tofu · 豆腐 | Sear both sides in a pan | Drain and press thoroughly | 8 | ¥400 | 85% |
 | Rice · ご飯 | Steam with measured water | Rinse until water runs clear | Pending | ¥200 | 100% |
 
+| Mode | Best for | 日本語 |
+| --- | --- | --- |
+| Crisp | Anything you would deep-fry: karaage, fries and yakitori | クリスプ |
+| Recrisp | Reviving cold fried food, bread and 惣菜 | リクリスプ |
+| Bake/Roast | Meat, fish, bread and cakes, gentler and more even | ベイク・ロースト |
+
 Inline math $E=mc^2$ and a block:
 
 $$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$$
@@ -138,6 +144,19 @@ Third column · 三
 </column>
 </columns>
 
+<columns wide>
+<column>
+
+Wide left · 広い左
+
+</column>
+<column>
+
+Wide right · 広い右
+
+</column>
+</columns>
+
 ## Rich blocks · 図とメディア
 
 The following blocks come from kitchen-sink.blocks.json until they have Markdown forms.
@@ -148,5 +167,5 @@ The following blocks come from kitchen-sink.blocks.json until they have Markdown
 
 Latin *italic title* and **bold *italic title*** stay distinct in Japanese documents.
 
-[^accent]: The note, with a way back to its marker · 脚注の本文。
+[^accent]: The note, with a way back to its marker that follows its last word when the note wraps · 脚注の本文。
 [^second]: A second note keeps its number in print.

@@ -146,6 +146,7 @@ import {
   documentSettings,
 } from "~/lib/document-fonts";
 import { FontResources } from "./document-typography";
+import { TextLanguagePlugin } from "./plugins/text-language";
 import { DocumentFontsPlugin } from "./plugins/DocumentFontsPlugin";
 import {
   type SentSettings,
@@ -531,6 +532,7 @@ function EditorHandler({
                   <LexicalImageProvider>
                     <CommentPluginProvider>
                       <DocumentFontsPlugin lang={detectedLanguage} />
+                      <TextLanguagePlugin lang={detectedLanguage} />
                       <SlidePlugin />
                       <EditabilityPlugin editable={canEdit && !reading} />
                       {!onScreen && <RenderReadyPlugin />}

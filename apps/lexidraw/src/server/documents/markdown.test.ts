@@ -668,6 +668,15 @@ describe("columns", () => {
     expect(layout).toMatchObject({ templateColumns: "1fr 1fr 1fr" });
     expect(layout?.children).toHaveLength(3);
   });
+
+  test("columns sit in the text column unless written wide, and keep it", () => {
+    const wide = COLUMNS.replace("<columns>", "<columns wide>");
+    const [plain] = blocksOf(COLUMNS);
+    const [placed] = blocksOf(wide);
+    expect(plain).not.toHaveProperty("$");
+    expect(placed).toMatchObject({ $: { figure: { width: "wide" } } });
+    expect(roundTrip(wide)).toBe(wide);
+  });
 });
 
 describe("predictable parsing", () => {
@@ -779,11 +788,11 @@ describe("interpretMarkdown", () => {
     ]);
   });
 
-  test("wide tables share one note", () => {
+  test("wide tables share one note, and four short columns fit a phone", () => {
     const table = (columns: number) =>
       `|${" h |".repeat(columns)}\n|${" --- |".repeat(columns)}\n|${" 1 |".repeat(columns)}`;
     const { notes } = interpretMarkdown(
-      [table(6), table(5), table(5), table(2)].join("\n\n"),
+      [table(6), table(5), table(5), table(4), table(2)].join("\n\n"),
     );
     expect(notes).toEqual([
       "3 tables of 5 to 6 columns scroll sideways on phones; fewer columns, or a list, read better there",

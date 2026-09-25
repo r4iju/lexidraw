@@ -11,6 +11,7 @@ import type {
 
 import { addClassNamesToElement } from "@lexical/utils";
 import { ElementNode } from "lexical";
+import { figureDOM } from "../figure.js";
 
 export type SerializedLayoutContainerNode = Spread<
   {
@@ -57,6 +58,7 @@ export class LayoutContainerNode extends ElementNode {
     if (typeof config.theme.layoutContainer === "string") {
       addClassNamesToElement(dom, config.theme.layoutContainer);
     }
+    figureDOM(this, dom);
     return dom;
   }
 
@@ -71,6 +73,7 @@ export class LayoutContainerNode extends ElementNode {
     if (prevNode.__templateColumns !== this.__templateColumns) {
       dom.style.gridTemplateColumns = this.__templateColumns;
     }
+    figureDOM(this, dom);
     return false;
   }
 
@@ -89,7 +92,9 @@ export class LayoutContainerNode extends ElementNode {
   }
 
   static importJSON(json: SerializedLayoutContainerNode): LayoutContainerNode {
-    return LayoutContainerNode.$createLayoutContainerNode(json.templateColumns);
+    return LayoutContainerNode.$createLayoutContainerNode(
+      json.templateColumns,
+    ).updateFromJSON(json);
   }
 
   isShadowRoot(): boolean {

@@ -14,6 +14,48 @@ import { useEffect } from "react";
 const number =
   /^(?:[+-]?\s*(?:[$€£¥￥]|[A-Z]{3}\s)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|円)?|\(\s*[$€£¥￥]?\d[\d,]*(?:\.\d+)?\s*\))$/u;
 
+const WIDE =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
+
+/**
+ * About as many Latin letters as a label fits in: a column whose every cell
+ * is this short (numbers, dates, names such as "claude-dev") stays on one line
+ * while the table fits, so the columns holding sentences give way first.
+ */
+const SHORT_COLUMNS = 16;
+
+/**
+ * A table this wide scrolls on a phone whatever its cells do, and there a
+ * label that stays whole reads better than one broken to fit.
+ */
+const SCROLLING_COLUMNS = 5;
+
+const columnsWide = (text: string) =>
+  [...text].reduce((width, char) => width + (WIDE.test(char) ? 2 : 1), 0);
+
+const setWhole = (table: HTMLTableElement, column: number, whole: boolean) => {
+  for (const row of table.rows)
+    row.cells[column]?.toggleAttribute("data-whole", whole);
+};
+
+/** Short columns stay whole only while together they leave the table room to
+ * fit; past that the widest gives way first, between its words. */
+function fitShortColumns(
+  table: HTMLTableElement,
+  region: HTMLElement,
+  short: readonly number[],
+) {
+  for (const column of short) setWhole(table, column, true);
+  if ((table.rows[0]?.cells.length ?? 0) >= SCROLLING_COLUMNS) return;
+  const whole = [...short];
+  while (whole.length > 0 && table.offsetWidth > region.clientWidth) {
+    const width = (column: number) =>
+      table.rows[0]?.cells[column]?.offsetWidth ?? 0;
+    whole.sort((a, b) => width(b) - width(a));
+    setWhole(table, whole.shift() as number, false);
+  }
+}
+
 export function DocumentTablesPlugin() {
   const [editor] = useLexicalComposerContext();
 
@@ -42,12 +84,14 @@ export function DocumentTablesPlugin() {
   // DOM measurements and scroll hints are presentation, never editor-state writes.
   useEffect(() => {
     const cleanups = new Map<HTMLTableElement, () => void>();
+    const shortColumns = new Map<HTMLTableElement, number[]>();
     const refresh = () => {
       const root = editor.getRootElement();
       for (const [table, cleanup] of cleanups) {
         if (!root?.contains(table)) {
           cleanup();
           cleanups.delete(table);
+          shortColumns.delete(table);
         }
       }
       for (const table of root?.querySelectorAll<HTMLTableElement>("table") ??
@@ -64,6 +108,7 @@ export function DocumentTablesPlugin() {
         table.dataset.sized = String(
           Boolean(table.querySelector('col[style*="width"]')),
         );
+        const short: number[] = [];
         for (let column = 0; column < columns; column++) {
           const cells = rows
             .map((row) => row.cells[column])
@@ -76,11 +121,26 @@ export function DocumentTablesPlugin() {
               .length /
               body.length >=
               0.8;
-          for (const cell of cells)
+          const isShort = cells.every(
+            (cell) =>
+              columnsWide(cell.textContent?.trim() ?? "") <= SHORT_COLUMNS,
+          );
+          for (const cell of cells) {
             cell.toggleAttribute("data-numeric", numeric);
+            cell.toggleAttribute("data-short", isShort);
+            cell.toggleAttribute("data-whole", false);
+          }
+          if (isShort) short.push(column);
         }
+        shortColumns.set(table, short);
+        fitShortColumns(table, region, short);
         if (cleanups.has(table)) continue;
+        let fittedWidth = region.clientWidth;
         const updateScroll = () => {
+          if (region.clientWidth !== fittedWidth) {
+            fittedWidth = region.clientWidth;
+            fitShortColumns(table, region, shortColumns.get(table) ?? []);
+          }
           region.toggleAttribute("data-scroll-left", region.scrollLeft > 1);
           region.toggleAttribute(
             "data-scroll-right",

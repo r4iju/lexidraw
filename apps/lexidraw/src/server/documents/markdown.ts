@@ -296,10 +296,11 @@ function* walk(node: Walked): Generator<Walked> {
 }
 
 /**
- * A table this many columns wide or wider scrolls sideways on a 375px phone,
- * where the column is 343px and each table column at least 30vw.
+ * A table this many columns wide or wider most likely scrolls sideways on a
+ * 375px phone: its 343px column holds four short columns, or two short ones
+ * beside a sentence, which wraps at no less than 120px.
  */
-const PHONE_TABLE_COLUMNS = 4;
+const PHONE_TABLE_COLUMNS = 5;
 
 const columnCount = (table: Walked) =>
   (table.children?.[0]?.children ?? []).reduce(

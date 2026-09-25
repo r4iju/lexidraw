@@ -194,14 +194,14 @@ read, edited and replaced keeps its structure.
 | `> text` | a quote |
 | `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | a callout of that kind, tinted in its colour; any text after the marker is its title, and every following `>` line is its body, which can hold any blocks |
 | `<details>` + `<summary>Title</summary>` … `</details>` | a collapsible section; `<details open>` starts open |
-| `<columns>` + one `<column>` … `</column>` each … `</columns>` | side-by-side columns of equal width, stacked on phones |
-| a GFM table (`\| a \| b \|` + `\| --- \| ---: \|`) | a table; alignment colons are kept |
+| `<columns>` + one `<column>` … `</column>` each … `</columns>` | side-by-side columns of equal width in the text column, stacked on phones; `<columns wide>` uses the wide column |
+| a GFM table (`\| a \| b \|` + `\| --- \| ---: \|`) | a table as wide as its content; sentences in cells wrap first, and short labels, numbers and dates only between words once a phone has no room left; alignment colons are kept |
 | ```` ```lang ```` fence | a code block with syntax highlighting |
 | `$x^2$` | inline math: the `$` hug the formula, no space inside and no digit after |
 | `$$x^2$$` on its own line, or `$$` lines around it | a block equation |
 | `![Caption](src)` on its own line | an image with that caption; `![Caption](src){alt="Text for screen readers"}` adds alt text |
 | `![alt](src "Caption")` | an image whose alt and caption differ; inside a sentence the brackets are only alt |
-| `{.wide}`, `{.full}`, `{width=50%}` after an image | the wide column, the page width, or a share of the text column (10–99%); the text column is the default |
+| `{.wide}`, `{.full}`, `{width=50%}` after an image | the wide column, the page width, or a share of the text column (10–99%, the whole column on a phone); the text column is the default, at most 28rem tall |
 | `text[^1]` and `[^1]: The note.` | a footnote; notes are numbered in the order their markers appear and gather at the end |
 | `---` | a horizontal rule |
 | `<tweet id="…" />` on its own line | an embedded post |
@@ -210,8 +210,9 @@ read, edited and replaced keeps its structure.
   around their content.
 - `$5 and $10` stays prose. Write `\$` only when a `$` would otherwise hug
   text, as in `\$x$`.
-- Tables of four or more columns scroll sideways on phones; prefer fewer
-  columns, or a list.
+- Tables of five or more columns scroll sideways on phones; prefer fewer
+  columns, or a list. Japanese in an English document breaks between
+  phrases, so it needs no markup.
 - Obsidian (`> [!info]`, `> [!danger]` …) and Docusaurus (`:::tip[Title]` …
   `:::`) callouts import as the nearest of the five kinds, keeping the word as
   the title. A read always writes the GitHub form.

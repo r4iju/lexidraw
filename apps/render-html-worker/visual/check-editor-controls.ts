@@ -612,6 +612,29 @@ export async function checkEditorControls(
     await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
     "The touch viewport reports a coarse pointer",
   );
+  const propertyEdits = () =>
+    page.$$eval('.document-header button[aria-label^="Edit "]', (buttons) =>
+      buttons.map((button) => {
+        const style = getComputedStyle(button);
+        return style.visibility === "visible" && style.opacity !== "0";
+      }),
+    );
+  const hidden = await propertyEdits();
+  assert(
+    hidden.length > 0 && hidden.every((shown) => !shown),
+    "A property's Edit stays out of sight on touch until asked for",
+  );
+  await tap(page, ".document-header button[aria-controls]");
+  assert(
+    (await propertyEdits()).every(Boolean),
+    "One header action shows every property's Edit",
+  );
+  await tap(page, '.document-header button[aria-label^="Edit "]');
+  assert(
+    await page.$('.document-header input[aria-label="Property name"]'),
+    "Edit opens the property",
+  );
+  await open(page, fixtureId);
   await tap(page, `${CONTENT} p`);
   assert(!(await page.$(`${FLOATING}`)), "No selection toolbar on touch");
   const blockMenu = (await openToolbarMenu(page, "Block")).map((i) => i.text);

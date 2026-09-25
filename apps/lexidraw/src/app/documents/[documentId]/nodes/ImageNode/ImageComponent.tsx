@@ -97,6 +97,7 @@ function LazyImage({
           ref={imageRef}
           draggable={false}
           className={cn("document-image", focused && "ring-2 ring-ring")}
+          data-selected={focused || undefined}
           style={{
             display: status === "loading" ? "none" : undefined,
             width: fill ? "100%" : undefined,
