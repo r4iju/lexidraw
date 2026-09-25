@@ -93,27 +93,21 @@ beforeAll(async () => {
 const mentions = (value: unknown, id: string) =>
   JSON.stringify(value).includes(id);
 
-describe("who else has a file is for those who can edit it", () => {
-  test("its owner and its editors see everyone it is shared with", async () => {
-    for (const userId of [OWNER, EDITOR]) {
+describe("loading a file says whether it is shared, never with whom", () => {
+  test("to its owner, its editors and its readers alike", async () => {
+    for (const userId of [OWNER, EDITOR, READER]) {
       const loaded = await callerOf(userId).load({ id: "erd_doc" });
-      expect(loaded.sharedWith.map((s) => s.userId).toSorted()).toEqual([
-        EDITOR,
-        READER,
-      ]);
+      expect(loaded.shared).toBe(true);
+      expect("sharedWith" in loaded).toBe(false);
+      for (const sharee of [EDITOR, READER].filter((id) => id !== userId)) {
+        expect(mentions(loaded, sharee)).toBe(false);
+      }
     }
   });
 
-  test("a reader sees only their own share", async () => {
-    const loaded = await callerOf(READER).load({ id: "erd_doc" });
-    expect(loaded.sharedWith).toEqual([
-      { userId: READER, accessLevel: AccessLevel.READ },
-    ]);
-  });
-
-  test("someone reading a public file sees no shares", async () => {
+  test("and that a file shared with nobody is not", async () => {
     const loaded = await callerOf(null).load({ id: "erd_public" });
-    expect(loaded.sharedWith).toEqual([]);
+    expect(loaded.shared).toBe(false);
   });
 });
 

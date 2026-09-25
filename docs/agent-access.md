@@ -100,7 +100,8 @@ and existence stays private.
 Who an entity is shared with is its owner's to know. `GET
 /entities/{id}/shares` answers only the owner; to anyone else, a user it is
 shared with included, it is `NOT_FOUND`, as for a stranger. A listing says
-`isOwner` for each item rather than naming its owner.
+`isOwner` for each item rather than naming its owner, and `GET /entities/{id}`
+says only `shared`, whether anyone has been given it.
 
 `PATCH` and `DELETE /entities/{id}/shares/{userId}` answer `{ success, message }`
 only when they changed or removed a share that was there. A user who holds no

@@ -791,21 +791,8 @@
                       "type": "string",
                       "enum": ["READ", "PRIVATE", "EDIT"]
                     },
-                    "sharedWith": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "userId": {
-                            "type": "string"
-                          },
-                          "accessLevel": {
-                            "type": "string"
-                          }
-                        },
-                        "required": ["userId", "accessLevel"],
-                        "additionalProperties": false
-                      }
+                    "shared": {
+                      "type": "boolean"
                     },
                     "accessLevel": {
                       "type": "string",
@@ -823,7 +810,7 @@
                     "appState",
                     "elements",
                     "publicAccess",
-                    "sharedWith",
+                    "shared",
                     "accessLevel",
                     "updatedAt"
                   ],

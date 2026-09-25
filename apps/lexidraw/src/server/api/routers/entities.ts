@@ -73,9 +73,9 @@ const loadOutput = z.object({
   appState: z.string().nullable(),
   elements: z.string(),
   publicAccess: z.enum(PublicAccess),
-  sharedWith: z.array(
-    z.object({ userId: z.string(), accessLevel: z.string() }),
-  ),
+  // Whether it is shared with anyone, not with whom: the owner alone sees
+  // that, through getSharedInfo.
+  shared: z.boolean(),
   accessLevel: z.enum(AccessLevel),
   // The revision the content is, so an open editor can tell when it moved.
   updatedAt: isoDate,
@@ -464,22 +464,13 @@ export const entityRouter = createTRPCRouter({
       const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
       if (!entity) throw notFound();
 
-      // Everyone it is shared with for whoever may share it, as the share
-      // dialog lists them; anyone else, only their own share.
-      const sharedWith = await ctx.drizzle
-        .select({
-          userId: schema.sharedEntities.userId,
-          accessLevel: schema.sharedEntities.accessLevel,
-        })
+      // Whether anyone else has it, so the editor knows to connect for
+      // collaboration; who they are is the owner's to see, in getSharedInfo.
+      const [anyShare] = await ctx.drizzle
+        .select({ userId: schema.sharedEntities.userId })
         .from(schema.sharedEntities)
-        .where(
-          and(
-            eq(schema.sharedEntities.entityId, input.id),
-            canShare(entity, userId)
-              ? undefined
-              : eq(schema.sharedEntities.userId, userId),
-          ),
-        );
+        .where(eq(schema.sharedEntities.entityId, input.id))
+        .limit(1);
 
       const hasEditAccess =
         canShare(entity, userId) || entity.publicAccess === PublicAccess.EDIT;
@@ -492,7 +483,7 @@ export const entityRouter = createTRPCRouter({
         appState: entity.appState,
         elements: entity.elements,
         publicAccess: entity.publicAccess,
-        sharedWith,
+        shared: anyShare !== undefined,
         accessLevel,
         updatedAt: entity.updatedAt,
       };

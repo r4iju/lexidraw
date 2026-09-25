@@ -179,7 +179,7 @@ function loaded(row: Row) {
     appState: null,
     elements: "{}",
     publicAccess: "PRIVATE",
-    sharedWith: [],
+    shared: false,
     accessLevel: "EDIT",
   };
 }

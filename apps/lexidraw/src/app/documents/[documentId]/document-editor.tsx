@@ -265,9 +265,7 @@ function EditorHandler({
   const canEdit = mayEdit(renderMode, entity.accessLevel);
   const [reading, setReading] = useState(false);
   const canCollaborate =
-    onScreen &&
-    (entity.sharedWith.length > 0 ||
-      entity.publicAccess !== PublicAccess.PRIVATE);
+    onScreen && (entity.shared || entity.publicAccess !== PublicAccess.PRIVATE);
   const userId = useUserIdOrGuestId();
   const roomToken = useRoomToken(entity.id, userId);
   const [isCollaborating, setIsCollaborating] = useState(false);
