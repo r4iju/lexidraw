@@ -47,7 +47,7 @@ import OptionsDropdown from "./plugins/options-dropdown";
 import type { EditorState, Klass, LexicalNode } from "lexical";
 import { $getRoot, COLLABORATION_TAG } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
-import { useRoomToken } from "~/hooks/communication-service/use-room-token";
+import { useRoomSignaling } from "~/hooks/communication-service/room-signaling";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import FloatingLinkEditorPlugin from "./plugins/FloatingTextFormatToolbarPlugin/FloatingLinkEditorPlugin";
@@ -269,7 +269,7 @@ function EditorHandler({
     (entity.sharedWith.length > 0 ||
       entity.publicAccess !== PublicAccess.PRIVATE);
   const userId = useUserIdOrGuestId();
-  const roomToken = useRoomToken(entity.id, userId);
+  const signaling = useRoomSignaling(entity.id, userId);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [editor] = useLexicalComposerContext();
   // Metadata can change before Lexical emits its first content update.
@@ -474,7 +474,7 @@ function EditorHandler({
     initializeConnection,
     connected: peersConnected,
   } = useWebRtcService(
-    { drawingId: entity.id, userId, iceServers, getRoomToken: roomToken },
+    { iceServers, signaling },
     {
       onMessage: applyUpdate,
       onConnectionClose: () => setIsCollaborating(false),

@@ -16,7 +16,6 @@ const PROCESSORS = [
   ["GitHub", "signs you in, if you choose Continue with GitHub"],
   ["Unsplash", "finds images when you search for one"],
   ["Bright Data", "fetches the web pages you save as links"],
-  ["Firebase", "connects people editing the same file at once"],
   ["Cloudflare", "protects the services that turn pages into text and audio"],
 ] as const;
 

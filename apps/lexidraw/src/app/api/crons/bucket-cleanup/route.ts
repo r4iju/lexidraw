@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { canRunCron } from "../cron-middleware";
 import { start } from "workflow/api";
 import { errorCode } from "~/server/auth/error-code";
+import { drizzle } from "@packages/drizzle";
 import { purgeExpiredSignInAttempts } from "~/server/auth/sign-in-rate-limit";
+import { purgeRoomSignals } from "~/server/rooms/room-signaling";
 import { cleanupOrphanedBlobsWorkflow } from "~/workflows/cleanup/cleanup-orphaned-blobs-workflow";
 
 export async function GET() {
@@ -17,6 +19,14 @@ export async function GET() {
     await purgeExpiredSignInAttempts();
   } catch (error) {
     console.error("[Vercel Blob Cleanup] Sign-in attempt purge failed", {
+      error: errorCode(error),
+    });
+  }
+
+  try {
+    await purgeRoomSignals(drizzle, Date.now());
+  } catch (error) {
+    console.error("[Vercel Blob Cleanup] Room signal purge failed", {
       error: errorCode(error),
     });
   }

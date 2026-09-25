@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ICommunicationOptions,
-  ICommunicationProps,
   ICommunicationReturnType,
 } from "./interface";
 import type { WebRtcMessage, MessageStructure } from "@packages/types";
 import { toast } from "sonner";
-import env from "@packages/env";
 import { PeerAccess } from "./peer-access";
+import type { DirectedSignal, RoomSignaling } from "./room-signaling";
 
 /**
  * `connected` says whether any collaborator's channel is open, and follows
@@ -17,17 +16,12 @@ import { PeerAccess } from "./peer-access";
  */
 export function useWebRtcService(
   {
-    drawingId,
-    userId,
     iceServers,
-    getRoomToken,
-  }: ICommunicationProps & {
+    signaling,
+  }: {
     iceServers: RTCIceServer[];
-    /**
-     * A token for the signaling server, asked for on every connect; see
-     * `useRoomToken`. Null, or no function at all, connects without one.
-     */
-    getRoomToken?: () => Promise<string | null>;
+    /** Where peers find each other; see `useRoomSignaling`. */
+    signaling: RoomSignaling;
   },
   { onMessage, onConnectionClose, onConnectionOpen }: ICommunicationOptions,
 ): ICommunicationReturnType & { connected: boolean } {
@@ -35,21 +29,28 @@ export function useWebRtcService(
   const reconnectionAttemptsRef = useRef(0);
   const onConnectionCloseRef = useRef(onConnectionClose);
 
-  const websocket = useRef<WebSocket | null>(null);
+  const leaveRoomStream = useRef<(() => void) | null>(null);
   const localConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const dataChannels = useRef<Map<string, RTCDataChannel>>(new Map());
   const peerAccess = useRef(new PeerAccess());
-  const connecting = useRef(false);
-  const getRoomTokenRef = useRef(getRoomToken);
-  useEffect(() => {
-    getRoomTokenRef.current = getRoomToken;
-  }, [getRoomToken]);
 
-  // Updates from a peer the signaling server says may only read are dropped.
+  const signal = useCallback(
+    (message: DirectedSignal) => {
+      signaling.send(message).catch((error: unknown) => {
+        console.error(`Could not send ${message.type}:`, error);
+      });
+    },
+    [signaling],
+  );
+
+  // Updates from a peer the room does not say may edit are dropped.
   const receive = useCallback(
     (clientId: string, event: MessageEvent<string>) => {
       if (!peerAccess.current.accepts(clientId)) {
-        console.warn("Ignoring an update from a read-only peer:", clientId);
+        console.warn(
+          "Ignoring an update from a peer who may not edit:",
+          clientId,
+        );
         return;
       }
       onMessage(JSON.parse(event.data) as MessageStructure);
@@ -79,23 +80,22 @@ export function useWebRtcService(
 
   const setupPeerConnection = useCallback(
     (clientId: string) => {
-      if (!websocket.current) {
-        throw new Error("WebSocket connection not established");
-      }
+      // A peer that joins again, say from a reloaded tab, starts over.
+      localConnections.current.get(clientId)?.close();
+      dataChannels.current.get(clientId)?.close();
+      dataChannels.current.delete(clientId);
+
       const config = { iceServers } satisfies RTCConfiguration;
       const conn = new RTCPeerConnection(config);
+      const isCurrent = () => localConnections.current.get(clientId) === conn;
 
       conn.onicecandidate = (event) => {
-        if (event.candidate && websocket.current?.OPEN) {
-          websocket.current?.send(
-            JSON.stringify({
-              room: drawingId,
-              to: clientId,
-              from: userId,
-              type: "iceCandidate",
-              candidate: JSON.stringify(event.candidate),
-            } satisfies WebRtcMessage),
-          );
+        if (event.candidate) {
+          signal({
+            type: "iceCandidate",
+            to: clientId,
+            payload: JSON.stringify(event.candidate),
+          });
         }
       };
 
@@ -103,9 +103,7 @@ export function useWebRtcService(
       channel.onopen = () => console.log("Data channel open");
       channel.onclose = () => {
         console.log("channel closed");
-        if (dataChannels.current.has(clientId)) {
-          dataChannels.current.delete(clientId);
-        }
+        if (isCurrent()) dataChannels.current.delete(clientId);
         channelsChanged();
       };
       channel.onmessage = (event: MessageEvent<string>) => {
@@ -134,7 +132,7 @@ export function useWebRtcService(
       setPeers(Array.from(localConnections.current.keys()));
       return conn;
     },
-    [drawingId, userId, iceServers, receive, onConnectionOpen, channelsChanged],
+    [iceServers, signal, receive, onConnectionOpen, channelsChanged],
   );
 
   const handleParticipantJoined = useCallback(
@@ -143,19 +141,9 @@ export function useWebRtcService(
       const peerConnection = setupPeerConnection(clientId);
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
-      if (websocket.current?.OPEN) {
-        websocket.current?.send(
-          JSON.stringify({
-            room: drawingId,
-            to: clientId,
-            from: userId,
-            type: "offer",
-            offer: JSON.stringify(offer),
-          } satisfies WebRtcMessage),
-        );
-      }
+      signal({ type: "offer", to: clientId, payload: JSON.stringify(offer) });
     },
-    [drawingId, setupPeerConnection, userId],
+    [setupPeerConnection, signal],
   );
 
   const handleRemoteOffer = useCallback(
@@ -170,22 +158,16 @@ export function useWebRtcService(
         );
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
-        if (websocket.current?.OPEN) {
-          websocket.current?.send(
-            JSON.stringify({
-              room: drawingId,
-              from: userId,
-              to: clientId,
-              type: "answer",
-              answer: JSON.stringify(answer),
-            } satisfies WebRtcMessage),
-          );
-        }
+        signal({
+          type: "answer",
+          to: clientId,
+          payload: JSON.stringify(answer),
+        });
       } catch (error) {
         console.error("Failed to handle remote offer:", error);
       }
     },
-    [drawingId, setupPeerConnection, userId],
+    [setupPeerConnection, signal],
   );
 
   const handleRemoteAnswer = useCallback(
@@ -239,69 +221,15 @@ export function useWebRtcService(
       reconnectionAttemptsRef.current += 1;
       initializeConnectionRef
         .current?.()
-        .then(() => console.log("Reconnecting websocket connection..."))
+        .then(() => console.log("Rejoining the room..."))
         .catch(console.error);
     }, delay);
   }, []);
 
-  const initializeConnection = useCallback(async () => {
-    // check if we're already connected or if we're connecting
-    if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
-      console.log("Already connected");
-      return;
-    }
-    if (
-      websocket.current &&
-      websocket.current.readyState === WebSocket.CONNECTING
-    ) {
-      console.log("Already connecting");
-      return;
-    }
-    if (connecting.current) {
-      console.log("Already connecting");
-      return;
-    }
-    console.log("Initializing WebSocket connection");
-
-    // A signaling server with a secret wants a room token, which the app
-    // issues when it holds the same secret. Without one, the client connects
-    // as it always has.
-    let token: string | null;
-    connecting.current = true;
-    try {
-      token = (await getRoomTokenRef.current?.()) ?? null;
-    } catch (error) {
-      console.error("Could not get a room token:", error);
-      connecting.current = false;
-      scheduleReconnect();
-      return;
-    }
-    connecting.current = false;
-
-    const ws = new WebSocket(
-      token
-        ? withRoomToken(env.NEXT_PUBLIC_WS_SERVER, token)
-        : env.NEXT_PUBLIC_WS_SERVER,
-    );
-    websocket.current = ws;
-
-    ws.onopen = () => {
-      console.log("WebSocket connection established");
-      ws.send(
-        JSON.stringify({
-          room: drawingId,
-          from: userId,
-          type: "join",
-        } satisfies WebRtcMessage),
-      );
-    };
-
-    ws.onmessage = async (event: MessageEvent<string>) => {
-      console.log("received websocket message: ", event.data);
-      const message = JSON.parse(event.data) as WebRtcMessage;
+  const handleSignal = useCallback(
+    async (message: WebRtcMessage) => {
       const clientId = message.from;
       peerAccess.current.heard(message);
-      // Handle different types of messages (offer, answer, ICE candidate)
       switch (message.type) {
         case "offer":
           await handleRemoteOffer(clientId, message.offer);
@@ -316,61 +244,76 @@ export function useWebRtcService(
           handleParticipantLeft(clientId);
           break;
         case "join":
-          handleParticipantJoined(clientId);
+          await handleParticipantJoined(clientId);
           break;
         default:
           console.log("Unknown message type:", message satisfies never);
       }
-    };
+    },
+    [
+      handleIceCandidate,
+      handleParticipantJoined,
+      handleParticipantLeft,
+      handleRemoteAnswer,
+      handleRemoteOffer,
+    ],
+  );
 
-    ws.onclose = () => {
-      console.log("WebSocket connection closed");
-      scheduleReconnect();
-    };
-
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-  }, [
-    drawingId,
-    handleIceCandidate,
-    handleParticipantJoined,
-    handleParticipantLeft,
-    handleRemoteAnswer,
-    handleRemoteOffer,
-    scheduleReconnect,
-    userId,
-  ]);
+  const initializeConnection = useCallback(async () => {
+    if (leaveRoomStream.current) {
+      console.log("Already in the room");
+      return;
+    }
+    console.log("Joining the room");
+    shouldReconnectRef.current = true;
+    leaveRoomStream.current = signaling.open({
+      onMessage: (message) => {
+        reconnectionAttemptsRef.current = 0;
+        handleSignal(message).catch(console.error);
+      },
+      onClosed: (retry) => {
+        console.log("The room closed", retry ? "; rejoining" : "");
+        leaveRoomStream.current = null;
+        if (retry) scheduleReconnect();
+      },
+    });
+  }, [handleSignal, scheduleReconnect, signaling]);
 
   useEffect(() => {
     initializeConnectionRef.current = initializeConnection;
   }, [initializeConnection]);
 
-  const closeConnection = useCallback((muted = false) => {
-    shouldReconnectRef.current = false;
-    reconnectionAttemptsRef.current = 0;
+  const closeConnection = useCallback(
+    (muted = false) => {
+      shouldReconnectRef.current = false;
+      reconnectionAttemptsRef.current = 0;
 
-    for (const [_, conn] of localConnections.current) {
-      conn.close();
-    }
-    localConnections.current = new Map();
-    peerAccess.current = new PeerAccess();
-    setPeers([]);
+      for (const [_, conn] of localConnections.current) {
+        conn.close();
+      }
+      localConnections.current = new Map();
+      peerAccess.current = new PeerAccess();
+      setPeers([]);
 
-    for (const [_, channel] of dataChannels.current) {
-      channel.close();
-    }
-    dataChannels.current = new Map();
-    setConnected(false);
-    if (websocket.current) {
-      websocket.current.close();
-      websocket.current = null;
-    }
-    if (!muted) {
-      toast("Connection closed");
-    }
-    onConnectionCloseRef.current();
-  }, []);
+      for (const [_, channel] of dataChannels.current) {
+        channel.close();
+      }
+      dataChannels.current = new Map();
+      setConnected(false);
+      if (leaveRoomStream.current) {
+        leaveRoomStream.current();
+        leaveRoomStream.current = null;
+        signaling.leave().catch((error: unknown) => {
+          console.error("Could not leave the room:", error);
+        });
+      }
+      if (!muted) {
+        toast("Connection closed");
+      }
+      onConnectionCloseRef.current();
+    },
+    [signaling],
+  );
 
   const sendMessage = useCallback((message: MessageStructure) => {
     for (const channel of dataChannels.current.values()) {
@@ -395,10 +338,4 @@ export function useWebRtcService(
     peers,
     connected,
   };
-}
-
-function withRoomToken(server: string, token: string) {
-  const url = new URL(server);
-  url.searchParams.set("token", token);
-  return url;
 }

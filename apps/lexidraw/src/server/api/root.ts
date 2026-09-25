@@ -20,6 +20,7 @@ import { toolsRouter } from "./routers/tools";
 import { sandboxRouter } from "./routers/sandbox";
 import { tokensRouter } from "./routers/tokens";
 import { adminTokensRouter } from "./routers/admin/tokens";
+import { roomsRouter } from "./routers/rooms";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -43,6 +44,7 @@ export const appRouter = createTRPCRouter({
   sandbox: sandboxRouter,
   tokens: tokensRouter,
   adminTokens: adminTokensRouter,
+  rooms: roomsRouter,
 });
 
 // export type definition of API

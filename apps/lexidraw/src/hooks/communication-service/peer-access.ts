@@ -1,31 +1,27 @@
 import type { WebRtcMessage } from "@packages/types";
 
 /**
- * Which peers in a room may only read, as the signaling server reports it.
- * A server that checks room tokens stamps every message it relays with the
- * sender's `canEdit`; updates from a peer marked read-only are not applied.
- * A peer the server says nothing about is trusted as before, which is what a
- * server without a secret, or an app that issues no tokens, amounts to.
+ * Which peers in a room may edit, as the room reports it: every message it
+ * passes on carries its sender's `canEdit`. Updates are applied only from a
+ * peer the room has said may edit.
  */
 export class PeerAccess {
-  private readonly readOnly = new Set<string>();
+  private readonly editors = new Set<string>();
 
   heard(message: WebRtcMessage) {
-    if (message.type === "leave") {
+    if (message.type === "leave" || !message.canEdit) {
       this.forget(message.from);
-    } else if (message.canEdit === false) {
-      this.readOnly.add(message.from);
-    } else if (message.canEdit === true) {
-      this.readOnly.delete(message.from);
+    } else {
+      this.editors.add(message.from);
     }
   }
 
   forget(peer: string) {
-    this.readOnly.delete(peer);
+    this.editors.delete(peer);
   }
 
   /** Whether an update that arrived over `peer`'s channel may be applied. */
   accepts(peer: string) {
-    return !this.readOnly.has(peer);
+    return this.editors.has(peer);
   }
 }
