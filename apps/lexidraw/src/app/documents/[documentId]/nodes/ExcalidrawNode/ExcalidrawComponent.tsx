@@ -26,7 +26,7 @@ import { cn } from "~/lib/utils";
 import ExcalidrawModal from "./ExcalidrawModal";
 import type { NaturalSize } from "@packages/lexical-nodes";
 import { useKeepNaturalSize } from "../common/natural-size";
-import { DRAWING_FRAME } from "./excalidraw-box";
+import { FIGURE_FRAME } from "../common/figure-box";
 
 export default function ExcalidrawComponent({
   nodeKey,
@@ -226,7 +226,7 @@ export default function ExcalidrawComponent({
       {elements.length > 0 && (
         <div
           ref={frameRef}
-          className={cn(DRAWING_FRAME, {
+          className={cn(FIGURE_FRAME, {
             selected: isEditable && isSelected,
           })}
         >

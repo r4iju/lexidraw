@@ -11,7 +11,7 @@ import { cn } from "~/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { Theme } from "@packages/types/enums";
 import type { NaturalSize } from "@packages/lexical-nodes";
-import { DrawingLoading, drawingStyle } from "./excalidraw-box";
+import { drawingStyle, FigureLoading } from "../common/figure-box";
 
 type ImageType = "svg" | "canvas";
 
@@ -104,7 +104,7 @@ export default function ExcalidrawImage({
   if (url === undefined)
     return (
       <div className="relative inline-block max-w-full">
-        <DrawingLoading {...box} />
+        <FigureLoading place={drawingStyle} {...box} />
       </div>
     );
 

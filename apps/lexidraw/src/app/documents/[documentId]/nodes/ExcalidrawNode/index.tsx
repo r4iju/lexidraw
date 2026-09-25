@@ -6,7 +6,11 @@ import {
 import * as React from "react";
 import { Suspense } from "react";
 import { FigureFrame } from "../common/Figure";
-import { DRAWING_FRAME, DrawingLoading } from "./excalidraw-box";
+import {
+  drawingStyle,
+  FIGURE_FRAME,
+  FigureLoading,
+} from "../common/figure-box";
 
 export type { SerializedExcalidrawNode } from "@packages/lexical-nodes";
 
@@ -24,9 +28,10 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
       <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
         <Suspense
           fallback={
-            <div className={DRAWING_FRAME}>
+            <div className={FIGURE_FRAME}>
               <div className="relative inline-block max-w-full">
-                <DrawingLoading
+                <FigureLoading
+                  place={drawingStyle}
                   width={this.__width}
                   height={this.__height}
                   natural={natural}

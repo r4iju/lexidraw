@@ -4,9 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "~/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import type { NaturalSize } from "@packages/lexical-nodes";
-import { DiagramLoading, diagramStyle } from "./mermaid-box";
+import {
+  type Dimension,
+  diagramStyle,
+  FigureLoading,
+} from "../common/figure-box";
 
-type Dimension = number | "inherit";
 interface Props {
   schema: string;
   width: Dimension;
@@ -197,7 +200,12 @@ export default function MermaidImage({
           </Dialog>
         </>
       ) : diagram.status === "loading" ? (
-        <DiagramLoading width={width} height={height} natural={natural} />
+        <FigureLoading
+          place={diagramStyle}
+          width={width}
+          height={height}
+          natural={natural}
+        />
       ) : (
         <div className="bg-muted/20 text-muted-foreground text-xs p-2 rounded">
           Failed to render diagram

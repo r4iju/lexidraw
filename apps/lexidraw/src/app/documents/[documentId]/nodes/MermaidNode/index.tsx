@@ -5,7 +5,11 @@ import {
 } from "@packages/lexical-nodes";
 import type { JSX } from "react";
 import React, { Suspense } from "react";
-import { DIAGRAM_FRAME, DiagramLoading } from "./mermaid-box";
+import {
+  diagramStyle,
+  FIGURE_FRAME,
+  FigureLoading,
+} from "../common/figure-box";
 import { FigureFrame } from "../common/Figure";
 
 export type { SerializedMermaidNode } from "@packages/lexical-nodes";
@@ -24,9 +28,10 @@ export class MermaidNode extends HeadlessMermaidNode {
       <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
         <Suspense
           fallback={
-            <div className={DIAGRAM_FRAME}>
+            <div className={FIGURE_FRAME}>
               <section className="document-mermaid">
-                <DiagramLoading
+                <FigureLoading
+                  place={diagramStyle}
                   width={this.__width}
                   height={this.__height}
                   natural={natural}

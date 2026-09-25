@@ -29,9 +29,7 @@ import MermaidModal from "./MermaidModal";
 import { cn } from "~/lib/utils";
 import type { NaturalSize } from "@packages/lexical-nodes";
 import { useKeepNaturalSize } from "../common/natural-size";
-import { DIAGRAM_FRAME } from "./mermaid-box";
-
-type Dimension = number | "inherit";
+import { type Dimension, FIGURE_FRAME } from "../common/figure-box";
 
 export default function MermaidComponent({
   nodeKey,
@@ -154,7 +152,7 @@ export default function MermaidComponent({
   return (
     <>
       <div
-        className={cn(DIAGRAM_FRAME, {
+        className={cn(FIGURE_FRAME, {
           "cursor-move":
             isFocused && !isResizing && $isNodeSelection(selection),
         })}
