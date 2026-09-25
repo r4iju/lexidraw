@@ -1038,8 +1038,6 @@ export default function DocumentEditor({
   renderMode = "view",
   frame,
 }: Props) {
-  console.log("🔄 DocumentEditor re-rendered");
-
   const editorStateRef = useRef<EditorState | undefined>(undefined);
   const setEditorStateRef = useCallback((editorState: EditorState) => {
     editorStateRef.current = editorState;
