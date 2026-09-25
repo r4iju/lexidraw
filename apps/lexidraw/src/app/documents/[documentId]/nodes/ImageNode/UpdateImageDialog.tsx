@@ -55,7 +55,8 @@ export function UpdateImageDialog({
     return value === "inherit" ? "inherit" : parseInt(value, 10) || "inherit";
   };
 
-  const handleOnConfirm = () => {
+  const handleOnConfirm = (event: React.FormEvent) => {
+    event.preventDefault();
     const payload = {
       altText,
       showCaption,
@@ -79,66 +80,69 @@ export function UpdateImageDialog({
   const captionId = useId();
 
   return (
-    <DialogContent className="min-w-72">
-      <DialogHeader>
-        {/* Update Title */}
-        <DialogTitle>Update Image</DialogTitle>
-      </DialogHeader>
-      <div style={{ marginBottom: "1em" }}>
-        <Label htmlFor={altTextId}>Alt Text</Label>
-        <Input
-          id={altTextId}
-          placeholder="Descriptive alternative text"
-          onChange={handleAltTextChange}
-          value={altText}
-          data-testid="image-modal-alt-text-input"
-        />
-      </div>
-
-      {/* Add Width and Height Inputs */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <Label htmlFor={widthId}>Width</Label>
+    <DialogContent>
+      <form onSubmit={handleOnConfirm} className="contents">
+        <DialogHeader>
+          <DialogTitle>Update Image</DialogTitle>
+        </DialogHeader>
+        <div style={{ marginBottom: "1em" }}>
+          <Label htmlFor={altTextId}>Alt Text</Label>
           <Input
-            id={widthId}
-            placeholder="auto"
-            type="number"
-            step="50"
-            onChange={(e) => handleWidthOrHeightChange(e, "width")}
-            value={widthAndHeight.width}
-            min="0"
-            data-testid="image-modal-width-input"
+            id={altTextId}
+            placeholder="Descriptive alternative text"
+            onChange={handleAltTextChange}
+            value={altText}
+            data-testid="image-modal-alt-text-input"
           />
         </div>
-        <div>
-          <Label htmlFor={heightId}>Height</Label>
-          <Input
-            id={heightId}
-            placeholder="auto"
-            type="number"
-            step="50"
-            onChange={(e) => handleWidthOrHeightChange(e, "height")}
-            value={widthAndHeight.height}
-            min="0"
-            data-testid="image-modal-height-input"
-          />
+
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <Label htmlFor={widthId}>Width</Label>
+            <Input
+              id={widthId}
+              placeholder="auto"
+              type="number"
+              step="50"
+              onChange={(e) => handleWidthOrHeightChange(e, "width")}
+              value={widthAndHeight.width}
+              min="0"
+              data-testid="image-modal-width-input"
+            />
+          </div>
+          <div>
+            <Label htmlFor={heightId}>Height</Label>
+            <Input
+              id={heightId}
+              placeholder="auto"
+              type="number"
+              step="50"
+              onChange={(e) => handleWidthOrHeightChange(e, "height")}
+              value={widthAndHeight.height}
+              min="0"
+              data-testid="image-modal-height-input"
+            />
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
-        <Switch
-          id={captionId}
-          checked={showCaption}
-          onCheckedChange={setShowCaption}
-        >
-          <SwitchThumb />
-        </Switch>
-        <Label htmlFor={captionId}>Show Caption</Label>
-      </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            id={captionId}
+            checked={showCaption}
+            onCheckedChange={setShowCaption}
+          >
+            <SwitchThumb />
+          </Switch>
+          <Label htmlFor={captionId}>Show Caption</Label>
+        </div>
 
-      <DialogFooter className="justify-end">
-        <Button onClick={handleOnConfirm}>Confirm</Button>
-      </DialogFooter>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit">Update image</Button>
+        </DialogFooter>
+      </form>
     </DialogContent>
   );
 }

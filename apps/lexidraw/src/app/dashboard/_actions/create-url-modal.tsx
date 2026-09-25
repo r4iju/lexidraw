@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useId } from "react";
+import { type FormEvent, useMemo, useState, useId } from "react";
 import {
   Dialog,
   DialogContent,
@@ -68,7 +68,11 @@ export default function CreateUrlModal({
     },
   });
 
-  const handleSave = async () => {
+  const isSaving = createMutation.isPending || distillMutation.isPending;
+
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!isValidUrl || isSaving) return;
     const id = uuidv4();
     await createMutation.mutateAsync({
       id,
@@ -90,11 +94,11 @@ export default function CreateUrlModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>New link</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
+      <DialogContent>
+        <form onSubmit={handleSave} className="contents">
+          <DialogHeader>
+            <DialogTitle>New link</DialogTitle>
+          </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor={urlId}>Web address</Label>
             <Input
@@ -105,26 +109,17 @@ export default function CreateUrlModal({
               inputMode="url"
             />
           </div>
-        </div>
-        <DialogFooter className="justify-between">
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleSave}
-              disabled={
-                !isValidUrl ||
-                createMutation.isPending ||
-                distillMutation.isPending
-              }
-            >
-              {createMutation.isPending || distillMutation.isPending
-                ? "Saving..."
-                : "Save"}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={!isValidUrl || isSaving}>
+              {isSaving ? "Saving..." : "Save link"}
             </Button>
-          </div>
-        </DialogFooter>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

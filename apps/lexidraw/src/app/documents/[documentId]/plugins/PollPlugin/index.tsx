@@ -9,7 +9,7 @@ import {
   type LexicalCommand,
   type LexicalEditor,
 } from "lexical";
-import { type JSX, useEffect, useState } from "react";
+import { type FormEvent, type JSX, useEffect, useId, useState } from "react";
 
 import { PollNode } from "../../nodes/PollNode";
 import { DialogFooter } from "~/components/ui/dialog";
@@ -30,21 +30,33 @@ export function InsertPollDialog({
 }): JSX.Element {
   const [question, setQuestion] = useState("");
 
-  const onClick = () => {
+  const id = useId();
+  const isDisabled = question.trim() === "";
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (isDisabled) return;
     activeEditor.dispatchCommand(INSERT_POLL_COMMAND, question);
     onClose();
   };
 
   return (
-    <>
-      <Label>Question</Label>
-      <Input onChange={(e) => setQuestion(e.target.value)} value={question} />
+    <form onSubmit={submit} className="contents">
+      <Label htmlFor={id}>Question</Label>
+      <Input
+        id={id}
+        onChange={(e) => setQuestion(e.target.value)}
+        value={question}
+      />
       <DialogFooter>
-        <Button disabled={question.trim() === ""} onClick={onClick}>
-          Confirm
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isDisabled}>
+          Insert poll
         </Button>
       </DialogFooter>
-    </>
+    </form>
   );
 }
 

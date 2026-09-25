@@ -104,6 +104,7 @@ export function SearchBar({ className }: { className?: string }) {
       </PopoverAnchor>
       <PopoverContent
         align="start"
+        sheet={false}
         className="w-[var(--radix-popover-trigger-width)] p-0"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
@@ -151,7 +152,10 @@ export function SearchButton() {
             e.preventDefault();
             inputRef.current?.focus();
           }}
-          className="left-0 top-0 flex h-dvh max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 break-normal rounded-none p-0 md:max-w-none [&>button:last-child]:hidden"
+          size="full"
+          // The Cancel beside the field closes search, in place of the corner
+          // button the field would sit under.
+          className="flex flex-col gap-0 p-0 max-sm:p-0 [&>button:last-child]:hidden"
         >
           <DialogTitle className="sr-only">Search files</DialogTitle>
           <div className="flex items-center gap-2 border-b border-border px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">

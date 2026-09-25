@@ -279,9 +279,9 @@ export function ApiTokens({
         open={revoking !== null}
         onOpenChange={(open) => !open && setRevoking(null)}
       >
-        <DialogContent className="break-normal sm:max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle className="pr-8 leading-snug">
+            <DialogTitle className="leading-snug">
               Revoke “{revoking?.name}”?
             </DialogTitle>
             <DialogDescription>
@@ -291,7 +291,7 @@ export function ApiTokens({
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="ghost">Cancel</Button>
             </DialogClose>
             <Button variant="destructive-confirm" onClick={confirmRevoke}>
               Revoke
@@ -304,7 +304,7 @@ export function ApiTokens({
         open={created !== null}
         onOpenChange={(open) => !open && setCreated(null)}
       >
-        <DialogContent className="break-normal">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Copy your new token</DialogTitle>
             <DialogDescription>
@@ -312,7 +312,7 @@ export function ApiTokens({
               somewhere safe, such as your password manager.
             </DialogDescription>
           </DialogHeader>
-          <code className="block break-all rounded-md border border-border bg-muted p-3 text-sm">
+          <code className="block [overflow-wrap:anywhere] rounded-md border border-border bg-muted p-3 text-sm">
             {created?.token}
           </code>
           <DialogFooter>

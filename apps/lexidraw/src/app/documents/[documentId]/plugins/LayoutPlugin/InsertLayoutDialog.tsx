@@ -3,6 +3,7 @@ import type * as React from "react";
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { DialogFooter } from "~/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -55,9 +56,12 @@ export default function InsertLayoutDialog({
           </SelectGroup>
         </SelectContent>
       </Select>
-      <Button onClick={onClick} className="mt-4">
-        Insert
-      </Button>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={onClick}>Insert columns</Button>
+      </DialogFooter>
     </>
   );
 }

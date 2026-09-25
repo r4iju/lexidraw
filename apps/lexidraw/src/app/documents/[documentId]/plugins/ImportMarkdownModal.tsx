@@ -60,7 +60,7 @@ export default function ImportMarkdownModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(56rem,calc(100dvh-32px))] flex-col break-normal md:max-w-3xl">
+      <DialogContent size="lg" className="flex h-[56rem] flex-col">
         <DialogHeader>
           <DialogTitle>Import Markdown</DialogTitle>
         </DialogHeader>
@@ -123,7 +123,7 @@ export default function ImportMarkdownModal({
           </div>
         </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button

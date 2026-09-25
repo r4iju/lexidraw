@@ -321,242 +321,192 @@ export function AutoEmbedDialog({
     }
   }, 200);
 
-  const onClick = () => {
+  const embed = (event: React.FormEvent) => {
+    event.preventDefault();
     if (embedResult != null) {
       embedConfig.insertNode(editor, embedResult);
       onClose();
     }
   };
 
+  const embedForm = (
+    <form onSubmit={embed} className="contents">
+      <Input
+        type="text"
+        aria-label="Link"
+        placeholder={embedConfig.exampleUrl}
+        value={text}
+        onChange={(e) => {
+          const { value } = e.target;
+          setText(value);
+          validateText(value);
+        }}
+      />
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!embedResult}>
+          Embed
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+
   if (!isArticle) {
     return (
-      <DialogContent className="p-4 overflow-hidden">
-        <div className="flex flex-col h-full min-w-0 max-w-full">
-          <div className="sticky top-0 z-10 bg-background/80 backdrop-blur">
-            <DialogHeader>
-              <DialogTitle className="text-base md:text-lg">
-                Embed {embedConfig.contentName}
-              </DialogTitle>
-            </DialogHeader>
-          </div>
-
-          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain wrap-break-word break-all">
-            <Input
-              type="text"
-              className="w-full min-w-0"
-              placeholder={embedConfig.exampleUrl}
-              value={text}
-              onChange={(e) => {
-                const { value } = e.target;
-                setText(value);
-                validateText(value);
-              }}
-            />
-          </div>
-          <div className="sticky bottom-0 z-10 bg-background/80 backdrop-blur">
-            <DialogFooter>
-              <Button
-                disabled={!embedResult}
-                onClick={onClick}
-                className="w-full md:w-auto"
-              >
-                Embed
-              </Button>
-            </DialogFooter>
-          </div>
-        </div>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Embed {embedConfig.contentName}</DialogTitle>
+        </DialogHeader>
+        {embedForm}
       </DialogContent>
     );
   }
 
   // Specialized Article dialog with tabs
   return (
-    <DialogContent className="p-4 overflow-hidden">
-      <div className="flex flex-col h-full min-w-0 max-w-full">
-        <DialogHeader className="sticky top-0 z-10">
-          <DialogTitle className="text-base md:text-lg">
-            Embed a link
-          </DialogTitle>
-        </DialogHeader>
-        <div className="flex gap-2 mt-2 pb-4">
-          <Button
-            variant={tab === "url" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTab("url")}
-          >
-            Paste a link
-          </Button>
-          <Button
-            variant={tab === "saved" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTab("saved")}
-          >
-            From saved
-          </Button>
-        </div>
-
-        <div className="overflow-y-auto wrap-break-word break-all flex flex-col gap-4 min-w-0 max-w-full">
-          {tab === "url" && (
-            <div className="space-y-4 p-1">
-              <Input
-                type="text"
-                className="w-full min-w-0"
-                placeholder={embedConfig.exampleUrl}
-                value={text}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setText(value);
-                  validateText(value);
-                }}
-              />
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Embed a link</DialogTitle>
+      </DialogHeader>
+      <div className="flex gap-2">
+        <Button
+          variant={tab === "url" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTab("url")}
+        >
+          Paste a link
+        </Button>
+        <Button
+          variant={tab === "saved" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTab("saved")}
+        >
+          From saved
+        </Button>
+      </div>
+      {tab === "url" && embedForm}
+      {tab === "saved" && (
+        <>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search saved articles"
+              value={savedQuery}
+              onChange={(e) => setSavedQuery(e.target.value)}
+              className="flex-1 min-w-0"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex gap-2 items-center">
+              <Button
+                size="sm"
+                variant={onlyFavorites ? "secondary" : "outline"}
+                onClick={() => setOnlyFavorites((v) => !v)}
+              >
+                Favorites
+              </Button>
+              <Button
+                size="sm"
+                variant={includeArchived ? "secondary" : "outline"}
+                onClick={() => setIncludeArchived((v) => !v)}
+              >
+                Archived
+              </Button>
             </div>
-          )}
-          {tab === "saved" && (
-            <>
-              <div className="flex gap-2 p-1">
-                <Input
-                  placeholder="Search saved articles"
-                  value={savedQuery}
-                  onChange={(e) => setSavedQuery(e.target.value)}
-                  className="flex-1 min-w-0"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2 items-center">
-                <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center">
+              <select
+                className="border border-border rounded-md bg-background px-2 py-1 text-sm"
+                value={sortBy}
+                onChange={(e) =>
+                  setSortBy(
+                    e.target.value as "updatedAt" | "createdAt" | "title",
+                  )
+                }
+              >
+                <option value="updatedAt">Updated</option>
+                <option value="createdAt">Created</option>
+                <option value="title">Title</option>
+              </select>
+              <select
+                className="border border-border rounded-md bg-background px-2 py-1 text-sm"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+              >
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {((userTags.data as string[] | undefined) ?? []).map(
+              (tag: string) => {
+                const active = selectedTags.includes(tag);
+                return (
                   <Button
+                    key={tag}
                     size="sm"
-                    variant={onlyFavorites ? "secondary" : "outline"}
-                    onClick={() => setOnlyFavorites((v) => !v)}
-                  >
-                    Favorites
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={includeArchived ? "secondary" : "outline"}
-                    onClick={() => setIncludeArchived((v) => !v)}
-                  >
-                    Archived
-                  </Button>
-                </div>
-                <div className="flex gap-2 items-center">
-                  <select
-                    className="border border-border rounded-md bg-background px-2 py-1 text-sm"
-                    value={sortBy}
-                    onChange={(e) =>
-                      setSortBy(
-                        e.target.value as "updatedAt" | "createdAt" | "title",
+                    asChild={false}
+                    variant={active ? "secondary" : "outline"}
+                    onClick={() =>
+                      setSelectedTags((prev) =>
+                        prev.includes(tag)
+                          ? prev.filter((t) => t !== tag)
+                          : [...prev, tag],
                       )
                     }
                   >
-                    <option value="updatedAt">Updated</option>
-                    <option value="createdAt">Created</option>
-                    <option value="title">Title</option>
-                  </select>
-                  <select
-                    className="border border-border rounded-md bg-background px-2 py-1 text-sm"
-                    value={sortOrder}
-                    onChange={(e) =>
-                      setSortOrder(e.target.value as "asc" | "desc")
-                    }
-                  >
-                    <option value="desc">Desc</option>
-                    <option value="asc">Asc</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {((userTags.data as string[] | undefined) ?? []).map(
-                  (tag: string) => {
-                    const active = selectedTags.includes(tag);
-                    return (
-                      <Button
-                        key={tag}
-                        size="sm"
-                        asChild={false}
-                        variant={active ? "secondary" : "outline"}
-                        onClick={() =>
-                          setSelectedTags((prev) =>
-                            prev.includes(tag)
-                              ? prev.filter((t) => t !== tag)
-                              : [...prev, tag],
-                          )
-                        }
-                      >
-                        {tag}
-                      </Button>
-                    );
-                  },
-                )}
-              </div>
-              <div className="flex flex-col max-h-[70vh] overflow-y-auto overflow-x-hidden gap-1 min-w-0 max-w-full">
-                {savedItems.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    className="w-full px-3 py-2 text-left hover:bg-accent flex items-center gap-3 min-w-0 overflow-hidden border border-border rounded-md"
-                    onClick={() => {
-                      editor.dispatchCommand(
-                        INSERT_ARTICLE_ENTITY_COMMAND,
-                        e.id,
-                      );
-                      onClose();
-                    }}
-                  >
-                    {e.screenShotLight && e.screenShotDark ? (
-                      <div className="relative shrink-0 size-10 overflow-hidden rounded-md">
-                        <Image
-                          src={
-                            isDarkTheme ? e.screenShotDark : e.screenShotLight
-                          }
-                          alt="thumbnail"
-                          width={40}
-                          height={40}
-                          className="absolute inset-0 w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="relative shrink-0 size-10 overflow-hidden rounded-md bg-muted" />
-                    )}
-                    <div className="min-w-0 max-w-full">
-                      <div className="text-sm font-medium wrap-break-word break-all truncate">
-                        {e.title}
-                      </div>
-                      <div className="text-xs text-muted-foreground wrap-break-word break-all truncate">
-                        {e.id}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-                {savedItems.length === 0 ? (
-                  <div className="p-3 text-sm text-muted-foreground">
-                    No results
+                    {tag}
+                  </Button>
+                );
+              },
+            )}
+          </div>
+          <div className="flex flex-col max-h-[70vh] overflow-y-auto overflow-x-hidden gap-1 min-w-0 max-w-full">
+            {savedItems.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                className="w-full px-3 py-2 text-left hover:bg-accent flex items-center gap-3 min-w-0 overflow-hidden border border-border rounded-md"
+                onClick={() => {
+                  editor.dispatchCommand(INSERT_ARTICLE_ENTITY_COMMAND, e.id);
+                  onClose();
+                }}
+              >
+                {e.screenShotLight && e.screenShotDark ? (
+                  <div className="relative shrink-0 size-10 overflow-hidden rounded-md">
+                    <Image
+                      src={isDarkTheme ? e.screenShotDark : e.screenShotLight}
+                      alt="thumbnail"
+                      width={40}
+                      height={40}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
                   </div>
-                ) : null}
+                ) : (
+                  <div className="relative shrink-0 size-10 overflow-hidden rounded-md bg-muted" />
+                )}
+                <div className="min-w-0 max-w-full">
+                  <div className="text-sm font-medium truncate">{e.title}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {e.id}
+                  </div>
+                </div>
+              </button>
+            ))}
+            {savedItems.length === 0 ? (
+              <div className="p-3 text-sm text-muted-foreground">
+                No results
               </div>
-            </>
-          )}
-        </div>
-
-        <DialogFooter className="sticky bottom-0 pt-4">
-          {tab === "url" ? (
-            <Button
-              disabled={!embedResult}
-              onClick={onClick}
-              className="w-full md:w-auto"
-            >
-              Embed
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
             </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              onClick={onClose}
-              className="w-full md:w-auto"
-            >
-              Close
-            </Button>
-          )}
-        </DialogFooter>
-      </div>
+          </DialogFooter>
+        </>
+      )}
     </DialogContent>
   );
 }

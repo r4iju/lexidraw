@@ -174,12 +174,15 @@ export default function MermaidImage({
             />
           </picture>
           <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
-            <DialogContent className="w-auto h-auto max-w-none bg-transparent border-none shadow-none p-0">
+            <DialogContent
+              size="full"
+              className="flex items-center justify-center"
+            >
               <DialogTitle className="sr-only">Mermaid Lightbox</DialogTitle>
               <img
                 src={diagram.src}
                 alt="Mermaid diagram"
-                className="max-w-[95vw] max-h-[95vh] object-contain"
+                className="max-h-full max-w-full object-contain"
               />
             </DialogContent>
           </Dialog>

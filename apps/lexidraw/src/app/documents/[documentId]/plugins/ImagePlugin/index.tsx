@@ -48,47 +48,76 @@ export type InsertImagePayload = Readonly<ImagePayload>;
 type UnsplashImageResult =
   RouterOutputs["image"]["searchUnsplash"]["results"][number];
 
+function InsertImageDialogFooter({
+  onCancel,
+  isDisabled,
+}: {
+  onCancel: () => void;
+  isDisabled: boolean;
+}) {
+  return (
+    <DialogFooter>
+      <Button type="button" variant="ghost" onClick={onCancel}>
+        Cancel
+      </Button>
+      <Button type="submit" disabled={isDisabled}>
+        Insert image
+      </Button>
+    </DialogFooter>
+  );
+}
+
 export function InsertImageUriDialogBody({
   onClick,
+  onCancel,
 }: {
   onClick: (payload: InsertImagePayload) => void;
+  onCancel: () => void;
 }) {
   const [src, setSrc] = useState("");
   const [altText, setAltText] = useState("");
+  const id = useId();
 
   const isDisabled = src === "";
 
   return (
-    <>
-      <Label>Image link</Label>
+    <form
+      className="contents"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!isDisabled) onClick({ altText, src });
+      }}
+    >
+      <Label htmlFor={`${id}-src`}>Image link</Label>
       <Input
+        id={`${id}-src`}
         placeholder="https://picsum.photos/200/300.jpg"
         onChange={(e) => setSrc(e.target.value)}
         value={src}
       />
-      <Label>Alt Text</Label>
+      <Label htmlFor={`${id}-alt`}>Alt Text</Label>
       <Input
+        id={`${id}-alt`}
         placeholder="Random unsplash image"
         onChange={(e) => setAltText(e.target.value)}
         value={altText}
       />
-      <DialogFooter>
-        <Button disabled={isDisabled} onClick={() => onClick({ altText, src })}>
-          Confirm
-        </Button>
-      </DialogFooter>
-    </>
+      <InsertImageDialogFooter onCancel={onCancel} isDisabled={isDisabled} />
+    </form>
   );
 }
 
 export function InsertImageUploadedDialogBody({
   onClick,
+  onCancel,
 }: {
   onClick: (payload: InsertImagePayload) => void;
+  onCancel: () => void;
 }) {
   const { src, handleFileChange } = useUploader();
   const entityId = useEntityId();
   const [altText, setAltText] = useState("");
+  const altTextId = useId();
 
   const isDisabled = src === "";
 
@@ -97,20 +126,23 @@ export function InsertImageUploadedDialogBody({
   };
 
   return (
-    <>
+    <form
+      className="contents"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!isDisabled) onClick({ altText, src });
+      }}
+    >
       <FileInput label="Image Upload" onChange={onChange} accept="image/*" />
-      <Label htmlFor="alt-text">Alt Text</Label>
+      <Label htmlFor={altTextId}>Alt Text</Label>
       <Input
+        id={altTextId}
         placeholder="Descriptive alternative text"
         onChange={(e) => setAltText(e.target.value)}
         value={altText}
       />
-      <DialogFooter>
-        <Button disabled={isDisabled} onClick={() => onClick({ altText, src })}>
-          Confirm
-        </Button>
-      </DialogFooter>
-    </>
+      <InsertImageDialogFooter onCancel={onCancel} isDisabled={isDisabled} />
+    </form>
   );
 }
 
@@ -271,11 +303,13 @@ export function InsertImageUnsplashDialogBody({
 
 export function InsertImageGeneratedDialogBody({
   onGenerate,
+  onCancel,
   isLoading,
   isConfigured,
   disabledReason,
 }: {
   onGenerate: (prompt: string) => void;
+  onCancel: () => void;
   isLoading: boolean;
   isConfigured: boolean;
   disabledReason?: string;
@@ -284,7 +318,13 @@ export function InsertImageGeneratedDialogBody({
   const isDisabled = prompt.trim() === "" || isLoading || !isConfigured;
   const imagePromptTextareaId = useId();
   return (
-    <>
+    <form
+      className="contents"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!isDisabled) onGenerate(prompt);
+      }}
+    >
       {!isConfigured && (
         <p className="text-center text-sm text-destructive p-4 border border-destructive rounded-md">
           Image generation is not configured.
@@ -301,7 +341,10 @@ export function InsertImageGeneratedDialogBody({
         disabled={!isConfigured || isLoading}
       />
       <DialogFooter>
-        <Button disabled={isDisabled} onClick={() => onGenerate(prompt)}>
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isDisabled}>
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -312,7 +355,7 @@ export function InsertImageGeneratedDialogBody({
           )}
         </Button>
       </DialogFooter>
-    </>
+    </form>
   );
 }
 
@@ -328,7 +371,6 @@ export function InsertImageDialog({
   const [mode, setMode] = useState<
     null | "url" | "file" | "unsplash" | "generate"
   >(null);
-  const hasModifier = useRef(false);
   const { insertImageNode } = useLexicalImageInsertion();
   const trackDownloadMutation = api.image.trackUnsplashDownload.useMutation();
 
@@ -383,17 +425,6 @@ export function InsertImageDialog({
     [insertImageNode, trackDownloadMutation, onClose],
   );
 
-  useEffect(() => {
-    hasModifier.current = false;
-    const handler = (e: KeyboardEvent) => {
-      hasModifier.current = e.altKey;
-    };
-    document.addEventListener("keydown", handler);
-    return () => {
-      document.removeEventListener("keydown", handler);
-    };
-  }, []);
-
   const handleGenerateImage = useCallback(
     async (prompt: string) => {
       if (!prompt) return;
@@ -423,8 +454,12 @@ export function InsertImageDialog({
           </Button>
         </div>
       )}
-      {mode === "url" && <InsertImageUriDialogBody onClick={onInsert} />}
-      {mode === "file" && <InsertImageUploadedDialogBody onClick={onInsert} />}
+      {mode === "url" && (
+        <InsertImageUriDialogBody onClick={onInsert} onCancel={onClose} />
+      )}
+      {mode === "file" && (
+        <InsertImageUploadedDialogBody onClick={onInsert} onCancel={onClose} />
+      )}
       {mode === "unsplash" && (
         <InsertImageUnsplashDialogBody
           onImageSelect={handleUnsplashImageSelect}
@@ -433,6 +468,7 @@ export function InsertImageDialog({
       {mode === "generate" && (
         <InsertImageGeneratedDialogBody
           onGenerate={handleGenerateImage}
+          onCancel={onClose}
           isLoading={isGenerating}
           isConfigured={isGenerationConfigured}
           disabledReason={disabledReason}
@@ -678,7 +714,7 @@ export default function ImagePlugin({
 
   return isModalOpen ? (
     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-      <DialogContent className="sm:max-w-[600px] min-w-[300px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Insert Image</DialogTitle>
         </DialogHeader>

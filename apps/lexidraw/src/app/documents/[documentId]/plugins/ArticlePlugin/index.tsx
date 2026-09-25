@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
@@ -125,44 +126,48 @@ export default function ArticlePlugin(): React.JSX.Element | null {
           </div>
 
           {tab === "url" ? (
-            <div className="space-y-2">
+            <form
+              className="space-y-2"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (!url || extract.isPending) return;
+                try {
+                  const distilled = await extract.mutateAsync({ url });
+                  editor.update(() => {
+                    const node = ArticleNode.$createArticleNode({
+                      mode: "url",
+                      url,
+                      distilled,
+                    });
+                    $insertNodes([node]);
+                  });
+                  setOpen(false);
+                  setUrl("");
+                } catch {
+                  // handled by tRPC hooks
+                }
+              }}
+            >
               <Input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/article"
+                aria-label="Link"
               />
-              <div className="flex justify-end gap-2">
+              <DialogFooter>
                 <Button
-                  variant="secondary"
+                  type="button"
+                  variant="ghost"
                   onClick={() => setOpen(false)}
                   disabled={extract.isPending}
                 >
                   Cancel
                 </Button>
-                <Button
-                  onClick={async () => {
-                    try {
-                      const distilled = await extract.mutateAsync({ url });
-                      editor.update(() => {
-                        const node = ArticleNode.$createArticleNode({
-                          mode: "url",
-                          url,
-                          distilled,
-                        });
-                        $insertNodes([node]);
-                      });
-                      setOpen(false);
-                      setUrl("");
-                    } catch {
-                      // handled by tRPC hooks
-                    }
-                  }}
-                  disabled={!url || extract.isPending}
-                >
-                  Insert
+                <Button type="submit" disabled={!url || extract.isPending}>
+                  Embed link
                 </Button>
-              </div>
-            </div>
+              </DialogFooter>
+            </form>
           ) : (
             <div className="space-y-2">
               <Input
@@ -248,11 +253,11 @@ export default function ArticlePlugin(): React.JSX.Element | null {
                   </div>
                 ) : null}
               </div>
-              <div className="flex justify-end">
-                <Button variant="secondary" onClick={() => setOpen(false)}>
-                  Close
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setOpen(false)}>
+                  Cancel
                 </Button>
-              </div>
+              </DialogFooter>
             </div>
           )}
         </div>

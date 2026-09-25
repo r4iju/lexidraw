@@ -338,7 +338,7 @@ export function ArticleBlock({
         />
       </div>
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent>
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Remove this link block?</DialogTitle>
             <DialogDescription>
@@ -348,12 +348,12 @@ export function ArticleBlock({
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" type="button">
+              <Button variant="ghost" type="button">
                 Cancel
               </Button>
             </DialogClose>
             <Button
-              variant="destructive"
+              variant="destructive-confirm"
               type="button"
               onClick={handleRemoveNode}
             >

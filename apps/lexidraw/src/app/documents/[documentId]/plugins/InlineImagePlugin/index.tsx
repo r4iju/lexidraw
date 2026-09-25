@@ -60,7 +60,6 @@ export function InsertInlineImageDialog({
   activeEditor: LexicalEditor;
   onClose: () => void;
 }): React.JSX.Element {
-  const hasModifier = useRef(false);
   const entityId = useEntityId();
   const { src, handleFileChange } = useUploader();
   const [altText, setAltText] = useState("");
@@ -73,34 +72,29 @@ export function InsertInlineImageDialog({
     handleFileChange(files, entityId);
   };
 
-  useEffect(() => {
-    hasModifier.current = false;
-    const handler = (e: KeyboardEvent) => {
-      hasModifier.current = e.altKey;
-    };
-    document.addEventListener("keydown", handler);
-    return () => {
-      document.removeEventListener("keydown", handler);
-    };
-  }, []);
-
-  const handleOnClick = () => {
-    const payload = { altText, position, showCaption, src };
-    activeEditor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, payload);
-    console.log("InsertInlineImageDialog handleOnClick", payload);
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isDisabled) return;
+    activeEditor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
+      altText,
+      position,
+      showCaption,
+      src,
+    });
     onClose();
   };
 
   const captionSwitchId = useId();
 
   return (
-    <>
-      <div className="">
+    <form onSubmit={submit} className="contents">
+      <div>
         <FileInput label="Image Upload" onChange={onChange} accept="image/*" />
       </div>
       <div style={{ marginBottom: "1em" }}>
         <Label htmlFor="alt-text">Alt Text</Label>
         <Input
+          id="alt-text"
           placeholder="Descriptive alternative text"
           onChange={(e) => setAltText(e.target.value)}
           value={altText}
@@ -136,12 +130,15 @@ export function InsertInlineImageDialog({
         </Switch>
       </div>
 
-      <DialogFooter className="justify-end">
-        <Button disabled={isDisabled} onClick={() => handleOnClick()}>
-          Confirm
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isDisabled}>
+          Insert image
         </Button>
       </DialogFooter>
-    </>
+    </form>
   );
 }
 

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import { act, createContext, useEffect } from "react";
 import { createRoot } from "react-dom/client";
+import { setScreen } from "~/test/dom";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "https://app.test/documents/1",
@@ -41,6 +42,7 @@ beforeAll(async () => {
   for (const key of shimmed) globals[key] = win[key];
   for (const key of replaced) globals[key] = win[key];
   globals.IS_REACT_ACT_ENVIRONMENT = true;
+  setScreen({ width: 1280 });
   ({ UnsavedChangesProvider, useUnsavedChanges, useSaveStatus } = await import(
     "./use-unsaved-changes"
   ));
@@ -89,6 +91,33 @@ describe("the question leaving an editor puts", () => {
     await act(async () => root.render(page(async () => true)));
     await act(async () => button("Leave").click());
     expect(went).toBe(1);
+    await act(async () => root.unmount());
+  });
+
+  test("offers Stay first and saving last", async () => {
+    autoSave = false;
+    const root = createRoot(
+      dom.window.document.body.appendChild(
+        dom.window.document.createElement("div"),
+      ),
+    );
+    await act(async () =>
+      root.render(
+        <UnsavedChangesProvider saveBeforeLeaving={async () => true}>
+          <Edited />
+        </UnsavedChangesProvider>,
+      ),
+    );
+    await act(async () => leaveThen(() => {}));
+    const answers = [
+      ...(dom.window.document
+        .querySelector("[role=dialog]")
+        ?.querySelectorAll("button") ?? []),
+    ]
+      .map((b) => b.textContent)
+      .filter((label) => label !== "Close");
+    expect(answers).toEqual(["Stay", "Leave", "Save and leave"]);
+    await act(async () => button("Stay").click());
     await act(async () => root.unmount());
   });
 });

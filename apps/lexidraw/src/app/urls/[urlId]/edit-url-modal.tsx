@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useId } from "react";
+import { type FormEvent, useEffect, useMemo, useState, useId } from "react";
 import {
   Dialog,
   DialogContent,
@@ -81,15 +81,25 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
     return url.includes("://") ? url : `https://${url}`;
   }, [url]);
 
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    if (!isValidUrl || saveMutation.isPending) return;
+    saveMutation.mutate({
+      id: entity.id,
+      elements: JSON.stringify({ url: normalizedUrl }),
+      entityType: "url",
+      // A link carries no editor state.
+      appState: null,
+    });
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Edit link</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          {/* Title is managed programmatically on distill; hide in this modal */}
-
+      <DialogContent>
+        <form onSubmit={save} className="contents">
+          <DialogHeader>
+            <DialogTitle>Edit link</DialogTitle>
+          </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor={urlId}>Web address</Label>
             <Input
@@ -100,35 +110,28 @@ export default function EditUrlModal({ entity, isOpen, onOpenChange }: Props) {
               inputMode="url"
             />
           </div>
-        </div>
-        <DialogFooter className="justify-between">
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
-          <div className="flex gap-2">
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </DialogClose>
             <Button
-              onClick={() =>
-                saveMutation.mutate({
-                  id: entity.id,
-                  elements: JSON.stringify({ url: normalizedUrl }),
-                  entityType: "url",
-                  // A link carries no editor state.
-                  appState: null,
-                })
-              }
-              disabled={saveMutation.isPending || !isValidUrl}
-            >
-              {saveMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-            <Button
+              type="button"
               variant="secondary"
               onClick={() => distillMutation.mutate({ id: entity.id })}
               disabled={!isValidUrl || distillMutation.isPending}
             >
               {distillMutation.isPending ? "Getting..." : "Get"}
             </Button>
-          </div>
-        </DialogFooter>
+            <Button
+              type="submit"
+              disabled={saveMutation.isPending || !isValidUrl}
+            >
+              {saveMutation.isPending ? "Saving..." : "Save link"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

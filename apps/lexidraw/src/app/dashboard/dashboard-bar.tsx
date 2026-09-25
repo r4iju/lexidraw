@@ -7,6 +7,8 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogFooter,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
@@ -78,14 +80,16 @@ export function FilterSortSheet({
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent aria-describedby={undefined} className="break-normal">
-        <DialogTitle>Filter & sort</DialogTitle>
+      <DialogContent aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Filter & sort</DialogTitle>
+        </DialogHeader>
         <div className="flex flex-col gap-5">{children}</div>
-        <DialogClose asChild>
-          <Button type="button" className="w-full">
-            Done
-          </Button>
-        </DialogClose>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button">Done</Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

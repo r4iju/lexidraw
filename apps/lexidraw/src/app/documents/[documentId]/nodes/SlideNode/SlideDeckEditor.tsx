@@ -106,7 +106,6 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
-import ToolbarPlugin from "../../plugins/ToolbarPlugin";
 import FloatingLinkEditorPlugin from "../../plugins/FloatingTextFormatToolbarPlugin/FloatingLinkEditorPlugin";
 import CodeActionMenuPlugin from "../../plugins/CodeActionMenuPlugin";
 import FloatingTextFormatToolbarPlugin from "../../plugins/FloatingTextFormatToolbarPlugin";
@@ -1412,9 +1411,6 @@ export default function SlideDeckEditorComponent({
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="slide-deck-display bg-muted/20 p-2 flex flex-col">
-        <div className="w-full flex justify-center mb-2">
-          <ToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
-        </div>
         {/** biome-ignore lint/a11y/noStaticElementInteractions: slide canvas is interactive */}
         {/** biome-ignore lint/a11y/useKeyWithClickEvents: slide canvas is interactive */}
         <div
@@ -1438,8 +1434,10 @@ export default function SlideDeckEditorComponent({
                       setShowColorPicker(isOpen);
                     }}
                   >
-                    <DialogContent className="p-4">
-                      <DialogTitle>Box Background Color</DialogTitle>
+                    <DialogContent size="sm">
+                      <DialogHeader>
+                        <DialogTitle>Box Background Color</DialogTitle>
+                      </DialogHeader>
                       <ColorPickerContent
                         color={element.backgroundColor || "#ffffff"}
                         onChange={(newColor) => {
@@ -1555,7 +1553,7 @@ export default function SlideDeckEditorComponent({
           open={showSlideBgColorPicker}
           onOpenChange={setShowSlideBgColorPicker}
         >
-          <DialogContent className="p-4">
+          <DialogContent size="sm">
             <DialogHeader>
               <DialogTitle>Slide Background Color</DialogTitle>
             </DialogHeader>
@@ -1572,7 +1570,7 @@ export default function SlideDeckEditorComponent({
             open={showImageInsertDialog}
             onOpenChange={setShowImageInsertDialog}
           >
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle>Insert Image into Slide</DialogTitle>
               </DialogHeader>
@@ -1600,7 +1598,7 @@ export default function SlideDeckEditorComponent({
 
         <SlideDeckMetadataModal onSave={handleSaveMetadata} />
 
-        <div className="slide-controls flex items-center justify-between p-2 mt-auto">
+        <div className="slide-controls flex flex-wrap items-center justify-between gap-2 p-2 mt-auto">
           <div className="flex items-center gap-2">
             <Button
               onClick={() => navigateSlide("prev")}

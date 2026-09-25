@@ -6,7 +6,15 @@ import type {
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
-import { Suspense, useEffect, useRef, useState, useCallback } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDialog } from "~/components/ui/confirm-dialog";
@@ -81,6 +89,7 @@ export default function ExcalidrawInlineEditor({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { needsSave } = useSyncedExcalidraw(excalidraw);
   const changed = useRef(false);
+  const titleId = useId();
   useFitOnOpen(excalidraw);
 
   const buildPartialAppState = useCallback(
@@ -152,15 +161,33 @@ export default function ExcalidrawInlineEditor({
     }
   }, [isShown]);
 
+  // External system: focus, which moves in as the editor opens and goes back
+  // to what opened it once it closes.
+  const surface = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isShown) return;
+    const opener = document.activeElement as HTMLElement | null;
+    surface.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [isShown]);
+
   if (!isShown) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex flex-col bg-background"
+      ref={surface}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      onKeyDown={keepTabInside}
+      className="fixed inset-0 z-[120] flex flex-col bg-background outline-hidden"
       data-component-name="DrawingEditor"
     >
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]">
-        <h2 className="min-w-0 flex-1 truncate text-sm">
+        <h2 id={titleId} className="min-w-0 flex-1 truncate text-sm">
           <span className="text-muted-foreground">Drawing in </span>
           <span className="font-medium">{documentTitle || "Untitled"}</span>
         </h2>
@@ -231,4 +258,26 @@ export default function ExcalidrawInlineEditor({
     </div>,
     document.body,
   );
+}
+
+const TABBABLE =
+  'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
+/** Tab from the last control comes round to the first, and back. */
+function keepTabInside(event: ReactKeyboardEvent<HTMLElement>) {
+  if (event.key !== "Tab") return;
+  const controls = [
+    ...event.currentTarget.querySelectorAll<HTMLElement>(TABBABLE),
+  ].filter((control) => !control.closest("[inert], [hidden]"));
+  const first = controls[0];
+  const last = controls[controls.length - 1];
+  if (!first || !last) return;
+  const active = document.activeElement;
+  if (event.shiftKey && (active === first || active === event.currentTarget)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }

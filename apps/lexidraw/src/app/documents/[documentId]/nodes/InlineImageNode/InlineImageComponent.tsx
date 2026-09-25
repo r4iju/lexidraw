@@ -175,7 +175,8 @@ export function UpdateInlineImageDialog({
   const heightId = useId();
   const captionSwitchId = useId();
 
-  const handleOnConfirm = () => {
+  const handleOnConfirm = (event: React.FormEvent) => {
+    event.preventDefault();
     const width = toWidthOrHeight(widthAndHeight.width);
     const height = toWidthOrHeight(widthAndHeight.height);
     const payload = {
@@ -194,79 +195,83 @@ export function UpdateInlineImageDialog({
   };
 
   return (
-    <DialogContent className="min-w-72">
-      <DialogHeader>
-        <DialogTitle>Update Inline Image</DialogTitle>
-      </DialogHeader>
-      <div style={{ marginBottom: "1em" }}>
-        <Label htmlFor={`inline-alt-${nodeKey}`}>Alt Text</Label>
-        <Input
-          id={`inline-alt-${nodeKey}`}
-          placeholder="Descriptive alternative text"
-          onChange={handleAltTextChange}
-          value={altText}
-        />
-      </div>
-      {/* Add Width and Height Inputs */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <Label htmlFor={widthId}>Width</Label>
+    <DialogContent>
+      <form onSubmit={handleOnConfirm} className="contents">
+        <DialogHeader>
+          <DialogTitle>Update Inline Image</DialogTitle>
+        </DialogHeader>
+        <div style={{ marginBottom: "1em" }}>
+          <Label htmlFor={`inline-alt-${nodeKey}`}>Alt Text</Label>
           <Input
-            id={widthId}
-            placeholder="auto"
-            type="number"
-            step="50"
-            onChange={(e) => handleWidthOrHeightChange(e, "width")}
-            value={widthAndHeight.width}
-            min="0"
-            data-testid="image-modal-width-input"
+            id={`inline-alt-${nodeKey}`}
+            placeholder="Descriptive alternative text"
+            onChange={handleAltTextChange}
+            value={altText}
           />
         </div>
-        <div>
-          <Label htmlFor={heightId}>Height</Label>
-          <Input
-            id={heightId}
-            placeholder="auto"
-            type="number"
-            step="50"
-            onChange={(e) => handleWidthOrHeightChange(e, "height")}
-            value={widthAndHeight.height}
-            min="0"
-            data-testid="image-modal-height-input"
-          />
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <Label htmlFor={widthId}>Width</Label>
+            <Input
+              id={widthId}
+              placeholder="auto"
+              type="number"
+              step="50"
+              onChange={(e) => handleWidthOrHeightChange(e, "width")}
+              value={widthAndHeight.width}
+              min="0"
+              data-testid="image-modal-width-input"
+            />
+          </div>
+          <div>
+            <Label htmlFor={heightId}>Height</Label>
+            <Input
+              id={heightId}
+              placeholder="auto"
+              type="number"
+              step="50"
+              onChange={(e) => handleWidthOrHeightChange(e, "height")}
+              value={widthAndHeight.height}
+              min="0"
+              data-testid="image-modal-height-input"
+            />
+          </div>
         </div>
-      </div>
-      <Select
-        value={position}
-        name="position"
-        onValueChange={(val) => setPosition(val as Position)}
-      >
-        <SelectTrigger className="w-[208px] mb-1" aria-label="Position">
-          <SelectValue placeholder="Position" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value={"left" satisfies Position}>Left</SelectItem>
-            <SelectItem value={"right" satisfies Position}>Right</SelectItem>
-            <SelectItem value={"full" satisfies Position}>
-              Full Width
-            </SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      <div className="flex items-center gap-2">
-        <Switch
-          id={captionSwitchId}
-          checked={showCaption}
-          onCheckedChange={setShowCaption}
+        <Select
+          value={position}
+          name="position"
+          onValueChange={(val) => setPosition(val as Position)}
         >
-          <SwitchThumb />
-        </Switch>
-        <Label htmlFor={captionSwitchId}>Show Caption</Label>
-      </div>
-      <DialogFooter className="justify-end">
-        <Button onClick={handleOnConfirm}>Confirm</Button>
-      </DialogFooter>
+          <SelectTrigger className="w-[208px] mb-1" aria-label="Position">
+            <SelectValue placeholder="Position" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value={"left" satisfies Position}>Left</SelectItem>
+              <SelectItem value={"right" satisfies Position}>Right</SelectItem>
+              <SelectItem value={"full" satisfies Position}>
+                Full Width
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-2">
+          <Switch
+            id={captionSwitchId}
+            checked={showCaption}
+            onCheckedChange={setShowCaption}
+          >
+            <SwitchThumb />
+          </Switch>
+          <Label htmlFor={captionSwitchId}>Show Caption</Label>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit">Update image</Button>
+        </DialogFooter>
+      </form>
     </DialogContent>
   );
 }
@@ -579,12 +584,12 @@ export default function InlineImageComponent({
       </Dialog>
 
       <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
-        <DialogContent className="w-auto h-auto min-w-0 min-h-0 max-w-none! !md:max-w-none bg-transparent border-none shadow-none p-0 focus:outline-none flex justify-center items-center">
+        <DialogContent size="full" className="flex items-center justify-center">
           <DialogTitle className="sr-only">Image Lightbox</DialogTitle>
           <img
             src={src}
             alt={altText}
-            className="max-w-[95vw] max-h-[95vh] object-contain"
+            className="max-h-full max-w-full object-contain"
           />
         </DialogContent>
       </Dialog>

@@ -124,7 +124,7 @@ export function UnsavedChangesProvider({
             if (!isOpen) question?.answer("stay");
           }}
         >
-          <DialogContent className="min-w-80">
+          <DialogContent size="sm">
             <DialogHeader>
               <DialogTitle>Unsaved changes</DialogTitle>
               <DialogDescription>
@@ -133,27 +133,23 @@ export function UnsavedChangesProvider({
                   : "You have unsaved changes. Leave anyway?"}
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="gap-2">
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => question?.answer("stay")}>
+                Stay
+              </Button>
               <Button
-                variant="destructive-confirm"
+                variant={
+                  saveBeforeLeaving ? "destructive" : "destructive-confirm"
+                }
                 onClick={() => question?.answer("leave")}
               >
                 Leave
               </Button>
               {saveBeforeLeaving && (
-                <Button
-                  variant="default"
-                  onClick={() => question?.answer("save")}
-                >
+                <Button onClick={() => question?.answer("save")}>
                   Save and leave
                 </Button>
               )}
-              <Button
-                variant="outline"
-                onClick={() => question?.answer("stay")}
-              >
-                Stay
-              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

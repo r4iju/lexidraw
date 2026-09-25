@@ -14,6 +14,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -432,11 +433,18 @@ export function ListenProvider({ children }: { children: ReactNode }) {
     <ListenContext.Provider value={listen}>
       {children}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="md:max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Listen settings</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
+          <form
+            id={`${uid}-tts-settings`}
+            className="grid grid-cols-2 gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSaveSettings();
+            }}
+          >
             <div>
               <label
                 htmlFor={`${uid}-tts-provider`}
@@ -605,17 +613,20 @@ export function ListenProvider({ children }: { children: ReactNode }) {
                 }
               />
             </div>
-          </div>
-          <DialogFooter className="items-center">
-            <p className="text-xs text-muted-foreground">
+          </form>
+          <DialogFooter>
+            <p className="text-xs text-muted-foreground sm:mr-auto">
               Changes apply to audio generated from now on.
             </p>
+            <DialogClose asChild>
+              <Button variant="ghost">Cancel</Button>
+            </DialogClose>
             <Button
-              size="sm"
-              onClick={handleSaveSettings}
+              type="submit"
+              form={`${uid}-tts-settings`}
               disabled={updateTts.isPending}
             >
-              {updateTts.isPending ? "Saving…" : "Save"}
+              {updateTts.isPending ? "Saving…" : "Save settings"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -660,17 +671,29 @@ export function ListenItems({ withPlay = false }: { withPlay?: boolean }) {
 }
 
 export function ListenControls() {
-  const { documentId, playerOpen, setPlayerOpen } = useListen();
   return (
     <>
       <ToolbarMenu label="Listen" icon={Headphones} trigger="Listen">
         <ListenItems />
       </ToolbarMenu>
-      <PlayFromHereButton
-        documentId={documentId}
-        open={playerOpen}
-        onOpenChange={setPlayerOpen}
-      />
+      <ListenPlayer />
     </>
+  );
+}
+
+/** The player; without a trigger it opens from Listen in a menu. */
+export function ListenPlayer({
+  withTrigger = true,
+}: {
+  withTrigger?: boolean;
+}) {
+  const { documentId, playerOpen, setPlayerOpen } = useListen();
+  return (
+    <PlayFromHereButton
+      documentId={documentId}
+      open={playerOpen}
+      onOpenChange={setPlayerOpen}
+      withTrigger={withTrigger}
+    />
   );
 }

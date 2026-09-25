@@ -47,14 +47,16 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const isLoading = isGenerating || isSearching || isUploading;
   const router = useRouter();
 
-  const handleSearch = async () => {
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
     const image = await searchImage(searchQuery);
     if (image) {
       setSelectedThumbnail(image.url);
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (event: React.FormEvent) => {
+    event.preventDefault();
     const image = await generateImageData(generateQuery);
     if (!image) {
       toast.error("Couldn’t generate an image. Try again.");
@@ -169,7 +171,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-96 max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Change Thumbnail</DialogTitle>
           <DialogDescription>
@@ -190,38 +192,38 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="search">
-              <div className="w-full flex gap-2">
+              <form onSubmit={handleSearch} className="w-full flex gap-2">
                 <Input
                   placeholder="Search for a thumbnail"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <Button
+                  type="submit"
                   variant="outline"
-                  onClick={handleSearch}
                   disabled={isSearching}
                   className="min-w-24"
                 >
                   Search
                 </Button>
-              </div>
+              </form>
             </TabsContent>
             <TabsContent value="generate">
-              <div className="w-full flex gap-2">
+              <form onSubmit={handleGenerate} className="w-full flex gap-2">
                 <Input
                   placeholder="Generate a thumbnail"
                   value={generateQuery}
                   onChange={(e) => setGenerateQuery(e.target.value)}
                 />
                 <Button
+                  type="submit"
                   variant="outline"
-                  onClick={handleGenerate}
                   disabled={isGenerating}
                   className="min-w-24"
                 >
                   Generate
                 </Button>
-              </div>
+              </form>
             </TabsContent>
             <TabsContent value="upload">
               <div className="w-full flex gap-2">
@@ -250,7 +252,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="ghost">Cancel</Button>
           </DialogClose>
           <Button
             disabled={

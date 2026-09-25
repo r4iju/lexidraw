@@ -63,7 +63,10 @@ export default function InsertCalloutDialog({
         />
       </div>
       <DialogFooter>
-        <Button type="submit">Insert</Button>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit">Insert callout</Button>
       </DialogFooter>
     </form>
   );

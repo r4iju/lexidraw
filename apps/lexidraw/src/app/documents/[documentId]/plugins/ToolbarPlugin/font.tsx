@@ -13,6 +13,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "~/components/ui/dropdown-menu";
+import { DialogFooter } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
@@ -201,7 +202,12 @@ export function FontItems({
                 <option value="zh-Hant">繁體中文</option>
                 <option value="ko">한국어</option>
               </select>
-              <Button type="submit">Apply</Button>
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button type="submit">Set language</Button>
+              </DialogFooter>
             </form>
           ))
         }
@@ -288,9 +294,12 @@ function FontImportModal({
         autoFocus
       />
       {error && <Label className="text-xs text-destructive">{error}</Label>}
-      <Button type="submit" className="mt-2">
-        Import
-      </Button>
+      <DialogFooter className="mt-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit">Import font</Button>
+      </DialogFooter>
     </form>
   );
 }
@@ -342,9 +351,12 @@ function DefaultFontImportModal({
         autoFocus
       />
       {error && <Label className="text-xs text-destructive">{error}</Label>}
-      <Button type="submit" className="mt-2">
-        Use for the document
-      </Button>
+      <DialogFooter className="mt-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit">Use for the document</Button>
+      </DialogFooter>
     </form>
   );
 }

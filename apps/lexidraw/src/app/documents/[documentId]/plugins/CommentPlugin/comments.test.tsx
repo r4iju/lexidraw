@@ -12,6 +12,7 @@ import { JSDOM } from "jsdom";
 import type { Klass, LexicalEditor, LexicalNode } from "lexical";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { setScreen } from "~/test/dom";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "https://app.test/documents/1",
@@ -62,6 +63,7 @@ beforeAll(async () => {
     disconnect() {}
   };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
+  setScreen({ width: 1280 });
   const { CORE_NODES } = await import("@packages/lexical-nodes");
   m = {
     LexicalComposer: (await import("@lexical/react/LexicalComposer"))

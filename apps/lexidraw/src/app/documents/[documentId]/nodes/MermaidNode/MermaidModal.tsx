@@ -2,7 +2,6 @@
 import {
   Dialog,
   DialogContent,
-  DialogOverlay,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -11,7 +10,7 @@ import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import mermaid from "mermaid";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useDebounceValue } from "~/lib/client-utils";
 import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { Label } from "~/components/ui/label";
@@ -46,6 +45,7 @@ export default function MermaidModal({
   onSave,
 }: Props) {
   const isDark = useIsDarkTheme();
+  const id = useId();
 
   // ───────────── state ─────────────
   const [schema, setSchema] = useState(initialSchema);
@@ -104,7 +104,9 @@ export default function MermaidModal({
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saveDisabled) return;
     const toNumberOrInherit = (raw: string): number | "inherit" =>
       raw.trim() === "" ? "inherit" : Number(raw);
 
@@ -122,73 +124,80 @@ export default function MermaidModal({
   // ───────────── UI ─────────────
   return (
     <Dialog open onOpenChange={onCancel}>
-      <DialogOverlay />
-      <DialogContent className="max-w-[95dvw] h-[95dvh] md:h-[80dvh] w-full flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Edit Mermaid diagram</DialogTitle>
-        </DialogHeader>
+      <DialogContent size="xl" className="flex flex-col sm:h-[80dvh]">
+        <form onSubmit={handleSave} className="contents">
+          <DialogHeader>
+            <DialogTitle>Edit Mermaid diagram</DialogTitle>
+          </DialogHeader>
 
-        <div className="flex-1 grid grid-rows-[56%_40%] gap-4 overflow-hidden p-1">
-          {/* Preview */}
-          <div className="relative border-border border rounded bg-background overflow-auto">
-            {svgUri ? (
-              <img
-                src={svgUri}
-                alt="diagram preview"
-                className="w-full h-full object-contain"
-              />
-            ) : error ? (
-              <div className="flex items-center justify-center h-full text-sm text-destructive px-4 text-center">
-                {error}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="size-6 animate-spin" />
-              </div>
-            )}
+          <div className="grid min-h-0 flex-1 grid-rows-2 gap-4 sm:grid-cols-2 sm:grid-rows-1">
+            <Textarea
+              aria-label="Diagram source"
+              value={schema}
+              onChange={(e) => setSchema(e.target.value)}
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              className={cn(
+                "resize-none w-full h-full font-mono font-semibold",
+                mono.className,
+              )}
+            />
+            <div className="relative border-border border rounded bg-background overflow-auto">
+              {svgUri ? (
+                <img
+                  src={svgUri}
+                  alt="diagram preview"
+                  className="w-full h-full object-contain"
+                />
+              ) : error ? (
+                <div className="flex items-center justify-center h-full text-sm text-destructive px-4 text-center">
+                  {error}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="size-6 animate-spin" />
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Editor */}
-          <Textarea
-            value={schema}
-            onChange={(e) => setSchema(e.target.value)}
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            className={cn(
-              "resize-none w-full h-full overflow-visible font-mono font-semibold",
-              mono.className,
-            )}
-          />
-        </div>
-        <DialogFooter className="mt-4 flex justify-between gap-2 items-end">
-          <div className="flex flex-row gap-2">
-            <div className="flex flex-col gap-1 justify-start">
-              <Label>Width</Label>
+          <div className="flex gap-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${id}-width`}>Width</Label>
               <Input
+                id={`${id}-width`}
                 type="number"
                 placeholder="auto"
                 step={50}
                 value={widthAndHeight.width}
                 onChange={(e) => handleWidthOrHeightChange(e, "width")}
+                className="w-28"
               />
             </div>
-            <div className="flex flex-col gap-1 justify-start">
-              <Label>Height</Label>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${id}-height`}>Height</Label>
               <Input
+                id={`${id}-height`}
                 type="number"
                 placeholder="auto"
                 step={50}
                 value={widthAndHeight.height}
                 onChange={(e) => handleWidthOrHeightChange(e, "height")}
+                className="w-28"
               />
             </div>
           </div>
 
-          <Button disabled={saveDisabled} onClick={handleSave}>
-            Save
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saveDisabled}>
+              Save diagram
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

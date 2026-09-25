@@ -63,7 +63,7 @@ export function BackupActions({ backupKey }: { backupKey: string }) {
             Delete
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Delete Backup?</DialogTitle>
             <DialogDescription>
@@ -73,7 +73,7 @@ export function BackupActions({ backupKey }: { backupKey: string }) {
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="ghost">Cancel</Button>
             </DialogClose>
             <Button
               variant="destructive-confirm"

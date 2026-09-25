@@ -68,6 +68,7 @@ import {
 } from "../../commenting";
 import ContentEditable from "~/components/ui/content-editable";
 import { Button } from "~/components/ui/button";
+import { DialogFooter } from "~/components/ui/dialog";
 import { cn } from "~/lib/utils";
 import useLayoutEffect from "../../shared/useLayoutEffect";
 import useModal from "~/hooks/useModal";
@@ -483,8 +484,8 @@ function ShowDeleteCommentOrThreadDialog({
   return (
     <>
       <p>Are you sure you want to delete this {commentOrThread.type}?</p>
-      <div className="flex justify-end gap-2 mt-2">
-        <Button variant="outline" onClick={onClose}>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
         <Button
@@ -499,7 +500,7 @@ function ShowDeleteCommentOrThreadDialog({
         >
           Delete
         </Button>
-      </div>
+      </DialogFooter>
     </>
   );
 }

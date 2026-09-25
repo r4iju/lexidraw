@@ -71,21 +71,17 @@ export const SlideModal: React.FC<SlideModalProps> = ({
     onOpenChange(false);
   };
 
-  const handleCancel = () => {
-    onOpenChange(false);
-  };
-
   if (!isOpen) {
     return null;
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl flex flex-col p-0">
-        <DialogHeader className="p-6 pb-2">
+      <DialogContent size="full" className="flex flex-col">
+        <DialogHeader>
           <DialogTitle>Edit Slide Deck</DialogTitle>
         </DialogHeader>
-        <div className="flex-grow overflow-y-auto px-6 pb-2 min-h-0">
+        <div className="min-h-0 flex-1 overflow-auto">
           <SlideDeckEditorComponent
             initialData={deckDataString}
             onDeckDataChange={handleDeckDataChange}
@@ -93,40 +89,39 @@ export const SlideModal: React.FC<SlideModalProps> = ({
             nodeKey={nodeKey}
           />
         </div>
-        <DialogFooter className="p-6 pt-2 border-t border-border">
-          <div className="flex items-center gap-2">
-            <DialogClose asChild>
-              <Button type="button" variant="outline" onClick={handleCancel}>
-                Cancel
-              </Button>
-            </DialogClose>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() =>
-                      openMetadataModalFromHook(
-                        currentDeckData?.deckMetadata,
-                        null,
-                      )
-                    }
-                    variant="outline"
-                    size="icon"
-                  >
-                    <InfoIcon className="size-5" />
-                    <span className="sr-only">Deck metadata</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Deck Metadata</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+        <DialogFooter>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() =>
+                    openMetadataModalFromHook(
+                      currentDeckData?.deckMetadata,
+                      null,
+                    )
+                  }
+                  variant="outline"
+                  size="icon"
+                  className="max-sm:self-start sm:mr-auto"
+                >
+                  <InfoIcon className="size-5" />
+                  <span className="sr-only">Deck metadata</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Deck Metadata</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <DialogClose asChild>
+            <Button type="button" variant="ghost">
+              Cancel
+            </Button>
+          </DialogClose>
           <Button
             type="button"
             onClick={handleSave}
             disabled={!currentDeckData}
           >
-            Save Changes
+            Save deck
           </Button>
         </DialogFooter>
       </DialogContent>

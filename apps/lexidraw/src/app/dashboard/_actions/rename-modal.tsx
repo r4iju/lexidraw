@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { api } from "~/trpc/react";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
@@ -35,7 +35,11 @@ const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const { mutate } = api.entities.update.useMutation();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSave = () => {
+  const canRename = newTitle.trim() !== "" && !isLoading;
+
+  const handleSave = (event: FormEvent) => {
+    event.preventDefault();
+    if (!canRename) return;
     setIsLoading(true);
     mutate(
       { id: entity.id, title: newTitle },
@@ -59,42 +63,46 @@ const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg min-w-72">
-        <DialogHeader>
-          <DialogTitle>Edit name</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor={`rename-title-${entity.id}`} className="text-right">
-              Title
-            </Label>
-            <Input
-              id={`rename-title-${entity.id}`}
-              value={newTitle}
-              className="col-span-3"
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
+      <DialogContent size="sm">
+        <form onSubmit={handleSave} className="contents">
+          <DialogHeader>
+            <DialogTitle>Rename</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label
+                htmlFor={`rename-title-${entity.id}`}
+                className="text-right"
+              >
+                Title
+              </Label>
+              <Input
+                id={`rename-title-${entity.id}`}
+                value={newTitle}
+                className="col-span-3"
+                onChange={(e) => setNewTitle(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" disabled={isLoading}>
-              Cancel
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" disabled={isLoading}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              disabled={!canRename}
+              type="submit"
+              className="flex items-center gap-2"
+            >
+              <LoaderCircleIcon
+                className={cn("w-0", isLoading && "animate-spin w-4")}
+              />
+              <span>Rename</span>
+              <LoaderCircleIcon className="w-0 opacity-0" />
             </Button>
-          </DialogClose>
-          <Button
-            disabled={isLoading}
-            type="submit"
-            onClick={handleSave}
-            className="flex items-center gap-2"
-          >
-            <LoaderCircleIcon
-              className={cn("w-0", isLoading && "animate-spin w-4")}
-            />
-            <span>Save title</span>
-            <LoaderCircleIcon className="w-0 opacity-0" />
-          </Button>
-        </DialogFooter>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

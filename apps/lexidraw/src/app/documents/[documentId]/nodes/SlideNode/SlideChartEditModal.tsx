@@ -2,7 +2,6 @@
 import {
   Dialog,
   DialogContent,
-  DialogOverlay,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -112,8 +111,9 @@ export default function SlideChartEditModal({
     setWidthAndHeight((prev) => ({ ...prev, [key]: e.target.value }));
   };
 
-  const handleSave = () => {
-    if (dataError || configError) return;
+  const handleSave = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saveDisabled) return;
 
     const toNumberOrInherit = (raw: string): Dimension =>
       raw.trim() === "" || Number.isNaN(Number(raw)) ? "inherit" : Number(raw);
@@ -134,113 +134,113 @@ export default function SlideChartEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogOverlay />
-      <DialogContent className="max-w-[95dvw] h-[95dvh] md:h-[85dvh] w-full flex flex-col p-0">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle>Edit Chart</DialogTitle>
-        </DialogHeader>
+      <DialogContent size="xl" className="flex flex-col sm:h-[85dvh]">
+        <form onSubmit={handleSave} className="contents">
+          <DialogHeader>
+            <DialogTitle>Edit Chart</DialogTitle>
+          </DialogHeader>
 
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden p-6 pt-0">
-          {/* Config & Data Inputs */}
-          <div className="flex flex-col gap-4 overflow-y-auto pr-2 pb-2">
-            <div>
-              <Label htmlFor={slideChartTypeSelectId}>Chart Type</Label>
-              <Select
-                value={chartType}
-                onValueChange={(v) => setChartType(v as ChartType)}
-              >
-                <SelectTrigger id={slideChartTypeSelectId}>
-                  <SelectValue placeholder="Select chart type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AVAILABLE_CHART_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5 flex-1">
-              <Label htmlFor={slideChartDataTextareaId}>
-                Chart Data (JSON)
-              </Label>
-              <Textarea
-                id={slideChartDataTextareaId}
-                value={chartDataStr}
-                onChange={(e) => setChartDataStr(e.target.value)}
-                placeholder='[{"name": "Jan", "value": 30}, ...]'
-                className={cn(
-                  "resize-none flex-1 font-mono text-sm",
-                  dataError && "border-destructive",
+          <div className="grid gap-4 sm:min-h-0 sm:flex-1 sm:grid-cols-2">
+            {/* Config & Data Inputs */}
+            <div className="flex flex-col gap-4 sm:overflow-y-auto">
+              <div>
+                <Label htmlFor={slideChartTypeSelectId}>Chart Type</Label>
+                <Select
+                  value={chartType}
+                  onValueChange={(v) => setChartType(v as ChartType)}
+                >
+                  <SelectTrigger id={slideChartTypeSelectId}>
+                    <SelectValue placeholder="Select chart type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AVAILABLE_CHART_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1">
+                <Label htmlFor={slideChartDataTextareaId}>
+                  Chart Data (JSON)
+                </Label>
+                <Textarea
+                  id={slideChartDataTextareaId}
+                  value={chartDataStr}
+                  onChange={(e) => setChartDataStr(e.target.value)}
+                  placeholder='[{"name": "Jan", "value": 30}, ...]'
+                  className={cn(
+                    "resize-none flex-1 font-mono text-sm",
+                    dataError && "border-destructive",
+                  )}
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                />
+                {dataError && (
+                  <p className="text-xs text-destructive">{dataError}</p>
                 )}
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-              />
-              {dataError && (
-                <p className="text-xs text-destructive">{dataError}</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5 flex-1">
-              <Label htmlFor={slideChartConfigTextareaId}>
-                Chart Config (JSON)
-              </Label>
-              <Textarea
-                id={slideChartConfigTextareaId}
-                value={chartConfigStr}
-                onChange={(e) => setChartConfigStr(e.target.value)}
-                placeholder='{"value": {"label": "Visitors", "color": "chart-1"}}'
-                className={cn(
-                  "resize-none flex-1 font-mono text-sm",
-                  configError && "border-destructive",
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1">
+                <Label htmlFor={slideChartConfigTextareaId}>
+                  Chart Config (JSON)
+                </Label>
+                <Textarea
+                  id={slideChartConfigTextareaId}
+                  value={chartConfigStr}
+                  onChange={(e) => setChartConfigStr(e.target.value)}
+                  placeholder='{"value": {"label": "Visitors", "color": "chart-1"}}'
+                  className={cn(
+                    "resize-none flex-1 font-mono text-sm",
+                    configError && "border-destructive",
+                  )}
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                />
+                {configError && (
+                  <p className="text-xs text-destructive">{configError}</p>
                 )}
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-              />
-              {configError && (
-                <p className="text-xs text-destructive">{configError}</p>
-              )}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="relative border-border border rounded bg-background overflow-auto flex flex-col">
+              <Label className="text-xs text-muted-foreground p-2 pb-0">
+                Preview
+              </Label>
+              <div className="flex-1 p-2 min-h-[200px]">
+                <Suspense
+                  fallback={
+                    <Loader2 className="size-6 animate-spin mx-auto my-auto" />
+                  }
+                >
+                  {!dataError && !configError && previewData.length > 0 ? (
+                    <DynamicChartRenderer
+                      chartType={chartType}
+                      data={previewData}
+                      config={previewConfig}
+                      width="inherit"
+                      height="inherit"
+                    />
+                  ) : dataError || configError ? (
+                    <div className="flex items-center justify-center h-full text-sm text-destructive px-4 text-center">
+                      {dataError || configError}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                      Enter data to see a preview (config can be
+                      auto-generated).
+                    </div>
+                  )}
+                </Suspense>
+              </div>
             </div>
           </div>
 
-          {/* Preview */}
-          <div className="relative border-border border rounded bg-background overflow-auto flex flex-col">
-            <Label className="text-xs text-muted-foreground p-2 pb-0">
-              Preview
-            </Label>
-            <div className="flex-1 p-2 min-h-[200px]">
-              <Suspense
-                fallback={
-                  <Loader2 className="size-6 animate-spin mx-auto my-auto" />
-                }
-              >
-                {!dataError && !configError && previewData.length > 0 ? (
-                  <DynamicChartRenderer
-                    chartType={chartType}
-                    data={previewData}
-                    config={previewConfig}
-                    width="inherit"
-                    height="inherit"
-                  />
-                ) : dataError || configError ? (
-                  <div className="flex items-center justify-center h-full text-sm text-destructive px-4 text-center">
-                    {dataError || configError}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                    Enter data to see a preview (config can be auto-generated).
-                  </div>
-                )}
-              </Suspense>
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="p-6 pt-4 flex flex-row justify-between items-end gap-2 border-t border-border">
-          <div className="flex flex-row gap-2">
-            <div>
+          <div className="flex gap-2">
+            <div className="flex flex-col gap-1">
               <Label htmlFor={slideChartWidthInputId}>Width</Label>
               <Input
                 id={slideChartWidthInputId}
@@ -249,9 +249,10 @@ export default function SlideChartEditModal({
                 step={50}
                 value={widthAndHeight.width}
                 onChange={(e) => handleWidthOrHeightChange(e, "width")}
+                className="w-28"
               />
             </div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor={slideChartHeightInputId}>Height</Label>
               <Input
                 id={slideChartHeightInputId}
@@ -260,18 +261,20 @@ export default function SlideChartEditModal({
                 step={50}
                 value={widthAndHeight.height}
                 onChange={(e) => handleWidthOrHeightChange(e, "height")}
+                className="w-28"
               />
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onCancel}>
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onCancel}>
               Cancel
             </Button>
-            <Button disabled={saveDisabled} onClick={handleSave}>
-              Save Changes
+            <Button type="submit" disabled={saveDisabled}>
+              Save chart
             </Button>
-          </div>
-        </DialogFooter>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

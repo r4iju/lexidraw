@@ -3,7 +3,6 @@ import { useEffect, useId, useState } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogOverlay,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -98,17 +97,16 @@ export default function SlideDeckMetadataModal({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(open) => !open && closeModal()}>
-      <DialogOverlay />
-      <DialogContent className="max-w-[60dvw] w-full h-[75dvh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-2">
+      <DialogContent size="lg" className="flex flex-col sm:h-[75dvh]">
+        <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {description} Be careful, invalid JSON will prevent saving.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col gap-2 overflow-y-auto p-6 pt-2">
-          <Label htmlFor="metadataTextarea" className="text-sm">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          <Label htmlFor={metadataTextareaId} className="text-sm">
             Edit JSON
           </Label>
           <Textarea
@@ -131,8 +129,8 @@ export default function SlideDeckMetadataModal({
           {metaError && <p className="text-xs text-destructive">{metaError}</p>}
         </div>
 
-        <DialogFooter className="p-6 pt-4 border-t border-border">
-          <Button variant="outline" onClick={closeModal}>
+        <DialogFooter>
+          <Button variant="ghost" onClick={closeModal}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={!!metaError}>

@@ -55,9 +55,9 @@ export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-72 break-normal sm:max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
-          <DialogTitle className="pr-8 leading-snug">
+          <DialogTitle className="leading-snug">
             Delete “{entity.title}”?
           </DialogTitle>
           <DialogDescription>
@@ -66,7 +66,7 @@ export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="ghost">Cancel</Button>
           </DialogClose>
           <Button
             variant="destructive-confirm"

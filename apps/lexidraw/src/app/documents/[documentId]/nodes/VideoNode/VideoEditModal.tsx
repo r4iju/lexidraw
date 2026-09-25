@@ -48,7 +48,8 @@ export default function VideoEditModal({
     setShowCaption(initialShowCaption);
   }, [initialWidth, initialHeight, initialShowCaption]);
 
-  const handleApply = () => {
+  const handleApply = (event: React.FormEvent) => {
+    event.preventDefault();
     const newWidth = width === "" ? "inherit" : parseInt(width, 10);
     const newHeight = height === "" ? "inherit" : parseInt(height, 10);
 
@@ -73,50 +74,52 @@ export default function VideoEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-full">
-        <DialogHeader>
-          <DialogTitle>Edit Video Properties</DialogTitle>
-          <DialogDescription>
-            Adjust the video dimensions and caption visibility. Leave width or
-            height blank to inherit.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-6 py-4 w-full">
-          <div className="flex justify-start flex-col gap-2">
-            <Label htmlFor={widthInputId}>Width</Label>
-            <Input
-              id={widthInputId}
-              type="number"
-              value={width}
-              onChange={(e) => setWidth(e.target.value)}
-              placeholder="auto"
-            />
+      <DialogContent>
+        <form onSubmit={handleApply} className="contents">
+          <DialogHeader>
+            <DialogTitle>Edit Video Properties</DialogTitle>
+            <DialogDescription>
+              Adjust the video dimensions and caption visibility. Leave width or
+              height blank to inherit.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 py-4">
+            <div className="flex justify-start flex-col gap-2">
+              <Label htmlFor={widthInputId}>Width</Label>
+              <Input
+                id={widthInputId}
+                type="number"
+                value={width}
+                onChange={(e) => setWidth(e.target.value)}
+                placeholder="auto"
+              />
+            </div>
+            <div className="flex justify-start flex-col gap-2">
+              <Label htmlFor={heightInputId}>Height</Label>
+              <Input
+                id={heightInputId}
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                placeholder="auto"
+              />
+            </div>
+            <div className="flex items-center gap-x-4 justify-start col-span-2">
+              <Label htmlFor={showCaptionSwitchId}>Show Caption</Label>
+              <Switch
+                id={showCaptionSwitchId}
+                checked={showCaption}
+                onCheckedChange={setShowCaption}
+              />
+            </div>
           </div>
-          <div className="flex justify-start flex-col gap-2">
-            <Label htmlFor={heightInputId}>Height</Label>
-            <Input
-              id={heightInputId}
-              type="number"
-              value={height}
-              onChange={(e) => setHeight(e.target.value)}
-              placeholder="auto"
-            />
-          </div>
-          <div className="flex items-center gap-x-4 justify-start col-span-2">
-            <Label htmlFor={showCaptionSwitchId}>Show Caption</Label>
-            <Switch
-              id={showCaptionSwitchId}
-              checked={showCaption}
-              onCheckedChange={setShowCaption}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleApply}>Apply Changes</Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit">Apply Changes</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

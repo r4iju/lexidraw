@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { setScreen } from "~/test/dom";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "https://app.test/documents/1",
@@ -31,6 +32,7 @@ beforeAll(async () => {
     disconnect() {}
   };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
+  setScreen({ width: 1280 });
   Modal = (await import("./ImportMarkdownModal")).default;
 });
 afterAll(async () => {

@@ -50,8 +50,7 @@ export default function useModal(): [
     const { title, content } = modalContent;
     return (
       <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
-        {/* <DialogOverlay /> */}
-        <DialogContent ref={ref} className="min-w-80">
+        <DialogContent ref={ref}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>

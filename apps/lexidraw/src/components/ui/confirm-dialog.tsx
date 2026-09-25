@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { cn } from "~/lib/utils";
 
 /** Asks before an action that throws work away; Cancel keeps it. */
 export function ConfirmDialog({
@@ -35,7 +34,8 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         role="alertdialog"
-        className={cn("min-w-72 sm:max-w-md", className)}
+        size="sm"
+        className={className}
         overlayClassName={className}
       >
         <DialogHeader>
@@ -44,7 +44,7 @@ export function ConfirmDialog({
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="ghost">Cancel</Button>
           </DialogClose>
           <Button
             variant="destructive-confirm"

@@ -40,8 +40,10 @@ import { Label } from "~/components/ui/label";
 
 function InsertVideoUploadedDialogBody({
   onClick,
+  onCancel,
 }: {
   onClick: (payload: VideoPayload) => void;
+  onCancel: () => void;
 }) {
   const { src, handleFileChange, error: uploadError } = useUploader();
   const entityId = useEntityId();
@@ -62,11 +64,14 @@ function InsertVideoUploadedDialogBody({
       />
       {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
       <DialogFooter>
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
         <Button
           disabled={isDisabled}
           onClick={() => onClick({ src, showCaption: true })}
         >
-          Confirm
+          Insert video
         </Button>
       </DialogFooter>
     </div>
@@ -75,8 +80,10 @@ function InsertVideoUploadedDialogBody({
 
 function InsertVideoByUrlDialogBody({
   onStartProcessing,
+  onCancel,
 }: {
   onStartProcessing: (requestId: string, url: string) => void;
+  onCancel: () => void;
 }) {
   const entityId = useEntityId();
   const [url, setUrl] = useState("");
@@ -119,7 +126,7 @@ function InsertVideoByUrlDialogBody({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="video-url-input">Video link</Label>
+        <Label htmlFor={videoUrlInputId}>Video link</Label>
         <Input
           id={videoUrlInputId}
           placeholder="Paste a link to a video (YouTube, X and more)"
@@ -131,6 +138,9 @@ function InsertVideoByUrlDialogBody({
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
       <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
         <Button type="submit" disabled={loading || !url}>
           {loading ? "Starting..." : "Insert by URL"}
         </Button>
@@ -170,13 +180,19 @@ export function InsertVideoDialog({
           Download settings
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="upload" className="min-w-84">
-        <InsertVideoUploadedDialogBody onClick={insertVideo} />
+      <TabsContent value="upload">
+        <InsertVideoUploadedDialogBody
+          onClick={insertVideo}
+          onCancel={onClose}
+        />
       </TabsContent>
-      <TabsContent value="url" className="min-w-84">
-        <InsertVideoByUrlDialogBody onStartProcessing={onStartProcessing} />
+      <TabsContent value="url">
+        <InsertVideoByUrlDialogBody
+          onStartProcessing={onStartProcessing}
+          onCancel={onClose}
+        />
       </TabsContent>
-      <TabsContent value="settings" className="min-w-84">
+      <TabsContent value="settings">
         <VideoDownloadSettings onClose={() => setTab("url")} />
       </TabsContent>
     </Tabs>
@@ -397,7 +413,7 @@ export default function VideoPlugin(): React.JSX.Element | null {
       {/* Render the dialog if it's open */}
       {isModalOpen && (
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Insert video</DialogTitle>
             </DialogHeader>
@@ -551,7 +567,7 @@ function VideoDownloadSettings({ onClose }: { onClose: () => void }) {
           Cancel
         </Button>
         <Button type="submit" disabled={!isValid || !isDirty}>
-          {isPending ? "Saving..." : "Save"}
+          {isPending ? "Saving..." : "Save settings"}
           {isPending && <Loader2 className="size-4 ml-2 animate-spin" />}
         </Button>
       </DialogFooter>

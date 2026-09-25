@@ -487,12 +487,12 @@ export default function ImageComponent({
         />
       </Dialog>
       <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
-        <DialogContent className="w-auto h-auto min-w-0 min-h-0 max-w-none! !md:max-w-none bg-transparent border-none shadow-none p-0 focus:outline-none flex justify-center items-center">
+        <DialogContent size="full" className="flex items-center justify-center">
           <DialogTitle className="sr-only">Image Lightbox</DialogTitle>
           <img
             src={src}
             alt={altText}
-            className="max-w-[95vw] max-h-[95vh] object-contain"
+            className="max-h-full max-w-full object-contain"
           />
         </DialogContent>
       </Dialog>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { type FormEvent, useState, useEffect, useMemo } from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import {
@@ -67,7 +67,9 @@ const TagEntityModal = (props: Props) => {
     }
   }, [isOpen, currentTags]);
 
-  const handleSave = () => {
+  const handleSave = (event: FormEvent) => {
+    event.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     addTags(
       { id: entityId, tagNames: tags },
@@ -99,44 +101,45 @@ const TagEntityModal = (props: Props) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg min-w-72">
-        <DialogHeader>
-          <DialogTitle>Edit tags</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor={`tags-input-${entityId}`} className="text-right">
-              Tags
-            </Label>
-            <div className="col-span-3">
-              <TagsInput
-                id={`tags-input-${entityId}`}
-                value={tags}
-                onChange={setTags}
-                placeholder="Add tags..."
-              />
+      <DialogContent>
+        <form onSubmit={handleSave} className="contents">
+          <DialogHeader>
+            <DialogTitle>Edit tags</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor={`tags-input-${entityId}`} className="text-right">
+                Tags
+              </Label>
+              <div className="col-span-3">
+                <TagsInput
+                  id={`tags-input-${entityId}`}
+                  value={tags}
+                  onChange={setTags}
+                  placeholder="Add tags..."
+                />
+              </div>
             </div>
           </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" disabled={isLoading}>
-              Cancel
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" disabled={isLoading}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              disabled={isLoading}
+              type="submit"
+              className="flex items-center gap-2"
+            >
+              <LoaderCircleIcon
+                className={cn("w-0", isLoading && "animate-spin w-4")}
+              />
+              <span>Save tags</span>
+              <LoaderCircleIcon className="w-0 opacity-0" />
             </Button>
-          </DialogClose>
-          <Button
-            disabled={isLoading}
-            type="submit"
-            onClick={handleSave}
-            className="flex items-center gap-2"
-          >
-            <LoaderCircleIcon
-              className={cn("w-0", isLoading && "animate-spin w-4")}
-            />
-            <span>Save changes</span>
-            <LoaderCircleIcon className="w-0 opacity-0" />
-          </Button>
-        </DialogFooter>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

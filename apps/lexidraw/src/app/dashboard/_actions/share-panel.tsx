@@ -126,14 +126,13 @@ export function SharePanel({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="break-normal md:max-w-lg"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           emailRef.current?.focus();
         }}
       >
-        <DialogHeader className="text-left">
-          <DialogTitle className="pr-8 leading-snug">
+        <DialogHeader>
+          <DialogTitle className="leading-snug">
             Share “{entity.title}”
           </DialogTitle>
           <DialogDescription>
@@ -309,7 +308,11 @@ export function SharePanel({
         </section>
 
         <DialogFooter>
-          <Button variant="outline" className="gap-2" onClick={onCopyLink}>
+          <Button
+            variant="outline"
+            className="gap-2 sm:mr-auto"
+            onClick={onCopyLink}
+          >
             <LinkIcon className="size-4" />
             Copy link
           </Button>

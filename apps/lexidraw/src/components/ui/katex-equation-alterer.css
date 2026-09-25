@@ -16,15 +16,6 @@
   overflow: hidden;
 }
 
-.KatexEquationAlterer_dialogActions {
-  display: flex;
-  flex-direction: row;
-  overflow: hidden;
-  margin-top: 20px;
-  margin-bottom: 0;
-  justify-content: right;
-}
-
 .KatexEquationAlterer_centerRow {
   display: flex;
   flex-direction: "row";
