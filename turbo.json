@@ -105,6 +105,14 @@
       "dependsOn": ["^test"],
       "outputs": []
     },
+    "@apps/render-html-worker#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "fonts/**"]
+    },
+    "@apps/render-html-worker#test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "@apps/lexidraw#test": {
       "dependsOn": ["^build"],
       "outputs": []

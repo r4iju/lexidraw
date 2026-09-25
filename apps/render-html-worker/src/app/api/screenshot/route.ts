@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import type { Browser, LaunchOptions, Page } from "puppeteer-core";
+import type { Browser, Page } from "puppeteer-core";
+import { launchBrowser } from "~/lib/launch-browser";
 
 type WaitUntil = "load" | "domcontentloaded" | "networkidle0" | "networkidle2";
 
@@ -260,42 +261,7 @@ export async function POST(req: NextRequest) {
     // Launch Chromium
     let browser: Browser | undefined;
     try {
-      const isProdVercel =
-        process.env.VERCEL === "1" && process.env.NODE_ENV === "production";
-      if (isProdVercel) {
-        process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
-        process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
-        process.env.FONTCONFIG_PATH ??= "/tmp/fonts";
-        const prevLd = process.env.LD_LIBRARY_PATH || "";
-        process.env.LD_LIBRARY_PATH = [
-          "/tmp/al2023/lib",
-          "/tmp/al2/lib",
-          prevLd,
-        ]
-          .filter(Boolean)
-          .join(":");
-        const chromium = (await import("@sparticuz/chromium"))
-          .default as unknown as {
-          args: string[];
-          headless?: boolean;
-          executablePath: () => Promise<string>;
-        };
-        const puppeteer = await import("puppeteer-core");
-        browser = await puppeteer.launch({
-          headless: chromium.headless ?? true,
-          args: chromium.args,
-          executablePath: await chromium.executablePath(),
-          defaultViewport: vp,
-        } satisfies LaunchOptions);
-      } else {
-        const puppeteer = (await import("puppeteer")) as unknown as {
-          launch: (opts?: LaunchOptions) => Promise<Browser>;
-        };
-        browser = await puppeteer.launch({
-          headless: true,
-          defaultViewport: vp,
-        });
-      }
+      browser = await launchBrowser({ viewport: vp });
     } catch (e) {
       console.error("screenshot:launch_error", e);
       return new NextResponse("Launch failed", { status: 500 });

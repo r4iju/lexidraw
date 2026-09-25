@@ -10,8 +10,9 @@
     color: var(--muted-foreground);
     font-size: 9pt;
     font-family:
-      system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans CJK JP",
-      "Noto Sans JP", "Microsoft YaHei", sans-serif;
+      system-ui, -apple-system, "Segoe UI", Inter, "Hiragino Sans",
+      "Noto Sans CJK JP", "Noto Sans JP", "Microsoft YaHei", sans-serif,
+      "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
   }
   @bottom-right {
     content: counter(page) " / " counter(pages);
@@ -19,7 +20,7 @@
     padding-block-start: 6mm;
     color: var(--muted-foreground);
     font-size: 9pt;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
     font-variant-numeric: tabular-nums;
   }
 }

@@ -586,15 +586,18 @@
     "Hiragino Sans", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP";
   --doc-cjk-serif:
     "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", "Noto Serif JP";
+  --doc-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+  /* Inter and the Noto faces are what the server renderer has installed. */
   --doc-font-sans:
     ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, var(--doc-cjk-sans),
-    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, Inter, var(--doc-cjk-sans),
+    sans-serif, var(--doc-emoji);
   --doc-font-serif:
-    Charter, "Source Serif 4", Georgia, var(--doc-cjk-serif), serif;
+    Charter, "Source Serif 4", Georgia, var(--doc-cjk-serif), serif,
+    var(--doc-emoji);
   --doc-font-mono:
     ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono",
-    "Noto Sans Mono CJK JP", var(--doc-cjk-sans), monospace;
+    "Noto Sans Mono CJK JP", var(--doc-cjk-sans), monospace, var(--doc-emoji);
 }
 .document-typography:lang(zh),
 .document-content:lang(zh) {

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import type { Browser, Dialog, LaunchOptions, Page } from "puppeteer-core";
 import { getBrightDataProxyUrls } from "@packages/lib";
+import type { Browser, Dialog, Page } from "puppeteer-core";
+import { launchBrowser } from "~/lib/launch-browser";
 
 export const maxDuration = 30;
 
@@ -272,46 +273,9 @@ export async function POST(req: NextRequest) {
     // 1) Direct attempt
     let browser: Browser;
     try {
-      const isProdVercel =
-        process.env.VERCEL === "1" && process.env.NODE_ENV === "production";
-      if (isProdVercel) {
-        // Ensure @sparticuz/chromium inflates libs for AL2023
-        process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
-        process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
-        process.env.FONTCONFIG_PATH ??= "/tmp/fonts";
-        const prevLd = process.env.LD_LIBRARY_PATH || "";
-        process.env.LD_LIBRARY_PATH = [
-          "/tmp/al2023/lib",
-          "/tmp/al2/lib",
-          prevLd,
-        ]
-          .filter(Boolean)
-          .join(":");
-
-        const chromium = (await import("@sparticuz/chromium"))
-          .default as unknown as {
-          args: string[];
-          headless?: boolean;
-          executablePath: () => Promise<string>;
-        };
-        const puppeteer = await import("puppeteer-core");
-        const launchOptions: LaunchOptions = {
-          headless: chromium.headless ?? true,
-          args: chromium.args,
-          executablePath: await chromium.executablePath(),
-          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-        };
-        browser = await puppeteer.launch(launchOptions);
-      } else {
-        // Local dev / non-Vercel: use full Puppeteer (bundled Chromium) for host OS
-        const puppeteer = (await import("puppeteer")) as unknown as {
-          launch: (opts?: LaunchOptions) => Promise<Browser>;
-        };
-        browser = await puppeteer.launch({
-          headless: true,
-          defaultViewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-        });
-      }
+      browser = await launchBrowser({
+        viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+      });
     } catch (e) {
       console.error("render-html:launch_error", e);
       browser = undefined as unknown as Browser; // fallthrough to proxy pool
@@ -360,52 +324,10 @@ export async function POST(req: NextRequest) {
           const username = decodeURIComponent(u.username);
           const password = decodeURIComponent(u.password);
 
-          const isProd = isProdVercel;
-          let browserLocal: Browser;
-          if (isProd) {
-            process.env.AWS_EXECUTION_ENV ??= "AWS_Lambda_nodejs20.x";
-            process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs20.x";
-            process.env.FONTCONFIG_PATH ??= "/tmp/fonts";
-            const prevLd = process.env.LD_LIBRARY_PATH || "";
-            process.env.LD_LIBRARY_PATH = [
-              "/tmp/al2023/lib",
-              "/tmp/al2/lib",
-              prevLd,
-            ]
-              .filter(Boolean)
-              .join(":");
-            const chromium = (await import("@sparticuz/chromium"))
-              .default as unknown as {
-              args: string[];
-              headless?: boolean;
-              executablePath: () => Promise<string>;
-            };
-            const puppeteer = await import("puppeteer-core");
-            const launchOptions: LaunchOptions = {
-              headless: chromium.headless ?? true,
-              args: [...chromium.args, `--proxy-server=${proxyServer}`],
-              executablePath: await chromium.executablePath(),
-              defaultViewport: {
-                width: 1200,
-                height: 900,
-                deviceScaleFactor: 1,
-              },
-            };
-            browserLocal = await puppeteer.launch(launchOptions);
-          } else {
-            const puppeteer = (await import("puppeteer")) as unknown as {
-              launch: (opts?: LaunchOptions) => Promise<Browser>;
-            };
-            browserLocal = await puppeteer.launch({
-              headless: true,
-              args: [`--proxy-server=${proxyServer}`],
-              defaultViewport: {
-                width: 1200,
-                height: 900,
-                deviceScaleFactor: 1,
-              },
-            });
-          }
+          const browserLocal = await launchBrowser({
+            viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+            args: [`--proxy-server=${proxyServer}`],
+          });
 
           try {
             const page = await browserLocal.newPage();
