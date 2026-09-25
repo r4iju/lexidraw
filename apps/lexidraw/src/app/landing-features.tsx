@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
 import { cn } from "~/lib/utils";
 
 const FEATURES = [
@@ -43,26 +43,10 @@ export function LandingFeatures() {
               index % 2 === 1 && "md:order-last",
             )}
           >
-            <Image
-              src={`/images/landing/${feature.image}-light.webp`}
-              alt={feature.alt}
-              fill
-              sizes="(max-width: 768px) 100vw, 66vw"
-              fetchPriority={index === 0 ? "high" : undefined}
-              className={cn(
-                "object-cover object-top-left",
-                feature.dark && "dark:hidden",
-              )}
-            />
-            {feature.dark && (
-              <Image
-                src={`/images/landing/${feature.image}-dark.webp`}
-                alt={feature.alt}
-                fill
-                sizes="(max-width: 768px) 100vw, 66vw"
-                fetchPriority={index === 0 ? "high" : undefined}
-                className="hidden object-cover object-top-left dark:block"
-              />
+            {index === 0 && feature.dark ? (
+              <FirstPicture feature={feature} />
+            ) : (
+              <ThemedPicture feature={feature} />
             )}
           </div>
           <figcaption className="flex flex-col gap-2 md:col-span-4">
@@ -72,5 +56,87 @@ export function LandingFeatures() {
         </figure>
       ))}
     </section>
+  );
+}
+
+const SIZES = "(max-width: 768px) 100vw, 66vw";
+
+type Feature = (typeof FEATURES)[number];
+
+function ThemedPicture({
+  feature,
+  lightClassName,
+  darkClassName = "hidden dark:block",
+}: {
+  feature: Feature;
+  lightClassName?: string;
+  darkClassName?: string;
+}) {
+  return (
+    <>
+      <Image
+        src={`/images/landing/${feature.image}-light.webp`}
+        alt={feature.alt}
+        fill
+        sizes={SIZES}
+        className={cn(
+          "object-cover object-top-left",
+          lightClassName ?? (feature.dark && "dark:hidden"),
+        )}
+      />
+      {feature.dark && (
+        <Image
+          src={`/images/landing/${feature.image}-dark.webp`}
+          alt={feature.alt}
+          fill
+          sizes={SIZES}
+          className={cn("object-cover object-top-left", darkClassName)}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * The first picture downloads at once, before the theme's script has said
+ * which theme the reader chose, so it follows the system's; a reader who
+ * chose the other one waits for that copy instead.
+ */
+function FirstPicture({ feature }: { feature: Feature }) {
+  const common = {
+    alt: feature.alt,
+    fill: true,
+    sizes: SIZES,
+    loading: "eager",
+    fetchPriority: "high",
+  } as const;
+  const { props: dark } = getImageProps({
+    ...common,
+    src: `/images/landing/${feature.image}-dark.webp`,
+  });
+  const { props: light } = getImageProps({
+    ...common,
+    src: `/images/landing/${feature.image}-light.webp`,
+  });
+  return (
+    <>
+      <picture>
+        <source
+          media="(prefers-color-scheme: dark)"
+          srcSet={dark.srcSet}
+          sizes={dark.sizes}
+        />
+        <img
+          {...light}
+          alt={feature.alt}
+          className="object-cover object-top-left chosen-dark:hidden chosen-light:hidden"
+        />
+      </picture>
+      <ThemedPicture
+        feature={feature}
+        lightClassName="hidden chosen-light:block"
+        darkClassName="hidden chosen-dark:block"
+      />
+    </>
   );
 }

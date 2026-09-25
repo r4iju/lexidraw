@@ -12,6 +12,22 @@
   }
 }
 
+/* A theme the reader chose over their system's, which a <picture> cannot see. */
+@custom-variant chosen-dark {
+  @media screen and (prefers-color-scheme: light) {
+    &:is(.dark *) {
+      @slot;
+    }
+  }
+}
+@custom-variant chosen-light {
+  @media screen and (prefers-color-scheme: dark) {
+    &:is(.light *) {
+      @slot;
+    }
+  }
+}
+
 @custom-variant details-open (&[open] &);
 @custom-variant details-open-summary (details[open] > summary &);
 @custom-variant details-open-content (details[open] > &);
