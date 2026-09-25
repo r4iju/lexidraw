@@ -29,7 +29,9 @@ export function ViewFilter({ view, pathname, searchParams }: Props) {
   return (
     <nav
       aria-label="Show"
-      className="inline-flex h-10 items-stretch rounded-md border border-border bg-muted p-0.5"
+      // Under a finger each segment is a 44px target, and the track grows
+      // to hold them rather than let the current one stand out of it.
+      className="inline-flex h-10 items-stretch rounded-md border border-border bg-muted p-0.5 pointer-coarse:h-auto"
     >
       {DASHBOARD_VIEWS.map((option) => (
         <Link

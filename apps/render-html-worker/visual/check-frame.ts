@@ -305,6 +305,52 @@ async function checkBar(page: Page, emptyId: string, drawingId: string) {
 }
 
 /**
+ * Home's Show switch at a desktop width, with a mouse and under a finger: its
+ * segments sit inside their track, the current one no taller than the rest,
+ * and under a finger each is a 44px target.
+ */
+export async function checkHomeToolbar(page: Page) {
+  for (const hasTouch of [false, true]) {
+    await page.setViewport({ width: 1280, height: 900, hasTouch });
+    await page.goto(`${appUrl}/dashboard`, { waitUntil: "networkidle2" });
+    const input = hasTouch ? "touch" : "mouse";
+    const seen = await page.evaluate(() => {
+      const track = document.querySelector(
+        '[role="toolbar"][aria-label="Files and filters"] nav[aria-label="Show"]',
+      );
+      const box = (element: Element) => {
+        const { top, bottom } = element.getBoundingClientRect();
+        return { top: Math.round(top), bottom: Math.round(bottom) };
+      };
+      return {
+        track: track ? box(track) : null,
+        segments: [...(track?.querySelectorAll("a") ?? [])].map((link) => ({
+          name: link.textContent ?? "",
+          ...box(link),
+        })),
+      };
+    });
+    const { track } = seen;
+    assert(
+      track && seen.segments.length === 3,
+      `${input}: Show has 3 segments`,
+    );
+    for (const segment of seen.segments) {
+      assert(
+        segment.top >= track.top && segment.bottom <= track.bottom,
+        `${input}: ${segment.name} sits inside the Show track (${segment.top}..${segment.bottom} in ${track.top}..${track.bottom})`,
+      );
+      if (hasTouch)
+        assert(
+          segment.bottom - segment.top >= 44,
+          `${input}: ${segment.name} is a 44px target`,
+        );
+    }
+  }
+  await page.setViewport({ width: 1280, height: 900, hasTouch: false });
+}
+
+/**
  * Settings scrolls as a page: the app bar stays on top, and what is held or
  * jumped to below it clears the bar by the same 2rem at every width.
  */

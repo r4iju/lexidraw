@@ -6,7 +6,7 @@ import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
-import { checkFrame } from "./check-frame";
+import { checkFrame, checkHomeToolbar } from "./check-frame";
 import {
   CLOSED_SECTIONS_MARKDOWN,
   checkClosedSections,
@@ -371,6 +371,7 @@ try {
     emptyId: empty.id,
     drawingId: drawing.id,
   });
+  await checkHomeToolbar(page);
   await checkFirstPaint(page, {
     fixtureId,
     emptyId: empty.id,
