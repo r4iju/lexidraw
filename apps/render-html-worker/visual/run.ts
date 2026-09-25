@@ -102,7 +102,7 @@ const empty = await cli("doc", "create", "--title", "Visual suite · empty");
 // A throwaway document with a photo and a diagram near the top, neither
 // measured yet, as a document written through the API has them.
 const sized = await cli("doc", "create", "--title", "Visual suite · sizes");
-const text = (value: string) => ({
+const paragraph = (value: string) => ({
   children: [
     {
       detail: 0,
@@ -138,9 +138,9 @@ await writeFile(
       root: {
         ...emptyRoot,
         children: [
-          text("Before the photo."),
+          paragraph("Before the photo."),
           {
-            ...text(""),
+            ...paragraph(""),
             children: [
               {
                 type: "image",
@@ -155,7 +155,7 @@ await writeFile(
               },
             ],
           },
-          text("After the photo."),
+          paragraph("After the photo."),
           {
             type: "mermaid",
             version: 1,
@@ -163,9 +163,9 @@ await writeFile(
             width: "inherit",
             height: "inherit",
           },
-          text("After the diagram."),
+          paragraph("After the diagram."),
           ...Array.from({ length: 12 }, (_, index) =>
-            text(`Paragraph ${index + 1}, below the fold on a phone.`),
+            paragraph(`Paragraph ${index + 1}, below the fold on a phone.`),
           ),
         ],
       },
