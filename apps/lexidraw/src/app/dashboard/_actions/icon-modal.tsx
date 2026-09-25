@@ -23,7 +23,6 @@ import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
-import { LoaderCircleIcon } from "lucide-react";
 import { put } from "@vercel/blob/client";
 
 type Props = {
@@ -259,13 +258,9 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
               isUploading || selectedThumbnail === entity.screenShotLight
             }
             onClick={handleUpload}
-            className="flex items-center gap-2"
+            pending={isUploading}
           >
-            <LoaderCircleIcon
-              className={cn("w-0", isUploading && "animate-spin w-4")}
-            />
-            <span>Save thumbnail</span>
-            <LoaderCircleIcon className="w-0 opacity-0" />
+            Save thumbnail
           </Button>
         </DialogFooter>
       </DialogContent>

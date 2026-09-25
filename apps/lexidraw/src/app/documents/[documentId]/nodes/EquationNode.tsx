@@ -3,7 +3,6 @@ import type { DOMExportOutput } from "lexical";
 import type * as React from "react";
 import { Suspense } from "react";
 import { katexOptions, loadedKatex } from "~/lib/katex";
-import { BlockLoading } from "./common/BlockLoading";
 import EquationComponent from "./EquationComponent";
 
 export type { SerializedEquationNode } from "@packages/lexical-nodes";
@@ -29,7 +28,7 @@ export class EquationNode extends HeadlessEquationNode {
   decorate(): React.JSX.Element {
     return (
       // Only while KaTeX is still on its way; see `blocksReady`.
-      <Suspense fallback={<BlockLoading />}>
+      <Suspense fallback={<span aria-busy="true" />}>
         <EquationComponent
           equation={this.__equation}
           inline={this.__inline}

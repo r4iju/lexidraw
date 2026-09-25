@@ -155,7 +155,7 @@ async function redPixels(page: Page) {
 }
 
 /** Sets the account's auto-save from the ⋯ menu; answers what it was. */
-async function setAutoSave(page: Page, on: boolean) {
+export async function setAutoSave(page: Page, on: boolean) {
   await menuItems(page, `${APP_BAR} button[aria-label="Document actions"]`);
   const was = await page.$$eval(
     '[role="menu"] [role="menuitemcheckbox"]',

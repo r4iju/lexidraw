@@ -1,7 +1,7 @@
 import { InlineImageNode as HeadlessInlineImageNode } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
-import { BlockLoading } from "../common/BlockLoading";
+import { BlockLoading, storedSize } from "../common/BlockLoading";
 
 export type {
   InlineImagePayload,
@@ -19,8 +19,17 @@ export class InlineImageNode extends HeadlessInlineImageNode {
   static importJSON = HeadlessInlineImageNode.importJSON;
 
   decorate(): React.JSX.Element {
+    const size = storedSize(this.__width, this.__height);
     return (
-      <Suspense fallback={<BlockLoading />}>
+      <Suspense
+        fallback={
+          size ? (
+            <BlockLoading size={size} className="inline-block align-middle" />
+          ) : (
+            <span aria-busy="true" />
+          )
+        }
+      >
         <InlineImageComponent
           src={this.__src}
           altText={this.__altText}

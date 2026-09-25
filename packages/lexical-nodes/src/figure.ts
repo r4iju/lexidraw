@@ -56,6 +56,35 @@ export function $setFigure(node: LexicalNode, figure: Figure): void {
   $setState(node, figureState, parseFigure(figure));
 }
 
+/** A figure's own size, as it was first drawn: an image's pixels, a diagram's box. */
+export type NaturalSize = { width: number; height: number };
+
+function parseNaturalSize(value: unknown): NaturalSize | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const { width, height } = value as Record<string, unknown>;
+  if (typeof width !== "number" || typeof height !== "number") return undefined;
+  if (!(width > 0 && height > 0 && Number.isFinite(width * height)))
+    return undefined;
+  return { width, height };
+}
+
+export const naturalSizeState = createState("natural", {
+  parse: parseNaturalSize,
+  isEqual: (a, b) => a?.width === b?.width && a?.height === b?.height,
+});
+
+/**
+ * The size a figure was measured at the first time it was drawn, so that it
+ * can keep its place before it is drawn again.
+ */
+export function $getNaturalSize(node: LexicalNode): NaturalSize | undefined {
+  return $getState(node, naturalSizeState);
+}
+
+export function $setNaturalSize(node: LexicalNode, size: NaturalSize): void {
+  $setState(node, naturalSizeState, parseNaturalSize(size));
+}
+
 /**
  * Marks a figure's element with its width for the stylesheet: `wide`,
  * `full`, or `share` with the share in `--figure-share`. Called from

@@ -1,7 +1,6 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { LoaderCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
@@ -588,9 +587,8 @@ export function SettingsForm(props: Props) {
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-4 mt-8 flex justify-end border-t border-border bg-background/95 px-4 py-3 backdrop-blur-xs">
-        <Button type="submit" className="gap-2" disabled={!isDirty || saving}>
-          {saving && <LoaderCircleIcon className="size-4 animate-spin" />}
-          {saving ? "Saving…" : isDirty ? "Save changes" : "No changes"}
+        <Button type="submit" disabled={!isDirty || saving} pending={saving}>
+          {isDirty || saving ? "Save changes" : "No changes"}
         </Button>
       </div>
     </FormProvider>

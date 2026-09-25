@@ -15,8 +15,6 @@ import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";
-import { LoaderCircleIcon } from "lucide-react";
-import { cn } from "~/lib/utils";
 import { revalidateDashboard } from "../server-actions";
 import { TagsInput } from "~/components/ui/tags-input";
 
@@ -127,16 +125,8 @@ const TagEntityModal = (props: Props) => {
                 Cancel
               </Button>
             </DialogClose>
-            <Button
-              disabled={isLoading}
-              type="submit"
-              className="flex items-center gap-2"
-            >
-              <LoaderCircleIcon
-                className={cn("w-0", isLoading && "animate-spin w-4")}
-              />
-              <span>Save tags</span>
-              <LoaderCircleIcon className="w-0 opacity-0" />
+            <Button disabled={isLoading} type="submit" pending={isLoading}>
+              Save tags
             </Button>
           </DialogFooter>
         </form>

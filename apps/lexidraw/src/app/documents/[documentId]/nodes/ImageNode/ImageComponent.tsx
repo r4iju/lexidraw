@@ -36,7 +36,7 @@ import KeywordsPlugin from "../../plugins/KeywordsPlugin";
 import LinkPlugin from "../../plugins/LinkPlugin";
 import MentionsPlugin from "../../plugins/MentionsPlugin";
 import TreeViewPlugin from "../../plugins/TreeViewPlugin";
-import type { FigureWidth } from "@packages/lexical-nodes";
+import type { FigureWidth, NaturalSize } from "@packages/lexical-nodes";
 import ImageResizer from "~/components/ui/image-resizer";
 import { ImageNode } from "./ImageNode";
 import { cn } from "~/lib/utils";
@@ -45,6 +45,8 @@ import { FigureToolbar } from "../common/Figure";
 import { NodeEditButton } from "../common/NodeEditButton";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { UpdateImageDialog } from "./UpdateImageDialog";
+import { type ImageBox, ImageLoading, imageBoxStyle } from "./image-box";
+import { useKeepNaturalSize } from "../common/natural-size";
 
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> =
   createCommand("RIGHT_CLICK_IMAGE_COMMAND");
@@ -53,20 +55,18 @@ function LazyImage({
   altText,
   imageRef,
   src,
-  width,
-  height,
+  natural,
+  onMeasured,
   focused,
-  fill,
   onDoubleClick,
-}: {
+  ...box
+}: ImageBox & {
   altText: string;
   imageRef: React.RefObject<HTMLImageElement | null>;
   src: string;
-  width: "inherit" | number;
-  height: "inherit" | number;
+  natural: NaturalSize | undefined;
+  onMeasured: (size: NaturalSize) => void;
   focused: boolean;
-  /** Placed at a figure width, the image fills it whatever size it was dragged to. */
-  fill: boolean;
   onDoubleClick: (event: React.MouseEvent) => void;
 }) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
@@ -74,18 +74,14 @@ function LazyImage({
   );
   return (
     <>
-      {status !== "ready" && (
-        <div
-          role="img"
-          aria-label={altText}
-          aria-busy={status === "loading"}
-          className="media-placeholder"
-        >
-          {status === "error" && (
-            <img src="/images/image-broken.svg" alt="" width={32} height={32} />
-          )}
+      {status === "loading" && (
+        <ImageLoading altText={altText} natural={natural} {...box} />
+      )}
+      {status === "error" && (
+        <div role="img" aria-label={altText} className="media-placeholder">
+          <img src="/images/image-broken.svg" alt="" width={32} height={32} />
           <span>
-            {status === "error" ? "Image unavailable" : "Loading image"}
+            Image unavailable
             {altText ? ` · ${altText}` : ""}
           </span>
         </div>
@@ -100,17 +96,14 @@ function LazyImage({
           data-selected={focused || undefined}
           style={{
             display: status === "loading" ? "none" : undefined,
-            width: fill ? "100%" : undefined,
-            maxWidth:
-              typeof width === "number" && !fill
-                ? `min(100%, ${width}px)`
-                : "100%",
-            maxHeight:
-              typeof height === "number" && !fill
-                ? `min(80vh, ${height}px)`
-                : undefined,
+            ...imageBoxStyle(box),
           }}
-          onLoad={() => setStatus("ready")}
+          onLoad={(event) => {
+            const { naturalWidth: width, naturalHeight: height } =
+              event.currentTarget;
+            onMeasured({ width, height });
+            setStatus("ready");
+          }}
           onError={() => setStatus("error")}
           onDoubleClick={onDoubleClick}
         />
@@ -131,6 +124,7 @@ type ImageComponentProps = {
   width: "inherit" | number;
   captionsEnabled: boolean;
   figureWidth: FigureWidth | undefined;
+  natural: NaturalSize | undefined;
 };
 
 export default function ImageComponent({
@@ -145,7 +139,9 @@ export default function ImageComponent({
   caption,
   captionsEnabled,
   figureWidth,
+  natural,
 }: ImageComponentProps): React.JSX.Element {
+  const keepNaturalSize = useKeepNaturalSize(nodeKey);
   const captionJustShown = useCaptionJustShown(showCaption);
   const imageRef = useRef<HTMLImageElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -413,6 +409,8 @@ export default function ImageComponent({
           width={currentDimensions.width}
           height={currentDimensions.height}
           fill={figureWidth !== undefined}
+          natural={natural}
+          onMeasured={keepNaturalSize}
           onDoubleClick={(e) => {
             // prevent double clicking from propagating to parent
             e.stopPropagation();

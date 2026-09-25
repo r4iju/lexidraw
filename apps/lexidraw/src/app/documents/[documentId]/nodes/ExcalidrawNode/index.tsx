@@ -4,7 +4,7 @@ import {
 } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
-import { BlockLoading } from "../common/BlockLoading";
+import { BlockLoading, storedSize } from "../common/BlockLoading";
 import { FigureFrame } from "../common/Figure";
 
 export type { SerializedExcalidrawNode } from "@packages/lexical-nodes";
@@ -20,7 +20,11 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
   decorate(): React.JSX.Element {
     return (
       <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
-        <Suspense fallback={<BlockLoading />}>
+        <Suspense
+          fallback={
+            <BlockLoading size={storedSize(this.__width, this.__height)} />
+          }
+        >
           <ExcalidrawComponent
             nodeKey={this.getKey()}
             data={this.__data}

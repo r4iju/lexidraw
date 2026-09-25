@@ -16,8 +16,6 @@ import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/shared";
 import { useRouter } from "next/navigation";
 import { Label } from "~/components/ui/label";
-import { LoaderCircleIcon } from "lucide-react";
-import { cn } from "~/lib/utils";
 import { revalidateDashboard } from "../server-actions";
 
 type Props = {
@@ -90,16 +88,8 @@ const RenameEntityModal = ({ entity, isOpen, onOpenChange }: Props) => {
                 Cancel
               </Button>
             </DialogClose>
-            <Button
-              disabled={!canRename}
-              type="submit"
-              className="flex items-center gap-2"
-            >
-              <LoaderCircleIcon
-                className={cn("w-0", isLoading && "animate-spin w-4")}
-              />
-              <span>Rename</span>
-              <LoaderCircleIcon className="w-0 opacity-0" />
+            <Button disabled={!canRename} type="submit" pending={isLoading}>
+              Rename
             </Button>
           </DialogFooter>
         </form>

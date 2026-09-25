@@ -32,7 +32,7 @@ import FormProvider from "~/components/hook-form";
 import { useFieldArray, useForm } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { z } from "zod";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "~/components/ui/textarea";
 import type { TRPCClientErrorLike } from "@trpc/client";
@@ -561,9 +561,12 @@ function VideoDownloadSettings({ onClose }: { onClose: () => void }) {
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={!isValid || !isDirty}>
-          {isPending ? "Saving..." : "Save settings"}
-          {isPending && <Loader2 className="size-4 ml-2 animate-spin" />}
+        <Button
+          type="submit"
+          disabled={!isValid || !isDirty}
+          pending={isPending}
+        >
+          Save settings
         </Button>
       </DialogFooter>
     </FormProvider>

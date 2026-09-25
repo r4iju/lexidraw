@@ -37,6 +37,7 @@ export {
   SlideStrategicMetadataSchema,
   ThemeSettingsSchema,
 } from "@packages/lexical-nodes";
+import { BlockLoading } from "../common/BlockLoading";
 
 const SlideView = React.lazy(() => import("./SlideView"));
 // SlideModal reaches SlideDeckEditor, which uses next/font at module scope;
@@ -53,7 +54,7 @@ export class SlideNode extends HeadlessSlideNode {
 
   decorate(): JSX.Element {
     return (
-      <Suspense fallback={<div>Loading Slides...</div>}>
+      <Suspense fallback={<BlockLoading />}>
         <SlideNodeInner nodeKey={this.getKey()} initialData={this.__data} />
       </Suspense>
     );

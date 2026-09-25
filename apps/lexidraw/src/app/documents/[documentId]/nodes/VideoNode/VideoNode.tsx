@@ -5,7 +5,7 @@ import {
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
-import { BlockLoading } from "../common/BlockLoading";
+import { BlockLoading, storedSize } from "../common/BlockLoading";
 
 export type {
   SerializedVideoNode,
@@ -22,7 +22,11 @@ export class VideoNode extends HeadlessVideoNode {
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return (
-      <Suspense fallback={<BlockLoading />}>
+      <Suspense
+        fallback={
+          <BlockLoading size={storedSize(this.__width, this.__height)} />
+        }
+      >
         <VideoComponent
           src={this.__src}
           nodeKey={this.getKey()}

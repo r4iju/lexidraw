@@ -8,6 +8,7 @@ import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
 import { checkFrame } from "./check-frame";
 import { checkFirstPaint } from "./check-first-paint";
+import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
 import { checkMedia } from "./check-media";
 import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
@@ -98,6 +99,89 @@ await cli(
 
 // A throwaway empty document, for what a blank page offers.
 const empty = await cli("doc", "create", "--title", "Visual suite · empty");
+// A throwaway document with a photo and a diagram near the top, neither
+// measured yet, as a document written through the API has them.
+const sized = await cli("doc", "create", "--title", "Visual suite · sizes");
+const text = (value: string) => ({
+  children: [
+    {
+      detail: 0,
+      format: 0,
+      mode: "normal",
+      style: "",
+      text: value,
+      type: "text",
+      version: 1,
+    },
+  ],
+  direction: null,
+  format: "",
+  indent: 0,
+  type: "paragraph",
+  version: 1,
+  textFormat: 0,
+  textStyle: "",
+});
+const emptyRoot = {
+  children: [],
+  direction: null,
+  format: "",
+  indent: 0,
+  type: "root",
+  version: 1,
+};
+const sizedPath = resolve(output, "sized.json");
+await writeFile(
+  sizedPath,
+  JSON.stringify({
+    elements: JSON.stringify({
+      root: {
+        ...emptyRoot,
+        children: [
+          text("Before the photo."),
+          {
+            ...text(""),
+            children: [
+              {
+                type: "image",
+                version: 1,
+                altText: "A banner",
+                src: `${appUrl}${BANNER}`,
+                width: 0,
+                height: 0,
+                maxWidth: 800,
+                showCaption: false,
+                caption: { editorState: { root: emptyRoot } },
+              },
+            ],
+          },
+          text("After the photo."),
+          {
+            type: "mermaid",
+            version: 1,
+            schema: "flowchart TD\n  A[One] --> B[Two] --> C[Three]",
+            width: "inherit",
+            height: "inherit",
+          },
+          text("After the diagram."),
+          ...Array.from({ length: 12 }, (_, index) =>
+            text(`Paragraph ${index + 1}, below the fold on a phone.`),
+          ),
+        ],
+      },
+    }),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+    ifUnmodifiedSince: (await cli("doc", "get", sized.id, "--format", "json"))
+      .updatedAt,
+  }),
+);
+await cli(
+  "api",
+  "PUT",
+  `/entities/${sized.id}`,
+  "--json",
+  await readFile(sizedPath, "utf8"),
+);
 // A throwaway drawing whose one shape sits far off the first screen.
 const shapesPath = resolve(output, "drawing.json");
 await writeFile(
@@ -169,9 +253,11 @@ try {
   });
   await checkEditorControls(page, fixtureId, output);
   await checkOverlays(page, fixtureId, output);
+  await checkReservedSizes(page, { sizedId: sized.id, emptyId: empty.id });
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);
+  await cli("doc", "delete", sized.id);
   await cli("drawing", "delete", drawing.id);
 }
 

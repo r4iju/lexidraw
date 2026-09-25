@@ -38,6 +38,7 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import LinkPlugin from "./plugins/LinkPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { MEASURED_TAG } from "./nodes/common/natural-size";
 import DraggableBlockPlugin from "./plugins/DraggableBlockPlugin";
 import ToolbarPlugin from "./plugins/ToolbarPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -47,7 +48,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { theme } from "./themes/theme";
 import OptionsDropdown from "./plugins/options-dropdown";
 import type { EditorState, Klass, LexicalNode } from "lexical";
-import { $getRoot, COLLABORATION_TAG } from "lexical";
+import { $getRoot, COLLABORATION_TAG, HISTORY_MERGE_TAG } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { useRoomToken } from "~/hooks/communication-service/use-room-token";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -434,6 +435,9 @@ function EditorHandler({
   ) => {
     // A collaborator's state: theirs to send and to save.
     if (tags.has(COLLABORATION_TAG)) return;
+    // Lexical's own passes are redrawn on every load; a block's measurement
+    // is kept with the document.
+    if (tags.has(HISTORY_MERGE_TAG) && !tags.has(MEASURED_TAG)) return;
     // Someone who cannot edit changes nothing worth keeping or sending: what
     // moves here is a block measuring itself, or a poll vote, which saves on
     // its own.
@@ -752,7 +756,10 @@ function EditorHandler({
                                 }
                                 ErrorBoundary={LexicalErrorBoundary}
                               />
-                              <OnChangePlugin onChange={onChange} />
+                              <OnChangePlugin
+                                onChange={onChange}
+                                ignoreHistoryMergeTagChange={false}
+                              />
                               <HistoryPlugin />
                               {isEditable && <AutoFocusPlugin />}
                               <CodeActionMenuPlugin />
