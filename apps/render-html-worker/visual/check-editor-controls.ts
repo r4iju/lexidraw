@@ -22,7 +22,8 @@ async function open(page: Page, id: string, search = "") {
 
 async function theme(page: Page, name: "light" | "dark") {
   await page.evaluate((name) => {
-    document.documentElement.classList.toggle("dark", name === "dark");
+    for (const theme of ["light", "dark"])
+      document.documentElement.classList.toggle(theme, theme === name);
     document.documentElement.style.colorScheme = name;
   }, name);
   await pause(150);

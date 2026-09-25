@@ -244,11 +244,10 @@ export async function checkPage(
   await placeCaret(page, "English and");
   await pause(200);
   for (const theme of ["light", "dark"]) {
-    await page.evaluate(
-      (theme) =>
-        document.documentElement.classList.toggle("dark", theme === "dark"),
-      theme,
-    );
+    await page.evaluate((theme) => {
+      for (const name of ["light", "dark"])
+        document.documentElement.classList.toggle(name, name === theme);
+    }, theme);
     const marks = await page.evaluate(() => {
       const all = [
         ...document.querySelectorAll<HTMLElement>(
