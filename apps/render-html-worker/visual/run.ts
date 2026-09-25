@@ -7,6 +7,7 @@ import puppeteer from "puppeteer";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
 import { checkFrame } from "./check-frame";
+import { checkFirstPaint } from "./check-first-paint";
 import { checkMedia } from "./check-media";
 import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
@@ -157,6 +158,11 @@ try {
   await checkDocumentSettings(page, fixtureId);
   await checkPage(page, fixtureId, empty.id);
   await checkFrame(page, {
+    fixtureId,
+    emptyId: empty.id,
+    drawingId: drawing.id,
+  });
+  await checkFirstPaint(page, {
     fixtureId,
     emptyId: empty.id,
     drawingId: drawing.id,

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -41,8 +42,29 @@ const FEATURES = [
   },
 ] as const;
 
-export default async function LandingPage() {
+/** Open for someone signed in; sign up or sign in for a visitor. */
+async function CallToAction() {
   const session = await auth();
+  return session?.user ? (
+    <Button asChild size="lg">
+      <Link href="/dashboard">Open Lexidraw</Link>
+    </Button>
+  ) : (
+    <div className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-3">
+      <Button asChild size="lg">
+        <Link href="/signup">Get started, free</Link>
+      </Button>
+      <Link
+        href="/signin"
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        Sign in
+      </Link>
+    </div>
+  );
+}
+
+export default function LandingPage() {
   return (
     <MarketingFrame>
       <main id="main-content" tabIndex={-1} className="flex flex-col">
@@ -54,23 +76,9 @@ export default async function LandingPage() {
             Rich text, slides and hand-drawn diagrams, shared with a link. Saved
             as you go.
           </p>
-          {session?.user ? (
-            <Button asChild size="lg">
-              <Link href="/dashboard">Open Lexidraw</Link>
-            </Button>
-          ) : (
-            <div className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-3">
-              <Button asChild size="lg">
-                <Link href="/signup">Get started, free</Link>
-              </Button>
-              <Link
-                href="/signin"
-                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Sign in
-              </Link>
-            </div>
-          )}
+          <Suspense fallback={<div aria-hidden="true" className="h-11" />}>
+            <CallToAction />
+          </Suspense>
         </section>
 
         <section

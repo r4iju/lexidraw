@@ -45,7 +45,7 @@ export default async function DashboardPage(props: Props) {
   // cached scope has closed.
   cacheTag(entityTag((await props.params).directoryId));
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
+    <Suspense fallback={<DashboardSkeleton folder />}>
       <DashboardContent {...props} />
     </Suspense>
   );

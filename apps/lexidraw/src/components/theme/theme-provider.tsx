@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import {
   ThemeProvider as NextThemesProvider,
@@ -16,17 +15,26 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   // next-themes ignores a provider nested in another, so a page cannot force
-  // a theme of its own; the root one forces it for the page.
-  const pathname = usePathname();
+  // a theme of its own; the root one forces it for the page. It reads the
+  // address in the browser, since reading it on the server would hold every
+  // page's first HTML until the request arrives.
+  const onPrintPage = useSyncExternalStore(
+    subscribeToNothing,
+    () => PRINT_PAGE.test(location.pathname),
+    () => false,
+  );
   return (
     <NextThemesProvider
       {...props}
-      forcedTheme={PRINT_PAGE.test(pathname ?? "") ? "light" : forcedTheme}
+      forcedTheme={onPrintPage ? "light" : forcedTheme}
     >
       {children}
     </NextThemesProvider>
   );
 }
+
+/** The print page is only ever loaded whole, by the PDF renderer. */
+const subscribeToNothing = () => () => {};
 
 function subscribeToPageTheme(onChange: () => void) {
   const observer = new MutationObserver(onChange);

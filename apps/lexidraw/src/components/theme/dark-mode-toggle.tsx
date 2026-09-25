@@ -2,6 +2,7 @@
 
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { Suspense } from "react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -35,24 +36,29 @@ export function ThemeRadioItems() {
 }
 
 export default function ModeToggle({ className }: { className?: string }) {
+  const button = (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Theme"
+      title="Theme"
+      className={cn("size-9", className)}
+    >
+      {/* The page's class says which is showing, from the first paint. */}
+      <SunIcon className="size-5 dark:hidden" aria-hidden />
+      <MoonIcon className="hidden size-5 dark:block" aria-hidden />
+    </Button>
+  );
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Theme"
-          title="Theme"
-          className={cn("size-9", className)}
-        >
-          {/* The page's class says which is showing, from the first paint. */}
-          <SunIcon className="size-5 dark:hidden" aria-hidden />
-          <MoonIcon className="hidden size-5 dark:block" aria-hidden />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <ThemeRadioItems />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    // The menu closes when the address changes, which a page's prerendered
+    // frame cannot know; the frame shows the button and the menu follows.
+    <Suspense fallback={button}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <ThemeRadioItems />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </Suspense>
   );
 }

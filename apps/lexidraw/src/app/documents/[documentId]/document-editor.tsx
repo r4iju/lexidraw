@@ -711,7 +711,13 @@ function EditorHandler({
                                       }
                                     />
                                     {/* The placeholder sits over the first line. */}
-                                    <div className="relative">
+                                    <div
+                                      className={cn(
+                                        "relative",
+                                        // Renderers capture it at once.
+                                        onScreen && "animate-content-in",
+                                      )}
+                                    >
                                       <ContentEditable
                                         id={`lexical-content-${entity.id}`}
                                         aria-label="Document content"

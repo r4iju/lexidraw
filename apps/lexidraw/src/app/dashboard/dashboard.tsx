@@ -154,7 +154,11 @@ export async function Dashboard({
                   </SheetField>
                   <SheetField label="Layout">{layoutToggle}</SheetField>
                   <SheetField label="Sort">
-                    <SortMenu className="justify-start" />
+                    <SortMenu
+                      sortBy={sortBy}
+                      sortOrder={sortOrder}
+                      className="justify-start"
+                    />
                   </SheetField>
                 </FilterSortSheet>
               </div>
@@ -175,7 +179,7 @@ export async function Dashboard({
                   searchParams={searchParams}
                 />
                 {layoutToggle}
-                <SortMenu />
+                <SortMenu sortBy={sortBy} sortOrder={sortOrder} />
               </div>
             </div>
 
@@ -188,7 +192,7 @@ export async function Dashboard({
           </div>
         </StickyBar>
 
-        <div className={cn(GUTTER, "flex-1 pb-8 pt-1")}>
+        <div className={cn(GUTTER, "flex-1 animate-content-in pb-8 pt-1")}>
           {entities.length === 0 ? (
             <EmptyState
               inFolder={Boolean(directory)}

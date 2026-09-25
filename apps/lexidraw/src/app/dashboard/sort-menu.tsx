@@ -13,13 +13,25 @@ import { TooltipButton } from "~/components/ui/tooltip-button";
 import { cn } from "~/lib/utils";
 import { replaceSearchParam } from "./utils";
 
-export function SortMenu({ className }: { className?: string }) {
+const ORDERS = {
+  updatedAt: "Last edited",
+  createdAt: "Date created",
+  title: "Name",
+} as const;
+
+/** The listing's order, as the server resolved it from the address and prefs. */
+export function SortMenu({
+  sortBy,
+  sortOrder,
+  className,
+}: {
+  sortBy: keyof typeof ORDERS;
+  sortOrder: "asc" | "desc";
+  className?: string;
+}) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-
-  const sortOrder = searchParams.get("sortOrder") ?? "desc";
-  const sortBy = searchParams.get("sortBy") ?? "updatedAt";
 
   const handleSort = (value: string) => {
     const newPath = replaceSearchParam({
@@ -49,24 +61,26 @@ export function SortMenu({ className }: { className?: string }) {
         return sortOrder === "asc" ? "Oldest first" : "Recent first";
       case "title":
         return sortOrder === "asc" ? "A → Z" : "Z → A";
-      default:
-        return "Sort by";
     }
   })();
 
   return (
     <div className={cn("flex items-center justify-end gap-2", className)}>
-      <Select onValueChange={handleSort} defaultValue={sortBy}>
+      <Select onValueChange={handleSort} value={sortBy}>
         <SelectTrigger
           className="w-[fit-content] min-w-30"
           aria-label="Sort by"
         >
-          <SelectValue placeholder="Sort by" />
+          {/* Named here, since the select only learns its items' names once
+              it has mounted, and the server's HTML would say nothing. */}
+          <SelectValue placeholder="Sort by">{ORDERS[sortBy]}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="updatedAt">Last edited</SelectItem>
-          <SelectItem value="createdAt">Date created</SelectItem>
-          <SelectItem value="title">Name</SelectItem>
+          {Object.entries(ORDERS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       {/* button to sort by order */}
