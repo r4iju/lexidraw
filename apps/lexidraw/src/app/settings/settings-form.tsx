@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { type ReactNode, useId, useState } from "react";
-import { Controller, useForm, useFormContext } from "react-hook-form";
+import { Controller, useForm, useFormContext, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import FormProvider, { RHFTextField } from "~/components/hook-form";
@@ -22,7 +22,13 @@ import { Switch } from "~/components/ui/switch";
 import { modelLabel } from "~/lib/model-label";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
-import { type SettingsInput, TTS_DEFAULTS, TTS_PROVIDERS } from "./schema";
+import {
+  defaultVoice,
+  type SettingsInput,
+  savedTts,
+  TTS_DEFAULTS,
+  TTS_PROVIDERS,
+} from "./schema";
 
 type Mode = "chat" | "agent" | "autocomplete";
 type Policy = Pick<
@@ -135,7 +141,7 @@ function initialValues({ user, autoSave, policies }: Props): FormValues {
     };
   };
   const autocomplete = storedOverrides(user.config, "autocomplete");
-  const tts = (user.config?.tts ?? {}) as Partial<Record<string, unknown>>;
+  const tts = savedTts(user.config?.tts);
   return {
     name: user.name ?? "",
     email: user.email ?? "",
@@ -149,15 +155,10 @@ function initialValues({ user, autoSave, policies }: Props): FormValues {
       verbosity: autocomplete.verbosity ?? DEFAULT,
     },
     tts: {
-      provider:
-        typeof tts.provider === "string" &&
-        (TTS_PROVIDERS as readonly string[]).includes(tts.provider)
-          ? tts.provider
-          : DEFAULT,
-      voiceId: typeof tts.voiceId === "string" ? tts.voiceId : "",
-      speed: typeof tts.speed === "number" ? tts.speed : TTS_DEFAULTS.speed,
-      languageCode:
-        typeof tts.languageCode === "string" ? tts.languageCode : "",
+      provider: tts.provider ?? DEFAULT,
+      voiceId: tts.voiceId ?? "",
+      speed: tts.speed ?? TTS_DEFAULTS.speed,
+      languageCode: tts.languageCode ?? "",
     },
   };
 }
@@ -473,6 +474,25 @@ function ThemeSelect() {
   );
 }
 
+/** The voice, whose default follows the service and language chosen. */
+function VoiceField() {
+  const [provider, languageCode] = useWatch<
+    FormValues,
+    ["tts.provider", "tts.languageCode"]
+  >({ name: ["tts.provider", "tts.languageCode"] });
+  const voice = defaultVoice(
+    provider === DEFAULT ? TTS_DEFAULTS.provider : provider,
+    languageCode.trim() || TTS_DEFAULTS.languageCode,
+  );
+  return (
+    <RHFTextField
+      name="tts.voiceId"
+      label="Voice"
+      placeholder={`Default (${voice})`}
+    />
+  );
+}
+
 export function SettingsForm(props: Props) {
   const { policies, onSave } = props;
   const [saving, setSaving] = useState(false);
@@ -563,11 +583,7 @@ export function SettingsForm(props: Props) {
               </SelectItem>
             ))}
           </SelectField>
-          <RHFTextField
-            name="tts.voiceId"
-            label="Voice"
-            placeholder={`Default (${TTS_DEFAULTS.voiceId})`}
-          />
+          <VoiceField />
           <SliderField
             name="tts.speed"
             label="Speed"
