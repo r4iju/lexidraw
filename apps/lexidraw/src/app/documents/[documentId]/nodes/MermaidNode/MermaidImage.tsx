@@ -1,6 +1,6 @@
 "use client";
 import mermaid from "mermaid";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { cn } from "~/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import type { NaturalSize } from "@packages/lexical-nodes";
@@ -37,8 +37,7 @@ export default function MermaidImage({
   const [diagram, setDiagram] = useState<Diagram>({ status: "loading" });
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const container = useRef<HTMLElement>(null);
-  const measured = useRef(onMeasured);
-  measured.current = onMeasured;
+  const measured = useEffectEvent((size: NaturalSize) => onMeasured?.(size));
   // The document's theme and font are DOM properties; SVG images cannot inherit them.
   useEffect(() => {
     let generation = 0;
@@ -130,7 +129,7 @@ export default function MermaidImage({
             const [src, print] = next;
             if (src && print) {
               setDiagram({ status: "ready", src, print, size: screen.size });
-              measured.current?.(screen.size);
+              measured(screen.size);
             }
           } catch {
             if (current === generation) setDiagram({ status: "error" });
