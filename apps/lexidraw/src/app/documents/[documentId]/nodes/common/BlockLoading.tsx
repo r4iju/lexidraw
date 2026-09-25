@@ -5,19 +5,6 @@ import { cn } from "~/lib/utils";
 /** What a block of unknown size reserves: the shape of a screen, full width. */
 export const WIDESCREEN: NaturalSize = { width: 1600, height: 900 };
 
-/** A size a block was given, if it was given both sides of one. */
-export function storedSize(
-  width: number | "inherit" | undefined,
-  height: number | "inherit" | undefined,
-): NaturalSize | undefined {
-  return typeof width === "number" &&
-    typeof height === "number" &&
-    width > 0 &&
-    height > 0
-    ? { width, height }
-    : undefined;
-}
-
 /**
  * Stands in for a block while it loads, in the box it will fill: a canvas
  * takes its size and ratio from its attributes at once, as an image does

@@ -1,4 +1,4 @@
-import type { NaturalSize } from "@packages/lexical-nodes";
+import { type NaturalSize, parseNaturalSize } from "@packages/lexical-nodes";
 import { probeImageSize } from "./image-probe";
 
 type Node = {
@@ -55,7 +55,7 @@ export async function measureImages(
       typeof node.src === "string" &&
       node.src.length <= LONGEST_URL &&
       /^https?:\/\//i.test(node.src) &&
-      !measured(node)
+      !parseNaturalSize(node.$?.natural)
     )
       unmeasured.set(node.src, [...(unmeasured.get(node.src) ?? []), node]);
     if (Array.isArray(node.children))
@@ -89,14 +89,4 @@ export async function measureImages(
     }
   });
   return stored ? JSON.stringify(document) : elements;
-}
-
-function measured(node: Node) {
-  const natural = node.$?.natural;
-  return (
-    typeof natural?.width === "number" &&
-    typeof natural.height === "number" &&
-    natural.width > 0 &&
-    natural.height > 0
-  );
 }

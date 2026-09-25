@@ -1,11 +1,12 @@
 import {
   $getFigure,
   VideoNode as HeadlessVideoNode,
+  parseNaturalSize,
 } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
 import { Suspense } from "react";
-import { BlockLoading, storedSize } from "../common/BlockLoading";
+import { BlockLoading } from "../common/BlockLoading";
 
 export type {
   SerializedVideoNode,
@@ -24,7 +25,12 @@ export class VideoNode extends HeadlessVideoNode {
     return (
       <Suspense
         fallback={
-          <BlockLoading size={storedSize(this.__width, this.__height)} />
+          <BlockLoading
+            size={parseNaturalSize({
+              width: this.__width,
+              height: this.__height,
+            })}
+          />
         }
       >
         <VideoComponent

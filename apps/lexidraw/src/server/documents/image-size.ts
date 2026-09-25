@@ -1,10 +1,10 @@
-import type { NaturalSize } from "@packages/lexical-nodes";
+import { type NaturalSize, parseNaturalSize } from "@packages/lexical-nodes";
 
 const ascii = (bytes: Uint8Array, at: number, length: number) =>
   String.fromCharCode(...bytes.subarray(at, at + length));
 
-const sized = (width: number, height: number): NaturalSize | undefined =>
-  width > 0 && height > 0 ? { width, height } : undefined;
+const sized = (width: number, height: number) =>
+  parseNaturalSize({ width, height });
 
 /**
  * The size a browser shows a picture at, from as many of its first bytes as

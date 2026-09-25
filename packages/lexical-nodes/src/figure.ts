@@ -59,7 +59,8 @@ export function $setFigure(node: LexicalNode, figure: Figure): void {
 /** A figure's own size, as it was first drawn: an image's pixels, a diagram's box. */
 export type NaturalSize = { width: number; height: number };
 
-function parseNaturalSize(value: unknown): NaturalSize | undefined {
+/** A size with both sides, each finite and more than nothing, or undefined. */
+export function parseNaturalSize(value: unknown): NaturalSize | undefined {
   if (!value || typeof value !== "object") return undefined;
   const { width, height } = value as Record<string, unknown>;
   if (typeof width !== "number" || typeof height !== "number") return undefined;
