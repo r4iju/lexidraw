@@ -1,9 +1,7 @@
 import "./katex-equation-alterer.css";
 
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import type * as React from "react";
 import { Suspense, useCallback, useState } from "react";
-import { ErrorBoundary } from "react-error-boundary";
 
 import { Button } from "./button";
 import { DialogFooter } from "./dialog";
@@ -20,7 +18,6 @@ export default function KatexEquationAlterer({
   onCancel,
   initialEquation = "",
 }: Props): React.JSX.Element {
-  const [editor] = useLexicalComposerContext();
   const [equation, setEquation] = useState<string>(initialEquation);
   const [inline, setInline] = useState<boolean>(true);
 
@@ -69,20 +66,13 @@ export default function KatexEquationAlterer({
       </div>
       <div className="KatexEquationAlterer_defaultRow">Visualization </div>
       <div className="KatexEquationAlterer_centerRow">
-        <ErrorBoundary
-          onError={(e) =>
-            editor._onError(e instanceof Error ? e : new Error(String(e)))
-          }
-          fallback={null}
-        >
-          <Suspense fallback={null}>
-            <KatexRenderer
-              equation={equation}
-              inline={false}
-              onDoubleClick={() => null}
-            />
-          </Suspense>
-        </ErrorBoundary>
+        <Suspense fallback={null}>
+          <KatexRenderer
+            equation={equation}
+            inline={false}
+            onDoubleClick={() => null}
+          />
+        </Suspense>
       </div>
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onCancel}>

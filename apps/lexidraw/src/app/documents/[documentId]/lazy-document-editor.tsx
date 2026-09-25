@@ -1,8 +1,5 @@
 "use client";
 
-// Here rather than with the equations, so KaTeX's fonts are known from the
-// first paint and can load while the editor does.
-import "katex/dist/katex.css";
 import dynamic from "next/dynamic";
 import {
   type ComponentProps,
@@ -38,18 +35,23 @@ const Editor = dynamic(() => import("./document-editor"), {
 let equations: Promise<unknown> | undefined;
 
 /**
- * What a document's blocks need to draw at their size the first time: KaTeX
- * and its two commonest fonts, for a document with an equation. They load
- * alongside the editor; a document without one never asks for them.
+ * What a document's blocks need to draw at their size the first time: KaTeX,
+ * its stylesheet and its two commonest fonts, for a document with an
+ * equation. They load alongside the editor; a document without one never
+ * asks for them. The editor opens even when they fail to load, and each
+ * equation shows its TeX instead.
  */
 function blocksReady(elements: string | null) {
   if (typeof window === "undefined") return null;
   if (!elements?.includes('"type":"equation"')) return null;
-  equations ??= Promise.all([
-    loadKatex(),
-    document.fonts.load("1em KaTeX_Main"),
-    document.fonts.load("italic 1em KaTeX_Math"),
-  ]);
+  equations ??= loadKatex()
+    .then(() =>
+      Promise.all([
+        document.fonts.load("1em KaTeX_Main"),
+        document.fonts.load("italic 1em KaTeX_Math"),
+      ]),
+    )
+    .catch(() => undefined);
   return equations;
 }
 

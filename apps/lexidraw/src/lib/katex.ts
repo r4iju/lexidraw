@@ -1,20 +1,19 @@
 import type Katex from "katex";
 import type { KatexOptions } from "katex";
+import { loadOnce } from "./load-once";
 
 let loaded: typeof Katex | undefined;
-let loading: Promise<typeof Katex> | undefined;
 
 /**
- * KaTeX, fetched the first time something asks for it: it is large, and most
- * documents hold no equation.
+ * KaTeX and its stylesheet, fetched the first time something asks for them:
+ * they are large, and most documents hold no equation.
  */
-export function loadKatex() {
-  loading ??= import("katex").then((module) => {
+export const loadKatex = loadOnce(() =>
+  import("./katex-chunk").then((module) => {
     loaded = module.default;
     return loaded;
-  });
-  return loading;
-}
+  }),
+);
 
 /** KaTeX if it has loaded, for work that cannot wait for it. */
 export function loadedKatex() {
