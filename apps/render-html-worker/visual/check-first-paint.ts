@@ -42,7 +42,11 @@ async function box(page: Page, selector: string): Promise<Box> {
  * leave it: the markup up to the first streamed segment, with its inline
  * scripts (the theme's among them) run, and nothing streamed after it.
  */
-async function firstFlush<T>(page: Page, path: string, read: (probe: Page) => Promise<T>) {
+async function firstFlush<T>(
+  page: Page,
+  path: string,
+  read: (probe: Page) => Promise<T>,
+) {
   const probe = await page.browser().newPage();
   try {
     await probe.setViewport(page.viewport() ?? { width: 1280, height: 900 });
@@ -51,7 +55,11 @@ async function firstFlush<T>(page: Page, path: string, read: (probe: Page) => Pr
     await probe.setRequestInterception(true);
     probe.on("request", (request) => {
       if (request.url() === url)
-        void request.respond({ status: 200, contentType: "text/html", body: shell });
+        void request.respond({
+          status: 200,
+          contentType: "text/html",
+          body: shell,
+        });
       else void request.continue();
     });
     await probe.goto(url, { waitUntil: "load" });
@@ -64,7 +72,11 @@ async function firstFlush<T>(page: Page, path: string, read: (probe: Page) => Pr
 }
 
 /** The page as a browser without scripts paints it. */
-async function withoutScript<T>(page: Page, path: string, read: () => Promise<T>) {
+async function withoutScript<T>(
+  page: Page,
+  path: string,
+  read: () => Promise<T>,
+) {
   await page.setJavaScriptEnabled(false);
   try {
     await page.goto(`${appUrl}${path}`, { waitUntil: "domcontentloaded" });
@@ -152,7 +164,10 @@ export async function checkFirstPaint(
       const bar = await firstFlush(page, path, (probe) =>
         luminance(probe, '[data-component-name="AppBar"]'),
       );
-      assert(bar < 0.2, `${kind}: a dark reader's first frame is dark (${bar})`);
+      assert(
+        bar < 0.2,
+        `${kind}: a dark reader's first frame is dark (${bar})`,
+      );
     }
     await page.evaluate(() => localStorage.setItem("theme", "light"));
 
@@ -184,10 +199,12 @@ export async function checkFirstPaint(
         waitUntil: "networkidle2",
       });
       await page.waitForSelector('[id^="lexical-content-"]');
-      near(title, await box(page, ".document-title"), `${width} document title`, [
-        "left",
-        "top",
-      ]);
+      near(
+        title,
+        await box(page, ".document-title"),
+        `${width} document title`,
+        ["left", "top"],
+      );
 
       const canvas = await firstFlush(page, routes.drawing, (probe) =>
         box(probe, '[data-loading="drawing"] [data-canvas]'),
@@ -226,7 +243,9 @@ export async function checkFirstPaint(
       (url) => fetch(url).then((response) => response.text()),
       `${appUrl}/dashboard?sortBy=updatedAt`,
     );
-    const trigger = html.match(/aria-label="Sort by"[^>]*>([\s\S]*?)<\/button>/);
+    const trigger = html.match(
+      /aria-label="Sort by"[^>]*>([\s\S]*?)<\/button>/,
+    );
     assert(
       trigger?.[1]?.includes("Last edited"),
       "Home: the sort control shows its label from the first frame",

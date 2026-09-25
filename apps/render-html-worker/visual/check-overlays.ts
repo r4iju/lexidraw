@@ -88,9 +88,7 @@ function assertSheet(box: Box, what: string) {
 }
 
 async function assertNoSideways(page: Page, where: string) {
-  const width = await page.evaluate(
-    () => document.documentElement.scrollWidth,
-  );
+  const width = await page.evaluate(() => document.documentElement.scrollWidth);
   const viewport = page.viewport()?.width ?? 0;
   assert(
     width <= viewport,
