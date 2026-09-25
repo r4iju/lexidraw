@@ -28,3 +28,12 @@ export default function FileInput({
     </div>
   );
 }
+
+/** Said under a file input while the picked file goes up. */
+export function UploadingNote() {
+  return (
+    <p role="status" className="text-sm text-muted-foreground">
+      Uploading…
+    </p>
+  );
+}

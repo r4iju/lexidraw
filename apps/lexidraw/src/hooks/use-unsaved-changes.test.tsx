@@ -159,7 +159,7 @@ describe("what the app bar says about saving", () => {
     await act(async () =>
       root.render(
         <OpenEntityContext.Provider value={open as never}>
-          <UnsavedChangesProvider>
+          <UnsavedChangesProvider saveBeforeLeaving={async () => true}>
             <Status />
           </UnsavedChangesProvider>
         </OpenEntityContext.Provider>,
@@ -179,6 +179,31 @@ describe("what the app bar says about saving", () => {
       fake.saving = false;
     });
     expect(said()).toBe("saved");
+    await act(async () => root.unmount());
+  });
+
+  test("says nothing to someone whose edits are not saved, a reader", async () => {
+    function Status() {
+      return <output>{useSaveStatus() ?? "none"}</output>;
+    }
+    const host = dom.window.document.createElement("div");
+    dom.window.document.body.append(host);
+    const root = createRoot(host);
+    const open = {
+      sync: fakeSync().sync,
+      noun: "document",
+      resumers: new Set(),
+    };
+    await act(async () =>
+      root.render(
+        <OpenEntityContext.Provider value={open as never}>
+          <UnsavedChangesProvider saveBeforeLeaving={null}>
+            <Status />
+          </UnsavedChangesProvider>
+        </OpenEntityContext.Provider>,
+      ),
+    );
+    expect(host.querySelector("output")?.textContent).toBe("none");
     await act(async () => root.unmount());
   });
 

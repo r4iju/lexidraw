@@ -2,7 +2,9 @@
 
 import {
   createContext,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useContext,
   useEffect,
@@ -34,11 +36,11 @@ import { Headphones, Loader2, Play, Settings, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { useMarkdownTools } from "../utils/markdown";
-import { PlayFromHereButton } from "./PlayFromHereButton";
+import { ListenPlayer } from "./ListenPlayer";
 import { labelForLanguage, titleize } from "~/lib/i18n";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { DropdownMenuItem } from "~/components/ui/dropdown-menu";
-import { ToolbarMenu } from "./ToolbarPlugin/toolbar";
+import { ToolbarMenu, ToolbarTooltip } from "./ToolbarPlugin/toolbar";
 
 type Listen = {
   documentId: string;
@@ -48,6 +50,8 @@ type Listen = {
   openSettings: () => void;
   playerOpen: boolean;
   setPlayerOpen: (open: boolean) => void;
+  /** The control the player opens beside, while one is showing. */
+  setPlayerAnchor: Dispatch<SetStateAction<HTMLElement | null>>;
 };
 
 const ListenContext = createContext<Listen | null>(null);
@@ -58,7 +62,10 @@ function useListen() {
   return listen;
 }
 
-/** Read-aloud: its state is shared by the toolbar and its More menu. */
+/**
+ * Read-aloud, and its one player: the toolbar, its More menu and the reading
+ * pill only open and close it.
+ */
 export function ListenProvider({ children }: { children: ReactNode }) {
   const documentId = useEntityId();
   const [editor] = useLexicalComposerContext();
@@ -114,6 +121,7 @@ export function ListenProvider({ children }: { children: ReactNode }) {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [playerAnchor, setPlayerAnchor] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (ttsQuery.data) {
@@ -425,6 +433,7 @@ export function ListenProvider({ children }: { children: ReactNode }) {
       openSettings: () => setSettingsOpen(true),
       playerOpen,
       setPlayerOpen,
+      setPlayerAnchor,
     }),
     [documentId, ready, isGeneratingAudio, handleGenerateAudio, playerOpen],
   );
@@ -432,6 +441,12 @@ export function ListenProvider({ children }: { children: ReactNode }) {
   return (
     <ListenContext.Provider value={listen}>
       {children}
+      <ListenPlayer
+        documentId={documentId}
+        open={playerOpen}
+        onOpenChange={setPlayerOpen}
+        anchor={playerAnchor}
+      />
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent size="md">
           <DialogHeader>
@@ -676,24 +691,37 @@ export function ListenControls() {
       <ToolbarMenu label="Listen" icon={Headphones} trigger="Listen">
         <ListenItems />
       </ToolbarMenu>
-      <ListenPlayer />
+      <PlayFromCursor />
     </>
   );
 }
 
-/** The player; without a trigger it opens from Listen in a menu. */
-export function ListenPlayer({
-  withTrigger = true,
-}: {
-  withTrigger?: boolean;
-}) {
-  const { documentId, playerOpen, setPlayerOpen } = useListen();
+/** Opens and closes the player, which opens beside it while it shows. */
+function PlayFromCursor() {
+  const { playerOpen, setPlayerOpen, setPlayerAnchor } = useListen();
+  const anchor = useCallback(
+    (button: HTMLButtonElement | null) => {
+      if (!button) return;
+      setPlayerAnchor(button);
+      return () =>
+        setPlayerAnchor((anchor) => (anchor === button ? null : anchor));
+    },
+    [setPlayerAnchor],
+  );
   return (
-    <PlayFromHereButton
-      documentId={documentId}
-      open={playerOpen}
-      onOpenChange={setPlayerOpen}
-      withTrigger={withTrigger}
-    />
+    <ToolbarTooltip label="Play from cursor">
+      <Button
+        ref={anchor}
+        size="icon"
+        variant="ghost"
+        aria-label="Play from cursor"
+        aria-haspopup="dialog"
+        aria-expanded={playerOpen}
+        onClick={() => setPlayerOpen(!playerOpen)}
+        className="size-8 shrink-0 pointer-coarse:size-11"
+      >
+        <Play />
+      </Button>
+    </ToolbarTooltip>
   );
 }

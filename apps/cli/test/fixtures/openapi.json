@@ -461,8 +461,8 @@
                           }
                         ]
                       },
-                      "userId": {
-                        "type": "string"
+                      "isOwner": {
+                        "type": "boolean"
                       },
                       "publicAccess": {
                         "type": "string",
@@ -524,7 +524,7 @@
                       "thumbnailStatus",
                       "thumbnailVersion",
                       "thumbnailUpdatedAt",
-                      "userId",
+                      "isOwner",
                       "publicAccess",
                       "parentId",
                       "favoritedAt",
@@ -791,21 +791,8 @@
                       "type": "string",
                       "enum": ["READ", "PRIVATE", "EDIT"]
                     },
-                    "sharedWith": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "userId": {
-                            "type": "string"
-                          },
-                          "accessLevel": {
-                            "type": "string"
-                          }
-                        },
-                        "required": ["userId", "accessLevel"],
-                        "additionalProperties": false
-                      }
+                    "shared": {
+                      "type": "boolean"
                     },
                     "accessLevel": {
                       "type": "string",
@@ -823,7 +810,7 @@
                     "appState",
                     "elements",
                     "publicAccess",
-                    "sharedWith",
+                    "shared",
                     "accessLevel",
                     "updatedAt"
                   ],
@@ -1518,7 +1505,7 @@
     "/entities/{id}/shares": {
       "get": {
         "operationId": "entities-getSharedInfo",
-        "summary": "List the users an entity is shared with",
+        "summary": "List the users an entity is shared with; only its owner may",
         "tags": ["entities"],
         "security": [
           {

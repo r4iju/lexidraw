@@ -389,6 +389,116 @@ async function checkDocument(page: Page, emptyId: string) {
     "Edit | Read shows the current mode with labels",
   );
 
+  // Reading, at any size, keeps its tools in the reading pill and has no
+  // formatting strip; editing brings the strip back.
+  const tools = (on = page) =>
+    on.evaluate(() => {
+      const shown = (element: Element | null) =>
+        Boolean(element && element.getClientRects().length > 0);
+      const pill = document.querySelector(
+        '[role="toolbar"][aria-label="Reading"]',
+      );
+      const strip = document.querySelector(
+        '[role="toolbar"][aria-label="Formatting"]',
+      );
+      return {
+        formatting: shown(strip),
+        // Groups in sight, not folded into More.
+        groups: [
+          ...(strip?.querySelectorAll("[data-toolbar-group]:not([inert])") ??
+            []),
+        ].filter(shown).length,
+        pill: shown(pill)
+          ? [...(pill?.querySelectorAll("button") ?? [])].map(
+              (button) =>
+                button.getAttribute("aria-label") ??
+                button.textContent?.trim() ??
+                "",
+            )
+          : null,
+      };
+    });
+  const switchTo = async (label: "Edit" | "Read") => {
+    await page.$$eval(
+      `${APP_BAR} fieldset label`,
+      (labels, label) =>
+        (
+          labels.find((option) => option.textContent?.trim() === label) as
+            | HTMLElement
+            | undefined
+        )?.click(),
+      label,
+    );
+    await pause(300);
+  };
+  for (const [width, height] of [
+    [768, 1024],
+    [1280, 900],
+  ] as const) {
+    await page.setViewport({ width, height });
+    await switchTo("Read");
+    const reading = await tools();
+    assert(!reading.formatting, `${width}: reading has no formatting strip`);
+    assert.deepEqual(
+      reading.pill,
+      ["Listen", "Play from cursor", "Contents"],
+      `${width}: reading has the pill, with Listen and Contents`,
+    );
+    await switchTo("Edit");
+    const editing = await tools();
+    assert(editing.formatting, `${width}: editing has the formatting strip`);
+    assert(
+      editing.groups > 0,
+      `${width}: the strip comes back with its controls after reading`,
+    );
+    assert.equal(editing.pill, null, `${width}: editing has no reading pill`);
+  }
+
+  // Signed out, a document anyone may read is read from the pill too, which
+  // has only Contents: listening is for someone signed in.
+  const setPublicAccess = (publicAccess: "READ" | "PRIVATE") =>
+    page.evaluate(
+      async (id, publicAccess) => {
+        const response = await fetch("/api/trpc/entities.update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ json: { id, publicAccess } }),
+        });
+        if (!response.ok) throw new Error(`update: ${response.status}`);
+      },
+      emptyId,
+      publicAccess,
+    );
+  await setPublicAccess("READ");
+  const signedOut = await page.browser().createBrowserContext();
+  try {
+    const visitor = await signedOut.newPage();
+    for (const [width, height] of [
+      [768, 1024],
+      [1280, 900],
+    ] as const) {
+      await visitor.setViewport({ width, height });
+      await visitor.goto(`${appUrl}/documents/${emptyId}`, {
+        waitUntil: "networkidle2",
+      });
+      await visitor.waitForSelector('[id^="lexical-content-"]');
+      await pause(300);
+      const visiting = await tools(visitor);
+      assert(
+        !visiting.formatting,
+        `${width}: signed out, there is no formatting strip`,
+      );
+      assert.deepEqual(
+        visiting.pill,
+        ["Contents"],
+        `${width}: signed out, the pill has Contents alone`,
+      );
+    }
+  } finally {
+    await signedOut.close();
+    await setPublicAccess("PRIVATE");
+  }
+
   // Saving: typing is unsaved, then saving, then saved; Cmd+S saves now.
   const autoSaved = await setAutoSave(page, true);
   await recordStatus(page);

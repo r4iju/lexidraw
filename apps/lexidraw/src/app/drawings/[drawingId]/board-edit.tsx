@@ -59,8 +59,8 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const openDrawing = useOpenEntityContext();
   const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
   const canCollaborate = useMemo(() => {
-    return drawing.publicAccess !== "PRIVATE" || drawing.sharedWith.length > 0;
-  }, [drawing.publicAccess, drawing.sharedWith]);
+    return drawing.publicAccess !== "PRIVATE" || drawing.shared;
+  }, [drawing.publicAccess, drawing.shared]);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const prevElementsRef = useRef(
     new Map<string, ExcalidrawElement>(elements?.map((e) => [e.id, e])),

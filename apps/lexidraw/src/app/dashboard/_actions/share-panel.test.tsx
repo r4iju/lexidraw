@@ -20,7 +20,7 @@ function props(overrides: Partial<Props> = {}): Props {
     open: true,
     onOpenChange: () => {},
     entity: { title: "Launch plan", entityType: "document" },
-    you: { name: "Ada", email: "ada@example.test", role: "owner" },
+    you: { name: "Ada", email: "ada@example.test" },
     people: [
       {
         userId: "u-bob",

@@ -1,10 +1,8 @@
 "use client";
 
-import { EllipsisIcon, Folder } from "lucide-react";
+import { Folder } from "lucide-react";
 import Link from "next/link";
-import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
-import { cn } from "~/lib/utils";
 import { MoreActions } from "./_actions/more-actions";
 import { TagTooltip } from "./entity-card-tag-tooltip";
 import {
@@ -18,7 +16,6 @@ export function FolderCard({
   entity,
   sortBy = "updatedAt",
   sortOrder = "desc",
-  isOverlay = false,
 }: EntityCardBaseProps) {
   const href = getItemUrl({
     id: entity.id,
@@ -29,10 +26,7 @@ export function FolderCard({
   return (
     <Card
       id={`entity-${entity.id}`}
-      className={cn(
-        "flex h-15 items-center gap-0.5 pr-0.5 pl-2.5 sm:gap-1 sm:pr-1 sm:pl-3",
-        isOverlay && "cursor-grabbing shadow-lg",
-      )}
+      className="flex h-15 items-center gap-0.5 pr-0.5 pl-2.5 sm:gap-1 sm:pr-1 sm:pl-3"
     >
       <Link
         href={href}
@@ -59,18 +53,7 @@ export function FolderCard({
         {entity.tags.length > 0 && (
           <TagTooltip entity={entity} className="hidden lg:flex" />
         )}
-        {isOverlay ? (
-          <Button
-            size="icon"
-            variant="ghost"
-            disabled
-            aria-label={`More actions for ${entity.title}`}
-          >
-            <EllipsisIcon className="size-5" />
-          </Button>
-        ) : (
-          <MoreActions entity={entity} currentAccess={entity.publicAccess} />
-        )}
+        <MoreActions entity={entity} currentAccess={entity.publicAccess} />
       </div>
     </Card>
   );

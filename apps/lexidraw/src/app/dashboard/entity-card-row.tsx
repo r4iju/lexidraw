@@ -1,11 +1,8 @@
 "use client";
 
-import { EllipsisIcon } from "lucide-react";
 import Link from "next/link";
-import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { EntityTypeIcon, entityTypeLabel } from "~/lib/entity-types";
-import { cn } from "~/lib/utils";
 import { MoreActions } from "./_actions/more-actions";
 import { EntityTime } from "./entity-card-col";
 import { TagTooltip } from "./entity-card-tag-tooltip";
@@ -25,7 +22,6 @@ export function EntityCardRow({
   entity,
   sortBy = "updatedAt",
   sortOrder = "desc",
-  isOverlay = false,
   flex = "flex-row",
 }: Props) {
   const href = getItemUrl({
@@ -35,13 +31,7 @@ export function EntityCardRow({
   });
 
   return (
-    <Card
-      id={`entity-${entity.id}`}
-      className={cn(
-        "flex flex-col overflow-hidden",
-        isOverlay && "cursor-grabbing shadow-lg",
-      )}
-    >
+    <Card id={`entity-${entity.id}`} className="flex flex-col overflow-hidden">
       <Link href={href} draggable={false} tabIndex={-1} aria-hidden="true">
         <EntityThumbnail entity={entity} variant="card" />
       </Link>
@@ -87,18 +77,7 @@ export function EntityCardRow({
           {entity.tags.length > 0 && (
             <TagTooltip entity={entity} className="hidden lg:flex" />
           )}
-          {isOverlay ? (
-            <Button
-              size="icon"
-              variant="ghost"
-              disabled
-              aria-label={`More actions for ${entity.title}`}
-            >
-              <EllipsisIcon className="size-5" />
-            </Button>
-          ) : (
-            <MoreActions entity={entity} currentAccess={entity.publicAccess} />
-          )}
+          <MoreActions entity={entity} currentAccess={entity.publicAccess} />
         </div>
       </div>
     </Card>

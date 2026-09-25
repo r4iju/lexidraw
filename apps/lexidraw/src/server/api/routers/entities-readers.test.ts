@@ -93,27 +93,94 @@ beforeAll(async () => {
 const mentions = (value: unknown, id: string) =>
   JSON.stringify(value).includes(id);
 
-describe("who else has a file is for those who can edit it", () => {
-  test("its owner and its editors see everyone it is shared with", async () => {
-    for (const userId of [OWNER, EDITOR]) {
+describe("loading a file says whether it is shared, never with whom", () => {
+  test("to its owner, its editors and its readers alike", async () => {
+    for (const userId of [OWNER, EDITOR, READER]) {
       const loaded = await callerOf(userId).load({ id: "erd_doc" });
-      expect(loaded.sharedWith.map((s) => s.userId).toSorted()).toEqual([
-        EDITOR,
-        READER,
-      ]);
+      expect(loaded.shared).toBe(true);
+      expect("sharedWith" in loaded).toBe(false);
+      for (const sharee of [EDITOR, READER].filter((id) => id !== userId)) {
+        expect(mentions(loaded, sharee)).toBe(false);
+      }
     }
   });
 
-  test("a reader sees only their own share", async () => {
-    const loaded = await callerOf(READER).load({ id: "erd_doc" });
-    expect(loaded.sharedWith).toEqual([
-      { userId: READER, accessLevel: AccessLevel.READ },
+  test("and that a file shared with nobody is not", async () => {
+    const loaded = await callerOf(null).load({ id: "erd_public" });
+    expect(loaded.shared).toBe(false);
+  });
+});
+
+describe("who a file is shared with is for its owner to see", () => {
+  test("its owner sees everyone it is shared with, by name and email", async () => {
+    const shares = await callerOf(OWNER).getSharedInfo({ id: "erd_doc" });
+    expect(shares.map((s) => s.email).toSorted()).toEqual([
+      "erd-editor@example.test",
+      "erd-reader@example.test",
     ]);
   });
 
-  test("someone reading a public file sees no shares", async () => {
-    const loaded = await callerOf(null).load({ id: "erd_public" });
-    expect(loaded.sharedWith).toEqual([]);
+  test("someone it is shared with, to edit or to read, is told it isn't there", async () => {
+    for (const userId of [EDITOR, READER]) {
+      await expect(
+        callerOf(userId).getSharedInfo({ id: "erd_doc" }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+  });
+});
+
+describe("who has a file is for its owner to change", () => {
+  test("someone it is shared with to edit is told it isn't there", async () => {
+    const editor = callerOf(EDITOR);
+    await expect(
+      editor.share({
+        id: "erd_doc",
+        userEmail: "erd-owner@example.test",
+        accessLevel: AccessLevel.EDIT,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      editor.changeAccessLevel({
+        id: "erd_doc",
+        userId: READER,
+        accessLevel: AccessLevel.EDIT,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      editor.unShare({ id: "erd_doc", userId: READER }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const shares = await callerOf(OWNER).getSharedInfo({ id: "erd_doc" });
+    expect(shares.map((s) => [s.email, s.accessLevel]).toSorted()).toEqual([
+      ["erd-editor@example.test", AccessLevel.EDIT],
+      ["erd-reader@example.test", AccessLevel.READ],
+    ]);
+  });
+
+  test("while its owner shares it", async () => {
+    await expect(
+      callerOf(OWNER).share({
+        id: "erd_doc",
+        userEmail: "erd-reader@example.test",
+        accessLevel: AccessLevel.READ,
+      }),
+    ).resolves.toMatchObject({ success: true });
+  });
+});
+
+describe("a listing says whether each file is the caller's, not whose it is", () => {
+  test("to its owner, and to someone it is shared with", async () => {
+    const owned = await callerOf(OWNER).list({ parentId: PRIVATE });
+    expect(owned.length).toBeGreaterThan(0);
+    expect(owned.every((entry) => entry.isOwner)).toBe(true);
+
+    const shared = await callerOf(READER).list({ parentId: "erd_shared" });
+    expect(shared.map((entry) => [entry.id, entry.isOwner])).toEqual([
+      ["erd_doc", false],
+    ]);
+    for (const listed of [owned, shared]) {
+      expect(mentions(listed, OWNER)).toBe(false);
+    }
   });
 });
 

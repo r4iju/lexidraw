@@ -36,7 +36,7 @@ afterEach(async () => {
 
 async function show(node: ReactNode) {
   ({ unmount } = await render(
-    <UnsavedChangesProvider>
+    <UnsavedChangesProvider saveBeforeLeaving={async () => true}>
       <DocumentSettingsProvider>
         <TooltipProvider>{node}</TooltipProvider>
       </DocumentSettingsProvider>

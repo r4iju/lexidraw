@@ -64,12 +64,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entity: { title: string; entityType: string };
-  /** The person looking at the dialog: the owner, or someone it's shared with. */
-  you: {
-    name: string | null;
-    email: string | null;
-    role: "owner" | AccessLevel;
-  };
+  /** The file's owner. */
+  you: { name: string | null; email: string | null };
   people: SharePerson[];
   publicAccess: PublicAccess;
   onPublicAccessChange: (access: PublicAccess) => void;
@@ -110,7 +106,6 @@ export function SharePanel({
   const emailRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [inviteLevel, setInviteLevel] = useState<AccessLevel>(AccessLevel.READ);
-  const isOwner = you.role === "owner";
   const general =
     GENERAL_ACCESS.find((option) => option.value === publicAccess) ??
     GENERAL_ACCESS[0];
@@ -206,10 +201,7 @@ export function SharePanel({
             <li data-share-person="you" className="flex items-center gap-3">
               <Avatar name={you.name} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  You ·{" "}
-                  {isOwner ? "Owner" : ROLE_LABEL[you.role as AccessLevel]}
-                </p>
+                <p className="truncate text-sm font-medium">You · Owner</p>
                 {you.email && (
                   <p className="truncate text-sm text-muted-foreground">
                     {you.email}
@@ -236,7 +228,7 @@ export function SharePanel({
                 </div>
                 <Select
                   value={person.accessLevel}
-                  disabled={!isOwner || person.pending}
+                  disabled={person.pending}
                   onValueChange={(value) =>
                     value === REMOVE
                       ? onRemove(person.userId)
@@ -279,7 +271,6 @@ export function SharePanel({
           </h3>
           <Select
             value={publicAccess}
-            disabled={!isOwner}
             onValueChange={(value) =>
               onPublicAccessChange(value as PublicAccess)
             }

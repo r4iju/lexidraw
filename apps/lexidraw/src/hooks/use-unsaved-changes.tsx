@@ -32,7 +32,10 @@ type Ctx = {
 };
 
 const UnsavedCtx = createContext<Ctx | null>(null);
-/** Whether the editor holds edits not saved yet, for what says so. */
+/**
+ * Whether the editor holds edits not saved yet, for what says so; null where
+ * nothing is saved, so there is nothing to say.
+ */
 const UnsavedStateCtx = createContext<boolean | null>(null);
 
 /** What the app bar says about the open entity's edits. */
@@ -49,14 +52,17 @@ type Question = {
  * made elsewhere still waiting for an answer; see `lib/leave-guard.ts` for
  * the ways out it covers. Edits count as unsaved when the editor marked them
  * dirty or when the open entity holds edits the server does not store.
- * `saveBeforeLeaving` answers whether the save landed.
+ *
+ * `saveBeforeLeaving` is how this viewer's edits are saved on the way out,
+ * answering whether the save landed; null when this viewer cannot save at all
+ * (a reader, signed in or not), who is then told nothing about saving.
  */
 export function UnsavedChangesProvider({
   children,
   saveBeforeLeaving,
 }: {
   children: ReactNode;
-  saveBeforeLeaving?: () => Promise<boolean>;
+  saveBeforeLeaving: (() => Promise<boolean>) | null;
 }) {
   const dirty = useRef(false);
   const [unsaved, setUnsaved] = useState(false);
@@ -117,7 +123,7 @@ export function UnsavedChangesProvider({
 
   return (
     <UnsavedCtx.Provider value={value}>
-      <UnsavedStateCtx.Provider value={unsaved}>
+      <UnsavedStateCtx.Provider value={saveBeforeLeaving ? unsaved : null}>
         <Dialog
           open={question !== null}
           onOpenChange={(isOpen) => {
@@ -170,7 +176,7 @@ export function useUnsavedChanges() {
 /**
  * "saving" while a save of the open entity is under way, "unsaved" while it
  * holds edits no save has taken yet, "saved" otherwise; null outside an
- * editor, where there is nothing to say.
+ * editor, or for a viewer who cannot save, where there is nothing to say.
  */
 export function useSaveStatus(): SaveStatus | null {
   const unsaved = useContext(UnsavedStateCtx);

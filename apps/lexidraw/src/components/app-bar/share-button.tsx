@@ -1,15 +1,11 @@
 "use client";
 
 import { Share2Icon } from "lucide-react";
-import ShareEntity from "~/app/dashboard/_actions/share-entity";
+import ShareEntity, {
+  type Shareable,
+} from "~/app/dashboard/_actions/share-entity";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import type { RouterOutputs } from "~/trpc/shared";
-
-export type Shareable = Pick<
-  RouterOutputs["entities"]["list"][number],
-  "id" | "title" | "entityType" | "publicAccess" | "parentId" | "userId"
->;
 
 /** Opens the share dialog the dashboard uses, from the app bar. */
 export function ShareDialog({
@@ -23,12 +19,7 @@ export function ShareDialog({
 }) {
   if (!open) return null;
   return (
-    <ShareEntity
-      // It reads only what a listing row and an open entity have in common.
-      entity={entity as RouterOutputs["entities"]["list"][number]}
-      isOpen={open}
-      onOpenChange={onOpenChange}
-    />
+    <ShareEntity entity={entity} isOpen={open} onOpenChange={onOpenChange} />
   );
 }
 

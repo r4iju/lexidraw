@@ -106,7 +106,7 @@ export default async function PrintDocumentPage(props: Props) {
     appState: row.appState,
     elements: row.elements,
     publicAccess: row.publicAccess as PublicAccess,
-    sharedWith: [] as { userId: string; accessLevel: AccessLevel }[],
+    shared: false,
     accessLevel: AccessLevel.READ,
     updatedAt: row.updatedAt,
   };

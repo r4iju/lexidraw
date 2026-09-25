@@ -99,7 +99,7 @@ export async function Dashboard({
   );
 
   return (
-    <DraggingContext sortBy={sortBy} sortOrder={sortOrder} flex={flex}>
+    <DraggingContext sortBy={sortBy} sortOrder={sortOrder}>
       <PersistDashboardPrefsCookie />
       <CanonicalizeDashboardURL
         canonical={{ sortBy, sortOrder, flex, tags, view }}

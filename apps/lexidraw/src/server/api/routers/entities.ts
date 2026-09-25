@@ -39,7 +39,7 @@ import {
 } from "~/server/documents/document-store";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
-  canShare,
+  canEdit,
   entityAncestors,
   findOwnedEntity,
   findReadableEntity,
@@ -73,9 +73,8 @@ const loadOutput = z.object({
   appState: z.string().nullable(),
   elements: z.string(),
   publicAccess: z.enum(PublicAccess),
-  sharedWith: z.array(
-    z.object({ userId: z.string(), accessLevel: z.string() }),
-  ),
+  // Whether it is shared with anyone.
+  shared: z.boolean(),
   accessLevel: z.enum(AccessLevel),
   // The revision the content is, so an open editor can tell when it moved.
   updatedAt: isoDate,
@@ -93,7 +92,9 @@ const entityListItem = z.object({
   thumbnailStatus: z.enum(["pending", "ready", "error"]).nullable(),
   thumbnailVersion: z.string().nullable(),
   thumbnailUpdatedAt: isoDate.nullable(),
-  userId: z.string(),
+  // Whether it is the caller's, rather than whose it is: someone it was
+  // shared with has no use for the owner's id.
+  isOwner: z.boolean(),
   publicAccess: z.enum(PublicAccess),
   parentId: z.string().nullable(),
   favoritedAt: isoDate.nullable(),
@@ -462,26 +463,17 @@ export const entityRouter = createTRPCRouter({
       const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
       if (!entity) throw notFound();
 
-      // Everyone it is shared with for whoever may share it, as the share
-      // dialog lists them; anyone else, only their own share.
-      const sharedWith = await ctx.drizzle
-        .select({
-          userId: schema.sharedEntities.userId,
-          accessLevel: schema.sharedEntities.accessLevel,
-        })
+      // Whether anyone else has it, so the editor knows to connect for
+      // collaboration.
+      const [anyShare] = await ctx.drizzle
+        .select({ userId: schema.sharedEntities.userId })
         .from(schema.sharedEntities)
-        .where(
-          and(
-            eq(schema.sharedEntities.entityId, input.id),
-            canShare(entity, userId)
-              ? undefined
-              : eq(schema.sharedEntities.userId, userId),
-          ),
-        );
+        .where(eq(schema.sharedEntities.entityId, input.id))
+        .limit(1);
 
-      const hasEditAccess =
-        canShare(entity, userId) || entity.publicAccess === PublicAccess.EDIT;
-      const accessLevel = hasEditAccess ? AccessLevel.EDIT : AccessLevel.READ;
+      const accessLevel = canEdit(entity, userId)
+        ? AccessLevel.EDIT
+        : AccessLevel.READ;
 
       return {
         id: entity.id,
@@ -490,7 +482,7 @@ export const entityRouter = createTRPCRouter({
         appState: entity.appState,
         elements: entity.elements,
         publicAccess: entity.publicAccess,
-        sharedWith,
+        shared: anyShare !== undefined,
         accessLevel,
         updatedAt: entity.updatedAt,
       };
@@ -639,7 +631,7 @@ export const entityRouter = createTRPCRouter({
           thumbnailStatus: schema.entities.thumbnailStatus,
           thumbnailVersion: schema.entities.thumbnailVersion,
           thumbnailUpdatedAt: schema.entities.thumbnailUpdatedAt,
-          userId: schema.entities.userId,
+          ownerId: schema.entities.userId,
           publicAccess: schema.entities.publicAccess,
           parentId: schema.entities.parentId,
           favoritedAt: schema.userEntityPrefs.favoritedAt,
@@ -709,10 +701,13 @@ export const entityRouter = createTRPCRouter({
       return sortArrOfObjects<
         (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
-      >(entities, input.sortOrder, input.sortBy).map((entity) => ({
-        ...entity,
-        tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
-      }));
+      >(entities, input.sortOrder, input.sortBy).map(
+        ({ ownerId, ...entity }) => ({
+          ...entity,
+          isOwner: ownerId === ctx.session.user.id,
+          tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
+        }),
+      );
     }),
   updateUserPrefs: protectedProcedure
     .input(
@@ -923,7 +918,7 @@ export const entityRouter = createTRPCRouter({
         method: "GET",
         path: "/entities/{id}/shares",
         tags: ["entities"],
-        summary: "List the users an entity is shared with",
+        summary: "List the users an entity is shared with; only its owner may",
         protect: true,
       },
     })
@@ -940,15 +935,12 @@ export const entityRouter = createTRPCRouter({
       ),
     )
     .query(async ({ ctx, input }) => {
-      const userId = ctx.session.user.id;
-      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
-      // The rows carry emails and names, so a public link is not enough.
-      if (
-        !entity ||
-        (entity.ownerId !== userId && entity.sharedWithId !== userId)
-      ) {
-        throw notFound();
-      }
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
 
       const sharedDrawings = await ctx.drizzle
         .select({
@@ -1113,9 +1105,12 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
-      if (!entity || !canShare(entity, userId)) throw notFound();
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
 
       const userToShareWith = await ctx.drizzle.query.users.findFirst({
         where: (user, { eq }) => eq(user.email, input.userEmail),

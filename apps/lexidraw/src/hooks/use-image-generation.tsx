@@ -8,14 +8,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { put } from "@vercel/blob/client";
-
-type AllowedContentType =
-  | "image/svg+xml"
-  | "image/jpeg"
-  | "image/png"
-  | "image/webp"
-  | "image/avif";
+import { useImageUpload } from "~/hooks/use-media-upload";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1) Simple provider + hook
@@ -48,8 +41,7 @@ export const ImageGenerationProvider = ({
   signedIn: boolean;
   children: ReactNode;
 }) => {
-  const { mutateAsync: generateUploadUrlAsync } =
-    api.entities.generateUploadUrl.useMutation();
+  const uploadImage = useImageUpload(entityId);
   const { data: genStatus } = api.image.getAiGenerationStatus.useQuery(
     undefined,
     { enabled: signedIn },
@@ -61,18 +53,6 @@ export const ImageGenerationProvider = ({
 
   const sanitizeFilename = useCallback(
     (name: string) => name.replace(/[^a-z0-9_\-.]/gi, "_").substring(0, 50),
-    [],
-  );
-
-  const isAllowedContentType = useCallback(
-    (mimeType: string): mimeType is AllowedContentType =>
-      [
-        "image/svg+xml",
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/avif",
-      ].includes(mimeType),
     [],
   );
 
@@ -117,39 +97,14 @@ export const ImageGenerationProvider = ({
   const uploadImageData = useCallback(
     async (imageData: Uint8Array, mimeType: string, prompt: string) => {
       const fileName = `${sanitizeFilename(prompt)}_${uuidv4()}.png`;
-      if (!isAllowedContentType(mimeType)) {
-        toast.error(`Unsupported image type: ${mimeType}`);
-        return null;
-      }
-      try {
-        toast.info("Uploading Image…", { description: fileName });
-        const { token, pathname } = await generateUploadUrlAsync({
-          entityId,
-          contentType: mimeType,
-          mode: "direct",
-        });
-        const bytes = new Uint8Array(imageData);
-        const { url } = await put(
-          pathname,
-          new File([bytes], fileName, { type: mimeType }),
-          {
-            access: "public",
-            multipart: true,
-            contentType: mimeType,
-            token,
-          },
-        );
-        toast.success("Upload Successful", { description: fileName });
-        return url;
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unknown upload error.";
-        toast.error("Image Upload Failed", { description: message });
-        console.error(err);
-        return null;
-      }
+      toast.info("Uploading Image…", { description: fileName });
+      const url = await uploadImage(
+        new File([new Uint8Array(imageData)], fileName, { type: mimeType }),
+      );
+      if (url) toast.success("Upload Successful", { description: fileName });
+      return url;
     },
-    [entityId, generateUploadUrlAsync, isAllowedContentType, sanitizeFilename],
+    [uploadImage, sanitizeFilename],
   );
 
   return (

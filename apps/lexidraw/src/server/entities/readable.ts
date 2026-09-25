@@ -37,15 +37,17 @@ const entityColumns = {
 type CallersAccess = {
   ownerId: string | null;
   sharedAccessLevel: string | null;
+  publicAccess: string;
 };
 
 /**
- * Whether `userId` may hand out access to an entity they reached, and so see
- * who else has it: its owner, or someone it was shared with for editing. An
- * entity anyone may edit is not enough; that is a link, not an invitation.
+ * Whether `userId` may edit an entity they reached: its owner, someone it was
+ * shared with for editing, or anyone, when anyone may.
  */
-export const canShare = (entity: CallersAccess, userId: string) =>
-  entity.ownerId === userId || entity.sharedAccessLevel === AccessLevel.EDIT;
+export const canEdit = (entity: CallersAccess, userId: string) =>
+  entity.ownerId === userId ||
+  entity.sharedAccessLevel === AccessLevel.EDIT ||
+  entity.publicAccess === PublicAccess.EDIT;
 
 /**
  * The share row joined in, narrowed to `userId` first, so `sharedAccessLevel`
@@ -214,8 +216,9 @@ export async function resolveMoveDestination(
 }
 
 /**
- * The entity when `userId` owns it. Sharing and deleting are the owner's to
- * decide, so an editor gets the same answer as a stranger.
+ * The entity when `userId` owns it. Sharing, seeing who it is shared with,
+ * and deleting are the owner's to decide, so an editor gets the same answer
+ * as a stranger.
  */
 export async function findOwnedEntity(db: Db, id: string, userId: string) {
   return findEntity(db, id, userId, eq(schema.entities.userId, userId));
