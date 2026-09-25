@@ -40,28 +40,33 @@ const buttonVariants = cva(
 // with ref
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   VariantProps<typeof buttonVariants> & {
-    asChild?: boolean;
     ref?: React.Ref<HTMLButtonElement>;
-    /**
-     * Working: a spinner shows over the label, which keeps the button's size
-     * and its name. A button that can be pending says so from the start,
-     * even as false, so its content is laid out the same either way.
-     */
-    pending?: boolean;
-  };
+  } & (
+    | { asChild: true; pending?: never }
+    | {
+        asChild?: false;
+        /**
+         * Working: a spinner shows over the label, which keeps the button's
+         * size and its name. A button that can be pending says so from the
+         * start, even as false, so its content is laid out the same either
+         * way.
+         */
+        pending?: boolean;
+      }
+  );
 
 const Button = ({
   className,
   variant,
   size,
-  asChild = false,
+  asChild,
   ref,
   pending,
   children,
   ...props
 }: ButtonProps) => {
-  const Comp = asChild ? Slot : "button";
-  if (pending === undefined || asChild)
+  if (asChild || pending === undefined) {
+    const Comp = asChild ? Slot : "button";
     return (
       <Comp
         ref={ref}
@@ -72,8 +77,9 @@ const Button = ({
         {children}
       </Comp>
     );
+  }
   return (
-    <Comp
+    <button
       ref={ref}
       data-variant={variant ?? "default"}
       aria-busy={pending || undefined}
@@ -94,7 +100,7 @@ const Button = ({
           className="absolute inset-0 m-auto size-4 animate-spin"
         />
       )}
-    </Comp>
+    </button>
   );
 };
 
